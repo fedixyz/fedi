@@ -62,6 +62,8 @@ pub enum ErrorCode {
     OfflineExactEcashFailed,
     #[error("Community marked as deleted by creator, cannot preview to join")]
     CommunityDeleted,
+    #[error("Pinned message limit exceeded")]
+    PinnedMessageLimitExceeded,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, Clone)]

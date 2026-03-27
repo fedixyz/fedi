@@ -100,7 +100,8 @@ export type ErrorCode =
   | "recurringdMetaNotFound"
   | "unknownFederation"
   | "offlineExactEcashFailed"
-  | "communityDeleted";
+  | "communityDeleted"
+  | "pinnedMessageLimitExceeded";
 
 export type Event =
   | { transaction: TransactionEvent }
@@ -923,6 +924,12 @@ export type RpcMethods = {
   matrixRoomMarkAsUnread: [matrixRoomMarkAsUnread, null];
   matrixEditMessage: [matrixEditMessage, null];
   matrixDeleteMessage: [matrixDeleteMessage, null];
+  matrixRoomPinMessage: [matrixRoomPinMessage, null];
+  matrixRoomUnpinMessage: [matrixRoomUnpinMessage, null];
+  matrixSubscribeRoomPinnedTimelineItems: [
+    matrixSubscribeRoomPinnedTimelineItems,
+    null,
+  ];
   matrixSendReply: [matrixSendReply, null];
   matrixDownloadFile: [matrixDownloadFile, string];
   matrixStartPoll: [matrixStartPoll, null];
@@ -2030,6 +2037,8 @@ export type matrixRoomLeave = { roomId: RpcRoomId };
 
 export type matrixRoomMarkAsUnread = { roomId: RpcRoomId; unread: boolean };
 
+export type matrixRoomPinMessage = { roomId: RpcRoomId; eventId: RpcEventId };
+
 export type matrixRoomPreviewContent = { roomId: RpcRoomId };
 
 export type matrixRoomSendReceipt = { roomId: RpcRoomId; eventId: string };
@@ -2068,6 +2077,8 @@ export type matrixRoomUnbanUser = {
   userId: RpcUserId;
   reason: string | null;
 };
+
+export type matrixRoomUnpinMessage = { roomId: RpcRoomId; eventId: RpcEventId };
 
 export type matrixSaveComposerDraft = {
   roomId: RpcRoomId;
@@ -2158,6 +2169,11 @@ export type matrixSubscribeMultispendGroup = {
 
 export type matrixSubscribeRoomList = {
   streamId: RpcVecDiffStreamId<RpcRoomId>;
+};
+
+export type matrixSubscribeRoomPinnedTimelineItems = {
+  streamId: RpcVecDiffStreamId<RpcTimelineItem>;
+  roomId: RpcRoomId;
 };
 
 export type matrixSubscribeRoomTimelineItems = {

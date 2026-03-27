@@ -809,6 +809,24 @@ export class FedimintBridge {
         return this.rpcTyped('matrixDeleteMessage', { roomId, eventId, reason })
     }
 
+    async matrixRoomPinMessage(
+        args: bindings.RpcPayload<'matrixRoomPinMessage'>,
+    ) {
+        return this.rpcTyped('matrixRoomPinMessage', args)
+    }
+
+    async matrixRoomUnpinMessage(
+        args: bindings.RpcPayload<'matrixRoomUnpinMessage'>,
+    ) {
+        return this.rpcTyped('matrixRoomUnpinMessage', args)
+    }
+
+    matrixSubscribeRoomPinnedTimelineItems(
+        args: StreamRpcArgs<'matrixSubscribeRoomPinnedTimelineItems'>,
+    ): UnsubscribeFn {
+        return this.rpcStream('matrixSubscribeRoomPinnedTimelineItems', args)
+    }
+
     async matrixDownloadFile(path: string, mediaSource: RpcMediaSource) {
         return this.rpcTyped('matrixDownloadFile', { path, mediaSource })
     }

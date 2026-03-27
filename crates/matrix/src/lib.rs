@@ -49,7 +49,9 @@ use matrix_sdk::ruma::{EventId, OwnedMxcUri, OwnedRoomId, RoomId, UInt, UserId, 
 use matrix_sdk::{Client, RoomMemberships, SessionChange};
 use matrix_sdk_ui::eyeball_im::VectorDiff;
 use matrix_sdk_ui::sync_service::{self, SyncService};
-use matrix_sdk_ui::timeline::{RoomExt, TimelineEventItemId, default_event_filter};
+use matrix_sdk_ui::timeline::{
+    RoomExt, TimelineBuilder, TimelineEventItemId, TimelineFocus, default_event_filter,
+};
 use matrix_sdk_ui::{Timeline, room_list_service};
 use mime::Mime;
 use rpc_types::RpcMediaUploadParams;
@@ -71,6 +73,7 @@ pub struct Matrix {
     pub runtime: Arc<Runtime>,
     notification_settings: NotificationSettings,
     pub timelines: Mutex<HashMap<OwnedRoomId, Weak<Timeline>>>,
+    pub pinned_timelines: Mutex<HashMap<OwnedRoomId, Weak<Timeline>>>,
     /// Mutex to prevent concurrent DM room creation for the same user
     create_dm_lock: Mutex<()>,
 }
@@ -164,6 +167,7 @@ impl Matrix {
             sync_service,
             runtime: runtime.clone(),
             timelines: Default::default(),
+            pinned_timelines: Default::default(),
             create_dm_lock: Default::default(),
         });
 
@@ -450,10 +454,17 @@ impl Matrix {
         self.sync_service.room_list_service().room(room_id)
     }
 
-    /// See [`matrix_sdk_ui::Timeline`].
-    pub async fn build_timeline(room: &Room) -> anyhow::Result<matrix_sdk_ui::Timeline> {
-        Ok(room
-            .timeline_builder()
+    async fn ensure_pinned_room_subscription(&self, room_id: &RoomId) {
+        // Pinned events are only included in the SDK's extra room-subscription
+        // required state, so the pinned timeline must subscribe the room itself.
+        self.sync_service
+            .room_list_service()
+            .subscribe_to_rooms(&[room_id])
+            .await;
+    }
+
+    fn timeline_builder(room: &Room) -> TimelineBuilder {
+        room.timeline_builder()
             .event_filter(|event, version| match event {
                 AnySyncTimelineEvent::MessageLike(
                     matrix_sdk::ruma::events::AnySyncMessageLikeEvent::RoomMessage(msg),
@@ -465,8 +476,6 @@ impl Matrix {
                 }
                 _ => default_event_filter(event, version),
             })
-            .build()
-            .await?)
     }
 
     pub async fn timeline(&self, room_id: &RoomId) -> anyhow::Result<Arc<Timeline>> {
@@ -477,13 +486,51 @@ impl Matrix {
                 if let Some(timeline) = o.get().upgrade() {
                     Ok(timeline)
                 } else {
-                    let timeline = Arc::new(Self::build_timeline(&room).await?);
+                    let timeline = Arc::new(Self::timeline_builder(&room).build().await?);
                     o.insert(Arc::downgrade(&timeline));
                     Ok(timeline)
                 }
             }
             hash_map::Entry::Vacant(v) => {
-                let timeline = Arc::new(Self::build_timeline(&room).await?);
+                let timeline = Arc::new(Self::timeline_builder(&room).build().await?);
+                v.insert(Arc::downgrade(&timeline));
+                Ok(timeline)
+            }
+        }
+    }
+
+    pub async fn pinned_timeline(&self, room_id: &RoomId) -> anyhow::Result<Arc<Timeline>> {
+        self.ensure_pinned_room_subscription(room_id).await;
+        let room = self.room(room_id).await?;
+        let mut timelines = self.pinned_timelines.lock().await;
+        match timelines.entry(room_id.to_owned()) {
+            hash_map::Entry::Occupied(mut o) => {
+                if let Some(timeline) = o.get().upgrade() {
+                    Ok(timeline)
+                } else {
+                    if room.pinned_event_ids().is_none() {
+                        let _ = room.load_pinned_events().await?;
+                    }
+                    let timeline = Arc::new(
+                        Self::timeline_builder(&room)
+                            .with_focus(TimelineFocus::PinnedEvents)
+                            .build()
+                            .await?,
+                    );
+                    o.insert(Arc::downgrade(&timeline));
+                    Ok(timeline)
+                }
+            }
+            hash_map::Entry::Vacant(v) => {
+                if room.pinned_event_ids().is_none() {
+                    let _ = room.load_pinned_events().await?;
+                }
+                let timeline = Arc::new(
+                    Self::timeline_builder(&room)
+                        .with_focus(TimelineFocus::PinnedEvents)
+                        .build()
+                        .await?,
+                );
                 v.insert(Arc::downgrade(&timeline));
                 Ok(timeline)
             }
@@ -495,20 +542,15 @@ impl Matrix {
         room_id: &RoomId,
     ) -> Result<impl Stream<Item = Vec<VectorDiff<RpcTimelineItem>>> + use<>> {
         let timeline = self.timeline(room_id).await?;
-        let (initial, stream) = timeline.subscribe().await;
-        let stream = stream! {
-            // First emit the initial vector
-            yield vec![VectorDiff::Reset { values:
-                initial.into_iter().map(RpcTimelineItem::from).collect()
-            }];
+        Ok(subscribe_timeline_items(timeline).await)
+    }
 
-            // Then emit updates as diffs
-            let mut stream = pin!(stream);
-            while let Some(diffs) = stream.next().await {
-                yield diffs.into_iter().map(|diff| diff.map(RpcTimelineItem::from)).collect();
-            }
-        };
-        Ok(hold_my_timeline(timeline, stream))
+    pub async fn room_pinned_timeline_items(
+        &self,
+        room_id: &RoomId,
+    ) -> Result<impl Stream<Item = Vec<VectorDiff<RpcTimelineItem>>> + use<>> {
+        let timeline = self.pinned_timeline(room_id).await?;
+        Ok(subscribe_timeline_items(timeline).await)
     }
 
     pub async fn room_timeline_items_paginate_backwards(
@@ -959,6 +1001,50 @@ impl Matrix {
         Ok(())
     }
 
+    pub async fn room_update_pinned_event(
+        &self,
+        room_id: &RoomId,
+        event_id: &EventId,
+        pin: bool,
+    ) -> Result<()> {
+        let room = self.room(room_id).await?;
+        let mut pinned_event_ids_stream = pin!(room.pinned_event_ids_stream());
+        self.ensure_pinned_room_subscription(room_id).await;
+
+        let pinned_event_ids = room.pinned_event_ids().unwrap_or_default();
+        let event_id = event_id.to_owned();
+
+        if pin {
+            if pinned_event_ids.contains(&event_id) {
+                return Ok(());
+            }
+            // TOCTOU: another client could pin between check and send; server is
+            // source of truth, this is just an optimistic client-side guard.
+            if pinned_event_ids.len() >= 7 {
+                bail!(ErrorCode::PinnedMessageLimitExceeded);
+            }
+            room.pin_event(&event_id).await?;
+        } else {
+            if !pinned_event_ids.contains(&event_id) {
+                return Ok(());
+            }
+            room.unpin_event(&event_id).await?;
+        }
+
+        fedimint_core::task::timeout(Duration::from_secs(20), async {
+            while let Some(pinned_event_ids) = pinned_event_ids_stream.next().await {
+                if pinned_event_ids.contains(&event_id) == pin {
+                    return Ok(());
+                }
+            }
+
+            bail!("pinned event ids stream ended before expected state was observed");
+        })
+        .await
+        .context(ErrorCode::Timeout)??;
+        Ok(())
+    }
+
     pub async fn download_file(&self, source: MediaSource) -> Result<Vec<u8>> {
         let request = MediaRequestParameters {
             source,
@@ -1082,4 +1168,22 @@ fn hold_my_timeline<T>(
         let _capture = &timeline;
         x
     })
+}
+
+/// Subscribe to a timeline's items as a stream of [`VectorDiff`]s, emitting
+/// the initial state as a [`VectorDiff::Reset`] followed by incremental diffs.
+async fn subscribe_timeline_items(
+    timeline: Arc<Timeline>,
+) -> impl Stream<Item = Vec<VectorDiff<RpcTimelineItem>>> {
+    let (initial, stream) = timeline.subscribe().await;
+    let stream = stream! {
+        yield vec![VectorDiff::Reset { values:
+            initial.into_iter().map(RpcTimelineItem::from).collect()
+        }];
+        let mut stream = pin!(stream);
+        while let Some(diffs) = stream.next().await {
+            yield diffs.into_iter().map(|diff| diff.map(RpcTimelineItem::from)).collect();
+        }
+    };
+    hold_my_timeline(timeline, stream)
 }

@@ -176,6 +176,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         matrix::test_matrix_recovery,
         matrix::test_matrix_create_room,
         matrix::test_send_and_download_attachment,
+        matrix::test_matrix_pinned_messages,
         multispend_tests::test_multispend_minimal,
         multispend_tests::test_multispend_group_acceptance,
         multispend_tests::test_multispend_group_rejection,

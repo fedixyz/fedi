@@ -1910,6 +1910,55 @@ async fn matrixDeleteMessage(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn matrixRoomPinMessage(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+    event_id: RpcEventId,
+) -> anyhow::Result<()> {
+    let matrix = bg_matrix.wait().await;
+    matrix
+        .room_update_pinned_event(
+            &room_id.into_typed()?,
+            &OwnedEventId::try_from(&*event_id.0)?,
+            true,
+        )
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixRoomUnpinMessage(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+    event_id: RpcEventId,
+) -> anyhow::Result<()> {
+    let matrix = bg_matrix.wait().await;
+    matrix
+        .room_update_pinned_event(
+            &room_id.into_typed()?,
+            &OwnedEventId::try_from(&*event_id.0)?,
+            false,
+        )
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixSubscribeRoomPinnedTimelineItems(
+    bg_matrix: &BgMatrix,
+    stream_id: RpcVecDiffStreamId<RpcTimelineItem>,
+    room_id: RpcRoomId,
+) -> anyhow::Result<()> {
+    let matrix = bg_matrix.wait().await;
+    let stream = matrix
+        .room_pinned_timeline_items(&room_id.into_typed()?)
+        .await?;
+    matrix
+        .runtime
+        .stream_pool
+        .register_stream(stream_id.0, stream)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn matrixSaveComposerDraft(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
@@ -2562,6 +2611,9 @@ rpc_methods!(RpcMethods {
     matrixRoomMarkAsUnread,
     matrixEditMessage,
     matrixDeleteMessage,
+    matrixRoomPinMessage,
+    matrixRoomUnpinMessage,
+    matrixSubscribeRoomPinnedTimelineItems,
     matrixSendReply,
     matrixDownloadFile,
     matrixStartPoll,

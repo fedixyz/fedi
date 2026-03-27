@@ -1,3 +1,4 @@
+use std::collections::{BTreeSet, HashMap};
 use std::pin::pin;
 
 use ::matrix::{RpcMsgLikeKind, SendMessageData};
@@ -11,7 +12,9 @@ use matrix_sdk::ruma::events::room::message::MessageType;
 use matrix_sdk::timeout::timeout;
 use rand::rngs::SmallRng;
 use rand::{RngCore as _, SeedableRng as _};
-use rpc_types::RpcMediaUploadParams;
+use rpc_types::error::ErrorCode;
+use rpc_types::matrix::RpcRoomId;
+use rpc_types::{RpcEventId, RpcMediaUploadParams};
 use tracing::warn;
 
 use super::*;
@@ -40,11 +43,24 @@ async fn apply_diffs_continuously<T: Clone>(
         apply_diffs(timeline, diffs);
     }
 }
+async fn apply_diffs_until<T: Clone>(
+    timeline: &mut Vector<T>,
+    items: &mut (impl Stream<Item = Vec<VectorDiff<T>>> + Unpin),
+    condition: impl Fn(&Vector<T>) -> bool,
+) {
+    while let Some(diffs) = items.next().await {
+        apply_diffs(timeline, diffs);
+        if condition(timeline) {
+            return;
+        }
+    }
+}
 
 fn extract_text_from_item(item: &RpcTimelineItem) -> Option<String> {
     match item {
         RpcTimelineItem::Event(event) => match &event.content {
             RpcMsgLikeKind::Text(txt_like) => Some(txt_like.body.to_string()),
+            RpcMsgLikeKind::Payment(payment) => Some(payment.body.to_string()),
             RpcMsgLikeKind::Unknown => None,
             RpcMsgLikeKind::UnableToDecrypt => Some("<unable-to-decrypt>".to_string()),
             other => unimplemented!("implement {other:?}"),
@@ -311,6 +327,183 @@ pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Resu
         data_hash,
         "Downloaded data does not match original data"
     );
+
+    Ok(())
+}
+
+pub async fn test_matrix_pinned_messages(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
+    let bridge1 = td1.bridge_full().await?;
+    let m1 = td1.matrix().await?;
+    let m2 = td2.matrix().await?;
+    let user2 = m2.client.user_id().unwrap();
+    let room_id = m1.create_or_get_dm(user2).await?;
+    let rpc_room_id = || RpcRoomId(room_id.to_string());
+
+    m2.wait_for_room_id(&room_id).await?;
+    m2.room_join(&room_id).await?;
+
+    // Send 8 messages from user1 (msg1 is a xyz.fedi.payment, rest are plain text)
+    let payment_msg: SendMessageData = serde_json::from_value(serde_json::json!({
+        "msgtype": "xyz.fedi.payment",
+        "body": "msg1",
+        "data": {
+            "status": "pushed",
+            "paymentId": "test-payment-id",
+            "amount": 1000
+        }
+    }))
+    .unwrap();
+    m1.send_message(&room_id, payment_msg).await?;
+    for i in 2..=8 {
+        m1.send_message(&room_id, SendMessageData::text(format!("msg{i}")))
+            .await?;
+    }
+
+    // Wait for messages to sync to user2 by polling timeline
+    let sdk_timeline = m2.timeline(&room_id).await?;
+    let (initial, mut msg_stream) = sdk_timeline.subscribe().await;
+    let mut items_vec = initial;
+    apply_diffs_until(&mut items_vec, &mut msg_stream, |items| {
+        let message_bodies = items
+            .iter()
+            .filter_map(|item| {
+                item.as_event()?
+                    .content()
+                    .as_message()
+                    .map(|message| message.body().to_owned())
+            })
+            .collect::<BTreeSet<_>>();
+        (1..=8).all(|i| message_bodies.contains(&format!("msg{i}")))
+    })
+    .await;
+    let message_event_ids: HashMap<_, _> = items_vec
+        .iter()
+        .filter_map(|item| {
+            let event = item.as_event()?;
+            let body = event.content().as_message()?.body().to_owned();
+            let event_id = event.event_id()?.to_owned();
+            Some((body, event_id))
+        })
+        .collect();
+    let msg_ids: Vec<_> = (1..=8)
+        .map(|i| {
+            let body = format!("msg{i}");
+            message_event_ids
+                .get(&body)
+                .cloned()
+                .with_context(|| format!("expected event id for message body {body}"))
+        })
+        .collect::<anyhow::Result<_>>()?;
+
+    // Regression test: pinned timeline subscription must work without first
+    // opening the room's regular timeline.
+    let mut stream = pin!(m1.room_pinned_timeline_items(&room_id).await?);
+    let mut pinned = imbl::Vector::new();
+
+    // Pin message 1 → should succeed (via RPC)
+    matrixRoomPinMessage(
+        &bridge1.matrix,
+        rpc_room_id(),
+        RpcEventId(msg_ids[0].to_string()),
+    )
+    .await?;
+
+    // Wait for msg1 to appear in the pinned timeline
+    apply_diffs_until(&mut pinned, &mut stream, |items| {
+        timeline_as_text(items)
+            .iter()
+            .flatten()
+            .any(|t| t == "msg1")
+    })
+    .await;
+    let texts: Vec<String> = timeline_as_text(&pinned).into_iter().flatten().collect();
+    assert!(
+        texts.contains(&"msg1".to_string()),
+        "Expected msg1 in pinned timeline, got: {texts:?}"
+    );
+
+    // Pin message 2 (via RPC)
+    matrixRoomPinMessage(
+        &bridge1.matrix,
+        rpc_room_id(),
+        RpcEventId(msg_ids[1].to_string()),
+    )
+    .await?;
+
+    // Wait for msg2 to appear
+    apply_diffs_until(&mut pinned, &mut stream, |items| {
+        timeline_as_text(items)
+            .iter()
+            .flatten()
+            .any(|t| t == "msg2")
+    })
+    .await;
+
+    // Unpin message 1 (via RPC)
+    matrixRoomUnpinMessage(
+        &bridge1.matrix,
+        rpc_room_id(),
+        RpcEventId(msg_ids[0].to_string()),
+    )
+    .await?;
+
+    // Wait for msg1 to disappear from pinned timeline
+    apply_diffs_until(&mut pinned, &mut stream, |items| {
+        !timeline_as_text(items)
+            .iter()
+            .flatten()
+            .any(|t| t == "msg1")
+    })
+    .await;
+
+    let texts: Vec<String> = timeline_as_text(&pinned).into_iter().flatten().collect();
+    assert!(
+        texts.contains(&"msg2".to_string()),
+        "Expected msg2 in pinned timeline, got: {texts:?}"
+    );
+    assert!(
+        !texts.contains(&"msg1".to_string()),
+        "msg1 should not be in pinned timeline after unpin, got: {texts:?}"
+    );
+
+    // Pin messages 3-8 via RPC (6 more pins, total 7 with msg2)
+    for (i, id) in msg_ids[2..8].iter().enumerate() {
+        matrixRoomPinMessage(&bridge1.matrix, rpc_room_id(), RpcEventId(id.to_string())).await?;
+        // Wait for pinned timeline to reflect the new pin
+        let expected_count = 1 + i + 1; // msg2 (1) + however many of msgs 3-8 we've pinned
+        apply_diffs_until(&mut pinned, &mut stream, |items| {
+            items
+                .iter()
+                .filter(|item| matches!(item, RpcTimelineItem::Event(_)))
+                .count()
+                >= expected_count
+        })
+        .await;
+    }
+
+    // Try to pin msg1 (8th pin) via RPC → PinnedMessageLimitExceeded
+    let err = matrixRoomPinMessage(
+        &bridge1.matrix,
+        rpc_room_id(),
+        RpcEventId(msg_ids[0].to_string()),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        err.downcast_ref::<ErrorCode>(),
+        Some(&ErrorCode::PinnedMessageLimitExceeded),
+        "Expected PinnedMessageLimitExceeded, got: {err:?}"
+    );
+
+    // Idempotent: re-pin already-pinned msg2 via RPC → should succeed
+    matrixRoomPinMessage(
+        &bridge1.matrix,
+        rpc_room_id(),
+        RpcEventId(msg_ids[1].to_string()),
+    )
+    .await?;
 
     Ok(())
 }
