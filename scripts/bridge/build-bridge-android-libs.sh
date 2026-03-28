@@ -13,6 +13,57 @@ else
   >&2 echo "Skipping Nix enforcement"
 fi
 
+# Check for and clean polluted aws-lc-sys CMake cache
+# If the CMake cache contains macOS SDK paths or deployment targets, the Android
+# build will fail with linker errors like "unknown argument '-search_paths_first'".
+# This detects and cleans only the polluted directories, avoiding a full cargo clean.
+# It is only intended for local non-release builds. CI uses a separate nix build
+# path, and release/deployment entry points pass CARGO_PROFILE=release.
+#
+# Note: CMAKE_OSX_ARCHITECTURES:UNINITIALIZED=arm64 is benign and should NOT
+# trigger cleaning. We only clean when CMAKE_OSX_SYSROOT or CMAKE_OSX_DEPLOYMENT_TARGET
+# contain actual macOS values.
+_clean_polluted_cmake_cache() {
+  if [ -n "${CI:-}" ] || [ "${CARGO_PROFILE:-}" = "release" ]; then
+    >&2 echo "Skipping aws-lc-sys cache cleanup for CI/release build."
+    return
+  fi
+
+  local target_dir="${CARGO_BUILD_TARGET_DIR:-$REPO_ROOT/target-nix}"
+  local cleaned=0
+
+  # Find aws-lc-sys CMake cache files in Android build directories
+  while IFS= read -r cache_file; do
+    # Check for actual macOS pollution:
+    # - CMAKE_OSX_SYSROOT with a path containing MacOSX/Xcode
+    # - CMAKE_OSX_DEPLOYMENT_TARGET with a version number
+    local is_polluted=0
+    if grep -qE "CMAKE_OSX_SYSROOT.*=.*(MacOSX|Xcode)" "$cache_file" 2>/dev/null; then
+      is_polluted=1
+    fi
+    if grep -qE "CMAKE_OSX_DEPLOYMENT_TARGET.*=.+[0-9]" "$cache_file" 2>/dev/null; then
+      is_polluted=1
+    fi
+
+    if [ "$is_polluted" -eq 1 ]; then
+      # Get the aws-lc-sys build directory (parent of out/build)
+      local build_dir
+      build_dir="$(dirname "$(dirname "$(dirname "$cache_file")")")"
+      >&2 echo "Detected polluted CMake cache in: $cache_file"
+      >&2 echo "Cleaning: $build_dir"
+      rm -rf "$build_dir"
+      cleaned=$((cleaned + 1))
+    fi
+  done < <(find "$target_dir" -path "*android*" -path "*aws-lc-sys*" -name "CMakeCache.txt" 2>/dev/null)
+
+  if [ "$cleaned" -gt 0 ]; then
+    >&2 echo "Cleaned $cleaned polluted aws-lc-sys build directories."
+    >&2 echo "Continuing with build..."
+  fi
+}
+
+_clean_polluted_cmake_cache
+
 # shorter aliases used from now on
 export build_deps_only="${FM_BUILD_BRIDGE_ANDROID_LIBS_DEPS_ONLY:-}"
 export libs_out="${FM_BUILD_BRIDGE_ANDROID_LIBS_OUT:-}"
