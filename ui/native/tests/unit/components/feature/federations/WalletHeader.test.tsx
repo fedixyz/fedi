@@ -12,10 +12,15 @@ import {
     setPayFromFederationId,
     setupStore,
 } from '@fedi/common/redux'
-import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
+import { setSimulateRecovery } from '@fedi/common/redux/federation'
+import {
+    mockFederation1,
+    mockFederation2,
+} from '@fedi/common/tests/mock-data/federation'
 import { renderWithProviders } from '@fedi/native/tests/utils/render'
 
 import WalletHeader from '../../../../../components/feature/federations/WalletHeader'
+import i18n from '../../../../../localization/i18n'
 import { LoadedFederation } from '../../../../../types'
 
 describe('WalletHeader', () => {
@@ -145,5 +150,65 @@ describe('WalletHeader', () => {
         expect(selectPaymentFederation(store.getState())).toStrictEqual(
             federationWithSP,
         )
+    })
+
+    describe('recovering federation', () => {
+        it('should show recovering label and hide balance rows for a recovering federation', async () => {
+            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(
+                setSimulateRecovery({
+                    federationId: mockFederation1.id,
+                    enabled: true,
+                }),
+            )
+
+            renderWithProviders(<WalletHeader />, { store })
+
+            const menuButton = screen.getByTestId(
+                'MainHeaderButtons__HamburgerIcon',
+            )
+            await user.press(menuButton)
+
+            const federationItem = screen.getByTestId(
+                `SelectWalletListItem-${mockFederation1.id}`,
+            )
+            expect(federationItem).toBeOnTheScreen()
+
+            const recoveringLabel = screen.getByText(
+                i18n.t('feature.federations.recovering-label'),
+            )
+            expect(recoveringLabel).toBeOnTheScreen()
+
+            expect(
+                screen.queryByTestId(`BitcoinButton-${mockFederation1.id}`),
+            ).not.toBeOnTheScreen()
+        })
+
+        it('should show balance rows for non-recovering federation alongside recovering one', async () => {
+            store.dispatch(setFederations([mockFederation1, mockFederation2]))
+            store.dispatch(
+                setSimulateRecovery({
+                    federationId: mockFederation1.id,
+                    enabled: true,
+                }),
+            )
+
+            renderWithProviders(<WalletHeader />, { store })
+
+            const menuButton = screen.getByTestId(
+                'MainHeaderButtons__HamburgerIcon',
+            )
+            await user.press(menuButton)
+
+            const bitcoinButtonRecoveringFederation = screen.queryByTestId(
+                `BitcoinButton-${mockFederation1.id}`,
+            )
+            expect(bitcoinButtonRecoveringFederation).not.toBeOnTheScreen()
+
+            const bitcoinButtonNonRecoveringFederation = screen.queryByTestId(
+                `BitcoinButton-${mockFederation2.id}`,
+            )
+            expect(bitcoinButtonNonRecoveringFederation).toBeOnTheScreen()
+        })
     })
 })

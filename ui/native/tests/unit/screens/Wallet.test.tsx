@@ -1,4 +1,5 @@
 import { act, screen, userEvent } from '@testing-library/react-native'
+import { View as mockView } from 'react-native'
 
 import {
     setFederations,
@@ -6,6 +7,7 @@ import {
     setSelectedFederationId,
     setupStore,
 } from '@fedi/common/redux'
+import { setSimulateRecovery } from '@fedi/common/redux/federation'
 import {
     mockFederation1,
     mockFederation2,
@@ -20,6 +22,10 @@ import { resetToJoinFederation } from '../../../state/navigation'
 import { LoadedFederation } from '../../../types'
 import { mockNavigation } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
+
+jest.mock('react-native-progress', () => {
+    return { Circle: mockView }
+})
 
 describe('Wallet screen', () => {
     const user = userEvent.setup()
@@ -272,6 +278,40 @@ describe('Wallet screen', () => {
                     federationId: mockFederationWithSPV2.id,
                 },
             )
+        })
+    })
+
+    describe('recovery in progress', () => {
+        it('should disable send and receive buttons and show recovery message', () => {
+            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(setSelectedFederationId(mockFederation1.id))
+            store.dispatch(
+                setSimulateRecovery({
+                    federationId: mockFederation1.id,
+                    enabled: true,
+                }),
+            )
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            const sendButton = screen.getByText(i18n.t('words.send'))
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
+
+            expect(sendButton).toBeDisabled()
+            expect(receiveButton).toBeDisabled()
+
+            const recoveryMessage = screen.getByText(
+                i18n.t('feature.recovery.recovery-in-progress-wallet'),
+            )
+            expect(recoveryMessage).toBeOnTheScreen()
         })
     })
 })
