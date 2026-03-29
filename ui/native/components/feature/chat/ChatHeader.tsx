@@ -14,6 +14,7 @@ import { Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
+import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import { Tooltip } from '../../ui/Tooltip'
 import TotalBalance from '../../ui/TotalBalance'
 import { ChatConnectionBadge } from './ChatConnectionBadge'
@@ -82,6 +83,7 @@ const ChatHeader: React.FC = () => {
                     }
                 />
                 <TotalBalance />
+                <NightlyBuildBanner />
             </GradientView>
             <ChatConnectionBadge />
             <Tooltip

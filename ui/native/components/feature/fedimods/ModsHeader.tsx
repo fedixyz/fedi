@@ -14,6 +14,7 @@ import { Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
+import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import TotalBalance from '../../ui/TotalBalance'
 import HeaderOverlayOption from '../chat/HeaderOverlayOption'
 
@@ -58,6 +59,7 @@ const ModsHeader: React.FC = () => {
                     }
                 />
                 <TotalBalance />
+                <NightlyBuildBanner />
             </GradientView>
             <CustomOverlay
                 show={optionsOverlayOpen}

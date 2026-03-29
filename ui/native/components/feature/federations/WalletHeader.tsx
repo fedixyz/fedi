@@ -1,14 +1,14 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useMemo, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { NavigationHook } from '../../../types/navigation'
-import { isNightly } from '../../../utils/device-info'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
+import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import TotalBalance from '../../ui/TotalBalance'
 import SelectWalletOverlay from '../send/SelectWalletOverlay'
 
@@ -16,7 +16,6 @@ const WalletHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
-    const showNightlyBanner = useMemo(() => isNightly(), [])
 
     const [open, setOpen] = useState(false)
 
@@ -48,13 +47,7 @@ const WalletHeader: React.FC = () => {
 
             {/* TODO: restore this on federations screen */}
             {/* <NetworkBanner /> */}
-            {showNightlyBanner && (
-                <View style={style.nightly}>
-                    <Text small style={style.nightlyText} adjustsFontSizeToFit>
-                        {t('feature.developer.nightly')}
-                    </Text>
-                </View>
-            )}
+            <NightlyBuildBanner />
             <SelectWalletOverlay open={open} onDismiss={() => setOpen(false)} />
         </GradientView>
     )
@@ -71,19 +64,6 @@ const styles = (theme: Theme) =>
         headerContainer: {
             justifyContent: 'center',
             paddingHorizontal: 0,
-        },
-        nightly: {
-            position: 'absolute',
-            bottom: 0,
-            right: theme.spacing.lg,
-            backgroundColor: theme.colors.primary,
-            paddingHorizontal: theme.spacing.sm,
-            borderTopLeftRadius: 5,
-            borderTopRightRadius: 5,
-        },
-        nightlyText: {
-            fontSize: 10,
-            color: theme.colors.secondary,
         },
     })
 

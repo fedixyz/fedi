@@ -6,6 +6,7 @@ import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 import { Community } from '@fedi/common/types'
 
 import { keyframes, styled, theme } from '../styles'
+import { isNightly } from '../utils/browserInfo'
 import { CommunityInviteDialog } from './CommunityInviteDialog'
 import { Column, Row } from './Flex'
 import { Icon } from './Icon'
@@ -44,6 +45,7 @@ export function PageHeader({
                         />
                     </Row>
                     <TotalBalance />
+                    {isNightly() && <NightlyBadge>nightly</NightlyBadge>}
                 </PageHeaderGradient>
                 {selectedCommunity && (
                     <SelectedCommunityWrapper>
@@ -65,6 +67,20 @@ const PageHeaderContainer = styled('div', {})
 const PageHeaderGradient = styled(Column, {
     fediGradient: 'sky',
     padding: '10px 20px',
+    position: 'relative',
+})
+
+const NightlyBadge = styled('div', {
+    position: 'absolute',
+    bottom: 0,
+    right: 20,
+    background: theme.colors.primary,
+    color: theme.colors.white,
+    fontSize: 10,
+    paddingLeft: 8,
+    paddingRight: 8,
+    borderTopLeftRadius: 5,
+    borderTopRightRadius: 5,
 })
 
 const SelectedCommunityWrapper = styled('div', {
