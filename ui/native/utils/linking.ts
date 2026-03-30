@@ -79,7 +79,11 @@ export const screenMap: Record<
         return { screen: 'FediModBrowser', params: { url } }
     },
     ecash: () => ({ screen: 'ClaimEcash' }),
-    join: () => ({ screen: 'JoinFederation' }),
+    join: (params: Record<string, string>) => {
+        const invite = params?.id
+        if (invite) return { screen: 'JoinFederation', params: { invite } }
+        return { screen: 'JoinFederation' }
+    },
     'share-logs': () => ({ screen: 'ShareLogs' }),
 }
 

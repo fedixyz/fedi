@@ -140,6 +140,55 @@ describe('linking', () => {
         })
     })
 
+    describe('join deep link end-to-end (normalizeDeepLink + getInternalLinkRoute)', () => {
+        it.each([
+            // federation
+            [
+                'https://app.fedi.xyz/link#screen=join&id=fed1abc123',
+                { invite: 'fed1abc123' },
+            ],
+            [
+                'https://app.fedi.xyz/link?screen=join&id=fed1abc123',
+                { invite: 'fed1abc123' },
+            ],
+            // community (prefixed)
+            [
+                'https://app.fedi.xyz/link#screen=join&id=fedi%3Acommunity10abc',
+                { invite: 'fedi:community10abc' },
+            ],
+            [
+                'https://app.fedi.xyz/link?screen=join&id=fedi%3Acommunity10abc',
+                { invite: 'fedi:community10abc' },
+            ],
+            // community (unprefixed)
+            [
+                'https://app.fedi.xyz/link#screen=join&id=community10abc',
+                { invite: 'community10abc' },
+            ],
+            [
+                'https://app.fedi.xyz/link?screen=join&id=community10abc',
+                { invite: 'community10abc' },
+            ],
+        ])(
+            'should navigate to JoinFederation for %s',
+            (deepLink, expectedParams) => {
+                const normalized = normalizeDeepLink(deepLink)
+                expect(normalized).toBeDefined()
+
+                if (!normalized) return
+                const result = linking.getInternalLinkRoute(normalized.fediUri)
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'JoinFederation',
+                            params: expectedParams,
+                        },
+                    ],
+                })
+            },
+        )
+    })
+
     describe('browser deep link end-to-end (normalizeDeepLink + getInternalLinkRoute)', () => {
         const expectedRoute = {
             routes: [
