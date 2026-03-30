@@ -80,8 +80,8 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     }
 
     const handleSend = () => {
+        dispatch(setPayFromFederationId(federationId))
         if (paymentType === 'stable-balance') {
-            dispatch(setPayFromFederationId(federationId))
             navigation.navigate('StabilitySend', { federationId })
         } else if (isOffline) {
             navigation.navigate('SendOfflineAmount')
