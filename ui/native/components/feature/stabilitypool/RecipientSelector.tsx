@@ -92,7 +92,6 @@ const styles = (theme: Theme) =>
         },
         avatar: {
             marginRight: theme.spacing.md,
-            backgroundColor: theme.colors.orange,
         },
     })
 
