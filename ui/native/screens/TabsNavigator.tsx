@@ -1,6 +1,6 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import React, { MutableRefObject, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -244,6 +244,9 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     name="Scan"
                     options={({ navigation }) => ({
                         tabBarTestID: 'ScanTabButton',
+                        tabBarLabel: t('phrases.scan-slash-paste'),
+                        tabBarActiveTintColor: theme.colors.darkGrey,
+                        tabBarInactiveTintColor: theme.colors.darkGrey,
                         tabBarButton: props => (
                             <Pressable
                                 {...props}
@@ -251,27 +254,21 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                                     navigation.navigate('OmniScanner')
                                 }
                                 style={({ pressed }) => [
-                                    style.scanTab,
+                                    props.style,
                                     pressed && style.tabBarButtonPressed,
-                                ]}>
-                                <GradientView
-                                    variant="black"
-                                    style={style.scanButton}>
-                                    <SvgImage
-                                        name="Scan"
-                                        color={theme.colors.white}
-                                        size={24}
-                                    />
-                                </GradientView>
-                                <Text
-                                    medium
-                                    style={[
-                                        style.tabBarLabel,
-                                        style.scanLabel,
-                                    ]}>
-                                    {t('phrases.scan-slash-paste')}
-                                </Text>
-                            </Pressable>
+                                ]}
+                            />
+                        ),
+                        tabBarIcon: () => (
+                            <GradientView
+                                variant="black"
+                                style={style.scanButton}>
+                                <SvgImage
+                                    name="Scan"
+                                    color={theme.colors.white}
+                                    size={24}
+                                />
+                            </GradientView>
                         ),
                     })}>
                     {() => null}
@@ -313,33 +310,25 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
     return StyleSheet.create({
         tabBar: {
             backgroundColor: theme.colors.secondary,
-            height: tabBarHeight + insets.bottom,
             borderTopWidth: 0,
+            elevation: 24,
+            height: tabBarHeight + insets.bottom,
+            paddingHorizontal: theme.spacing.xs,
             shadowColor: 'rgba(11, 16, 19, 0.1)',
             shadowOffset: {
                 width: 0,
                 height: 4,
             },
-            shadowRadius: 24,
-            elevation: 24,
             shadowOpacity: 1,
-        },
-        scanTab: {
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            height: tabBarHeight,
-            paddingHorizontal: theme.spacing.md,
-            borderRadius: theme.borders.defaultRadius,
-            position: 'relative',
+            shadowRadius: 24,
         },
         scanButton: {
             borderWidth: 3,
             borderColor: theme.colors.white,
             position: 'absolute',
-            top: -24,
-            height: 48,
-            width: 48,
+            top: -30,
+            height: 62,
+            width: 62,
             borderRadius: 1024,
             flexDirection: 'row',
             alignItems: 'center',
@@ -361,10 +350,6 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
         tabBarLabel: {
             fontSize: fediTheme.fontSizes.small,
             paddingBottom: theme.spacing.md,
-        },
-        scanLabel: {
-            paddingBottom: 13.5,
-            color: theme.colors.darkGrey,
         },
         disabledIcon: {
             opacity: 0.2,
