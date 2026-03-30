@@ -40,7 +40,7 @@ export const AppError: React.FC<Props> = ({ error }) => {
         t,
     )
 
-    log.error('HIT', message)
+    log.error(message)
 
     return (
         <AppContainer>
