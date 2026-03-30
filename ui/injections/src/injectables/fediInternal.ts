@@ -1,5 +1,6 @@
 import {
     CreateCommunityRequest,
+    DeleteCommunityRequest,
     EcashRequest,
     EditCommunityRequest,
     FediInternalVersion,
@@ -78,6 +79,18 @@ class InjectionFediProvider {
         return this.sendMessage(
             InjectionMessageType.fedi_editCommunity,
             editCommunityRequest,
+        )
+    }
+
+    async deleteCommunity(
+        deleteCommunityRequest: DeleteCommunityRequest,
+    ): Promise<
+        | { success: true }
+        | { success: false; errors: Record<string, string[] | undefined> }
+    > {
+        return this.sendMessage(
+            InjectionMessageType.fedi_deleteCommunity,
+            deleteCommunityRequest,
         )
     }
 

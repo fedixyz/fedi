@@ -320,6 +320,7 @@
         "failed-to-create-community": "Failed to create community.",
         "failed-to-create-group": "Failed to create group",
         "failed-to-download-file": "Failed to download file to the filesystem",
+        "failed-to-delete-community": "Failed to delete community.",
         "failed-to-edit-community": "Failed to edit community.",
         "failed-to-fetch-gateways": "Failed to fetch gateways",
         "failed-to-fetch-guardian-approval": "Failed to fetch guardian approval",

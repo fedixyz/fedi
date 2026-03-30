@@ -622,6 +622,12 @@ export class FedimintBridge {
         })
     }
 
+    async deleteCommunity(communityHexUuid: string) {
+        return this.rpcTyped('nostrDeleteCommunity', {
+            communityHexUuid,
+        })
+    }
+
     async listGateways(federationId: string) {
         return this.rpcTyped('listGateways', { federationId })
     }

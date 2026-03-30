@@ -503,6 +503,19 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                     throw new Error(t('errors.failed-to-edit-community'))
                 }
             },
+            [InjectionMessageType.fedi_deleteCommunity]: async community => {
+                log.info('fedi.fedi_deleteCommunity', community)
+                try {
+                    const { communityId } = community
+
+                    await fedimint.deleteCommunity(communityId)
+
+                    return { success: true }
+                } catch (err) {
+                    log.error('fedi.fedi_deleteCommunity', err)
+                    throw new Error(t('errors.failed-to-delete-community'))
+                }
+            },
             [InjectionMessageType.fedi_joinCommunity]: async inviteCode => {
                 log.info('fedi.fedi_joinCommunity', inviteCode)
                 try {

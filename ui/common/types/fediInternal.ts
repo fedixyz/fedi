@@ -47,6 +47,9 @@ export type EditCommunityRequest = {
     communityId: string
     editedCommunity: CommunityMeta
 }
+export type DeleteCommunityRequest = {
+    communityId: string
+}
 
 // this matches the CacheMode type in react-native-webview/lib/WebViewTypes.d.ts
 export type FediModCacheMode =
@@ -153,6 +156,7 @@ export const INJECTION_HANDLERS_PERMISSIONS_MAP: Partial<{
     // handlers that should be protected behind permissions will be defined here
     [InjectionMessageType.fedi_createCommunity]: ['manageCommunities'],
     [InjectionMessageType.fedi_editCommunity]: ['manageCommunities'],
+    [InjectionMessageType.fedi_deleteCommunity]: ['manageCommunities'],
     [InjectionMessageType.fedi_listCreatedCommunities]: ['manageCommunities'],
     [InjectionMessageType.fedi_joinCommunity]: ['manageCommunities'],
     [InjectionMessageType.fedi_refreshCommunities]: ['manageCommunities'],

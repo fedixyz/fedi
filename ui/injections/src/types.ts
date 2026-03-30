@@ -9,6 +9,7 @@ import type {
 
 import {
     CreateCommunityRequest,
+    DeleteCommunityRequest,
     EcashRequest,
     EditCommunityRequest,
     InstallMiniAppRequest,
@@ -41,6 +42,7 @@ export enum InjectionMessageType {
     fedi_listCreatedCommunities = 'fedi_listCreatedCommunities',
     fedi_createCommunity = 'fedi_createCommunity',
     fedi_editCommunity = 'fedi_editCommunity',
+    fedi_deleteCommunity = 'fedi_deleteCommunity',
     fedi_joinCommunity = 'fedi_joinCommunity',
     fedi_setSelectedCommunity = 'fedi_setSelectedCommunity',
     fedi_refreshCommunities = 'fedi_refreshCommunities',
@@ -151,6 +153,12 @@ export type InjectionMessageResponseMap = {
     }
     [InjectionMessageType.fedi_editCommunity]: {
         message: EditCommunityRequest
+        response:
+            | { success: true }
+            | { success: false; errors: Record<string, string[] | undefined> }
+    }
+    [InjectionMessageType.fedi_deleteCommunity]: {
+        message: DeleteCommunityRequest
         response:
             | { success: true }
             | { success: false; errors: Record<string, string[] | undefined> }

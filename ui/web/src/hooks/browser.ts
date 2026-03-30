@@ -15,6 +15,7 @@ import {
 } from '@fedi/common/redux'
 import {
     CreateCommunityRequest,
+    DeleteCommunityRequest,
     EditCommunityRequest,
 } from '@fedi/common/types/'
 import { prepareCreateCommunityPayload } from '@fedi/common/utils/fedimods'
@@ -211,6 +212,26 @@ export function useIFrameListener(
                     } catch {
                         log.error('Failed to edit community')
                         sendError(event, 'EditCommunity error')
+                    }
+
+                    break
+                }
+
+                case InjectionMessageType.fedi_deleteCommunity: {
+                    if (!hasPermission(ev.origin, ['manageCommunities'])) {
+                        return sendError(event, 'InvalidPermissions')
+                    }
+
+                    try {
+                        const { communityId } =
+                            payload as DeleteCommunityRequest
+
+                        await fedimint.deleteCommunity(communityId)
+
+                        sendSuccess(event, { success: true })
+                    } catch {
+                        log.error('Failed to delete community')
+                        sendError(event, 'DeleteCommunity error')
                     }
 
                     break
