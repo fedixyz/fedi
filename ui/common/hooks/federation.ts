@@ -11,7 +11,7 @@ import {
     selectFederationIds,
     selectFederations,
     selectOnchainDepositsEnabled,
-    selectPaymentFederation,
+    selectLastUsedFederation,
     selectStableBalance,
     selectStableBalanceEnabled,
     setPublicCommunities,
@@ -608,9 +608,9 @@ export function useFederationMembership(
 }
 
 export function useFederationRating() {
-    // federation ratings are shown after making a payment so we assume the correct
-    // federation is selected as paymentFederation which is the one we should be rating
-    const federationToRate = useCommonSelector(selectPaymentFederation)
+    // federation ratings are shown after making a payment so we use the last
+    // used federation which is updated after each payment completes
+    const federationToRate = useCommonSelector(selectLastUsedFederation)
     const fedimint = useFedimint()
     const [rating, setRating] = useState<number | null>(null)
     const dispatch = useCommonDispatch()
