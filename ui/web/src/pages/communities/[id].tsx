@@ -10,6 +10,7 @@ import { selectCommunity, selectDefaultChats } from '@fedi/common/redux'
 import {
     getFederationTosUrl,
     getFederationWelcomeMessage,
+    shouldShowInviteCode,
 } from '@fedi/common/utils/FederationUtils'
 
 import { Button } from '../../components/Button'
@@ -53,6 +54,7 @@ function CommunityDetails() {
 
     const welcomeMessage = getFederationWelcomeMessage(community.meta)
     const tosUrl = getFederationTosUrl(community.meta)
+    const showInviteCode = shouldShowInviteCode(community.meta)
 
     return (
         <ContentBlock>
@@ -60,11 +62,15 @@ function CommunityDetails() {
                 <Layout.Header
                     back
                     rightComponent={
-                        <Icon
-                            icon={QrCodeIcon}
-                            size="sm"
-                            onClick={() => setInvitingCommunityId(community.id)}
-                        />
+                        showInviteCode ? (
+                            <Icon
+                                icon={QrCodeIcon}
+                                size="sm"
+                                onClick={() =>
+                                    setInvitingCommunityId(community.id)
+                                }
+                            />
+                        ) : undefined
                     }>
                     <Layout.Title subheader>
                         {t('feature.communities.community-details')}
