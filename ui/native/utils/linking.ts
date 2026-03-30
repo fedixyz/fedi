@@ -71,7 +71,13 @@ export const screenMap: Record<
     // this is for backwards compatibility
     // TODO: remove legacy /federations deeplink after some time...
     federations: () => ({ screen: 'Wallet', parent: 'TabsNavigator' }),
-    browser: () => ({ screen: 'FediModBrowser' }),
+    browser: (params: Record<string, string>) => {
+        const raw = params?.url ?? params?.id
+        if (!raw) return { screen: 'FediModBrowser' }
+        // Ensure bare domains get https:// prefix, matching AddressBarOverlay behavior
+        const url = /^https?:\/\//.test(raw) ? raw : `https://${raw}`
+        return { screen: 'FediModBrowser', params: { url } }
+    },
     ecash: () => ({ screen: 'ClaimEcash' }),
     join: () => ({ screen: 'JoinFederation' }),
     'share-logs': () => ({ screen: 'ShareLogs' }),

@@ -1,3 +1,5 @@
+import { normalizeDeepLink } from '@fedi/common/utils/linking'
+
 import * as linking from '../../../utils/linking'
 
 describe('linking', () => {
@@ -104,5 +106,67 @@ describe('linking', () => {
                 })
             })
         })
+
+        describe('browser deep link', () => {
+            it('should open FediModBrowser with url param', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://browser?url=https://google.com',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'FediModBrowser',
+                            params: { url: 'https://google.com' },
+                        },
+                    ],
+                })
+            })
+
+            it('should open FediModBrowser with legacy id param', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://browser?id=https://google.com',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'FediModBrowser',
+                            params: { url: 'https://google.com' },
+                        },
+                    ],
+                })
+            })
+        })
+    })
+
+    describe('browser deep link end-to-end (normalizeDeepLink + getInternalLinkRoute)', () => {
+        const expectedRoute = {
+            routes: [
+                {
+                    name: 'FediModBrowser',
+                    params: { url: 'https://google.com' },
+                },
+            ],
+        }
+
+        it.each([
+            'https://app.fedi.xyz/link#screen=browser&url=https://google.com',
+            'https://app.fedi.xyz/link#screen=browser&url=google.com',
+            'https://app.fedi.xyz/link#screen=browser&url=https%3A%2F%2Fgoogle.com',
+            'https://app.fedi.xyz/link#screen=browser&id=https://google.com',
+            'https://app.fedi.xyz/link#screen=browser&id=google.com',
+            'https://app.fedi.xyz/link#screen=browser&id=https%3A%2F%2Fgoogle.com',
+        ])(
+            'should navigate to FediModBrowser with https://google.com for %s',
+            deepLink => {
+                const normalized = normalizeDeepLink(deepLink)
+                expect(normalized).toBeDefined()
+
+                if (!normalized) return
+                const result = linking.getInternalLinkRoute(normalized.fediUri)
+                expect(result).toEqual(expectedRoute)
+            },
+        )
     })
 })
