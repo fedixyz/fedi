@@ -7,6 +7,7 @@ import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import {
     selectLastSelectedCommunityChats,
     selectLastSelectedCommunity,
+    selectCommunities,
 } from '@fedi/common/redux'
 import { selectVisibleCommunityMods } from '@fedi/common/redux/mod'
 import { getFederationPinnedMessage } from '@fedi/common/utils/FederationUtils'
@@ -45,6 +46,7 @@ function HomePage() {
 
     const [showCommunities, setShowCommunities] = useState(false)
 
+    const communities = useAppSelector(selectCommunities)
     const selectedCommunity = useAppSelector(selectLastSelectedCommunity)
     const selectedCommunityMods = useAppSelector(selectVisibleCommunityMods)
     const selectedCommunityChats = useAppSelector(s =>
@@ -70,7 +72,11 @@ function HomePage() {
                 <Layout.PageHeader
                     title={t('words.communities')}
                     onAddPress={() => push(onboardingCommunitiesRoute)}
-                    onMenuPress={() => setShowCommunities(true)}
+                    onMenuPress={
+                        communities.length >= 2
+                            ? () => setShowCommunities(true)
+                            : undefined
+                    }
                     selectedCommunity={selectedCommunity}
                 />
                 <Layout.Content>

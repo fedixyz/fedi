@@ -94,6 +94,11 @@ export const mockCommunity: Community = {
     status: 'active',
 }
 
+export const mockCommunity2 = {
+    ...mockCommunity,
+    id: '2',
+}
+
 const MOCK_FEDERATION_PREVIEW: RpcFederationPreview = {
     id: '1',
     name: 'test-federation',

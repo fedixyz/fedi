@@ -228,7 +228,11 @@ function WalletPage() {
                 <Layout.PageHeader
                     title={t('words.wallet')}
                     onAddPress={() => router.push('/onboarding')}
-                    onMenuPress={() => setOpen(true)}
+                    onMenuPress={
+                        loadedFederations.length >= 2
+                            ? () => setOpen(true)
+                            : undefined
+                    }
                 />
                 <Layout.Content fullWidth>{content}</Layout.Content>
             </Layout.Root>

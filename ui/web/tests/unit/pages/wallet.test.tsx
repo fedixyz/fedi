@@ -3,7 +3,10 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { setupStore } from '@fedi/common/redux'
-import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
+import {
+    mockFederation1,
+    mockFederation2,
+} from '@fedi/common/tests/mock-data/federation'
 
 import i18n from '../../../src/localization/i18n'
 import WalletPage from '../../../src/pages/wallet'
@@ -76,12 +79,30 @@ describe('/pages/wallet', () => {
     })
 
     describe('federation selector', () => {
-        it('should display the menu icon in the header', async () => {
+        it('should not display the menu icon in the header if there are less than 2 federations joined', async () => {
             renderWithProviders(<WalletPage />, {
                 preloadedState: {
                     federation: {
                         ...state.federation,
                         federations: [mockFederation1],
+                        payFromFederationId: '1',
+                    },
+                },
+            })
+
+            const menuIcon = screen.queryByTestId(
+                'MainHeaderButtons__HamburgerIcon',
+            )
+
+            expect(menuIcon).not.toBeInTheDocument()
+        })
+
+        it('should display the menu icon in the header if 2 or more federations are joined', async () => {
+            renderWithProviders(<WalletPage />, {
+                preloadedState: {
+                    federation: {
+                        ...state.federation,
+                        federations: [mockFederation1, mockFederation2],
                         payFromFederationId: '1',
                     },
                 },
@@ -99,7 +120,7 @@ describe('/pages/wallet', () => {
                 preloadedState: {
                     federation: {
                         ...state.federation,
-                        federations: [mockFederation1],
+                        federations: [mockFederation1, mockFederation2],
                         payFromFederationId: '1',
                     },
                 },

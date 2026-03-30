@@ -4,7 +4,10 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import { selectLastSelectedCommunity } from '@fedi/common/redux'
+import {
+    selectCommunities,
+    selectLastSelectedCommunity,
+} from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
@@ -20,6 +23,7 @@ const HomeHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
+    const communities = useAppSelector(selectCommunities)
     const selectedCommunity = useAppSelector(selectLastSelectedCommunity)
     const [showCommunities, setShowCommunities] = useState(false)
 
@@ -44,7 +48,11 @@ const HomeHeader: React.FC = () => {
                     headerRight={
                         <MainHeaderButtons
                             onAddPress={openJoinCommunity}
-                            onMenuPress={() => setShowCommunities(true)}
+                            onMenuPress={
+                                communities.length >= 2
+                                    ? () => setShowCommunities(true)
+                                    : undefined
+                            }
                         />
                     }
                 />

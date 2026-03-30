@@ -4,6 +4,9 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
+import { selectLoadedFederations } from '@fedi/common/redux'
+
+import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
@@ -16,6 +19,7 @@ const WalletHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
+    const loadedFederations = useAppSelector(selectLoadedFederations)
 
     const [open, setOpen] = useState(false)
 
@@ -39,7 +43,11 @@ const WalletHeader: React.FC = () => {
                 headerRight={
                     <MainHeaderButtons
                         onAddPress={openJoinCommunity}
-                        onMenuPress={() => setOpen(true)}
+                        onMenuPress={
+                            loadedFederations.length >= 2
+                                ? () => setOpen(true)
+                                : undefined
+                        }
                     />
                 }
             />

@@ -84,4 +84,42 @@ describe('/pages/home', () => {
             expect(title).toBeInTheDocument()
         })
     })
+
+    it('should not show the menu button if there are less than 2 communities joined', async () => {
+        renderWithProviders(<HomePage />, {
+            preloadedState: {
+                federation: {
+                    ...state.federation,
+                    communities: [mockCommunity],
+                    lastSelectedCommunityId: '1',
+                    defaultCommunityChats: {
+                        '1': [mockCommunityChat],
+                    },
+                },
+            },
+        })
+        const menuButton = screen.queryByTestId(
+            'MainHeaderButtons__HamburgerIcon',
+        )
+        expect(menuButton).not.toBeInTheDocument()
+    })
+
+    it('should show the menu button if there are 2 or more communities joined', async () => {
+        renderWithProviders(<HomePage />, {
+            preloadedState: {
+                federation: {
+                    ...state.federation,
+                    communities: [mockCommunity, mockCommunity],
+                    lastSelectedCommunityId: '1',
+                    defaultCommunityChats: {
+                        '1': [mockCommunityChat],
+                    },
+                },
+            },
+        })
+        const menuButton = screen.getByTestId(
+            'MainHeaderButtons__HamburgerIcon',
+        )
+        expect(menuButton).toBeInTheDocument()
+    })
 })

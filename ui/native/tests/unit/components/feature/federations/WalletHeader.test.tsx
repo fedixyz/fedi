@@ -37,8 +37,33 @@ describe('WalletHeader', () => {
         cleanup()
     })
 
+    it('the menu button should be hidden if there are less than 2 federations joined', async () => {
+        store.dispatch(setFederations([mockFederation1]))
+
+        renderWithProviders(<WalletHeader />, { store })
+
+        const menuButton = await screen.queryByTestId(
+            'MainHeaderButtons__HamburgerIcon',
+        )
+
+        expect(menuButton).not.toBeOnTheScreen()
+    })
+
+    it('the menu button should be visible if there are 2 or more federations joined', async () => {
+        store.dispatch(setFederations([mockFederation1, mockFederation2]))
+
+        renderWithProviders(<WalletHeader />, { store })
+
+        const menuButton = await screen.getByTestId(
+            'MainHeaderButtons__HamburgerIcon',
+        )
+
+        expect(menuButton).toBeOnTheScreen()
+    })
+
     it('should show the SelectWalletOverlay when the menu button is pressed', async () => {
-        renderWithProviders(<WalletHeader />)
+        store.dispatch(setFederations([mockFederation1, mockFederation2]))
+        renderWithProviders(<WalletHeader />, { store })
 
         const menuButton = await screen.getByTestId(
             'MainHeaderButtons__HamburgerIcon',
@@ -54,7 +79,8 @@ describe('WalletHeader', () => {
     })
 
     it('should hide the SelectWalletOverlay when the backdrop is pressed', async () => {
-        renderWithProviders(<WalletHeader />)
+        store.dispatch(setFederations([mockFederation1, mockFederation2]))
+        renderWithProviders(<WalletHeader />, { store })
 
         const menuButton = await screen.getByTestId(
             'MainHeaderButtons__HamburgerIcon',
@@ -80,7 +106,7 @@ describe('WalletHeader', () => {
     })
 
     it("should switch the tab and payment federation when a federation's bitcoin balance is selected", async () => {
-        store.dispatch(setFederations([mockFederation1]))
+        store.dispatch(setFederations([mockFederation1, mockFederation2]))
         store.dispatch(setPayFromFederationId(null))
 
         renderWithProviders(<WalletHeader />, {
@@ -119,7 +145,7 @@ describe('WalletHeader', () => {
             meta: { 'fedi:stability_pool_disabled': 'false' },
         } as LoadedFederation
 
-        store.dispatch(setFederations([federationWithSP]))
+        store.dispatch(setFederations([federationWithSP, mockFederation2]))
         store.dispatch(setPayFromFederationId(null))
 
         renderWithProviders(<WalletHeader />, {
@@ -154,7 +180,7 @@ describe('WalletHeader', () => {
 
     describe('recovering federation', () => {
         it('should show recovering label and hide balance rows for a recovering federation', async () => {
-            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(setFederations([mockFederation1, mockFederation2]))
             store.dispatch(
                 setSimulateRecovery({
                     federationId: mockFederation1.id,
