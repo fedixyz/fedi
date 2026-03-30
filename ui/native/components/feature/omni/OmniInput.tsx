@@ -58,7 +58,7 @@ export function OmniInput<
     const fedimint = useFedimint()
     const toast = useToast()
     const [showActivityIndicator, setShowActivityIndicator] = useState(false)
-    const [inputMethod, setInputMethod] = useState<'scan' | 'search'>(
+    const [inputMethod] = useState<'scan' | 'search'>(
         props.initialInputMethod || 'scan',
     )
     const [isParsing, setIsParsing] = useState(false)
@@ -81,9 +81,6 @@ export function OmniInput<
     )
     const canLnurlWithdraw = expectedInputTypes.includes(
         ParserDataType.LnurlWithdraw as T,
-    )
-    const canMemberSearch = expectedInputTypes.includes(
-        ParserDataType.FediChatUser as T,
     )
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
     const style = styles()
@@ -175,44 +172,6 @@ export function OmniInput<
 
     const actions: OmniInputAction[] = useMemo(() => {
         const contextual: OmniInputAction[] = []
-        if (inputMethod !== 'search' && canMemberSearch) {
-            contextual.push({
-                label: (
-                    <View style={style.buttonContainer}>
-                        <Button
-                            fullWidth
-                            day
-                            icon={<SvgImage name="Keyboard" />}
-                            title={t(
-                                canLnurlPay
-                                    ? 'feature.omni.action-enter-username-or-ln'
-                                    : 'feature.omni.action-enter-username',
-                            )}
-                            onPress={() => setInputMethod('search')}
-                            containerStyle={style.buttonInnerContainer}
-                        />
-                    </View>
-                ),
-                onPress: () => setInputMethod('search'),
-            })
-        }
-        if (inputMethod !== 'scan') {
-            contextual.push({
-                label: (
-                    <View style={style.buttonContainer}>
-                        <Button
-                            fullWidth
-                            day
-                            icon={<SvgImage name="Scan" />}
-                            title={t('feature.omni.action-scan')}
-                            onPress={() => setInputMethod('scan')}
-                            containerStyle={style.buttonInnerContainer}
-                        />
-                    </View>
-                ),
-                onPress: () => setInputMethod('scan'),
-            })
-        }
 
         const mergedLabel = (
             <View style={style.buttonContainer}>
@@ -273,9 +232,6 @@ export function OmniInput<
         return mergedActions
     }, [
         customActions,
-        inputMethod,
-        canMemberSearch,
-        canLnurlPay,
         pasteLabel,
         handlePaste,
         t,
