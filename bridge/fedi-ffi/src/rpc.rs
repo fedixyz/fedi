@@ -63,7 +63,7 @@ use rpc_types::{
     RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection, RpcTransactionListEntry,
     SocialRecoveryQr,
 };
-use runtime::api::LiveFediApi;
+use runtime::api::{IFediApi, LiveFediApi, MockFediApi};
 use runtime::bridge_runtime::Runtime;
 use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
@@ -107,7 +107,12 @@ pub async fn fedimint_initialize_async(
         RpcAppFlavor::Tests => RuntimeEnvironment::Tests,
     }));
 
-    let fedi_api = Arc::new(LiveFediApi::new(feature_catalog.clone()));
+    let fedi_api: Arc<dyn IFediApi> = match app_flavor {
+        RpcAppFlavor::Tests => Arc::new(MockFediApi::default()),
+        RpcAppFlavor::Dev | RpcAppFlavor::Nightly | RpcAppFlavor::Bravo => {
+            Arc::new(LiveFediApi::new(feature_catalog.clone()))
+        }
+    };
 
     let bridge = Bridge::new(
         storage,

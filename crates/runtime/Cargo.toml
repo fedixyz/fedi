@@ -3,8 +3,6 @@ name = "runtime"
 version = "0.3.0"
 edition = "2024"
 
-[features]
-
 [dependencies]
 api-types = { workspace = true }
 fedimint-core = { workspace = true }

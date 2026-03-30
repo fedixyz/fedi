@@ -1,34 +1,26 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock, RwLock};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use anyhow::{bail, Context};
-use api_types::invoice_generator::FirstCommunityInviteCodeState;
-use bitcoin::Network;
 use bridge::onboarding::{BridgeOnboarding, RpcOnboardingStage};
 use bridge::{Bridge, BridgeFull};
 use devimint::cmd;
 use devimint::util::LnCli;
 use federations::federation_v2::FederationV2;
-use fedimint_bip39::Bip39RootSecretStrategy;
-use fedimint_client::secret::RootSecretStrategy as _;
-use fedimint_client::ModuleKind;
 use fedimint_connectors::ConnectorRegistry;
-use fedimint_core::{apply, async_trait_maybe_send, Amount};
-use lightning_invoice::Bolt11Invoice;
 use matrix::Matrix;
 use multispend::multispend_matrix::MultispendMatrix;
 use nostr::secp256k1::PublicKey;
 use redb_storage::PathBasedRedbStorage;
-use runtime::api::{IFediApi, RegisterDeviceError, RegisteredDevice, TransactionDirection};
+pub use runtime::api::MockFediApi;
 use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
-use runtime::storage::state::{DeviceIdentifier, FediFeeSchedule};
+use runtime::storage::state::DeviceIdentifier;
 use runtime::storage::{OnboardingCompletionMethod, Storage};
 use tempfile::TempDir;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::OnceCell;
 
 use crate::rpc::{self, TryGet};
 
@@ -230,106 +222,6 @@ impl Drop for TestDevice {
         }
         // also reset the event sink
         self.event_sink.take();
-    }
-}
-
-type DeviceIndex = u8;
-
-#[derive(Default)]
-pub struct MockFediApi {
-    // (seed, index) => (encrypted device identifier, last registration timestamp)
-    device_registation_registry:
-        Mutex<HashMap<(bip39::Mnemonic, DeviceIndex), (String, SystemTime)>>,
-
-    // Invoice that will be returned whenever fetch_fedi_invoice is called
-    fedi_fee_invoice: Option<Bolt11Invoice>,
-}
-
-impl MockFediApi {
-    pub fn set_fedi_fee_invoice(&mut self, invoice: Bolt11Invoice) {
-        self.fedi_fee_invoice = Some(invoice);
-    }
-}
-
-#[apply(async_trait_maybe_send!)]
-impl IFediApi for MockFediApi {
-    async fn fetch_fedi_fee_schedule(&self, _network: Network) -> anyhow::Result<FediFeeSchedule> {
-        Ok(FediFeeSchedule::default())
-    }
-
-    async fn fetch_fedi_fee_invoice(
-        &self,
-        _amount: Amount,
-        _network: Network,
-        _module: ModuleKind,
-        _tx_direction: TransactionDirection,
-        _accrued_fee_delta: Amount,
-        _spv2_balance_delta_cents: Option<i64>,
-        _first_comm_invite_code: FirstCommunityInviteCodeState,
-    ) -> anyhow::Result<Bolt11Invoice> {
-        self.fedi_fee_invoice
-            .clone()
-            .ok_or(anyhow::anyhow!("Invoice not set"))
-    }
-
-    async fn fetch_registered_devices_for_seed(
-        &self,
-        seed: bip39::Mnemonic,
-    ) -> anyhow::Result<Vec<RegisteredDevice>> {
-        let root_secret = Bip39RootSecretStrategy::<12>::to_root_secret(&seed);
-        let mut devices = self
-            .device_registation_registry
-            .lock()
-            .await
-            .iter()
-            .filter_map(|(k, v)| {
-                if k.0 == seed {
-                    Some(
-                        match DeviceIdentifier::from_encrypted_string(&v.0, &root_secret) {
-                            Ok(identifier) => Ok(RegisteredDevice {
-                                index: k.1,
-                                identifier,
-                                last_renewed: v.1,
-                            }),
-                            Err(e) => Err(e),
-                        },
-                    )
-                } else {
-                    None
-                }
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-
-        devices.sort_by_key(|r| r.index);
-        Ok(devices)
-    }
-
-    async fn register_device_for_seed(
-        &self,
-        seed: bip39::Mnemonic,
-        device_index: u8,
-        encrypted_device_identifier: String,
-        force_overwrite: bool,
-    ) -> anyhow::Result<(), RegisterDeviceError> {
-        let mut registry = self.device_registation_registry.lock().await;
-        if let Some(value) = registry.get_mut(&(seed.clone(), device_index)) {
-            if force_overwrite || encrypted_device_identifier == value.0 {
-                value.0 = encrypted_device_identifier;
-                value.1 = fedimint_core::time::now();
-                Ok(())
-            } else {
-                Err(RegisterDeviceError::AnotherDeviceOwnsIndex(format!(
-                    "{} already owned by {}, not overwriting",
-                    device_index, value.0
-                )))
-            }
-        } else {
-            registry.insert(
-                (seed, device_index),
-                (encrypted_device_identifier, fedimint_core::time::now()),
-            );
-            Ok(())
-        }
     }
 }
 
