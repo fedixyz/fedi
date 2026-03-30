@@ -16,6 +16,7 @@ import {
     selectLoadedFederations,
     selectReceivesDisabled,
     selectSelectedFederation,
+    setPayFromFederationId,
     setSelectedFederationId,
 } from '@fedi/common/redux'
 
@@ -174,14 +175,20 @@ function WalletPage() {
                         icon={ArrowDown}
                         width="full"
                         disabled={receiveDisabled}
-                        onClick={() => router.push(requestRoute)}>
+                        onClick={() => {
+                            dispatch(setPayFromFederationId(federationId))
+                            router.push(requestRoute)
+                        }}>
                         {t('words.receive')}
                     </Button>
                     <Button
                         icon={ArrowUp}
                         width="full"
                         disabled={sendDisabled}
-                        onClick={() => router.push(sendRoute)}>
+                        onClick={() => {
+                            dispatch(setPayFromFederationId(federationId))
+                            router.push(sendRoute)
+                        }}>
                         {t('words.send')}
                     </Button>
                 </Row>
@@ -212,6 +219,7 @@ function WalletPage() {
         sendDisabled,
         disabledMessage,
         federationId,
+        dispatch,
     ])
 
     return (

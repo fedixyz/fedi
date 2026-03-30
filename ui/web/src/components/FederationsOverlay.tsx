@@ -43,9 +43,10 @@ export const FederationsOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
                             key={`federation-tile-${i}`}
                             federation={f}
                             isSelected={paymentFederation?.id === f.id}
-                            handleFederationSelected={() =>
+                            handleFederationSelected={() => {
                                 dispatch(setPayFromFederationId(f.id))
-                            }
+                                onOpenChange(false)
+                            }}
                         />
                     ))}
                 </Column>

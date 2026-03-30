@@ -17,7 +17,7 @@ import { useRouteState } from '../../context/RouteStateContext'
 import { useAppSelector } from '../../hooks'
 import { config, styled, theme } from '../../styles'
 import { ContentBlock } from '../ContentBlock'
-import FederationBalance from '../Federation/FederationBalance'
+import WalletSwitcher from '../Federation/WalletSwitcher'
 import { Column } from '../Flex'
 import * as Layout from '../Layout'
 import LightningRequest from '../Request/LightningRequest'
@@ -135,9 +135,7 @@ const Request: React.FC<Props> = ({ open }) => {
                                     onChange={newTab => setActiveTab(newTab)}
                                 />
                             )}
-                        {activeTab !== 'lnurl' && (
-                            <FederationBalance federationId={federationId} />
-                        )}
+                        {activeTab !== 'lnurl' && <WalletSwitcher />}
                         {lnurlw ? (
                             <LnurlWithdraw
                                 onSubmit={handleSubmit}

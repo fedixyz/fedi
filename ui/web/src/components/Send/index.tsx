@@ -25,7 +25,7 @@ import { styled, theme } from '../../styles'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
 import { ContentBlock } from '../ContentBlock'
-import { FederationWalletSelector } from '../FederationWalletSelector'
+import WalletSwitcher from '../Federation/WalletSwitcher'
 import { Column } from '../Flex'
 import * as Layout from '../Layout'
 import { OmniInput, type OmniCustomAction } from '../OmniInput'
@@ -141,7 +141,7 @@ const Send: React.FC = () => {
         content = (
             <>
                 <InvoiceContainer>
-                    <FederationWalletSelector />
+                    <WalletSwitcher />
                     <AmountInput
                         amount={inputAmount}
                         onChangeAmount={handleChangeAmount}

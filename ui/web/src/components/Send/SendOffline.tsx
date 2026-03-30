@@ -15,7 +15,7 @@ import { styled, theme } from '../../styles'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
 import { Checkbox } from '../Checkbox'
-import { FederationWalletSelector } from '../FederationWalletSelector'
+import WalletSwitcher from '../Federation/WalletSwitcher'
 import { Row } from '../Flex'
 import PaymentType from '../PaymentType'
 import { QRCode } from '../QRCode'
@@ -149,7 +149,7 @@ export const SendOffline: React.FC<Props> = ({
         return (
             <>
                 <AmountContainer>
-                    <FederationWalletSelector />
+                    <WalletSwitcher />
                     <AmountInput
                         amount={amount}
                         federationId={federationId}

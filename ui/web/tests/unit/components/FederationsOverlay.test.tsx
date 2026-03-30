@@ -57,12 +57,13 @@ describe('FederationsOverlay', () => {
         expect(title).toBeInTheDocument()
     })
 
-    it('should switch the payment federation when federation items are clicked', async () => {
+    it('should switch the payment federation and close the overlay with `onOpenChange(false)` when an item is clicked', async () => {
+        const onOpenChange = jest.fn()
         store.dispatch(setFederations([mockFederation1, mockFederation2]))
         store.dispatch(setPayFromFederationId(null))
 
         renderWithProviders(
-            <FederationsOverlay open={true} onOpenChange={() => {}} />,
+            <FederationsOverlay open={true} onOpenChange={onOpenChange} />,
             { store },
         )
 
@@ -81,11 +82,6 @@ describe('FederationsOverlay', () => {
         expect(selectPaymentFederation(store.getState())).toEqual(
             mockFederation1,
         )
-
-        await user.click(federation2)
-
-        expect(selectPaymentFederation(store.getState())).toEqual(
-            mockFederation2,
-        )
+        expect(onOpenChange).toHaveBeenCalledWith(false)
     })
 })
