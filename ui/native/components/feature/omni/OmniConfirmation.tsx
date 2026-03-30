@@ -97,7 +97,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
         if (federationData.type === 'notJoined') return undefined
 
         return () =>
-            handleNavigate('StabilityTransfer', {
+            handleNavigate('StabilitySend', {
                 recipient: {
                     accountId: data.accountId,
                     address: data.address,
@@ -242,7 +242,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                                 onContinue={() =>
                                     // if the user is joining the federation after scanning a sp payment address
                                     // they likely won't have any stable balance yet so send them to
-                                    // the wallets screen instead of StabilityTransfer
+                                    // the wallets screen instead of StabilitySend
                                     navigation.dispatch(resetToWallets())
                                 }
                             />

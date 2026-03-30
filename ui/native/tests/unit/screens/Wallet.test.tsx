@@ -21,7 +21,7 @@ import Wallet from '../../../screens/Wallet'
 import { resetToJoinFederation } from '../../../state/navigation'
 import { LoadedFederation } from '../../../types'
 import { mockNavigation } from '../../setup/jest.setup.mocks'
-import { renderWithProviders } from '../../utils/render'
+import { renderWithBridge, renderWithProviders } from '../../utils/render'
 
 jest.mock('react-native-progress', () => {
     return { Circle: mockView }
@@ -29,6 +29,9 @@ jest.mock('react-native-progress', () => {
 
 describe('Wallet screen', () => {
     const user = userEvent.setup()
+    const fedimint = createMockFedimintBridge({
+        spv2SubscribeAccountInfo: jest.fn(),
+    })
     let store: ReturnType<typeof setupStore>
 
     beforeEach(() => {
@@ -195,7 +198,7 @@ describe('Wallet screen', () => {
             expect(stableBalanceTab).toBeOnTheScreen()
         })
 
-        it('should navigate to the respective screen when the send and receive buttons are pressed', async () => {
+        it('[bitcoin tab selected] should navigate to the respective screen when the send and receive buttons are pressed', async () => {
             store.dispatch(setFederations([mockFederation1]))
             store.dispatch(setSelectedFederationId(mockFederation1.id))
             renderWithProviders(
@@ -236,13 +239,10 @@ describe('Wallet screen', () => {
             )
         })
 
-        it('should navigate to the respective screen when the move/transfer buttons are pressed', async () => {
+        it('[stability tab selected] should navigate to the respective screen when the send and receive buttons are pressed', async () => {
             store.dispatch(setFederations([mockFederationWithSPV2]))
             store.dispatch(setSelectedFederationId(mockFederationWithSPV2.id))
-            const fedimint = createMockFedimintBridge({
-                spv2SubscribeAccountInfo: () => () => {},
-            })
-            renderWithProviders(
+            renderWithBridge(
                 <Wallet
                     route={{
                         name: 'Wallet',
@@ -257,23 +257,24 @@ describe('Wallet screen', () => {
 
             await user.press(stableBalanceTab)
 
-            const moveButton = screen.getByText(i18n.t('words.move'))
-            const transferButton = screen.getByText(i18n.t('words.transfer'))
+            const sendButton = screen.getByText(i18n.t('words.send'))
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
 
-            expect(moveButton).toBeOnTheScreen()
-            expect(transferButton).toBeOnTheScreen()
+            expect(sendButton).toBeOnTheScreen()
+            expect(receiveButton).toBeOnTheScreen()
 
-            await user.press(moveButton)
+            await user.press(sendButton)
+
             expect(mockNavigation.navigate).toHaveBeenCalledWith(
-                'StabilityMove',
+                'StabilitySend',
                 {
                     federationId: mockFederationWithSPV2.id,
                 },
             )
 
-            await user.press(transferButton)
+            await user.press(receiveButton)
             expect(mockNavigation.navigate).toHaveBeenCalledWith(
-                'StabilityTransfer',
+                'StabilityReceive',
                 {
                     federationId: mockFederationWithSPV2.id,
                 },

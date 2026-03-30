@@ -11,22 +11,17 @@ import {
 } from '@fedi/common/hooks/federation'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
-import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectCurrency,
-    selectFederationBalance,
     selectIsInternetUnreachable,
     setSelectedFederationId,
     selectLoadedFederations,
-    selectMaxStableBalanceSats,
     selectPaymentType,
     selectReceivesDisabled,
     selectSelectedFederation,
-    selectShouldShowStablePaymentAddress,
-    selectStabilityPoolVersion,
     selectStableBalancePending,
-    selectStableBalanceSats,
     setPaymentType,
+    setPayFromFederationId,
 } from '@fedi/common/redux'
 import { getCurrencyCode } from '@fedi/common/utils/currency'
 
@@ -65,97 +60,33 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     const receivesDisabled = useAppSelector(s =>
         selectReceivesDisabled(s, federationId),
     )
-    const shouldShowStablePaymentAddress = useAppSelector(s =>
-        selectShouldShowStablePaymentAddress(s, federationId),
-    )
-    const stableBalanceSats = useAppSelector(s =>
-        selectStableBalanceSats(s, federationId),
-    )
     const stableBalancePending = useAppSelector(s =>
         selectStableBalancePending(s, federationId),
     )
-    const maxStableBalanceSats = useAppSelector(s =>
-        selectMaxStableBalanceSats(s, federationId),
-    )
-    const isLegacyStabilityPool = useAppSelector(
-        s => selectStabilityPoolVersion(s, federationId) === 1,
-    )
     const isOffline = useAppSelector(selectIsInternetUnreachable)
-    const balance = useAppSelector(s =>
-        selectFederationBalance(s, federationId),
-    )
 
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
     const stabilityPoolDisabledByFederation =
         !useIsStabilityPoolEnabledByFederation(federationId)
 
     const dispatch = useAppDispatch()
-    const toast = useToast()
-
-    useMonitorStabilityPool(federationId)
 
     const handleReceive = () => {
-        if (receivesDisabled) {
-            toast.show({
-                content: t('errors.receives-have-been-disabled'),
-                status: 'error',
-            })
+        if (paymentType === 'stable-balance') {
+            navigation.navigate('StabilityReceive', { federationId })
         } else {
             navigation.navigate('ReceiveBitcoin', { federationId })
         }
     }
 
     const handleSend = () => {
-        if (isOffline) {
+        if (paymentType === 'stable-balance') {
+            dispatch(setPayFromFederationId(federationId))
+            navigation.navigate('StabilitySend', { federationId })
+        } else if (isOffline) {
             navigation.navigate('SendOfflineAmount')
         } else {
             navigation.navigate('Send', { federationId })
-        }
-    }
-
-    const handleMove = () => {
-        if (stabilityPoolDisabledByFederation) {
-            toast.show({
-                content: t(
-                    'feature.stabilitypool.deposits-disabled-by-federation',
-                ),
-                status: 'error',
-            })
-        } else if (
-            maxStableBalanceSats &&
-            stableBalanceSats > maxStableBalanceSats
-        ) {
-            toast.show({
-                content: t('feature.stabilitypool.max-stable-balance-amount'),
-                status: 'error',
-            })
-        } else if (stableBalancePending < 0) {
-            toast.show({
-                content: t('feature.stabilitypool.pending-withdrawal-blocking'),
-                status: 'error',
-            })
-        } else {
-            navigation.navigate('StabilityMove', {
-                federationId,
-            })
-        }
-    }
-
-    const handleTransfer = () => {
-        if (stableBalancePending < 0) {
-            toast.show({
-                content: t('feature.stabilitypool.pending-withdrawal-blocking'),
-                status: 'error',
-            })
-        } else if (shouldShowStablePaymentAddress) {
-            // use new transfer flow is feature flag is on
-            navigation.navigate('StabilityTransfer', {
-                federationId,
-            })
-        } else {
-            navigation.navigate('StabilityTransfer', {
-                federationId,
-            })
         }
     }
 
@@ -173,6 +104,8 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
             dispatch(setPaymentType('bitcoin'))
         }
     }, [dispatch, stabilityPoolDisabledByFederation])
+
+    useMonitorStabilityPool(federationId)
 
     if (loadedFederations.length === 0) {
         return (
@@ -200,15 +133,16 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     const stableBalanceBlocked =
         paymentType === 'stable-balance' && stableBalancePending < 0
     const shouldDisableReceives =
-        popupInfo?.ended || receivesDisabled || recoveryInProgress
+        popupInfo?.ended ||
+        receivesDisabled ||
+        recoveryInProgress ||
+        stableBalanceBlocked
     const shouldDisableSends =
-        popupInfo?.ended || federation.balance < 1000 || recoveryInProgress
-    const shouldDisableMove =
         popupInfo?.ended ||
         recoveryInProgress ||
-        (shouldShowStablePaymentAddress ? false : balance === 0)
-    const shouldDisableTransfer =
-        popupInfo?.ended || isLegacyStabilityPool || recoveryInProgress
+        (paymentType === 'bitcoin'
+            ? federation.balance < 1000
+            : stableBalanceBlocked)
 
     const disabledMessage = recoveryInProgress
         ? t('feature.recovery.recovery-in-progress-wallet')
@@ -243,70 +177,42 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                 )}
                 <WalletBalanceCard federationId={federationId} />
                 <Row fullWidth gap="md" justify="between">
-                    {paymentType === 'bitcoin' ? (
-                        <>
-                            <Button
-                                title={t('words.receive')}
-                                icon={
-                                    <SvgImage
-                                        name="ArrowDown"
-                                        color={theme.colors.white}
-                                    />
+                    <Button
+                        title={t('words.receive')}
+                        icon={
+                            <SvgImage
+                                name="ArrowDown"
+                                color={
+                                    shouldDisableReceives
+                                        ? theme.colors.lightGrey
+                                        : theme.colors.white
                                 }
-                                containerStyle={{
-                                    flex: 1,
-                                }}
-                                onPress={handleReceive}
-                                disabled={shouldDisableReceives}
                             />
-                            <Button
-                                title={t('words.send')}
-                                icon={
-                                    <SvgImage
-                                        name="ArrowUp"
-                                        color={theme.colors.white}
-                                    />
+                        }
+                        containerStyle={{
+                            flex: 1,
+                        }}
+                        onPress={handleReceive}
+                        disabled={shouldDisableReceives}
+                    />
+                    <Button
+                        title={t('words.send')}
+                        icon={
+                            <SvgImage
+                                name="ArrowUp"
+                                color={
+                                    shouldDisableSends
+                                        ? theme.colors.lightGrey
+                                        : theme.colors.white
                                 }
-                                containerStyle={{
-                                    flex: 1,
-                                }}
-                                onPress={handleSend}
-                                disabled={shouldDisableSends}
                             />
-                        </>
-                    ) : (
-                        // TODO: change to receive/send after stability pool send/receive screns are updated
-                        <>
-                            <Button
-                                title={t('words.move')}
-                                icon={
-                                    <SvgImage
-                                        name="ArrowsUpDown"
-                                        color={theme.colors.white}
-                                    />
-                                }
-                                containerStyle={{
-                                    flex: 1,
-                                }}
-                                onPress={handleMove}
-                                disabled={shouldDisableMove}
-                            />
-                            <Button
-                                title={t('words.transfer')}
-                                icon={
-                                    <SvgImage
-                                        name="TransferPeople"
-                                        color={theme.colors.white}
-                                    />
-                                }
-                                containerStyle={{
-                                    flex: 1,
-                                }}
-                                onPress={handleTransfer}
-                                disabled={shouldDisableTransfer}
-                            />
-                        </>
-                    )}
+                        }
+                        containerStyle={{
+                            flex: 1,
+                        }}
+                        onPress={handleSend}
+                        disabled={shouldDisableSends}
+                    />
                 </Row>
                 {disabledMessage && (
                     <Text
@@ -417,9 +323,6 @@ const styles = (theme: Theme) =>
             borderWidth: 1,
             borderStyle: 'dashed',
         },
-        disabledText: {
-            marginTop: theme.spacing.sm,
-        },
         icon: {
             marginLeft: 'auto',
         },
@@ -427,6 +330,9 @@ const styles = (theme: Theme) =>
             color: theme.colors.primary,
             flexShrink: 1,
             flexGrow: 1,
+        },
+        disabledText: {
+            paddingBottom: theme.spacing.md,
         },
     })
 

@@ -53,8 +53,6 @@ import SettingsHeader from '../components/feature/settings/SettingsHeader'
 import ConfirmDepositHeader from '../components/feature/stabilitypool/ConfirmDepositHeader'
 import ConfirmWithdrawHeader from '../components/feature/stabilitypool/ConfirmWithdrawHeader'
 import StabilityHistoryHeader from '../components/feature/stabilitypool/StabilityHistoryHeader'
-import StabilityMoveHeader from '../components/feature/stabilitypool/StabilityMoveHeader'
-import StabilityTransferHeader from '../components/feature/stabilitypool/StabilityTransferHeader'
 import WithdrawInitiatedHeader from '../components/feature/stabilitypool/WithdrawInitiatedHeader'
 import HelpCentreHeader from '../components/feature/support/HelpCentreHeader'
 import TransactionsHeader from '../components/feature/transaction-history/TransactionsHeader'
@@ -178,8 +176,8 @@ import StabilityConfirmDeposit from './StabilityConfirmDeposit'
 import StabilityConfirmTransfer from './StabilityConfirmTransfer'
 import StabilityConfirmWithdraw from './StabilityConfirmWithdraw'
 import StabilityHistory from './StabilityHistory'
-import StabilityMove from './StabilityMove'
-import StabilityTransfer from './StabilityTransfer'
+import StabilityReceive from './StabilityReceive'
+import StabilitySend from './StabilitySend'
 import StabilityWithdrawInitiated from './StabilityWithdrawInitiated'
 import StartRecoveryAssist from './StartRecoveryAssist'
 import StartSocialBackup from './StartSocialBackup'
@@ -1209,17 +1207,27 @@ export const MainNavigator = () => {
                                 })}
                             />
                             <Stack.Screen
-                                name="StabilityMove"
-                                component={StabilityMove}
+                                name="StabilitySend"
+                                component={StabilitySend}
                                 options={() => ({
-                                    header: () => <StabilityMoveHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('phrases.send-usd')}
+                                        />
+                                    ),
                                 })}
                             />
                             <Stack.Screen
-                                name="StabilityTransfer"
-                                component={StabilityTransfer}
+                                name="StabilityReceive"
+                                component={StabilityReceive}
                                 options={() => ({
-                                    header: () => <StabilityTransferHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('phrases.receive-usd')}
+                                        />
+                                    ),
                                 })}
                             />
                             <Stack.Screen

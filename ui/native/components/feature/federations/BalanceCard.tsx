@@ -5,7 +5,11 @@ import { Pressable, StyleSheet } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
-import { selectCurrency, selectPaymentType } from '@fedi/common/redux'
+import {
+    selectCurrency,
+    selectPaymentType,
+    selectStableBalancePending,
+} from '@fedi/common/redux'
 import { getCurrencyCode } from '@fedi/common/utils/currency'
 
 import { useAppSelector, useStabilityPool } from '../../../state/hooks'
@@ -25,7 +29,7 @@ export default function WalletBalanceCard({
         t,
         federationId,
     )
-    const { formattedStableBalance, formattedStableBalanceSats } =
+    const { formattedStableBalance, formattedStableBalancePending } =
         useStabilityPool(federationId)
     const { recoveryInProgress } = useRecoveryProgress(federationId)
 
@@ -33,6 +37,9 @@ export default function WalletBalanceCard({
     const paymentType = useAppSelector(selectPaymentType)
     const selectedCurrency = useAppSelector(s =>
         selectCurrency(s, federationId),
+    )
+    const stableBalancePending = useAppSelector(s =>
+        selectStableBalancePending(s, federationId),
     )
 
     const onPressTransactions = () => {
@@ -47,14 +54,17 @@ export default function WalletBalanceCard({
     let iconColor = theme.colors.orange
     let headerTitle = t('words.bitcoin')
     let primaryAmount = formattedBalanceFiat
-    let secondaryAmount = formattedBalanceSats
+    let secondaryAmount: string | null = formattedBalanceSats
 
     if (paymentType === 'stable-balance') {
         iconName = 'UsdCircleFilled'
         iconColor = theme.colors.moneyGreen
         headerTitle = getCurrencyCode(selectedCurrency)
         primaryAmount = formattedStableBalance
-        secondaryAmount = `${formattedStableBalanceSats} ${t('words.sats').toUpperCase()}`
+        secondaryAmount =
+            stableBalancePending !== 0
+                ? `${formattedStableBalancePending} ${t('words.pending')}`
+                : null
     }
 
     const style = styles(theme)

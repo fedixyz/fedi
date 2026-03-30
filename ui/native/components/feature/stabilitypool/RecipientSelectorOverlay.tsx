@@ -9,7 +9,7 @@ import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useMatrixUserSearch } from '@fedi/common/hooks/matrix'
 import { selectMatrixContactsList } from '@fedi/common/redux'
 
-import { ReceiverType } from '../../../screens/StabilityTransfer'
+import { ReceiverType } from '../../../screens/StabilitySend'
 import { useAppSelector } from '../../../state/hooks'
 import { MatrixUser } from '../../../types'
 import { Column } from '../../ui/Flex'

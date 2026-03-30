@@ -96,7 +96,7 @@ const StabilityBalanceTile = ({
                 </Row>
                 {showSwitcher && (
                     <SvgImage
-                        name="ChevronDown"
+                        name="ChevronRight"
                         size={theme.sizes.sm}
                         color={theme.colors.black}
                     />

@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
-import { ReceiverType } from '../../../screens/StabilityTransfer'
+import { ReceiverType } from '../../../screens/StabilitySend'
 import { AvatarSize } from '../../ui/Avatar'
 import { Column, Row } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'

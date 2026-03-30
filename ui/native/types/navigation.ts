@@ -222,6 +222,11 @@ export type RootStackParamList = {
     OmniScanner: undefined
     FediModBrowser: { url?: string } | undefined
     Splash: undefined
+    StabilitySend: {
+        federationId: Federation['id']
+        recipient?: Spv2ParsedPaymentAddress
+    }
+    StabilityReceive: { federationId: Federation['id'] }
     StabilityConfirmDeposit: { amount: Sats; federationId: Federation['id'] }
     StabilityConfirmTransfer: {
         amount: UsdCents
@@ -235,11 +240,6 @@ export type RootStackParamList = {
         federationId: Federation['id']
     }
     StabilityHistory: { federationId: Federation['id'] }
-    StabilityMove: { federationId: Federation['id'] }
-    StabilityTransfer: {
-        recipient?: Spv2ParsedPaymentAddress
-        federationId: Federation['id']
-    }
     StabilityWithdrawInitiated: {
         formattedFiat: string
         federationId: Federation['id']
