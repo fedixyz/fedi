@@ -19,7 +19,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getOverlayBottomPadding } from '../../utils/layout'
-import { Row } from './Flex'
+import { Column, Row } from './Flex'
 import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
 
 type CustomOverlayButton = {
@@ -48,6 +48,7 @@ type CustomOverlayProps = {
     contents: CustomOverlayContents
     loading?: boolean
     noHeaderPadding?: boolean
+    stackButtons?: boolean
 }
 
 const CustomOverlay: React.FC<CustomOverlayProps> = ({
@@ -56,6 +57,7 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
     contents,
     loading,
     noHeaderPadding = false,
+    stackButtons = false,
 }) => {
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
@@ -131,12 +133,12 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
         transform: [{ translateY: animatedTranslateY.value }],
     }))
 
-    const renderButtons = () => {
+    const renderButtons = (stacked: boolean = false) => {
         return buttons.map((button: CustomOverlayButton, i: number) => {
             return (
                 <Button
                     key={i}
-                    containerStyle={style.buttonContainer}
+                    containerStyle={{ flex: stacked ? 0 : 1, width: '100%' }}
                     title={button.text}
                     titleProps={{
                         adjustsFontSizeToFit: true,
@@ -237,11 +239,16 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                         {body}
                     </ScrollView>
                 )}
-                {buttons?.length > 0 && (
-                    <Row justify="between" style={style.overlayButtonView}>
-                        {renderButtons()}
-                    </Row>
-                )}
+                {buttons?.length > 0 &&
+                    (stackButtons ? (
+                        <Column fullWidth justify="between" gap="md" reverse>
+                            {renderButtons(stackButtons)}
+                        </Column>
+                    ) : (
+                        <Row gap="md" justify="between">
+                            {renderButtons(stackButtons)}
+                        </Row>
+                    ))}
             </Animated.View>
         </Overlay>
     )
@@ -301,13 +308,6 @@ const styles = (theme: Theme, insets: Insets) =>
         },
         overlayDescription: {
             textAlign: 'center',
-        },
-        overlayButtonView: {
-            marginTop: theme.spacing.sm,
-        },
-        buttonContainer: {
-            marginHorizontal: theme.spacing.sm,
-            flex: 1,
         },
     })
 

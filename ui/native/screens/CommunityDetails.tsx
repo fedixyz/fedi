@@ -133,6 +133,7 @@ const CommunityDetails: React.FC<Props> = ({ route, navigation }: Props) => {
             <CustomOverlay
                 show={wantsToLeaveCommunity}
                 onBackdropPress={handleClose}
+                stackButtons
                 contents={{
                     body: (
                         <Column gap="lg" align="center">
@@ -155,14 +156,14 @@ const CommunityDetails: React.FC<Props> = ({ route, navigation }: Props) => {
                     ),
                     buttons: [
                         {
-                            text: t('feature.communities.confirm-exit'),
-                            onPress: onLeave,
-                            disabled: isLeaving,
-                        },
-                        {
                             text: t('words.cancel'),
                             onPress: handleClose,
+                        },
+                        {
+                            text: t('words.confirm'),
                             primary: true,
+                            onPress: onLeave,
+                            disabled: isLeaving,
                         },
                     ],
                 }}

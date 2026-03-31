@@ -23,6 +23,8 @@ type Props = {
     fullWidth?: boolean
     /* Flex wrap */
     wrap?: boolean
+    /* Reverse flex direction */
+    reverse?: boolean
 }
 
 const Flex: React.FC<Props & ViewProps> = ({
@@ -36,6 +38,7 @@ const Flex: React.FC<Props & ViewProps> = ({
     basis,
     style,
     wrap,
+    reverse,
     fullWidth,
     ...props
 }) => {
@@ -44,8 +47,10 @@ const Flex: React.FC<Props & ViewProps> = ({
     let styleProp: StyleProp<ViewStyle> = [flexStyle.flex]
 
     // Direction
-    let direction: StyleProp<ViewStyle> = flexStyle.col
-    if (row) direction = flexStyle.row
+    let direction: StyleProp<ViewStyle> = reverse
+        ? flexStyle.colReverse
+        : flexStyle.col
+    if (row) direction = reverse ? flexStyle.rowReverse : flexStyle.row
     styleProp.push(direction)
 
     // Align / Justify
@@ -84,7 +89,9 @@ const Flex: React.FC<Props & ViewProps> = ({
 const flexStyle = StyleSheet.create({
     flex: { display: 'flex' },
     row: { flexDirection: 'row' },
+    rowReverse: { flexDirection: 'row-reverse' },
     col: { flexDirection: 'column' },
+    colReverse: { flexDirection: 'column-reverse' },
     grow: { flexGrow: 1 },
     noGrow: { flexGrow: 0 },
     shrink: { flexShrink: 1 },

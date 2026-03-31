@@ -143,17 +143,14 @@ function CommunityDetails() {
                     <Text center>
                         {t('feature.communities.leave-community-description')}
                     </Text>
-                    <LeaveActions>
-                        <Button
-                            onClick={onLeave}
-                            loading={isLeaving}
-                            variant="outline">
-                            {t('feature.communities.confirm-exit')}
+                    <Column fullWidth gap="md">
+                        <Button onClick={onLeave} loading={isLeaving}>
+                            {t('words.confirm')}
                         </Button>
-                        <Button onClick={handleClose}>
+                        <Button onClick={handleClose} variant="outline">
                             {t('words.cancel')}
                         </Button>
-                    </LeaveActions>
+                    </Column>
                 </Column>
             </Dialog>
 
@@ -165,16 +162,6 @@ function CommunityDetails() {
         </ContentBlock>
     )
 }
-
-const LeaveActions = styled('div', {
-    display: 'flex',
-    gap: 16,
-    width: '100%',
-
-    '& > button': {
-        flex: 1,
-    },
-})
 
 const IconContainer = styled('div', {
     borderRadius: 1024,
