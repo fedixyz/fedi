@@ -230,13 +230,10 @@ export const getLinking = (
                 // but we need it here for deep linking to individual tabs
                 // while preserving initialRouteName usage in RootStackParamList
                 screens: {
-                    Home: 'home',
+                    Wallet: 'wallet',
                     Chat: 'chat',
                     Mods: 'mods',
-                    Wallet: 'wallet',
-                    // this is for backwards compatibility
-                    // TODO: remove legacy /federations deeplink after some time...
-                    Federations: 'wallet',
+                    Home: 'home',
                 },
             },
             ChatRoomConversation: 'room/:roomId',
