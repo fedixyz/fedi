@@ -124,7 +124,11 @@ function WalletPage() {
                 </PaymentFederationHeader>
                 <BalanceCard>
                     <BalanceHeader
-                        onClick={() => router.push(transactionsRoute)}>
+                        onClick={() =>
+                            router.push(
+                                `${transactionsRoute}#id=${federationId}`,
+                            )
+                        }>
                         <Row gap="sm" align="center">
                             <Icon
                                 icon={BitcoinCircle}
