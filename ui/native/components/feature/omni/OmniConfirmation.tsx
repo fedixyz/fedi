@@ -10,6 +10,7 @@ import {
     selectFeatureFlag,
     selectLoadedFederations,
     setGuardianAssist,
+    setPayFromFederationId,
 } from '@fedi/common/redux'
 import { findAuthenticatedFederation } from '@fedi/common/utils/FederationUtils'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
@@ -96,7 +97,8 @@ export const OmniConfirmation = <T extends AnyParsedData>({
         // Show the "Go Back" button
         if (federationData.type === 'notJoined') return undefined
 
-        return () =>
+        return () => {
+            dispatch(setPayFromFederationId(federationData.federationId))
             handleNavigate('StabilitySend', {
                 recipient: {
                     accountId: data.accountId,
@@ -104,6 +106,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                 },
                 federationId: federationData.federationId,
             })
+        }
     }
 
     const {

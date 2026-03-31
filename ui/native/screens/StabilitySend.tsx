@@ -9,6 +9,7 @@ import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
 import {
     selectFeatureFlag,
     selectPaymentFederation,
+    selectStabilityPoolVersion,
     setPayFromFederationId,
 } from '@fedi/common/redux'
 import { MatrixUser } from '@fedi/common/types'
@@ -29,7 +30,7 @@ type Tab = 'user' | 'wallet'
 export type ReceiverType = MatrixUser & { isSelf?: boolean }
 
 const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
-    const { federationId, recipient = null } = route.params
+    const { recipient = null } = route.params
 
     const [tab, setTab] = useState<Tab>(recipient ? 'user' : 'wallet')
     const [receiver, setReceiver] = useState<ReceiverType | null>(null)
@@ -40,6 +41,10 @@ const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
     )
     const federation = useAppSelector(selectPaymentFederation)
     const dispatch = useAppDispatch()
+    const federationId = federation?.id ?? ''
+    const stabilityPoolVersion = useAppSelector(s =>
+        selectStabilityPoolVersion(s, federationId),
+    )
 
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -97,10 +102,13 @@ const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
     const shouldShowRecipientSelector =
         tab === 'user' && !recipient && spTransferFlag?.mode === 'Chat'
 
+    const stabilityTransferEnabled =
+        stabilityPoolVersion === 2 && spTransferFlag?.mode === 'Chat'
+
     return (
         <SafeAreaContainer edges="notop">
             <Column gap="lg" grow style={{ paddingTop: theme.spacing.lg }}>
-                {spTransferFlag?.mode === 'Chat' && (
+                {stabilityTransferEnabled && (
                     <Switcher<Tab>
                         selected={tab}
                         options={[
