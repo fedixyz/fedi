@@ -10974,6 +10974,7 @@ dependencies = [
  "runtime",
  "serde",
  "stability-pool-client",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "ts-rs",

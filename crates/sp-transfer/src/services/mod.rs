@@ -18,6 +18,14 @@ use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use stability_pool_client::common::{AccountId, FiatAmount};
 use stability_pool_client::db::UserOperationHistoryItem;
 
+#[derive(Debug, thiserror::Error)]
+pub enum WaitForHistoryItemError {
+    #[error("federation not available")]
+    FederationNotAvailable(#[source] anyhow::Error),
+    #[error("spv2 not available")]
+    Spv2NotAvailable,
+}
+
 #[apply(async_trait_maybe_send!)]
 pub trait SptFederationProvider: MaybeSend + MaybeSync {
     async fn spv2_transfer_with_nonce(
@@ -38,7 +46,7 @@ pub trait SptFederationProvider: MaybeSend + MaybeSync {
         &self,
         federation_id: &str,
         txid: TransactionId,
-    ) -> anyhow::Result<UserOperationHistoryItem>;
+    ) -> Result<UserOperationHistoryItem, WaitForHistoryItemError>;
 }
 
 pub struct SptServices {

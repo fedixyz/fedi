@@ -800,6 +800,19 @@ export const unobserveSpTransferState = createAsyncThunk<
     return client.unobserveSpTransferState(roomId, eventId)
 })
 
+export const refreshSpTransferState = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id']; eventId: string }
+>(
+    'matrix/refreshSpTransferState',
+    async ({ fedimint, roomId, eventId }, { dispatch }) => {
+        await dispatch(unobserveSpTransferState({ fedimint, roomId, eventId }))
+        // this is kinda racy
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        await dispatch(observeSpTransferState({ fedimint, roomId, eventId }))
+    },
+)
+
 export const startMatrixClient = createAsyncThunk<
     void,
     { fedimint: FedimintBridge },
@@ -1744,9 +1757,7 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
         // send the payment as accepted (not pushed)
         await client.sendMessage(event.roomId, {
             ...event.content,
-            body: `Sent payment of ${amountUtils.formatSats(
-                amountUtils.msatToSat(msats),
-            )} SATS.`, // TODO: i18n?
+            body: `Sent payment of ${amountUtils.formatSats(amountUtils.msatToSat(msats))} SATS.`, // TODO: i18n?
             status: 'accepted',
             senderId: matrixAuth.userId,
             senderOperationId,

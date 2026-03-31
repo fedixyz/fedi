@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use federations::Federations;
 use federations::federation_v2::client::ClientExt;
 use federations::federation_v2::{MultispendNotifications, SptNotifications};
@@ -11,8 +10,8 @@ use multispend::services::MultispendServices;
 use rpc_types::matrix::RpcRoomId;
 use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{RpcEventId, SPv2TransferMetadata, SpMatrixTransferId};
-use sp_transfer::services::SptFederationProvider;
 use sp_transfer::services::transfer_complete_notifier::SptTransferCompleteNotifier;
+use sp_transfer::services::{SptFederationProvider, WaitForHistoryItemError};
 use stability_pool_client::common::{AccountId, FiatAmount, SignedTransferRequest, SyncResponse};
 use stability_pool_client::db::UserOperationHistoryItem;
 
@@ -148,12 +147,15 @@ impl SptFederationProvider for SptFederationProviderWrapper {
         &self,
         federation_id: &str,
         txid: TransactionId,
-    ) -> anyhow::Result<UserOperationHistoryItem> {
-        let federation = self.0.get_federation(federation_id)?;
+    ) -> Result<UserOperationHistoryItem, WaitForHistoryItemError> {
+        let federation = self
+            .0
+            .get_federation(federation_id)
+            .map_err(WaitForHistoryItemError::FederationNotAvailable)?;
         let history_service = federation
             .spv2_history_service
             .get()
-            .context("spv2 history service not initialized")?;
+            .ok_or(WaitForHistoryItemError::Spv2NotAvailable)?;
         Ok(history_service
             .wait_for_user_operation_history_item(txid)
             .await)

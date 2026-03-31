@@ -53,6 +53,7 @@ pub enum RpcSpTransferStatus {
     Failed,
     FederationInviteDenied,
     Expired,
+    FederationLeft,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]

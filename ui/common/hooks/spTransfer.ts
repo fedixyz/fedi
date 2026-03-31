@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
 
-import { selectSpTransferState } from '../redux'
+import { refreshSpTransferState, selectSpTransferState } from '../redux'
 import { MatrixEvent, UsdCents } from '../types'
 import { RpcSpTransferState, RpcSpTransferStatus } from '../types/bindings'
 import { makeLog } from '../utils/log'
 import { useFedimint } from './fedimint'
 import { useObserveSpTransferState } from './matrix'
-import { useCommonSelector } from './redux'
+import { useCommonDispatch, useCommonSelector } from './redux'
 
 const log = makeLog('common/hooks/spTransfer')
 
@@ -15,7 +15,8 @@ export function useSpTransferEventContent(event: MatrixEvent<'spTransfer'>): {
     amount: UsdCents
     federationId: string
     inviteCode: string | null
-    handleReject: () => void
+    handleReject: () => Promise<void>
+    refreshTransferState: () => Promise<void>
     isRejecting: boolean
     state: RpcSpTransferState
 } | null {
@@ -23,6 +24,7 @@ export function useSpTransferEventContent(event: MatrixEvent<'spTransfer'>): {
     const eventId = event.id ?? ''
 
     const [isRejecting, setIsRejecting] = useState(false)
+    const dispatch = useCommonDispatch()
 
     // Start observing the sp transfer state
     useObserveSpTransferState(roomId, eventId)
@@ -51,6 +53,10 @@ export function useSpTransferEventContent(event: MatrixEvent<'spTransfer'>): {
         }
     }, [fedimint, roomId, eventId])
 
+    const refreshTransferState = useCallback(async () => {
+        await dispatch(refreshSpTransferState({ roomId, eventId, fedimint }))
+    }, [dispatch, fedimint, roomId, eventId])
+
     return useMemo(() => {
         if (!transferState) {
             return null
@@ -64,6 +70,7 @@ export function useSpTransferEventContent(event: MatrixEvent<'spTransfer'>): {
             inviteCode: transferState.inviteCode,
             isRejecting,
             handleReject,
+            refreshTransferState,
         }
-    }, [transferState, handleReject, isRejecting])
+    }, [transferState, handleReject, isRejecting, refreshTransferState])
 }

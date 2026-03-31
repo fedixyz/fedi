@@ -30,7 +30,7 @@ use crate::SP_TRANSFER_MSGTYPE;
 use crate::db::{
     FederationInviteDeniedKey, KnownReceiverAccountIdKey, PendingReceiverAccountIdEventKey,
     SenderAwaitingAccountAnnounceEventKey, SpTransferStatus, TransferEventKey, TransferEventValue,
-    TransferFailedKey, TransferSentHintKey,
+    TransferFailedKey, TransferReceiverVerifiedKey, TransferSentHintKey,
 };
 use crate::services::SptServices;
 
@@ -260,6 +260,15 @@ impl SpTransfersMatrix {
                 // we are the sender, we trust us
                 yield make_rpc_transfer_state(RpcSpTransferStatus::Complete);
             } else {
+                // Check if we already verified this transfer previously
+                {
+                    let mut dbtx = spt_db.begin_transaction_nc().await;
+                    if dbtx.get_value(&TransferReceiverVerifiedKey(transfer_id.clone())).await.is_some() {
+                        yield make_rpc_transfer_state(RpcSpTransferStatus::Complete);
+                        return;
+                    }
+                }
+
                 match this.services.provider.spv2_wait_for_user_operation_history_item(&federation_id.0, sent_hint_txid.0).await {
                     Ok(history_item) => {
                         let check_valid = || {
@@ -300,17 +309,23 @@ impl SpTransfersMatrix {
                         };
 
                         if check_valid() {
+                            // Persist verification so we don't need to re-check
+                            let mut dbtx = spt_db.begin_transaction().await;
+                            dbtx.insert_entry(&TransferReceiverVerifiedKey(transfer_id.clone()), &()).await;
+                            dbtx.commit_tx().await;
                             yield make_rpc_transfer_state(RpcSpTransferStatus::Complete);
                         } else {
-                            // no sending the correct amount is considered cheating and you move to failed state
+                            // not sending the correct amount is considered cheating and you move to failed state
                             yield make_rpc_transfer_state(RpcSpTransferStatus::Failed);
                         }
                     }
-                    Err(err) => {
-                        // only happens if you leave the federation for example
-                        warn!(%err, "wait for transfer in failed");
-                        // this is an edge case, we handle this by wait for next observable (closing the chat and reopening the chat)
-                        return;
+                    Err(crate::services::WaitForHistoryItemError::FederationNotAvailable(err)) => {
+                        warn!(%err, "federation not available for transfer verification");
+                        yield make_rpc_transfer_state(RpcSpTransferStatus::FederationLeft);
+                    }
+                    Err(crate::services::WaitForHistoryItemError::Spv2NotAvailable) => {
+                        warn!("spv2 not available for transfer verification");
+                        yield make_rpc_transfer_state(RpcSpTransferStatus::Failed);
                     }
                 }
 

@@ -19,3 +19,4 @@ futures = "0.3"
 tracing = { workspace = true }
 async-trait = { workspace = true }
 rand = { workspace = true }
+thiserror = { workspace = true }

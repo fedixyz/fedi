@@ -43,6 +43,8 @@ enum SpTransfersDbPrefix {
     FederationInviteDenied = 0x08,
     /// (pending_notification_id) => matrix transaction id used for retries
     PendingCompletionNotificationTxnId = 0x09,
+    /// (pending_transfer_id) => ()
+    TransferReceiverVerified = 0x0A,
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
@@ -89,6 +91,15 @@ impl_db_record!(
     key = FederationInviteDeniedKey,
     value = (),
     db_prefix = SpTransfersDbPrefix::FederationInviteDenied,
+);
+
+#[derive(Debug, Clone, Encodable, Decodable)]
+pub struct TransferReceiverVerifiedKey(pub SpMatrixTransferId);
+
+impl_db_record!(
+    key = TransferReceiverVerifiedKey,
+    value = (),
+    db_prefix = SpTransfersDbPrefix::TransferReceiverVerified,
 );
 
 pub(crate) async fn resolve_status_db(

@@ -21,8 +21,14 @@ type Props = {
 const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { status, amount, federationId, inviteCode, handleReject } =
-        useSpTransferEventContent(event) ?? {}
+    const {
+        status,
+        amount,
+        federationId,
+        inviteCode,
+        handleReject,
+        refreshTransferState,
+    } = useSpTransferEventContent(event) ?? {}
 
     const federation = useAppSelector(s =>
         selectFederation(s, federationId ?? ''),
@@ -44,7 +50,23 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
         isJoining,
     } = useFederationInviteCode(t, inviteCode ?? '')
 
+    const isReturningMember =
+        previewResult?.preview?.returningMemberStatus?.type ===
+        'returningMember'
+
     const [isShowingJoinOverlay, setIsShowingJoinOverlay] = useState(false)
+
+    const handleJoinAndRefresh = async () => {
+        await handleJoin()
+
+        // This is kinda racy. We need to wait for the joinFederation
+        // to complete and for the sp transfer to be updated before
+        // resubscribing to the sp transfer state.
+        await new Promise(resolve => setTimeout(resolve, 4000))
+
+        await refreshTransferState?.()
+        setIsShowingJoinOverlay(false)
+    }
 
     const formattedFiat = amount
         ? convertCentsToFormattedFiat(amount as UsdCents, 'end')
@@ -70,6 +92,7 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
             case 'expired':
             case 'federationInviteDenied':
                 return 'x'
+            case 'federationLeft':
             case 'pending':
                 return 'clock'
             default:
@@ -87,6 +110,7 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
                 return t('words.rejected')
             case 'expired':
                 return t('words.expired')
+            case 'federationLeft':
             case 'pending':
                 return `${t('words.pending')}`
             default:
@@ -123,19 +147,31 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
     }
 
     // Foreign federation: show accept/reject buttons
-    if (isForeignFederation && inviteCode && status === 'pending') {
-        const foreignButtons = [
-            {
-                label: t('words.accept'),
-                handler: () => setIsShowingJoinOverlay(true),
-                disabled: isFetchingPreview,
-            },
-            {
-                label: t('words.reject'),
-                handler: handleReject ?? (() => {}),
-                disabled: isFetchingPreview,
-            },
-        ]
+    if (
+        isForeignFederation &&
+        inviteCode &&
+        (status === 'pending' || status === 'federationLeft')
+    ) {
+        const foreignButtons = isReturningMember
+            ? [
+                  {
+                      label: t('phrases.rejoin-federation'),
+                      handler: () => setIsShowingJoinOverlay(true),
+                      disabled: isFetchingPreview,
+                  },
+              ]
+            : [
+                  {
+                      label: t('words.accept'),
+                      handler: () => setIsShowingJoinOverlay(true),
+                      disabled: isFetchingPreview,
+                  },
+                  {
+                      label: t('words.reject'),
+                      handler: handleReject ?? (() => {}),
+                      disabled: isFetchingPreview,
+                  },
+              ]
 
         return (
             <>
@@ -146,9 +182,7 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
                 <JoinFederationOverlay
                     preview={previewResult?.preview}
                     isJoining={isJoining}
-                    onJoin={() =>
-                        handleJoin().then(() => setIsShowingJoinOverlay(false))
-                    }
+                    onJoin={handleJoinAndRefresh}
                     show={isShowingJoinOverlay}
                     onDismiss={() => setIsShowingJoinOverlay(false)}
                 />

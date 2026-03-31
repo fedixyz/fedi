@@ -1280,7 +1280,8 @@ export type RpcSpTransferStatus =
   | { status: "complete" }
   | { status: "failed" }
   | { status: "federationInviteDenied" }
-  | { status: "expired" };
+  | { status: "expired" }
+  | { status: "federationLeft" };
 
 export type RpcSpv2ParsedPaymentAddress = {
   accountId: RpcAccountId;
