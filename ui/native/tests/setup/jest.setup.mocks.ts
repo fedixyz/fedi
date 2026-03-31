@@ -471,6 +471,12 @@ jest.mock('react-native-svg', () => ({
     Svg: jest.requireActual('react-native-svg').Svg,
 }))
 
+jest.mock('react-native-progress', () => ({
+    Circle: jest.requireActual('react-native').View,
+    Pie: jest.requireActual('react-native').View,
+    Bar: jest.requireActual('react-native').View,
+}))
+
 export const mockToast = {
     show: jest.fn(),
     error: jest.fn(),

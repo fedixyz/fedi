@@ -5,21 +5,16 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 
-import {
-    useIsStabilityPoolEnabledByFederation,
-    usePopupFederationInfo,
-} from '@fedi/common/hooks/federation'
-import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
+import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
 import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
+import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
     selectCurrency,
     selectIsInternetUnreachable,
     setSelectedFederationId,
     selectLoadedFederations,
     selectPaymentType,
-    selectReceivesDisabled,
     selectSelectedFederation,
-    selectStableBalancePending,
     setPaymentType,
     setPayFromFederationId,
 } from '@fedi/common/redux'
@@ -53,21 +48,18 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     const federationId = federation?.id ?? ''
     const paymentType = useAppSelector(selectPaymentType)
     const loadedFederations = useAppSelector(selectLoadedFederations)
-    const { recoveryInProgress } = useRecoveryProgress(federationId)
     const selectedCurrency = useAppSelector(s =>
         selectCurrency(s, federationId),
     )
-    const receivesDisabled = useAppSelector(s =>
-        selectReceivesDisabled(s, federationId),
-    )
-    const stableBalancePending = useAppSelector(s =>
-        selectStableBalancePending(s, federationId),
-    )
     const isOffline = useAppSelector(selectIsInternetUnreachable)
 
-    const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
     const stabilityPoolDisabledByFederation =
         !useIsStabilityPoolEnabledByFederation(federationId)
+
+    const { sendDisabled, receiveDisabled, disabledMessage } = useWalletButtons(
+        t,
+        federationId,
+    )
 
     const dispatch = useAppDispatch()
 
@@ -130,28 +122,6 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
 
     if (!federation) return null
 
-    const stableBalanceBlocked =
-        paymentType === 'stable-balance' && stableBalancePending < 0
-    const shouldDisableReceives =
-        popupInfo?.ended ||
-        receivesDisabled ||
-        recoveryInProgress ||
-        stableBalanceBlocked
-    const shouldDisableSends =
-        popupInfo?.ended ||
-        recoveryInProgress ||
-        (paymentType === 'bitcoin'
-            ? federation.balance < 1000
-            : stableBalanceBlocked)
-
-    const disabledMessage = recoveryInProgress
-        ? t('feature.recovery.recovery-in-progress-wallet')
-        : stableBalanceBlocked
-          ? t('feature.stabilitypool.pending-withdrawal-blocking')
-          : receivesDisabled
-            ? t('errors.receives-have-been-disabled')
-            : null
-
     return (
         <ScrollView
             contentContainerStyle={style.container}
@@ -183,7 +153,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                             <SvgImage
                                 name="ArrowDown"
                                 color={
-                                    shouldDisableReceives
+                                    receiveDisabled
                                         ? theme.colors.lightGrey
                                         : theme.colors.white
                                 }
@@ -193,7 +163,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                             flex: 1,
                         }}
                         onPress={handleReceive}
-                        disabled={shouldDisableReceives}
+                        disabled={receiveDisabled}
                     />
                     <Button
                         title={t('words.send')}
@@ -201,7 +171,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                             <SvgImage
                                 name="ArrowUp"
                                 color={
-                                    shouldDisableSends
+                                    sendDisabled
                                         ? theme.colors.lightGrey
                                         : theme.colors.white
                                 }
@@ -211,7 +181,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                             flex: 1,
                         }}
                         onPress={handleSend}
-                        disabled={shouldDisableSends}
+                        disabled={sendDisabled}
                     />
                 </Row>
                 {disabledMessage && (

@@ -2,9 +2,12 @@ import { act, screen, userEvent } from '@testing-library/react-native'
 import { View as mockView } from 'react-native'
 
 import {
+    fetchCurrencyPrices,
     setFederations,
     setIsInternetUnreachable,
+    setPaymentType,
     setSelectedFederationId,
+    setStabilityPoolState,
     setupStore,
 } from '@fedi/common/redux'
 import { setSimulateRecovery } from '@fedi/common/redux/federation'
@@ -19,7 +22,7 @@ import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import i18n from '../../../localization/i18n'
 import Wallet from '../../../screens/Wallet'
 import { resetToJoinFederation } from '../../../state/navigation'
-import { LoadedFederation } from '../../../types'
+import { LoadedFederation, MSats, UsdCents } from '../../../types'
 import { mockNavigation } from '../../setup/jest.setup.mocks'
 import { renderWithBridge, renderWithProviders } from '../../utils/render'
 
@@ -174,12 +177,8 @@ describe('Wallet screen', () => {
         })
 
         it('should render the tab switcher if stability pool is enabled', async () => {
-            act(() => store.dispatch(setFederations([mockFederationWithSPV1])))
-            act(() =>
-                store.dispatch(
-                    setSelectedFederationId(mockFederationWithSPV1.id),
-                ),
-            )
+            store.dispatch(setFederations([mockFederationWithSPV1]))
+            store.dispatch(setSelectedFederationId(mockFederationWithSPV1.id))
             renderWithProviders(
                 <Wallet
                     route={{
@@ -313,6 +312,195 @@ describe('Wallet screen', () => {
                 i18n.t('feature.recovery.recovery-in-progress-wallet'),
             )
             expect(recoveryMessage).toBeOnTheScreen()
+        })
+    })
+
+    describe('button disabled states', () => {
+        it('should disable the receive button and display the "receives-have-been-disabled" message if the user\'s bitcoin balance exceeds the federation limit', async () => {
+            const federationWithMaxBalance = {
+                ...mockFederation1,
+                meta: {
+                    ...mockFederation1.meta,
+                    max_balance_msats: '1000000',
+                },
+                balance: 2000000 as MSats,
+            } as LoadedFederation
+
+            store.dispatch(setFederations([federationWithMaxBalance]))
+            store.dispatch(setSelectedFederationId(federationWithMaxBalance.id))
+
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
+            const sendButton = screen.getByText(i18n.t('words.send'))
+
+            expect(receiveButton).toBeDisabled()
+            expect(sendButton).not.toBeDisabled()
+
+            const disabledMessage = screen.getByText(
+                i18n.t('errors.receives-have-been-disabled'),
+            )
+            expect(disabledMessage).toBeOnTheScreen()
+        })
+
+        it('should disable the send and receive buttons if the federation has ended', async () => {
+            const endedFederation = {
+                ...mockFederation1,
+                meta: {
+                    ...mockFederation1.meta,
+                    popup_end_timestamp: '1',
+                },
+            } as LoadedFederation
+
+            store.dispatch(setFederations([endedFederation]))
+            store.dispatch(setSelectedFederationId(endedFederation.id))
+
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
+            const sendButton = screen.getByText(i18n.t('words.send'))
+
+            expect(receiveButton).toBeDisabled()
+            expect(sendButton).toBeDisabled()
+        })
+
+        it('should disable the receive button and display the "recovery in progress" message if the federation is recovering', async () => {
+            const recoveringFederation = {
+                ...mockFederation1,
+                recovering: true,
+            } as LoadedFederation
+
+            store.dispatch(setFederations([recoveringFederation]))
+            store.dispatch(setSelectedFederationId(recoveringFederation.id))
+
+            const fedimintWithStability = createMockFedimintBridge({
+                stabilityPoolWithdraw: jest.fn(),
+            })
+
+            renderWithBridge(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store, fedimint: fedimintWithStability },
+            )
+
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
+            const sendButton = screen.getByText(i18n.t('words.send'))
+
+            expect(receiveButton).toBeDisabled()
+            expect(sendButton).toBeDisabled()
+
+            const disabledMessage = screen.getByText(
+                i18n.t('feature.recovery.recovery-in-progress-wallet'),
+            )
+            expect(disabledMessage).toBeOnTheScreen()
+        })
+
+        it('should disable the receive button and display the "pending-withdrawal-blocking" message if the paymentType is stable-balance and the stable balance is blocked', async () => {
+            store.dispatch({
+                type: fetchCurrencyPrices.fulfilled.type,
+                payload: {
+                    btcUsdRate: 100000,
+                    fiatUsdRates: {},
+                },
+            })
+            store.dispatch(setFederations([mockFederationWithSPV2]))
+            store.dispatch(setSelectedFederationId(mockFederationWithSPV2.id))
+            store.dispatch(
+                setStabilityPoolState({
+                    federationId: mockFederationWithSPV2.id,
+                    stabilityPoolState: {
+                        locked: { btc: 0 as MSats, fiat: 0 as UsdCents },
+                        staged: { btc: 0 as MSats, fiat: 0 as UsdCents },
+                        idleBalance: 0 as MSats,
+                        pendingUnlock: {
+                            btc: 1000000 as MSats,
+                            fiat: 5000 as UsdCents,
+                        },
+                        currCycleStartPrice: 50000,
+                    },
+                }),
+            )
+
+            const fedimintWithStability = createMockFedimintBridge({
+                stabilityPoolWithdraw: jest.fn(),
+                spv2SubscribeAccountInfo: jest.fn(),
+            })
+
+            renderWithBridge(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store, fedimint: fedimintWithStability },
+            )
+
+            // Switch to stable-balance tab
+            act(() => store.dispatch(setPaymentType('stable-balance')))
+
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
+            const sendButton = screen.getByText(i18n.t('words.send'))
+
+            expect(receiveButton).toBeDisabled()
+            expect(sendButton).toBeDisabled()
+
+            const disabledMessage = screen.getByText(
+                i18n.t('feature.stabilitypool.pending-withdrawal-blocking'),
+            )
+            expect(disabledMessage).toBeOnTheScreen()
+        })
+
+        it('should disable the send button if the user has less than 1000 msats in their wallet', async () => {
+            // Create a federation with balance less than 1000 msats
+            const lowBalanceFederation = {
+                ...mockFederation1,
+                balance: 500 as MSats, // 500 msats is less than 1000 msats
+            } as LoadedFederation
+
+            store.dispatch(setFederations([lowBalanceFederation]))
+            store.dispatch(setSelectedFederationId(lowBalanceFederation.id))
+
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
+            const sendButton = screen.getByText(i18n.t('words.send'))
+
+            expect(sendButton).toBeDisabled()
+            expect(receiveButton).not.toBeDisabled()
         })
     })
 })
