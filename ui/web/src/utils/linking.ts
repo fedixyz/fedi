@@ -10,11 +10,6 @@ import {
     onboardingJoinRoute,
 } from '../constants/routes'
 
-// if url contains /link?screen or /link#screen then it's a deep link
-export const isDeepLink = (url: string): boolean => {
-    return /\/link[?#]screen/.test(url)
-}
-
 export const getDeepLinkPath = (url: string): string => {
     try {
         // returns screen=...
@@ -27,37 +22,41 @@ export const getDeepLinkPath = (url: string): string => {
 
         switch (page) {
             case 'join': {
-                const inviteCode = params.get('invite') ?? params.get('id')
+                const inviteCode = params.get('invite') || params.get('id')
                 if (!inviteCode) return homeRoute
                 return onboardingJoinRoute(
                     normalizeCommunityInviteCode(inviteCode),
                 )
             }
+            case 'chat':
+                return chatRoute
             case 'room': {
-                const roomId = params.get('id')
+                const roomId = params.get('roomId') || params.get('id')
                 if (!roomId) return chatRoute
                 return chatRoomRoute(roomId)
             }
             case 'user': {
-                const userId = params.get('id')
+                const userId = params.get('userId') || params.get('id')
                 if (!userId) return chatRoute
                 return chatUserRoute(userId)
             }
-            case 'home':
-                return homeRoute
-            case 'chat':
-                return chatRoute
             // this is for backwards compatibility
             // TODO: remove legacy /federations deeplink after some time...
             case 'federations':
             case 'wallet':
                 return walletRoute
             case 'ecash': {
-                const tokenId = params.get('id')
-                if (!tokenId) return '/'
+                const token = params.get('token') || params.get('id')
+                if (!token) return '/'
 
                 // Only use # so that ecash token isn't sent to server
-                return `${ecashRoute}#id=${tokenId}`
+                return `${ecashRoute}#id=${token}`
+            }
+            case 'share-logs': {
+                const ticketNumber =
+                    params.get('ticketNumber') || params.get('id')
+                if (!ticketNumber) return '/'
+                return `/share-logs?ticketNumber=${ticketNumber}`
             }
             default:
                 return '/'

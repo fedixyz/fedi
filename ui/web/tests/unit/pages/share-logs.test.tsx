@@ -12,6 +12,7 @@ import {
     mockFederation2,
 } from '@fedi/common/tests/mock-data/federation'
 
+import { mockUseRouter } from '../../../jest.setup'
 import i18n from '../../../src/localization/i18n'
 import ShareLogs from '../../../src/pages/share-logs'
 import { renderWithProviders } from '../../utils/render'
@@ -121,5 +122,14 @@ describe('ShareLogs screen', () => {
         await waitFor(() =>
             expect(mockCollectAttachmentsAndSubmit).toHaveBeenCalled(),
         )
+    })
+
+    it('should auto populate the input if a ticket number is passed as a query param', async () => {
+        mockUseRouter.query = { ticketNumber: '123' }
+
+        renderWithProviders(<ShareLogs />)
+
+        const input = await screen.findByTestId('ticket-number-input')
+        expect(input).toHaveValue('123')
     })
 })

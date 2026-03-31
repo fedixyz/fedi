@@ -58,6 +58,7 @@ export const mockUseRouter = {
     back: jest.fn(),
     replace: jest.fn(),
     isReady: true,
+    query: {},
 }
 jest.mock('next/router', () => ({
     useRouter: () => mockUseRouter,

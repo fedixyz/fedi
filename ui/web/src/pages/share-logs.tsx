@@ -30,12 +30,15 @@ const BUG_CLICK_THRESHOLD = 21
 export default function ShareLogsPage() {
     const { t } = useTranslation()
     const { status, collectAttachmentsAndSubmit } = useShareLogs()
-    const { push } = useRouter()
+    const { push, query } = useRouter()
 
     const walletFederations = useAppSelector(selectLoadedFederations)
     const paymentFederation = useAppSelector(selectPaymentFederation)
 
-    const [ticketNumber, setTicketNumber] = useState('')
+    const [ticketNumber, setTicketNumber] = useState<string>(
+        typeof query.ticketNumber === 'string' ? query.ticketNumber : '',
+    )
+
     const [error, setError] = useState<string | null>(null)
     const [isValid, setIsValid] = useState<boolean>(false)
     const [bugClicks, setBugClicks] = useState<number>(0)
@@ -63,6 +66,12 @@ export default function ShareLogsPage() {
             return
         }
     }, [status])
+
+    useEffect(() => {
+        if (typeof query.ticketNumber === 'string') {
+            setTicketNumber(query.ticketNumber)
+        }
+    }, [query.ticketNumber])
 
     const handleOnSubmit = async () => {
         if (!isValid) {
