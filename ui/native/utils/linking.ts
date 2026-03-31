@@ -10,7 +10,11 @@ import {
 import { Linking } from 'react-native'
 
 import { setRedirectTo } from '@fedi/common/redux'
-import { isDeepLink, normalizeDeepLink } from '@fedi/common/utils/linking'
+import {
+    isDeepLink,
+    normalizeCommunityInviteCode,
+    normalizeDeepLink,
+} from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
 import type { AppDispatch } from '../state/store'
@@ -80,8 +84,12 @@ export const screenMap: Record<
     },
     ecash: () => ({ screen: 'ClaimEcash' }),
     join: (params: Record<string, string>) => {
-        const invite = params?.id
-        if (invite) return { screen: 'JoinFederation', params: { invite } }
+        const invite = params?.invite ?? params?.id
+        if (invite)
+            return {
+                screen: 'JoinFederation',
+                params: { invite: normalizeCommunityInviteCode(invite) },
+            }
         return { screen: 'JoinFederation' }
     },
     'share-logs': () => ({ screen: 'ShareLogs' }),

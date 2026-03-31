@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { WEB_APP_URL } from '@fedi/common/constants/api'
 import { selectCommunity } from '@fedi/common/redux'
+import { stripFediPrefix } from '@fedi/common/utils/linking'
 
 import { useAppSelector } from '../hooks'
 import { QRDialog } from './QRDialog'
@@ -25,7 +26,7 @@ export const CommunityInviteDialog: React.FC<Props> = ({
     const inviteCode = community?.communityInvite.invite_code_str
     if (!inviteCode) return null
 
-    const shareLink = `${WEB_APP_URL}/link#screen=join&id=${encodeURIComponent(inviteCode)}`
+    const shareLink = `${WEB_APP_URL}/link#screen=join&id=${encodeURIComponent(stripFediPrefix(inviteCode))}`
 
     return (
         <QRDialog

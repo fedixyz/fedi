@@ -89,3 +89,24 @@ export const isFediDeeplinkType = (url: string): boolean =>
     DEEPLINK_HOSTS.some(
         h => url.includes(`https://${h}`) || url.includes(`https://www.${h}`),
     )
+
+/**
+ * Ensure a community invite code has the `fedi:` prefix required by the
+ * backend. Codes arriving from deeplinks may have the prefix stripped.
+ */
+export const normalizeCommunityInviteCode = (code: string): string => {
+    if (code.toLowerCase().startsWith('fedi:')) return code
+    if (code.toLowerCase().startsWith('community')) return `fedi:${code}`
+    return code
+}
+
+/**
+ * Strip the `fedi:` prefix so that universal/share links stay short and
+ * avoid iOS link-hijacking issues with colons. Currently only community
+ * invite codes use this prefix, but consider this utility whenever
+ * adding fedi:-prefixed codes to universal links.
+ */
+export const stripFediPrefix = (code: string): string => {
+    if (code.toLowerCase().startsWith('fedi:')) return code.slice(5)
+    return code
+}

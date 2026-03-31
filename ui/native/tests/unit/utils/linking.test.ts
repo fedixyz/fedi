@@ -1,4 +1,8 @@
-import { normalizeDeepLink } from '@fedi/common/utils/linking'
+import {
+    normalizeCommunityInviteCode,
+    normalizeDeepLink,
+    stripFediPrefix,
+} from '@fedi/common/utils/linking'
 
 import * as linking from '../../../utils/linking'
 
@@ -163,11 +167,29 @@ describe('linking', () => {
             // community (unprefixed)
             [
                 'https://app.fedi.xyz/link#screen=join&id=community10abc',
-                { invite: 'community10abc' },
+                { invite: 'fedi:community10abc' },
             ],
             [
                 'https://app.fedi.xyz/link?screen=join&id=community10abc',
-                { invite: 'community10abc' },
+                { invite: 'fedi:community10abc' },
+            ],
+            // federation via invite= param (backwards compat)
+            [
+                'https://app.fedi.xyz/link#screen=join&invite=fed1abc123',
+                { invite: 'fed1abc123' },
+            ],
+            [
+                'https://app.fedi.xyz/link?screen=join&invite=fed1abc123',
+                { invite: 'fed1abc123' },
+            ],
+            // community via invite= param (backwards compat)
+            [
+                'https://app.fedi.xyz/link#screen=join&invite=fedi%3Acommunity10abc',
+                { invite: 'fedi:community10abc' },
+            ],
+            [
+                'https://app.fedi.xyz/link?screen=join&invite=fedi%3Acommunity10abc',
+                { invite: 'fedi:community10abc' },
             ],
         ])(
             'should navigate to JoinFederation for %s',
@@ -187,6 +209,61 @@ describe('linking', () => {
                 })
             },
         )
+    })
+
+    describe('join deep link without invite code', () => {
+        it('should navigate to JoinFederation without params for https://app.fedi.xyz/link?screen=join', () => {
+            const deepLink = 'https://app.fedi.xyz/link?screen=join'
+            const normalized = normalizeDeepLink(deepLink)
+            expect(normalized).toBeDefined()
+
+            if (!normalized) return
+            const result = linking.getInternalLinkRoute(normalized.fediUri)
+            expect(result).toEqual({
+                routes: [
+                    {
+                        name: 'JoinFederation',
+                        params: {},
+                    },
+                ],
+            })
+        })
+    })
+
+    describe('community invite shared and parsed as deep link', () => {
+        it('should restore the fedi: prefix after stripping it', () => {
+            const inviteCode =
+                'fedi:community10v3xxmmdd46ku6u6t5090k6et5t5090ku6t5090k6et56et5v90h2unvygazy6r5w3u6t5090k6et5u6t5090k6et5c8xw309a4x76tw'
+            // Outgoing: strip prefix for share link
+            const stripped = stripFediPrefix(inviteCode)
+            expect(stripped).not.toMatch(/^fedi:/i)
+
+            const shareUrl = `https://app.fedi.xyz/link#screen=join&id=${encodeURIComponent(stripped)}`
+
+            // Incoming: parse deeplink
+            const normalized = normalizeDeepLink(shareUrl)
+            expect(normalized).toBeDefined()
+            if (!normalized) return
+
+            const result = linking.getInternalLinkRoute(normalized.fediUri)
+            expect(result).toEqual({
+                routes: [
+                    {
+                        name: 'JoinFederation',
+                        params: { invite: inviteCode },
+                    },
+                ],
+            })
+        })
+
+        it('should not affect federation invite codes', () => {
+            const fedCode = 'fed1abc123'
+            const stripped = stripFediPrefix(fedCode)
+            expect(stripped).toBe(fedCode)
+
+            const normalized = normalizeCommunityInviteCode(stripped)
+            expect(normalized).toBe(fedCode)
+        })
     })
 
     describe('browser deep link end-to-end (normalizeDeepLink + getInternalLinkRoute)', () => {
