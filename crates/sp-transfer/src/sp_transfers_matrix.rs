@@ -390,8 +390,14 @@ impl SpTransfersMatrix {
                     room_id: RpcRoomId(room_id.to_string()),
                     event_id: pending_transfer_id.clone(),
                 };
-                dbtx.insert_entry(&TransferSentHintKey(transfer_id.clone()), &transaction_id)
-                    .await;
+                dbtx.insert_entry(
+                    &TransferSentHintKey {
+                        transfer_id: transfer_id.clone(),
+                        sender: sender_user.clone(),
+                    },
+                    &transaction_id,
+                )
+                .await;
 
                 // sender already syncs it in FederationV2::subscribe_spv2_transfer
                 if !is_sender
@@ -409,8 +415,14 @@ impl SpTransfersMatrix {
                     room_id: RpcRoomId(room_id.to_string()),
                     event_id: pending_transfer_id,
                 };
-                dbtx.insert_entry(&TransferFailedKey(transfer_id), &())
-                    .await;
+                dbtx.insert_entry(
+                    &TransferFailedKey {
+                        transfer_id,
+                        sender: sender_user,
+                    },
+                    &(),
+                )
+                .await;
             }
             RpcSpTransferEvent::FederationInviteDenied {
                 pending_transfer_id,
