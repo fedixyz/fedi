@@ -3,7 +3,7 @@ import { makeLog } from './log'
 
 const log = makeLog('common/utils/bug-report')
 
-export async function uploadBugReportLogs(id: string, gzip: Buffer) {
+export async function uploadBugReportLogs(id: string, gzip: Uint8Array) {
     // Fetch the S3 presigned URL
     const presignedRes = await fetch(
         `${API_ORIGIN}/api/bug-report/generate-upload-url`,

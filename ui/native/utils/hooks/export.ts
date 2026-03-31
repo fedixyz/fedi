@@ -157,7 +157,7 @@ export const useShareNativeLogs = (federationId?: Federation['id']) => {
 
             await Share.open({
                 title: 'Fedi logs',
-                url: `data:application/tar+gzip;base64,${gzip.toString('base64')}`,
+                url: `data:application/tar+gzip;base64,${Buffer.from(gzip).toString('base64')}`,
                 filename: filename,
                 type: 'application/tar+gzip',
             })
