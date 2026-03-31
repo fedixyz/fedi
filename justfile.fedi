@@ -125,6 +125,11 @@ check-ui-code:
 format-ui-code:
   export MODE="write" && ./scripts/ci/check-ui-code-formatting.sh
 
+# run UI code formatter to fix formatting errors
+clean-ui-code:
+  export MODE="write" && ./scripts/ci/check-ui-code-formatting.sh
+  export MODE="write" && ./scripts/ci/check-ui-code-linting.sh
+
 # run UI tests
 clean-ui:
   nix develop .#xcode --command ./scripts/ui/clean-ui.sh
