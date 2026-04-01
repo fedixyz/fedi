@@ -53,6 +53,8 @@ import SettingsHeader from '../components/feature/settings/SettingsHeader'
 import ConfirmDepositHeader from '../components/feature/stabilitypool/ConfirmDepositHeader'
 import ConfirmWithdrawHeader from '../components/feature/stabilitypool/ConfirmWithdrawHeader'
 import StabilityHistoryHeader from '../components/feature/stabilitypool/StabilityHistoryHeader'
+import StabilityReceiveHeader from '../components/feature/stabilitypool/StabilityReceiveHeader'
+import StabilitySendHeader from '../components/feature/stabilitypool/StabilitySendHeader'
 import WithdrawInitiatedHeader from '../components/feature/stabilitypool/WithdrawInitiatedHeader'
 import HelpCentreHeader from '../components/feature/support/HelpCentreHeader'
 import TransactionsHeader from '../components/feature/transaction-history/TransactionsHeader'
@@ -1210,24 +1212,14 @@ export const MainNavigator = () => {
                                 name="StabilitySend"
                                 component={StabilitySend}
                                 options={() => ({
-                                    header: () => (
-                                        <CenteredHeader
-                                            backButton
-                                            title={t('phrases.send-usd')}
-                                        />
-                                    ),
+                                    header: () => <StabilitySendHeader />,
                                 })}
                             />
                             <Stack.Screen
                                 name="StabilityReceive"
                                 component={StabilityReceive}
                                 options={() => ({
-                                    header: () => (
-                                        <CenteredHeader
-                                            backButton
-                                            title={t('phrases.receive-usd')}
-                                        />
-                                    ),
+                                    header: () => <StabilityReceiveHeader />,
                                 })}
                             />
                             <Stack.Screen
