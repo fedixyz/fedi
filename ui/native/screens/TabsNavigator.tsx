@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
-import React, { MutableRefObject, useEffect, useRef } from 'react'
+import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     AppState,
@@ -17,7 +17,9 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     refreshCommunities,
     refreshFederations,
+    selectCommunities,
     selectLastUsedTab,
+    selectLoadedFederations,
     selectMatrixHasNotifications,
 } from '@fedi/common/redux'
 import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
@@ -25,8 +27,10 @@ import { HomeNavigationTab } from '@fedi/common/types/linking'
 
 import StabilityPoolMonitorManager from '../components/StabilityPoolMonitorManager'
 import ChatHeader from '../components/feature/chat/ChatHeader'
+import CommunitiesOverlay from '../components/feature/federations/CommunitiesOverlay'
 import WalletHeader from '../components/feature/federations/WalletHeader'
 import HomeHeader from '../components/feature/home/HomeHeader'
+import SelectWalletOverlay from '../components/feature/send/SelectWalletOverlay'
 import GradientView from '../components/ui/GradientView'
 import SvgImage, {
     SvgImageSize,
@@ -53,9 +57,13 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
+    const [walletOverlayOpen, setWalletOverlayOpen] = useState(false)
+    const [communitiesOverlayOpen, setCommunitiesOverlayOpen] = useState(false)
     // TODO: Reimplement unseen logic with matrix
     // const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
     const hasUnreadMessages = useAppSelector(selectMatrixHasNotifications)
+    const communities = useAppSelector(selectCommunities)
+    const loadedFederations = useAppSelector(selectLoadedFederations)
     const zendeskMsgCount = useAppSelector(selectZendeskUnreadMessageCount)
     const lastUsedTab = useAppSelector(selectLastUsedTab)
     const dispatch = useAppDispatch()
@@ -225,10 +233,29 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                 <Tab.Screen
                     name="Wallet"
                     component={Wallet}
+                    listeners={({ navigation }) => ({
+                        tabPress: event => {
+                            if (
+                                !navigation.isFocused() ||
+                                loadedFederations.length < 2
+                            ) {
+                                return
+                            }
+
+                            event.preventDefault()
+                            setWalletOverlayOpen(true)
+                        },
+                    })}
                     options={() => ({
                         tabBarTestID: 'WalletTabButton',
                         title: t('words.wallet'),
-                        header: () => <WalletHeader />,
+                        header: () => (
+                            <WalletHeader
+                                onOpenSelectWalletOverlay={() =>
+                                    setWalletOverlayOpen(true)
+                                }
+                            />
+                        ),
                     })}
                 />
                 <Tab.Screen
@@ -286,14 +313,41 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                 />
                 <Tab.Screen
                     name="Home"
+                    listeners={({ navigation }) => ({
+                        tabPress: event => {
+                            if (
+                                !navigation.isFocused() ||
+                                communities.length < 2
+                            ) {
+                                return
+                            }
+
+                            event.preventDefault()
+                            setCommunitiesOverlayOpen(true)
+                        },
+                    })}
                     options={() => ({
                         tabBarTestID: 'HomeTabButton',
                         title: t('words.community'),
-                        header: () => <HomeHeader />,
+                        header: () => (
+                            <HomeHeader
+                                onOpenCommunitiesOverlay={() =>
+                                    setCommunitiesOverlayOpen(true)
+                                }
+                            />
+                        ),
                     })}>
                     {props => <Home {...props} />}
                 </Tab.Screen>
             </Tab.Navigator>
+            <SelectWalletOverlay
+                open={walletOverlayOpen}
+                onDismiss={() => setWalletOverlayOpen(false)}
+            />
+            <CommunitiesOverlay
+                open={communitiesOverlayOpen}
+                onOpenChange={setCommunitiesOverlayOpen}
+            />
             <StabilityPoolMonitorManager />
         </>
     )

@@ -1,9 +1,5 @@
-import {
-    cleanup,
-    screen,
-    userEvent,
-    waitFor,
-} from '@testing-library/react-native'
+import { cleanup, screen, userEvent } from '@testing-library/react-native'
+import React, { useState } from 'react'
 
 import {
     selectPaymentFederation,
@@ -20,8 +16,30 @@ import {
 import { renderWithProviders } from '@fedi/native/tests/utils/render'
 
 import WalletHeader from '../../../../../components/feature/federations/WalletHeader'
+import SelectWalletOverlay from '../../../../../components/feature/send/SelectWalletOverlay'
 import i18n from '../../../../../localization/i18n'
 import { LoadedFederation } from '../../../../../types'
+
+const WalletHeaderHarness = ({
+    onDismiss = () => undefined,
+}: {
+    onDismiss?: () => void
+}) => {
+    const [open, setOpen] = useState(false)
+
+    return (
+        <>
+            <WalletHeader onOpenSelectWalletOverlay={() => setOpen(true)} />
+            <SelectWalletOverlay
+                open={open}
+                onDismiss={() => {
+                    setOpen(false)
+                    onDismiss()
+                }}
+            />
+        </>
+    )
+}
 
 describe('WalletHeader', () => {
     let store: ReturnType<typeof setupStore>
@@ -40,7 +58,7 @@ describe('WalletHeader', () => {
     it('the menu button should be hidden if there are less than 2 federations joined', async () => {
         store.dispatch(setFederations([mockFederation1]))
 
-        renderWithProviders(<WalletHeader />, { store })
+        renderWithProviders(<WalletHeaderHarness />, { store })
 
         const menuButton = await screen.queryByTestId(
             'MainHeaderButtons__HamburgerIcon',
@@ -52,7 +70,7 @@ describe('WalletHeader', () => {
     it('the menu button should be visible if there are 2 or more federations joined', async () => {
         store.dispatch(setFederations([mockFederation1, mockFederation2]))
 
-        renderWithProviders(<WalletHeader />, { store })
+        renderWithProviders(<WalletHeaderHarness />, { store })
 
         const menuButton = await screen.getByTestId(
             'MainHeaderButtons__HamburgerIcon',
@@ -63,13 +81,12 @@ describe('WalletHeader', () => {
 
     it('should show the SelectWalletOverlay when the menu button is pressed', async () => {
         store.dispatch(setFederations([mockFederation1, mockFederation2]))
-        renderWithProviders(<WalletHeader />, { store })
+
+        renderWithProviders(<WalletHeaderHarness />, { store })
 
         const menuButton = await screen.getByTestId(
             'MainHeaderButtons__HamburgerIcon',
         )
-
-        expect(menuButton).toBeOnTheScreen()
 
         await user.press(menuButton)
 
@@ -79,37 +96,36 @@ describe('WalletHeader', () => {
     })
 
     it('should hide the SelectWalletOverlay when the backdrop is pressed', async () => {
+        const onDismiss = jest.fn()
+
         store.dispatch(setFederations([mockFederation1, mockFederation2]))
-        renderWithProviders(<WalletHeader />, { store })
+
+        renderWithProviders(<WalletHeaderHarness onDismiss={onDismiss} />, {
+            store,
+        })
 
         const menuButton = await screen.getByTestId(
             'MainHeaderButtons__HamburgerIcon',
         )
 
-        expect(menuButton).toBeOnTheScreen()
-
         await user.press(menuButton)
 
         const federationSelectTitle = await screen.getByText('Select Wallet')
-
         expect(federationSelectTitle).toBeOnTheScreen()
 
         const backdrop = await screen.getByTestId('RNE__Overlay__backdrop')
-
         expect(backdrop).toBeOnTheScreen()
 
         await user.press(backdrop)
 
-        waitFor(() => {
-            expect(federationSelectTitle).not.toBeOnTheScreen()
-        })
+        expect(onDismiss).toHaveBeenCalled()
     })
 
     it("should switch the tab and payment federation when a federation's bitcoin balance is selected", async () => {
         store.dispatch(setFederations([mockFederation1, mockFederation2]))
         store.dispatch(setPayFromFederationId(null))
 
-        renderWithProviders(<WalletHeader />, {
+        renderWithProviders(<WalletHeaderHarness />, {
             store,
         })
 
@@ -148,7 +164,7 @@ describe('WalletHeader', () => {
         store.dispatch(setFederations([federationWithSP, mockFederation2]))
         store.dispatch(setPayFromFederationId(null))
 
-        renderWithProviders(<WalletHeader />, {
+        renderWithProviders(<WalletHeaderHarness />, {
             store,
         })
 
@@ -166,11 +182,11 @@ describe('WalletHeader', () => {
 
         expect(federation1Item).toBeOnTheScreen()
 
-        const bitcoinButtonFederation1 = await screen.getByTestId(
+        const stableBalanceButtonFederation1 = await screen.getByTestId(
             `StableBalanceButton-${federationWithSP.id}`,
         )
 
-        await user.press(bitcoinButtonFederation1)
+        await user.press(stableBalanceButtonFederation1)
 
         expect(selectPaymentType(store.getState())).toBe('stable-balance')
         expect(selectPaymentFederation(store.getState())).toStrictEqual(
@@ -188,7 +204,7 @@ describe('WalletHeader', () => {
                 }),
             )
 
-            renderWithProviders(<WalletHeader />, { store })
+            renderWithProviders(<WalletHeaderHarness />, { store })
 
             const menuButton = screen.getByTestId(
                 'MainHeaderButtons__HamburgerIcon',
@@ -219,7 +235,7 @@ describe('WalletHeader', () => {
                 }),
             )
 
-            renderWithProviders(<WalletHeader />, { store })
+            renderWithProviders(<WalletHeaderHarness />, { store })
 
             const menuButton = screen.getByTestId(
                 'MainHeaderButtons__HamburgerIcon',

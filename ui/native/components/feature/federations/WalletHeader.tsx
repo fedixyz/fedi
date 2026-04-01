@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
@@ -13,15 +13,16 @@ import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import TotalBalance from '../../ui/TotalBalance'
-import SelectWalletOverlay from '../send/SelectWalletOverlay'
 
-const WalletHeader: React.FC = () => {
+type Props = {
+    onOpenSelectWalletOverlay: () => void
+}
+
+const WalletHeader: React.FC<Props> = ({ onOpenSelectWalletOverlay }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const loadedFederations = useAppSelector(selectLoadedFederations)
-
-    const [open, setOpen] = useState(false)
 
     const style = styles(theme)
 
@@ -45,7 +46,7 @@ const WalletHeader: React.FC = () => {
                         onAddPress={openJoinCommunity}
                         onMenuPress={
                             loadedFederations.length >= 2
-                                ? () => setOpen(true)
+                                ? onOpenSelectWalletOverlay
                                 : undefined
                         }
                     />
@@ -56,7 +57,6 @@ const WalletHeader: React.FC = () => {
             {/* TODO: restore this on federations screen */}
             {/* <NetworkBanner /> */}
             <NightlyBuildBanner />
-            <SelectWalletOverlay open={open} onDismiss={() => setOpen(false)} />
         </GradientView>
     )
 }

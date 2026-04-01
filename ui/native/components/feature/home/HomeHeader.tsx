@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
@@ -16,16 +16,18 @@ import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import TotalBalance from '../../ui/TotalBalance'
-import CommunitiesOverlay from '../federations/CommunitiesOverlay'
 import SelectedCommunity from '../federations/SelectedCommunity'
 
-const HomeHeader: React.FC = () => {
+type Props = {
+    onOpenCommunitiesOverlay: () => void
+}
+
+const HomeHeader: React.FC<Props> = ({ onOpenCommunitiesOverlay }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const communities = useAppSelector(selectCommunities)
     const selectedCommunity = useAppSelector(selectLastSelectedCommunity)
-    const [showCommunities, setShowCommunities] = useState(false)
 
     const style = styles(theme)
 
@@ -50,7 +52,7 @@ const HomeHeader: React.FC = () => {
                             onAddPress={openJoinCommunity}
                             onMenuPress={
                                 communities.length >= 2
-                                    ? () => setShowCommunities(true)
+                                    ? onOpenCommunitiesOverlay
                                     : undefined
                             }
                         />
@@ -67,11 +69,6 @@ const HomeHeader: React.FC = () => {
                     <SelectedCommunity community={selectedCommunity} />
                 </View>
             )}
-
-            <CommunitiesOverlay
-                open={showCommunities}
-                onOpenChange={setShowCommunities}
-            />
         </>
     )
 }
