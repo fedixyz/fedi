@@ -10,6 +10,7 @@ import {
     useSpv2OurPaymentAddress,
 } from '@fedi/common/hooks/stabilitypool'
 import { selectShouldShowStablePaymentAddress } from '@fedi/common/redux'
+import { Sats } from '@fedi/common/types'
 
 import FederationBalance from '../components/feature/federations/FederationBalance'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
@@ -57,6 +58,11 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
             federationId,
         })
         Keyboard.dismiss()
+    }
+
+    const onAmountChange = (newAmount: Sats) => {
+        setSubmitAttempts(0)
+        setAmount(newAmount)
     }
 
     const isValidAmount =
@@ -125,7 +131,7 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
                         alwaysBounceVertical={false}>
                         <AmountInput
                             amount={amount}
-                            onChangeAmount={setAmount}
+                            onChangeAmount={onAmountChange}
                             minimumAmount={minimumAmount}
                             maximumAmount={maximumAmount}
                             submitAttempts={submitAttempts}
@@ -137,7 +143,7 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
                         <Button
                             title={t('words.continue')}
                             onPress={handleDeposit}
-                            disabled={!isValidAmount}
+                            disabled={!isValidAmount && submitAttempts > 0}
                         />
                     </ScrollView>
                 )}
