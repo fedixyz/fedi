@@ -359,6 +359,14 @@ jest.mock('react-native-share', () => ({
 }))
 
 jest.mock('rn-fetch-blob', () => ({
+    fs: {
+        dirs: {
+            DocumentDir: '/mock/documents',
+        },
+        readFile: jest.fn(),
+        writeFile: jest.fn(),
+        unlink: jest.fn(),
+    },
     RNFetchBlob: {
         fs: {
             readFile: jest.fn(),

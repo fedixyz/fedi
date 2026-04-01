@@ -10,6 +10,10 @@ import { File } from '@fedi/common/utils/targz'
 import { store } from '../state/store'
 
 const log = makeLog('native/utils/logs-export')
+const LOGS_DIR = RNFB.fs.dirs.DocumentDir
+// Must match RAW_LOG_PREFIX / COMPRESSED_LOG_PREFIX in bridge/fedi-ffi/src/logging.rs
+const RAW_BRIDGE_LOG_PREFIX = 'fedi.log.'
+const COMPRESSED_BRIDGE_LOG_PREFIX = 'fedi.logz.'
 
 export async function shareReduxState() {
     const state = store.getState()
@@ -47,48 +51,38 @@ export async function attachmentsToFiles(
     return files
 }
 
-export async function exportBridgeLogs() {
-    // Ensure we get all logs. Logs are split across multiple files on a
-    // rolling basis, so it's possible that `fedi.log` is nearly empty but
-    // `fedi.log.1` has a lot of logs from before.
-    const LOGS_DIR = RNFB.fs.dirs.DocumentDir
-    let files = ['fedi.log']
-    const secondLogExists = await RNFB.fs.exists(`${LOGS_DIR}/fedi.log.1`)
-    if (secondLogExists) {
-        files = ['fedi.log.1', 'fedi.log']
-    }
+export async function exportBridgeLogFiles(): Promise<File[]> {
+    // Read raw and compressed logs in separate passes so a file
+    // compressed by the background maintenance thread between
+    // listing and reading is still captured in the second pass.
+    const rawFiles = await listAndReadBridgeLogFiles(RAW_BRIDGE_LOG_PREFIX)
+    const compressedFiles = await listAndReadBridgeLogFiles(
+        COMPRESSED_BRIDGE_LOG_PREFIX,
+    )
+    return [...rawFiles, ...compressedFiles]
+}
 
-    // Iterate over files and append to string. Starting oldest first, append
-    // in ascending order.
-    let bridgeLogs = ''
-    for (const file of files) {
+async function listAndReadBridgeLogFiles(prefix: string): Promise<File[]> {
+    const fileNames = await RNFB.fs.ls(LOGS_DIR).catch(err => {
+        log.warn('Failed to list bridge log files', err)
+        return []
+    })
+
+    const exportedFiles: File[] = []
+    for (const file of fileNames.filter(f => f.startsWith(prefix))) {
         try {
-            bridgeLogs += await asyncStreamFile(`${LOGS_DIR}/${file}`, 'utf8')
-        } catch (error) {
-            const err = error as Error
-            bridgeLogs += JSON.stringify({
-                error: `Error reading file stream for ${file}: ${
-                    err.stack || err.message || err.toString()
-                }`,
+            exportedFiles.push({
+                name: file,
+                content: Buffer.from(
+                    await asyncStreamFile(`${LOGS_DIR}/${file}`, 'base64'),
+                    'base64',
+                ),
             })
+        } catch (err) {
+            log.info(`Failed to read bridge log file ${file}; skipping`, err)
         }
     }
-
-    // Take the first line from the logs and try to JSON parse it. If it fails,
-    // cut off the first line since it's fragmented from the slice above. Only
-    // split on the first newline, don't split the whole string.
-    const firstNewlineIndex = bridgeLogs.indexOf('\n')
-    try {
-        const firstLine = bridgeLogs.substring(0, firstNewlineIndex)
-        JSON.parse(firstLine)
-    } catch (err) {
-        // Remove first line
-        if (firstNewlineIndex !== -1) {
-            bridgeLogs = bridgeLogs.slice(firstNewlineIndex + 1)
-        }
-    }
-
-    return bridgeLogs
+    return exportedFiles
 }
 
 function asyncStreamFile(path: string, encoding: 'utf8' | 'base64') {

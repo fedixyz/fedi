@@ -28,7 +28,9 @@ export const useCompressLogs = ({
 }: {
     storage: StorageApi
     handleCollectDbContents: (path: string) => Promise<string>
-    handleCollectExtraFiles: () => Record<string, () => Promise<string>>
+    handleCollectExtraFiles: () =>
+        | Record<string, () => Promise<string | Buffer>>
+        | Promise<Record<string, () => Promise<string | Buffer>>>
     federationId?: Federation['id']
     // IMPORTANT: this `fedimint` argument **must** be passed into this hook for exporting logs
     // Log exporting is used on the ErrorScreen, in which the FedimintContext may not be available
@@ -51,7 +53,10 @@ export const useCompressLogs = ({
             sendDb: boolean
             includeFederationSecret?: boolean
         }) => {
-            const attachmentPromiseMap: Record<string, Promise<string>> = {}
+            const attachmentPromiseMap: Record<
+                string,
+                Promise<string | Buffer>
+            > = {}
 
             if (federation) {
                 if (sendDb) {
@@ -89,13 +94,13 @@ export const useCompressLogs = ({
                 exportLegacyUiLogs(storage)
             attachmentPromiseMap['ui-logs.txt'] = exportUiLogs()
 
-            for (const [fileName, filePromise] of Object.entries(
-                handleCollectExtraFiles(),
-            )) {
-                attachmentPromiseMap[fileName] = filePromise()
-            }
-
             const tryCollectAttachments = async () => {
+                for (const [fileName, filePromise] of Object.entries(
+                    await handleCollectExtraFiles(),
+                )) {
+                    attachmentPromiseMap[fileName] = filePromise()
+                }
+
                 const attachmentFiles: Array<File> = []
 
                 for (const [fileName, filePromise] of Object.entries(

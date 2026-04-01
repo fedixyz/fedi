@@ -31,7 +31,7 @@ import { makeLog } from '@fedi/common/utils/log'
 import { fedimint } from '../../bridge'
 import { useAppSelector } from '../../state/hooks'
 import { getAllDeviceInfo } from '../device-info'
-import { exportBridgeLogs } from '../log'
+import { exportBridgeLogFiles } from '../log'
 import { storage } from '../storage'
 
 const exportLogger = makeLog('native/utils/hooks/export/useNativeExport')
@@ -121,8 +121,13 @@ export type Status =
 export const useCompressNativeLogs = (federationId?: Federation['id']) => {
     const handleCollectDbContents = (path: string) => readFile(path, 'base64')
 
-    const handleCollectExtraFiles = () => ({
-        'bridge.log': exportBridgeLogs,
+    const handleCollectExtraFiles = async () => ({
+        ...Object.fromEntries(
+            (await exportBridgeLogFiles()).map(file => [
+                file.name,
+                async () => file.content,
+            ]),
+        ),
         'info.json': async () => {
             const infoJson = await getAllDeviceInfo()
 
