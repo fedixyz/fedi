@@ -5,10 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Keyboard, ScrollView, StyleSheet } from 'react-native'
 
 import { useDepositForm } from '@fedi/common/hooks/amount'
-import {
-    useMonitorStabilityPool,
-    useSpv2OurPaymentAddress,
-} from '@fedi/common/hooks/stabilitypool'
+import { useSpv2OurPaymentAddress } from '@fedi/common/hooks/stabilitypool'
 import { selectShouldShowStablePaymentAddress } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 
@@ -72,7 +69,6 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
 
     const style = styles(theme)
 
-    useMonitorStabilityPool(federationId)
     useSyncCurrencyRatesOnFocus(federationId)
 
     return (

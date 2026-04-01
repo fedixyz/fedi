@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
-import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
 import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
     selectCurrency,
@@ -96,8 +95,6 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
             dispatch(setPaymentType('bitcoin'))
         }
     }, [dispatch, stabilityPoolDisabledByFederation])
-
-    useMonitorStabilityPool(federationId)
 
     if (loadedFederations.length === 0) {
         return (

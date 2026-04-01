@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { Keyboard, ScrollView } from 'react-native'
 
 import { useWithdrawForm } from '@fedi/common/hooks/amount'
-import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
 import {
     selectFeatureFlag,
     selectPaymentFederation,
@@ -97,7 +96,6 @@ const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
     }
 
     useSyncCurrencyRatesOnFocus(federationId)
-    useMonitorStabilityPool(federationId)
 
     const shouldShowRecipientSelector =
         tab === 'user' && !recipient && spTransferFlag?.mode === 'Chat'
