@@ -5,9 +5,10 @@ import {
     chatRoomRoute,
     chatUserRoute,
     ecashRoute,
-    walletRoute,
     homeRoute,
     onboardingJoinRoute,
+    shareLogsRoute,
+    walletRoute,
 } from '../constants/routes'
 
 export const getDeepLinkPath = (url: string): string => {
@@ -55,8 +56,8 @@ export const getDeepLinkPath = (url: string): string => {
             case 'share-logs': {
                 const ticketNumber =
                     params.get('ticketNumber') || params.get('id')
-                if (!ticketNumber) return '/'
-                return `/share-logs?ticketNumber=${ticketNumber}`
+                if (!ticketNumber) return shareLogsRoute
+                return `${shareLogsRoute}?ticketNumber=${ticketNumber}`
             }
             default:
                 return '/'

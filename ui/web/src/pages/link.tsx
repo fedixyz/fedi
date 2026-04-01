@@ -49,6 +49,7 @@ const LinkingPage: NextPage = () => {
 
         if (!queryParams.has('screen') && !('screen' in hashParams)) {
             replace('/')
+            return
         }
 
         setLoaded(true)
