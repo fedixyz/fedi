@@ -165,6 +165,8 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
                             <FederationBalance federationId={federationId} />
                             <AmountInput
                                 amount={offlineAmount}
+                                minimumAmount={minimumAmount}
+                                maximumAmount={maximumAmount}
                                 onChangeAmount={setOfflineAmount}
                                 submitAttempts={offlineSubmitAttempts}
                                 verb={t('words.send')}
@@ -263,6 +265,8 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
         style,
         theme,
         t,
+        minimumAmount,
+        maximumAmount,
     ])
 
     useSyncCurrencyRatesOnFocus(federationId)
