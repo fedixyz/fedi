@@ -286,9 +286,27 @@ impl Bridge {
             ItemKind::Directory(base_path.join("global.db")),
             ItemKind::Directory(base_path.join("matrix")),
             ItemKind::File(base_path.join(FEDI_FILE_V0_PATH)),
-            ItemKind::File(base_path.join("fedi.log")),
-            ItemKind::File(base_path.join("fedi.log.1")),
         ];
+
+        for entry in std::fs::read_dir(&base_path)? {
+            let entry = entry?;
+            let metadata = entry.metadata()?;
+            if !metadata.is_file() {
+                continue;
+            }
+
+            let file_name = entry.file_name();
+            let Some(file_name) = file_name.to_str() else {
+                continue;
+            };
+
+            let is_log_file =
+                file_name.starts_with("fedi.log.") || file_name.starts_with("fedi.logz.");
+
+            if is_log_file {
+                items_queue.push(ItemKind::File(entry.path()));
+            }
+        }
 
         while let Some(next) = items_queue.pop() {
             // ignore errors while processing items

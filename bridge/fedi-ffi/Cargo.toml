@@ -52,8 +52,7 @@ nostr = { workspace = true }
 ts-rs = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
-rolling-file = "0.2.0"
-tracing-appender = "0.2.2"
+zstd = "0.13"
 matrix-sdk = { workspace = true, default-features = false, features = [
   "js",
   "indexeddb",
