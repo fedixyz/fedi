@@ -37,28 +37,25 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
 
     const authenticatedGuardian = useAppSelector(selectAuthenticatedGuardian)
 
-    const { validateCanLeaveFederation, handleLeaveFederation } =
-        useLeaveFederation({
-            t,
-            federationId: federation.id,
-        })
+    const { handleLeaveFederation } = useLeaveFederation({
+        t,
+        federationId: federation.id,
+    })
 
     const handleLeavePressed = () => {
-        if (validateCanLeaveFederation(federation)) {
-            Alert.alert(
-                `${t('feature.federations.leave-federation')} - ${federation.name}`,
-                t('feature.federations.leave-federation-confirmation'),
-                [
-                    {
-                        text: t('words.no'),
-                    },
-                    {
-                        text: t('words.yes'),
-                        onPress: () => handleLeaveFederation(),
-                    },
-                ],
-            )
-        }
+        Alert.alert(
+            `${t('feature.federations.leave-federation')} - ${federation.name}`,
+            t('feature.federations.leave-federation-confirmation'),
+            [
+                {
+                    text: t('words.no'),
+                },
+                {
+                    text: t('words.yes'),
+                    onPress: () => handleLeaveFederation(),
+                },
+            ],
+        )
     }
 
     const [isExpanded, setIsExpanded] = useState(false)

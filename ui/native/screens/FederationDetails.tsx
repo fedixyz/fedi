@@ -71,30 +71,25 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
             chatType: chat.directUserId ? ChatType.direct : ChatType.group,
         })
     }
-    const { handleLeaveFederation, validateCanLeaveFederation } =
-        useLeaveFederation({
-            t,
-            federationId,
-        })
+    const { handleLeaveFederation } = useLeaveFederation({
+        t,
+        federationId,
+    })
 
     const handleLeave = () => {
         if (!federation) return
 
-        const canLeave = validateCanLeaveFederation(federation)
-
-        if (canLeave) {
-            setIsLeavingFederation(true)
-            handleLeaveFederation()
-                .then(() => {
-                    navigation.dispatch(
-                        reset('TabsNavigator', {
-                            initialRouteName: 'Wallet',
-                        }),
-                    )
-                })
-                .catch(e => toast.error(t, e))
-                .finally(() => setIsLeavingFederation(false))
-        }
+        setIsLeavingFederation(true)
+        handleLeaveFederation()
+            .then(() => {
+                navigation.dispatch(
+                    reset('TabsNavigator', {
+                        initialRouteName: 'Wallet',
+                    }),
+                )
+            })
+            .catch(e => toast.error(t, e))
+            .finally(() => setIsLeavingFederation(false))
     }
 
     if (!federation) return null

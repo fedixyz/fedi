@@ -48,20 +48,17 @@ function AdminPage() {
         null,
     )
 
-    const { validateCanLeaveFederation, handleLeaveFederation } =
-        useLeaveFederation({
-            t,
-            federationId: leavingFederation?.id || '',
-        })
+    const { handleLeaveFederation } = useLeaveFederation({
+        t,
+        federationId: leavingFederation?.id || '',
+    })
 
     const { canLeaveCommunity, handleLeave } = useLeaveCommunity(
         leavingCommunity?.id || '',
     )
 
     const handleLeaveFederationPressed = (federation: LoadedFederation) => {
-        if (validateCanLeaveFederation(federation)) {
-            setLeavingFederation(federation)
-        }
+        setLeavingFederation(federation)
     }
 
     const handleLeaveCommunityPressed = (community: Community) => {

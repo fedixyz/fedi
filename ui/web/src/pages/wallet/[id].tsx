@@ -45,24 +45,19 @@ function FederationDetails() {
 
     const shouldShowInvite = shouldShowInviteCode(federation?.meta ?? {})
 
-    const { handleLeaveFederation, validateCanLeaveFederation } =
-        useLeaveFederation({
-            t,
-            federationId: federation?.id || '',
-        })
+    const { handleLeaveFederation } = useLeaveFederation({
+        t,
+        federationId: federation?.id || '',
+    })
 
     const handleLeave = () => {
         if (!federation) return
 
-        const canLeave = validateCanLeaveFederation(federation)
-
-        if (canLeave) {
-            setIsLeavingFederation(true)
-            handleLeaveFederation()
-                .then(() => push('/federations'))
-                .catch(e => toast.error(t, e))
-                .finally(() => setIsLeavingFederation(false))
-        }
+        setIsLeavingFederation(true)
+        handleLeaveFederation()
+            .then(() => push('/federations'))
+            .catch(e => toast.error(t, e))
+            .finally(() => setIsLeavingFederation(false))
     }
 
     if (!federation || !isReady || !id) return null

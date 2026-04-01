@@ -2,19 +2,13 @@ import { TFunction } from 'i18next'
 import { useCallback, useState } from 'react'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectCurrency } from '@fedi/common/redux'
 import {
     changeAuthenticatedGuardian,
     leaveCommunity,
     leaveFederation,
     selectCanLeaveCommunity,
 } from '@fedi/common/redux/federation'
-import {
-    selectStableBalance,
-    selectStableBalancePending,
-} from '@fedi/common/redux/wallet'
-import { Community, Federation, LoadedFederation } from '@fedi/common/types'
-import amountUtils from '@fedi/common/utils/AmountUtils'
+import { Community, Federation } from '@fedi/common/types'
 
 import { makeLog } from '../utils/log'
 import { useFedimint } from './fedimint'
@@ -32,13 +26,6 @@ export const useLeaveFederation = ({
     const toast = useToast()
     const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
-    const stableBalance = useCommonSelector(s =>
-        selectStableBalance(s, federationId),
-    )
-    const pendingStableBalance = useCommonSelector(s =>
-        selectStableBalancePending(s, federationId),
-    )
-    const currency = useCommonSelector(selectCurrency)
 
     const resetGuardiansState = useCallback(() => {
         dispatch(changeAuthenticatedGuardian(null))
@@ -73,55 +60,7 @@ export const useLeaveFederation = ({
         }
     }, [resetGuardiansState, dispatch, fedimint, federationId, toast, t])
 
-    const validateCanLeaveFederation = useCallback(
-        (federation: LoadedFederation) => {
-            const alertTitle = `${t(
-                'feature.federations.leave-federation',
-            )} - ${federation.name}\n\n`
-
-            // Don't allow leaving if stable balance exists
-            if (stableBalance > 0) {
-                toast.error(
-                    t,
-                    new Error(
-                        `${alertTitle}${t(
-                            'feature.federations.leave-federation-withdraw-stable-first',
-                            { currency },
-                        )}`,
-                    ),
-                )
-            }
-            // Don't allow leaving if stable pending balance exists
-            else if (pendingStableBalance > 0) {
-                toast.error(
-                    t,
-                    new Error(
-                        `${alertTitle}${t(
-                            'feature.federations.leave-federation-withdraw-pending-stable-first',
-                            { currency },
-                        )}`,
-                    ),
-                )
-            }
-            // Don't allow leaving sats balance is greater than 100
-            else if (amountUtils.msatToSat(federation.balance) > 100) {
-                toast.error(
-                    t,
-                    new Error(
-                        `${alertTitle}${t(
-                            'feature.federations.leave-federation-withdraw-first',
-                        )}`,
-                    ),
-                )
-            } else {
-                return true
-            }
-            return false
-        },
-        [t, stableBalance, pendingStableBalance, toast, currency],
-    )
-
-    return { validateCanLeaveFederation, handleLeaveFederation }
+    return { handleLeaveFederation }
 }
 
 export const useLeaveCommunity = (communityId: Community['id']) => {
