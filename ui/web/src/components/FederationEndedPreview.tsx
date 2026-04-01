@@ -7,7 +7,7 @@ import { LoadedFederation } from '@fedi/common/types'
 import { RpcFederationPreview } from '@fedi/common/types/bindings'
 
 import { styled } from '../styles'
-import { isNightly } from '../utils/browserInfo'
+import { isExperimental } from '../utils/browserInfo'
 import { FederationAvatar } from './FederationAvatar'
 import { Text } from './Text'
 
@@ -39,7 +39,7 @@ export default function FederationEndedPreview({
                                 <strong
                                     onClick={() => {
                                         if (
-                                            !isNightly() &&
+                                            !isExperimental() &&
                                             process.env.NODE_ENV !==
                                                 'development'
                                         )

@@ -8,7 +8,7 @@ import { requestNotifications } from 'react-native-permissions'
 import { EULA_URL } from '@fedi/common/constants/tos'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { selectDeveloperMode } from '@fedi/common/redux/environment'
-import { isDev, isNightly } from '@fedi/common/utils/environment'
+import { isDev, isExperimental } from '@fedi/common/utils/environment'
 
 import { usePinContext } from '../../../state/contexts/PinContext'
 import { useAppSelector } from '../../../state/hooks'
@@ -83,7 +83,7 @@ export const GeneralSettings = () => {
                 }
             />
             {/* Feature flag for managing miniapp permissions */}
-            {(isDev() || isNightly()) && (
+            {(isDev() || isExperimental()) && (
                 <SettingsItem
                     icon="Eye"
                     label={t('feature.settings.mini-app-permission-settings')}

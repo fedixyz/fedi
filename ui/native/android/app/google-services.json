@@ -42,6 +42,28 @@
                     "other_platform_oauth_client": []
                 }
             }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:1089468211130:android:5ada431ddd111a998d8783",
+                "android_client_info": {
+                    "package_name": "com.fedi.nova"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCcYwoiCgoGO2OWr5AnmyHnyjarENE6EN8"
+                },
+                {
+                    "current_key": "AIzaSyDzHZm0e013XqymQtcVk-TzYB5pAUHt5eg"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
         }
     ],
     "configuration_version": "1"

@@ -640,6 +640,7 @@
             "export-transactions-csv": "Vanaho taranzagishoni za CSV",
             "logs": "Logs",
             "nightly": "Nightly",
+            "nova": "Nova",
             "select-federation-share-logs": "Hitamo federasiyo kugirango dusangire logs kuva",
             "share-logs": "Gabana logs",
             "share-state": "Gabana porogaramu uko iteye",

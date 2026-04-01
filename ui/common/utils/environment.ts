@@ -23,4 +23,17 @@ export const isNightly = () => {
     )
 }
 
-export const isDevOrNightly = isDev() || isNightly()
+export const isNova = () => {
+    return (
+        !!process &&
+        (process.env.FEDI_ENV === 'nova' ||
+            process.env.NEXT_PUBLIC_FEDI_ENV === 'nova')
+    )
+}
+
+export const isExperimental = () => isNightly() || isNova()
+
+export const isDevOrExperimental = isDev() || isExperimental()
+
+/** @deprecated Use isDevOrExperimental instead */
+export const isDevOrNightly = isDevOrExperimental

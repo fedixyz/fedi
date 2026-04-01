@@ -15,7 +15,7 @@ import {
     type MiniAppPermissionType,
     INJECTION_HANDLERS_PERMISSIONS_MAP,
 } from '../types'
-import { isDev, isNightly } from '../utils/environment'
+import { isDev, isExperimental } from '../utils/environment'
 import { makeLog } from '../utils/log'
 import { getPermissionState } from './browser'
 import { useCommonDispatch, useCommonSelector } from './redux'
@@ -103,7 +103,7 @@ export const useInjectionsPermissions = ({
                 )
             }
 
-            if (isDev() || isNightly()) {
+            if (isDev() || isExperimental()) {
                 log.info('Permission not set. Asking user...', {
                     currentMiniAppUrl,
                     message: message.type,

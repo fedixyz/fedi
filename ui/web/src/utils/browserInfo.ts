@@ -22,3 +22,12 @@ export function generateDeviceId() {
 export function isNightly() {
     return window.location.hostname.includes('fedi-ashen')
 }
+
+// TODO: Update when a Nova-specific web hostname exists
+export function isNova() {
+    return false
+}
+
+export function isExperimental() {
+    return isNightly() || isNova()
+}

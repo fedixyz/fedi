@@ -644,6 +644,7 @@
             "log-fcm-token": "Log FCM token",
             "logs": "Logs",
             "nightly": "nightly",
+            "nova": "Nova",
             "select-federation-share-logs": "Chagua federation utakachotumia kutuma logs",
             "share-logs": "Tuma logs",
             "share-state": "Tumia wengine hali ya app",

@@ -275,6 +275,7 @@
             "export-transactions-csv": "Ibicuruzwa CSV birungitswe ",
             "logs": "Logs",
             "nightly": "Nightly",
+            "nova": "Nova",
             "share-logs": "Sangira logs",
             "share-state": "Gusangiza imyimerere ya app"
         },

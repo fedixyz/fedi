@@ -8,7 +8,7 @@ import { RpcFederationPreview } from '@fedi/common/types/bindings'
 import { isDev } from '@fedi/common/utils/environment'
 
 import { LoadedFederation } from '../../../types'
-import { isNightly } from '../../../utils/device-info'
+import { isExperimental } from '../../../utils/device-info'
 import { Column } from '../../ui/Flex'
 import { FederationLogo } from './FederationLogo'
 
@@ -52,7 +52,7 @@ export default function FederationEndedPreview({
                                     caption
                                     bold
                                     onPress={() => {
-                                        if (isNightly() || isDev())
+                                        if (isExperimental() || isDev())
                                             setClicks(c => {
                                                 if (c >= 21)
                                                     setJoinAnyways(true)

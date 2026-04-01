@@ -641,6 +641,7 @@
             "export-transactions-csv": "Dhoofinta wax kala iibsiga",
             "logs": "Logs",
             "nightly": "Nightly",
+            "nova": "Nova",
             "select-federation-share-logs": "Dooro federaal aad la wadaagto diiwaannada",
             "share-logs": "La wadaag logs",
             "share-state": "La wadaag gobolka app"

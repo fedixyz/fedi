@@ -91,6 +91,19 @@ platform :ios do
     )
   end
 
+  desc "Create a release build (Fedi Nova)"
+  lane :build_nova do
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediNova",
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.nova" => "match AppStore org.fedi.nova"
+        }
+      }
+    )
+  end
+
   desc "Push a new beta build to TestFlight from CI (Fedi Nightly)"
   lane :beta_ci_nightly do
     setup_ci
@@ -124,6 +137,39 @@ platform :ios do
     )
   end
 
+  desc "Push a new beta build to TestFlight from CI (Fedi Nova)"
+  lane :beta_ci_nova do
+    setup_ci
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.nova',
+      generate_apple_certs: false,
+      force: false,
+      verbose: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-nova-react-native-certs",
+      storage_mode: 'git',
+      keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
+      keychain_password: ENV['MATCH_PASSWORD'],
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+
+    # these steps are the same as standard beta lane
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediNova",
+      verbose: true,
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.nova" => "match AppStore org.fedi.nova"
+        }
+      }
+    )
+    changelog_from_git_commits
+    upload_to_testflight(
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
   desc "Push a new beta build to TestFlight (Fedi Nightly)"
   lane :beta_nightly do
     build_app(
@@ -132,6 +178,23 @@ platform :ios do
       export_options: {
         provisioningProfiles: {
           "org.fedi.nightly" => "match AppStore org.fedi.nightly"
+        }
+      }
+    )
+    changelog_from_git_commits
+    upload_to_testflight(
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
+  desc "Push a new beta build to TestFlight (Fedi Nova)"
+  lane :beta_nova do
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediNova",
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.nova" => "match AppStore org.fedi.nova"
         }
       }
     )
@@ -169,6 +232,19 @@ platform :ios do
     )
   end
 
+  desc "Check for signing certificates (Fedi Nova)"
+  lane :check_appstore_certs_nova do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.nova',
+      generate_apple_certs: false,
+      readonly: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-nova-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
   # These renew commands should only ever be needed if the distribution
   # certificates in the Apple Developer Portal have expired
   # Details: https://www.notion.so/fedi21/Knowledge-Base-0f40176380ca43628dbd6a306bcd7e99?p=8d0c7b3d38d94474a8959649c4d11b9a&pm=s
@@ -191,6 +267,18 @@ platform :ios do
       app_identifier: 'org.fedi.nightly',
       generate_apple_certs: true,
       git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
+  desc "Generate renewed signing certificates (Fedi Nova)"
+  lane :renew_appstore_certs_nova do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.nova',
+      generate_apple_certs: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-nova-react-native-certs",
       storage_mode: 'git',
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
@@ -221,5 +309,17 @@ platform :ios do
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
     renew_appstore_certs_nightly
+  end
+
+  desc "Nuke and regenerate all certificates (Nova)"
+  lane :nuke_and_regenerate_certs_nova do
+    match_nuke(
+      type: 'appstore',
+      skip_confirmation: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-nova-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+    renew_appstore_certs_nova
   end
 end

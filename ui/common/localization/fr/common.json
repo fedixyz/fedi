@@ -640,6 +640,7 @@
             "log-fcm-token": "Consigner le jeton FCM",
             "logs": "Journaux",
             "nightly": "chaque nuit",
+            "nova": "Nova",
             "select-federation-share-logs": "Sélectionnez une fédération à partir de laquelle partager les journaux",
             "share-logs": "Partage les logs",
             "share-state": "Partager l'état de l'application",

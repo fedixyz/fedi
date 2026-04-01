@@ -76,8 +76,10 @@ if [[ -z "${TESTS_TO_RUN:-}" ]]; then
   TESTS_TO_RUN=${TESTS_TO_RUN:-all}
 fi
 
-echo "Uninstalling org.fedi.alpha (if present) to clear app data..."
-xcrun simctl uninstall "$DEVICE_ID" org.fedi.alpha || {
+BUNDLE_ID=${BUNDLE_ID:-org.fedi.alpha}
+
+echo "Uninstalling $BUNDLE_ID (if present) to clear app data..."
+xcrun simctl uninstall "$DEVICE_ID" "$BUNDLE_ID" || {
     echo "App not currently installed, continuing..."
 }
 

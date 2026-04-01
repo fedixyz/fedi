@@ -302,6 +302,7 @@
             "export-transactions-csv": "معاملات التصدير csv.",
             "logs": "Logs",
             "nightly": "Nightly",
+            "nova": "Nova",
             "share-logs": "شارك السجلات",
             "share-state": "مشاركة حالة التطبيق. "
         },

@@ -136,3 +136,9 @@ export function getNumberFormatLocale() {
 export const isNightly = () => {
     return RNDI.getBundleId().includes('nightly')
 }
+
+export const isNova = () => {
+    return RNDI.getBundleId().includes('nova')
+}
+
+export const isExperimental = () => isNightly() || isNova()

@@ -644,6 +644,7 @@
             "log-fcm-token": "Registrar token FCM",
             "logs": "Registos",
             "nightly": "noturno",
+            "nova": "Nova",
             "select-federation-share-logs": "Selecione uma federação para compartilhar os logs\n",
             "share-logs": "Compartilhe os logs",
             "share-state": "Partilhar o estado da aplicação",

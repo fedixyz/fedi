@@ -275,6 +275,7 @@
             "export-transactions-csv": "Rasulu transaction CSV",
             "logs": "Logs",
             "nightly": "Nightly",
+            "nova": "Nova",
             "share-logs": "Saal logs",
             "share-state": "Share app state"
         },

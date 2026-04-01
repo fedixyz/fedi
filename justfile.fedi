@@ -79,6 +79,18 @@ deploy-to-testflight:
 deploy-to-testflight-nightly:
   FLAVOR=nightly ./scripts/ui/deploy-to-testflight.sh
 
+# Builds an APK for a variant of the android app (Fedi Nova)
+build-nova-apk:
+  ./scripts/ui/build-nova-apk.sh
+
+# generates an iOS application archive (Fedi Nova)
+build-nova-ipa:
+  nix develop .#xcode --command ./scripts/ui/build-nova-ipa.sh
+
+# generates a signed xcode release archive and uploads to testflight (Fedi Nova)
+deploy-to-testflight-nova:
+  FLAVOR=nova ./scripts/ui/deploy-to-testflight.sh
+
 # bumps the npm + react-native versions for @fedi/native
 bump-version-native-ui:
   ./scripts/ui/bump-version-native.sh

@@ -12,7 +12,7 @@ import {
     COMMUNITY_TOOL_URL_STAGING,
 } from '@fedi/common/constants/fedimods'
 import { ParserDataType } from '@fedi/common/types'
-import { isDev, isNightly } from '@fedi/common/utils/environment'
+import { isDev, isExperimental } from '@fedi/common/utils/environment'
 
 import { onboardingJoinRoute } from '../../constants/routes'
 import { keyframes, styled, theme } from '../../styles'
@@ -116,7 +116,7 @@ export function OnboardingCommunities() {
     let body: React.ReactElement
     let actions: React.ReactElement | null = null
 
-    const showStagingUrl = isDev() || isNightly()
+    const showStagingUrl = isDev() || isExperimental()
 
     if (activeTab === 'join') {
         body = (

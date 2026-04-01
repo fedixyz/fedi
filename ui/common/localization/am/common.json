@@ -302,6 +302,7 @@
             "export-transactions-csv": "ግብይቶችን ወደ ውጪ ላክ CSV",
             "logs": "መዝገቦች",
             "nightly": "Nightly",
+            "nova": "Nova",
             "share-logs": "መረጃዎችን አጋራ",
             "share-state": "የመተግበሪያ ሁኔታን ያጋሩ"
         },

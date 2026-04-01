@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appIDs": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly"],
+        "appIDs": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly", "4JUZY29459.org.fedi.nova"],
         "components": [
           {
             "/": "/link*",
@@ -14,9 +14,9 @@
     ]
   },
   "activitycontinuation": {
-    "apps": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly"]
+    "apps": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly", "4JUZY29459.org.fedi.nova"]
   },
   "webcredentials": {
-    "apps": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly"]
+    "apps": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly", "4JUZY29459.org.fedi.nova"]
   }
 }

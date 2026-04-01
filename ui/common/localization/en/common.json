@@ -657,6 +657,7 @@
             "log-fcm-token": "Log FCM token",
             "logs": "Logs",
             "nightly": "nightly",
+            "nova": "nova",
             "select-federation-share-logs": "Select a federation to share logs from",
             "share-logs": "Share logs",
             "share-state": "Share app state",

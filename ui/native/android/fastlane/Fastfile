@@ -121,7 +121,45 @@ platform :android do
   desc "Submit a new internal build (Nightly)"
   lane :internal_nightly do
     build_nightly
-    upload_internal_build_nightly 
+    upload_internal_build_nightly
+  end
+
+  # For nova builds
+  desc "Build a new APK to release (Nova)"
+  lane :build_nova_apk do
+    gradle(
+      task: 'assemble',
+      flavor: 'nova',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Build a new app bundle to release (Nova)"
+  lane :build_nova do
+    gradle(
+      task: 'bundle',
+      flavor: 'nova',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Upload the latest build to internal track (Nova)"
+  lane :upload_internal_build_nova do
+    upload_to_play_store(
+      track: 'internal',
+      package_name: 'com.fedi.nova',
+      aab: './app/build/outputs/bundle/novaRelease/app-nova-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new internal build (Nova)"
+  lane :internal_nova do
+    build_nova
+    upload_internal_build_nova
   end
 
   # desc "Deploy a new version to the Google Play"

@@ -6,7 +6,7 @@ import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 import { Community } from '@fedi/common/types'
 
 import { keyframes, styled, theme } from '../styles'
-import { isNightly } from '../utils/browserInfo'
+import { isExperimental, isNova } from '../utils/browserInfo'
 import { CommunityInviteDialog } from './CommunityInviteDialog'
 import { Column, Row } from './Flex'
 import { Icon } from './Icon'
@@ -45,7 +45,12 @@ export function PageHeader({
                         />
                     </Row>
                     <TotalBalance />
-                    {isNightly() && <NightlyBadge>nightly</NightlyBadge>}
+                    {isExperimental() && (
+                        <NightlyBadge
+                            css={isNova() ? { background: '#B91735' } : {}}>
+                            {isNova() ? 'nova' : 'nightly'}
+                        </NightlyBadge>
+                    )}
                 </PageHeaderGradient>
                 {selectedCommunity && (
                     <SelectedCommunityWrapper>

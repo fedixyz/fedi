@@ -644,6 +644,7 @@
             "log-fcm-token": "Catat token FCM",
             "logs": "Log",
             "nightly": "Nightly",
+            "nova": "Nova",
             "select-federation-share-logs": "Pilih federasi untuk berbagi log",
             "share-logs": "Bagikan log",
             "share-state": "Bagikan status aplikasi",

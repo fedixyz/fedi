@@ -10,7 +10,7 @@ import {
     COMMUNITY_TOOL_URL_PROD,
     COMMUNITY_TOOL_URL_STAGING,
 } from '../constants/fedimods'
-import { isDev, isNightly } from '../utils/environment'
+import { isDev, isExperimental } from '../utils/environment'
 import { FediMod } from './fedimint'
 
 export type EcashRequest = Omit<RequestInvoiceArgs, 'defaultMemo'>
@@ -140,7 +140,7 @@ export const FIRST_PARTY_PERMISSIONS: MiniAppPermissionsByUrlOrigin = {
         manageCommunities: true,
         navigation: true,
     },
-    ...(isNightly() ? NIGHTLY_PERMISSIONS : {}),
+    ...(isExperimental() ? NIGHTLY_PERMISSIONS : {}),
     ...(isDev() ? DEV_PERMISSIONS : {}),
     // TODO: remove this after most users have upgraded to v26.3.
     // it is only needed so that users on < v26.3 can use the Add button to

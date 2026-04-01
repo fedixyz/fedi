@@ -643,6 +643,7 @@
             "log-fcm-token": "Додати FCM-токен в лоґ",
             "logs": "Лоґи",
             "nightly": "нічна версія",
+            "nova": "Nova",
             "select-federation-share-logs": "Виберіть федерацію для обміну лоґами",
             "share-logs": "Поділитися лоґами",
             "share-state": "Поділитися станом застосунку",

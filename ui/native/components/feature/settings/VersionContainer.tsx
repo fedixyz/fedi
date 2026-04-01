@@ -11,7 +11,7 @@ import {
 
 import { version } from '../../../package.json'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { isNightly } from '../../../utils/device-info'
+import { isExperimental } from '../../../utils/device-info'
 import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
@@ -67,7 +67,7 @@ export const VersionContainer = ({
                     medium
                     center
                     color={theme.colors.darkGrey}>
-                    {isNightly()
+                    {isExperimental()
                         ? t('phrases.app-version', { version: nightlyVersion })
                         : t('phrases.app-version', { version })}
                 </Text>

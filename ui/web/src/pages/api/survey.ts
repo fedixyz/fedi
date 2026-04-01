@@ -10,7 +10,7 @@ const IS_SURVEY_ENABLED = process.env.SURVEY_ENABLED === 'true'
 
 // The URL of the active survey form
 const SURVEY_URL =
-    process.env.FEDI_ENV === 'nightly'
+    process.env.FEDI_ENV === 'nightly' || process.env.FEDI_ENV === 'nova'
         ? 'https://survey.fedi.xyz/would-you-invite-someone-to-use-fedi-nightly'
         : 'https://survey.fedi.xyz/would-you-invite-someone-to-use-fedi'
 

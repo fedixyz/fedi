@@ -164,7 +164,7 @@ export PLATFORM_VERSION=7.1  # Optional
 export PLATFORM=ios
 export DEVICE_ID=0000000-000A1C2A0C61402E  # Run 'xcrun simctl list' to get this
 export BUNDLE_PATH=/path/to/YourApp.app
-export BUNDLE_ID=org.fedi.alpha
+export BUNDLE_ID=org.fedi.alpha  # Or org.fedi.nightly / org.fedi.nova
 export PLATFORM_VERSION=18.1  # Optional
                 `.trim()
 

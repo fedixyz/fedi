@@ -301,6 +301,7 @@
             "export-transactions-csv": "ငွေပေးငွေယူ CSV ကို ထုတ်ယူပါ",
             "logs": "မှတ်တမ်းများ",
             "nightly": "ညစဉ်ညတိုင်း",
+            "nova": "Nova",
             "share-logs": "log များကိုမျှဝေပါ",
             "share-state": "အပ်ပလီကေးရှင်း state ကိုမျှဝေပါ"
         },

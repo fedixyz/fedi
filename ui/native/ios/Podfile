@@ -74,6 +74,10 @@ target 'FediReactNative' do
     inherit! :complete
   end
 
+  target 'FediNova' do
+    inherit! :complete
+  end
+
   post_install do |installer|
     # This is where the bitcode stripping script goes - required in Xcode 16 / Sequoia - https://stackoverflow.com/questions/79018593/asset-validation-failed-invalid-executable-the-executable-myapp-app-frameworks/79030093#79030093
     bitcode_strip_path = `xcrun --find bitcode_strip`.chop!

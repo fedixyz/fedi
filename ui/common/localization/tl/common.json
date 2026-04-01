@@ -644,6 +644,7 @@
             "log-fcm-token": "I-log ang FCM token",
             "logs": "Mga log",
             "nightly": "Gabi-gabi",
+            "nova": "Nova",
             "select-federation-share-logs": "Pumili ng federation kung saan ibabahagi ang mga log",
             "share-logs": "Ibahagi ang mga log",
             "share-state": "Ibahagi ang estado ng app",
