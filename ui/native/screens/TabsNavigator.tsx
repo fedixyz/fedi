@@ -23,6 +23,7 @@ import {
 import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 import { HomeNavigationTab } from '@fedi/common/types/linking'
 
+import StabilityPoolMonitorManager from '../components/StabilityPoolMonitorManager'
 import ChatHeader from '../components/feature/chat/ChatHeader'
 import WalletHeader from '../components/feature/federations/WalletHeader'
 import HomeHeader from '../components/feature/home/HomeHeader'
@@ -293,6 +294,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     {props => <Home {...props} />}
                 </Tab.Screen>
             </Tab.Navigator>
+            <StabilityPoolMonitorManager />
         </>
     )
 }
