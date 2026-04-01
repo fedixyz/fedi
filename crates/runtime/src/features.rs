@@ -237,7 +237,7 @@ impl FeatureCatalog {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
-                transfer_expiry_secs: 2 * 60, // 2 minutes
+                transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
@@ -283,7 +283,7 @@ impl FeatureCatalog {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
-                transfer_expiry_secs: 2 * 60, // 2 minutes
+                transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
@@ -321,7 +321,7 @@ impl FeatureCatalog {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
-                transfer_expiry_secs: 2 * 60, // 2 minutes
+                transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
