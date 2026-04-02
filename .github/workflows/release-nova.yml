@@ -81,14 +81,8 @@ jobs:
         needs: release-nova-apk # wait for APK build so we can reuse cached bridge artifacts
         uses: ./.github/workflows/deploy-to-gp-internal-testing-nova.yml
         secrets: inherit
-        if: >-
-            startsWith(github.ref, 'refs/heads/release/') ||
-            startsWith(github.ref, 'refs/heads/master')
 
     call-deployment-workflow-testflight:
         name: Trigger deployment to TestFlight
         uses: ./.github/workflows/deploy-to-testflight-nova.yml
         secrets: inherit
-        if: >-
-            startsWith(github.ref, 'refs/heads/release/') ||
-            startsWith(github.ref, 'refs/heads/master')
