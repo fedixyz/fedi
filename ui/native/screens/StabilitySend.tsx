@@ -9,7 +9,6 @@ import {
     selectFeatureFlag,
     selectPaymentFederation,
     selectStabilityPoolVersion,
-    setPayFromFederationId,
 } from '@fedi/common/redux'
 import { MatrixUser } from '@fedi/common/types'
 
@@ -19,7 +18,7 @@ import AmountInput from '../components/ui/AmountInput'
 import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { Switcher } from '../components/ui/Switcher'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 
@@ -39,7 +38,6 @@ const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
         selectFeatureFlag(s, 'sp_transfer_ui'),
     )
     const federation = useAppSelector(selectPaymentFederation)
-    const dispatch = useAppDispatch()
     const federationId = federation?.id ?? ''
     const stabilityPoolVersion = useAppSelector(s =>
         selectStabilityPoolVersion(s, federationId),
@@ -127,10 +125,8 @@ const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
                 {federation && (
                     <StabilityBalanceTile
                         federation={federation}
-                        onSelectFederation={id =>
-                            dispatch(setPayFromFederationId(id))
-                        }
-                        showSwitcher
+                        badgeLogo="usd"
+                        showSwitcher={false}
                     />
                 )}
                 <ScrollView

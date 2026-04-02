@@ -6,11 +6,14 @@ import { Keyboard, ScrollView, StyleSheet } from 'react-native'
 
 import { useDepositForm } from '@fedi/common/hooks/amount'
 import { useSpv2OurPaymentAddress } from '@fedi/common/hooks/stabilitypool'
-import { selectShouldShowStablePaymentAddress } from '@fedi/common/redux'
+import {
+    selectLoadedFederation,
+    selectShouldShowStablePaymentAddress,
+} from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
-import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
+import StabilityBalanceTile from '../components/feature/stabilitypool/StabilityBalanceTile'
 import AmountInput from '../components/ui/AmountInput'
 import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -35,6 +38,9 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
 
+    const federation = useAppSelector(s =>
+        selectLoadedFederation(s, federationId),
+    )
     const ourPaymentAddress = useSpv2OurPaymentAddress(federationId)
     const shouldShowStablePaymentAddress = useAppSelector(s =>
         selectShouldShowStablePaymentAddress(s, federationId),
@@ -92,8 +98,12 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
                         onChange={setTab}
                     />
                 )}
-                {tab === 'wallet' && (
-                    <FederationWalletSelector fullWidth readonly />
+                {tab === 'wallet' && federation && (
+                    <StabilityBalanceTile
+                        federation={federation}
+                        badgeLogo="btc"
+                        showSwitcher={false}
+                    />
                 )}
                 {tab === 'qr' && (
                     <Column grow gap="md">
