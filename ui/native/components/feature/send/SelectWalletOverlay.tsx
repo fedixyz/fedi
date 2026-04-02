@@ -212,7 +212,7 @@ function BalanceItem({
 const styles = (theme: Theme) =>
     StyleSheet.create({
         scrollContainer: {
-            maxHeight: 400,
+            maxHeight: 560,
         },
         balanceItem: {
             flexDirection: 'row',

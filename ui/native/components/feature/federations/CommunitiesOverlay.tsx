@@ -92,7 +92,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         scrollContainer: {
-            maxHeight: 400,
+            maxHeight: 560,
         },
         communitiesList: {
             padding: 0,
