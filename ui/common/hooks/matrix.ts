@@ -28,6 +28,7 @@ import {
     selectMatrixUser,
     sendMatrixReadReceipt,
     unobserveMatrixRoom,
+    unobserveMatrixRoomPinnedTimeline,
     selectMatrixContactsList,
     observeMultispendEvent,
     unobserveMultispendEvent,
@@ -46,6 +47,9 @@ import {
     selectChatDrafts,
     selectCurrency,
     selectMatrixRoomPowerLevels,
+    selectMatrixRoomPinnedEventIds,
+    selectMatrixRoomPinnedRawEventIdsForVisibleEvent,
+    selectMatrixRoomSelectableEventIds,
     selectMatrixRoomSelfPowerLevel,
     selectDefaultMatrixRoom,
 } from '../redux'
@@ -94,6 +98,24 @@ import { useToast } from './toast'
 import { useDebouncedEffect, useUpdatingRef } from './util'
 
 const log = makeLog('common/hooks/matrix')
+
+export const cleanupScreenScopedMatrixRoomObservers = ({
+    dispatch,
+    fedimint,
+    roomId,
+    isDirect,
+}: {
+    dispatch: ReturnType<typeof useCommonDispatch>
+    fedimint: ReturnType<typeof useFedimint>
+    roomId: MatrixRoom['id']
+    isDirect?: boolean | null
+}) => {
+    if (isDirect) {
+        return dispatch(unobserveMatrixRoomPinnedTimeline({ fedimint, roomId }))
+    }
+
+    return dispatch(unobserveMatrixRoom({ fedimint, roomId }))
+}
 /**
  * Hook to retrieve the push notification token from the Redux store.
  * @returns The latest push notification token, or null if not set.
@@ -404,13 +426,14 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
 
         dispatch(observeMatrixRoom({ fedimint, roomId }))
         return () => {
-            // Don't unobserve DMs so ecash gets claimed in the
-            // background
-            //
-            // TODO: remove when background ecash redemption
-            // is moved to the bridge
-            if (room?.isDirect) return
-            dispatch(unobserveMatrixRoom({ fedimint, roomId }))
+            // DM room timelines stay alive for background ecash; pinned
+            // observers are screen-scoped and can stop here.
+            cleanupScreenScopedMatrixRoomObservers({
+                dispatch,
+                fedimint,
+                roomId,
+                isDirect: room?.isDirect,
+            })
         }
     }, [
         matrixStarted,
@@ -1560,4 +1583,95 @@ export function useConnectionRequestData(roomId: MatrixRoom['id']) {
     }, [room])
 
     return { connectionRequestPending, connectionRequestUsername }
+}
+
+export function usePinMessage({
+    t,
+    roomId,
+    eventId,
+    onSuccess,
+}: {
+    t: TFunction
+    roomId: MatrixRoom['id']
+    eventId?: string | null
+    onSuccess?: () => void
+}) {
+    const [isPinning, setIsPinning] = useState(false)
+    const fedimint = useFedimint()
+    const toast = useToast()
+    const selfPowerLevel = useCommonSelector(s =>
+        selectMatrixRoomSelfPowerLevel(s, roomId),
+    )
+    const roomPowerLevels = useCommonSelector(s =>
+        selectMatrixRoomPowerLevels(s, roomId),
+    )
+    const pinnedEventIds = useCommonSelector(s =>
+        selectMatrixRoomPinnedEventIds(s, roomId),
+    )
+    const rawSelectableEventIds = useCommonSelector(s =>
+        selectMatrixRoomSelectableEventIds(s, roomId),
+    )
+    const pinnedRawEventIds = useCommonSelector(s =>
+        selectMatrixRoomPinnedRawEventIdsForVisibleEvent(s, roomId, eventId),
+    )
+
+    // Pinning requires sending m.room.pinned_events state event
+    // Use events['m.room.pinned_events'] if set, else state_default, else Moderator
+    const pinLevel =
+        roomPowerLevels?.events?.['m.room.pinned_events'] ??
+        roomPowerLevels?.state_default ??
+        MatrixPowerLevel.Moderator
+    // We check the raw room timeline here because the rendered conversation can
+    // merge payment updates or hide some event kinds. Without that, a message
+    // the user can long-press in chat can look unpinnable for confusing reasons.
+    const isSelectableRoomEvent = !!(
+        eventId && rawSelectableEventIds.includes(eventId)
+    )
+    const canPin =
+        !!selfPowerLevel &&
+        isPowerLevelGreaterOrEqual(selfPowerLevel, pinLevel) &&
+        isSelectableRoomEvent
+
+    const isPinned = !!(eventId && pinnedEventIds?.includes(eventId))
+
+    const pinMessage = useCallback(async () => {
+        if (!roomId || !eventId || !canPin) return
+        setIsPinning(true)
+        try {
+            await fedimint.matrixRoomPinMessage({ roomId, eventId })
+            onSuccess?.()
+        } catch (e) {
+            toast.error(t, e, 'errors.unknown-error')
+        } finally {
+            setIsPinning(false)
+        }
+    }, [canPin, roomId, eventId, fedimint, t, toast, onSuccess])
+
+    const unpinMessage = useCallback(async () => {
+        if (!roomId || !eventId || pinnedRawEventIds.length === 0) return
+        setIsPinning(true)
+        try {
+            // Unpinning works against the raw pinned event IDs because the
+            // visible chat row can stand in for more than one raw Matrix event.
+            for (const rawPinnedEventId of pinnedRawEventIds) {
+                await fedimint.matrixRoomUnpinMessage({
+                    roomId,
+                    eventId: rawPinnedEventId,
+                })
+            }
+            onSuccess?.()
+        } catch (e) {
+            toast.error(t, e, 'errors.unknown-error')
+        } finally {
+            setIsPinning(false)
+        }
+    }, [roomId, eventId, fedimint, onSuccess, pinnedRawEventIds, t, toast])
+
+    return {
+        canPin,
+        isPinned,
+        isPinning,
+        pinMessage,
+        unpinMessage,
+    }
 }

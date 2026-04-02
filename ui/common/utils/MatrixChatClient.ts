@@ -40,6 +40,7 @@ import {
     RpcSPv2SyncResponse,
     RpcSpTransferState,
     RpcTimelineItem,
+    VectorDiff,
 } from '../types/bindings'
 import {
     DisplayNameValidatorType,
@@ -90,6 +91,10 @@ interface MatrixChatClientEventMap {
     roomTimelineUpdate: {
         roomId: MatrixRoom['id']
         updates: MatrixTimelineStreamUpdates
+    }
+    roomPinnedTimelineUpdate: {
+        roomId: MatrixRoom['id']
+        updates: VectorDiff<RpcTimelineItem>[]
     }
     roomTimelinePaginationStatus: {
         roomId: MatrixRoom['id']
@@ -142,6 +147,10 @@ export class MatrixChatClient {
         UnsubscribeFn | undefined
     > = {}
     private roomTimelineUnsubscribeMap: Record<
+        MatrixRoom['id'],
+        UnsubscribeFn | undefined
+    > = {}
+    private roomPinnedTimelineUnsubscribeMap: Record<
         MatrixRoom['id'],
         UnsubscribeFn | undefined
     > = {}
@@ -337,6 +346,12 @@ export class MatrixChatClient {
                 err,
             })
         })
+        this.observeRoomPinnedTimeline(roomId).catch(err => {
+            log.warn('Failed to observe room pinned timeline', {
+                roomId,
+                err,
+            })
+        })
         this.observeRoomTimeline(roomId, 'room').catch(err => {
             log.warn('Failed to observe room', { roomId, err })
         })
@@ -372,6 +387,7 @@ export class MatrixChatClient {
 
     unobserveRoom(roomId: string) {
         this.unobserveRoomTimeline(roomId, 'room')
+        this.unobserveRoomPinnedTimeline(roomId)
 
         const paginationStatusUnsubscribe =
             this.roomPaginationStatusUnsubscribeMap[roomId]
@@ -384,6 +400,15 @@ export class MatrixChatClient {
         if (multispendUnsubscribe !== undefined) {
             multispendUnsubscribe()
             delete this.multispendUnsubscribeMap[roomId]
+        }
+    }
+
+    unobserveRoomPinnedTimeline(roomId: string) {
+        const roomPinnedTimelineUnsubscribe =
+            this.roomPinnedTimelineUnsubscribeMap[roomId]
+        if (roomPinnedTimelineUnsubscribe !== undefined) {
+            roomPinnedTimelineUnsubscribe()
+            delete this.roomPinnedTimelineUnsubscribeMap[roomId]
         }
     }
 
@@ -975,6 +1000,23 @@ export class MatrixChatClient {
 
         // store unsubscribe functions to cancel later if needed
         this.roomTimelineUnsubscribeMap[roomId] = unsubscribe
+    }
+
+    private async observeRoomPinnedTimeline(roomId: string) {
+        if (this.roomPinnedTimelineUnsubscribeMap[roomId] !== undefined) return
+
+        const unsubscribe =
+            this.fedimint.matrixSubscribeRoomPinnedTimelineItems({
+                roomId,
+                callback: updates => {
+                    this.emit('roomPinnedTimelineUpdate', {
+                        roomId,
+                        updates,
+                    })
+                },
+            })
+
+        this.roomPinnedTimelineUnsubscribeMap[roomId] = unsubscribe
     }
 
     private unobserveRoomTimeline(

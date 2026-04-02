@@ -1,6 +1,7 @@
 import {
     RpcSerializedRoomInfo,
     RpcTimelineItemEvent,
+    VectorDiff,
 } from '../../../types/bindings'
 import { MatrixChatClient } from '../../../utils/MatrixChatClient'
 import { FedimintBridge } from '../../../utils/fedimint'
@@ -50,11 +51,18 @@ describe('MatrixChatClient', () => {
     let client: MatrixChatClient
     let roomInfoCallback: ((room: RpcSerializedRoomInfo) => void) | undefined
     let timelineUnsubscribe: jest.Mock
+    let pinnedTimelineCallbacks: Set<(updates: VectorDiff<any>[]) => void>
     let mockFedimint: Pick<
         FedimintBridge,
         | 'matrixRoomSubscribeInfo'
         | 'matrixSubscribeRoomTimelineItems'
+        | 'matrixSubscribeRoomPinnedTimelineItems'
         | 'matrixRoomTimelineItemsPaginateBackwards'
+        | 'matrixRoomSubscribeTimelineItemsPaginateBackwardsStatus'
+        | 'matrixRoomGetMembers'
+        | 'matrixRoomGetPowerLevels'
+        | 'matrixSubscribeMultispendGroup'
+        | 'matrixRoomGetNotificationMode'
     >
 
     beforeEach(() => {
@@ -63,6 +71,7 @@ describe('MatrixChatClient', () => {
 
         timelineUnsubscribe = jest.fn()
         roomInfoCallback = undefined
+        pinnedTimelineCallbacks = new Set()
         mockFedimint = {
             matrixRoomSubscribeInfo: jest.fn(({ callback }) => {
                 roomInfoCallback = callback
@@ -71,9 +80,22 @@ describe('MatrixChatClient', () => {
             matrixSubscribeRoomTimelineItems: jest.fn(
                 () => timelineUnsubscribe,
             ),
+            matrixSubscribeRoomPinnedTimelineItems: jest.fn(({ callback }) => {
+                pinnedTimelineCallbacks.add(callback)
+                return jest.fn(() => {
+                    pinnedTimelineCallbacks.delete(callback)
+                })
+            }),
             matrixRoomTimelineItemsPaginateBackwards: jest
                 .fn()
                 .mockResolvedValue(undefined),
+            matrixRoomSubscribeTimelineItemsPaginateBackwardsStatus: jest.fn(
+                () => jest.fn(),
+            ),
+            matrixRoomGetMembers: jest.fn().mockResolvedValue([]),
+            matrixRoomGetPowerLevels: jest.fn().mockResolvedValue({}),
+            matrixSubscribeMultispendGroup: jest.fn(() => jest.fn()),
+            matrixRoomGetNotificationMode: jest.fn().mockResolvedValue(null),
         }
 
         client = new MatrixChatClient()
@@ -84,6 +106,10 @@ describe('MatrixChatClient', () => {
     afterEach(() => {
         jest.useRealTimers()
     })
+
+    const emitPinnedTimelineUpdates = (updates: VectorDiff<any>[]) => {
+        pinnedTimelineCallbacks.forEach(callback => callback(updates))
+    }
 
     describe('preview warmups', () => {
         it('should warm active joined rooms that are missing a preview', async () => {
@@ -213,6 +239,69 @@ describe('MatrixChatClient', () => {
             ).unobserveRoomTimeline(ROOM_ID, 'room')
 
             expect(timelineUnsubscribe).toHaveBeenCalledTimes(1)
+        })
+    })
+
+    describe('pinned timeline observation', () => {
+        it('should emit raw pinned timeline diffs with the room id', async () => {
+            const handler = jest.fn()
+            const updates = [{ Reset: { values: [] } }] as VectorDiff<any>[]
+            client.on('roomPinnedTimelineUpdate', handler)
+
+            await (
+                client as unknown as {
+                    observeRoomPinnedTimeline: (roomId: string) => Promise<void>
+                }
+            ).observeRoomPinnedTimeline(ROOM_ID)
+
+            emitPinnedTimelineUpdates(updates)
+
+            expect(handler).toHaveBeenCalledWith({
+                roomId: ROOM_ID,
+                updates,
+            })
+        })
+
+        it('should resume pinned updates after a pinned-only teardown without reopening the main timeline', async () => {
+            const handler = jest.fn()
+            const firstUpdates = [
+                { Reset: { values: [] } },
+            ] as VectorDiff<any>[]
+            const secondUpdates = [
+                { Reset: { values: [makePreviewEvent() as any] } },
+            ] as VectorDiff<any>[]
+            client.on('roomPinnedTimelineUpdate', handler)
+
+            client.observeRoom(ROOM_ID)
+            await flushPromises()
+
+            emitPinnedTimelineUpdates(firstUpdates)
+            expect(handler).toHaveBeenLastCalledWith({
+                roomId: ROOM_ID,
+                updates: firstUpdates,
+            })
+
+            handler.mockClear()
+            client.unobserveRoomPinnedTimeline(ROOM_ID)
+            emitPinnedTimelineUpdates(secondUpdates)
+
+            expect(handler).not.toHaveBeenCalled()
+
+            client.observeRoom(ROOM_ID)
+            await flushPromises()
+
+            emitPinnedTimelineUpdates(secondUpdates)
+
+            expect(handler).toHaveBeenCalledWith({
+                roomId: ROOM_ID,
+                updates: secondUpdates,
+            })
+            expect(
+                mockFedimint.matrixSubscribeRoomPinnedTimelineItems,
+            ).toHaveBeenCalledTimes(2)
+            expect(
+                mockFedimint.matrixSubscribeRoomTimelineItems,
+            ).toHaveBeenCalledTimes(1)
         })
     })
 })

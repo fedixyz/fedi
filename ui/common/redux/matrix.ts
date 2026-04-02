@@ -50,6 +50,7 @@ import {
     MultispendFinalized,
     MultispendRole,
     Sats,
+    SelectableEventKinds,
     SelectableMessageKind,
     UsdCents,
 } from '../types'
@@ -69,6 +70,8 @@ import {
     RpcSPv2SyncResponse,
     RpcSpTransferState,
     RpcTimelineEventItemId,
+    RpcTimelineItem,
+    VectorDiff,
 } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import {
@@ -98,8 +101,10 @@ import {
     hasMentions,
     isTextEvent,
     isPowerLevelGreaterOrEqual,
+    isRpcMatrixEvent,
     getReclaimablePaymentEvents,
     filterVirtualSpTransferEvents,
+    resolvePinnedEventToConversationEvent,
 } from '../utils/matrix'
 import { isBolt11 } from '../utils/parser'
 import { upsertListItem, upsertRecordEntity } from '../utils/redux'
@@ -133,6 +138,10 @@ const initialState = {
     roomNotificationMode: {} as Record<
         MatrixRoom['id'],
         RpcRoomNotificationMode | undefined
+    >,
+    roomPinnedTimelineItems: {} as Record<
+        MatrixRoom['id'],
+        RpcTimelineItem[] | undefined
     >,
     roomMultispendStatus: {} as Record<
         MatrixRoom['id'],
@@ -305,6 +314,19 @@ export const matrixSlice = createSlice({
         ) {
             const { roomId, powerLevels } = action.payload
             state.roomPowerLevels[roomId] = powerLevels
+        },
+        handleMatrixRoomPinnedTimelineStreamUpdates(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                updates: VectorDiff<RpcTimelineItem>[]
+            }>,
+        ) {
+            const { roomId, updates } = action.payload
+            state.roomPinnedTimelineItems[roomId] = applyStreamUpdates(
+                state.roomPinnedTimelineItems[roomId] || [],
+                updates,
+            )
         },
         setMatrixRoomNotificationMode(
             state,
@@ -693,6 +715,7 @@ export const {
     addMatrixUser,
     setMatrixUsers,
     setMatrixRoomPowerLevels,
+    handleMatrixRoomPinnedTimelineStreamUpdates,
     setMatrixRoomNotificationMode,
     setMatrixRoomMultispendStatus,
     setMatrixRoomMultispendAccountInfo,
@@ -866,6 +889,9 @@ export const startMatrixClient = createAsyncThunk<
     client.on('roomTimelineUpdate', ev =>
         dispatch(handleMatrixRoomTimelineStreamUpdates(ev)),
     )
+    client.on('roomPinnedTimelineUpdate', ev =>
+        dispatch(handleMatrixRoomPinnedTimelineStreamUpdates(ev)),
+    )
     client.on('roomTimelinePaginationStatus', ev =>
         dispatch(handleMatrixRoomTimelinePaginationStatus(ev)),
     )
@@ -1033,6 +1059,14 @@ export const unobserveMatrixRoom = createAsyncThunk<
         return client.unobserveRoom(roomId)
     },
 )
+
+export const unobserveMatrixRoomPinnedTimeline = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] }
+>('matrix/unobserveMatrixRoomPinnedTimeline', async ({ fedimint, roomId }) => {
+    const client = fedimint.getMatrixClient()
+    return client.unobserveRoomPinnedTimeline(roomId)
+})
 export const observeMultispendAccountInfo = createAsyncThunk<
     void,
     { fedimint: FedimintBridge; roomId: MatrixRoom['id'] }
@@ -2394,6 +2428,23 @@ export const selectMatrixRoomPowerLevels = (
     roomId: MatrixRoom['id'],
 ) => s.matrix.roomPowerLevels[roomId]
 
+export const selectMatrixRoomRawPinnedEvents = createSelector(
+    (s: CommonState, roomId: MatrixRoom['id']) =>
+        s.matrix.roomPinnedTimelineItems[roomId],
+    (_s: CommonState, roomId: MatrixRoom['id']) => roomId,
+    (items, roomId) =>
+        items?.flatMap(item => {
+            if (item.kind !== 'event') return []
+
+            const event = {
+                ...item.value,
+                roomId,
+            }
+
+            return isRpcMatrixEvent(event) ? [event] : []
+        }) || ([] as MatrixEvent[]),
+)
+
 export const selectMatrixRoomNotificationMode = (
     s: CommonState,
     roomId: MatrixRoom['id'],
@@ -2494,6 +2545,126 @@ export const selectMatrixRoomEvents = createSelector(
 
         return events
     },
+)
+
+export const selectMatrixRoomRawEvents = createSelector(
+    (s: CommonState) => s.matrix.roomTimelines,
+    (_s: CommonState, roomId: MatrixRoom['id']) => roomId,
+    (roomTimelines, roomId): MatrixEvent[] => {
+        const timeline = roomTimelines[roomId]
+        if (!timeline) return []
+
+        return timeline.filter((item): item is MatrixEvent => item !== null)
+    },
+)
+
+export const selectMatrixRoomSelectableEventIds = createSelector(
+    (s: CommonState) => s.matrix.roomTimelines,
+    (_s: CommonState, roomId: MatrixRoom['id']) => roomId,
+    (roomTimelines, roomId) => {
+        const timeline = roomTimelines[roomId]
+        if (!timeline) return []
+
+        return timeline.flatMap(event => {
+            if (!event) return []
+
+            return SelectableEventKinds.includes(
+                event.content.msgtype as SelectableMessageKind,
+            )
+                ? [event.id as string]
+                : []
+        })
+    },
+)
+
+type MatrixRoomPinnedVisibleEntry = {
+    event: MatrixEvent
+    rawEventIds: string[]
+}
+
+const selectMatrixRoomPinnedVisibleEntries = createSelector(
+    selectMatrixRoomRawPinnedEvents,
+    selectMatrixRoomEvents,
+    (rawPinnedEvents, visibleEvents) => {
+        const visibleEventsById = new Map(
+            visibleEvents.map(event => [event.id as string, event]),
+        )
+        const visiblePaymentEventsByPaymentId = new Map(
+            visibleEvents.flatMap(event =>
+                isPaymentEvent(event)
+                    ? [[event.content.paymentId, event] as const]
+                    : [],
+            ),
+        )
+        const entriesByVisibleId = new Map<
+            string,
+            MatrixRoomPinnedVisibleEntry
+        >()
+
+        rawPinnedEvents.forEach(rawPinnedEvent => {
+            const resolvedEvent = resolvePinnedEventToConversationEvent({
+                pinnedEvent: rawPinnedEvent,
+                visibleEventsById,
+                visiblePaymentEventsByPaymentId,
+            })
+
+            if (!resolvedEvent) {
+                return
+            }
+
+            const visibleEventId = resolvedEvent.id as string
+            const rawPinnedEventId = rawPinnedEvent.id as string
+            const existingEntry = entriesByVisibleId.get(visibleEventId)
+
+            if (existingEntry) {
+                existingEntry.event = resolvedEvent
+                if (!existingEntry.rawEventIds.includes(rawPinnedEventId)) {
+                    existingEntry.rawEventIds.push(rawPinnedEventId)
+                }
+
+                entriesByVisibleId.delete(visibleEventId)
+                entriesByVisibleId.set(visibleEventId, existingEntry)
+                return
+            }
+
+            entriesByVisibleId.set(visibleEventId, {
+                event: resolvedEvent,
+                rawEventIds: [rawPinnedEventId],
+            })
+        })
+
+        return Array.from(entriesByVisibleId.values())
+    },
+)
+
+export const selectMatrixRoomPinnedEvents = createSelector(
+    selectMatrixRoomPinnedVisibleEntries,
+    entries => entries.map(entry => entry.event),
+)
+
+export const selectMatrixRoomPinnedEventIds = createSelector(
+    selectMatrixRoomPinnedEvents,
+    events => events.map(event => event.id as string),
+)
+
+export const selectMatrixRoomPinnedRawEventIdsForVisibleEvent = createSelector(
+    selectMatrixRoomPinnedVisibleEntries,
+    (
+        _s: CommonState,
+        _roomId: MatrixRoom['id'],
+        eventId: string | null | undefined,
+    ) => eventId,
+    (entries, eventId) => {
+        if (!eventId) return []
+        return (
+            entries.find(entry => entry.event.id === eventId)?.rawEventIds ?? []
+        )
+    },
+)
+
+export const selectMatrixRoomEventIds = createSelector(
+    selectMatrixRoomEvents,
+    events => events.map(event => event.id as string),
 )
 
 export const selectRoomTextEvents = createSelector(

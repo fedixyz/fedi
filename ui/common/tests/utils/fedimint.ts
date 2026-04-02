@@ -24,7 +24,10 @@ export const createMockFedimintBridge = (
     // Add the RPC method directly to the mockBridge object
     // for direct methods like `fedimint.generateInvoice`
     for (const [key, value] of Object.entries(methods)) {
-        mockBridge[key] = jest.fn().mockImplementation(() => value)
+        mockBridge[key] =
+            typeof value === 'function'
+                ? jest.fn(value as (...args: unknown[]) => unknown)
+                : jest.fn().mockImplementation(() => value)
     }
 
     return mockBridge as unknown as jest.Mocked<FedimintBridge>

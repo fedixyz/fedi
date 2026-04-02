@@ -78,15 +78,11 @@ const ChatConversationEventRow = memo(
         }, [onSelect, roomMember])
 
         const isPending = event.localEcho
-        const isVeryRecent = (() => {
-            if (!event.timestamp) {
-                return false
-            }
-
-            return Date.now() - event.timestamp < 1200
-        })()
-        const isHighlighted =
-            !isPending && !isVeryRecent && highlightedMessageId === event.id
+        // Highlighted rows are only driven by explicit focus actions such as
+        // reply jumps, route exact-scroll, and pinned-banner taps. Suppressing
+        // the flash for recent messages makes successful focus on the newest
+        // pinned message look like a no-op when that row is already on screen.
+        const isHighlighted = !isPending && highlightedMessageId === event.id
 
         const content = (
             <View style={[isHighlighted && style.highlightedMessage]}>

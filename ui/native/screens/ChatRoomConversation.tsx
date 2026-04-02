@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
@@ -23,6 +23,7 @@ import ChatConversation from '../components/feature/chat/ChatConversation'
 import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConversation'
 import ConnectionRequestBanner from '../components/feature/chat/ConnectionRequestBanner'
 import MessageInput from '../components/feature/chat/MessageInput'
+import PinnedMessageBanner from '../components/feature/chat/PinnedMessageBanner'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import MultispendChatBanner from '../components/feature/multispend/MultispendChatBanner'
 import { Column } from '../components/ui/Flex'
@@ -36,6 +37,10 @@ import {
 } from '../utils/hooks/keyboard'
 
 const log = makeLog('ChatRoomConversation')
+type PinnedScrollRequest = {
+    eventId: string
+    nonce: number
+}
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -60,14 +65,18 @@ const ChatRoomConversation: React.FC<Props> = ({
     const toast = useToast()
     const { shouldShowHeader } = useMultispendDisplayUtils(t, roomId)
     const [replyBarHeight, setReplyBarHeight] = useState(0)
+    const [pinnedScrollRequest, setPinnedScrollRequest] =
+        useState<PinnedScrollRequest | null>(null)
+    const [focusedPinnedEventId, setFocusedPinnedEventId] = useState<
+        string | null
+    >(null)
 
     const extraPadAndroid35 = useImeFooterLift()
 
     const { connectionRequestPending, connectionRequestUsername } =
         useConnectionRequestData(roomId)
 
-    const directUserId = useMemo(() => room?.directUserId, [room])
-
+    const directUserId = room?.directUserId
     const { bottomOffset, setMessageInputHeight } = useChatKeyboardBehavior()
 
     const handleJoinPressed = () => {
@@ -130,61 +139,12 @@ const ChatRoomConversation: React.FC<Props> = ({
         [chatType, dispatch, isSending, roomId, t, toast, fedimint],
     )
 
-    const renderMessageInput = useCallback((): React.ReactElement => {
-        const input = (
-            <MessageInput
-                onMessageSubmitted={handleSend}
-                id={roomId || directUserId || ''}
-                isSending={isSending}
-                isPublic={room?.isPublic ?? false}
-                isDisabled={!!connectionRequestPending}
-                onHeightChanged={setMessageInputHeight}
-                onReplyBarHeightChanged={setReplyBarHeight}
-            />
-        )
-        return input
-    }, [
-        handleSend,
-        roomId,
-        directUserId,
-        isSending,
-        room?.isPublic,
-        connectionRequestPending,
-        setMessageInputHeight,
-    ])
-
-    const content = useMemo(() => {
-        return (
-            <>
-                {shouldShowHeader && <MultispendChatBanner roomId={roomId} />}
-                {connectionRequestPending && (
-                    <ConnectionRequestBanner
-                        username={connectionRequestUsername}
-                        roomId={roomId}
-                    />
-                )}
-                <ChatConversation
-                    type={chatType}
-                    id={roomId || ''}
-                    isPublic={room?.isPublic ?? false}
-                    newMessageBottomOffset={bottomOffset}
-                    replyBarOffset={replyBarHeight}
-                    connectionRequestPending={connectionRequestPending}
-                />
-                {renderMessageInput()}
-            </>
-        )
-    }, [
-        roomId,
-        chatType,
-        room,
-        bottomOffset,
-        replyBarHeight,
-        shouldShowHeader,
-        connectionRequestPending,
-        connectionRequestUsername,
-        renderMessageInput,
-    ])
+    const handlePinnedBannerPress = useCallback((eventId: string) => {
+        setPinnedScrollRequest(prev => ({
+            eventId,
+            nonce: (prev?.nonce ?? 0) + 1,
+        }))
+    }, [])
 
     const style = styles(theme)
 
@@ -221,7 +181,37 @@ const ChatRoomConversation: React.FC<Props> = ({
             edges="bottom"
             style={{ paddingBottom: extraPadAndroid35 }}>
             <Column grow basis={false}>
-                {content}
+                {shouldShowHeader && <MultispendChatBanner roomId={roomId} />}
+                {connectionRequestPending && (
+                    <ConnectionRequestBanner
+                        username={connectionRequestUsername}
+                        roomId={roomId}
+                    />
+                )}
+                <PinnedMessageBanner
+                    roomId={roomId}
+                    focusedEventId={focusedPinnedEventId}
+                    onPressPinnedMessage={handlePinnedBannerPress}
+                />
+                <ChatConversation
+                    type={chatType}
+                    id={roomId || ''}
+                    isPublic={room?.isPublic ?? false}
+                    newMessageBottomOffset={bottomOffset}
+                    replyBarOffset={replyBarHeight}
+                    connectionRequestPending={connectionRequestPending}
+                    scrollToMessageRequest={pinnedScrollRequest}
+                    onScrollToMessageComplete={setFocusedPinnedEventId}
+                />
+                <MessageInput
+                    onMessageSubmitted={handleSend}
+                    id={roomId || directUserId || ''}
+                    isSending={isSending}
+                    isPublic={room?.isPublic ?? false}
+                    isDisabled={!!connectionRequestPending}
+                    onHeightChanged={setMessageInputHeight}
+                    onReplyBarHeightChanged={setReplyBarHeight}
+                />
             </Column>
             <SelectedMessageOverlay isPublic={!!room.isPublic} />
         </SafeAreaContainer>

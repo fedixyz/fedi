@@ -174,6 +174,51 @@ export const filterVirtualSpTransferEvents = (events: MatrixEvent[]) => {
     )
 }
 
+export const resolvePinnedEventToConversationEvent = ({
+    pinnedEvent,
+    visibleEventsById,
+    visiblePaymentEventsByPaymentId,
+}: {
+    pinnedEvent: MatrixEvent
+    visibleEventsById: Map<string, MatrixEvent>
+    visiblePaymentEventsByPaymentId: Map<
+        MatrixPaymentEvent['content']['paymentId'],
+        MatrixPaymentEvent
+    >
+}): MatrixEvent | null => {
+    // Matrix pins raw event IDs, but the chat UI renders a post-processed
+    // timeline where payment updates are consolidated and some event kinds are
+    // filtered entirely. Resolve the raw pin onto the rendered conversation so
+    // banner taps and pin-state checks always target a scrollable row.
+    const visibleEvent = visibleEventsById.get(pinnedEvent.id as string)
+    if (visibleEvent) {
+        return visibleEvent
+    }
+
+    if (isPaymentEvent(pinnedEvent)) {
+        // This is the awkward case: Matrix can pin a later payment status
+        // update, but chat only renders the original payment row. When that
+        // happens, point the pin back at the row the user can actually scroll to.
+        const consolidatedPaymentEvent = visiblePaymentEventsByPaymentId.get(
+            pinnedEvent.content.paymentId,
+        )
+
+        if (consolidatedPaymentEvent) {
+            return consolidatedPaymentEvent
+        }
+    }
+
+    // Before the full room timeline loads, we can still surface raw pinned
+    // events that would survive the same rendering pipeline on their own. This
+    // keeps normal text/previewable pins visible during cold load, while still
+    // dropping hidden multispend / virtual transfer / later payment-state pins.
+    const standaloneVisibleEvent = consolidatePaymentEvents(
+        filterVirtualSpTransferEvents(filterMultispendEvents([pinnedEvent])),
+    )[0]
+
+    return standaloneVisibleEvent ?? null
+}
+
 export const matrixUrlMetadataSchema = z.object({
     'matrix:image:size': z.number().nullish(),
     'og:description': z.string().nullish(),
@@ -1497,7 +1542,7 @@ export const splitEveryoneRuns = (
 const PreviewTextMap = {
     failedToParseCustom: 'feature.chat.new-message',
     unknown: 'feature.chat.new-message',
-    unableToDecrypt: 'feature.chat.new-message',
+    unableToDecrypt: 'feature.chat.message-private',
     'xyz.fedi.multispend': 'feature.chat.multispend-preview',
     spTransfer: 'feature.chat.sp-transfer-preview',
     redacted: 'feature.chat.message-deleted',
@@ -1508,6 +1553,11 @@ const isKeyOfPreviewTextMap = (
 ): event is MatrixEvent<keyof typeof PreviewTextMap> =>
     event.content.msgtype in PreviewTextMap
 
+export const getEventPreviewTextKey = (
+    event: MatrixEvent,
+): ResourceKey | null =>
+    isKeyOfPreviewTextMap(event) ? PreviewTextMap[event.content.msgtype] : null
+
 export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
     if (room.isBlocked) return t('feature.chat.user-is-blocked')
 
@@ -1515,10 +1565,10 @@ export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
 
     if (!preview) return t('feature.chat.no-messages')
 
-    if (isKeyOfPreviewTextMap(preview))
-        return t(PreviewTextMap[preview.content.msgtype])
+    const previewTextKey = getEventPreviewTextKey(preview)
+    if (previewTextKey) return t(previewTextKey)
 
-    return preview.content.body
+    return getEventBodyPreview(preview)
 }
 
 export function isPowerLevelGreaterOrEqual(

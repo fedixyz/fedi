@@ -122,6 +122,7 @@ export { default as PendingBadge } from '@fedi/common/assets/svgs/pending-badge.
 export { default as Phone } from '@fedi/common/assets/svgs/phone.svg'
 export { default as Photo } from '@fedi/common/assets/svgs/photo.svg'
 export { default as Pin } from '@fedi/common/assets/svgs/pin.svg'
+export { default as PinFilled } from '@fedi/common/assets/svgs/pin-filled.svg'
 export { default as Play } from '@fedi/common/assets/svgs/play.svg'
 export { default as PlusCircle } from '@fedi/common/assets/svgs/plus-circle.svg'
 export { default as Plus } from '@fedi/common/assets/svgs/plus.svg'

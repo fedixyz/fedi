@@ -12,46 +12,44 @@ import {
     NativeSyntheticEvent,
     Pressable,
     StyleSheet,
-    ViewToken,
 } from 'react-native'
 
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
-import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import {
     matchAndHidePreviewMedia,
     selectCanReply,
-    selectPreviewMedia,
+    selectIsDefaultGroup,
     selectMatrixAuth,
     selectMatrixRoom,
     selectMatrixRoomEvents,
-    selectMatrixRoomMembersCount,
-    selectMatrixRoomMembers,
     selectMatrixRoomEventsHaveLoaded,
-    selectMatrixRoomMembersHaveLoaded,
     selectMatrixRoomIsBlocked,
-    selectIsDefaultGroup,
+    selectMatrixRoomMembers,
+    selectMatrixRoomMembersCount,
+    selectMatrixRoomMembersHaveLoaded,
+    selectMatrixRoomRawEvents,
+    selectPreviewMedia,
 } from '@fedi/common/redux'
 import { ChatType } from '@fedi/common/types'
 import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
-import { makeLog } from '@fedi/common/utils/log'
 import { isImageEvent, isVideoEvent } from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { RootStackParamList } from '../../../types/navigation'
 import {
-    ChatConversationListHandle,
     ChatConversationRow,
     makeChatConversationRows,
-    scrollToChatConversationEvent,
 } from '../../../utils/chatConversationRows'
 import { Column } from '../../ui/Flex'
 import ChatConversationEventRow from './ChatConversationEventRow'
 import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
 import NoMembersNotice from './NoMembersNotice'
 import NoMessagesNotice from './NoMessagesNotice'
-
-const log = makeLog('ChatConversation')
-const HIGHLIGHT_DURATION = 3000
+import {
+    ConversationListRefOverride,
+    ScrollToMessageRequest,
+    useConversationMessageFocus,
+} from './useConversationMessageFocus'
 
 type MessagesListProps = {
     type: ChatType
@@ -61,9 +59,11 @@ type MessagesListProps = {
     newMessageBottomOffset: number
     replyBarOffset?: number
     connectionRequestPending?: boolean
-    // Test harness only: unit tests inject a deterministic list ref here.
-    listRefOverride?: React.RefObject<ChatConversationListHandle | null>
+    listRefOverride?: ConversationListRefOverride
+    scrollToMessageRequest?: ScrollToMessageRequest | null
+    onScrollToMessageComplete?: (eventId: string) => void
 }
+
 type ChatRoomConversationRouteProp = RouteProp<
     RootStackParamList,
     'ChatRoomConversation'
@@ -74,25 +74,17 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     id,
     isPublic = true,
     newMessageBottomOffset = 90,
-    replyBarOffset: replyBarOffset = 0,
+    replyBarOffset = 0,
     connectionRequestPending = false,
     listRefOverride,
+    scrollToMessageRequest = null,
+    onScrollToMessageComplete,
 }: MessagesListProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const router = useRoute<ChatRoomConversationRouteProp>()
-    const { scrollToMessageId } = router.params
+    const route = useRoute<ChatRoomConversationRouteProp>()
     const matrixAuth = useAppSelector(selectMatrixAuth)
-    const myId = useMemo(() => matrixAuth?.userId, [matrixAuth])
-    const isBroadcast = !!useAppSelector(s => selectMatrixRoom(s, id))
-        ?.broadcastOnly
-    const isDefault = useAppSelector(s => selectIsDefaultGroup(s, id))
-    const [hasNewMessage, setHasNewMessages] = useState(false)
-    const [highlightedMessageId, setHighlightedMessageId] = useState<
-        string | null
-    >(null)
-    const [visibleItems, setVisibleItems] = useState<string[]>([])
-    const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
+    const room = useAppSelector(s => selectMatrixRoom(s, id))
     const previewMedia = useAppSelector(selectPreviewMedia)
     const hasLoadedEvents = useAppSelector(s =>
         selectMatrixRoomEventsHaveLoaded(s, id),
@@ -102,26 +94,26 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     )
     const roomMembers = useAppSelector(s => selectMatrixRoomMembers(s, id))
     const canSwipe = useAppSelector(s => selectCanReply(s, id))
-    const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-    const dispatch = useAppDispatch()
-
-    // Room is empty if we're the only member
+    const isDefault = useAppSelector(s => selectIsDefaultGroup(s, id))
     const isAlone =
         useAppSelector(s => selectMatrixRoomMembersCount(s, id)) === 1
     const isBlocked = useAppSelector(s => selectMatrixRoomIsBlocked(s, id))
-
-    const { isPaginating, handlePaginate } = useObserveMatrixRoom(id)
-
     const events = useAppSelector(s => selectMatrixRoomEvents(s, id))
-    const internalListRef = useRef<FlatList<ChatConversationRow>>(null)
-    const scrollListRef = listRefOverride ?? internalListRef
+    const rawEvents = useAppSelector(s => selectMatrixRoomRawEvents(s, id))
+    const dispatch = useAppDispatch()
+    const { isPaginating, paginationStatus, handlePaginate } =
+        useObserveMatrixRoom(id)
+    const [hasNewMessage, setHasNewMessages] = useState(false)
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+    const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
     const isScrolledToBottomRef = useRef(true)
     const lastScrolledMessageIdRef = useRef<string | undefined>(undefined)
-    const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-        null,
-    )
 
-    // Intercept `events` to add preview media events
+    const myId = matrixAuth?.userId
+    const isBroadcast = !!room?.broadcastOnly
+    const shouldRenderConversationList =
+        (hasLoadedEvents && hasLoadedMembers) || connectionRequestPending
+
     const chatEvents = useMemo(() => {
         const visiblePreviewMedia = previewMedia.filter(m => m.visible)
 
@@ -129,12 +121,12 @@ const ChatConversation: React.FC<MessagesListProps> = ({
             return events
         }
 
-        const evts = [...events]
+        const previewEvents = [...events]
         const timestamp = Date.now()
 
         visiblePreviewMedia.reverse().forEach(({ media }, index) => {
             const eventId = `cached-media-${media.fileName}-${index}`
-            evts.push({
+            previewEvents.push({
                 id: eventId as RpcTimelineEventItemId,
                 content: {
                     msgtype: 'xyz.fedi.preview-media' as const,
@@ -156,8 +148,8 @@ const ChatConversation: React.FC<MessagesListProps> = ({
             })
         })
 
-        return evts
-    }, [previewMedia, events, id, myId])
+        return previewEvents
+    }, [events, id, myId, previewMedia])
 
     const chatRows = useMemo(
         () => makeChatConversationRows(chatEvents, type),
@@ -167,52 +159,40 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         () => new Map(roomMembers.map(member => [member.id, member])),
         [roomMembers],
     )
-    const eventIndexById = useMemo(
-        () =>
-            new Map(
-                chatRows.map((row, index) => [row.event.id as string, index]),
-            ),
-        [chatRows],
-    )
+    const {
+        listRef,
+        highlightedMessageId,
+        visibleItemIds,
+        handleViewableItemsChanged,
+        handleScrollToIndexFailed,
+        focusMessage,
+    } = useConversationMessageFocus({
+        roomId: id,
+        chatRows,
+        events,
+        rawEvents,
+        shouldRenderConversationList,
+        routeScrollToMessageId: route.params.scrollToMessageId,
+        scrollToMessageRequest,
+        onScrollToMessageComplete,
+        listRefOverride,
+        paginationStatus,
+        isPaginating,
+        handlePaginate,
+    })
 
     const style = useMemo(() => styles(theme), [theme])
+    const contentContainerStyle =
+        replyBarOffset > 0
+            ? [
+                  style.contentContainer,
+                  {
+                      paddingTop:
+                          style.contentContainer.paddingTop + replyBarOffset,
+                  },
+              ]
+            : style.contentContainer
 
-    const scrollToMessage = useCallback(
-        (eventId: string) => {
-            try {
-                const targetIndex = eventIndexById.get(eventId)
-
-                if (targetIndex === undefined) {
-                    log.error('Target event not found for eventId', { eventId })
-                    return
-                }
-
-                if (highlightTimeoutRef.current) {
-                    clearTimeout(highlightTimeoutRef.current)
-                }
-
-                const scrollResult = scrollToChatConversationEvent({
-                    eventId,
-                    eventIndexById,
-                    listRef: scrollListRef,
-                    setHighlightedMessageId,
-                    highlightDuration: HIGHLIGHT_DURATION,
-                })
-
-                if (!scrollResult) {
-                    log.error('Target event not found for eventId', { eventId })
-                    return
-                }
-
-                highlightTimeoutRef.current = scrollResult.timeout
-            } catch (error) {
-                log.error('Error in scrollToMessage', error)
-            }
-        },
-        [eventIndexById, scrollListRef],
-    )
-
-    // Animate new message button in and out
     useEffect(() => {
         Animated.timing(animatedNewMessageBottom, {
             toValue: hasNewMessage ? newMessageBottomOffset : -100,
@@ -222,46 +202,31 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         }).start()
     }, [animatedNewMessageBottom, hasNewMessage, newMessageBottomOffset])
 
-    useEffect(
-        () => () => {
-            if (highlightTimeoutRef.current) {
-                clearTimeout(highlightTimeoutRef.current)
-            }
-        },
-        [],
-    )
-
     const scrollToEnd = useCallback(() => {
-        // Use scrollToOffset instead of scrollToEnd because the list is inverted
-        scrollListRef.current?.scrollToOffset({ offset: 0, animated: true })
+        listRef.current?.scrollToOffset({ offset: 0, animated: true })
         setHasNewMessages(false)
-    }, [scrollListRef])
+    }, [listRef])
 
-    // When new messages come in, either scroll to the bottom (if we sent)
-    // or pop up a notice that we have new messages.
     useEffect(() => {
-        if (!myId || !chatRows.length) return
-        // Bail out if we've already handled this message
+        if (!myId || chatRows.length === 0) return
+
         const lastMessage = chatRows[0]?.event
-        const shouldScroll =
+        const shouldTrackMessage =
             lastMessage && lastMessage.id !== lastScrolledMessageIdRef.current
-        if (!shouldScroll) return
-        // Update ref so we don't scroll again
+        if (!shouldTrackMessage) return
+
         lastScrolledMessageIdRef.current = lastMessage.id
-        // If we sent it, or we're already at the bottom, scroll without asking
+
         if (lastMessage.sender === myId || isScrolledToBottomRef.current) {
             return
         }
-        // Otherwise, mark that we have new messages
-        else {
-            setHasNewMessages(true)
-        }
-    }, [chatRows, myId, scrollToEnd])
 
-    // Mark hasNewMessages as false when we scroll to the bottom, and keep a ref up to date
+        setHasNewMessages(true)
+    }, [chatRows, myId])
+
     const handleScroll = useCallback(
-        (ev: NativeSyntheticEvent<NativeScrollEvent>) => {
-            const isAtBottom = ev.nativeEvent.contentOffset.y <= 10
+        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            const isAtBottom = event.nativeEvent.contentOffset.y <= 10
             isScrolledToBottomRef.current = isAtBottom
             if (isAtBottom) {
                 setHasNewMessages(false)
@@ -270,97 +235,60 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         [],
     )
 
-    const handleScrollToIndexFailed = useCallback(
-        ({
-            index,
-            highestMeasuredFrameIndex: _highestMeasuredFrameIndex,
-            averageItemLength,
-        }: {
-            index: number
-            highestMeasuredFrameIndex: number
-            averageItemLength: number
-        }) => {
-            scrollListRef.current?.scrollToOffset({
-                offset: averageItemLength * index,
-                animated: false,
-            })
-
-            setTimeout(() => {
-                scrollListRef.current?.scrollToIndex({
-                    index,
-                    animated: false,
-                    viewOffset: 100,
-                    viewPosition: 0.5,
-                })
-            }, 50)
+    const handleReplyTap = useCallback(
+        (eventId: string) => {
+            focusMessage(eventId)
         },
-        [scrollListRef],
-    )
-
-    const handleViewableItemsChanged = useCallback(
-        ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-            setVisibleItems(
-                viewableItems.flatMap(item => (item.key ? [item.key] : [])),
-            )
-        },
-        [],
+        [focusMessage],
     )
 
     const renderEventRow: ListRenderItem<ChatConversationRow> = useCallback(
-        ({ item }) => {
-            return (
-                <ChatConversationEventRow
-                    roomId={id}
-                    row={item}
-                    roomMember={roomMembersById.get(item.event.sender)}
-                    myId={myId}
-                    canSwipe={canSwipe}
-                    onSelect={setSelectedUserId}
-                    isPublic={isPublic}
-                    onReplyTap={scrollToMessage}
-                    highlightedMessageId={highlightedMessageId}
-                    isInViewport={visibleItems.includes(item.event.id)}
-                />
-            )
-        },
+        ({ item }) => (
+            <ChatConversationEventRow
+                roomId={id}
+                row={item}
+                roomMember={roomMembersById.get(item.event.sender)}
+                myId={myId}
+                canSwipe={canSwipe}
+                onSelect={setSelectedUserId}
+                isPublic={isPublic}
+                onReplyTap={handleReplyTap}
+                highlightedMessageId={highlightedMessageId}
+                isInViewport={visibleItemIds.has(item.event.id as string)}
+            />
+        ),
         [
             canSwipe,
+            handleReplyTap,
+            highlightedMessageId,
             id,
             isPublic,
             myId,
             roomMembersById,
-            scrollToMessage,
-            highlightedMessageId,
-            visibleItems,
+            visibleItemIds,
         ],
     )
 
-    // Hide the preview cached media events when the ACTUAL chat image/video events come
     useEffect(() => {
         dispatch(
             matchAndHidePreviewMedia(
-                events.filter(e => isImageEvent(e) || isVideoEvent(e)),
+                events.filter(
+                    event => isImageEvent(event) || isVideoEvent(event),
+                ),
             ),
         )
-    }, [events, dispatch])
-
-    useDebouncedEffect(
-        () => {
-            if (scrollToMessageId) {
-                scrollToMessage(scrollToMessageId)
-            }
-        },
-        [scrollToMessageId],
-        300,
-    )
+    }, [dispatch, events])
 
     return (
         <>
-            {(hasLoadedEvents && hasLoadedMembers) ||
-            connectionRequestPending ? (
+            {shouldRenderConversationList ? (
                 <FlatList
                     data={chatRows}
-                    ref={internalListRef}
+                    ref={
+                        listRefOverride
+                            ? undefined
+                            : (listRef as React.RefObject<FlatList<ChatConversationRow> | null>)
+                    }
                     renderItem={renderEventRow}
                     keyExtractor={item => item.event.id as string}
                     style={[
@@ -372,19 +300,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                                     : theme.spacing.xl,
                         },
                     ]}
-                    contentContainerStyle={(() => {
-                        const baseStyle = style.contentContainer
-                        const paddingStyle =
-                            replyBarOffset > 0
-                                ? {
-                                      paddingTop:
-                                          baseStyle.paddingTop + replyBarOffset,
-                                  }
-                                : {}
-                        const finalStyle = [baseStyle, paddingStyle]
-
-                        return finalStyle
-                    })()}
+                    contentContainerStyle={contentContainerStyle}
                     ListEmptyComponent={
                         isAlone ? (
                             <NoMembersNotice roomId={id} />
@@ -409,11 +325,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     }
                     onScroll={handleScroll}
                     onScrollToIndexFailed={handleScrollToIndexFailed}
-                    // this prop is required to accomplish both:
-                    // 1) correct ordering of messages with the most recent message at the bottom
-                    // 2) prevent the ListEmptyComponent from rendering upside down
                     inverted={chatRows.length > 0}
-                    // adjust this for more/less aggressive loading
                     onEndReachedThreshold={0.1}
                     onEndReached={() => handlePaginate()}
                     refreshing={isPaginating}

@@ -4,7 +4,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
-import { useDeleteMessage } from '@fedi/common/hooks/matrix'
+import { useDeleteMessage, usePinMessage } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectSelectedChatMessage,
@@ -71,6 +71,22 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         eventId: selectedMessage?.id,
         onSuccess: closeOverlay,
     })
+
+    const { canPin, isPinned, isPinning, pinMessage, unpinMessage } =
+        usePinMessage({
+            t,
+            roomId: selectedMessage?.roomId ?? '',
+            eventId: selectedMessage?.id as string | null,
+            onSuccess: closeOverlay,
+        })
+
+    const handlePinToggle = useCallback(async () => {
+        if (isPinned) {
+            await unpinMessage()
+        } else {
+            await pinMessage()
+        }
+    }, [isPinned, pinMessage, unpinMessage])
 
     const handleCopy = useCallback(() => {
         if (!selectedMessage || selectedMessage.content.msgtype !== 'm.text')
@@ -181,6 +197,27 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                         </Pressable>
                                     )}
                                 </>
+                            )}
+                            {canPin && (
+                                <Pressable
+                                    onPress={handlePinToggle}
+                                    containerStyle={style.action}
+                                    disabled={isPinning}>
+                                    {isPinning ? (
+                                        <ActivityIndicator />
+                                    ) : (
+                                        <SvgImage
+                                            name={
+                                                isPinned ? 'Pin' : 'PinFilled'
+                                            }
+                                        />
+                                    )}
+                                    <Text bold>
+                                        {isPinned
+                                            ? t('feature.chat.unpin-message')
+                                            : t('feature.chat.pin-message')}
+                                    </Text>
+                                </Pressable>
                             )}
                             {(selectedMessage?.content.msgtype === 'm.image' ||
                                 selectedMessage?.content.msgtype ===

@@ -37,13 +37,14 @@ export const scrollToChatConversationEvent = ({
     timeout: ReturnType<typeof setTimeout>
 } | null => {
     const targetIndex = eventIndexById.get(eventId)
+    const list = listRef.current
 
-    if (targetIndex === undefined) {
+    if (targetIndex === undefined || !list) {
         return null
     }
 
     setHighlightedMessageId(eventId)
-    listRef.current?.scrollToIndex({
+    list.scrollToIndex({
         index: targetIndex,
         ...CHAT_CONVERSATION_SCROLL_OPTIONS,
     })

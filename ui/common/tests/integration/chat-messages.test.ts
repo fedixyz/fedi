@@ -1,6 +1,7 @@
 import { act, waitFor } from '@testing-library/react'
 
 import {
+    usePinMessage,
     useMatrixRepliedMessage,
     useObserveMatrixRoom,
 } from '@fedi/common/hooks/matrix'
@@ -9,7 +10,12 @@ import {
     selectMatrixAuth,
     inviteUserToMatrixRoom,
     sendMatrixMessage,
+    selectMatrixRoomPinnedEventIds,
+    selectMatrixRoomPinnedEvents,
+    selectMatrixRoomPowerLevels,
     selectMatrixRoomEvents,
+    selectMatrixRoomSelectableEventIds,
+    selectMatrixRoomSelfPowerLevel,
     sendMatrixDirectMessage,
     joinMatrixRoom,
 } from '@fedi/common/redux'
@@ -18,6 +24,7 @@ import { MatrixEvent, MatrixRoom, SendableMatrixEvent } from '../../types'
 import { isTextEvent } from '../../utils/matrix'
 import { createIntegrationTestBuilder } from '../utils/remote-bridge-setup'
 import { renderHookWithBridge } from '../utils/render'
+import { createMockT } from '../utils/setup'
 
 describe('group chat interactions between 2 users', () => {
     const builder1 = createIntegrationTestBuilder()
@@ -93,6 +100,171 @@ describe('group chat interactions between 2 users', () => {
                 return isTextEvent(event) && event.content.body === testMessage
             })
             expect(eventWithMessage).toBeDefined()
+        })
+    })
+
+    it('alice pins and unpins a room message, and both users converge on the same pinned state', async () => {
+        const { store: storeAlice, bridge: bridgeAlice } = alice
+        await builder1.withChatReady()
+        const { store: storeBob, bridge: bridgeBob } = bob
+        await builder2.withChatReady()
+        const bobAuth = selectMatrixAuth(storeBob.getState())
+        const t = createMockT()
+
+        const roomId = await builder1.withChatGroupCreated()
+
+        await act(() => {
+            storeAlice.dispatch(
+                inviteUserToMatrixRoom({
+                    fedimint: bridgeAlice.fedimint,
+                    roomId,
+                    userId: bobAuth?.userId as string,
+                }),
+            )
+        })
+
+        await waitFor(() => {
+            const chatsListBob = selectMatrixChatsList(storeBob.getState())
+            expect(chatsListBob).toHaveLength(1)
+        })
+
+        renderHookWithBridge(
+            () => useObserveMatrixRoom(roomId),
+            storeAlice,
+            bridgeAlice.fedimint,
+        )
+        renderHookWithBridge(
+            () => useObserveMatrixRoom(roomId),
+            storeBob,
+            bridgeBob.fedimint,
+        )
+
+        const testMessage = 'message that gets pinned'
+        await act(async () => {
+            await storeAlice.dispatch(
+                sendMatrixMessage({
+                    fedimint: bridgeAlice.fedimint,
+                    roomId,
+                    body: testMessage,
+                }),
+            )
+        })
+
+        let visibleEventId = ''
+        await waitFor(() => {
+            const roomEventsAlice = selectMatrixRoomEvents(
+                storeAlice.getState(),
+                roomId,
+            )
+            const visibleEventAlice = roomEventsAlice.find(event => {
+                return (
+                    isTextEvent(event) &&
+                    event.content.body === testMessage &&
+                    !event.localEcho &&
+                    event.sendState === null
+                )
+            })
+
+            expect(visibleEventAlice).toBeDefined()
+            visibleEventId = visibleEventAlice?.id as string
+        })
+
+        await waitFor(() => {
+            const roomEventsBob = selectMatrixRoomEvents(
+                storeBob.getState(),
+                roomId,
+            )
+            const visibleEventBob = roomEventsBob.find(event => {
+                return (
+                    isTextEvent(event) &&
+                    event.content.body === testMessage &&
+                    !event.localEcho &&
+                    event.sendState === null
+                )
+            })
+
+            expect(visibleEventBob).toBeDefined()
+            expect(visibleEventBob?.id).toBe(visibleEventId)
+        })
+
+        await waitFor(() => {
+            expect(
+                selectMatrixRoomPowerLevels(storeAlice.getState(), roomId),
+            ).toBeDefined()
+            expect(
+                selectMatrixRoomSelfPowerLevel(storeAlice.getState(), roomId),
+            ).toBeDefined()
+            expect(
+                selectMatrixRoomSelectableEventIds(
+                    storeAlice.getState(),
+                    roomId,
+                ),
+            ).toContain(visibleEventId)
+        })
+
+        const { result } = renderHookWithBridge(
+            () =>
+                usePinMessage({
+                    t,
+                    roomId,
+                    eventId: visibleEventId,
+                }),
+            storeAlice,
+            bridgeAlice.fedimint,
+        )
+
+        await waitFor(() => {
+            expect(result.current.canPin).toBe(true)
+        })
+
+        await act(async () => {
+            await result.current.pinMessage()
+        })
+
+        await waitFor(() => {
+            expect(
+                selectMatrixRoomPinnedEventIds(storeAlice.getState(), roomId),
+            ).toEqual([visibleEventId])
+            expect(
+                selectMatrixRoomPinnedEventIds(storeBob.getState(), roomId),
+            ).toEqual([visibleEventId])
+        })
+
+        const pinnedEventAlice = selectMatrixRoomPinnedEvents(
+            storeAlice.getState(),
+            roomId,
+        )[0]
+        const pinnedEventBob = selectMatrixRoomPinnedEvents(
+            storeBob.getState(),
+            roomId,
+        )[0]
+
+        expect(isTextEvent(pinnedEventAlice)).toBe(true)
+        expect(isTextEvent(pinnedEventBob)).toBe(true)
+        expect(
+            isTextEvent(pinnedEventAlice)
+                ? pinnedEventAlice.content.body
+                : null,
+        ).toBe(testMessage)
+        expect(
+            isTextEvent(pinnedEventBob) ? pinnedEventBob.content.body : null,
+        ).toBe(testMessage)
+
+        await waitFor(() => {
+            expect(result.current.isPinned).toBe(true)
+        })
+
+        await act(async () => {
+            await result.current.unpinMessage()
+        })
+
+        await waitFor(() => {
+            expect(
+                selectMatrixRoomPinnedEventIds(storeAlice.getState(), roomId),
+            ).toEqual([])
+            expect(
+                selectMatrixRoomPinnedEventIds(storeBob.getState(), roomId),
+            ).toEqual([])
         })
     })
 })
