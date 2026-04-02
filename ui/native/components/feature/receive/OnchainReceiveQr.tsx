@@ -16,7 +16,7 @@ import { reset } from '../../../state/navigation'
 import { BitcoinOrLightning, BtcLnUri } from '../../../types'
 import { Column } from '../../ui/Flex'
 import NotesInput from '../../ui/NotesInput'
-import FederationBalance from '../federations/FederationBalance'
+import FederationWalletSelector from '../send/FederationWalletSelector'
 import OnchainDepositInfo from './OnchainDepositInfo'
 import ReceiveQr from './ReceiveQr'
 
@@ -75,7 +75,7 @@ export default function OnchainReceiveQr({
         <Column grow gap="xl">
             {federationId && (
                 <Column style={{ paddingHorizontal: theme.spacing.xl }}>
-                    <FederationBalance federationId={federationId} />
+                    <FederationWalletSelector fullWidth />
                 </Column>
             )}
             <ReceiveQr

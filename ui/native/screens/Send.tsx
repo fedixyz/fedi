@@ -19,8 +19,8 @@ import { selectIsInternetUnreachable } from '@fedi/common/redux'
 import { parseUserInput } from '@fedi/common/utils/parser'
 import { isValidInternetIdentifier } from '@fedi/common/utils/validation'
 
-import FederationBalance from '../components/feature/federations/FederationBalance'
 import { OmniInput } from '../components/feature/omni/OmniInput'
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import AmountInput from '../components/ui/AmountInput'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import { Column } from '../components/ui/Flex'
@@ -162,7 +162,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
                         style={style.offlineScrollView}
                         contentContainerStyle={style.offlineScrollContainer}>
                         <Column grow gap="lg">
-                            <FederationBalance federationId={federationId} />
+                            <FederationWalletSelector fullWidth />
                             <AmountInput
                                 amount={offlineAmount}
                                 minimumAmount={minimumAmount}

@@ -63,10 +63,11 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     const dispatch = useAppDispatch()
 
     const handleReceive = () => {
+        dispatch(setPayFromFederationId(federationId))
         if (paymentType === 'stable-balance') {
             navigation.navigate('StabilityReceive', { federationId })
         } else {
-            navigation.navigate('ReceiveBitcoin', { federationId })
+            navigation.navigate('ReceiveBitcoin', {})
         }
     }
 

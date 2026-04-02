@@ -1,21 +1,21 @@
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import { NavigationHook, RootStackParamList } from '../../../types/navigation'
+import { selectPaymentFederation } from '@fedi/common/redux'
+
+import { useAppSelector } from '../../../state/hooks'
+import { NavigationHook } from '../../../types/navigation'
 import Header from '../../ui/Header'
 import { PressableIcon } from '../../ui/PressableIcon'
-
-type ReceiveLightningRouteProp = RouteProp<RootStackParamList, 'ReceiveBitcoin'>
 
 const RequestMoneyHeader: React.FC = () => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
-    const route = useRoute<ReceiveLightningRouteProp>()
-    const { federationId } = route.params
+    const federationId = useAppSelector(selectPaymentFederation)?.id ?? ''
     const { routes } = navigation.getState()
 
     // Show back button only if we can go back

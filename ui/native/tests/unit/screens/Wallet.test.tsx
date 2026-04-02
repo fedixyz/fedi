@@ -232,9 +232,7 @@ describe('Wallet screen', () => {
             await user.press(receiveButton)
             expect(mockNavigation.navigate).toHaveBeenCalledWith(
                 'ReceiveBitcoin',
-                {
-                    federationId: mockFederation1.id,
-                },
+                {},
             )
         })
 

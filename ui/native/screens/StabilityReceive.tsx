@@ -9,8 +9,8 @@ import { useSpv2OurPaymentAddress } from '@fedi/common/hooks/stabilitypool'
 import { selectShouldShowStablePaymentAddress } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 
-import FederationBalance from '../components/feature/federations/FederationBalance'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import AmountInput from '../components/ui/AmountInput'
 import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -93,7 +93,7 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
                     />
                 )}
                 {tab === 'wallet' && (
-                    <FederationBalance federationId={federationId} />
+                    <FederationWalletSelector fullWidth readonly />
                 )}
                 {tab === 'qr' && (
                     <Column grow gap="md">

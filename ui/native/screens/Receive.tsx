@@ -56,9 +56,7 @@ const Receive: React.FC<Props> = ({ route }) => {
                         label: t('feature.receive.add-amount'),
                         icon: 'Plus',
                         onPress: () =>
-                            navigation.navigate('ReceiveBitcoin', {
-                                federationId,
-                            }),
+                            navigation.navigate('ReceiveBitcoin', {}),
                     },
                 ]}
             />

@@ -6,7 +6,10 @@ import { View } from 'react-native'
 
 import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
 import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
-import { selectIsInternetUnreachable } from '@fedi/common/redux'
+import {
+    selectIsInternetUnreachable,
+    selectPaymentFederation,
+} from '@fedi/common/redux'
 
 import InternetUnreachableBanner from '../components/feature/environment/InternetUnreachableBanner'
 import LnurlReceiveQr from '../components/feature/receive/LnurlReceiveQr'
@@ -21,8 +24,8 @@ import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'ReceiveBitcoin'>
 
-const ReceiveBitcoin: React.FC<Props> = ({ route }: Props) => {
-    const { federationId } = route.params
+const ReceiveBitcoin: React.FC<Props> = () => {
+    const federationId = useAppSelector(selectPaymentFederation)?.id ?? ''
 
     const [activeTab, setActiveTab] = useState<BitcoinOrLightning>(
         BitcoinOrLightning.lightning,
@@ -34,7 +37,7 @@ const ReceiveBitcoin: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
 
-    const { supportsLnurl } = useLnurlReceiveCode(federationId || '')
+    const { supportsLnurl } = useLnurlReceiveCode(federationId)
 
     const isOnchainSupported = useIsOnchainDepositSupported(federationId)
     const isOffline = useAppSelector(selectIsInternetUnreachable)
