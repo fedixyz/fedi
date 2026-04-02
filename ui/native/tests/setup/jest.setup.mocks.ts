@@ -10,8 +10,12 @@ import { themeDefaults } from '../../styles/theme'
 // where we sometimes have to wait a long time to assert matrix state
 configure({ asyncUtilTimeout: 60000 })
 
-// Mock the fetch request in the `fetchCurrencyPrices` thunk only
 const realFetch = global.fetch
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const federationsData = require('../../../web/public/meta-federations.json')
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const autoselectData = require('../../../web/public/meta-autoselect-federations.json')
+
 global.fetch = jest.fn((url, options) => {
     if (url.includes('price-feed.dev.fedibtc.com')) {
         return Promise.resolve({
@@ -24,6 +28,18 @@ global.fetch = jest.fn((url, options) => {
                         },
                     },
                 }),
+        })
+    }
+
+    if (url.includes('/api/federations')) {
+        return Promise.resolve({
+            json: () => Promise.resolve(federationsData),
+        })
+    }
+
+    if (url.includes('/api/autoselect-federations')) {
+        return Promise.resolve({
+            json: () => Promise.resolve(autoselectData),
         })
     }
 

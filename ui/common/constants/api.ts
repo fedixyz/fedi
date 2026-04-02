@@ -17,3 +17,6 @@ export const FEDIBTC_META_JSON_URL = 'https://meta.dev.fedibtc.com/meta.json'
 export const PUBLIC_COMMUNITIES_META_JSON_URL = isDevOrExperimental
     ? `${API_ORIGIN}/meta-communities-nightly.json`
     : 'https://meta.dev.fedibtc.com/meta-communities.json'
+
+export const PUBLIC_FEDERATIONS_API_URL = `${API_ORIGIN}/api/federations`
+export const AUTOSELECT_FEDERATIONS_API_URL = `${API_ORIGIN}/api/autoselect-federations`

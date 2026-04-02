@@ -9,6 +9,8 @@ import {
     getFederationDefaultCurrency,
     getCommunityFediMods,
     shouldShowInviteCode,
+    fetchPublicFederations,
+    fetchAutoSelectFederations,
 } from '../../../utils/FederationUtils'
 
 const SAMPLE_CHAT_SERVER_DOMAIN = 'chat.dev.fedibtc.com'
@@ -109,6 +111,47 @@ const fedWithModsNullImageUrl: Federation = {
     },
 }
 
+const mockPublicFedMeta = {
+    'fed-id-1': {
+        public: 'true',
+        invite_code: 'fed11abc',
+        federation_name: 'Test Federation 1',
+    },
+    'fed-id-2': {
+        public: 'true',
+        invite_code: 'fed11def',
+        federation_name: 'Test Federation 2',
+    },
+}
+
+const mockPrivateFedMeta = {
+    'fed-id-private': {
+        public: 'false',
+        invite_code: 'fed11xyz',
+        federation_name: 'Private Federation',
+    },
+}
+
+const mockExpiredFedMeta = {
+    'fed-id-expired': {
+        public: 'true',
+        invite_code: 'fed11expired',
+        federation_name: 'Expired Federation',
+        federation_expiry_timestamp: '1000000000',
+    },
+}
+
+const mockMixedMeta = {
+    ...mockPublicFedMeta,
+    ...mockPrivateFedMeta,
+    ...mockExpiredFedMeta,
+    'fed-id-incomplete': {
+        public: 'true',
+        // missing invite_code
+        federation_name: 'Incomplete Federation',
+    },
+}
+
 describe('FederationUtils', () => {
     describe('getFederationDefaultCurrency', () => {
         test.each([
@@ -173,6 +216,53 @@ describe('FederationUtils', () => {
 
             expect(fediMods[0]).toHaveProperty('imageUrl')
             expect(fediMods[1]).not.toHaveProperty('imageUrl')
+        })
+    })
+
+    describe('federation fetchers', () => {
+        const originalFetch = global.fetch
+
+        beforeEach(() => jest.clearAllMocks())
+        afterEach(() => {
+            global.fetch = originalFetch
+        })
+
+        const mockFetch = (data: unknown) => {
+            global.fetch = jest.fn().mockResolvedValue({
+                json: () => Promise.resolve(data),
+            })
+        }
+
+        it('should parse public federations from API response', async () => {
+            mockFetch(mockPublicFedMeta)
+            const result = await fetchPublicFederations()
+            expect(result).toHaveLength(2)
+            expect(result[0].name).toBe('Test Federation 1')
+        })
+
+        it('should filter out non-public, incomplete, and expired federations', async () => {
+            mockFetch(mockMixedMeta)
+            const result = await fetchPublicFederations()
+            expect(result).toHaveLength(2)
+            const names = result.map(f => f.name)
+            expect(names).not.toContain('Private Federation')
+            expect(names).not.toContain('Incomplete Federation')
+            expect(names).not.toContain('Expired Federation')
+        })
+
+        it('should return empty array on network failure', async () => {
+            global.fetch = jest
+                .fn()
+                .mockRejectedValue(new Error('Network error'))
+            expect(await fetchPublicFederations()).toEqual([])
+            expect(await fetchAutoSelectFederations()).toEqual([])
+        })
+
+        it('should fetch auto-select federations from dedicated endpoint', async () => {
+            mockFetch(mockPublicFedMeta)
+            const result = await fetchAutoSelectFederations()
+            expect(result).toHaveLength(2)
+            expect(result[0].meta.invite_code).toBe('fed11abc')
         })
     })
 })

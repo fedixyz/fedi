@@ -39,6 +39,8 @@ import {
 import amountUtils from '../utils/AmountUtils'
 import {
     coerceLoadedFederation,
+    fetchAutoSelectFederations,
+    fetchPublicFederations,
     getCommunityFediMods,
     getDefaultGroupChats,
     getFederationMaxBalanceMsats,
@@ -72,6 +74,7 @@ const initialState = {
     federations: [] as Federation[],
     publicCommunities: [] as PublicCommunity[],
     publicFederations: [] as PublicFederation[],
+    autoSelectFederations: [] as PublicFederation[],
     payFromFederationId: null as Federation['id'] | null,
     recentlyUsedFederationIds: [] as Array<Federation['id']>,
     lastSelectedCommunityId: null as Community['id'] | null,
@@ -225,6 +228,12 @@ export const federationSlice = createSlice({
         },
         setPublicFederations(state, action: PayloadAction<PublicFederation[]>) {
             state.publicFederations = action.payload
+        },
+        setAutoSelectFederations(
+            state,
+            action: PayloadAction<PublicFederation[]>,
+        ) {
+            state.autoSelectFederations = action.payload
         },
         upsertCommunity(state, action: PayloadAction<Community>) {
             if (!action.payload.id) return
@@ -443,6 +452,10 @@ export const federationSlice = createSlice({
         },
     },
     extraReducers: builder => {
+        builder.addCase(preloadFederationLists.fulfilled, (state, action) => {
+            state.publicFederations = action.payload.publicFederations
+            state.autoSelectFederations = action.payload.autoSelectFederations
+        })
         builder.addCase(leaveFederation.fulfilled, (state, action) => {
             const { federationId } = action.meta.arg
             // Remove from federations
@@ -550,6 +563,7 @@ export const {
     setFederations,
     setPublicCommunities,
     setPublicFederations,
+    setAutoSelectFederations,
     upsertCommunity,
     upsertFederation,
     updateFederationBalance,
@@ -572,6 +586,21 @@ export const {
 } = federationSlice.actions
 
 /*** Async thunk actions */
+
+export const preloadFederationLists = createAsyncThunk<
+    {
+        publicFederations: PublicFederation[]
+        autoSelectFederations: PublicFederation[]
+    },
+    void,
+    { state: CommonState }
+>('federation/preloadFederationLists', async () => {
+    const [publicFederations, autoSelectFederations] = await Promise.all([
+        fetchPublicFederations(),
+        fetchAutoSelectFederations(),
+    ])
+    return { publicFederations, autoSelectFederations }
+})
 
 export const rateFederation = createAsyncThunk<
     void,

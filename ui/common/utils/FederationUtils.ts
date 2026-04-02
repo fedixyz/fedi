@@ -4,7 +4,8 @@ import { DEFAULT_FEDIMODS } from '@fedi/common/constants/fedimods'
 
 import {
     PUBLIC_COMMUNITIES_META_JSON_URL,
-    FEDIBTC_META_JSON_URL,
+    PUBLIC_FEDERATIONS_API_URL,
+    AUTOSELECT_FEDERATIONS_API_URL,
 } from '../constants/api'
 import {
     FederationMetadata,
@@ -138,34 +139,30 @@ export const fetchPublicCommunities = async (): Promise<PublicCommunity[]> => {
     }
 }
 
-/**
- * Fetches any public federations from meta.json
- */
-export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
-    const publicFederations: PublicFederation[] = []
-
-    try {
-        const externalMetaJson = await fetchExternalMetadata(
-            FEDIBTC_META_JSON_URL,
-        )
-        if (!externalMetaJson) throw new Error('No meta JSON to read from')
-
-        Object.entries<Federation['meta'] | undefined>(
-            externalMetaJson,
-        ).forEach(([key, value]) => {
+const parseFederationsFromMeta = (
+    externalMetaJson: ExternalMetaJson,
+    { includeTestnet = false }: { includeTestnet?: boolean } = {},
+): PublicFederation[] => {
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const federations: PublicFederation[] = []
+    Object.entries<Federation['meta'] | undefined>(externalMetaJson).forEach(
+        ([key, value]) => {
             if (!value) return
-            // federation meta must have all of these fields to be displayed as public
-            // Note these are not techincally supported meta fields... just the quickest
-            // hack to be able to display public federations using the meta.json
+
+            const expiryStr =
+                value.federation_expiry_timestamp || value.popup_end_timestamp
+            if (expiryStr) {
+                const expiry = parseInt(expiryStr, 10)
+                if (!isNaN(expiry) && expiry < nowSeconds) return
+            }
+
             if (
-                (value.public &&
-                    value.public === 'true' &&
-                    value.invite_code &&
-                    value.preview_message) ||
-                // in development only, always show Fedi Testnet in public federations for easier testing
-                (isDev() && value.federation_name === 'Fedi Testnet')
+                (value.public === 'true' && value.invite_code) ||
+                (includeTestnet &&
+                    isDev() &&
+                    value.federation_name === 'Fedi Testnet')
             ) {
-                publicFederations.push({
+                federations.push({
                     id: key,
                     name:
                         getMetaField(
@@ -175,11 +172,35 @@ export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
                     meta: value,
                 })
             }
-        })
+        },
+    )
+    return federations
+}
 
-        return publicFederations
+export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
+    try {
+        const metaJson = await fetchExternalMetadata(PUBLIC_FEDERATIONS_API_URL)
+        if (!metaJson) throw new Error('No public federations meta to read')
+        return parseFederationsFromMeta(metaJson, {
+            includeTestnet: true,
+        })
     } catch (error) {
         log.error('Failed to fetch public federations', error)
+        return []
+    }
+}
+
+export const fetchAutoSelectFederations = async (): Promise<
+    PublicFederation[]
+> => {
+    try {
+        const metaJson = await fetchExternalMetadata(
+            AUTOSELECT_FEDERATIONS_API_URL,
+        )
+        if (!metaJson) throw new Error('No auto-select meta JSON to read from')
+        return parseFederationsFromMeta(metaJson)
+    } catch (error) {
+        log.error('Failed to fetch auto-select federations', error)
         return []
     }
 }

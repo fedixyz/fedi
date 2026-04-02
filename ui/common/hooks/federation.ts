@@ -16,6 +16,7 @@ import {
     selectStableBalanceEnabled,
     setPublicCommunities,
     setPublicFederations,
+    setAutoSelectFederations,
     setSeenFederationRating,
     supportsSafeOnchainDeposit,
     selectCommunityIds,
@@ -40,11 +41,13 @@ import {
     InviteCodeType,
     Federation,
     LoadedFederation,
+    PublicFederation,
 } from '../types'
 import { RpcCommunity, RpcFederationPreview } from '../types/bindings'
 import dateUtils from '../utils/DateUtils'
 import {
     detectInviteCodeType,
+    fetchAutoSelectFederations,
     fetchPublicCommunities,
     fetchPublicFederations,
     getCommunityPreview,
@@ -359,9 +362,12 @@ export function useLatestPublicFederations() {
 
     const findPublicFederations = useCallback(async () => {
         setIsFetching(true)
-        const federations = await fetchPublicFederations()
-        dispatch(setPublicFederations(federations))
-        setIsFetching(false)
+        try {
+            const federations = await fetchPublicFederations()
+            dispatch(setPublicFederations(federations))
+        } finally {
+            setIsFetching(false)
+        }
     }, [dispatch])
 
     useEffect(() => {
@@ -372,6 +378,48 @@ export function useLatestPublicFederations() {
         publicFederations,
         findPublicFederations,
         isFetchingPublicFederations: isFetching,
+        isLoadingPublicFederations:
+            isFetching && publicFederations.length === 0,
+    }
+}
+
+export function useAutoSelectFederations() {
+    const autoSelectFederations = useCommonSelector(
+        s => s.federation.autoSelectFederations,
+    )
+    const joinedFederationIds = useCommonSelector(selectFederationIds)
+    const dispatch = useCommonDispatch()
+    const [isFetching, setIsFetching] = useState(false)
+
+    const findAutoSelectFederations = useCallback(async () => {
+        setIsFetching(true)
+        try {
+            const federations = await fetchAutoSelectFederations()
+            dispatch(setAutoSelectFederations(federations))
+        } finally {
+            setIsFetching(false)
+        }
+    }, [dispatch])
+
+    useEffect(() => {
+        findAutoSelectFederations()
+    }, [findAutoSelectFederations])
+
+    const pickRandom = useCallback((): PublicFederation | null => {
+        const available = autoSelectFederations.filter(
+            f => !joinedFederationIds.includes(f.id),
+        )
+        if (available.length === 0) return null
+        return available[Math.floor(Math.random() * available.length)]
+    }, [autoSelectFederations, joinedFederationIds])
+
+    return {
+        autoSelectFederations,
+        findAutoSelectFederations,
+        isFetchingAutoSelectFederations: isFetching,
+        isLoadingAutoSelectFederations:
+            isFetching && autoSelectFederations.length === 0,
+        pickRandom,
     }
 }
 

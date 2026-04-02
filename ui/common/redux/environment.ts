@@ -7,6 +7,7 @@ import {
     CommonState,
     fetchSocialRecovery,
     initializeDeviceRegistration,
+    preloadFederationLists,
     refreshCommunities,
     refreshFederations,
     setShouldLockDevice,
@@ -243,7 +244,23 @@ export const refreshOnboardingStatus = createAsyncThunk<
     const status = await fedimint.bridgeStatus()
     log.info('bridgeStatus', status)
 
-    // Extract and store the onboarding method if user is onboarded
+    if (status.type === 'offboarding') {
+        const { reason } = status
+        switch (reason.type) {
+            case 'deviceIdentifierMismatch':
+                dispatch(setShouldMigrateSeed(true))
+                break
+            case 'internalBridgeExport':
+                dispatch(setShouldMigrateSeed(true))
+                break
+            case 'deviceIndexConflict':
+                dispatch(setShouldLockDevice(true))
+                break
+            default:
+        }
+        return
+    }
+
     if (status.type === 'onboarded') {
         // note: starting the matrix client does not block onboarding
         dispatch(startMatrixClient({ fedimint }))
@@ -284,27 +301,11 @@ export const refreshOnboardingStatus = createAsyncThunk<
             default:
                 throw new Error('Unknown onboarding stage')
         }
-    } else if (status.type === 'offboarding') {
-        const { reason } = status
-        switch (reason.type) {
-            // This means the user has migrated their seed to a new device via device/app
-            // cloning so we need to prompt them to reinstall and do a device transfer
-            // so exit early without proceeding with further initialization
-            case 'deviceIdentifierMismatch':
-                dispatch(setShouldMigrateSeed(true))
-                break
-            case 'internalBridgeExport':
-                // Bridge is ready for export, show migration screen
-                dispatch(setShouldMigrateSeed(true))
-                break
-            case 'deviceIndexConflict':
-                dispatch(setShouldLockDevice(true))
-                break
-            default:
-        }
     } else {
         throw new Error('Unknown bridge status type')
     }
+
+    dispatch(preloadFederationLists())
 })
 
 export const getBridgeInfo = createAsyncThunk<

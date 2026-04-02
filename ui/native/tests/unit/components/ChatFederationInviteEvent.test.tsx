@@ -83,6 +83,7 @@ function storeWithJoinedFederation() {
             communities: [],
             publicCommunities: [],
             publicFederations: [],
+            autoSelectFederations: [],
             payFromFederationId: null,
             recentlyUsedFederationIds: [],
             lastSelectedCommunityId: null,

@@ -7,8 +7,10 @@ import fetch from 'node-fetch'
 // where we sometimes have to wait a long time to assert matrix state
 configure({ asyncUtilTimeout: 60000 })
 
-// Mock the fetch request in the `fetchCurrencyPrices` thunk only
 const realFetch = fetch
+const federationsData = require('./public/meta-federations.json')
+const autoselectData = require('./public/meta-autoselect-federations.json')
+
 global.fetch = jest.fn((url, options) => {
     if (url.includes('price-feed.dev.fedibtc.com')) {
         return Promise.resolve({
@@ -22,6 +24,14 @@ global.fetch = jest.fn((url, options) => {
                     },
                 }),
         })
+    }
+
+    if (url.includes('/api/federations')) {
+        return Promise.resolve({ json: () => Promise.resolve(federationsData) })
+    }
+
+    if (url.includes('/api/autoselect-federations')) {
+        return Promise.resolve({ json: () => Promise.resolve(autoselectData) })
     }
 
     return realFetch(url, options)

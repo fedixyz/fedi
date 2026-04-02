@@ -21,13 +21,13 @@ import { getCurrencyCode } from '@fedi/common/utils/currency'
 
 import WalletBalanceCard from '../components/feature/federations/BalanceCard'
 import FederationStatusAvatar from '../components/feature/federations/FederationStatusAvatar'
+import WalletSetupEmpty from '../components/feature/wallet/WalletSetupEmpty'
 import { Column, Row } from '../components/ui/Flex'
 import { Pressable } from '../components/ui/Pressable'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { Switcher } from '../components/ui/Switcher'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { resetToJoinFederation } from '../state/navigation'
 import { LoadedFederation } from '../types'
 import type {
     RootStackParamList,
@@ -98,24 +98,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     }, [dispatch, stabilityPoolDisabledByFederation])
 
     if (loadedFederations.length === 0) {
-        return (
-            <Column grow center style={style.empty} gap="md">
-                <Column
-                    align="center"
-                    gap="md"
-                    fullWidth
-                    style={style.emptyContainer}>
-                    <Text bold>{t('feature.federations.no-federations')}</Text>
-                    <Text caption>{t('feature.wallet.join-federation')}</Text>
-                </Column>
-                <Button
-                    onPress={() => navigation.dispatch(resetToJoinFederation())}
-                    fullWidth
-                    testID="JoinAFederationButton">
-                    {t('phrases.join-a-federation')}
-                </Button>
-            </Column>
-        )
+        return <WalletSetupEmpty navigation={navigation} />
     }
 
     if (!federation) return null
@@ -279,17 +262,6 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
             gap: theme.spacing.md,
             paddingVertical: 0,
-        },
-        empty: {
-            paddingHorizontal: theme.spacing.lg,
-        },
-        emptyContainer: {
-            paddingHorizontal: theme.spacing.lg,
-            paddingVertical: theme.spacing.md,
-            borderColor: theme.colors.lightGrey,
-            borderRadius: 16,
-            borderWidth: 1,
-            borderStyle: 'dashed',
         },
         icon: {
             marginLeft: 'auto',

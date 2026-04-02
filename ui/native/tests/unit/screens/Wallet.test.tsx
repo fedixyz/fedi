@@ -1,5 +1,10 @@
-import { act, screen, userEvent } from '@testing-library/react-native'
-import { View as mockView } from 'react-native'
+import {
+    act,
+    cleanup,
+    screen,
+    userEvent,
+    waitFor,
+} from '@testing-library/react-native'
 
 import {
     fetchCurrencyPrices,
@@ -13,22 +18,35 @@ import {
 import { setSimulateRecovery } from '@fedi/common/redux/federation'
 import {
     mockFederation1,
-    mockFederation2,
     mockFederationWithSPV1,
     mockFederationWithSPV2,
 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
+import { PublicFederation } from '@fedi/common/types'
+import { fetchAutoSelectFederations } from '@fedi/common/utils/FederationUtils'
 
 import i18n from '../../../localization/i18n'
 import Wallet from '../../../screens/Wallet'
-import { resetToJoinFederation } from '../../../state/navigation'
 import { LoadedFederation, MSats, UsdCents } from '../../../types'
-import { mockNavigation } from '../../setup/jest.setup.mocks'
+import { mockNavigation, mockToast } from '../../setup/jest.setup.mocks'
 import { renderWithBridge, renderWithProviders } from '../../utils/render'
 
-jest.mock('react-native-progress', () => {
-    return { Circle: mockView }
-})
+jest.mock('@fedi/common/utils/FederationUtils', () => ({
+    ...jest.requireActual('@fedi/common/utils/FederationUtils'),
+    fetchAutoSelectFederations: jest.fn().mockResolvedValue([]),
+}))
+
+const mockAutoSelectFed: PublicFederation = {
+    id: 'auto-fed-1',
+    name: 'Auto Select Fed 1',
+    meta: {
+        public: 'true',
+        invite_code: 'fed11auto1',
+        federation_name: 'Auto Select Fed 1',
+    },
+}
+
+const walletRoute = { name: 'Wallet' as const, key: 'Wallet' }
 
 describe('Wallet screen', () => {
     const user = userEvent.setup()
@@ -38,102 +56,107 @@ describe('Wallet screen', () => {
     let store: ReturnType<typeof setupStore>
 
     beforeEach(() => {
+        jest.clearAllMocks()
         store = setupStore()
     })
 
+    afterEach(() => {
+        cleanup()
+    })
+
     describe('no federations joined', () => {
-        it('should render the empty state if there are no federations', () => {
+        it('should render the setup options with auto-select and manual paths', () => {
             renderWithProviders(
                 <Wallet
-                    route={{
-                        name: 'Wallet',
-                        key: 'Wallet',
-                    }}
+                    route={walletRoute}
                     navigation={mockNavigation as any}
                 />,
                 { store },
             )
 
-            const noFederationsHeader = screen.queryByText(
-                i18n.t('feature.federations.no-federations'),
-            )
-            const joinFederationsCaption = screen.queryByText(
-                i18n.t('feature.wallet.join-federation'),
-            )
-            const joinAFederationButton = screen.queryByText(
-                i18n.t('phrases.join-a-federation'),
-            )
-
-            expect(noFederationsHeader).toBeOnTheScreen()
-            expect(joinFederationsCaption).toBeOnTheScreen()
-            expect(joinAFederationButton).toBeOnTheScreen()
+            expect(
+                screen.queryByText(i18n.t('feature.wallet.setup-title')),
+            ).toBeOnTheScreen()
+            expect(screen.getByTestId('AutoSelectButton')).toBeOnTheScreen()
+            expect(screen.getByTestId('ManualSetupButton')).toBeOnTheScreen()
         })
 
-        it('should navigate to the PublicFederations screen if the join button is pressed', async () => {
+        it('should navigate to PublicFederations when Manual Setup is pressed', async () => {
             renderWithProviders(
                 <Wallet
-                    route={{
-                        name: 'Wallet',
-                        key: 'Wallet',
-                    }}
+                    route={walletRoute}
                     navigation={mockNavigation as any}
                 />,
                 { store },
             )
 
-            const joinAFederationButton = screen.getByText(
-                i18n.t('phrases.join-a-federation'),
+            await user.press(screen.getByTestId('ManualSetupButton'))
+
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'PublicFederations',
+            )
+        })
+
+        it('should navigate to JoinFederation with invite when Auto-Select is pressed', async () => {
+            ;(fetchAutoSelectFederations as jest.Mock).mockResolvedValue([
+                mockAutoSelectFed,
+            ])
+
+            renderWithProviders(
+                <Wallet
+                    route={walletRoute}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
             )
 
-            await user.press(joinAFederationButton)
+            await waitFor(() => {
+                expect(screen.getByTestId('AutoSelectButton')).toBeOnTheScreen()
+            })
 
-            expect(mockNavigation.dispatch).toHaveBeenCalledWith(
-                resetToJoinFederation(),
+            await user.press(screen.getByTestId('AutoSelectButton'))
+
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'JoinFederation',
+                { invite: 'fed11auto1' },
             )
+        })
+
+        it('should show error toast when Auto-Select is pressed but no federations are available', async () => {
+            ;(fetchAutoSelectFederations as jest.Mock).mockResolvedValue([])
+
+            renderWithProviders(
+                <Wallet
+                    route={walletRoute}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            await user.press(screen.getByTestId('AutoSelectButton'))
+
+            expect(mockToast.show).toHaveBeenCalledWith({
+                content: i18n.t('errors.failed-to-select-wallet-service'),
+                status: 'error',
+            })
+            expect(mockNavigation.navigate).not.toHaveBeenCalled()
         })
     })
 
     describe('federation joined', () => {
-        it('should display the active federation name, wallet, balance, and wallet buttons', () => {
-            store.dispatch(setFederations([mockFederation1, mockFederation2]))
-            store.dispatch(setSelectedFederationId(mockFederation2.id))
-            renderWithProviders(
-                <Wallet
-                    route={{
-                        name: 'Wallet',
-                        key: 'Wallet',
-                    }}
-                    navigation={mockNavigation as any}
-                />,
-                { store },
-            )
-
-            const name = screen.getByText(
-                (mockFederation2 as LoadedFederation).name,
-            )
-            const bitcoinHeader = screen.getByText(i18n.t('words.bitcoin'))
-            const sendButton = screen.getByText(i18n.t('words.send'))
-            const receiveButton = screen.getByText(i18n.t('words.receive'))
-
-            expect(name).toBeOnTheScreen()
-            expect(bitcoinHeader).toBeOnTheScreen()
-            expect(sendButton).toBeOnTheScreen()
-            expect(receiveButton).toBeOnTheScreen()
-        })
-
-        it('pressing the federation header should navigate to federation details screen', async () => {
+        it('should not show setup options when a federation is joined', async () => {
             store.dispatch(setFederations([mockFederation1]))
-            store.dispatch(setSelectedFederationId(mockFederation1.id))
             renderWithProviders(
                 <Wallet
-                    route={{
-                        name: 'Wallet',
-                        key: 'Wallet',
-                    }}
+                    route={walletRoute}
                     navigation={mockNavigation as any}
                 />,
                 { store },
             )
+
+            expect(
+                screen.queryByText(i18n.t('feature.wallet.setup-title')),
+            ).not.toBeOnTheScreen()
 
             const header = screen.getByTestId(
                 `${mockFederation1.name.replaceAll(' ', '')}DetailsButton`,
