@@ -1,5 +1,4 @@
 import { useNavigation } from '@react-navigation/native'
-import { useTheme } from '@rneui/themed'
 import {
     useState,
     useCallback,
@@ -16,7 +15,6 @@ import { reset } from '../../../state/navigation'
 import { BitcoinOrLightning, BtcLnUri } from '../../../types'
 import { Column } from '../../ui/Flex'
 import NotesInput from '../../ui/NotesInput'
-import FederationWalletSelector from '../send/FederationWalletSelector'
 import OnchainDepositInfo from './OnchainDepositInfo'
 import ReceiveQr from './ReceiveQr'
 
@@ -35,7 +33,6 @@ export default function OnchainReceiveQr({
     const toast = useToast()
 
     const { t } = useTranslation()
-    const { theme } = useTheme()
     const { isAddressLoading, makeOnchainAddress, onSaveNotes } =
         useMakeOnchainAddress({
             federationId,
@@ -73,11 +70,6 @@ export default function OnchainReceiveQr({
 
     return (
         <Column grow gap="xl">
-            {federationId && (
-                <Column style={{ paddingHorizontal: theme.spacing.xl }}>
-                    <FederationWalletSelector fullWidth />
-                </Column>
-            )}
             <ReceiveQr
                 uri={uri}
                 isLoading={isAddressLoading || !generatedOnchainAddress}>

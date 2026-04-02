@@ -1,14 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet } from 'react-native'
+import { ScrollView, StyleSheet } from 'react-native'
 
 import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
-import { selectLoadedFederation } from '@fedi/common/redux'
 
-import { useAppSelector } from '../../../state/hooks'
 import { BitcoinOrLightning, BtcLnUri } from '../../../types'
-import { Column, Row } from '../../ui/Flex'
-import { FederationLogo } from '../federations/FederationLogo'
+import { Column } from '../../ui/Flex'
 import ReceiveQr from './ReceiveQr'
 
 export default function LnurlReceiveQr({
@@ -19,9 +16,6 @@ export default function LnurlReceiveQr({
     const { theme } = useTheme()
     const { t } = useTranslation()
 
-    const federation = useAppSelector(s =>
-        selectLoadedFederation(s, federationId),
-    )
     const { lnurlReceiveCode, isLoading } = useLnurlReceiveCode(federationId)
 
     const uri = new BtcLnUri({
@@ -32,41 +26,36 @@ export default function LnurlReceiveQr({
     const style = styles(theme)
 
     return (
-        <Column grow gap="xl">
-            <Column style={style.noticeContainer}>
-                <Column style={style.reusableNotice}>
-                    <Text color={theme.colors.primary} medium center caption>
-                        ℹ️ {t('feature.receive.lnurl-receive-notice-1')}
-                    </Text>
-                    <Text color={theme.colors.darkGrey} center small>
-                        {t('feature.receive.lnurl-receive-notice-2')}
-                    </Text>
-                </Column>
-            </Column>
-            <ReceiveQr uri={uri} isLoading={isLoading || !lnurlReceiveCode}>
-                <Row fullWidth align="center" justify="between">
-                    <Text caption bold color={theme.colors.night}>{`${t(
-                        'feature.receive.receive-to',
-                    )}`}</Text>
-                    <Row align="center" gap="xs">
-                        <FederationLogo federation={federation} size={24} />
-
+        <ScrollView style={style.container}>
+            <Column grow gap="xl">
+                <Column style={style.noticeContainer}>
+                    <Column style={style.reusableNotice}>
                         <Text
-                            caption
+                            color={theme.colors.primary}
                             medium
-                            numberOfLines={1}
-                            color={theme.colors.night}>
-                            {federation?.name || ''}
+                            center
+                            caption>
+                            ℹ️ {t('feature.receive.lnurl-receive-notice-1')}
                         </Text>
-                    </Row>
-                </Row>
-            </ReceiveQr>
-        </Column>
+                        <Text color={theme.colors.darkGrey} center small>
+                            {t('feature.receive.lnurl-receive-notice-2')}
+                        </Text>
+                    </Column>
+                </Column>
+                <ReceiveQr
+                    uri={uri}
+                    isLoading={isLoading || !lnurlReceiveCode}
+                />
+            </Column>
+        </ScrollView>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        container: {
+            flex: 1,
+        },
         noticeContainer: {
             paddingHorizontal: theme.spacing.xl,
         },

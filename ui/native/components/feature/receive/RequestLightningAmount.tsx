@@ -14,7 +14,6 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { reset } from '../../../state/navigation'
 import { useRecheckInternet } from '../../../utils/hooks/environment'
 import { AmountScreen } from '../../ui/AmountScreen'
-import FederationWalletSelector from '../send/FederationWalletSelector'
 import PaymentType from '../send/PaymentType'
 
 export default function RequestLightningAmount({
@@ -93,7 +92,6 @@ export default function RequestLightningAmount({
             contentContainerStyle={style.content}>
             <AmountScreen
                 subHeaderStyle={style.subHeader}
-                subHeader={<FederationWalletSelector fullWidth />}
                 federationId={federationId}
                 amount={amount}
                 onChangeAmount={onChangeAmount}

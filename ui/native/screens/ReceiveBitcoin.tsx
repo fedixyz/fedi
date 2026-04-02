@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { View } from 'react-native'
 
@@ -15,6 +15,7 @@ import InternetUnreachableBanner from '../components/feature/environment/Interne
 import LnurlReceiveQr from '../components/feature/receive/LnurlReceiveQr'
 import OnchainReceiveQr from '../components/feature/receive/OnchainReceiveQr'
 import RequestLightningAmount from '../components/feature/receive/RequestLightningAmount'
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { Switcher } from '../components/ui/Switcher'
 import { useAppSelector } from '../state/hooks'
@@ -67,6 +68,20 @@ const ReceiveBitcoin: React.FC<Props> = () => {
         })
     }
 
+    useEffect(() => {
+        if (
+            typeof supportsLnurl !== 'boolean' ||
+            typeof isOnchainSupported !== 'boolean'
+        )
+            return
+        if (
+            (activeTab === BitcoinOrLightning.lnurl && !supportsLnurl) ||
+            (activeTab === BitcoinOrLightning.bitcoin && !isOnchainSupported)
+        ) {
+            setActiveTab(BitcoinOrLightning.lightning)
+        }
+    }, [activeTab, supportsLnurl, isOnchainSupported])
+
     useSyncCurrencyRatesOnFocus(federationId)
 
     return (
@@ -80,6 +95,7 @@ const ReceiveBitcoin: React.FC<Props> = () => {
                     style={{
                         marginTop: theme.spacing.lg,
                         paddingHorizontal: theme.spacing.xl,
+                        gap: theme.spacing.sm,
                     }}>
                     {(isOnchainSupported || supportsLnurl) && (
                         <Switcher<BitcoinOrLightning>
@@ -88,6 +104,7 @@ const ReceiveBitcoin: React.FC<Props> = () => {
                             onChange={setActiveTab}
                         />
                     )}
+                    <FederationWalletSelector fullWidth />
                 </View>
                 {activeTab === BitcoinOrLightning.bitcoin && (
                     <OnchainReceiveQr
