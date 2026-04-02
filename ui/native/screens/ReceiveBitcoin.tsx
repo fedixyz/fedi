@@ -31,9 +31,10 @@ const ReceiveBitcoin: React.FC<Props> = () => {
     const [activeTab, setActiveTab] = useState<BitcoinOrLightning>(
         BitcoinOrLightning.lightning,
     )
-    const [generatedOnchainAddress, setGeneratedOnchainAddress] = useState<
-        string | null
-    >(null)
+    const [generatedOnchainAddress, setGeneratedOnchainAddress] = useState<{
+        federationId: string
+        address: string
+    } | null>(null)
 
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -70,13 +71,10 @@ const ReceiveBitcoin: React.FC<Props> = () => {
 
     useEffect(() => {
         if (
-            typeof supportsLnurl !== 'boolean' ||
-            typeof isOnchainSupported !== 'boolean'
-        )
-            return
-        if (
-            (activeTab === BitcoinOrLightning.lnurl && !supportsLnurl) ||
-            (activeTab === BitcoinOrLightning.bitcoin && !isOnchainSupported)
+            (activeTab === BitcoinOrLightning.lnurl &&
+                supportsLnurl === false) ||
+            (activeTab === BitcoinOrLightning.bitcoin &&
+                isOnchainSupported === false)
         ) {
             setActiveTab(BitcoinOrLightning.lightning)
         }

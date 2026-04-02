@@ -24,8 +24,10 @@ export default function OnchainReceiveQr({
     setGeneratedOnchainAddress,
 }: {
     federationId?: string
-    generatedOnchainAddress: string | null
-    setGeneratedOnchainAddress: Dispatch<SetStateAction<string | null>>
+    generatedOnchainAddress: { federationId: string; address: string } | null
+    setGeneratedOnchainAddress: Dispatch<
+        SetStateAction<{ federationId: string; address: string } | null>
+    >
 }) {
     const [notes, setNotes] = useState('')
 
@@ -50,10 +52,21 @@ export default function OnchainReceiveQr({
     }, [onSaveNotes, notes, toast, t])
 
     useEffect(() => {
-        if (generatedOnchainAddress) return
+        if (!federationId) return
+        if (generatedOnchainAddress?.federationId === federationId) return
 
         makeOnchainAddress()
-            .then(setGeneratedOnchainAddress)
+            .then(address => {
+                if (!federationId || !address) {
+                    setGeneratedOnchainAddress(null)
+                    return
+                }
+
+                setGeneratedOnchainAddress({
+                    federationId,
+                    address,
+                })
+            })
             .catch(e => toast.error(t, e))
     }, [
         generatedOnchainAddress,
@@ -61,11 +74,12 @@ export default function OnchainReceiveQr({
         makeOnchainAddress,
         toast,
         t,
+        federationId,
     ])
 
     const uri = new BtcLnUri({
         type: BitcoinOrLightning.bitcoin,
-        body: generatedOnchainAddress ?? '',
+        body: generatedOnchainAddress?.address ?? '',
     })
 
     return (

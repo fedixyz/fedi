@@ -155,11 +155,14 @@ export function useIsOnchainDepositSupported(federationId: Federation['id']) {
         selectOnchainDepositsEnabled,
     )
     const [hasSafeOnchainDeposits, setHasSafeOnchainDeposits] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
     const dispatch = useCommonDispatch()
 
     useEffect(() => {
         const checkOnchainSupport = async () => {
             if (!federation) return
+
+            setIsLoading(true)
 
             try {
                 const result = await dispatch(
@@ -173,6 +176,8 @@ export function useIsOnchainDepositSupported(federationId: Federation['id']) {
                     error,
                 )
                 setHasSafeOnchainDeposits(false)
+            } finally {
+                setIsLoading(false)
             }
         }
 
@@ -181,7 +186,7 @@ export function useIsOnchainDepositSupported(federationId: Federation['id']) {
         checkOnchainSupport()
     }, [federation, dispatch, fedimint, federationId])
 
-    if (!federation) return false
+    if (!federation || isLoading) return null
 
     // Check if onchain deposits are explicitly enabled in metadata
     const onchainDepositsDisabled = getMetaField(
