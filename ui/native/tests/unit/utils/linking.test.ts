@@ -266,6 +266,100 @@ describe('linking', () => {
         })
     })
 
+    describe('join-then-ecash deep link', () => {
+        it('should route to JoinFederation with afterJoinEcash via web deeplink', () => {
+            const deepLink =
+                'https://app.fedi.xyz/link#screen=join-then-ecash&invite=fed1abc123&ecash=cashutoken123'
+            const normalized = normalizeDeepLink(deepLink)
+            expect(normalized).toBeDefined()
+
+            if (!normalized) return
+            const result = linking.getInternalLinkRoute(normalized.fediUri)
+            expect(result).toEqual({
+                routes: [
+                    {
+                        name: 'JoinFederation',
+                        params: {
+                            invite: 'fed1abc123',
+                            afterJoinEcash: 'cashutoken123',
+                        },
+                    },
+                ],
+            })
+        })
+
+        it('should handle fedi:// join-then-ecash deeplink', () => {
+            const fediUri =
+                'fedi://join-then-ecash?invite=fed1abc123&ecash=cashutoken123'
+            const result = linking.getInternalLinkRoute(fediUri)
+            expect(result).toEqual({
+                routes: [
+                    {
+                        name: 'JoinFederation',
+                        params: {
+                            invite: 'fed1abc123',
+                            afterJoinEcash: 'cashutoken123',
+                        },
+                    },
+                ],
+            })
+        })
+
+        it('should return undefined when ecash param is missing', () => {
+            const result = linking.getInternalLinkRoute(
+                'fedi://join-then-ecash?invite=fed1abc123',
+            )
+            expect(result).toBeUndefined()
+        })
+    })
+
+    describe('join-then-browse deep link', () => {
+        it('should route to JoinFederation with afterJoinUrl via web deeplink', () => {
+            const deepLink =
+                'https://app.fedi.xyz/link#screen=join-then-browse&invite=community10abc&url=https://example.com/app'
+            const normalized = normalizeDeepLink(deepLink)
+            expect(normalized).toBeDefined()
+
+            if (!normalized) return
+            const result = linking.getInternalLinkRoute(normalized.fediUri)
+            expect(result).toEqual({
+                routes: [
+                    {
+                        name: 'JoinFederation',
+                        params: {
+                            invite: 'fedi:community10abc',
+                            afterJoinUrl: 'https://example.com/app',
+                        },
+                    },
+                ],
+            })
+        })
+
+        it('should add https:// prefix to bare domain', () => {
+            const result = linking.getInternalLinkRoute(
+                'fedi://join-then-browse?invite=fed1abc123&url=example.com/app',
+            )
+            expect(result).toEqual({
+                routes: [
+                    {
+                        name: 'JoinFederation',
+                        params: {
+                            invite: 'fed1abc123',
+                            afterJoinUrl: 'https://example.com/app',
+                        },
+                    },
+                ],
+            })
+        })
+
+        it('should return undefined when url param is missing', () => {
+            const result = linking.getInternalLinkRoute(
+                'fedi://join-then-browse?invite=fed1abc123',
+            )
+            expect(result).toBeUndefined()
+        })
+    })
+
     describe('browser deep link end-to-end (normalizeDeepLink + getInternalLinkRoute)', () => {
         const expectedRoute = {
             routes: [

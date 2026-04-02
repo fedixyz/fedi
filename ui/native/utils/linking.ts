@@ -92,6 +92,29 @@ export const screenMap: Record<
             }
         return { screen: 'JoinFederation' }
     },
+    'join-then-ecash': (params: Record<string, string>) => {
+        const { invite, ecash } = params
+        if (!invite || !ecash) return undefined
+        return {
+            screen: 'JoinFederation',
+            params: {
+                invite: normalizeCommunityInviteCode(invite),
+                afterJoinEcash: ecash,
+            },
+        }
+    },
+    'join-then-browse': (params: Record<string, string>) => {
+        const { invite, url: raw } = params
+        if (!invite || !raw) return undefined
+        const url = /^https?:\/\//.test(raw) ? raw : `https://${raw}`
+        return {
+            screen: 'JoinFederation',
+            params: {
+                invite: normalizeCommunityInviteCode(invite),
+                afterJoinUrl: url,
+            },
+        }
+    },
     'share-logs': () => ({ screen: 'ShareLogs' }),
 }
 

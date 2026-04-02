@@ -22,7 +22,7 @@ import { HelpTextLoadingAnimation } from '../components/feature/onboarding/HelpT
 import { CameraPermissionGate } from '../components/feature/permissions/CameraPermissionGate'
 import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
-import { reset } from '../state/navigation'
+import { reset, resetToHomeWithScreen } from '../state/navigation'
 import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -33,6 +33,8 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const invite = route?.params?.invite
+    const afterJoinEcash = route?.params?.afterJoinEcash
+    const afterJoinUrl = route?.params?.afterJoinUrl
     const isFocused = useIsFocused()
     const hasMatrixAuth = useAppSelector(s => !!selectMatrixAuth(s))
     const { publicFederations } = useLatestPublicFederations()
@@ -75,16 +77,45 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     }, [communityPreview, navigation, setIsJoining])
 
     const goToNextScreen = useCallback(() => {
+        const homeTab = federationPreview ? 'Wallet' : 'Home'
+
+        // After-join actions work even when already joined (no preview needed)
+        if (afterJoinEcash) {
+            navigation.dispatch(
+                resetToHomeWithScreen(homeTab as 'Home' | 'Wallet', {
+                    name: 'ClaimEcash',
+                    params: { id: afterJoinEcash },
+                }),
+            )
+            return
+        }
+        if (afterJoinUrl) {
+            navigation.dispatch(
+                resetToHomeWithScreen(homeTab as 'Home' | 'Wallet', {
+                    name: 'FediModBrowser',
+                    params: { url: afterJoinUrl },
+                }),
+            )
+            return
+        }
+
         if (!federationPreview && !communityPreview) return
 
         if (hasMatrixAuth) {
             navigation.replace('TabsNavigator', {
-                initialRouteName: federationPreview ? 'Wallet' : 'Home',
+                initialRouteName: homeTab,
             })
         } else {
             navigation.replace('EnterDisplayName')
         }
-    }, [federationPreview, communityPreview, hasMatrixAuth, navigation])
+    }, [
+        federationPreview,
+        communityPreview,
+        hasMatrixAuth,
+        navigation,
+        afterJoinEcash,
+        afterJoinUrl,
+    ])
 
     // If they came here with route state, paste the code for them
     useEffect(() => {

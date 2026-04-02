@@ -116,6 +116,16 @@ export function resetToMiniapps() {
     ])
 }
 
+export function resetToHomeWithScreen(
+    homeTab: 'Home' | 'Wallet',
+    afterScreen: TypedRoute,
+) {
+    return resetStack(1, [
+        { name: 'TabsNavigator', params: { initialRouteName: homeTab } },
+        afterScreen,
+    ])
+}
+
 export function resetAfterSendSuccess({
     title,
     formattedAmount,

@@ -162,7 +162,11 @@ export type RootStackParamList = {
     FediModSettings: { type?: string; federationId?: Federation['id'] }
     HelpCentre: { fromOnboarding: boolean }
     Initializing: undefined
-    JoinFederation: { invite?: string }
+    JoinFederation: {
+        invite?: string
+        afterJoinEcash?: string
+        afterJoinUrl?: string
+    }
     LanguageSettings: undefined
     MiniAppPermissionSettings: undefined
     MultispendIntro: { roomId: string }
