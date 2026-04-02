@@ -8,6 +8,7 @@ import {
     useLnurlReceiveCode,
     useMakeOnchainAddress,
 } from '@fedi/common/hooks/receive'
+import { useToast } from '@fedi/common/hooks/toast'
 import { selectPaymentFederation } from '@fedi/common/redux'
 import { TransactionListEntry } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
@@ -15,7 +16,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { walletRoute } from '../../constants/routes'
 import { useRouteState } from '../../context/RouteStateContext'
 import { useAppSelector } from '../../hooks'
-import { config, styled, theme } from '../../styles'
+import { styled, theme } from '../../styles'
 import { ContentBlock } from '../ContentBlock'
 import WalletSwitcher from '../Federation/WalletSwitcher'
 import { Column } from '../Flex'
@@ -27,14 +28,9 @@ import OnchainRequest from '../Request/OnchainRequest'
 import Success from '../Success'
 import { Switcher, type Option as SwitcherOption } from '../Switcher'
 
-interface Props {
-    open: boolean
-    onOpenChange(open: boolean): void
-}
-
 type Tab = 'lightning' | 'onchain' | 'lnurl'
 
-const Request: React.FC<Props> = ({ open }) => {
+const Request: React.FC = () => {
     const { t } = useTranslation()
     const router = useRouter()
     const lnurlw = useRouteState('/request')
@@ -46,10 +42,15 @@ const Request: React.FC<Props> = ({ open }) => {
     const [receivedTransaction, setReceivedTransaction] =
         useState<TransactionListEntry | null>(null)
     const [activeTab, setActiveTab] = useState<Tab>('lightning')
+    const [generatedOnchainAddress, setGeneratedOnchainAddress] = useState<{
+        federationId: string
+        address: string
+    } | null>(null)
 
     const containerRef = useRef<HTMLDivElement | null>(null)
 
     const isOnchainSupported = useIsOnchainDepositSupported(federationId)
+    const toast = useToast()
 
     const { supportsLnurl } = useLnurlReceiveCode(federationId || '')
 
@@ -61,11 +62,10 @@ const Request: React.FC<Props> = ({ open }) => {
         setReceivedTransaction(txn)
     }
 
-    const { address, makeOnchainAddress, onSaveNotes, reset } =
-        useMakeOnchainAddress({
-            federationId,
-            onMempoolTransaction: onTransactionReceived,
-        })
+    const { makeOnchainAddress, onSaveNotes } = useMakeOnchainAddress({
+        federationId,
+        onMempoolTransaction: onTransactionReceived,
+    })
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
@@ -78,28 +78,42 @@ const Request: React.FC<Props> = ({ open }) => {
     if (isOnchainSupported)
         switcherOptions.push({ label: t('words.onchain'), value: 'onchain' })
 
-    // Reset on close, focus input on desktop open
+    // Sync currency rates on focus
     useEffect(() => {
-        if (!open) {
-            setIsCompleted(false)
-            setActiveTab('lightning')
-            setReceivedTransaction(null)
-            reset()
-        } else {
-            syncCurrencyRatesAndCache(federationId)
-            if (!window.matchMedia(config.media.sm).matches) {
-                requestAnimationFrame(() =>
-                    containerRef.current?.querySelector('input')?.focus(),
-                )
-            }
-        }
-    }, [open, syncCurrencyRatesAndCache, reset, federationId])
+        const onFocus = () => syncCurrencyRatesAndCache()
+
+        window.addEventListener('focus', onFocus)
+
+        return () => window.removeEventListener('focus', onFocus)
+    }, [syncCurrencyRatesAndCache])
 
     useEffect(() => {
-        if (isOnchainSupported && activeTab === 'onchain' && !address) {
-            makeOnchainAddress()
+        if (!federationId) return
+        if (generatedOnchainAddress?.federationId === federationId) return
+
+        makeOnchainAddress()
+            .then(address => {
+                if (!federationId || !address) {
+                    setGeneratedOnchainAddress(null)
+                    return
+                }
+
+                setGeneratedOnchainAddress({
+                    federationId,
+                    address,
+                })
+            })
+            .catch(e => toast.error(t, e))
+    }, [makeOnchainAddress, federationId, generatedOnchainAddress, toast, t])
+
+    useEffect(() => {
+        if (
+            (activeTab === 'lnurl' && supportsLnurl === false) ||
+            (activeTab === 'onchain' && isOnchainSupported === false)
+        ) {
+            setActiveTab('lightning')
         }
-    }, [isOnchainSupported, activeTab, makeOnchainAddress, address])
+    }, [activeTab, isOnchainSupported, supportsLnurl])
 
     if (receivedTransaction) {
         return (
@@ -135,7 +149,7 @@ const Request: React.FC<Props> = ({ open }) => {
                                     onChange={newTab => setActiveTab(newTab)}
                                 />
                             )}
-                        {activeTab !== 'lnurl' && <WalletSwitcher />}
+                        <WalletSwitcher />
                         {lnurlw ? (
                             <LnurlWithdraw
                                 onSubmit={handleSubmit}
@@ -160,7 +174,7 @@ const Request: React.FC<Props> = ({ open }) => {
                             />
                         ) : (
                             <OnchainRequest
-                                address={address}
+                                address={generatedOnchainAddress?.address ?? ''}
                                 onSaveNotes={onSaveNotes}
                             />
                         )}
