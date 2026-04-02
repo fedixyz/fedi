@@ -663,6 +663,11 @@ async fn cancelSocialRecovery(bridge: Arc<BridgeOnboarding>) -> anyhow::Result<(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn resetUnrecognizedSeed(bridge: Arc<BridgeOnboarding>) -> anyhow::Result<()> {
+    bridge.reset_unrecognized_seed().await
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn socialRecoveryApprovals(
     bridge: Arc<BridgeOnboarding>,
 ) -> anyhow::Result<SocialRecoveryEvent> {
@@ -1279,13 +1284,16 @@ async fn fetchRegisteredDevices(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn onboardRegisterAsNewDevice(bridge: &Bridge) -> anyhow::Result<()> {
+async fn onboardRegisterAsNewDevice(bridge: &Bridge, index: Option<u8>) -> anyhow::Result<()> {
     let onboarding: Arc<BridgeOnboarding> = bridge.try_get()?;
-    let device_index = onboarding
-        .fetch_registered_devices()
-        .await?
-        .len()
-        .try_into()?;
+    let device_index = match index {
+        Some(index) => index,
+        None => onboarding
+            .fetch_registered_devices()
+            .await?
+            .len()
+            .try_into()?,
+    };
     onboarding
         .register_device_with_index(device_index, false)
         .await?;
@@ -2507,6 +2515,7 @@ rpc_methods!(RpcMethods {
     validateRecoveryFile,
     recoveryQr,
     cancelSocialRecovery,
+    resetUnrecognizedSeed,
     socialRecoveryApprovals,
     completeSocialRecovery,
     socialRecoveryDownloadVerificationDoc,

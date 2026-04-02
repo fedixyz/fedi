@@ -3,7 +3,9 @@ import orderBy from 'lodash/orderBy'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
+    continueWithDefaultDevice,
     createNewWallet,
+    resetUnrecognizedSeed,
     restoreMnemonic,
     cancelSocialRecovery as reduxCancelSocialRecovery,
     completeSocialRecovery as reduxCompleteSocialRecovery,
@@ -15,9 +17,10 @@ import {
     selectSocialRecoveryState,
     transferExistingWallet,
     refreshOnboardingStatus,
-    setDeviceIndexRequired,
+    resetDeviceRegistration,
     selectIsFederationRecovering,
     selectSimulateRecoveryByFederation,
+    setDeviceIndexRequired,
 } from '../redux'
 import { Federation, SeedWords } from '../types'
 import { RpcRegisteredDevice } from '../types/bindings'
@@ -126,6 +129,8 @@ export function useDeviceRegistration(t: TFunction) {
     const fedimint = useFedimint()
     const registeredDevices = useCommonSelector(selectRegisteredDevices)
     const [isProcessing, setIsProcessing] = useState<boolean>(false)
+    const [isResettingSeed, setIsResettingSeed] = useState<boolean>(false)
+    const isLoadingRegisteredDevices = registeredDevices === null
 
     // Feature is currently DISABLED in the UI.
     const handleNewWallet = useCallback(
@@ -180,13 +185,61 @@ export function useDeviceRegistration(t: TFunction) {
         [dispatch, fedimint, t, toast],
     )
 
+    const handleContinueWithDefaultDevice = useCallback(
+        async (onSuccess: () => void) => {
+            setIsProcessing(true)
+            try {
+                const federation = await dispatch(
+                    continueWithDefaultDevice({ fedimint }),
+                ).unwrap()
+
+                log.debug('continueWithDefaultDevice federation:', federation)
+                if (federation) {
+                    // TODO: go to federation preview? or auto-join
+                }
+                await dispatch(refreshOnboardingStatus(fedimint))
+                dispatch(resetDeviceRegistration())
+
+                onSuccess()
+            } catch (error) {
+                log.error('continueWithDefaultDevice', error)
+                toast.error(t, error)
+            } finally {
+                setIsProcessing(false)
+            }
+        },
+        [dispatch, fedimint, t, toast],
+    )
+
+    const handleResetUnrecognizedSeed = useCallback(
+        async (onSuccess: () => void) => {
+            setIsResettingSeed(true)
+            try {
+                await dispatch(resetUnrecognizedSeed(fedimint)).unwrap()
+                onSuccess()
+            } catch (error) {
+                log.error('handleResetUnrecognizedSeed', error)
+                toast.error(t, error)
+            } finally {
+                setIsResettingSeed(false)
+            }
+        },
+        [dispatch, fedimint, t, toast],
+    )
+
     const devicesSortedByTimestamp = useMemo(() => {
-        return orderBy(registeredDevices, 'lastRegistrationTimestamp', 'desc')
+        return registeredDevices
+            ? orderBy(registeredDevices, 'lastRegistrationTimestamp', 'desc')
+            : []
     }, [registeredDevices])
 
     return {
         registeredDevices: devicesSortedByTimestamp,
+        isLoadingRegisteredDevices,
         isProcessing,
+        isResettingSeed,
+        handleContinueWithDefaultDevice,
+        handleResetUnrecognizedSeed,
         handleTransfer,
         handleNewWallet,
     }

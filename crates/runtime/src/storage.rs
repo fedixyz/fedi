@@ -401,6 +401,20 @@ impl AppStateOnboarding {
         Ok(())
     }
 
+    /// DeviceIndexSelection -> Init
+    pub async fn reset_unrecognized_seed(&self) -> anyhow::Result<()> {
+        self.with_write_lock(|state| {
+            match state.stage {
+                OnboardingStage::DeviceIndexSelection { .. } => {}
+                _ => bail!("Illegal transition in onboarding (unrecognized seed)"),
+            };
+            state.stage = OnboardingStage::Init {};
+            Ok(())
+        })
+        .await??;
+        Ok(())
+    }
+
     /// Init -> DeviceIndexSelection or SocialRecovery -> DeviceIndexSelection
     pub async fn restore_mnemonic(
         &self,

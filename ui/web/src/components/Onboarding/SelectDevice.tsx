@@ -11,6 +11,7 @@ import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
 import { styled, theme } from '../../styles'
+import { Button } from '../Button'
 import { HoloLoader } from '../HoloLoader'
 import { Icon } from '../Icon'
 import * as Layout from '../Layout'
@@ -56,8 +57,15 @@ export const SelectDevice: React.FC = () => {
     const { t } = useTranslation()
     const router = useRouter()
 
-    const { isProcessing, registeredDevices, handleTransfer } =
-        useDeviceRegistration(t)
+    const {
+        isLoadingRegisteredDevices,
+        isProcessing,
+        isResettingSeed,
+        registeredDevices,
+        handleContinueWithDefaultDevice,
+        handleResetUnrecognizedSeed,
+        handleTransfer,
+    } = useDeviceRegistration(t)
 
     const onDeviceSelect = (device: RpcRegisteredDevice) => {
         handleTransfer(device, () => {
@@ -65,7 +73,19 @@ export const SelectDevice: React.FC = () => {
         })
     }
 
-    if (isProcessing) {
+    const handleTryAgain = async () => {
+        await handleResetUnrecognizedSeed(() => {
+            router.push('/onboarding/recover')
+        })
+    }
+
+    const handleContinueAnyway = () => {
+        handleContinueWithDefaultDevice(() => {
+            router.push('/home')
+        })
+    }
+
+    if (isProcessing || isLoadingRegisteredDevices) {
         return (
             <LoadingWrapper>
                 <HoloLoader size={'xl'} />
@@ -83,9 +103,39 @@ export const SelectDevice: React.FC = () => {
             <Layout.Content>
                 <Content>
                     {registeredDevices.length === 0 ? (
-                        <Text variant="body">
-                            {t('feature.recovery.no-devices-found')}
-                        </Text>
+                        <>
+                            <IconWrap>
+                                <Icon icon={ErrorIcon} size="sm" />
+                            </IconWrap>
+                            <Text center variant="h2">
+                                {t('feature.recovery.device-not-found')}
+                            </Text>
+                            <Text
+                                center
+                                variant="body"
+                                css={{ color: theme.colors.darkGrey }}>
+                                {t(
+                                    'feature.recovery.device-not-found-description',
+                                )}
+                            </Text>
+                            <Actions>
+                                <Button
+                                    width="full"
+                                    onClick={handleTryAgain}
+                                    loading={isResettingSeed}
+                                    disabled={isProcessing}>
+                                    {t('phrases.start-over')}
+                                </Button>
+                                <Button
+                                    width="full"
+                                    variant="secondary"
+                                    onClick={handleContinueAnyway}
+                                    loading={isProcessing}
+                                    disabled={isResettingSeed}>
+                                    {t('feature.recovery.continue-anyways')}
+                                </Button>
+                            </Actions>
+                        </>
                     ) : (
                         <Devices>
                             <Text variant="body">
@@ -108,6 +158,17 @@ const Content = styled('div', {
     gap: 10,
     padding: 20,
     textAlign: 'left',
+})
+
+const IconWrap = styled('div', {
+    alignItems: 'center',
+    background: theme.colors.white,
+    border: `1px solid ${theme.colors.lightGrey}`,
+    borderRadius: '999px',
+    display: 'flex',
+    height: 56,
+    justifyContent: 'center',
+    width: 56,
 })
 
 const Devices = styled('div', {
@@ -150,4 +211,11 @@ const LoadingWrapper = styled('div', {
     flex: 1,
     flexDirection: 'column',
     justifyContent: 'center',
+})
+
+const Actions = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    width: '100%',
 })

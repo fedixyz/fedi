@@ -789,6 +789,7 @@ export type RpcMethods = {
   validateRecoveryFile: [validateRecoveryFile, null];
   recoveryQr: [recoveryQr, SocialRecoveryQr | null];
   cancelSocialRecovery: [cancelSocialRecovery, null];
+  resetUnrecognizedSeed: [resetUnrecognizedSeed, null];
   socialRecoveryApprovals: [socialRecoveryApprovals, SocialRecoveryEvent];
   completeSocialRecovery: [completeSocialRecovery, null];
   socialRecoveryDownloadVerificationDoc: [
@@ -2026,8 +2027,6 @@ export type matrixRoomJoin = { roomId: RpcRoomId };
 
 export type matrixRoomJoinPublic = { roomId: RpcRoomId };
 
-export type matrixRoomListSetVisibleRooms = { roomIds: Array<RpcRoomId> };
-
 export type matrixRoomKickUser = {
   roomId: RpcRoomId;
   userId: RpcUserId;
@@ -2035,6 +2034,8 @@ export type matrixRoomKickUser = {
 };
 
 export type matrixRoomLeave = { roomId: RpcRoomId };
+
+export type matrixRoomListSetVisibleRooms = { roomIds: Array<RpcRoomId> };
 
 export type matrixRoomMarkAsUnread = { roomId: RpcRoomId; unread: boolean };
 
@@ -2221,7 +2222,7 @@ export type nostrRateFederation = {
 
 export type onAppForeground = {};
 
-export type onboardRegisterAsNewDevice = {};
+export type onboardRegisterAsNewDevice = { index: number | null };
 
 export type onboardTransferExistingDeviceRegistration = { index: number };
 
@@ -2264,6 +2265,8 @@ export type recheckPeginAddress = {
 export type recoveryQr = {};
 
 export type repairWallet = { federationId: RpcFederationId };
+
+export type resetUnrecognizedSeed = {};
 
 export type restoreMnemonic = { mnemonic: Array<string> };
 

@@ -116,6 +116,14 @@ impl BridgeOnboarding {
         Ok(())
     }
 
+    pub async fn reset_unrecognized_seed(&self) -> anyhow::Result<()> {
+        let state = self.state.lock().await;
+        let Some(state) = state.as_ref() else {
+            bail!("already completed onboarding");
+        };
+        state.reset_unrecognized_seed().await
+    }
+
     pub async fn restore_mnemonic(&self, mnemonic: bip39::Mnemonic) -> anyhow::Result<()> {
         let state = self.state.lock().await;
         let Some(state) = state.as_ref() else {

@@ -11,11 +11,13 @@ const log = makeLog('common/redux/recovery')
 
 /*** Initial State ***/
 
+export type RegisteredDevicesState = RpcRegisteredDevice[] | null
+
 const initialState = {
     hasCheckedForSocialRecovery: false,
     socialRecoveryQr: null as string | null,
     socialRecoveryState: null as SocialRecoveryEvent | null,
-    registeredDevices: [] as RpcRegisteredDevice[],
+    registeredDevices: null as RegisteredDevicesState,
     deviceIndexRequired: false,
     shouldLockDevice: false, // TODO: persist this to localStorage?
     shouldMigrateSeed: false, // TODO: persist this to localStorage?
@@ -37,6 +39,10 @@ export const recoverySlice = createSlice({
         },
         setDeviceIndexRequired(state, action: PayloadAction<boolean>) {
             state.deviceIndexRequired = action.payload
+        },
+        resetDeviceRegistration(state) {
+            state.deviceIndexRequired = false
+            state.registeredDevices = null
         },
         setShouldLockDevice(state, action: PayloadAction<boolean>) {
             state.shouldLockDevice = action.payload
@@ -98,6 +104,7 @@ export const recoverySlice = createSlice({
 export const {
     setSocialRecoveryState,
     setDeviceIndexRequired,
+    resetDeviceRegistration,
     setShouldLockDevice,
     setShouldMigrateSeed,
 } = recoverySlice.actions
@@ -148,6 +155,15 @@ export const cancelSocialRecovery = createAsyncThunk<void, FedimintBridge>(
     },
 )
 
+export const resetUnrecognizedSeed = createAsyncThunk<
+    void,
+    FedimintBridge,
+    { state: CommonState }
+>('recovery/resetUnrecognizedSeed', async (fedimint, { dispatch }) => {
+    await fedimint.resetUnrecognizedSeed()
+    dispatch(resetDeviceRegistration())
+})
+
 export const restoreMnemonic = createAsyncThunk<
     null,
     { fedimint: FedimintBridge; mnemonic: SeedWords },
@@ -165,6 +181,14 @@ export const createNewWallet = createAsyncThunk<
     { state: CommonState }
 >('recovery/createNewWallet', async ({ fedimint }) => {
     return fedimint.onboardRegisterAsNewDevice()
+})
+
+export const continueWithDefaultDevice = createAsyncThunk<
+    RpcFederation | null,
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>('recovery/continueWithDefaultDevice', async ({ fedimint }) => {
+    return fedimint.onboardRegisterAsNewDevice(0)
 })
 
 // Transfers a wallet from one device to another.

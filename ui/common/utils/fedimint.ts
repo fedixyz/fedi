@@ -662,8 +662,10 @@ export class FedimintBridge {
 
     // Adds a new device for an existing user.
     // Currently DISABLED in the UI.
-    async onboardRegisterAsNewDevice() {
-        return this.rpcTyped('onboardRegisterAsNewDevice', {})
+    async onboardRegisterAsNewDevice(index?: number) {
+        return this.rpcTyped('onboardRegisterAsNewDevice', {
+            index: index ?? null,
+        })
     }
 
     async onboardTransferExistingDeviceRegistration(index: number) {
@@ -780,6 +782,10 @@ export class FedimintBridge {
 
     async cancelSocialRecovery() {
         return this.rpcTyped('cancelSocialRecovery', {})
+    }
+
+    async resetUnrecognizedSeed() {
+        return this.rpcTyped('resetUnrecognizedSeed', {})
     }
 
     /*** MATRIX ***/

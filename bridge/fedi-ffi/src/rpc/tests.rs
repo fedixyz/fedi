@@ -1726,7 +1726,9 @@ async fn test_onboarding_fails_without_restore_mnemonic(_dev_fed: DevFed) -> any
     td2.with_fedi_api(mock_fedi_api);
     let recovery_bridge = td2.bridge_maybe_onboarding().await?;
     assert!(
-        onboardRegisterAsNewDevice(recovery_bridge).await.is_err(),
+        onboardRegisterAsNewDevice(recovery_bridge, None)
+            .await
+            .is_err(),
         "onboarding failed because you didn't restore the mnemonic"
     );
     Ok(())
@@ -1949,7 +1951,7 @@ async fn test_new_device_registration_post_recovery(_dev_fed: DevFed) -> anyhow:
     let recovery_bridge = td2.bridge_maybe_onboarding().await?;
     restoreMnemonic(recovery_bridge.try_get()?, mnemonic).await?;
     // Register device as index 1 since it's a new device
-    onboardRegisterAsNewDevice(recovery_bridge.try_get()?).await?;
+    onboardRegisterAsNewDevice(recovery_bridge.try_get()?, None).await?;
     let recovery_bridge = td2.bridge_full().await?;
 
     // Rejoin federation and assert that balances don't carry over (and there is no
