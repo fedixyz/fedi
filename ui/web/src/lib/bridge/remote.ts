@@ -1,3 +1,4 @@
+import { RpcAppFlavor } from '@fedi/common/types/bindings'
 import {
     fedimint,
     getAppFlavor,
@@ -7,7 +8,10 @@ import {
 
 export { fedimint, getAppFlavor }
 
-export async function initializeBridge(deviceId: string) {
+export async function initializeBridge(
+    deviceId: string,
+    _flavor?: RpcAppFlavor['type'],
+) {
     deviceId = sessionStorage.deviceId =
         sessionStorage.deviceId || prompt('give device id')
     // accessible in console
