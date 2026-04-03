@@ -44,10 +44,7 @@ import RecoveryDeviceSelectionHeader from '../components/feature/recovery/Recove
 import RecoveryNewWalletHeader from '../components/feature/recovery/RecoveryNewWalletHeader'
 import RecoveryWalletTransferHeader from '../components/feature/recovery/RecoveryWalletTransferHeader'
 import SocialRecoveryHeader from '../components/feature/recovery/SocialRecoveryHeader'
-import ConfirmSendEcashHeader from '../components/feature/send/ConfirmSendEcashHeader'
 import SendBitcoinHeader from '../components/feature/send/SendBitcoinHeader'
-import SendBitcoinOfflineHeader from '../components/feature/send/SendBitcoinOfflineHeader'
-import SendBitcoinOfflineQrHeader from '../components/feature/send/SendBitcoinOfflineQrHeader'
 import SendHeader from '../components/feature/send/SendHeader'
 import SettingsHeader from '../components/feature/settings/SettingsHeader'
 import ConfirmDepositHeader from '../components/feature/stabilitypool/ConfirmDepositHeader'
@@ -751,23 +748,21 @@ export const MainNavigator = () => {
                                 name="SendOfflineAmount"
                                 component={SendOfflineAmount}
                                 options={() => ({
-                                    header: () => <SendBitcoinOfflineHeader />,
+                                    header: () => <SendBitcoinHeader />,
                                 })}
                             />
                             <Stack.Screen
                                 name="ConfirmSendEcash"
                                 component={ConfirmSendEcash}
                                 options={() => ({
-                                    header: () => <ConfirmSendEcashHeader />,
+                                    header: () => <SendBitcoinHeader />,
                                 })}
                             />
                             <Stack.Screen
                                 name="SendOfflineQr"
                                 component={SendOfflineQr}
                                 options={() => ({
-                                    header: () => (
-                                        <SendBitcoinOfflineQrHeader />
-                                    ),
+                                    header: () => <SendBitcoinHeader />,
                                 })}
                             />
                             {/* Wallet (Receive) */}
