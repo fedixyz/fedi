@@ -13,6 +13,8 @@ import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import WalletFilledIcon from '@fedi/common/assets/svgs/wallet-filled.svg'
 import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
 import {
+    selectCommunities,
+    selectLoadedFederations,
     selectMatrixHasNotifications,
     setLastUsedTab,
 } from '@fedi/common/redux'
@@ -26,9 +28,11 @@ import {
 } from '../../constants/routes'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
+import CommunitiesOverlay from '../CommunitiesOverlay'
 import { Icon } from '../Icon'
 import { NotificationDot } from '../NotificationDot'
 import { ScanDialog } from '../ScanDialog'
+import SelectWalletOverlay from '../SelectWalletOverlay'
 import { Text } from '../Text'
 
 interface ScanLink {
@@ -42,10 +46,14 @@ interface ScanLink {
 type NavLink = ScanLink & { tab: HomeNavigationTab }
 
 export const Navigation: React.FC = () => {
-    const [open, setOpen] = useState(false)
+    const [scanDialogOpen, setScanDialogOpen] = useState(false)
+    const [walletOverlayOpen, setWalletOverlayOpen] = useState(false)
+    const [communitiesOverlayOpen, setCommunitiesOverlayOpen] = useState(false)
 
     const router = useRouter()
     const hasChatNotifications = useAppSelector(selectMatrixHasNotifications)
+    const communities = useAppSelector(selectCommunities)
+    const loadedFederations = useAppSelector(selectLoadedFederations)
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
 
@@ -53,6 +61,30 @@ export const Navigation: React.FC = () => {
         if (navPath === router.pathname) return true
         if (navPath !== '/' && router.pathname.startsWith(navPath)) return true
         return false
+    }
+
+    const handleNavClick = (
+        nav: NavLink,
+        isActive: boolean,
+        event: React.MouseEvent<HTMLAnchorElement>,
+    ) => {
+        if (
+            nav.path === walletRoute &&
+            isActive &&
+            loadedFederations.length >= 2
+        ) {
+            event.preventDefault()
+            setWalletOverlayOpen(true)
+            return
+        }
+
+        if (nav.path === homeRoute && isActive && communities.length >= 2) {
+            event.preventDefault()
+            setCommunitiesOverlayOpen(true)
+            return
+        }
+
+        dispatch(setLastUsedTab(nav.tab))
     }
 
     const navLinks: (NavLink | ScanLink)[] = [
@@ -108,7 +140,8 @@ export const Navigation: React.FC = () => {
                     if (!('tab' in nav)) {
                         return (
                             <NavItem key={nav.path} isActive={isActive}>
-                                <ScanItem onClick={() => setOpen(true)}>
+                                <ScanItem
+                                    onClick={() => setScanDialogOpen(true)}>
                                     <ScanIconContainer>
                                         <Icon icon={nav.icon} size={24} />
                                     </ScanIconContainer>
@@ -124,9 +157,9 @@ export const Navigation: React.FC = () => {
                         <NavItem key={nav.path} isActive={isActive}>
                             <Link
                                 href={nav.path}
-                                onClick={() =>
-                                    dispatch(setLastUsedTab(nav.tab))
-                                }>
+                                onClick={event => {
+                                    handleNavClick(nav, isActive, event)
+                                }}>
                                 <NotificationDot visible={nav.hasNotification}>
                                     <Icon
                                         icon={
@@ -143,7 +176,18 @@ export const Navigation: React.FC = () => {
                     )
                 })}
             </Nav>
-            <ScanDialog open={open} onOpenChange={setOpen} />
+            <ScanDialog
+                open={scanDialogOpen}
+                onOpenChange={setScanDialogOpen}
+            />
+            <SelectWalletOverlay
+                open={walletOverlayOpen}
+                onOpenChange={setWalletOverlayOpen}
+            />
+            <CommunitiesOverlay
+                open={communitiesOverlayOpen}
+                onOpenChange={setCommunitiesOverlayOpen}
+            />
         </NavBar>
     )
 }
