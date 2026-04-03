@@ -96,7 +96,9 @@ export const JoinFederation: React.FC = () => {
     return (
         <Layout.Root>
             <Layout.Header back>
-                <Layout.Title subheader>{t('words.welcome')}</Layout.Title>
+                <Layout.Title subheader>
+                    {t('phrases.wallet-service')}
+                </Layout.Title>
             </Layout.Header>
             <Layout.Content>{content}</Layout.Content>
         </Layout.Root>

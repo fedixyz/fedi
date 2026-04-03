@@ -18,7 +18,7 @@ const JoinFederationHeader: React.FC = () => {
             }}
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>
-                    {t('words.welcome')}
+                    {t('phrases.wallet-service')}
                 </Text>
             }
         />
