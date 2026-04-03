@@ -4,14 +4,12 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
-import { useDeleteMessage, usePinMessage } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectSelectedChatMessage,
     setMessageToEdit,
     setSelectedChatMessage,
     setChatReplyingToMessage,
-    selectMatrixAuth,
 } from '@fedi/common/redux'
 import {
     isFileEvent,
@@ -27,6 +25,7 @@ import { Row, Column } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 import ChatEvent from './ChatEvent'
+import { useMessageActionState } from './useMessageActionState'
 
 const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     // Defaults to true so we don't default to loading chat events with media
@@ -37,7 +36,6 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
-    const matrixAuth = useAppSelector(selectMatrixAuth)
 
     const downloadResource =
         selectedMessage &&
@@ -52,33 +50,31 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
             loadResourceInitially: false,
         })
 
-    const isMe = selectedMessage?.sender === matrixAuth?.userId
-
     const closeOverlay = useCallback(() => {
         dispatch(setSelectedChatMessage(null))
     }, [dispatch])
 
     const {
+        canReply,
+        canCopy,
+        canEdit,
+        canDownload,
+        hasAnyAction,
         canDelete,
         isDeleting,
         showDeleteConfirm,
         setShowDeleteConfirm,
         confirmDeleteMessage,
-    } = useDeleteMessage({
+        canPin,
+        isPinned,
+        isPinning,
+        pinMessage,
+        unpinMessage,
+    } = useMessageActionState({
         t,
-        roomId: selectedMessage?.roomId ?? '',
-        senderId: selectedMessage?.sender ?? '',
-        eventId: selectedMessage?.id,
+        message: selectedMessage,
         onSuccess: closeOverlay,
     })
-
-    const { canPin, isPinned, isPinning, pinMessage, unpinMessage } =
-        usePinMessage({
-            t,
-            roomId: selectedMessage?.roomId ?? '',
-            eventId: selectedMessage?.id as string | null,
-            onSuccess: closeOverlay,
-        })
 
     const handlePinToggle = useCallback(async () => {
         if (isPinned) {
@@ -130,19 +126,10 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
 
     const style = styles(theme)
 
-    const canReply =
-        !!selectedMessage &&
-        (['m.text', 'm.notice', 'm.emote'].includes(
-            selectedMessage.content.msgtype,
-        ) ||
-            isImageEvent(selectedMessage) ||
-            isVideoEvent(selectedMessage) ||
-            isFileEvent(selectedMessage))
-
     return (
         <CustomOverlay
             onBackdropPress={closeOverlay}
-            show={!!selectedMessage}
+            show={!!selectedMessage && hasAnyAction}
             contents={{
                 body:
                     showDeleteConfirm && selectedMessage ? (
@@ -178,7 +165,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                 </Pressable>
                             )}
 
-                            {selectedMessage?.content.msgtype === 'm.text' && (
+                            {canCopy && (
                                 <>
                                     <Pressable
                                         onPress={handleCopy}
@@ -188,7 +175,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                             {t('phrases.copy-text')}
                                         </Text>
                                     </Pressable>
-                                    {isMe && (
+                                    {canEdit && (
                                         <Pressable
                                             onPress={handleEdit}
                                             containerStyle={style.action}>
@@ -219,11 +206,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                     </Text>
                                 </Pressable>
                             )}
-                            {(selectedMessage?.content.msgtype === 'm.image' ||
-                                selectedMessage?.content.msgtype ===
-                                    'm.video' ||
-                                selectedMessage?.content.msgtype ===
-                                    'm.file') && (
+                            {canDownload && (
                                 <Pressable
                                     onPress={handleDownload}
                                     containerStyle={style.action}>

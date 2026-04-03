@@ -17,6 +17,7 @@ import { Row, Column } from '../../ui/Flex'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import SvgImage from '../../ui/SvgImage'
 import { bubbleGradient } from './ChatEvent'
+import { useMessageActionState } from './useMessageActionState'
 
 type Props = {
     event: MatrixEvent<'m.poll'>
@@ -55,11 +56,14 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
         return (hasVoted && event.content.kind === 'disclosed') || hasPollEnded
     }, [hasVoted, event.content.kind, hasPollEnded])
 
-    const handleLongPress = useCallback(() => {
-        if (!isMe) return
+    const { hasAnyAction } = useMessageActionState({
+        t,
+        message: event,
+    })
 
+    const handleLongPress = useCallback(() => {
         dispatch(setSelectedChatMessage(event))
-    }, [dispatch, event, isMe])
+    }, [dispatch, event])
 
     const handleRespondToPoll = useCallback(async () => {
         if (!event.id) return
@@ -98,7 +102,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
         : style.incomingHeaderText
 
     return (
-        <Pressable onLongPress={handleLongPress}>
+        <Pressable onLongPress={hasAnyAction ? handleLongPress : undefined}>
             <OptionalGradient
                 gradient={isMe ? bubbleGradient : undefined}
                 style={[
