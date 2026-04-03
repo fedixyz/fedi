@@ -31,7 +31,7 @@ const FederationDetailsHeader: React.FC = () => {
             backButton
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>
-                    {t('feature.federations.federation-details')}
+                    {t('phrases.wallet-service')}
                 </Text>
             }
             headerRight={

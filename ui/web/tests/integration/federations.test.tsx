@@ -6,6 +6,7 @@ import { createIntegrationTestBuilder } from '@fedi/common/tests/utils/remote-br
 import { mockUseRouter } from '../../jest.setup'
 import { JoinFederation } from '../../src/components/Onboarding/JoinFederation'
 import { OnboardingHome } from '../../src/components/Onboarding/OnboardingHome'
+import i18n from '../../src/localization/i18n'
 import { renderWithBridge } from '../utils/render'
 
 let mockQuery: { tab?: string; id?: string } = {}
@@ -80,7 +81,7 @@ describe('federations', () => {
 
             await waitFor(async () => {
                 const createButton = await screen.findByText(
-                    'Create my Federation',
+                    i18n.t('feature.onboarding.create-button-label'),
                 )
                 expect(createButton).toBeInTheDocument()
             })
@@ -107,7 +108,9 @@ describe('federations', () => {
                 expect(federationName).toHaveTextContent('Devimint Federation')
             })
 
-            const joinButton = screen.queryByText('Join Federation')
+            const joinButton = screen.queryByText(
+                i18n.t('phrases.join-federation'),
+            )
             expect(joinButton).toBeInTheDocument()
 
             // Devimint federation does not have a welcome message

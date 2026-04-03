@@ -103,7 +103,7 @@ describe('ShareLogs screen', () => {
         await user.click(submitButton)
 
         await waitFor(() =>
-            // Expects two elements with the text "Select Federation"
+            // Expects two elements with the text "Select Wallet Service"
             // The second element is visually hidden for accessibility reasons
             expect(
                 screen.getAllByText(i18n.t('phrases.select-federation')),

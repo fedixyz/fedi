@@ -82,7 +82,7 @@ function FederationDetails() {
                         ) : undefined
                     }>
                     <Layout.Title subheader>
-                        {t('feature.federations.federation-details')}
+                        {t('phrases.wallet-service')}
                     </Layout.Title>
                 </Layout.Header>
                 <Layout.Content>
@@ -136,9 +136,7 @@ function FederationDetails() {
                                     as="a"
                                     href={tosUrl}
                                     target="_blank">
-                                    {t(
-                                        'feature.federations.federation-terms-and-conditions',
-                                    )}
+                                    {t('phrases.terms-and-conditions')}
                                 </Button>
                             )}
                         </Actions>

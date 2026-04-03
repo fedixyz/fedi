@@ -5,6 +5,7 @@
 import { screen, userEvent, waitFor } from '@testing-library/react-native'
 
 import { createIntegrationTestBuilder } from '@fedi/common/tests/utils/remote-bridge-setup'
+import i18n from '@fedi/native/localization/i18n'
 
 import JoinFederation from '../../screens/JoinFederation'
 import PublicFederations from '../../screens/PublicFederations'
@@ -82,7 +83,7 @@ describe('federations', () => {
 
             await waitFor(async () => {
                 const createButton = await screen.findByText(
-                    'Create my Federation',
+                    i18n.t('feature.onboarding.create-button-label'),
                 )
                 expect(createButton).toBeOnTheScreen()
             })

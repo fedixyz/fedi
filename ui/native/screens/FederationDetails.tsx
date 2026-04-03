@@ -172,9 +172,7 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                         outline
                         onPress={() => Linking.openURL(tosUrl)}>
                         <Text adjustsFontSizeToFit medium numberOfLines={1}>
-                            {t(
-                                'feature.federations.federation-terms-and-conditions',
-                            )}
+                            {t('phrases.terms-and-conditions')}
                         </Text>
                     </Button>
                 )}

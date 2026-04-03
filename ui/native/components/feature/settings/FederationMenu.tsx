@@ -116,7 +116,7 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
                     )}
                     <SettingsItem
                         icon="Federation"
-                        label={t('feature.federations.federation-details')}
+                        label={t('phrases.wallet-service')}
                         onPress={() => {
                             navigation.navigate('FederationDetails', {
                                 federationId: federation.id,
@@ -153,7 +153,7 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
                     {tosUrl && (
                         <SettingsItem
                             icon="Scroll"
-                            label={t('feature.federations.federation-terms')}
+                            label={t('phrases.terms-and-conditions')}
                             actionIcon="ExternalLink"
                             onPress={() => Linking.openURL(tosUrl)}
                         />

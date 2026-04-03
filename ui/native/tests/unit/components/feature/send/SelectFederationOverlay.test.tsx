@@ -9,6 +9,7 @@ import {
     mockFederation1,
     mockFederation2,
 } from '@fedi/common/tests/mock-data/federation'
+import i18n from '@fedi/native/localization/i18n'
 import { renderWithProviders } from '@fedi/native/tests/utils/render'
 
 import SelectFederationOverlay from '../../../../../components/feature/send/SelectFederationOverlay'
@@ -37,8 +38,9 @@ describe('SelectFederationOverlay', () => {
             />,
         )
 
-        const federationSelectTitle =
-            await screen.queryByText('Select Federation')
+        const federationSelectTitle = await screen.queryByText(
+            i18n.t('phrases.select-federation'),
+        )
 
         expect(federationSelectTitle).not.toBeOnTheScreen()
     })
@@ -53,8 +55,9 @@ describe('SelectFederationOverlay', () => {
             />,
         )
 
-        const federationSelectTitle =
-            await screen.getByText('Select Federation')
+        const federationSelectTitle = await screen.getByText(
+            i18n.t('phrases.select-federation'),
+        )
 
         expect(federationSelectTitle).toBeOnTheScreen()
     })

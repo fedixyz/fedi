@@ -89,7 +89,7 @@ export const FederationMenu = ({
                 hidden: !shouldShowSocialRecovery(federation),
             },
             {
-                label: t('feature.federations.federation-terms'),
+                label: t('phrases.terms-and-conditions'),
                 icon: ScrollIcon,
                 href: tosUrl,
                 disabled: !tosUrl,
