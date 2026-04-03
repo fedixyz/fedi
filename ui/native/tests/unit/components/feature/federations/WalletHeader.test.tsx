@@ -90,7 +90,9 @@ describe('WalletHeader', () => {
 
         await user.press(menuButton)
 
-        const federationSelectTitle = await screen.getByText('Select Wallet')
+        const federationSelectTitle = await screen.getByText(
+            i18n.t('phrases.select-wallet-service'),
+        )
 
         expect(federationSelectTitle).toBeOnTheScreen()
     })
@@ -110,7 +112,9 @@ describe('WalletHeader', () => {
 
         await user.press(menuButton)
 
-        const federationSelectTitle = await screen.getByText('Select Wallet')
+        const federationSelectTitle = await screen.getByText(
+            i18n.t('phrases.select-wallet-service'),
+        )
         expect(federationSelectTitle).toBeOnTheScreen()
 
         const backdrop = await screen.getByTestId('RNE__Overlay__backdrop')

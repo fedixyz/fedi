@@ -133,7 +133,7 @@ describe('/pages/wallet', () => {
             await user.click(menuIcon)
 
             const selectFederationTitle = screen.getByLabelText(
-                i18n.t('phrases.select-wallet'),
+                i18n.t('phrases.select-wallet-service'),
             )
 
             expect(selectFederationTitle).toBeInTheDocument()

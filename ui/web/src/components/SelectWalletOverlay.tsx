@@ -34,7 +34,7 @@ export default function SelectWalletOverlay({
     return (
         <Dialog
             type="tray"
-            title={t('phrases.select-wallet')}
+            title={t('phrases.select-wallet-service')}
             open={open}
             onOpenChange={onOpenChange}>
             <WalletsContainer>

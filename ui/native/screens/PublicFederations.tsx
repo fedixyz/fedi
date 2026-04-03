@@ -52,21 +52,25 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
     const switcherOptions: Array<{
         label: string
         value: Tab
+        title: string
         subText: string
     }> = [
         {
             label: t('words.discover'),
             value: 'discover',
+            title: t('feature.onboarding.title'),
             subText: t('feature.onboarding.description'),
         },
         {
             label: t('words.join'),
             value: 'join',
+            title: t('feature.onboarding.title-join'),
             subText: t('feature.onboarding.description-join'),
         },
         {
             label: t('words.create'),
             value: 'create',
+            title: t('feature.onboarding.title-create'),
             subText: t('feature.onboarding.description-create'),
         },
     ]
@@ -112,7 +116,7 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                 fullWidth
                 style={style.titleContainer}>
                 <Text h2 medium h2Style={style.title}>
-                    {t('feature.onboarding.title')}
+                    {selectedOption.title}
                 </Text>
                 <Text
                     h4

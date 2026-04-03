@@ -52,7 +52,7 @@ export default function SelectWalletOverlay({
                         showsVerticalScrollIndicator={false}>
                         <Column gap="lg" style={style.body}>
                             <Text h2 medium>
-                                {t('phrases.select-wallet')}
+                                {t('phrases.select-wallet-service')}
                             </Text>
                             <Column gap="lg">
                                 {loadedFederations.map(f => (

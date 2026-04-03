@@ -132,7 +132,13 @@ export function OnboardingHome() {
                 <Content>
                     <TitleWrapper>
                         <Text variant="h2" css={{ marginBottom: 0 }}>
-                            {t('feature.onboarding.title')}
+                            {t(
+                                activeTab === 'join'
+                                    ? 'feature.onboarding.title-join'
+                                    : activeTab === 'create'
+                                      ? 'feature.onboarding.title-create'
+                                      : 'feature.onboarding.title',
+                            )}
                         </Text>
                         <Text
                             variant="caption"
