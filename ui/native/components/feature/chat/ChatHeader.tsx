@@ -103,8 +103,8 @@ const ChatHeader: React.FC = () => {
                         <Column>
                             <HeaderOverlayOption
                                 onPress={handleFindByUsername}
-                                text={t('feature.chat.find-by-username')}
-                                icon="User"
+                                text={t('feature.chat.new-message')}
+                                icon="Edit"
                             />
                             <HeaderOverlayOption
                                 onPress={handleCreateGroup}
