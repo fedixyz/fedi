@@ -3,7 +3,7 @@ import {
     createNavigationContainerRef,
 } from '@react-navigation/native'
 import { useTheme } from '@rneui/themed'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
@@ -16,6 +16,7 @@ import { OmniLinkHandler } from './components/feature/omni/OmniLinkHandler'
 import SvgImage, { SvgImageSize } from './components/ui/SvgImage'
 import ToastManager from './components/ui/ToastManager'
 import { MainNavigator } from './screens/MainNavigator'
+import { useOmniLinkContext } from './state/contexts/OmniLinkContext'
 import { useAppDispatch, useAppSelector } from './state/hooks'
 import { RootStackParamList } from './types/navigation'
 import { useHandleDeferredLink } from './utils/hooks/linking'
@@ -33,6 +34,7 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>()
 patchLinkingOpenURL(navigationRef)
 
 const Router = () => {
+    const { parseUrl } = useOmniLinkContext()
     const { theme } = useTheme()
 
     const dispatch = useAppDispatch()
@@ -43,6 +45,21 @@ const Router = () => {
     const isAppUnlocked = useIsFeatureUnlocked('app')
 
     const routeRef = useRef<string | undefined>(undefined)
+
+    // This is needed because we need to pass a fallback to getLinking
+    // so that payment protocol deeplinks like bitcoin:// and lightning://
+    // are handled by our omni parser.
+    // We also need a stable ref for this fallback function to prevent re-subscribing
+    // to Linking.getInitialURL and getting stuck in a loop of overlay re-renders
+    const parseUrlRef = useRef(parseUrl)
+    parseUrlRef.current = parseUrl
+    const linking = useMemo(
+        () =>
+            getLinking(onboardingCompleted, dispatch, url =>
+                parseUrlRef.current(url),
+            ),
+        [onboardingCompleted, dispatch],
+    )
 
     useHandleDeferredLink()
 
@@ -101,7 +118,7 @@ const Router = () => {
         <NavigationContainer
             ref={navigationRef}
             theme={theme}
-            linking={getLinking(onboardingCompleted, dispatch)}
+            linking={linking}
             onReady={() => {
                 routeRef.current = navigationRef.getCurrentRoute()?.name
                 flushPendingLinks(navigationRef)

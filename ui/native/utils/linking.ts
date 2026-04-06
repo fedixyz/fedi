@@ -242,6 +242,7 @@ export function getInternalLinkRoute(
 export const getLinking = (
     onboardingCompleted: boolean,
     dispatch: AppDispatch,
+    fallback?: (url: string) => void,
 ): LinkingOptions<RootStackParamList> => ({
     prefixes: SUPPORTED_PREFIXES,
 
@@ -291,6 +292,16 @@ export const getLinking = (
                 if (!result) return
 
                 listener(result.fediUri)
+                return
+            }
+
+            // for handling payment URIs (lightning:, bitcoin:, ...)
+            if (fallback) {
+                log.info(
+                    'Handling a non-fedi deeplink with fallback function for url:',
+                    url,
+                )
+                fallback(url)
                 return
             }
 
