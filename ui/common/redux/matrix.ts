@@ -2362,48 +2362,35 @@ export const selectMatrixChatsList = createSelector(
         const filteredRoomsList = roomsList.filter(
             r => r.roomState === 'joined' || r.roomState === 'invited',
         )
-        // Sort by most-recent activity first using recencyStamp from the SDK.
-        // recencyStamp applies uniformly to all room types (DMs, private
-        // groups, public groups). Rooms with no recencyStamp yet use
-        // MAX_SAFE_INTEGER so they float to the top of the list.
-        const joinedRoomsList = orderBy(
-            filteredRoomsList,
-            room => room.recencyStamp ?? Number.MAX_SAFE_INTEGER,
-            'desc',
-        )
+
+        if (defaultGroupsList.length === 0) return filteredRoomsList
 
         const chatList: MatrixRoom[] = []
-        let i = 0 // joinedRoomsList index
-        let j = 0 // defaultGroupsList index
+        let normalRoomIndex = 0
+        let previewIndex = 0
 
-        // Merge the two sorted lists in linear time
-        while (i < joinedRoomsList.length && j < defaultGroupsList.length) {
-            const joinedRoom = joinedRoomsList[i]
-            const defaultRoom = defaultGroupsList[j]
+        while (
+            normalRoomIndex < filteredRoomsList.length &&
+            previewIndex < defaultGroupsList.length
+        ) {
+            const normalRoom = filteredRoomsList[normalRoomIndex]
+            const previewRoom = defaultGroupsList[previewIndex]
+            const normalRoomPreviewTimestamp =
+                normalRoom.preview?.timestamp ?? 0
+            const previewTimestamp = previewRoom.preview?.timestamp ?? 0
 
-            // If a joined room doesn't have a recencyStamp yet, order it
-            // before default groups.
-            // Default groups use recencyStamp with 0 fallback so they
-            // appear below active user rooms.
-            const joinedStamp =
-                joinedRoom.recencyStamp ?? Number.MAX_SAFE_INTEGER
-            const defaultStamp = defaultRoom.recencyStamp ?? 0
-
-            // insert each default room just before the first room with
-            // a newer (larger) stamp
-            if (joinedStamp >= defaultStamp) {
-                chatList.push(joinedRoom)
-                i++
+            if (previewTimestamp > normalRoomPreviewTimestamp) {
+                chatList.push(previewRoom)
+                previewIndex++
             } else {
-                chatList.push(defaultRoom)
-                j++
+                chatList.push(normalRoom)
+                normalRoomIndex++
             }
         }
 
-        // Add remaining items from either list
         chatList.push(
-            ...joinedRoomsList.slice(i),
-            ...defaultGroupsList.slice(j),
+            ...filteredRoomsList.slice(normalRoomIndex),
+            ...defaultGroupsList.slice(previewIndex),
         )
 
         return chatList
