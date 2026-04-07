@@ -1082,6 +1082,7 @@
             "pending-transaction": "pending transaction",
             "receive-amount-unit": "Receive {{amount}} {{unit}}",
             "receive-bitcoin-offline": "Receive bitcoin offline",
+            "receive-bitcoin": "Receive Bitcoin",
             "receive-cashu": "Receive Cashu ecash",
             "receive-ecash-from": "Receive ecash from",
             "receive-guidance-subtitle-1": "Funds may take several hours to arrive.",

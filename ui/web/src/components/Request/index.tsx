@@ -135,7 +135,7 @@ const Request: React.FC = () => {
             <Layout.Root>
                 <Layout.Header back>
                     <Layout.Title subheader>
-                        {t('feature.receive.request-money')}
+                        {t('feature.receive.receive-bitcoin')}
                     </Layout.Title>
                 </Layout.Header>
                 <Layout.Content fullWidth>

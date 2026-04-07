@@ -147,7 +147,7 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
                             verb={t('words.deposit')}
                         />
                         <Button
-                            title={t('words.continue')}
+                            title={t('words.next')}
                             onPress={handleDeposit}
                             disabled={!isValidAmount && submitAttempts > 0}
                         />

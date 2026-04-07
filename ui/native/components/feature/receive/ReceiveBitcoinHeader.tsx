@@ -11,7 +11,7 @@ import { NavigationHook } from '../../../types/navigation'
 import Header from '../../ui/Header'
 import { PressableIcon } from '../../ui/PressableIcon'
 
-const RequestMoneyHeader: React.FC = () => {
+const ReceiveBitcoinHeader: React.FC = () => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
@@ -31,7 +31,7 @@ const RequestMoneyHeader: React.FC = () => {
             closeRoute="Wallet"
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>
-                    {t('feature.receive.request-money')}
+                    {t('feature.receive.receive-bitcoin')}
                 </Text>
             }
             rightContainerStyle={styles(theme).rightContainer}
@@ -55,4 +55,4 @@ const styles = (_theme: Theme) =>
         },
     })
 
-export default RequestMoneyHeader
+export default ReceiveBitcoinHeader

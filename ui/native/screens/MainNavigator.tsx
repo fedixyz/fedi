@@ -34,9 +34,9 @@ import ResetPinStartHeader from '../components/feature/pin/ResetPinStartHeader'
 import SetPinHeader from '../components/feature/pin/SetPinHeader'
 import SetPinLockScreen from '../components/feature/pin/SetPinLockScreen'
 import UnlockAppLockScreenHeader from '../components/feature/pin/UnlockAppLockScreenHeader'
+import ReceiveBitcoinHeader from '../components/feature/receive/ReceiveBitcoinHeader'
 import ReceiveBitcoinOfflineHeader from '../components/feature/receive/ReceiveBitcoinOfflineHeader'
 import ReceiveCashuHeader from '../components/feature/receive/ReceiveCashuHeader'
-import RequestMoneyHeader from '../components/feature/receive/RequestMoneyHeader'
 import ChooseRecoveryMethodHeader from '../components/feature/recovery/ChooseRecoveryMethodHeader'
 import PersonalRecoveryHeader from '../components/feature/recovery/PersonalRecoveryHeader'
 import RecoveryAssistHeader from '../components/feature/recovery/RecoveryAssistHeader'
@@ -770,21 +770,21 @@ export const MainNavigator = () => {
                                 name="Receive"
                                 component={Receive}
                                 options={() => ({
-                                    header: () => <RequestMoneyHeader />,
+                                    header: () => <ReceiveBitcoinHeader />,
                                 })}
                             />
                             <Stack.Screen
                                 name="LightningRequestQr"
                                 component={LightningRequestQr}
                                 options={() => ({
-                                    header: () => <RequestMoneyHeader />,
+                                    header: () => <ReceiveBitcoinHeader />,
                                 })}
                             />
                             <Stack.Screen
                                 name="ReceiveBitcoin"
                                 component={ReceiveBitcoin}
                                 options={() => ({
-                                    header: () => <RequestMoneyHeader />,
+                                    header: () => <ReceiveBitcoinHeader />,
                                 })}
                             />
                             <Stack.Screen

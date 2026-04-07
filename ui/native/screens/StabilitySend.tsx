@@ -154,7 +154,7 @@ const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
                     />
                     {tab === 'user' ? (
                         <Button
-                            title={t('words.continue')}
+                            title={t('words.send')}
                             onPress={handleContinueUser}
                             disabled={
                                 !isValidAmount || (!receiver && !recipient)
