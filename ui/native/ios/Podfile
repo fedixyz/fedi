@@ -105,5 +105,18 @@ target 'FediReactNative' do
       :mac_catalyst_enabled => false,
     )
 
+    # Workaround: fmt 11.0.2 fails to compile with Apple clang 21 due to stricter `consteval` rules.
+    # Upstream recommends patching to `constexpr`. See: https://github.com/fmtlib/fmt/issues/4029
+    # TODO: bump react native to a version that uses fmt 11.0.2 or higher
+    fmt_base = File.join(installer.sandbox.root, 'fmt', 'include', 'fmt', 'base.h')
+    if File.exist?(fmt_base)
+      content = File.read(fmt_base)
+      patched = content.gsub('#  define FMT_CONSTEVAL consteval', '#  define FMT_CONSTEVAL constexpr')
+      if content != patched
+        File.write(fmt_base, patched)
+        Pod::UI.puts "Patched fmt base.h: FMT_CONSTEVAL -> constexpr"
+      end
+    end
+
   end
 end
