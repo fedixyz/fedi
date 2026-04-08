@@ -547,12 +547,6 @@ export function useFederationPreview(t: TFunction, invite: string) {
                         fedimint,
                     )
 
-                    if (communityPreviewResult.status === 'deleted') {
-                        throw new Error(
-                            t('feature.communities.community-does-not-exist'),
-                        )
-                    }
-
                     if (communityIds.includes(communityPreviewResult.id)) {
                         dispatch(
                             setLastSelectedCommunityId(
@@ -579,7 +573,7 @@ export function useFederationPreview(t: TFunction, invite: string) {
                         })
                     } else {
                         toast.show({
-                            content: t('errors.invalid-federation-code'),
+                            content: t('errors.invalid-invite-code'),
                             status: 'error',
                         })
                     }

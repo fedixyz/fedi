@@ -35,10 +35,8 @@ export const JoinFederation: React.FC = () => {
 
     // If they came here with invite code in query string then paste the code for them
     useEffect(() => {
-        if (!inviteCode) return
+        if (!inviteCode || federationPreview || communityPreview) return
         // skip handling the code if we already have a preview
-        if (federationPreview) return
-        if (communityPreview) return
         handleCode(inviteCode)
     }, [federationPreview, communityPreview, handleCode, inviteCode])
 
