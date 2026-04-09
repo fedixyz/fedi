@@ -9,6 +9,7 @@ import {
     Platform,
     ScrollView,
     StyleSheet,
+    TextInput,
     View,
     Linking,
     Modal,
@@ -63,6 +64,11 @@ import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 import { useShareNativeLogs } from '../utils/hooks/export'
 import { shareReduxState } from '../utils/log'
+import {
+    isLogSpikeSimulatorRunning,
+    startLogSpikeSimulator,
+    stopLogSpikeSimulator,
+} from '../utils/logSpikeSimulator'
 
 const log = makeLog('DeveloperSettings')
 
@@ -110,6 +116,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         paymentFederation?.id || '',
     )
     const stableBalanceEnabled = useAppSelector(selectStableBalanceEnabled)
+    const [spikeLogsPerBurst, setSpikeLogsPerBurst] = useState('100000')
+    const [spikeCooldownSec, setSpikeCooldownSec] = useState('20')
+    const [spikeComplex, setSpikeComplex] = useState(false)
+    const [spikeRunning, setSpikeRunning] = useState(
+        isLogSpikeSimulatorRunning(),
+    )
     const simulateRecoveryMap = useAppSelector(
         selectSimulateRecoveryByFederation,
     )
@@ -412,6 +424,73 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         onValueChange={value => {
                             fedimint.setSensitiveLog(value)
                             setIsSensitiveLogging(value)
+                        }}
+                    />
+                </View>
+            </SettingsSection>
+            <SettingsSection title="Log spike simulator">
+                <Text small style={style.switchLabel}>
+                    Simulate large volumes of logs to stress-test the logging
+                    pipeline.
+                </Text>
+                <View style={style.spikeRow}>
+                    <View style={style.spikeField}>
+                        <Text small style={style.switchLabel}>
+                            Logs per burst
+                        </Text>
+                        <TextInput
+                            style={style.spikeInput}
+                            value={spikeLogsPerBurst}
+                            onChangeText={setSpikeLogsPerBurst}
+                            keyboardType="number-pad"
+                            editable={!spikeRunning}
+                        />
+                    </View>
+                    <View style={style.spikeField}>
+                        <Text small style={style.switchLabel}>
+                            Cooldown (sec)
+                        </Text>
+                        <TextInput
+                            style={style.spikeInput}
+                            value={spikeCooldownSec}
+                            onChangeText={setSpikeCooldownSec}
+                            keyboardType="number-pad"
+                            editable={!spikeRunning}
+                        />
+                    </View>
+                </View>
+                <View style={style.switchWrapper}>
+                    <Text small style={style.switchLabel}>
+                        Complex objects
+                    </Text>
+                    <CheckBox
+                        checked={spikeComplex}
+                        onPress={() =>
+                            !spikeRunning && setSpikeComplex(v => !v)
+                        }
+                        disabled={spikeRunning}
+                    />
+                </View>
+                <View style={style.switchWrapper}>
+                    <Text caption style={style.switchLabel}>
+                        Enable
+                    </Text>
+                    <Switch
+                        value={spikeRunning}
+                        onValueChange={value => {
+                            if (value) {
+                                const count =
+                                    parseInt(spikeLogsPerBurst, 10) || 100000
+                                const sec = parseInt(spikeCooldownSec, 10) || 20
+                                startLogSpikeSimulator({
+                                    logsPerSpike: count,
+                                    intervalMs: sec * 1000,
+                                    complex: spikeComplex,
+                                })
+                            } else {
+                                stopLogSpikeSimulator()
+                            }
+                            setSpikeRunning(value)
                         }}
                     />
                 </View>
@@ -933,6 +1012,23 @@ const styles = (theme: Theme) =>
         switchLabel: {
             textAlign: 'left',
             marginBottom: theme.spacing.xs,
+        },
+        spikeRow: {
+            flexDirection: 'row',
+            gap: theme.spacing.md,
+            paddingVertical: theme.spacing.sm,
+        },
+        spikeField: {
+            flex: 1,
+        },
+        spikeInput: {
+            borderWidth: 1,
+            borderColor: theme.colors.grey,
+            borderRadius: 6,
+            paddingHorizontal: theme.spacing.sm,
+            paddingVertical: theme.spacing.xs,
+            marginTop: theme.spacing.xs,
+            color: theme.colors.primary,
         },
         onlineStatus: {
             color: 'green',
