@@ -18,6 +18,7 @@ import {
     chatRoute,
     chatRoomRoute,
     onboardingJoinRoute,
+    walletRoute,
 } from '../../constants/routes'
 import { keyframes, styled, theme } from '../../styles'
 import { OmniInput } from '../OmniInput'
@@ -123,7 +124,7 @@ export function OnboardingHome() {
 
     return (
         <Layout.Root>
-            <Layout.Header centered back>
+            <Layout.Header centered back={walletRoute}>
                 <Layout.Title subheader>
                     {t('feature.onboarding.heading')}
                 </Layout.Title>
