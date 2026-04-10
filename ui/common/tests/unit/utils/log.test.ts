@@ -5,12 +5,11 @@ import type { LogFileApi } from '../../../utils/log'
 const actualLogUtils = jest.requireActual('../../../utils/log')
 const {
     configureLogging,
+    resetLogging,
     makeLog,
     exportUiLogs,
     saveLogsToStorage,
-    DEBOUNCE_DELAY,
-    QUICK_SAVE_THRESHOLD,
-    QUICK_SAVE_DELAY,
+    waitForPendingSaves,
 } = actualLogUtils
 
 // Mock isDev to control console logging behavior
@@ -112,7 +111,7 @@ describe('log utilities', () => {
         jest.clearAllMocks()
 
         // Reset logging state to ensure clean state
-        // resetLogging()
+        resetLogging()
 
         // Configure logging with our test-specific mock (overrides global setup)
         configureLogging(mockLogFileApi)
@@ -132,8 +131,9 @@ describe('log utilities', () => {
 
             logger.info(TEST_MESSAGES.BASIC, TEST_EXTRA_DATA.BASIC)
 
-            // Fast-forward to trigger save
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
+            // Advance to trigger the serialize+save chunk
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
 
@@ -144,23 +144,22 @@ describe('log utilities', () => {
             expect(savedContent).toContain('"extra"')
         })
 
-        it('should batch multiple rapid log entries', async () => {
+        it('should batch multiple rapid log entries into one save', async () => {
             const logger = makeLog(TEST_CONTEXTS.BATCH)
 
-            // Simulate rapid logging (like what happens in real app)
             logger.info(TEST_MESSAGES.LOG_SEQUENCE[0])
             logger.debug(TEST_MESSAGES.LOG_SEQUENCE[1])
             logger.warn(TEST_MESSAGES.LOG_SEQUENCE[2])
             logger.error(TEST_MESSAGES.LOG_SEQUENCE[3])
             logger.info(TEST_MESSAGES.LOG_SEQUENCE[4])
 
-            // Should not have saved yet (debounced)
+            // Not saved yet — serialize chunk hasn't run
             expect(mockLogFileApi.saveLogs).not.toHaveBeenCalled()
 
-            // Fast-forward past debounce delay
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
-            // Should have saved once with all logs batched
+            // All entries saved in one chunk
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
 
             const savedContent = savedLogs[0]
@@ -173,57 +172,44 @@ describe('log utilities', () => {
             })
         })
 
-        it('should save quickly when cache reaches 20 logs', async () => {
+        it('should handle high volume logging', async () => {
             const logger = makeLog(TEST_CONTEXTS.HIGH_VOLUME)
 
-            // Generate exactly 20 logs
-            for (let i = 1; i <= QUICK_SAVE_THRESHOLD; i++) {
+            for (let i = 1; i <= 20; i++) {
                 logger.info(`High volume log ${i}`)
             }
 
-            // Should not have saved yet
             expect(mockLogFileApi.saveLogs).not.toHaveBeenCalled()
 
-            // Fast-forward by 1ms (the quick save threshold)
-            jest.advanceTimersByTime(QUICK_SAVE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
-            // Should have saved quickly due to high volume
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
 
             const savedContent = savedLogs[0]
             expect(
                 savedContent.split('\n').filter(line => line.trim()),
-            ).toHaveLength(QUICK_SAVE_THRESHOLD)
+            ).toHaveLength(20)
         })
 
-        it('should handle sporadic logging patterns realistically', async () => {
+        it('should save all logs across multiple bursts', async () => {
             const logger = makeLog(TEST_CONTEXTS.SPORADIC)
 
-            // Simulate realistic app logging pattern
             logger.info(TEST_MESSAGES.APP_LIFECYCLE.START)
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
-            // Should have saved once with the first log
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
 
-            // Add more logs with sporadic times between logs (each call resets the timeout)
             logger.debug(TEST_MESSAGES.APP_LIFECYCLE.USER_INTERACTION)
-            jest.advanceTimersByTime(20)
             logger.debug(TEST_MESSAGES.APP_LIFECYCLE.STATE_UPDATE)
-            jest.advanceTimersByTime(30)
             logger.error(
                 TEST_MESSAGES.APP_LIFECYCLE.NETWORK_TIMEOUT,
                 TEST_EXTRA_DATA.CONNECTION_ERROR,
             )
-            jest.advanceTimersByTime(40)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
-            // Should not have saved a 2nd time yet (debounced)
-            expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
-
-            // Wait for debounce to complete (100ms from the last log)
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
-
-            // Should have saved once with all logs
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(2)
 
             const savedContent = savedLogs.join('')
@@ -237,14 +223,14 @@ describe('log utilities', () => {
             const networkLogger = makeLog(TEST_CONTEXTS.NETWORK)
             const uiLogger = makeLog(TEST_CONTEXTS.UI)
 
-            // Simulate concurrent logging from different parts of app
             authLogger.info(TEST_MESSAGES.AUTH_FLOW.LOGIN_ATTEMPT)
             networkLogger.debug(TEST_MESSAGES.NETWORK_FLOW.API_REQUEST)
             uiLogger.info(TEST_MESSAGES.UI_FLOW.SCREEN_RENDERED)
             authLogger.error(TEST_MESSAGES.AUTH_FLOW.LOGIN_FAILED)
             networkLogger.info(TEST_MESSAGES.NETWORK_FLOW.API_RESPONSE)
 
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
 
@@ -255,7 +241,6 @@ describe('log utilities', () => {
             )
             expect(savedContent).toContain(`"context":"${TEST_CONTEXTS.UI}"`)
 
-            // Check all messages are present
             expect(savedContent).toContain(
                 TEST_MESSAGES.AUTH_FLOW.LOGIN_ATTEMPT,
             )
@@ -270,24 +255,19 @@ describe('log utilities', () => {
         it('should handle very high frequency logging (100+ per second)', async () => {
             const logger = makeLog(TEST_CONTEXTS.HIGH_FREQ)
 
-            // Simulate 150 logs in rapid succession (like during heavy debugging)
             for (let i = 1; i <= HIGH_FREQ_TOTAL_LOGS; i++) {
                 logger.debug(`Rapid log ${i}`)
             }
 
-            // After 50 logs (>20), should trigger quick save (1ms) for all 50 logs
-            jest.advanceTimersByTime(QUICK_SAVE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
-            // Should have saved once with all 50 logs
-            expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
-
-            // Verify all logs were captured in the single save
-            const savedContent = savedLogs[0]
+            // All logs captured across however many saves occurred
+            const savedContent = savedLogs.join('')
             for (let i = 1; i <= HIGH_FREQ_TOTAL_LOGS; i++) {
                 expect(savedContent).toContain(`Rapid log ${i}`)
             }
 
-            // Verify the correct number of log entries
             expect(
                 savedContent.split('\n').filter(line => line.trim()),
             ).toHaveLength(HIGH_FREQ_TOTAL_LOGS)
@@ -300,13 +280,15 @@ describe('log utilities', () => {
             logger.info(TEST_MESSAGES.BATCH_SEQUENCES.FIRST[0])
             logger.info(TEST_MESSAGES.BATCH_SEQUENCES.FIRST[1])
 
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
             // Second batch
             logger.info(TEST_MESSAGES.BATCH_SEQUENCES.SECOND[0])
             logger.info(TEST_MESSAGES.BATCH_SEQUENCES.SECOND[1])
 
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(2)
 
@@ -333,25 +315,24 @@ describe('log utilities', () => {
     })
 
     describe('exportUiLogs', () => {
-        it('should combine cached logs with stored logs', async () => {
+        it('should combine saved and pending logs', async () => {
             const logger = makeLog(TEST_CONTEXTS.EXPORT_TEST)
 
-            // Add some logs that will be saved
+            // These will be saved to disk via chunk
             TEST_MESSAGES.EXPORT.STORED.forEach(message => {
                 logger.info(message)
             })
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
-
-            // Add some logs that are still cached
+            // These are still in the queue (no timer advance)
             TEST_MESSAGES.EXPORT.CACHED.forEach(message => {
                 logger.info(message)
             })
 
-            // Export should include both stored and cached logs
+            // Export should include both saved and pending logs
             const exported = await exportUiLogs()
 
-            // Check all messages are present
             const allMessages = [
                 ...TEST_MESSAGES.EXPORT.STORED,
                 ...TEST_MESSAGES.EXPORT.CACHED,
@@ -373,7 +354,7 @@ describe('log utilities', () => {
 
             const exported = await exportUiLogs()
 
-            // Should still include cached logs and error info
+            // Should still include pending logs and error info
             expect(exported).toContain('Test log')
             expect(exported).toContain(
                 'Encountered an error during log retrieval',
@@ -382,18 +363,15 @@ describe('log utilities', () => {
     })
 
     describe('saveLogsToStorage', () => {
-        it('should force save cached logs immediately', async () => {
+        it('should save pending logs immediately', async () => {
             const logger = makeLog(TEST_CONTEXTS.FORCE_SAVE)
 
             logger.info(TEST_MESSAGES.ERRORS.IMMEDIATE_SAVE)
 
-            // Should not have saved yet
             expect(mockLogFileApi.saveLogs).not.toHaveBeenCalled()
 
-            // Force save
             await saveLogsToStorage()
 
-            // Should have saved immediately
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
             expect(savedLogs[0]).toContain(TEST_MESSAGES.ERRORS.IMMEDIATE_SAVE)
         })
@@ -405,7 +383,8 @@ describe('log utilities', () => {
 
             logger.info(LARGE_MESSAGE)
 
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
 
@@ -424,7 +403,8 @@ describe('log utilities', () => {
                 TEST_EXTRA_DATA.COMPLEX_OBJECT,
             )
 
-            jest.advanceTimersByTime(DEBOUNCE_DELAY)
+            jest.runAllTimers()
+            await waitForPendingSaves()
 
             expect(mockLogFileApi.saveLogs).toHaveBeenCalledTimes(1)
 

@@ -22,6 +22,8 @@ jest.mock('@fedi/common/utils/log', () => ({
         error: jest.fn(),
     })),
     configureLogging: jest.fn(),
+    resetLogging: jest.fn(),
+    waitForPendingSaves: jest.fn().mockResolvedValue(undefined),
     saveLogsToStorage: jest.fn().mockResolvedValue(undefined),
     exportUiLogs: jest.fn().mockResolvedValue(''),
     exportLegacyUiLogs: jest.fn().mockResolvedValue(''),

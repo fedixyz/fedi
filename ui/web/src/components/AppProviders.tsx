@@ -37,7 +37,7 @@ export default function AppProviders({
         return () => unsubscribe()
     }, [])
 
-    // Initialize logging library, force logs to save before closing the tab.
+    // Save any queued logs before the browser tears down the page.
     useEffect(() => {
         window.addEventListener('beforeunload', saveLogsToStorage)
         return () =>
