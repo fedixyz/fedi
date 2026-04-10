@@ -1,6 +1,6 @@
 import assert from 'assert'
 
-import { MatrixEvent, MatrixMultispendEvent } from '../../../types'
+import { MatrixEvent, MatrixMultispendEvent, MatrixRoom } from '../../../types'
 import { RpcTimelineEventItemId } from '../../../types/bindings'
 import {
     decodeFediMatrixUserUri,
@@ -15,7 +15,10 @@ import {
     mxcHttpUrlToDownloadUrl,
     isReply,
     stripReplyFromBody,
+    getRoomPreviewText,
 } from '../../../utils/matrix'
+import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
+import { createMockT } from '../../utils/setup'
 
 describe('encodeFediMatrixUserUri', () => {
     it('encodes a user URI', () => {
@@ -122,6 +125,49 @@ describe('isMultispendReannounceEvent', () => {
 
     it('returns false if the event is not a multispend reannounce event', () => {
         expect(isMultispendReannounceEvent(mockChatEvent)).toBe(false)
+    })
+})
+
+describe('getRoomPreviewText', () => {
+    const t = createMockT({
+        'feature.chat.sp-transfer-preview':
+            'New stable balance transfer activity',
+    })
+
+    function makeSpTransferRoom(isDirect: boolean): MatrixRoom {
+        return {
+            ...MOCK_MATRIX_ROOM,
+            id: isDirect ? '!dm-room:test' : '!group-room:test',
+            isDirect,
+            directUserId: isDirect ? '@bob:test' : null,
+            preview: {
+                id: '$sp-transfer-preview',
+                roomId: isDirect ? '!dm-room:test' : '!group-room:test',
+                senderId: '@alice:test',
+                timestamp: Date.now(),
+                localEcho: false,
+                sender: null,
+                sendState: null,
+                inReply: null,
+                mentions: null,
+                content: {
+                    msgtype: 'spTransfer',
+                    shouldRender: true,
+                },
+            } as unknown as NonNullable<MatrixRoom['preview']>,
+        }
+    }
+
+    it('should return generic stable balance transfer preview text for group rooms', () => {
+        expect(getRoomPreviewText(makeSpTransferRoom(false), t)).toBe(
+            'New stable balance transfer activity',
+        )
+    })
+
+    it('should return generic stable balance transfer preview text for DM rooms', () => {
+        expect(getRoomPreviewText(makeSpTransferRoom(true), t)).toBe(
+            'New stable balance transfer activity',
+        )
     })
 })
 

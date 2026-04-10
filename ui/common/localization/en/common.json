@@ -557,7 +557,7 @@
             "message-private": "This message is private",
             "multiple-choice": "Multi-Select",
             "multispend-preview": "This group has new multispend activity",
-            "sp-transfer-preview": "This group has new stable balance transfer activity",
+            "sp-transfer-preview": "New stable balance transfer activity",
             "need-registration-description": "Set your display name to be able to send and receive with other users.",
             "need-registration-title": "Get ready to chat",
             "new-chat": "New chat",
