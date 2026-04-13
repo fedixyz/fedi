@@ -172,6 +172,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_join_and_leave_and_join,
         test_join_concurrent,
         matrix::test_matrix_login,
+        matrix::test_matrix_access_token_expiry_repro,
         matrix::test_matrix_dms,
         matrix::test_matrix_recovery,
         matrix::test_matrix_create_room,

@@ -1,4 +1,5 @@
 use std::collections::{HashMap, hash_map};
+use std::convert::Infallible;
 use std::path::Path;
 use std::pin::pin;
 use std::sync::{Arc, Weak};
@@ -26,8 +27,9 @@ use matrix_sdk::ruma::api::client::push::Pusher;
 use matrix_sdk::ruma::api::client::receipt::create_receipt::v3::ReceiptType;
 use matrix_sdk::ruma::api::client::room::Visibility;
 pub use matrix_sdk::ruma::api::client::room::create_room::v3 as create_room;
+use matrix_sdk::ruma::api::client::session::login;
 use matrix_sdk::ruma::api::client::state::send_state_event;
-use matrix_sdk::ruma::api::client::uiaa;
+use matrix_sdk::ruma::api::client::uiaa::{self, UserIdentifier};
 use matrix_sdk::ruma::events::poll::start::PollKind;
 use matrix_sdk::ruma::events::poll::unstable_end::UnstablePollEndEventContent;
 use matrix_sdk::ruma::events::poll::unstable_response::UnstablePollResponseEventContent;
@@ -137,6 +139,7 @@ impl Matrix {
         let user_password = &Self::home_server_password(matrix_secret, &home_server);
         let encryption_passphrase = Self::encryption_passphrase(matrix_secret);
         let client = Self::build_client(base_dir, home_server, &encryption_passphrase).await?;
+        Self::configure_session_reauth(&client, user_password)?;
 
         if let Some(session) = matrix_session {
             client.restore_session(session).await?;
@@ -281,6 +284,37 @@ impl Matrix {
             Some(_) => warn!("unknown session"),
             None => warn!("session not found after login"),
         }
+        Ok(())
+    }
+
+    fn configure_session_reauth(client: &Client, user_password: &str) -> Result<()> {
+        let user_password = user_password.to_owned();
+
+        client
+            .matrix_auth()
+            .set_session_reauth_callback(move |session_meta| {
+                let user_password = user_password.clone();
+
+                async move {
+                    Ok::<_, Infallible>(assign!(
+                        login::v3::Request::new(login::v3::LoginInfo::Password(
+                            login::v3::Password::new(
+                                UserIdentifier::UserIdOrLocalpart(
+                                    session_meta.user_id.to_string(),
+                                ),
+                                user_password,
+                            ),
+                        )),
+                        {
+                            initial_device_display_name: Some("Fedi".to_owned()),
+                            // we were using refresh token = false previously, lets stick to that for backport.
+                            refresh_token: false,
+                        }
+                    ))
+                }
+            })
+            .context("failed to configure matrix session reauthentication")?;
+
         Ok(())
     }
 

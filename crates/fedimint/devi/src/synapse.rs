@@ -89,6 +89,9 @@ rc_invites:
   burst_count: 1000
 
 max_upload_size: 1000M
+session_lifetime: 1m
+nonrefreshable_access_token_lifetime: 20s
+refreshable_access_token_lifetime: 20s
 "#;
 
 /// Manages a temporary Synapse Matrix server instance

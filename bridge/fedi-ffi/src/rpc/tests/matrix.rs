@@ -30,6 +30,36 @@ pub async fn test_matrix_login(_dev_fed: DevFed) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub async fn test_matrix_access_token_expiry_repro(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
+    let m1 = td1.matrix().await?;
+    let m2 = td2.matrix().await?;
+    let user2 = m2.client.user_id().unwrap();
+    let room_id = m1.create_or_get_dm(user2).await?;
+
+    m2.wait_for_room_id(&room_id).await?;
+    m2.room_join(&room_id).await?;
+
+    // Establish a known-good Matrix write before expiry.
+    m1.send_message(
+        &room_id,
+        SendMessageData::text("matrix-expiry-repro-before".to_owned()),
+    )
+    .await?;
+
+    sleep_in_test(
+        "wait for matrix access token to expire",
+        Duration::from_secs(25),
+    )
+    .await;
+
+    m1.room_set_name(&room_id, "matrix-expiry-repro-after".to_owned())
+        .await?;
+
+    Ok(())
+}
+
 fn apply_diffs<T: Clone>(v: &mut Vector<T>, diffs: Vec<VectorDiff<T>>) {
     for diff in diffs {
         diff.apply(v);
