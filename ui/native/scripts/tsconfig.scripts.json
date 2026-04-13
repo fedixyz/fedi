@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "target": "ES2021",
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "strict": false,
+        "skipLibCheck": true
+    },
+    "include": ["./**/*.ts", "../tests/configs/appium/**/*.ts"]
+}

@@ -436,6 +436,8 @@
               export ANDROID_SDK_ROOT=${androidSdk}/share/android-sdk
               export ANDROID_HOME="$ANDROID_SDK_ROOT"
               export PATH=$PATH:''${ANDROID_SDK_ROOT}/emulator:''${ANDROID_SDK_ROOT}/platform-tools:''${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin
+              # expose repo-local UI helper scripts like steve in the dev shell
+              export PATH="$PATH:''${REPO_ROOT}/scripts/ui"
               # ensure appium binary installed via npm is available in path
               export PATH="$PATH:''${REPO_ROOT}/ui/node_modules/.bin"
               # give appium a working directory (see ui/package.json to set the appium version)

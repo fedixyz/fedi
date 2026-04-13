@@ -3,10 +3,30 @@
 set -euo pipefail
 
 echo "Checking for Appium server..."
-APPIUM_PID=$(pgrep -f "node.*appium" | head -1 || true)
+APPIUM_PID=""
+while IFS= read -r line; do
+  pid=$(echo "$line" | awk '{print $1}')
+  comm=$(echo "$line" | awk '{print $2}')
+  args=$(echo "$line" | cut -d' ' -f3-)
+
+  if [[ "$comm" != "node" && "$comm" != "appium" ]]; then
+    continue
+  fi
+
+  if [[ "$args" != *"appium"* ]]; then
+    continue
+  fi
+
+  if [[ "$args" == *"appium-webdriveragent"* || "$args" == *"appium-xcuitest-driver"* ]]; then
+    continue
+  fi
+
+  APPIUM_PID="$pid"
+  break
+done < <(ps -axo pid=,comm=,args= | grep appium || true)
 
 if [[ -n "$APPIUM_PID" ]]; then
-  APPIUM_PORT=$(lsof -p "$APPIUM_PID" -i TCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {split($9,a,":"); print a[2]}' | head -1 || true)
+  APPIUM_PORT=$(lsof -Pan -p "$APPIUM_PID" -a -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {split($9,a,":"); print a[2]}' | head -1 || true)
   if [[ -n "$APPIUM_PORT" ]]; then
     echo "✓ Appium server found - PID: $APPIUM_PID, Port: $APPIUM_PORT"
   else
@@ -162,12 +182,29 @@ else
   # otherwise run in background and write PID/log file
   echo "=== Starting Appium server in background ==="
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    appium >"$LOG_FILE" 2>&1 &
+    nohup appium >"$LOG_FILE" 2>&1 < /dev/null &
     echo $! >"$PID_FILE"
   elif [[ "$OSTYPE" == "darwin"* ]]; then
-    nix develop .#xcode --command env -u MACOSX_DEPLOYMENT_TARGET appium >"$LOG_FILE" 2>&1 &
+    nohup nix develop .#xcode --command env -u MACOSX_DEPLOYMENT_TARGET appium >"$LOG_FILE" 2>&1 < /dev/null &
     echo $! >"$PID_FILE"
   fi
-  sleep 2
-  echo "Appium started. PID=$(cat "$PID_FILE") | Logs: $LOG_FILE"
+  APP_PID=$(cat "$PID_FILE")
+  APP_PORT=""
+  for _ in $(seq 1 40); do
+    if ! kill -0 "$APP_PID" 2>/dev/null; then
+      break
+    fi
+    APP_PORT=$(lsof -Pan -p "$APP_PID" -a -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {split($9,a,":"); print a[2]}' | head -1 || true)
+    if [[ -n "$APP_PORT" ]]; then
+      break
+    fi
+    sleep 0.25
+  done
+  if [[ -n "$APP_PORT" ]]; then
+    echo "Appium started. PID=$APP_PID, Port=$APP_PORT | Logs: $LOG_FILE"
+  else
+    echo "❌ Appium failed to bind a listening port. PID=$APP_PID | Logs: $LOG_FILE"
+    tail -n 40 "$LOG_FILE" || true
+    exit 1
+  fi
 fi

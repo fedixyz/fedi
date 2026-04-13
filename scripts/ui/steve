@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+if [[ "${FEDI_CROSS_DEV_SHELL:-}" != "1" && "${STEVE_IN_XCODE_SHELL:-}" != "1" ]]; then
+  exec nix develop "$REPO_ROOT"#xcode -c env STEVE_IN_XCODE_SHELL=1 "$REPO_ROOT/scripts/ui/steve" "$@"
+fi
+
+pushd "$REPO_ROOT/ui" >/dev/null
+PLATFORM=ios ts-node --transpile-only --project ./native/scripts/tsconfig.scripts.json ./native/scripts/steve.ts "$@"
+popd >/dev/null

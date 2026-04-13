@@ -63,6 +63,21 @@ The system will automatically:
 -   Select the **appium** pane and press 'y' to start the server with live log output
 -   Useful for debugging test failures or connection issues
 
+### iOS Simulator CLI
+
+For ad hoc simulator control outside the test runner, use the repo-local `steve` wrapper:
+
+```bash
+steve help
+steve screens
+steve launch
+steve a11y
+steve tap "Continue"
+steve screenshot /tmp/fedi-ios.png
+```
+
+It reuses the existing iOS simulator and Appium/XCUITest setup, and `a11y` prints a normalized accessibility tree rather than raw Appium XML.
+
 ## Test standards
 
 -   Tests must test for specific product requirements, which can be found in internal Product Requirement Docs.
