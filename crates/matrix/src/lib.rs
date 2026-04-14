@@ -234,7 +234,10 @@ impl Matrix {
         app_state: &AppState,
     ) -> anyhow::Result<()> {
         let matrix_auth = client.matrix_auth();
-        let login_result = matrix_auth.login_username(user_name, user_password).await;
+        let login_result = matrix_auth
+            .login_username(user_name, user_password)
+            .request_refresh_token()
+            .await;
         match login_result {
             Ok(_) => {
                 // on every login, try to recover e2e keys
@@ -259,6 +262,7 @@ impl Matrix {
                 request.password = Some(user_password.to_owned());
                 request.auth = Some(uiaa::AuthData::Dummy(uiaa::Dummy::new()));
                 request.initial_device_display_name = Some("Fedi".to_string());
+                request.refresh_token = true;
                 let register_result = matrix_auth.register(request).await;
                 match register_result {
                     Ok(_) => (),
@@ -307,8 +311,7 @@ impl Matrix {
                         )),
                         {
                             initial_device_display_name: Some("Fedi".to_owned()),
-                            // we were using refresh token = false previously, lets stick to that for backport.
-                            refresh_token: false,
+                            refresh_token: true,
                         }
                     ))
                 }
