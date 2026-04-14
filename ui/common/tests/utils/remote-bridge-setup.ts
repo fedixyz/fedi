@@ -11,13 +11,12 @@ import {
     joinFederation as joinFederationAction,
     selectLastUsedFederation,
     selectMatrixAuth,
+    createMatrixRoom,
 } from '@fedi/common/redux'
 import { RemoteBridge } from '@fedi/common/utils/remote-bridge'
 
-import { useCreateMatrixRoom } from '../../hooks/matrix'
 import { MatrixRoom } from '../../types'
-import { renderHookWithState, mockInitializeCommonStore } from './render'
-import { createMockT } from './setup'
+import { mockInitializeCommonStore } from './render'
 
 export interface RemoteBridgeTestContext {
     bridge: RemoteBridge
@@ -100,29 +99,24 @@ export class IntegrationTestBuilder {
 
         await this.withChatReady()
 
-        const { result: createRoomResult } = renderHookWithState(
-            () => useCreateMatrixRoom(createMockT()),
-            store,
-            bridge.fedimint,
+        const { roomId } = await act(() =>
+            store
+                .dispatch(
+                    createMatrixRoom({
+                        fedimint: bridge.fedimint,
+                        name: groupName,
+                        broadcastOnly,
+                        isPublic,
+                    }),
+                )
+                .unwrap(),
         )
 
-        await act(() => {
-            createRoomResult.current.setGroupName(groupName)
-            if (isPublic) createRoomResult.current.setIsPublic(isPublic)
-            if (broadcastOnly)
-                createRoomResult.current.setBroadcastOnly(broadcastOnly)
-        })
-
-        await act(() => {
-            createRoomResult.current.handleCreateGroup()
-        })
-
         await this.waitFor(() => {
-            expect(createRoomResult.current.isCreatingGroup).toBe(false)
-            expect(createRoomResult.current.createdRoomId).toBeDefined()
+            expect(roomId).toBeDefined()
         })
 
-        return createRoomResult.current.createdRoomId as MatrixRoom['id']
+        return roomId as MatrixRoom['id']
     }
 
     /**

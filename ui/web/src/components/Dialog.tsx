@@ -45,7 +45,7 @@ export const Dialog: React.FC<Props> = ({
         return (
             <>
                 {!hideCloseButton && (
-                    <CloseButton>
+                    <CloseButton data-testid="dialog-close-button">
                         <Icon icon={CloseIcon} />
                     </CloseButton>
                 )}
@@ -75,7 +75,9 @@ export const Dialog: React.FC<Props> = ({
     return (
         <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
             <RadixDialog.Portal>
-                <Overlay isTray={type === 'tray'}>
+                <Overlay
+                    isTray={type === 'tray'}
+                    data-testid="overlay-backdrop">
                     <Content
                         disablePadding={disablePadding}
                         onOpenAutoFocus={ev => ev.preventDefault()}

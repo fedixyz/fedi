@@ -1193,11 +1193,14 @@ export function useMatrixRepliedMessage(event: SendableMatrixEvent) {
 export function useCreateMatrixRoom(
     t: TFunction,
     onGroupCreated?: (roomId: MatrixRoom['id']) => void,
+    defaults: { isPublic?: boolean } = {
+        isPublic: false,
+    },
 ) {
     const fedimint = useFedimint()
     const [groupName, setGroupName] = useState(t('feature.chat.new-group'))
     const [broadcastOnly, setBroadcastOnly] = useState(false)
-    const [isPublic, setIsPublic] = useState(false)
+    const [isPublic, setIsPublic] = useState(defaults.isPublic)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const [createdRoomId, setCreatedRoomId] = useState<string | null>(null)
     const [isCreatingGroup, setIsCreatingGroup] = useState(false)
@@ -1206,6 +1209,15 @@ export function useCreateMatrixRoom(
         s => createdRoomId && selectMatrixRoom(s, createdRoomId),
     )
     const toast = useToast()
+
+    const reset = () => {
+        setGroupName(t('feature.chat.new-group'))
+        setBroadcastOnly(false)
+        setIsPublic(defaults.isPublic)
+        setErrorMessage(null)
+        setCreatedRoomId(null)
+        setIsCreatingGroup(false)
+    }
 
     useEffect(() => {
         if (groupName.length >= 30) {
@@ -1269,6 +1281,7 @@ export function useCreateMatrixRoom(
         setIsPublic,
         errorMessage,
         createdRoomId,
+        reset,
     }
 }
 

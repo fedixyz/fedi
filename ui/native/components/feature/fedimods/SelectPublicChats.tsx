@@ -1,14 +1,15 @@
-import { Text, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import { Input, Switch, Text, Theme, useTheme } from '@rneui/themed'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 
+import { useCreateMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectMatrixRooms } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
-import { AvatarSize } from '../../ui/Avatar'
+import Avatar, { AvatarSize } from '../../ui/Avatar'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column, Row } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
@@ -27,139 +28,234 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
     onOpenChange,
 }) => {
     const [selectedChats, setSelectedChats] = useState<Array<string>>([])
+    const [isCreatingNewGroup, setIsCreatingNewGroup] = useState(false)
+
+    const onChatCreated = (roomId: string) => {
+        if (selectedChats.includes(roomId)) return
+        setSelectedChats([...selectedChats, roomId])
+        setIsCreatingNewGroup(false)
+    }
+
+    const { t } = useTranslation()
+    const { theme } = useTheme()
+    const {
+        handleCreateGroup,
+        isCreatingGroup,
+        groupName,
+        setGroupName,
+        broadcastOnly,
+        setBroadcastOnly,
+        isPublic,
+        errorMessage,
+        reset: resetCreateMatrixRoom,
+    } = useCreateMatrixRoom(t, onChatCreated, { isPublic: true })
+
     const chats = useAppSelector(selectMatrixRooms)
     const onAcceptRef = useUpdatingRef(onAccept)
+
     const publicChats = chats.filter(c => c.isPublic)
+    const style = styles(theme)
 
-    const { theme } = useTheme()
-    const { t } = useTranslation()
+    const toggleSelectedChat = useCallback(
+        (chatId: string) => {
+            if (selectedChats.includes(chatId)) {
+                setSelectedChats(selectedChats.filter(c => c !== chatId))
+            } else {
+                setSelectedChats(prev => [...prev, chatId])
+            }
+        },
+        [selectedChats],
+    )
 
-    const toggleSelectedChat = (chatId: string) => {
-        if (selectedChats.includes(chatId)) {
-            setSelectedChats(selectedChats.filter(c => c !== chatId))
-        } else {
-            setSelectedChats([...selectedChats, chatId])
-        }
+    const reset = () => {
+        setSelectedChats([])
+        setIsCreatingNewGroup(false)
+        onOpenChange(false)
     }
 
     const handleAccept = async () => {
         onAcceptRef.current(selectedChats)
-        onOpenChange(false)
+        reset()
     }
 
-    const handleReject = () => {
+    const handleClose = () => {
         onAcceptRef.current([])
-        onOpenChange(false)
+        reset()
     }
 
-    // TODO: restore groupchat creation flow with https://github.com/fedibtc/fedi/issues/9411
-    // const handleCreateGroup = () => {
-    //     navigation.dispatch(
-    //         reset('CreateGroup', {
-    //             defaultGroup: true,
-    //         }),
-    //     )
-    // }
+    const content = useMemo(() => {
+        if (isCreatingNewGroup) {
+            return (
+                <Column gap="lg" align="center" style={style.newGroupContainer}>
+                    <Avatar
+                        id={''}
+                        icon={broadcastOnly ? 'SpeakerPhone' : 'SocialPeople'}
+                        size={AvatarSize.md}
+                    />
+                    <Input
+                        onChangeText={setGroupName}
+                        value={groupName}
+                        maxLength={30}
+                        placeholder={`${t('feature.chat.group-name')}`}
+                        returnKeyType="done"
+                        containerStyle={style.textInputOuter}
+                        inputContainerStyle={style.textInputInner}
+                        autoCapitalize={'none'}
+                        autoCorrect={false}
+                        selectTextOnFocus
+                        errorMessage={errorMessage ?? undefined}
+                    />
+                    <Row align="center" justify="between" fullWidth>
+                        <Text>{t('feature.chat.broadcast-only')}</Text>
+                        <Switch
+                            value={broadcastOnly}
+                            onValueChange={setBroadcastOnly}
+                        />
+                    </Row>
+                    <Column gap="sm">
+                        <Row align="center" justify="between" fullWidth>
+                            <Text>{t('words.public')}</Text>
+                            <Switch value={isPublic} />
+                        </Row>
+                        <Text small color={theme.colors.grey}>
+                            {t('feature.chat.public-group-warning')}
+                        </Text>
+                    </Column>
+                </Column>
+            )
+        }
+
+        if (publicChats.length === 0) {
+            return (
+                <Column
+                    gap="md"
+                    align="center"
+                    style={{ paddingVertical: theme.spacing.xl }}>
+                    <SvgImage
+                        name="SearchNoResult"
+                        color={theme.colors.grey}
+                        size={48}
+                    />
+                    <Text color={theme.colors.darkGrey} h2 center medium>
+                        {t('feature.chat.no-public-chats-yet')}
+                    </Text>
+                    <Text color={theme.colors.grey} caption center>
+                        {t('feature.chat.create-or-join-public-chat')}
+                    </Text>
+                </Column>
+            )
+        }
+
+        return (
+            <Column gap="md">
+                <Text caption center>
+                    {t('feature.chat.community-chat-description')}
+                </Text>
+                {publicChats.map(chat => (
+                    <Pressable
+                        key={`community-chat-${chat.id}`}
+                        testID={`community-chat-${chat.id}`}
+                        onPress={() => toggleSelectedChat(chat.id)}>
+                        <Row align="center" gap="md">
+                            <ChatAvatar size={AvatarSize.sm} room={chat} />
+                            <Text
+                                medium
+                                style={{ flex: 1 }}
+                                ellipsizeMode="tail"
+                                numberOfLines={1}>
+                                {chat.name}
+                            </Text>
+                            <SvgImage
+                                name={
+                                    selectedChats.includes(chat.id)
+                                        ? 'CheckboxChecked'
+                                        : 'CheckboxUnchecked'
+                                }
+                            />
+                        </Row>
+                    </Pressable>
+                ))}
+            </Column>
+        )
+    }, [
+        isCreatingNewGroup,
+        selectedChats,
+        broadcastOnly,
+        publicChats,
+        t,
+        theme,
+        groupName,
+        style,
+        toggleSelectedChat,
+        errorMessage,
+        setBroadcastOnly,
+        setGroupName,
+        isPublic,
+    ])
 
     return (
         <CustomOverlay
             show={open}
-            onBackdropPress={handleReject}
+            onBackdropPress={handleClose}
             contents={{
-                title: t('feature.chat.add-community-chat'),
-                body: (
-                    <ScrollView>
-                        {publicChats.length === 0 ? (
-                            <Column
-                                gap="md"
-                                align="center"
-                                style={{ paddingVertical: theme.spacing.xl }}>
-                                <SvgImage
-                                    name="SearchNoResult"
-                                    color={theme.colors.grey}
-                                    size={48}
-                                />
-                                <Text
-                                    color={theme.colors.darkGrey}
-                                    h2
-                                    center
-                                    medium>
-                                    {t('feature.chat.no-public-chats-yet')}
-                                </Text>
-                                <Text color={theme.colors.grey} caption center>
-                                    {t(
-                                        'feature.chat.create-or-join-public-chat',
-                                    )}
-                                </Text>
-                            </Column>
-                        ) : (
-                            <Column gap="md">
-                                <Text caption center>
-                                    {t(
-                                        'feature.chat.community-chat-description',
-                                    )}
-                                </Text>
-                                {publicChats.map(chat => (
-                                    <Pressable
-                                        key={`community-chat-${chat.id}`}
-                                        onPress={() =>
-                                            toggleSelectedChat(chat.id)
-                                        }>
-                                        <Row align="center" gap="md">
-                                            <ChatAvatar
-                                                size={AvatarSize.sm}
-                                                room={chat}
-                                            />
-                                            <Text
-                                                medium
-                                                style={{ flex: 1 }}
-                                                ellipsizeMode="tail"
-                                                numberOfLines={1}>
-                                                {chat.name}
-                                            </Text>
-                                            <SvgImage
-                                                name={
-                                                    selectedChats.includes(
-                                                        chat.id,
-                                                    )
-                                                        ? 'CheckboxChecked'
-                                                        : 'CheckboxUnchecked'
-                                                }
-                                            />
-                                        </Row>
-                                    </Pressable>
-                                ))}
-                            </Column>
-                        )}
-                    </ScrollView>
+                title: (
+                    <Text h2 medium>
+                        {isCreatingNewGroup
+                            ? t('feature.chat.create-a-group')
+                            : t('feature.chat.add-community-chat')}
+                    </Text>
                 ),
-                buttons:
-                    publicChats.length > 0
-                        ? [
-                              // TODO: restore groupchat creation flow with https://github.com/fedibtc/fedi/issues/9411
-                              //   {
-                              //       text: t('feature.chat.new-group'),
-                              //       onPress: handleCreateGroup,
-                              //   },
-                              {
-                                  primary: true,
-                                  text: t('words.continue'),
-                                  onPress: handleAccept,
+                body: <ScrollView>{content}</ScrollView>,
+                buttons: isCreatingNewGroup
+                    ? [
+                          {
+                              text: t('words.cancel'),
+                              onPress: () => setIsCreatingNewGroup(false),
+                          },
+                          {
+                              text: t('phrases.save-changes'),
+                              primary: true,
+                              onPress: handleCreateGroup,
+                              disabled:
+                                  !groupName ||
+                                  isCreatingGroup ||
+                                  !!errorMessage,
+                          },
+                      ]
+                    : [
+                          {
+                              text: t('feature.chat.new-group'),
+                              onPress: () => {
+                                  resetCreateMatrixRoom()
+                                  setIsCreatingNewGroup(true)
                               },
-                          ]
-                        : [
-                              {
-                                  text: t('words.skip'),
-                                  onPress: handleAccept,
-                              },
-                              // TODO: restore groupchat creation flow with https://github.com/fedibtc/fedi/issues/9411
-                              //   {
-                              //       primary: true,
-                              //       text: t('feature.chat.new-group'),
-                              //       onPress: handleCreateGroup,
-                              //   },
-                          ],
+                          },
+                          {
+                              text: t('words.continue'),
+                              primary: true,
+                              onPress: handleAccept,
+                          },
+                      ],
             }}
         />
     )
 }
+
+const styles = (theme: Theme) =>
+    StyleSheet.create({
+        newGroupContainer: {
+            paddingHorizontal: theme.spacing.md,
+        },
+        textInputOuter: {
+            width: '100%',
+            paddingHorizontal: 0,
+        },
+        textInputInner: {
+            textAlignVertical: 'center',
+            borderColor: theme.colors.primaryVeryLight,
+            borderWidth: 1,
+            borderRadius: theme.borders.defaultRadius,
+            padding: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.md,
+        },
+    })
