@@ -11,10 +11,16 @@ import {
     COMMUNITY_TOOL_URL_PROD,
     COMMUNITY_TOOL_URL_STAGING,
 } from '@fedi/common/constants/fedimods'
+import {
+    closeBrowser,
+    selectCurrentUrl,
+    setCurrentUrl,
+} from '@fedi/common/redux/browser'
 import { ParserDataType } from '@fedi/common/types'
 import { isDev, isExperimental } from '@fedi/common/utils/environment'
 
 import { onboardingJoinRoute } from '../../constants/routes'
+import { useAppDispatch, useAppSelector } from '../../hooks'
 import { keyframes, styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { FediBrowser } from '../FediBrowser'
@@ -70,9 +76,11 @@ const InfoEntryList: React.FC<{ items: InfoEntryItem[] }> = ({ items }) => {
 export function OnboardingCommunities() {
     const { t } = useTranslation()
     const { push, query, replace } = useRouter()
+    const dispatch = useAppDispatch()
 
     const [activeTab, setActiveTab] = useState<Tab>('join')
-    const [showBrowser, setShowBrowser] = useState(false)
+
+    const currentUrl = useAppSelector(selectCurrentUrl)
 
     const switcherOptions: SwitcherOption[] = [
         // { label: t('words.discover'), value: 'discover' }, // This will be used at a later date
@@ -111,6 +119,16 @@ export function OnboardingCommunities() {
 
     const handleNavigation = (code: string) => {
         push(onboardingJoinRoute(code))
+    }
+
+    const handleOnCreate = () => {
+        dispatch(
+            setCurrentUrl({
+                url: showStagingUrl
+                    ? COMMUNITY_TOOL_URL_STAGING
+                    : COMMUNITY_TOOL_URL_PROD,
+            }),
+        )
     }
 
     let body: React.ReactElement
@@ -152,7 +170,7 @@ export function OnboardingCommunities() {
         )
         actions = (
             <Layout.Actions>
-                <Button width="full" onClick={() => setShowBrowser(true)}>
+                <Button width="full" onClick={handleOnCreate}>
                     {t('phrases.create-my-community')}
                 </Button>
             </Layout.Actions>
@@ -191,14 +209,14 @@ export function OnboardingCommunities() {
                 </Layout.Content>
                 {actions}
             </Layout.Root>
-            {showBrowser && (
+            {!!currentUrl && (
                 <FediBrowser
                     url={
                         showStagingUrl
                             ? COMMUNITY_TOOL_URL_STAGING
                             : COMMUNITY_TOOL_URL_PROD
                     }
-                    onClose={() => setShowBrowser(false)}
+                    onClose={() => dispatch(closeBrowser())}
                 />
             )}
         </>

@@ -2,11 +2,19 @@ import { useRouter } from 'next/router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import EditIcon from '@fedi/common/assets/svgs/edit.svg'
 import QrCodeIcon from '@fedi/common/assets/svgs/qr.svg'
 import RoomIcon from '@fedi/common/assets/svgs/room.svg'
+import { useCreatedCommunities } from '@fedi/common/hooks/federation'
 import { useLeaveCommunity } from '@fedi/common/hooks/leave'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectCommunity, selectDefaultChats } from '@fedi/common/redux'
+import {
+    closeBrowser,
+    selectCommunity,
+    selectDefaultChats,
+    selectCurrentUrl,
+    setCurrentUrl,
+} from '@fedi/common/redux'
 import {
     getFederationTosUrl,
     getFederationWelcomeMessage,
@@ -19,25 +27,28 @@ import { CommunityInviteDialog } from '../../components/CommunityInviteDialog'
 import { ContentBlock } from '../../components/ContentBlock'
 import { Dialog } from '../../components/Dialog'
 import { FederationAvatar } from '../../components/FederationAvatar'
+import { FediBrowser } from '../../components/FediBrowser'
 import { Column, Row } from '../../components/Flex'
 import { Icon } from '../../components/Icon'
 import * as Layout from '../../components/Layout'
 import { Text } from '../../components/Text'
-import { useAppSelector } from '../../hooks'
+import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 
 function CommunityDetails() {
+    const { t } = useTranslation()
     const { query, isReady, push } = useRouter()
+    const toast = useToast()
+    const dispatch = useAppDispatch()
+    const id = (query.id as string | undefined) ?? ''
 
     const [wantsToLeaveCommunity, setWantsToLeaveCommunity] = useState(false)
     const [invitingCommunityId, setInvitingCommunityId] = useState('')
+    const currentUrl = useAppSelector(selectCurrentUrl)
 
-    const id = (query.id as string | undefined) ?? ''
     const community = useAppSelector(s => selectCommunity(s, id))
     const chats = useAppSelector(s => selectDefaultChats(s, id))
-    const toast = useToast()
-
-    const { t } = useTranslation()
+    const { canEditCommunity, editCommunityUrl } = useCreatedCommunities(id)
     const { canLeaveCommunity, handleLeave, isLeaving } = useLeaveCommunity(id)
 
     const handleClose = () => {
@@ -48,6 +59,13 @@ function CommunityDetails() {
         handleLeave()
             .then(() => push('/home'))
             .catch(e => toast.error(t, e))
+    }
+
+    const handleEditCommunity = () => {
+        if (!editCommunityUrl) return
+        const url = editCommunityUrl.toString()
+
+        dispatch(setCurrentUrl({ url }))
     }
 
     if (!community || !isReady || !id) return null
@@ -62,15 +80,24 @@ function CommunityDetails() {
                 <Layout.Header
                     back
                     rightComponent={
-                        showInviteCode ? (
-                            <Icon
-                                icon={QrCodeIcon}
-                                size="sm"
-                                onClick={() =>
-                                    setInvitingCommunityId(community.id)
-                                }
-                            />
-                        ) : undefined
+                        <Row gap="sm">
+                            {canEditCommunity && (
+                                <Icon
+                                    icon={EditIcon}
+                                    size="sm"
+                                    onClick={handleEditCommunity}
+                                />
+                            )}
+                            {showInviteCode && (
+                                <Icon
+                                    icon={QrCodeIcon}
+                                    size="sm"
+                                    onClick={() =>
+                                        setInvitingCommunityId(community.id)
+                                    }
+                                />
+                            )}
+                        </Row>
                     }>
                     <Layout.Title subheader>
                         {t('feature.communities.community-details')}
@@ -101,9 +128,12 @@ function CommunityDetails() {
                         )}
                         <Text>{welcomeMessage}</Text>
                     </Column>
-                    <Actions>
+                </Layout.Content>
+                <Layout.Actions>
+                    <Column gap="xs" fullWidth>
                         {tosUrl && (
                             <Button
+                                width="full"
                                 variant="secondary"
                                 as="a"
                                 href={tosUrl}
@@ -121,9 +151,16 @@ function CommunityDetails() {
                                 {t('feature.communities.leave-community')}
                             </Button>
                         )}
-                    </Actions>
-                </Layout.Content>
+                    </Column>
+                </Layout.Actions>
             </Layout.Root>
+
+            {!!currentUrl && (
+                <FediBrowser
+                    url={currentUrl}
+                    onClose={() => dispatch(closeBrowser())}
+                />
+            )}
 
             <Dialog
                 open={wantsToLeaveCommunity}
@@ -172,17 +209,6 @@ const IconContainer = styled('div', {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-})
-
-const Actions = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    paddingTop: 32,
-
-    '@sm': {
-        paddingLeft: 16,
-        paddingRight: 16,
-    },
 })
 
 export default CommunityDetails

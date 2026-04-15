@@ -2,12 +2,17 @@ import Image from 'next/image'
 import React, { useState } from 'react'
 
 import DefaultFediModIcon from '@fedi/common/assets/images/fedimods/default.png'
+import {
+    closeBrowser,
+    selectCurrentUrl,
+    setCurrentUrl,
+} from '@fedi/common/redux/browser'
 import { selectAllVisibleMods } from '@fedi/common/redux/mod'
 import { FediMod } from '@fedi/common/types'
 
 import { FediBrowser } from '../components/FediBrowser'
 import { FEDIMOD_IMAGES } from '../constants/fedimodimages'
-import { useAppSelector, useDeviceQuery } from '../hooks'
+import { useAppDispatch, useAppSelector, useDeviceQuery } from '../hooks'
 import { styled } from '../styles'
 import { Text } from './Text'
 
@@ -22,16 +27,18 @@ const whitelist: string[] = []
 const blacklist: string[] = ['lngpt']
 
 export const FediModTiles: React.FC<Props> = ({ mods }) => {
+    const dispatch = useAppDispatch()
+
     const { isMobile } = useDeviceQuery()
     const defaultMods = useAppSelector(selectAllVisibleMods)
-    const [modUrl, setModUrl] = useState<string | null>(null)
+    const currentUrl = useAppSelector(selectCurrentUrl)
 
     const fediMods = mods || defaultMods
 
     const handleOnClick = (mod: FediMod) => {
         // only show app in FediBrowser if it is whitelisted and on mobile
         if (whitelist.includes(mod.id) && isMobile) {
-            setModUrl(mod.url)
+            dispatch(setCurrentUrl({ url: mod.url }))
             return
         }
 
@@ -40,8 +47,11 @@ export const FediModTiles: React.FC<Props> = ({ mods }) => {
 
     return (
         <>
-            {!!modUrl && (
-                <FediBrowser url={modUrl} onClose={() => setModUrl(null)} />
+            {!!currentUrl && (
+                <FediBrowser
+                    url={currentUrl}
+                    onClose={() => dispatch(closeBrowser())}
+                />
             )}
             <Container>
                 {fediMods
