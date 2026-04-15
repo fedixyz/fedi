@@ -8,11 +8,13 @@ import BitcoinCircle from '@fedi/common/assets/svgs/bitcoin-circle.svg'
 import ChevronRight from '@fedi/common/assets/svgs/chevron-right.svg'
 import HelpIcon from '@fedi/common/assets/svgs/help.svg'
 import TxnHistory from '@fedi/common/assets/svgs/txn-history.svg'
+import { HIDDEN_AMOUNT_MASK } from '@fedi/common/constants/currency'
 import { theme } from '@fedi/common/constants/theme'
 import { useBalance } from '@fedi/common/hooks/amount'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
+    selectBalanceDisplay,
     selectLoadedFederations,
     selectSelectedFederation,
     setPayFromFederationId,
@@ -42,6 +44,8 @@ import { styled } from '../styles'
 
 function WalletPage() {
     const { t } = useTranslation()
+    const dispatch = useAppDispatch()
+    const router = useRouter()
 
     const [open, setOpen] = useState(false)
     const [tooltipOpen, setTooltipOpen] = useState(false)
@@ -59,8 +63,7 @@ function WalletPage() {
         t,
         federationId,
     )
-    const dispatch = useAppDispatch()
-    const router = useRouter()
+    const balanceDisplay = useAppSelector(selectBalanceDisplay)
 
     useEffect(() => {
         if (loadedFederations.length > 0 && !federation)
@@ -150,10 +153,14 @@ function WalletPage() {
                         ) : (
                             <>
                                 <Text weight="bold" variant="h1">
-                                    {formattedBalanceFiat}
+                                    {balanceDisplay === 'hidden'
+                                        ? HIDDEN_AMOUNT_MASK
+                                        : formattedBalanceFiat}
                                 </Text>
                                 <Text css={{ color: theme.colors.grey }}>
-                                    {formattedBalanceSats}
+                                    {balanceDisplay === 'hidden'
+                                        ? HIDDEN_AMOUNT_MASK
+                                        : formattedBalanceSats}
                                 </Text>
                             </>
                         )}
@@ -208,6 +215,7 @@ function WalletPage() {
         sendDisabled,
         disabledMessage,
         federationId,
+        balanceDisplay,
         dispatch,
     ])
 

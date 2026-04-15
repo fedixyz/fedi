@@ -82,3 +82,5 @@ export const currencyFlags: Record<SelectableCurrency, string> = {
     senegal: '🇸🇳',
     togo: '🇹🇬',
 }
+
+export const HIDDEN_AMOUNT_MASK = '*******'

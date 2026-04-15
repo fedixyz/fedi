@@ -3,9 +3,11 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
+import { HIDDEN_AMOUNT_MASK } from '@fedi/common/constants/currency'
 import { useBalance } from '@fedi/common/hooks/amount'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import {
+    selectBalanceDisplay,
     selectCurrency,
     selectPaymentType,
     selectStableBalancePending,
@@ -41,6 +43,7 @@ export default function WalletBalanceCard({
     const stableBalancePending = useAppSelector(s =>
         selectStableBalancePending(s, federationId),
     )
+    const balanceDisplay = useAppSelector(selectBalanceDisplay)
 
     const onPressTransactions = () => {
         if (recoveryInProgress) return
@@ -96,11 +99,15 @@ export default function WalletBalanceCard({
                 ) : (
                     <>
                         <Text bold h1>
-                            {primaryAmount}
+                            {balanceDisplay === 'hidden'
+                                ? HIDDEN_AMOUNT_MASK
+                                : primaryAmount}
                         </Text>
                         {secondaryAmount && (
                             <Text color={theme.colors.grey}>
-                                {secondaryAmount}
+                                {balanceDisplay === 'hidden'
+                                    ? HIDDEN_AMOUNT_MASK
+                                    : secondaryAmount}
                             </Text>
                         )}
                     </>

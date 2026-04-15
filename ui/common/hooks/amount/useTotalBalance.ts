@@ -1,3 +1,4 @@
+import { HIDDEN_AMOUNT_MASK } from '../../constants/currency'
 import {
     selectLoadedFederations,
     selectOverrideCurrency,
@@ -49,7 +50,7 @@ export function useTotalBalance() {
     }
 
     const formattedBalanceMap: Record<BalanceDisplay, string> = {
-        hidden: '*******',
+        hidden: HIDDEN_AMOUNT_MASK,
         fiat: formattedFiat ?? '',
         sats: formattedBitcoinAmount ?? '',
     }
