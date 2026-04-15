@@ -179,7 +179,7 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
                     }
                 />
                 <NotesInput
-                    label={t('words.edit')}
+                    label={t('words.notes')}
                     notes={notes}
                     setNotes={setNotes}
                 />
