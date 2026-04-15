@@ -68,7 +68,7 @@ matrix-sdk = { workspace = true, default-features = false, features = [
   "sqlite",
 ] }
 rusqlite = { version = "*" }
-aws-lc-sys = { version = "0.32", features = ["bindgen"] }
+aws-lc-sys = { version = "*", features = ["bindgen"] }
 
 # we don't have an easy way to get static sqlite for android targets
 # so we enable bundled feature when compiling for it
