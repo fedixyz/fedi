@@ -105,7 +105,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
     return (
         <SafeAreaContainer edges="bottom">
             <Column style={style.container}>
-                <ScrollView style={style.content}>
+                <ScrollView>
                     <Column align="center" gap="md" grow style={style.content}>
                         <ImageBackground
                             source={Images.HoloBackground}
@@ -182,7 +182,6 @@ const styles = (theme: Theme) =>
         container: {
             flex: 1,
         },
-        scrollView: {},
         content: {
             padding: theme.spacing.lg,
         },
@@ -208,7 +207,7 @@ const styles = (theme: Theme) =>
         warning: {
             backgroundColor: theme.colors.orange100,
             borderRadius: 6,
-            padding: theme.spacing.md,
+            padding: theme.spacing.sm,
             width: '100%',
         },
         warningText: {
@@ -226,7 +225,7 @@ const styles = (theme: Theme) =>
         roundedCardContainer: {
             borderRadius: theme.borders.defaultRadius,
             margin: 0,
-            padding: theme.spacing.lg,
+            padding: theme.spacing.md,
             width: '100%',
         },
         wordContainer: {

@@ -49,55 +49,50 @@ function PersonalBackupPage() {
                 </Layout.Header>
 
                 <Layout.Content>
-                    <Content>
-                        <Column gap="md" align="center">
-                            <IconWrapper>
-                                <Icon icon={WordListIcon} size="md" />
-                            </IconWrapper>
-                            <Text
-                                variant="h2"
-                                weight="bold"
-                                css={{ textAlign: 'center' }}>
-                                {t('feature.backup.personal-backup-title')}
-                            </Text>
+                    <Column gap="md" align="center">
+                        <IconWrapper>
+                            <Icon icon={WordListIcon} size="md" />
+                        </IconWrapper>
+                        <Text
+                            variant="h2"
+                            weight="bold"
+                            css={{ textAlign: 'center' }}>
+                            {t('feature.backup.personal-backup-title')}
+                        </Text>
 
-                            <Text
-                                variant="small"
-                                css={{
-                                    textAlign: 'center',
-                                    color: theme.colors.darkGrey,
-                                }}>
-                                {t(
-                                    'feature.backup.personal-backup-description',
-                                )}
-                            </Text>
-                            <WarningBox>
-                                <Row align="center" gap="sm">
-                                    <Icon icon={WarningIcon} size="xs" />
-                                    <Text
-                                        variant="small"
-                                        css={{ color: theme.colors.black }}>
-                                        {t(
-                                            'feature.backup.personal-backup-warning-line-1',
-                                        )}
-                                    </Text>
-                                </Row>
-                                <Row>
-                                    <Text
-                                        variant="small"
-                                        css={{ color: theme.colors.black }}>
-                                        {t(
-                                            'feature.backup.personal-backup-warning-line-2',
-                                        )}
-                                    </Text>
-                                </Row>
-                            </WarningBox>
-                            <Text weight="bold">
-                                {t('feature.backup.personal-backup-words-tip')}
-                            </Text>
-                            <RecoverySeedWords words={words} readOnly />
-                        </Column>
-                    </Content>
+                        <Text
+                            css={{
+                                textAlign: 'center',
+                                color: theme.colors.darkGrey,
+                            }}>
+                            {t('feature.backup.personal-backup-description')}
+                        </Text>
+                        <WarningBox>
+                            <Row align="center" gap="sm">
+                                <Icon icon={WarningIcon} size="xs" />
+                                <Text
+                                    variant="small"
+                                    css={{ color: theme.colors.black }}>
+                                    {t(
+                                        'feature.backup.personal-backup-warning-line-1',
+                                    )}
+                                </Text>
+                            </Row>
+                            <Row>
+                                <Text
+                                    variant="small"
+                                    css={{ color: theme.colors.black }}>
+                                    {t(
+                                        'feature.backup.personal-backup-warning-line-2',
+                                    )}
+                                </Text>
+                            </Row>
+                        </WarningBox>
+                        <Text weight="bold">
+                            {t('feature.backup.personal-backup-words-tip')}
+                        </Text>
+                        <RecoverySeedWords words={words} readOnly />
+                    </Column>
                 </Layout.Content>
                 <Layout.Actions>
                     <Button
@@ -114,15 +109,13 @@ function PersonalBackupPage() {
     )
 }
 
-const Content = styled('div', {})
-
 const IconWrapper = styled('div', {
     alignItems: 'center',
     borderRadius: '50%',
     display: 'flex',
     fediGradient: 'sky-banner',
     justifyContent: 'center',
-    padding: theme.spacing.md,
+    padding: theme.spacing.lg,
 })
 
 const WarningBox = styled('div', {
@@ -131,7 +124,7 @@ const WarningBox = styled('div', {
     borderRadius: 6,
     display: 'flex',
     flexDirection: 'column',
-    padding: theme.spacing.md,
+    padding: theme.spacing.sm,
     textAlign: 'center',
     width: '100%',
 })
