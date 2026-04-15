@@ -3,7 +3,17 @@
 set -e
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
-$REPO_ROOT/scripts/enforce-nix.sh
+# Require the xcode nix shell — it provides security, codesign, and
+# rsync via xcode-wrapper symlinks that aren't in the default shell.
+if [ -z "${IN_NIX_SHELL:-}" ]; then
+  exec nix develop .#xcode --command "$0" "$@"
+fi
+
+# Nix git has credential.helper=osxkeychain which blocks on headless runners.
+# Set early because prepare-ios-keychain.sh calls install-apple-certs.sh
+# which uses fastlane match (clones certs repo via git).
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_TERMINAL_PROMPT=0
 
 # Make sure the keychain is setup first
 $REPO_ROOT/scripts/ci/prepare-ios-keychain.sh
@@ -12,14 +22,10 @@ BUILD_BRIDGE=${BUILD_BRIDGE:-1}
 BUILD_UI_DEPS=${BUILD_UI_DEPS:-1}
 REINSTALL_PODS=${REINSTALL_PODS:-1}
 
-# First, delete DerivedData to remove outdated build artifacts
+# Delete DerivedData to remove outdated build artifacts.
 echo "Deleting DerivedData for a clean build directory..."
 rm -rf $REPO_ROOT/ui/native/ios/build
-if [[ -n "$CI" ]]; then
-  rm -rf /Users/runner/Library/Developer/Xcode/DerivedData
-else
-  rm -rf ~/Library/Developer/Xcode/DerivedData
-fi
+rm -rf "$HOME/Library/Developer/Xcode/DerivedData"
 
 if [[ "$BUILD_BRIDGE" == "0" ]]; then
   echo "Skipping bridge build..."
@@ -94,6 +100,19 @@ BUILD_NUMBER="${YY}${DDD}${HHMM}"
 # modify the build numbers so app stores will accept the upload
 # We do not commit this since build numbers are timestamp based
 nix develop -c npx react-native-version --target ios --increment-build --never-amend --set-build $BUILD_NUMBER
+
+# --- Workarounds for headless macOS 26.4 runners ---
+# Resolve keychain path for fastlane match: /var -> /private/var on macOS.
+# Uses $HOME (always absolute) so this works regardless of cwd.
+if [ -n "${MATCH_KEYCHAIN_NAME:-}" ]; then
+  MATCH_KEYCHAIN_NAME="$(cd "$HOME" && pwd -P)/$(basename "$MATCH_KEYCHAIN_NAME")"
+  export MATCH_KEYCHAIN_NAME
+fi
+# PhaseScriptExecution subprocesses can't access the keychain for distribution
+# codesigning. Ad-hoc sign in embed scripts; exportArchive re-signs with dist cert.
+for f in Pods/Target\ Support\ Files/Pods-*/Pods-*-frameworks.sh; do
+  [ -f "$f" ] && sed -i 's/${EXPANDED_CODE_SIGN_IDENTITY}/"-"/g' "$f"
+done
 
 echo "Building Xcode release archive with fastlane (see $REPO_ROOT/ui/native/ios/Fastfile for lane configurations)..."
 if [ -z "${FLAVOR:-}" ]; then

@@ -7,10 +7,14 @@ jobs:
     release-ios:
         name: Build iOS app and upload to TestFlight
         timeout-minutes: 90
-        runs-on: [self-hosted, macos, arm64, legacy]
+        runs-on: [self-hosted, macos, arm64, deployment]
         steps:
             - name: Checkout repo
               uses: actions/checkout@v4
+              with:
+                  # Prevent GITHUB_TOKEN extraheader from overriding the PAT
+                  # that fastlane match uses to clone the certs repo.
+                  persist-credentials: false
 
             - uses: cachix/install-nix-action@v30
               with:

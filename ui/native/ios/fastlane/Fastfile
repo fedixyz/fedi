@@ -18,7 +18,6 @@ default_platform(:ios)
 platform :ios do
   desc "Push a new beta build to TestFlight from CI"
   lane :beta_ci do
-    setup_ci
     match(
       type: 'appstore',
       app_identifier: 'org.fedi.alpha',
@@ -106,7 +105,6 @@ platform :ios do
 
   desc "Push a new beta build to TestFlight from CI (Fedi Nightly)"
   lane :beta_ci_nightly do
-    setup_ci
     match(
       type: 'appstore',
       app_identifier: 'org.fedi.nightly',
@@ -139,7 +137,6 @@ platform :ios do
 
   desc "Push a new beta build to TestFlight from CI (Fedi Nova)"
   lane :beta_ci_nova do
-    setup_ci
     match(
       type: 'appstore',
       app_identifier: 'org.fedi.nova',

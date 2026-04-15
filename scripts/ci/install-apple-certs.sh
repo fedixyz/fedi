@@ -8,11 +8,14 @@ if ! command -v fastlane >/dev/null 2>&1; then
   exit 1
 fi
 
-# this script is used to download the Apple certificates required
-# for Apple App Store deployments and install into the keychain used
-# by the Mac OS runner for CI which is assumed to be the default System.keychain
+# Download and import Apple root + intermediate CA certificates required
+# for code signing chain validation. Imports into MATCH_KEYCHAIN_NAME if
+# set, otherwise into the default keychain.
+KEYCHAIN_ARGS=()
+if [ -n "${MATCH_KEYCHAIN_NAME:-}" ]; then
+  KEYCHAIN_ARGS=(-k "$MATCH_KEYCHAIN_NAME")
+fi
 
-# these are standard Apple root certificates
 urls=(
     "https://www.apple.com/appleca/AppleIncRootCertificate.cer"
     "https://www.apple.com/certificateauthority/AppleWWDRCAG2.cer"
@@ -25,10 +28,10 @@ urls=(
 for url in "${urls[@]}"; do
     filename=$(basename "$url")
     tmpfile="/tmp/$filename"
-    if curl -f -o "$tmpfile" "$url"; then
-        echo "Importing certificate: $tmpfile into default keychain"
-        # continue if the certs are already imported
-        security import "$tmpfile" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild -T /usr/bin/productsign || true
+    if curl -fsSL -o "$tmpfile" "$url"; then
+        security import "$tmpfile" "${KEYCHAIN_ARGS[@]}" \
+          -T /usr/bin/codesign -T /usr/bin/security \
+          -T /usr/bin/productbuild -T /usr/bin/productsign 2>/dev/null || true
     fi
     rm -f "$tmpfile"
 done

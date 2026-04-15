@@ -467,6 +467,7 @@
             ln -s /usr/bin/xcode-select $out/bin/xcode-select
             ln -s /usr/bin/security $out/bin/security
             ln -s /usr/bin/codesign $out/bin/codesign
+            ln -s /usr/bin/rsync $out/bin/rsync
             ls -alh $out/bin
             $out/bin/xcodebuild -version
             # Check if we have the xcodebuild version that we want
@@ -521,7 +522,6 @@
               lib.optionals stdenv.isDarwin [
                 pkgs.bundler
                 pkgs.cocoapods
-                pkgs.rsync
                 pkgs.unzip
                 (pkgs.hiPrio xcode-wrapper)
                 pkgs.fs-dir-cache
