@@ -21,11 +21,17 @@ import { getDeepLinkPath, getHashParams } from '../utils/linking'
 /*
  * Deeplinking flow for new users (via web)
  * 1. User visits Fedi deeplink e.g. /link?screen=join&id=fed1... (this is a deeplink to join a federation)
- * 2. User clicks Open Link button on /link page (they choose not to install native app)
- * 3. User redirected to /onboarding/join?id=fed1... (but user has not onboarded)
- * 4. User redirected to Welcome/Splash page  /#screen=onboarding%2Fjoin&id=fed1... (preserving the url params)
- * 5. When user clicks Get started button on Welcome/Splash page, read url params and redirect to /onboarding/join?id=fed1...
+ * 2. Page attempts to open the native app via fedi:// custom scheme
+ * 3. If the app is not installed, user downloads it from the app store
+ * 4. User returns to this page and clicks Open link in Fedi to replay the deeplink
  */
+
+const openDeepLinkInFedi = (href: string) => {
+    const normalized = normalizeDeepLink(href)
+    if (!normalized) return
+
+    window.location.href = normalized.fediUri
+}
 
 const LinkingPage: NextPage = () => {
     const { t } = useTranslation()
@@ -62,13 +68,10 @@ const LinkingPage: NextPage = () => {
     useEffect(() => {
         if (!loaded || !isMobile) return
 
-        const normalized = normalizeDeepLink(window.location.href)
-        if (!normalized) return
-
-        window.location.href = normalized.fediUri
+        openDeepLinkInFedi(window.location.href)
     }, [loaded, isMobile])
 
-    const handleInApp = () => {
+    const handleDownloadApp = () => {
         const ua = window.navigator.userAgent || ''
 
         if (/iPhone|iPad|iPod/i.test(ua)) {
@@ -81,8 +84,8 @@ const LinkingPage: NextPage = () => {
         }
     }
 
-    const handleInBrowser = () => {
-        replace(getDeepLinkPath(window.location.href))
+    const handleOpenInFedi = () => {
+        openDeepLinkInFedi(window.location.href)
     }
 
     if (!loaded) return null
@@ -109,7 +112,7 @@ const LinkingPage: NextPage = () => {
                     </ActionTitle>
                     <StepCard>
                         <StepNum>1</StepNum>
-                        <Button width="full" onClick={handleInApp}>
+                        <Button width="full" onClick={handleDownloadApp}>
                             {t(
                                 'feature.onboarding.web-link-page-primary-button-text',
                             )}
@@ -127,7 +130,7 @@ const LinkingPage: NextPage = () => {
                         <Button
                             width="full"
                             variant="secondary"
-                            onClick={handleInBrowser}>
+                            onClick={handleOpenInFedi}>
                             {t(
                                 'feature.onboarding.web-link-page-continue-button-text',
                             )}
