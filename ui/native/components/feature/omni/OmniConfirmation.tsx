@@ -7,9 +7,11 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectAreAllFederationsRecovering,
+    selectCommunities,
     selectFeatureFlag,
     selectLoadedFederations,
     setGuardianAssist,
+    setLastSelectedCommunityId,
     setPayFromFederationId,
 } from '@fedi/common/redux'
 import { findAuthenticatedFederation } from '@fedi/common/utils/FederationUtils'
@@ -51,6 +53,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
     const navigation = useNavigation()
     const [isLoading, setIsLoading] = useState(false)
     const walletFederations = useAppSelector(selectLoadedFederations)
+    const communities = useAppSelector(selectCommunities)
     const areAllFederationsRecovering = useAppSelector(
         selectAreAllFederationsRecovering,
     )
@@ -190,7 +193,32 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                             invite: parsedData.data.invite,
                         }),
                 }
-            case ParserDataType.CommunityInvite:
+            case ParserDataType.CommunityInvite: {
+                const existingCommunity = communities.find(
+                    c =>
+                        c.communityInvite.invite_code_str ===
+                        parsedData.data.invite,
+                )
+
+                if (existingCommunity)
+                    return {
+                        contents: {
+                            icon: 'Federation',
+                            title: t('feature.communities.existing-membership'),
+                        },
+                        continueText: t('phrases.take-me-there'),
+                        continueOnPress: () => {
+                            dispatch(
+                                setLastSelectedCommunityId(
+                                    existingCommunity.id,
+                                ),
+                            )
+                            handleNavigate('TabsNavigator', {
+                                initialRouteName: 'Home',
+                            })
+                        },
+                    }
+
                 return {
                     contents: {
                         icon: 'Federation',
@@ -201,6 +229,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                             invite: parsedData.data.invite,
                         }),
                 }
+            }
             case ParserDataType.CashuEcash:
                 return {
                     contents: {

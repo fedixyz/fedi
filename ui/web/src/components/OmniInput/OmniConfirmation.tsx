@@ -13,9 +13,11 @@ import ScanSadIcon from '@fedi/common/assets/svgs/scan-sad.svg'
 import { useMatrixChatInvites } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
+    selectCommunities,
     selectLastUsedFederationId,
     selectLoadedFederations,
     setGuardianAssist,
+    setLastSelectedCommunityId,
 } from '@fedi/common/redux'
 import { AnyParsedData, ParserDataType } from '@fedi/common/types'
 import { findAuthenticatedFederation } from '@fedi/common/utils/FederationUtils'
@@ -24,6 +26,7 @@ import { BLOCKED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parse
 
 import {
     ecashRoute,
+    homeRoute,
     settingsStartRecoveryAssistRoute,
 } from '../../constants/routes'
 import { useRouteStateContext } from '../../context/RouteStateContext'
@@ -52,6 +55,7 @@ export const OmniConfirmation: React.FC<Props> = ({
     const [isLoading, setIsLoading] = useState(false)
     const lastUsedFederationId = useAppSelector(selectLastUsedFederationId)
     const loadedFederations = useAppSelector(selectLoadedFederations)
+    const communities = useAppSelector(selectCommunities)
     const { joinPublicGroup } = useMatrixChatInvites(t)
     const router = useRouter()
 
@@ -139,7 +143,28 @@ export const OmniConfirmation: React.FC<Props> = ({
                             `/onboarding/join?id=${parsedData.data.invite}`,
                         ),
                 }
-            case ParserDataType.CommunityInvite:
+            case ParserDataType.CommunityInvite: {
+                const existingCommunity = communities.find(
+                    c =>
+                        c.communityInvite.invite_code_str ===
+                        parsedData.data.invite,
+                )
+
+                if (existingCommunity)
+                    return {
+                        icon: FederationIcon,
+                        text: t('feature.communities.existing-membership'),
+                        continueText: t('phrases.take-me-there'),
+                        continueOnClick: () => {
+                            dispatch(
+                                setLastSelectedCommunityId(
+                                    existingCommunity.id,
+                                ),
+                            )
+                            router.push(homeRoute)
+                        },
+                    }
+
                 return {
                     icon: FederationIcon,
                     text: t('feature.omni.confirm-community-invite'),
@@ -148,6 +173,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                             `/onboarding/join?id=${parsedData.data.invite}`,
                         ),
                 }
+            }
             case ParserDataType.CashuEcash:
                 return {
                     icon: BoltIcon,

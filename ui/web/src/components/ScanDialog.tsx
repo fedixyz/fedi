@@ -1,4 +1,5 @@
-import { Dispatch, SetStateAction } from 'react'
+import { useRouter } from 'next/router'
+import { Dispatch, SetStateAction, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from './Dialog'
@@ -11,6 +12,19 @@ type Props = {
 
 export const ScanDialog = ({ open, onOpenChange }: Props) => {
     const { t } = useTranslation()
+    const router = useRouter()
+
+    useEffect(() => {
+        const closeScanDialog = () => {
+            onOpenChange(false)
+        }
+
+        router.events.on('routeChangeStart', closeScanDialog)
+
+        return () => {
+            router.events.off('routeChangeStart', closeScanDialog)
+        }
+    }, [router.events, onOpenChange])
 
     return (
         <Dialog title={t('words.scan')} open={open} onOpenChange={onOpenChange}>

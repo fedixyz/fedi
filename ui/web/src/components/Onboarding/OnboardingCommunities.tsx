@@ -140,10 +140,7 @@ export function OnboardingCommunities() {
         body = (
             <OmniInputWrapper>
                 <OmniInput
-                    expectedInputTypes={[
-                        ParserDataType.FedimintInvite,
-                        ParserDataType.CommunityInvite,
-                    ]}
+                    expectedInputTypes={[ParserDataType.FedimintInvite]}
                     onExpectedInput={({ data }) =>
                         handleNavigation(data.invite)
                     }
