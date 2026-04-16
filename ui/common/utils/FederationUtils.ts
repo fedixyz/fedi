@@ -29,7 +29,6 @@ import {
     RpcFederation,
     RpcFederationPreview,
 } from '../types/bindings'
-import { isDev } from './environment'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
 
@@ -141,7 +140,6 @@ export const fetchPublicCommunities = async (): Promise<PublicCommunity[]> => {
 
 const parseFederationsFromMeta = (
     externalMetaJson: ExternalMetaJson,
-    { includeTestnet = false }: { includeTestnet?: boolean } = {},
 ): PublicFederation[] => {
     const nowSeconds = Math.floor(Date.now() / 1000)
     const federations: PublicFederation[] = []
@@ -156,12 +154,7 @@ const parseFederationsFromMeta = (
                 if (!isNaN(expiry) && expiry < nowSeconds) return
             }
 
-            if (
-                (value.public === 'true' && value.invite_code) ||
-                (includeTestnet &&
-                    isDev() &&
-                    value.federation_name === 'Fedi Testnet')
-            ) {
+            if (value.public === 'true' && value.invite_code) {
                 federations.push({
                     id: key,
                     name:
@@ -181,9 +174,7 @@ export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
     try {
         const metaJson = await fetchExternalMetadata(PUBLIC_FEDERATIONS_API_URL)
         if (!metaJson) throw new Error('No public federations meta to read')
-        return parseFederationsFromMeta(metaJson, {
-            includeTestnet: true,
-        })
+        return parseFederationsFromMeta(metaJson)
     } catch (error) {
         log.error('Failed to fetch public federations', error)
         return []
