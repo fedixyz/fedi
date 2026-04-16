@@ -25,12 +25,14 @@ describe('SendOffline', () => {
     const mockOnEcashGenerated = jest.fn()
     const mockOnPaymentSent = jest.fn()
     const mockCalculateMaxGenerateEcash = Promise.resolve(1_999_000 as MSats)
+    const mockGenerateEcash = Promise.resolve({ ecash: 'ecash-token-abcdef' })
 
     beforeEach(() => {
         store = setupStore()
         state = store.getState()
         mockFedimint = createMockFedimintBridge({
             calculateMaxGenerateEcash: mockCalculateMaxGenerateEcash,
+            generateEcash: mockGenerateEcash,
         })
 
         jest.clearAllTimers()
@@ -42,11 +44,12 @@ describe('SendOffline', () => {
         cleanup()
     })
 
-    it("should render the 'send' button on the screen", async () => {
+    it("should render the 'next' button on the screen", async () => {
         renderWithProviders(
             <SendOffline
                 onEcashGenerated={mockOnEcashGenerated}
                 onPaymentSent={mockOnPaymentSent}
+                onCancel={() => {}}
                 federationId="test-federation-id"
             />,
             {
@@ -54,12 +57,58 @@ describe('SendOffline', () => {
             },
         )
 
-        const next = i18n.t('words.send')
-        const nextButton = screen.getByText(next)
+        const nextButton = await screen.findByText(i18n.t('words.next'))
+        expect(nextButton).toBeInTheDocument()
+    })
 
-        await waitFor(() => {
-            expect(nextButton).toBeInTheDocument()
-        })
+    it('should call onCancel when the cancel button is clicked', async () => {
+        const mockOnCancel = jest.fn()
+
+        renderWithProviders(
+            <SendOffline
+                onEcashGenerated={mockOnEcashGenerated}
+                onPaymentSent={mockOnPaymentSent}
+                onCancel={mockOnCancel}
+                federationId={mockFederation1.id}
+            />,
+            {
+                fedimint: mockFedimint,
+                preloadedState: {
+                    currency: {
+                        ...state.currency,
+                        overrideCurrency: SupportedCurrency.USD,
+                        currencyLocale: 'en-US',
+                        btcUsdRate: 100000,
+                    },
+                    environment: {
+                        ...state.environment,
+                        transactionDisplayType: 'fiat',
+                        amountInputType: 'sats',
+                    },
+                    federation: {
+                        ...state.federation,
+                        federations: [mockFederation1],
+                        recentlyUsedFederationIds: [mockFederation1.id],
+                        payFromFederationId: mockFederation1.id,
+                    },
+                },
+            },
+        )
+
+        // Press 5 on numpad
+        await user.click(screen.getByText('5'))
+
+        const nextButton = await screen.findByText(i18n.t('words.next'))
+
+        await user.click(nextButton)
+
+        const cancelButton = await screen.findByText(
+            i18n.t('feature.send.cancel-send'),
+        )
+
+        await user.click(cancelButton)
+
+        expect(mockOnCancel).toHaveBeenCalledWith('ecash-token-abcdef')
     })
 
     it('should render the primary amount in fiat and the secondary amount in sats when amountInputType is fiat', async () => {
@@ -67,6 +116,7 @@ describe('SendOffline', () => {
             <SendOffline
                 onEcashGenerated={mockOnEcashGenerated}
                 onPaymentSent={mockOnPaymentSent}
+                onCancel={() => {}}
                 federationId="test-federation-id"
             />,
             {
@@ -100,6 +150,7 @@ describe('SendOffline', () => {
             <SendOffline
                 onEcashGenerated={mockOnEcashGenerated}
                 onPaymentSent={mockOnPaymentSent}
+                onCancel={() => {}}
                 federationId="test-federation-id"
             />,
             {
@@ -133,14 +184,11 @@ describe('SendOffline', () => {
     })
 
     it('should prevent the user from sending more than the max ecash send balance', async () => {
-        // const fedimint = createMockFedimintBridge({
-        //     calculateMaxGenerateEcash: 1_999_000 as MSats,
-        // })
-
         renderWithProviders(
             <SendOffline
                 onEcashGenerated={mockOnEcashGenerated}
                 onPaymentSent={mockOnPaymentSent}
+                onCancel={() => {}}
                 federationId="1"
             />,
             {
@@ -195,6 +243,7 @@ describe('SendOffline', () => {
             <SendOffline
                 onEcashGenerated={mockOnEcashGenerated}
                 onPaymentSent={mockOnPaymentSent}
+                onCancel={() => {}}
                 federationId="1"
             />,
             {

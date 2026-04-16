@@ -5,15 +5,18 @@ import { useTranslation } from 'react-i18next'
 import OfflineIcon from '@fedi/common/assets/svgs/offline.svg'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
+import { useToast } from '@fedi/common/hooks/toast'
 import {
+    cancelEcash,
     selectShouldRateFederation,
     selectPaymentFederation,
     setSuggestedPaymentFederation,
 } from '@fedi/common/redux'
 import { ParserDataType, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { formatErrorMessage } from '@fedi/common/utils/format'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { walletRoute } from '../../constants/routes'
 import {
@@ -35,6 +38,8 @@ import Success from '../Success'
 import { Text } from '../Text'
 import { SendOffline } from './SendOffline'
 
+const log = makeLog('Send')
+
 const expectedInputTypes = [
     ParserDataType.Bolt11,
     ParserDataType.LnurlPay,
@@ -45,8 +50,10 @@ const expectedInputTypes = [
 const Send: React.FC = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { pushWithState } = useRouteStateContext()
     const router = useRouter()
+    const toast = useToast()
 
     const federation = useAppSelector(selectPaymentFederation)
     const federationId = federation?.id || ''
@@ -70,7 +77,7 @@ const Send: React.FC = () => {
     const [isSendingOffline, setIsSendingOffline] = useState(false)
     const [isSending, setIsSending] = useState(false)
     const [hasSent, setHasSent] = useState(false)
-    const [sendError, setSendError] = useState<string>()
+    const [sendError, setSendError] = useState(false)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [paymentType, setPaymentType] = useState<'lightning' | 'onchain'>()
 
@@ -105,8 +112,17 @@ const Send: React.FC = () => {
         handleOmniInput(sendRouteState)
     }, [sendRouteState, handleOmniInput])
 
+    useEffect(() => {
+        if (!hasSent) return
+
+        setTimeout(() => {
+            setShowRateFederation(true)
+        }, 2000)
+    }, [hasSent, shouldRateFederation])
+
     const handleChangeAmount = useCallback(
         (amount: Sats) => {
+            setSendError(false)
             setSubmitAttempts(0)
             setInputAmount(amount)
         },
@@ -120,22 +136,72 @@ const Send: React.FC = () => {
         try {
             await handleOmniSend(inputAmount)
             setHasSent(true)
-            setTimeout(() => {
-                // onOpenChange(false)
-
-                if (shouldRateFederation) setShowRateFederation(true)
-            }, 2500)
         } catch (err) {
-            setSendError(formatErrorMessage(t, err, 'errors.unknown-error'))
+            log.error('Error sending bitcoin', err)
+            setSendError(true)
+        } finally {
+            setIsSending(false)
         }
-        setIsSending(false)
     }
 
+    const handleEcashPaymentSent = (amount: Sats) => {
+        setInputAmount(amount)
+        setHasSent(true)
+    }
+
+    const handleCancelEcash = async (ecash: string) => {
+        try {
+            if (!ecash) return
+            await dispatch(cancelEcash({ fedimint, ecash })).unwrap()
+
+            toast.show({
+                status: 'success',
+                content: t('phrases.canceled-ecash-send'),
+            })
+        } catch (e) {
+            toast.error(t, e)
+        } finally {
+            router.push(walletRoute)
+        }
+    }
     if (typeof balance !== 'number') return null
 
     let content: React.ReactNode
 
     const satsFmt = inputAmount ? amountUtils.formatSats(inputAmount) : ''
+
+    if (hasSent) {
+        return (
+            <>
+                <Success
+                    title={t('feature.send.you-sent-amount-unit', {
+                        amount: satsFmt,
+                        unit: t('words.sats'),
+                    })}
+                    buttonText={t('words.done')}
+                    onClick={() => router.push(walletRoute)}
+                />
+
+                <RateFederationDialog
+                    show={showRateFederation && shouldRateFederation}
+                    onDismiss={() => {
+                        setShowRateFederation(false)
+                    }}
+                />
+            </>
+        )
+    }
+    if (sendError) {
+        return (
+            // Success can show errors too but needs a better name
+            <Success
+                title={t('errors.failed-to-send-payment')}
+                buttonText={t('words.done')}
+                onClick={() => router.push(walletRoute)}
+                type="error"
+            />
+        )
+    }
 
     if (isReadyToPay) {
         content = (
@@ -180,38 +246,12 @@ const Send: React.FC = () => {
                 </Button>
             </>
         )
-
-        if (hasSent) {
-            return (
-                <Success
-                    title={t('feature.send.you-sent-amount-unit', {
-                        amount: satsFmt,
-                        unit: t('words.sats'),
-                    })}
-                    buttonText={t('words.done')}
-                    onClick={() => router.push(walletRoute)}
-                />
-            )
-        }
-        if (sendError) {
-            return (
-                // Success can show errors too but needs a better name
-                <Success
-                    title={t('errors.failed-to-send-payment')}
-                    buttonText={t('words.done')}
-                    onClick={() => router.push(walletRoute)}
-                    type="error"
-                />
-            )
-        }
     } else if (isSendingOffline) {
         content = (
             <SendOffline
                 onEcashGenerated={() => {}}
-                onPaymentSent={() => {
-                    if (shouldRateFederation) setShowRateFederation(true)
-                    router.push(walletRoute)
-                }}
+                onPaymentSent={handleEcashPaymentSent}
+                onCancel={handleCancelEcash}
                 federationId={federationId}
             />
         )
@@ -251,15 +291,6 @@ const Send: React.FC = () => {
                         {content}
                     </Column>
                 </Layout.Content>
-
-                {shouldRateFederation && (
-                    <RateFederationDialog
-                        show={showRateFederation}
-                        onDismiss={() => {
-                            setShowRateFederation(false)
-                        }}
-                    />
-                )}
             </Layout.Root>
         </ContentBlock>
     )
