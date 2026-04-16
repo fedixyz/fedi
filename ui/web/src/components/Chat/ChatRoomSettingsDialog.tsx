@@ -13,11 +13,11 @@ import {
     selectIsDefaultGroup,
     selectMatrixRoomSelfPowerLevel,
     setMatrixRoomBroadcastOnly,
-    setMatrixRoomName,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel, MatrixRoom } from '@fedi/common/types'
 import { isPowerLevelGreaterOrEqual } from '@fedi/common/utils/matrix'
 
+import { chatEditRoomRoute } from '../../constants/routes'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
@@ -42,7 +42,7 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const { replace } = useRouter()
+    const { push, replace } = useRouter()
     const myPowerLevel = useAppSelector(s =>
         selectMatrixRoomSelfPowerLevel(s, room.id),
     )
@@ -67,23 +67,6 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
         if (open) return
         setPage('index')
     }, [open])
-
-    const handleEditRoomName = useCallback(async () => {
-        try {
-            const newName = prompt(t('feature.chat.change-group-name'))
-            if (!newName) return
-            await dispatch(
-                setMatrixRoomName({
-                    fedimint,
-                    roomId: room.id,
-                    name: newName,
-                }),
-            ).unwrap()
-            onOpenChange(false)
-        } catch (err) {
-            error(t, 'errors.unknown-error')
-        }
-    }, [t, dispatch, room.id, onOpenChange, error])
 
     const handleLeaveRoom = useCallback(async () => {
         const shouldLeave = confirm(t('feature.chat.leave-group-confirmation'))
@@ -151,7 +134,7 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
                     {
                         label: t('feature.chat.change-group-name'),
                         icon: EditIcon,
-                        onClick: handleEditRoomName,
+                        onClick: () => push(chatEditRoomRoute(room.id)),
                         disabled: !isAdmin,
                     },
                     {

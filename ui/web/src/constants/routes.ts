@@ -45,3 +45,4 @@ export const chatUserRoute = (id: string) => `${chatRoute}/user/${id}`
 export const chatRoomRoute = (id: string) => `${chatRoute}/room/${id}`
 export const chatNewRoute = `${chatRoute}/new`
 export const chatNewRoomRoute = `${chatRoute}/new/room`
+export const chatEditRoomRoute = (id: string) => `${chatRoute}/edit-room/${id}`
