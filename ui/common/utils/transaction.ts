@@ -733,6 +733,17 @@ export const makeTxnFeeDetails = (
     // TODO - Add Federation Fee once RPC supports it
     //  t('phrases.federation-fee'),
 
+    if (txn.kind === 'onchainDeposit') {
+        const pegInFees = txn.peg_in_fees ?? (0 as MSats)
+        const { formattedPrimaryAmount, formattedSecondaryAmount } =
+            makeFormattedAmountsFromMSats(pegInFees as MSats)
+        items.push({
+            label: t('phrases.peg-in-fee'),
+            formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
+        })
+        totalFee += pegInFees
+    }
+
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromMSats(totalFee as MSats)
     const fediFee = {

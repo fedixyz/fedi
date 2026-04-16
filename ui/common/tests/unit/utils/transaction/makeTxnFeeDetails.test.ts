@@ -101,10 +101,15 @@ describe('makeTxnFeeDetails', () => {
             // For the sake of this test, the lightning fee is 20 sats
             lightning_fees: 20_000 as MSats,
         })
-        const onchainTxn = makeTestTxnEntry('onchainWithdraw', {
+        const onchainWithdrawTxn = makeTestTxnEntry('onchainWithdraw', {
             fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
             // For the sake of this test, the network fee is 30 sats
             onchain_fees: 30_000 as MSats,
+        })
+        const onchainDepositTxn = makeTestTxnEntry('onchainDeposit', {
+            fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            // For the sake of this test, the network fee is 30 sats
+            peg_in_fees: 1_000_000 as MSats,
         })
         const oobTxn = makeTestTxnEntry('oobSend', {
             fediFeeStatus: makeTestFediFeeStatus('success', 50_000),
@@ -117,7 +122,11 @@ describe('makeTxnFeeDetails', () => {
             formattedAmount: '0.03 USD (30 SATS)',
         })
         expect(
-            makeTxnFeeDetails(t, onchainTxn, makeFormattedAmountsFromMSats),
+            makeTxnFeeDetails(
+                t,
+                onchainWithdrawTxn,
+                makeFormattedAmountsFromMSats,
+            ),
         ).toContainEqual({
             label: t('phrases.total-fees'),
             formattedAmount: '0.04 USD (40 SATS)',
@@ -127,6 +136,26 @@ describe('makeTxnFeeDetails', () => {
         ).toContainEqual({
             label: t('phrases.total-fees'),
             formattedAmount: '0.05 USD (50 SATS)',
+        })
+        expect(
+            makeTxnFeeDetails(
+                t,
+                onchainDepositTxn,
+                makeFormattedAmountsFromMSats,
+            ),
+        ).toContainEqual({
+            label: t('phrases.peg-in-fee'),
+            formattedAmount: '1.00 USD (1,000 SATS)',
+        })
+        expect(
+            makeTxnFeeDetails(
+                t,
+                onchainDepositTxn,
+                makeFormattedAmountsFromMSats,
+            ),
+        ).toContainEqual({
+            label: t('phrases.total-fees'),
+            formattedAmount: '1.01 USD (1,010 SATS)',
         })
     })
 })
