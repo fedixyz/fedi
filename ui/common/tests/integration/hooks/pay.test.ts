@@ -200,6 +200,30 @@ describe('sending payments', () => {
             )
             expect(lastUsedFederationId).toEqual(federationId)
         })
+
+        it('should keep reset stable across rerenders', async () => {
+            await builder.withEcashReceived(10000)
+
+            const {
+                store,
+                bridge: { fedimint },
+            } = context
+
+            const federationId = selectLastUsedFederationId(store.getState())
+            const { result } = renderHookWithBridge(
+                () => useSendEcash(federationId || ''),
+                store,
+                fedimint,
+            )
+            const initialReset = result.current.reset
+
+            await act(() => result.current.generateEcash(2 as Sats))
+
+            await waitFor(() => {
+                expect(result.current.isGeneratingEcash).toBeFalsy()
+                expect(result.current.reset).toBe(initialReset)
+            })
+        })
     })
 
     describe('useParseEcash', () => {

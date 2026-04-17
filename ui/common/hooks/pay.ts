@@ -355,11 +355,11 @@ export function useSendEcash(federationId: string) {
     const [operationId, setOperationId] = useState<string | null>(null)
     const [isGeneratingEcash, setIsGeneratingEcash] = useState(false)
 
-    const reset = () => {
+    const reset = useCallback(() => {
         setNotes(null)
         setOperationId(null)
         setIsGeneratingEcash(false)
-    }
+    }, [])
 
     const generateEcash = useCallback(
         async (amount: Sats, memo: string = '') => {
