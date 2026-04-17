@@ -106,6 +106,10 @@
           ];
         };
 
+        vercelCli = pkgs.writeShellScriptBin "vercel" ''
+          exec ${pkgs.nodejs_22}/bin/npm exec --yes --package vercel@51.6.1 -- vercel "$@"
+        '';
+
         fmLib = fedimint-pkgs.lib.${system};
 
         # Replace placeholder git hash in a binary
@@ -583,7 +587,7 @@
           # tool for managing pwa deployment
           vercel = crossDevShell.overrideAttrs (prev: {
             nativeBuildInputs = prev.nativeBuildInputs ++ [
-              pkgs.nodePackages_latest.vercel
+              vercelCli
             ];
           });
         };
