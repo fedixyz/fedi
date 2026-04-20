@@ -5,6 +5,7 @@ import { RejectionError } from 'webln'
 
 import { useMinMaxSendAmount, useRequestForm } from '@fedi/common/hooks/amount'
 import { useSendEcash } from '@fedi/common/hooks/pay'
+import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectEcashRequest, selectPaymentFederation } from '@fedi/common/redux'
 import { formatErrorMessage } from '@fedi/common/utils/format'
@@ -30,6 +31,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const toast = useToast()
     const ecashRequest = useAppSelector(selectEcashRequest)
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const onRejectRef = useUpdatingRef(onReject)
@@ -65,6 +67,9 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
     const handleAccept = async () => {
         setSubmitAttempts(attempts => attempts + 1)
         if (inputAmount > maximumAmount || inputAmount < minimumAmount) {
+            if (inputAmount > maximumAmount) {
+                toast.error(t, 'errors.please-select-balance-federation')
+            }
             return
         }
 

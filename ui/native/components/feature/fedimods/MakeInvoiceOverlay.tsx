@@ -5,6 +5,7 @@ import { RejectionError } from 'webln'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     generateInvoice,
@@ -36,6 +37,7 @@ interface Props {
 export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const toast = useToast()
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
@@ -76,6 +78,9 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const handleAccept = async () => {
         setSubmitAttempts(attempts => attempts + 1)
         if (inputAmount > maximumAmount || inputAmount < minimumAmount) {
+            if (inputAmount > maximumAmount) {
+                toast.error(t, 'errors.please-select-balance-federation')
+            }
             return
         }
 

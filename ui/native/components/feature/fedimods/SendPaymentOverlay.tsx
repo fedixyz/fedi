@@ -6,6 +6,7 @@ import { RejectionError } from 'webln'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
+import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
@@ -44,6 +45,7 @@ interface Props {
 export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const toast = useToast()
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(
         t,
@@ -111,6 +113,9 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const handleAccept = async () => {
         setSubmitAttempts(attempts => attempts + 1)
         if (inputAmount > maximumAmount || inputAmount < minimumAmount) {
+            if (inputAmount > maximumAmount) {
+                toast.error(t, 'errors.please-select-balance-federation')
+            }
             return
         }
 
@@ -266,10 +271,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                     {
                         primary: true,
                         text: t('words.accept'),
-                        disabled:
-                            !!error ||
-                            inputAmount < minimumAmount ||
-                            inputAmount > maximumAmount,
+                        disabled: !!error,
                         onPress: handleAccept,
                     },
                 ],

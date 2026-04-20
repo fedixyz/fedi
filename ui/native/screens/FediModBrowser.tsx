@@ -410,6 +410,16 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 async ecashRequestArgs => {
                     log.info('fedi.generateEcash', ecashRequestArgs)
 
+                    if (walletFederations.length === 0) {
+                        toast.show({
+                            content: t('errors.please-join-wallet-federation'),
+                            status: 'error',
+                        })
+                        throw new Error(
+                            t('errors.please-join-wallet-federation'),
+                        )
+                    }
+
                     // Wait for user to interact with alert
                     return new Promise((resolve, reject) => {
                         // Save these refs so we can resolve / reject elsewhere
