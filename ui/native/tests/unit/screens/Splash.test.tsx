@@ -124,19 +124,25 @@ describe('Splash screen', () => {
 
             await user.press(getStartedButton)
 
-            expect(mockNavigation.reset).toHaveBeenCalledWith({
-                index: 1,
-                routes: [
-                    {
-                        name: 'TabsNavigator',
-                    },
-                    {
-                        name: 'ChatRoomConversation',
-                        params: {
-                            roomId: '123',
+            expect(mockNavigation.dispatch).toHaveBeenCalledWith({
+                payload: {
+                    index: 1,
+                    routes: [
+                        {
+                            name: 'TabsNavigator',
+                            params: {
+                                initialRouteName: 'Wallet',
+                            },
                         },
-                    },
-                ],
+                        {
+                            name: 'ChatRoomConversation',
+                            params: {
+                                roomId: '123',
+                            },
+                        },
+                    ],
+                },
+                type: 'RESET',
             })
         })
     })
@@ -164,21 +170,19 @@ describe('Splash screen', () => {
 
             await user.press(getStartedButton)
 
-            expect(mockNavigation.reset).toHaveBeenCalledWith({
-                index: 0,
-                routes: [
-                    {
-                        name: 'TabsNavigator',
-                        state: {
-                            routes: [
-                                {
-                                    name: 'Chat',
-                                    params: {},
-                                },
-                            ],
+            expect(mockNavigation.dispatch).toHaveBeenCalledWith({
+                payload: {
+                    index: 0,
+                    routes: [
+                        {
+                            name: 'TabsNavigator',
+                            params: {
+                                initialRouteName: 'Chat',
+                            },
                         },
-                    },
-                ],
+                    ],
+                },
+                type: 'RESET',
             })
         })
     })

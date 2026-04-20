@@ -14,6 +14,10 @@ import {
     RootStackParamList,
 } from '../types/navigation'
 import { useIsFeatureUnlocked } from '../utils/hooks/security'
+import {
+    consumePendingUnlockNavigationArgs,
+    navigationArgsToResetAction,
+} from '../utils/linking'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Initializing'>
 
@@ -29,25 +33,34 @@ const Initializing: React.FC<Props> = () => {
     useEffect(() => {
         if (!hasLoaded || isAppUnlocked === undefined) return
 
-        let destination: NavigationArgs = ['TabsNavigator']
-
         // if FediBridgeInitializer detects a device id mismatch,
         // we need to force the user to the migrated device screen
         if (shouldMigrateSeed) {
-            destination = ['MigratedDevice']
+            const destination: NavigationArgs = ['MigratedDevice']
             return navigation.replace(...destination)
         }
 
         if (onboardingCompleted === false) {
-            destination = ['Splash']
+            const destination: NavigationArgs = ['Splash']
             return navigation.replace(...destination)
         }
+
+        const pendingUnlockDestination = consumePendingUnlockNavigationArgs()
+        const destination: NavigationArgs = pendingUnlockDestination ?? [
+            'TabsNavigator',
+        ]
 
         // If PIN-protected, navigate to the Lock Screen
         if (!isAppUnlocked) {
             return navigation.replace('LockScreen', {
                 routeParams: destination,
             })
+        }
+
+        if (pendingUnlockDestination) {
+            return navigation.dispatch(
+                navigationArgsToResetAction(pendingUnlockDestination),
+            )
         }
 
         navigation.replace(...destination)

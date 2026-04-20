@@ -77,6 +77,56 @@ describe('linking', () => {
             })
         })
 
+        describe('when a mods tab deep link is passed', () => {
+            it.each(['fedi://mods', 'fedi://miniapps'])(
+                'should return the Mods tab route for %s',
+                fediUri => {
+                    const result = linking.getInternalLinkRoute(fediUri)
+
+                    expect(result).toEqual({
+                        routes: [
+                            {
+                                name: 'TabsNavigator',
+                                state: {
+                                    routes: [
+                                        {
+                                            name: 'Mods',
+                                            params: {},
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                    })
+                },
+            )
+        })
+
+        describe('when an unknown fedi internal link path is passed', () => {
+            it.each(['fedi://random', 'fedi://random?foo=bar'])(
+                'should return the Wallet tab route for %s',
+                fediUri => {
+                    const result = linking.getInternalLinkRoute(fediUri)
+
+                    expect(result).toEqual({
+                        routes: [
+                            {
+                                name: 'TabsNavigator',
+                                state: {
+                                    routes: [
+                                        {
+                                            name: 'Wallet',
+                                            params: {},
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                    })
+                },
+            )
+        })
+
         describe('when a non-TabsNavigator normalized deep link path without query string params is passed', () => {
             it('should return the correct route', () => {
                 const fediUri = 'share-logs'

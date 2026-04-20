@@ -91,6 +91,26 @@ export const isFediDeeplinkType = (url: string): boolean =>
     )
 
 /**
+ * Check if a URL is a Fedi internal link type e.g. fedi://chat
+ */
+export const isFediInternalLink = (url: string): boolean => {
+    if (!url) return false
+    return url.toLowerCase().startsWith('fedi:')
+}
+
+export const getNavigationLink = (url: string): string | undefined => {
+    if (isDeepLink(url)) {
+        return normalizeDeepLink(url)?.fediUri
+    }
+
+    if (isFediInternalLink(url)) {
+        return url
+    }
+
+    return undefined
+}
+
+/**
  * Ensure a community invite code has the `fedi:` prefix required by the
  * backend. Codes arriving from deeplinks may have the prefix stripped.
  */

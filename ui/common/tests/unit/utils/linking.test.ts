@@ -85,4 +85,62 @@ describe('common/utils/linking', () => {
             })
         })
     })
+
+    describe('isFediInternalLink', () => {
+        it('should return true for fedi:// links', () => {
+            const url = 'fedi://chat'
+
+            expect(linking.isFediInternalLink(url)).toBe(true)
+        })
+
+        it('should return true for fedi: links', () => {
+            const url = 'fedi:chat'
+
+            expect(linking.isFediInternalLink(url)).toBe(true)
+        })
+
+        it('should return true for uppercase Fedi links', () => {
+            const url = 'FEDI://chat'
+
+            expect(linking.isFediInternalLink(url)).toBe(true)
+        })
+
+        it('should return false for web deeplinks', () => {
+            const url = 'https://app.fedi.xyz/link?screen=chat'
+
+            expect(linking.isFediInternalLink(url)).toBe(false)
+        })
+
+        it('should return false for non-Fedi links', () => {
+            const url = 'lightning:lnbc123'
+
+            expect(linking.isFediInternalLink(url)).toBe(false)
+        })
+    })
+
+    describe('getNavigationLink', () => {
+        it('should normalize a Fedi web deeplink to an internal navigation link', () => {
+            const url = 'https://app.fedi.xyz/link?screen=chat'
+
+            expect(linking.getNavigationLink(url)).toBe('fedi://chat')
+        })
+
+        it('should normalize a Fedi web deeplink with params to an internal navigation link', () => {
+            const url = 'https://app.fedi.xyz/link?screen=room&id=123'
+
+            expect(linking.getNavigationLink(url)).toBe('fedi://room?id=123')
+        })
+
+        it('should return a Fedi internal link as-is', () => {
+            const url = 'fedi://chat'
+
+            expect(linking.getNavigationLink(url)).toBe(url)
+        })
+
+        it('should return undefined for non-navigation links', () => {
+            const url = 'lightning:lnbc123'
+
+            expect(linking.getNavigationLink(url)).toBeUndefined()
+        })
+    })
 })

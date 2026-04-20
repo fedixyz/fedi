@@ -11,14 +11,19 @@ import { Linking } from 'react-native'
 
 import { setRedirectTo } from '@fedi/common/redux'
 import {
-    isDeepLink,
+    getNavigationLink,
     normalizeCommunityInviteCode,
-    normalizeDeepLink,
 } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { reset, resetToHomeWithScreen } from '../state/navigation'
 import type { AppDispatch } from '../state/store'
-import { RootStackParamList, TabsNavigatorParamList } from '../types/navigation'
+import {
+    NavigationArgs,
+    RootStackParamList,
+    TabsNavigatorParamList,
+    TypedRoute,
+} from '../types/navigation'
 import { isZendeskNotification } from './notifications'
 import { launchZendeskSupport, zendeskCloseMessagingView } from './support'
 
@@ -28,13 +33,24 @@ type RootState = NavigationState<RootStackParamList>
 type TypedInitialState = PartialState<RootState>
 type RootScreen = Exclude<keyof RootStackParamList, 'TabsNavigator'>
 type TabScreen = keyof TabsNavigatorParamList
-type ScreenResult =
-    | { screen: RootScreen; params?: Record<string, string> }
+type InternalLinkTarget =
     | {
-          screen: TabScreen
-          parent: 'TabsNavigator'
+          kind: 'root'
+          screen: RootScreen
           params?: Record<string, string>
       }
+    | {
+          kind: 'tab'
+          screen: TabScreen
+          params?: Record<string, string>
+      }
+type NavigationLinkReadinessResult =
+    // for payment URIs (lightning:, bitcoin:, ...) — handled by the omni parser
+    | { kind: 'external'; url: string }
+    // for Fedi navigation links (fedi:) — handled by React Navigation
+    | { kind: 'ready'; navigationLink: string }
+    // when URLs are processed but stashed to be replayed after onboarding and/or PIN unlock
+    | { kind: 'handled' }
 
 const SUPPORTED_PREFIXES = [
     'fedi://',
@@ -48,54 +64,66 @@ const SUPPORTED_PREFIXES = [
 ]
 
 const pendingLinks: string[] = []
+let pendingUnlockNavigationArgs: NavigationArgs | undefined
+let pendingUnlockExternalUrl: string | undefined
 
 // Mapping used to convert path names to screens
 export const screenMap: Record<
     string,
-    (params: Record<string, string>) => ScreenResult | undefined
+    (params: Record<string, string>) => InternalLinkTarget | undefined
 > = {
-    home: () => ({ screen: 'Home', parent: 'TabsNavigator' }),
-    chat: () => ({ screen: 'Chat', parent: 'TabsNavigator' }),
+    wallet: () => ({ kind: 'tab', screen: 'Wallet' }),
+    // 'federations' is for backwards compatibility (can be removed at a later date)
+    federations: () => ({ kind: 'tab', screen: 'Wallet' }),
+    home: () => ({ kind: 'tab', screen: 'Home' }),
+    chat: () => ({ kind: 'tab', screen: 'Chat' }),
+    miniapps: () => ({ kind: 'tab', screen: 'Mods' }),
+    // 'mods' is for backwards compatibility (can be removed at a later date)
+    mods: () => ({ kind: 'tab', screen: 'Mods' }),
     user: (params: Record<string, string>) => {
         const userId = params?.userId ?? params?.id
         if (userId)
-            return { screen: 'ChatUserConversation', params: { userId } }
+            return {
+                kind: 'root',
+                screen: 'ChatUserConversation',
+                params: { userId },
+            }
         return undefined
     },
     room: (params: Record<string, string>) => {
         const roomId = params?.roomId ?? params?.id
         if (roomId)
             return {
+                kind: 'root',
                 screen: 'ChatRoomConversation',
                 params: { roomId },
             }
         return undefined
     },
-    wallet: () => ({ screen: 'Wallet', parent: 'TabsNavigator' }),
-    // this is for backwards compatibility
-    // TODO: remove legacy /federations deeplink after some time...
-    federations: () => ({ screen: 'Wallet', parent: 'TabsNavigator' }),
     browser: (params: Record<string, string>) => {
         const raw = params?.url ?? params?.id
-        if (!raw) return { screen: 'FediModBrowser' }
+        if (!raw) return { kind: 'root', screen: 'FediModBrowser' }
         // Ensure bare domains get https:// prefix, matching AddressBarOverlay behavior
         const url = /^https?:\/\//.test(raw) ? raw : `https://${raw}`
-        return { screen: 'FediModBrowser', params: { url } }
+        return { kind: 'root', screen: 'FediModBrowser', params: { url } }
     },
-    ecash: () => ({ screen: 'ClaimEcash' }),
+    ecash: () => ({ kind: 'root', screen: 'ClaimEcash' }),
     join: (params: Record<string, string>) => {
         const invite = params?.invite ?? params?.id
         if (invite)
             return {
+                kind: 'root',
                 screen: 'JoinFederation',
                 params: { invite: normalizeCommunityInviteCode(invite) },
             }
-        return { screen: 'JoinFederation' }
+        return { kind: 'root', screen: 'JoinFederation' }
     },
+    'share-logs': () => ({ kind: 'root', screen: 'ShareLogs' }),
     'join-then-ecash': (params: Record<string, string>) => {
         const { invite, ecash } = params
         if (!invite || !ecash) return undefined
         return {
+            kind: 'root',
             screen: 'JoinFederation',
             params: {
                 invite: normalizeCommunityInviteCode(invite),
@@ -108,6 +136,7 @@ export const screenMap: Record<
         if (!invite || !raw) return undefined
         const url = /^https?:\/\//.test(raw) ? raw : `https://${raw}`
         return {
+            kind: 'root',
             screen: 'JoinFederation',
             params: {
                 invite: normalizeCommunityInviteCode(invite),
@@ -115,28 +144,32 @@ export const screenMap: Record<
             },
         }
     },
-    'share-logs': () => ({ screen: 'ShareLogs' }),
 }
 
 type ScreenKey = keyof typeof screenMap
 
-function navigateToUri(
+export function consumePendingUnlockNavigationArgs():
+    | NavigationArgs
+    | undefined {
+    const navigationArgs = pendingUnlockNavigationArgs
+    pendingUnlockNavigationArgs = undefined
+    return navigationArgs
+}
+
+export function consumePendingUnlockExternalUrl(): string | undefined {
+    const url = pendingUnlockExternalUrl
+    pendingUnlockExternalUrl = undefined
+    return url
+}
+
+function dispatchInternalLinkReset(
     navigationRef: NavigationContainerRef<RootStackParamList>,
     uri: string,
 ) {
-    const route = getInternalLinkRoute(uri)
-    if (!route) return
+    const action = getInternalLinkResetAction(uri)
+    if (!action) return
 
-    const currentRoute = navigationRef.getCurrentRoute()
-    if (!currentRoute) return
-
-    navigationRef.reset({
-        index: 1,
-        routes: [
-            { name: currentRoute.name, params: currentRoute.params },
-            ...route.routes,
-        ],
-    })
+    navigationRef.dispatch(action)
 }
 
 export function flushPendingLinks(
@@ -145,7 +178,7 @@ export function flushPendingLinks(
     while (pendingLinks.length) {
         const uri = pendingLinks.shift()
         if (!uri) continue
-        navigateToUri(navigationRef, uri)
+        dispatchInternalLinkReset(navigationRef, uri)
     }
 }
 
@@ -157,30 +190,27 @@ export function patchLinkingOpenURL(
     const originalOpenURL = Linking.openURL.bind(Linking)
 
     Linking.openURL = async (url: string) => {
-        if (isDeepLink(url)) {
-            const result = normalizeDeepLink(url)
-            if (!result) return
+        const navigationLink = getNavigationLink(url)
 
-            const route = getInternalLinkRoute(result.fediUri)
-            if (!route) return
+        if (navigationLink) {
+            const action = getInternalLinkResetAction(navigationLink)
+            if (!action) return
 
             if (!navigationRef.isReady()) {
-                pendingLinks.push(result.fediUri)
+                pendingLinks.push(navigationLink)
                 return
             }
 
-            return navigateToUri(navigationRef, result.fediUri)
+            return navigationRef.dispatch(action)
         }
 
         return originalOpenURL(url)
     }
 }
 
-// Handles fedi:// type links (with or without protocol prefix)
-export function getInternalLinkRoute(
-    path: string,
-    options?: Parameters<typeof defaultGetStateFromPath>[1],
-): TypedInitialState | undefined {
+// Parses an internal deeplink into the app-level target all other helpers use.
+// Unknown fedi: paths intentionally fall back to Wallet.
+function getInternalLinkTarget(path: string): InternalLinkTarget | undefined {
     try {
         // Strip any supported prefix from the path
         const [rawScreen, queryString] = SUPPORTED_PREFIXES.reduce(
@@ -190,17 +220,13 @@ export function getInternalLinkRoute(
             path,
         ).split('?')
 
-        if (!rawScreen) {
-            return defaultGetStateFromPath(path, options) as
-                | TypedInitialState
-                | undefined
-        }
+        if (!rawScreen) return undefined
 
         const mapper = screenMap[rawScreen as ScreenKey]
         if (!mapper) {
-            return defaultGetStateFromPath(path, options) as
-                | TypedInitialState
-                | undefined
+            if (path.toLowerCase().startsWith('fedi:'))
+                return { kind: 'tab', screen: 'Wallet', params: {} }
+            return undefined
         }
 
         const queryParams: Record<string, string> = {}
@@ -210,37 +236,167 @@ export function getInternalLinkRoute(
             })
         }
 
-        const map = mapper(queryParams)
-        if (!map) return undefined
-
-        const resolvedParams = map.params ?? queryParams
-
-        if ('parent' in map) {
-            return {
-                routes: [
-                    {
-                        name: 'TabsNavigator',
-                        state: {
-                            routes: [
-                                { name: map.screen, params: resolvedParams },
-                            ],
-                        },
-                    },
-                ],
-            }
-        }
+        const target = mapper(queryParams)
+        if (!target) return undefined
 
         return {
-            routes: [{ name: map.screen, params: resolvedParams }],
+            ...target,
+            params: target.params ?? queryParams,
         }
     } catch (err) {
-        log.error('getStateFromPath: invalid URL', err)
+        log.error('getInternalLinkTarget: invalid URL', err)
         return undefined
     }
 }
 
+// Converts the canonical deeplink target into React Navigation's linking state.
+// This is the shape expected by getStateFromPath/getInternalLinkRoute.
+function targetToInitialState(target: InternalLinkTarget): TypedInitialState {
+    if (target.kind === 'tab') {
+        return {
+            routes: [
+                {
+                    name: 'TabsNavigator',
+                    state: {
+                        routes: [
+                            {
+                                name: target.screen,
+                                params: target.params,
+                            },
+                        ],
+                    },
+                },
+            ],
+        }
+    }
+
+    return {
+        routes: [{ name: target.screen, params: target.params }],
+    }
+}
+
+// Converts the canonical deeplink target into imperative navigation args.
+// Initializing and LockScreen use this when passing destinations around.
+function targetToNavigationArgs(target: InternalLinkTarget): NavigationArgs {
+    if (target.kind === 'tab') {
+        return [
+            'TabsNavigator',
+            {
+                initialRouteName: target.screen,
+            },
+        ]
+    }
+
+    return target.params
+        ? ([target.screen, target.params] as NavigationArgs)
+        : ([target.screen] as NavigationArgs)
+}
+
+// Converts the canonical deeplink target into a reset action with history.
+// Root screens use Wallet underneath so back navigation has a target.
+function targetToResetAction(target: InternalLinkTarget) {
+    if (target.kind === 'tab') {
+        return reset('TabsNavigator', {
+            initialRouteName: target.screen,
+        })
+    }
+
+    return resetToHomeWithScreen('Wallet', {
+        name: target.screen,
+        params: target.params,
+    } as TypedRoute)
+}
+
+// Converts an imperative destination into a reset action with Wallet underneath
+// root screens, matching the internal deeplink reset behavior.
+export function navigationArgsToResetAction(
+    navigationArgs: NavigationArgs,
+): ReturnType<typeof reset> {
+    if (navigationArgs[0] === 'TabsNavigator') {
+        return reset(navigationArgs[0], navigationArgs[1])
+    }
+
+    return resetToHomeWithScreen('Wallet', {
+        name: navigationArgs[0],
+        params: navigationArgs[1],
+    } as TypedRoute)
+}
+
+// Parses an internal deeplink into navigation args for the pending unlock flow.
+// Storing args avoids reparsing the link after PIN unlock.
+export function getInternalLinkNavigationArgs(
+    path: string,
+): NavigationArgs | undefined {
+    const target = getInternalLinkTarget(path)
+    if (!target) return undefined
+
+    return targetToNavigationArgs(target)
+}
+
+// Parses an internal deeplink into a reset action for post-onboarding routing.
+// This keeps Splash from needing to inspect nested navigation state.
+export function getInternalLinkResetAction(
+    path: string,
+): ReturnType<typeof reset> | undefined {
+    const target = getInternalLinkTarget(path)
+    if (!target) return undefined
+
+    return targetToResetAction(target)
+}
+
+// Applies onboarding and PIN gates to incoming URLs before being procssed by React Navigation or the omni parser
+// Returns "handled" when routing should be swallowed for now
+function getNavigationLinkReadiness(
+    url: string,
+    onboardingCompleted: boolean,
+    getIsAppUnlocked: () => boolean | undefined,
+    dispatch: AppDispatch,
+): NavigationLinkReadinessResult {
+    const navigationLink = getNavigationLink(url)
+
+    // onboarding gate
+    // fedi navigation links get stashed in redux to be replayed after onboarding
+    if (navigationLink && !onboardingCompleted) {
+        pendingUnlockNavigationArgs = undefined
+        dispatch(setRedirectTo(url))
+        return { kind: 'handled' }
+    }
+
+    // pin lock gate
+    // both fedi navigation links and payment URIs (lightning:, bitcoin:, ...) get stashed to be replayed after app unlock
+    if (getIsAppUnlocked() !== true) {
+        if (navigationLink) {
+            pendingUnlockNavigationArgs =
+                getInternalLinkNavigationArgs(navigationLink)
+        } else {
+            pendingUnlockExternalUrl = url
+        }
+        return { kind: 'handled' }
+    }
+
+    // if we get this far, we are ready to fully trigger the deeplink
+    return navigationLink
+        ? { kind: 'ready', navigationLink }
+        : { kind: 'external', url }
+}
+
+// Handles fedi:// type links (with or without protocol prefix)
+export function getInternalLinkRoute(
+    path: string,
+    options?: Parameters<typeof defaultGetStateFromPath>[1],
+): TypedInitialState | undefined {
+    const target = getInternalLinkTarget(path)
+    if (target) return targetToInitialState(target)
+    if (path.toLowerCase().startsWith('fedi:')) return undefined
+
+    return defaultGetStateFromPath(path, options) as
+        | TypedInitialState
+        | undefined
+}
+
 export const getLinking = (
     onboardingCompleted: boolean,
+    getIsAppUnlocked: () => boolean | undefined,
     dispatch: AppDispatch,
     fallback?: (url: string) => void,
 ): LinkingOptions<RootStackParamList> => ({
@@ -276,41 +432,63 @@ export const getLinking = (
         return getInternalLinkRoute(path, options)
     },
 
+    // Handle the url that started the app
+    getInitialURL: async () => {
+        const url = await Linking.getInitialURL()
+
+        if (!url) return null
+
+        const readiness = getNavigationLinkReadiness(
+            url,
+            onboardingCompleted,
+            getIsAppUnlocked,
+            dispatch,
+        )
+
+        if (readiness.kind === 'ready') return readiness.navigationLink
+        // for handling payment URIs (lightning:, bitcoin:, ...)
+        if (readiness.kind === 'external' && fallback) {
+            fallback(readiness.url)
+        }
+        return null
+    },
+
+    // Handle urls whilst the app is running
     subscribe(listener: (url: string) => void) {
         const handleUrl = (url: string | null) => {
             if (!url) return
 
-            if (isDeepLink(url)) {
+            const readiness = getNavigationLinkReadiness(
+                url,
+                onboardingCompleted,
+                getIsAppUnlocked,
+                dispatch,
+            )
+
+            if (readiness.kind === 'ready') {
                 log.info('Received deeplink', url)
+                listener(readiness.navigationLink)
+                return
+            }
 
-                if (!onboardingCompleted) {
-                    dispatch(setRedirectTo(url))
-                    return
-                }
-
-                const result = normalizeDeepLink(url)
-                if (!result) return
-
-                listener(result.fediUri)
+            if (readiness.kind === 'handled') {
                 return
             }
 
             // for handling payment URIs (lightning:, bitcoin:, ...)
-            if (fallback) {
-                log.info(
-                    'Handling a non-fedi deeplink with fallback function for url:',
-                    url,
-                )
-                fallback(url)
-                return
+            if (readiness.kind === 'external') {
+                if (fallback) {
+                    log.info(
+                        'Handling a non-fedi deeplink with fallback function for url:',
+                        url,
+                    )
+                    fallback(url)
+                    return
+                }
+
+                listener(url)
             }
-
-            listener(url)
         }
-
-        Linking.getInitialURL()
-            .then(handleUrl)
-            .catch(err => log.error(err))
 
         notifee
             .getInitialNotification()

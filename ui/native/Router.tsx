@@ -22,6 +22,7 @@ import { RootStackParamList } from './types/navigation'
 import { useHandleDeferredLink } from './utils/hooks/linking'
 import { useIsFeatureUnlocked } from './utils/hooks/security'
 import {
+    consumePendingUnlockExternalUrl,
     getLinking,
     flushPendingLinks,
     patchLinkingOpenURL,
@@ -53,15 +54,27 @@ const Router = () => {
     // to Linking.getInitialURL and getting stuck in a loop of overlay re-renders
     const parseUrlRef = useRef(parseUrl)
     parseUrlRef.current = parseUrl
+    const isAppUnlockedRef = useRef(isAppUnlocked)
+    isAppUnlockedRef.current = isAppUnlocked
     const linking = useMemo(
         () =>
-            getLinking(onboardingCompleted, dispatch, url =>
-                parseUrlRef.current(url),
+            getLinking(
+                onboardingCompleted,
+                () => isAppUnlockedRef.current,
+                dispatch,
+                url => parseUrlRef.current(url),
             ),
         [onboardingCompleted, dispatch],
     )
 
     useHandleDeferredLink()
+
+    // Fires any payment URI that was stashed while the app was locked
+    useEffect(() => {
+        if (isAppUnlocked !== true) return
+        const url = consumePendingUnlockExternalUrl()
+        if (url) parseUrlRef.current(url)
+    }, [isAppUnlocked])
 
     // Logs changes in navigation state for debugging
     const handleStateChange = useCallback(() => {

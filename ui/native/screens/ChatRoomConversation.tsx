@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
@@ -10,6 +10,7 @@ import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     addPreviewMedia,
+    getMatrixRoomPreview,
     selectGroupPreview,
     selectMatrixRoom,
     selectShouldShowJoinOnChatPreview,
@@ -30,6 +31,7 @@ import { Column } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { resetToChatsScreen } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 import {
     useChatKeyboardBehavior,
@@ -78,6 +80,23 @@ const ChatRoomConversation: React.FC<Props> = ({
 
     const directUserId = room?.directUserId
     const { bottomOffset, setMessageInputHeight } = useChatKeyboardBehavior()
+
+    useEffect(() => {
+        if (room || groupPreview) return
+
+        let cancelled = false
+        dispatch(getMatrixRoomPreview({ fedimint, roomId }))
+            .unwrap()
+            .catch(err => {
+                if (cancelled) return
+                log.error('failed to load matrix room preview', err)
+                navigation.dispatch(resetToChatsScreen())
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [dispatch, fedimint, groupPreview, navigation, room, roomId])
 
     const handleJoinPressed = () => {
         navigation.navigate('ConfirmJoinPublicGroup', {

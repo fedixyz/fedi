@@ -16,6 +16,10 @@ import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
+import {
+    consumePendingUnlockNavigationArgs,
+    navigationArgsToResetAction,
+} from '../utils/linking'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'LockScreen'>
 
@@ -24,7 +28,7 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'LockScreen'>
  * Includes the "Forgot PIN" flow and is specific to unlocking the app.
  * Also takes an optional `routeParams` prop to navigate to a specific screen after unlocking (e.g. deeplinks)
  */
-const LockScreen = ({ navigation }: Props) => {
+const LockScreen = ({ navigation, route }: Props) => {
     const [pinDigits, setPinDigits] = useState<Array<number>>([])
     const [timeoutSeconds, setTimeoutSeconds] = useState(0)
     const [, setAttempts] = useState(0)
@@ -37,6 +41,7 @@ const LockScreen = ({ navigation }: Props) => {
     const debouncedPin = useDebounce(pinDigits, 500)
     const dispatch = useAppDispatch()
     const pin = usePinContext()
+    const routeParams = route.params?.routeParams
 
     const style = styles(theme, width)
 
@@ -124,9 +129,16 @@ const LockScreen = ({ navigation }: Props) => {
             }),
         )
 
-        // Navigation will be handled automatically by MainNavigator
-        // when isAppUnlocked becomes true
-    }, [debouncedPin, dispatch, pin])
+        const destination = routeParams ?? consumePendingUnlockNavigationArgs()
+
+        if (!destination) return
+
+        // Let the unlocked stack mount before resetting into screens that
+        // are not registered while the app is locked.
+        setTimeout(() => {
+            navigation.dispatch(navigationArgsToResetAction(destination))
+        }, 0)
+    }, [debouncedPin, dispatch, navigation, pin, routeParams])
 
     useEffect(() => {
         return () => {

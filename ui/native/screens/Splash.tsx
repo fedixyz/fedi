@@ -28,7 +28,7 @@ import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 import { useLaunchZendesk } from '../utils/hooks/support'
-import { getInternalLinkRoute } from '../utils/linking'
+import { getInternalLinkResetAction } from '../utils/linking'
 
 const log = makeLog('Splash')
 
@@ -67,32 +67,12 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                 // Reset now that we're using it
                 dispatch(setRedirectTo(null))
 
-                // We already know it is a deeplink so no need to check here
-                const result = normalizeDeepLink(redirectTo)
-                if (!result) return
+                const redirectUri =
+                    normalizeDeepLink(redirectTo)?.fediUri ?? redirectTo
+                const action = getInternalLinkResetAction(redirectUri)
+                if (!action) return
 
-                const route = getInternalLinkRoute(result.fediUri)
-                if (!route) return
-
-                if (route.routes[0].name === 'TabsNavigator') {
-                    return navigation.reset({
-                        index: 0,
-                        routes: route.routes,
-                    })
-                }
-
-                // Inject Home screen into the stack for non-TabsNavigator screens
-                // so that if user hits back button, they go back to home
-                // rather than the Splash screen
-                return navigation.reset({
-                    index: 1,
-                    routes: [
-                        {
-                            name: 'TabsNavigator',
-                        },
-                        ...route.routes,
-                    ],
-                })
+                return navigation.dispatch(action)
             } else {
                 navigation.reset({
                     index: 0,
