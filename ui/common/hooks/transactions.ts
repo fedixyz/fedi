@@ -41,6 +41,7 @@ import {
     makeMultispendTransactionHistoryCSV,
 } from '../utils/csv'
 import { FedimintBridge } from '../utils/fedimint'
+import { sumFeeDetails } from '../utils/fees'
 import {
     coerceMultispendTxn,
     isMultispendDepositEvent,
@@ -591,25 +592,22 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
     }
 
     const makeLightningFeeContent = (feeDetails: RpcFeeDetails) => {
-        const { fediFee, federationFee, networkFee } = feeDetails
         // prettier-ignore
-        const lightningSendTotalFeeMsats = (
-            fediFee + federationFee + networkFee
-        ) as MSats
+        const lightningSendTotalFeeMsats = sumFeeDetails(feeDetails)
 
         // Format fedi fee
         const {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
-        } = makeFormattedAmountsFromMSats(fediFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.fediFee)
         const {
             formattedPrimaryAmount: formattedFederationFee,
             formattedSecondaryAmount: formattedFederationFeeSecondary,
-        } = makeFormattedAmountsFromMSats(federationFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.federationFee)
         const {
             formattedPrimaryAmount: formattedNetworkFee,
             formattedSecondaryAmount: formattedNetworkFeeSecondary,
-        } = makeFormattedAmountsFromMSats(networkFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.networkFee)
         const { formattedPrimaryAmount: formattedTotalFee } =
             makeFormattedAmountsFromMSats(lightningSendTotalFeeMsats)
 
@@ -637,21 +635,21 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
     }
 
     const makeOnchainFeeContent = (feeDetails: RpcFeeDetails) => {
-        const { fediFee, federationFee, networkFee } = feeDetails
-        // prettier-ignore
-        const onchainSendTotalFeeMsats = (
-            fediFee + federationFee + networkFee
-        ) as MSats
+        const onchainSendTotalFeeMsats = sumFeeDetails(feeDetails)
 
         // Format fedi fee
         const {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
-        } = makeFormattedAmountsFromMSats(fediFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.fediFee)
         const {
             formattedPrimaryAmount: formattedNetworkFee,
             formattedSecondaryAmount: formattedNetworkFeeSecondary,
-        } = makeFormattedAmountsFromMSats(networkFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.networkFee)
+        const {
+            formattedPrimaryAmount: formattedFederationFee,
+            formattedSecondaryAmount: formattedFederationFeeSecondary,
+        } = makeFormattedAmountsFromMSats(feeDetails.federationFee)
         const { formattedPrimaryAmount: formattedTotalFee } =
             makeFormattedAmountsFromMSats(onchainSendTotalFeeMsats)
 
@@ -663,6 +661,10 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.network-fee'),
                 formattedAmount: `${formattedNetworkFee} (${formattedNetworkFeeSecondary})`,
+            },
+            {
+                label: t('phrases.federation-fee'),
+                formattedAmount: `${formattedFederationFee} (${formattedFederationFeeSecondary})`,
             },
         ]
 

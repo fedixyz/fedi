@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Federation, Invoice, MSats } from '../../types'
+import { sumFeeDetails } from '../../utils/fees'
 import { useFedimint } from '../fedimint'
 
 /**
@@ -21,9 +22,7 @@ export function useLightningInvoiceAmount(
         fedimint
             .estimateLnFees(invoice.invoice, federationId)
             .then(fees => {
-                const totalFees = (fees.federationFee +
-                    fees.networkFee +
-                    fees.fediFee) as MSats
+                const totalFees = sumFeeDetails(fees)
                 const totalAmount = (invoice.amount + totalFees) as MSats
 
                 setExactAmountLightning(totalAmount)

@@ -9,6 +9,7 @@ import {
 import { MSats } from '../../../../types'
 import amountUtils from '../../../../utils/AmountUtils'
 import { FedimintBridge } from '../../../../utils/fedimint'
+import { sumFeeDetails } from '../../../../utils/fees'
 import { createIntegrationTestBuilder } from '../../../utils/remote-bridge-setup'
 import { renderHookWithBridge } from '../../../utils/render'
 
@@ -50,9 +51,7 @@ describe('useMinMaxSendAmount hook', () => {
                 fedimint,
             )
 
-            const invoiceTotalFees = (invoiceFees.federationFee +
-                invoiceFees.fediFee +
-                invoiceFees.networkFee) as MSats
+            const invoiceTotalFees = sumFeeDetails(invoiceFees)
             const invoiceTotalAmount = (invoice.amount +
                 invoiceTotalFees) as MSats
             const totalAmountSats = amountUtils.msatToSat(invoiceTotalAmount)
