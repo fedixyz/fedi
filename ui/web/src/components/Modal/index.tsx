@@ -109,7 +109,7 @@ const Content = styled(RadixDialog.Content, {
     borderRadius: 20,
     display: 'flex',
     flexDirection: 'column',
-    gap: 30,
+    gap: theme.spacing.lg,
     maxWidth: '400px',
     overflow: 'hidden',
     padding: 20,
