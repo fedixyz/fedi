@@ -93,7 +93,9 @@ const Router = () => {
                 dispatch(setLastUsedTab(HomeNavigationTab.Chat))
                 break
             case 'Mods':
-                dispatch(setLastUsedTab(HomeNavigationTab.MiniApps))
+                // Temporary workaround for a bug in the Mini Apps screen:
+                // do not restore directly to Mini Apps until it can safely cold-start.
+                // dispatch(setLastUsedTab(HomeNavigationTab.MiniApps))
                 break
             case 'Wallet':
                 dispatch(setLastUsedTab(HomeNavigationTab.Wallet))
