@@ -220,6 +220,7 @@
         "get-started": "Get started",
         "go-back": "Go back",
         "go-to-chat": "Go to Chat",
+        "guardian-fee": "Guardian fee",
         "hide-details": "Hide details",
         "hide-results": "Hide results",
         "hold-to-confirm": "Hold to confirm",
@@ -1339,6 +1340,7 @@
             },
             "app-settings": "App Settings",
             "federation-settings": "Federation Settings",
+            "guardian-fees": "Guardian fees",
             "usage-sharing": "Usage sharing",
             "analytics-updated-error": "Failed to update analytics consent",
             "mini-app-permission-settings": "Mini App Permissions",
@@ -1347,6 +1349,13 @@
             "repair-wallet-confirmation": "Are you sure you want to repair your wallet? ONLY do this if directed by the Fedi Council.",
             "repair-wallet-success": "Wallet repair initiated.",
             "repair-wallet-error": "Failed to initiate wallet repair."
+        },
+        "guardian-fees": {
+            "daily-fees-earned": "Daily fees earned",
+            "fee-history": "Fee history",
+            "remittance-balance": "Claimable Fees",
+            "transfer-all-to-main-balance": "Transfer all to main balance",
+            "transfer-success": "Guardian fees transferred"
         },
         "stabilitypool": {
             "available-balance": "Available balance",
