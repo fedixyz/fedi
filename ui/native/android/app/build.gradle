@@ -219,10 +219,27 @@ android {
             dimension "env"
             manifestPlaceholders = [autoVerify: "true"]
         }
+        // Isolated dev variant: ./gradlew assembleDevDebug -PdevId=07
+        // Each devId gets its own applicationId (com.fedi.dev07) and app data
+        dev {
+            dimension "env"
+            def id = project.hasProperty('devId') ? project.property('devId') : "00"
+            applicationIdSuffix ".dev${id}"
+            manifestPlaceholders = [autoVerify: "false"]
+            resValue "string", "app_name", "Fedi dev${id}"
+        }
     }
 }
 
 afterEvaluate {
+    // Disable google-services processing for dev flavor (no Firebase config needed)
+    ["Debug", "Release"].each { buildType ->
+        def taskName = "processDev${buildType}GoogleServices"
+        if (tasks.findByName(taskName)) {
+            tasks.named(taskName).configure { enabled = false }
+        }
+    }
+
     if (tasks.findByName('generateDebugLintReportModel')) {
         tasks.named('generateDebugLintReportModel').configure {
             dependsOn tasks.named('copyReactNativeVectorIconFonts')

@@ -13,4 +13,4 @@ export {
 //     unsubscribeFromBridgeEvents,
 //     getAppFlavor,
 //     initializeBridge,
-// } from '@fedi/common/utils/remote-bridge'
+// } from './remote'

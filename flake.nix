@@ -412,7 +412,7 @@
             buildInputs = craneMultiBuild.commonArgs.buildInputs ++ [ pkgs.openssl ];
 
             FEDI_CROSS_DEV_SHELL = "1";
-            ANDY_PACKAGE = "com.fedi";
+            ANDY_PACKAGE = "com.fedi.dev";
             shellHook = ''
               # Use old ESLINT config format until we upgrade to v9+
               export ESLINT_USE_FLAT_CONFIG=false
