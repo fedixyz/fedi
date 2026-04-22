@@ -8,6 +8,7 @@ import dateUtils from '@fedi/common/utils/DateUtils'
 import { shouldShowUnreadIndicator } from '@fedi/common/utils/matrix'
 
 import { theme } from '../../styles'
+import { getMatrixPreviewIcon } from '../../utils/matrix'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatTile } from './ChatTile'
 
@@ -47,6 +48,7 @@ export const ChatListItem: React.FC<Props> = ({ room }) => {
             active={isActive}
             avatar={<ChatAvatar room={room} css={{ flexShrink: 0 }} />}
             title={room.name}
+            icon={getMatrixPreviewIcon(room.preview)}
             subtitle={text}
             subtitleProps={{
                 weight: showUnreadIndicator ? 'bold' : 'normal',

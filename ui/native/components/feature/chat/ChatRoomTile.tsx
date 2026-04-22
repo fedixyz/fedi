@@ -7,6 +7,7 @@ import dateUtils from '@fedi/common/utils/DateUtils'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
 import { MatrixRoom } from '../../../types'
+import { getMatrixPreviewIcon } from '../../../utils/matrix'
 import { AvatarSize } from '../../ui/Avatar'
 import ChatAvatar from './ChatAvatar'
 import ChatTile from './ChatTile'
@@ -44,6 +45,7 @@ const ChatRoomTile = ({ room, onSelect, onLongPress }: ChatRoomTileProps) => {
                     maxFontSizeMultiplier={1.2}
                 />
             }
+            icon={getMatrixPreviewIcon(room.preview)}
             title={room.name || DEFAULT_GROUP_NAME}
             subtitle={text}
             subtitleProps={{

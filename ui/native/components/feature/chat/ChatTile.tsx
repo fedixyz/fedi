@@ -3,6 +3,7 @@ import { ReactNode } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import { Row, Column } from '../../ui/Flex'
+import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 export type ChatTileProps = {
     onPress: () => void
@@ -15,6 +16,7 @@ export type ChatTileProps = {
     showUnreadIndicator?: boolean
     disabled?: boolean
     delayLongPress?: number
+    icon?: SvgImageName
 }
 
 const ChatTile = ({
@@ -28,6 +30,7 @@ const ChatTile = ({
     showUnreadIndicator = false,
     disabled = false,
     delayLongPress = 300,
+    icon,
 }: ChatTileProps) => {
     const { theme } = useTheme()
     const style = styles(theme)
@@ -65,9 +68,18 @@ const ChatTile = ({
                     <Text style={style.title} numberOfLines={1} bold>
                         {title}
                     </Text>
-                    <Text caption numberOfLines={2} {...subtitleProps}>
-                        {subtitle}
-                    </Text>
+                    <Row gap="xs" align="center">
+                        {icon && (
+                            <SvgImage
+                                name={icon}
+                                size={16}
+                                color={theme.colors.darkGrey}
+                            />
+                        )}
+                        <Text caption numberOfLines={2} {...subtitleProps}>
+                            {subtitle}
+                        </Text>
+                    </Row>
                 </Column>
                 {timestamp && (
                     <Column align="end" justify="start" gap="xs">

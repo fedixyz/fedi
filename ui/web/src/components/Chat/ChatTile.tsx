@@ -2,6 +2,8 @@ import Link from 'next/link'
 import React, { ReactNode } from 'react'
 
 import { styled, theme } from '../../styles'
+import { Row } from '../Flex'
+import { Icon } from '../Icon'
 import { NotificationDot } from '../NotificationDot'
 import { Text, TextProps } from '../Text'
 
@@ -14,6 +16,7 @@ export type ChatTileProps = {
     showUnreadIndicator?: boolean
     href: string
     active?: boolean
+    icon?: React.FunctionComponent<React.SVGAttributes<SVGElement>>
 }
 
 export const ChatTile: React.FC<ChatTileProps> = ({
@@ -25,6 +28,7 @@ export const ChatTile: React.FC<ChatTileProps> = ({
     showUnreadIndicator = false,
     href,
     active,
+    icon,
 }) => {
     const containerProps = {
         active,
@@ -50,17 +54,26 @@ export const ChatTile: React.FC<ChatTileProps> = ({
                         </Text>
                     )}
                 </TopContent>
-                <Text
-                    variant="small"
-                    ellipsize
-                    css={{ color: theme.colors.darkGrey }}
-                    {...subtitleProps}>
-                    {subtitle}
-                </Text>
+                <Row gap="xs" align="center">
+                    {icon && <SubtitleIcon icon={icon} />}
+                    <Text
+                        variant="small"
+                        ellipsize
+                        css={{ color: theme.colors.darkGrey }}
+                        {...subtitleProps}>
+                        {subtitle}
+                    </Text>
+                </Row>
             </Content>
         </Container>
     )
 }
+
+const SubtitleIcon = styled(Icon, {
+    color: theme.colors.darkGrey,
+    width: 16,
+    height: 16,
+})
 
 const Container = styled(Link, {
     display: 'flex',
