@@ -56,7 +56,6 @@ zstd = "0.13"
 matrix-sdk = { workspace = true, default-features = false, features = [
   "js",
   "indexeddb",
-  "rustls-tls",
   "e2e-encryption",
 ] }
 tempfile = "3.17.1"

@@ -37,7 +37,6 @@ reqwest = { workspace = true }
 matrix-sdk = { workspace = true, default-features = false, features = [
   "js",
   "indexeddb",
-  "rustls-tls",
   "e2e-encryption",
 ] }
 imbl = { workspace = true, features = ["serde"] }

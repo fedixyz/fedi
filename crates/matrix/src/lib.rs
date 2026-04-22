@@ -303,9 +303,7 @@ impl Matrix {
                     Ok::<_, Infallible>(assign!(
                         login::v3::Request::new(login::v3::LoginInfo::Password(
                             login::v3::Password::new(
-                                UserIdentifier::UserIdOrLocalpart(
-                                    session_meta.user_id.to_string(),
-                                ),
+                                UserIdentifier::from(&session_meta.user_id),
                                 user_password,
                             ),
                         )),

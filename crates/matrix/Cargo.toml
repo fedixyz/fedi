@@ -22,7 +22,6 @@ matrix-sdk-ui = { workspace = true, default-features = false }
 matrix-sdk = { workspace = true, default-features = false, features = [
   "js",
   "indexeddb",
-  "rustls-tls",
   "e2e-encryption",
 ] }
 serde = { workspace = true }

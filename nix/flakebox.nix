@@ -186,6 +186,8 @@ in
       };
 
     commonTestArgs = commonArgs // {
+      # needed by matrix sdk even for local stuff
+      SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
 
       nativeBuildInputs = commonArgs.nativeBuildInputs ++ [
         pkgs.clightning

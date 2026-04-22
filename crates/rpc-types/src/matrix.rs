@@ -1336,7 +1336,7 @@ impl From<&MsgLikeKind> for RpcMsgLikeKind {
                 RpcMsgLikeKind::Poll(RpcPollResult::from(poll_state.results()))
             }
             MsgLikeKind::Redacted => RpcMsgLikeKind::Redacted,
-            MsgLikeKind::Sticker(_) => RpcMsgLikeKind::Unknown,
+            MsgLikeKind::Sticker(_) | MsgLikeKind::LiveLocation(_) => RpcMsgLikeKind::Unknown,
             MsgLikeKind::UnableToDecrypt(_) => RpcMsgLikeKind::UnableToDecrypt,
             MsgLikeKind::Other(_) => RpcMsgLikeKind::Unknown,
         }
