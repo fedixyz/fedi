@@ -8,24 +8,27 @@ use std::ops::Not;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::bail;
+use anyhow::{bail, ensure};
 use async_trait::async_trait;
 use common::config::{
     CollateralRatio, OracleConfig, StabilityPoolClientConfig, StabilityPoolConfig,
     StabilityPoolConfigConsensus, StabilityPoolConfigPrivate,
 };
 use common::{
-    CONSENSUS_VERSION, Provide, Seek, StabilityPoolCommonGen, StabilityPoolConsensusItem,
-    StabilityPoolInput, StabilityPoolInputError, StabilityPoolModuleTypes, StabilityPoolOutput,
+    BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION, CONSENSUS_VERSION, INITIAL_MODULE_CONSENSUS_VERSION,
+    Provide, Seek, StabilityPoolCommonGen, StabilityPoolConsensusItem, StabilityPoolInput,
+    StabilityPoolInputError, StabilityPoolModuleTypes, StabilityPoolOutput,
     StabilityPoolOutputError, StabilityPoolOutputOutcome, StabilityPoolOutputOutcomeV0,
     UnlockRequest,
 };
 use db::{
+    ConsensusVersionVoteKey, ConsensusVersionVotePrefix, ConsensusVersionVotingActivationKey,
     CurrentCycleKey, CurrentCycleKeyPrefix, Cycle, CycleChangeVoteIndexPrefix, CycleChangeVoteKey,
     IdleBalanceKey, IdleBalanceKeyPrefix, PastCycleKey, SeekLifetimeFeeKey, StagedProvidesKey,
     StagedProvidesKeyPrefix, StagedSeeksKey, StagedSeeksKeyPrefix, UnlockRequestKey,
     UnlockRequestsKeyPrefix,
 };
+use fedimint_api_client::api::{DynModuleApi, FederationApiExt};
 use fedimint_core::config::{
     ServerModuleConfig, ServerModuleConsensusConfig, TypedServerModuleConfig,
     TypedServerModuleConsensusConfig,
@@ -34,28 +37,33 @@ use fedimint_core::core::ModuleInstanceId;
 use fedimint_core::db::{
     DatabaseKey, DatabaseRecord, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped,
 };
+use fedimint_core::envs::is_running_in_test_env;
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
-    Amounts, ApiEndpoint, CoreConsensusVersion, InputMeta, ModuleConsensusVersion, ModuleInit,
-    SupportedModuleApiVersions, TransactionItemAmounts,
+    Amounts, ApiEndpoint, ApiRequestErased, CORE_CONSENSUS_VERSION, CoreConsensusVersion,
+    InputMeta, ModuleConsensusVersion, ModuleInit, SupportedModuleApiVersions,
+    TransactionItemAmounts,
 };
-use fedimint_core::task::{MaybeSend, MaybeSync};
+use fedimint_core::task::{MaybeSend, MaybeSync, TaskGroup, sleep};
 use fedimint_core::{Amount, InPoint, NumPeersExt, OutPoint, PeerId, TransactionId};
 use fedimint_server_core::config::PeerHandleOps;
 use fedimint_server_core::{
     ConfigGenModuleArgs, ServerModule, ServerModuleInit, ServerModuleInitArgs,
 };
+use futures::future::join_all;
 use futures::{StreamExt, stream};
 use itertools::Itertools;
 use oracle::{AggregateOracle, MockOracle, Oracle};
 pub use stability_pool_common as common;
+use stability_pool_common::endpoint_constants::SUPPORTED_MODULE_CONSENSUS_VERSION_ENDPOINT;
 use stability_pool_common::{
     AccountHistoryItem, AccountHistoryItemKind, AccountId, AccountType, CycleInfo, Deposit,
-    DepositToProvideOutput, DepositToSeekOutput, FeeRate, FiatAmount, FiatOrAll,
-    SignedTransferRequest, StabilityPoolInputV0, StabilityPoolOutputV0, TransferOutput,
-    TransferRequestId, UnlockForWithdrawalInput, WithdrawalInput,
+    DepositToBtcBalanceOutput, DepositToProvideOutput, DepositToSeekOutput, FeeRate, FiatAmount,
+    FiatOrAll, SignedTransferRequest, StabilityPoolInputV0, StabilityPoolOutputV0,
+    StabilityPoolOutputV1, TransferOutput, TransferRequestId, UnlockForWithdrawalInput,
+    WithdrawalInput,
 };
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, watch};
 use tracing::{info, warn};
 
 /// PPB unit for fee-related calculations.
@@ -94,11 +102,21 @@ impl ServerModuleInit for StabilityPoolInit {
     }
 
     fn supported_api_versions(&self) -> SupportedModuleApiVersions {
-        SupportedModuleApiVersions::from_raw((2, 0), (2, 0), &[(0, 0)])
+        SupportedModuleApiVersions::from_raw(
+            (CORE_CONSENSUS_VERSION.major, CORE_CONSENSUS_VERSION.minor),
+            (CONSENSUS_VERSION.major, CONSENSUS_VERSION.minor),
+            // Server minor is the maximum supported minor within major 0.
+            &[(0, 1)],
+        )
     }
 
     async fn init(&self, args: &ServerModuleInitArgs<Self>) -> anyhow::Result<Self::Module> {
-        Ok(StabilityPool::new(args.cfg().to_typed()?))
+        Ok(StabilityPool::new(
+            args.cfg().to_typed()?,
+            args.task_group(),
+            args.our_peer_id(),
+            args.module_api().clone(),
+        ))
     }
 
     fn trusted_dealer_gen(
@@ -190,14 +208,24 @@ pub struct StabilityPool {
     pub cfg: StabilityPoolConfig,
     pub prefetched_price: Arc<RwLock<Option<PrefetchedPrice>>>,
     pub last_consensus_proposal: Mutex<Option<StabilityPoolConsensusItem>>,
+    /// Maximum consensus version supported by all peers, used for wallet-style
+    /// automatic upgrade voting once the full federation has upgraded.
+    pub peer_supported_consensus_version: watch::Receiver<Option<ModuleConsensusVersion>>,
 }
 
 impl StabilityPool {
-    pub fn new(cfg: StabilityPoolConfig) -> Self {
+    pub fn new(
+        cfg: StabilityPoolConfig,
+        task_group: &TaskGroup,
+        our_peer_id: PeerId,
+        module_api: DynModuleApi,
+    ) -> Self {
         let oracle: Box<dyn Oracle> = match cfg.consensus.oracle_config {
             OracleConfig::Mock => Box::new(MockOracle::new()),
             OracleConfig::Aggregate => Box::new(AggregateOracle::new_with_default_sources()),
         };
+        let peer_supported_consensus_version =
+            Self::spawn_peer_supported_consensus_version_task(module_api, task_group, our_peer_id);
         let prefetched_price = Arc::new(RwLock::new(None));
         let prefetched_price_copy = Arc::clone(&prefetched_price);
         fedimint_core::task::spawn("oracle price fetch", async move {
@@ -235,7 +263,94 @@ impl StabilityPool {
             cfg,
             prefetched_price,
             last_consensus_proposal: Mutex::new(None),
+            peer_supported_consensus_version,
         }
+    }
+
+    /// The active module consensus version is the greatest version that has
+    /// been voted for by at least the federation threshold of peers.
+    async fn consensus_module_consensus_version(
+        &self,
+        dbtx: &mut DatabaseTransaction<'_>,
+    ) -> ModuleConsensusVersion {
+        let mut versions = dbtx
+            .find_by_prefix(&ConsensusVersionVotePrefix)
+            .await
+            .map(|entry| entry.1)
+            .collect::<Vec<ModuleConsensusVersion>>()
+            .await;
+
+        let threshold = self.cfg.consensus.consensus_threshold as usize;
+        if versions.len() < threshold {
+            return INITIAL_MODULE_CONSENSUS_VERSION;
+        }
+
+        versions.sort_unstable();
+        // After sorting, the element at `len - threshold` is the highest
+        // version backed by at least `threshold` peers.
+        versions[versions.len() - threshold]
+    }
+
+    fn spawn_peer_supported_consensus_version_task(
+        api_client: DynModuleApi,
+        task_group: &TaskGroup,
+        our_peer_id: PeerId,
+    ) -> watch::Receiver<Option<ModuleConsensusVersion>> {
+        let (sender, receiver) = watch::channel(None);
+        task_group.spawn_cancellable("fetch-peer-consensus-versions", async move {
+            loop {
+                let request_futures = api_client.all_peers().iter().filter_map(|&peer| {
+                    if peer == our_peer_id {
+                        return None;
+                    }
+
+                    let api_client_inner = api_client.clone();
+                    Some(async move {
+                        api_client_inner
+                            .request_single_peer::<ModuleConsensusVersion>(
+                                SUPPORTED_MODULE_CONSENSUS_VERSION_ENDPOINT.to_owned(),
+                                ApiRequestErased::default(),
+                                peer,
+                            )
+                            .await
+                            .inspect_err(|err| warn!(%peer, error = %err, "Failed to fetch supported module consensus version from peer"))
+                            .ok()
+                    })
+                });
+
+                let peer_consensus_versions = join_all(request_futures)
+                    .await
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                let sorted_consensus_versions = peer_consensus_versions
+                    .into_iter()
+                    .chain(std::iter::once(CONSENSUS_VERSION))
+                    .sorted()
+                    .collect::<Vec<_>>();
+
+                let all_peers_supported_version =
+                    if sorted_consensus_versions.len() == api_client.all_peers().len() {
+                        Some(*sorted_consensus_versions.first().expect("at least one element"))
+                    } else {
+                        None
+                    };
+
+                #[allow(clippy::disallowed_methods)]
+                if sender.send(all_peers_supported_version).is_err() {
+                    warn!("Failed to send supported module consensus version to watch channel, stopping task");
+                    break;
+                }
+
+                if is_running_in_test_env() {
+                    sleep(Duration::from_secs(5)).await;
+                } else {
+                    sleep(Duration::from_secs(600)).await;
+                }
+            }
+        });
+        receiver
     }
 }
 
@@ -248,6 +363,8 @@ impl ServerModule for StabilityPool {
         &self,
         dbtx: &mut DatabaseTransaction<'_>,
     ) -> Vec<StabilityPoolConsensusItem> {
+        let mut items = vec![];
+
         // Below we use some calculations to determine if enough time has passed since
         // the last recorded consensus proposal. Here we define "enough time" as 15s or
         // 5% of the cycle duration, whichever is shorter.
@@ -325,7 +442,6 @@ impl ServerModule for StabilityPool {
             match *self.prefetched_price.read().await {
                 None => {
                     warn!("prefetched price absent, cannot propose CI");
-                    vec![]
                 }
                 Some(PrefetchedPrice { price, .. }) => {
                     let new_cp = StabilityPoolConsensusItem::new_v0(
@@ -336,12 +452,30 @@ impl ServerModule for StabilityPool {
                         price,
                     );
                     *self.last_consensus_proposal.lock().await = Some(new_cp.clone());
-                    vec![new_cp]
+                    items.push(new_cp);
                 }
             }
-        } else {
-            vec![]
         }
+
+        let manual_vote = dbtx
+            .get_value(&ConsensusVersionVotingActivationKey)
+            .await
+            .map(|()| CONSENSUS_VERSION);
+        let active_consensus_version = self.consensus_module_consensus_version(dbtx).await;
+        let automatic_vote = self.peer_supported_consensus_version.borrow().and_then(
+            |supported_consensus_version| {
+                (active_consensus_version < supported_consensus_version)
+                    .then_some(supported_consensus_version)
+            },
+        );
+        if let Some(vote_version) = automatic_vote
+            .or(manual_vote)
+            .filter(|vote| *vote > active_consensus_version)
+        {
+            items.push(StabilityPoolConsensusItem::new_module_consensus_version_vote(vote_version));
+        }
+
+        items
     }
 
     async fn process_consensus_item<'a, 'b>(
@@ -350,6 +484,28 @@ impl ServerModule for StabilityPool {
         consensus_item: StabilityPoolConsensusItem,
         peer_id: PeerId,
     ) -> anyhow::Result<()> {
+        if let Some(module_consensus_version) = consensus_item.module_consensus_version_vote()? {
+            let current_vote = dbtx
+                .get_value(&ConsensusVersionVoteKey(peer_id))
+                .await
+                .unwrap_or(INITIAL_MODULE_CONSENSUS_VERSION);
+
+            ensure!(
+                module_consensus_version > current_vote,
+                "Module consensus version vote is redundant"
+            );
+
+            dbtx.insert_entry(&ConsensusVersionVoteKey(peer_id), &module_consensus_version)
+                .await;
+
+            assert!(
+                self.consensus_module_consensus_version(dbtx).await <= CONSENSUS_VERSION,
+                "Stability pool module does not support new consensus version, please upgrade the module"
+            );
+
+            return Ok(());
+        }
+
         let next_cycle_index = consensus_item.next_cycle_index()?;
 
         // Bail if vote is not for next cycle
@@ -481,14 +637,21 @@ impl ServerModule for StabilityPool {
         output: &'a StabilityPoolOutput,
         outpoint: OutPoint,
     ) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
-        let v0 = output
-            .ensure_v0_ref()
-            .map_err(|e| StabilityPoolOutputError::UnknownOutputVariant(e.to_string()))?;
-
-        let account_id = match v0 {
-            StabilityPoolOutputV0::DepositToSeek(s) => s.account_id,
-            StabilityPoolOutputV0::DepositToProvide(p) => p.account_id,
-            StabilityPoolOutputV0::Transfer(t) => t.signed_request.details().from().id(),
+        let account_id = match output {
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToSeek(s))
+            | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToSeek(s)) => s.account_id,
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToProvide(p))
+            | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToProvide(p)) => p.account_id,
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(t))
+            | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(t)) => {
+                t.signed_request.details().from().id()
+            }
+            StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToBtcBalance(s)) => s.account_id,
+            StabilityPoolOutput::Default { variant, .. } => {
+                return Err(StabilityPoolOutputError::UnknownOutputVariant(format!(
+                    "Unknown StabilityPoolOutput variant {variant}"
+                )));
+            }
         };
 
         if dbtx
@@ -499,12 +662,10 @@ impl ServerModule for StabilityPool {
             return Err(StabilityPoolOutputError::PreviousIntentionNotFullyProcessed);
         }
 
-        match v0 {
-            StabilityPoolOutputV0::DepositToSeek(deposit_to_seek)
-                if matches!(
-                    account_id.acc_type(),
-                    AccountType::Seeker | AccountType::BtcDepositor
-                ) =>
+        match output {
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToSeek(deposit_to_seek))
+            | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToSeek(deposit_to_seek))
+                if account_id.acc_type() == AccountType::Seeker =>
             {
                 process_deposit_to_seek_output(
                     self.cfg.clone(),
@@ -514,9 +675,31 @@ impl ServerModule for StabilityPool {
                 )
                 .await
             }
-            StabilityPoolOutputV0::DepositToProvide(deposit_to_provide)
-                if account_id.acc_type() == AccountType::Provider =>
-            {
+            StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToBtcBalance(
+                deposit_to_btc_balance,
+            )) if account_id.acc_type() == AccountType::BtcDepositor => {
+                if self.consensus_module_consensus_version(dbtx).await
+                    < BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION
+                {
+                    return Err(StabilityPoolOutputError::UnknownOutputVariant(
+                        "DepositToBtcBalance requires module consensus version 2.1".to_string(),
+                    ));
+                }
+
+                process_deposit_to_btc_balance_output(
+                    self.cfg.clone(),
+                    dbtx,
+                    outpoint.txid,
+                    deposit_to_btc_balance,
+                )
+                .await
+            }
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToProvide(
+                deposit_to_provide,
+            ))
+            | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToProvide(
+                deposit_to_provide,
+            )) if account_id.acc_type() == AccountType::Provider => {
                 process_deposit_to_provide_output(
                     self.cfg.clone(),
                     dbtx,
@@ -525,8 +708,14 @@ impl ServerModule for StabilityPool {
                 )
                 .await
             }
-            StabilityPoolOutputV0::Transfer(transfer) => {
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(transfer))
+            | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(transfer)) => {
                 process_transfer_output(self.cfg.clone(), dbtx, outpoint.txid, transfer).await
+            }
+            StabilityPoolOutput::Default { variant, .. } => {
+                Err(StabilityPoolOutputError::UnknownOutputVariant(format!(
+                    "Unknown StabilityPoolOutput variant {variant}"
+                )))
             }
             _ => Err(StabilityPoolOutputError::InvalidAccountTypeForOperation),
         }
@@ -818,7 +1007,54 @@ async fn process_deposit_to_seek_output(
     txid: TransactionId,
     output: &DepositToSeekOutput,
 ) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
-    if output.seek_request.0 < config.consensus.min_allowed_seek {
+    add_staged_seek_deposit(
+        dbtx,
+        &config,
+        txid,
+        output.account_id,
+        output.seek_request.0,
+        AccountHistoryItemKind::DepositToStaged,
+    )
+    .await?;
+    Ok(TransactionItemAmounts {
+        amounts: Amounts::new_bitcoin(output.seek_request.0),
+        fees: Amounts::ZERO,
+    })
+}
+
+async fn process_deposit_to_btc_balance_output(
+    config: StabilityPoolConfig,
+    dbtx: &mut DatabaseTransaction<'_>,
+    txid: TransactionId,
+    output: &DepositToBtcBalanceOutput,
+) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
+    add_staged_seek_deposit(
+        dbtx,
+        &config,
+        txid,
+        output.account_id,
+        output.seek_request.0,
+        AccountHistoryItemKind::DepositToBtcBalance {
+            metadata: output.metadata.clone(),
+        },
+    )
+    .await?;
+
+    Ok(TransactionItemAmounts {
+        amounts: Amounts::new_bitcoin(output.seek_request.0),
+        fees: Amounts::ZERO,
+    })
+}
+
+async fn add_staged_seek_deposit(
+    dbtx: &mut DatabaseTransaction<'_>,
+    config: &StabilityPoolConfig,
+    txid: TransactionId,
+    account_id: AccountId,
+    amount: Amount,
+    history_kind: AccountHistoryItemKind,
+) -> Result<(), StabilityPoolOutputError> {
+    if amount < config.consensus.min_allowed_seek {
         return Err(StabilityPoolOutputError::AmountTooLow);
     }
     let Some(current_cycle) = dbtx.get_value(&CurrentCycleKey).await else {
@@ -826,36 +1062,36 @@ async fn process_deposit_to_seek_output(
     };
 
     let mut user_staged_seeks = dbtx
-        .get_value(&StagedSeeksKey(output.account_id))
+        .get_value(&StagedSeeksKey(account_id))
         .await
         .unwrap_or_default();
 
     let sequence = db::next_deposit_sequence(dbtx).await;
     user_staged_seeks.push(Seek {
         sequence,
-        amount: output.seek_request.0,
+        amount,
         meta: (),
         txid,
     });
 
-    dbtx.insert_entry(&StagedSeeksKey(output.account_id), &user_staged_seeks)
+    dbtx.insert_entry(&StagedSeeksKey(account_id), &user_staged_seeks)
         .await;
+    // Both normal seeks and btc-balance deposits enter through the same staged
+    // seek bucket, but callers choose the history record that should persist
+    // for that deposit.
     db::add_account_history_items(
         dbtx,
-        output.account_id,
+        account_id,
         [AccountHistoryItem {
             cycle: current_cycle.into(),
-            kind: AccountHistoryItemKind::DepositToStaged,
+            kind: history_kind,
             txid,
             deposit_sequence: sequence,
-            amount: output.seek_request.0,
+            amount,
         }],
     )
     .await;
-    Ok(TransactionItemAmounts {
-        amounts: Amounts::new_bitcoin(output.seek_request.0),
-        fees: Amounts::ZERO,
-    })
+    Ok(())
 }
 
 async fn process_deposit_to_provide_output(

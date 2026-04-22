@@ -7,6 +7,7 @@ use bitcoin::Network;
 use bitcoin::secp256k1::ecdsa::Signature;
 use bitcoin::secp256k1::schnorr;
 use fedimint_core::config::{GlobalClientConfig, JsonWithKind, PeerUrl};
+use fedimint_core::core::ModuleKind;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{Amount, TransactionId};
 use fedimint_ln_client::pay::GatewayPayError;
@@ -333,7 +334,8 @@ impl TryFrom<lightning_invoice::Bolt11Invoice> for RpcInvoice {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcFeeDetails {
-    pub fedi_fee: RpcAmount,
+    pub fedi_app_fee: RpcAmount,
+    pub fedi_guardian_fee: RpcAmount,
     pub network_fee: RpcAmount,
     pub federation_fee: RpcAmount,
 }
@@ -472,13 +474,22 @@ pub enum RpcTransactionDirection {
     Send,
 }
 
+#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcFediFeeStream {
+    App,
+    Guardian,
+}
+
 #[derive(Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcTransaction {
     pub id: String,
     pub amount: RpcAmount,
-    pub fedi_fee_status: Option<RpcOperationFediFeeStatus>,
+    pub fedi_app_fee_status: Option<RpcOperationFediFeeStatus>,
+    pub fedi_guardian_fee_status: Option<RpcOperationFediFeeStatus>,
     pub txn_notes: Option<String>,
     pub tx_date_fiat_info: Option<FiatFXInfo>,
     pub frontend_metadata: FrontendMetadata,
@@ -546,6 +557,7 @@ pub enum RpcTransactionKind {
     SPV2Withdrawal {
         state: RpcSPV2WithdrawalState,
         sweeper_initiated: bool,
+        guardian_remittance: bool,
     },
     SPV2TransferOut {
         state: RpcSPV2TransferOutState,
@@ -958,6 +970,8 @@ pub enum SPv2WithdrawMetadata {
     StableBalance {
         frontend_metadata: Option<FrontendMetadata>,
     },
+    /// Internal guardian remittance account withdrawal.
+    GuardianRemittanceAccount,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -989,6 +1003,27 @@ pub enum SPv2DepositMetadata {
     StableBalance {
         frontend_metadata: Option<FrontendMetadata>,
     },
+    /// Internal remittance deposit that should not appear in normal UX flows.
+    GuardianFeeRemittance {
+        snapshot: GuardianFeeRemittanceSnapshot,
+    },
+}
+
+/// Guardian fee amounts snapshotted into the atomic remittance deposit
+/// operation so reconciliation can happen later without a separate pending DB
+/// record.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GuardianFeeRemittanceSnapshot {
+    pub breakdown: Vec<GuardianFeeRemittanceBreakdownItem>,
+}
+
+/// One `(module, direction) -> amount` contribution to a guardian fee
+/// remittance snapshot.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GuardianFeeRemittanceBreakdownItem {
+    pub module: ModuleKind,
+    pub tx_direction: RpcTransactionDirection,
+    pub amount: Amount,
 }
 
 #[derive(Debug, Deserialize, Serialize, TS)]
@@ -1002,6 +1037,39 @@ pub struct RpcStabilityPoolAccountInfo {
     #[ts(type = "number")]
     pub timestamp: u64,
     pub is_fetched_from_server: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcGuardianRemittanceAccountInfo {
+    pub serialized_account: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcGuardianRemittanceDashboard {
+    pub day_buckets: Vec<RpcGuardianRemittanceDayBucket>,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcGuardianRemittanceDayBucket {
+    pub day_key: String,
+    pub total_amount_remitted: RpcAmount,
+    #[ts(type = "number")]
+    pub remittance_count: u32,
+    pub module_totals: Vec<RpcGuardianRemittanceModuleTotal>,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcGuardianRemittanceModuleTotal {
+    pub module: String,
+    pub total_amount: RpcAmount,
 }
 
 #[derive(Debug, Deserialize, Serialize, TS)]

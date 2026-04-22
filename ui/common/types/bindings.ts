@@ -214,6 +214,18 @@ export type FediFeeConfig = {
    * invoice from Fedi's servers to keep up a reasonable syncing cadences
    */
   remittance_max_delay_secs: number;
+  /**
+   * Base interval between guardian remittance attempts once due
+   */
+  guardian_remittance_interval_secs: number;
+  /**
+   * Max deterministic per-client jitter added to guardian remittance due-at
+   */
+  guardian_remittance_jitter_max_secs: number;
+  /**
+   * How long to wait between guardian fee remittance scheduler polls
+   */
+  guardian_remittance_poll_interval_secs: number;
 };
 
 export type FiatFXInfo = {
@@ -538,8 +550,11 @@ export type RpcFediFeeSchedule = {
   modules: { [key in string]?: RpcModuleFediFeeSchedule };
 };
 
+export type RpcFediFeeStream = "app" | "guardian";
+
 export type RpcFeeDetails = {
-  fediFee: RpcAmount;
+  fediAppFee: RpcAmount;
+  fediGuardianFee: RpcAmount;
   networkFee: RpcAmount;
   federationFee: RpcAmount;
 };
@@ -563,6 +578,11 @@ export type RpcFileMessageContent = {
   source: RpcMediaSource;
 };
 
+export type RpcFormClientAction =
+  | { type: "guardianFeesOpenDashboard"; inviteCode: string }
+  | { type: "guardianFeesSyncRemittanceAccount"; inviteCode: string }
+  | { type: "unknown" };
+
 export type RpcFormMessageContent = {
   body: string;
   i18nKeyLabel: string | null;
@@ -576,6 +596,7 @@ export type RpcFormOption = {
   value: string;
   label: string | null;
   i18nKeyLabel: string | null;
+  clientAction?: RpcFormClientAction;
 };
 
 export type RpcFormResponse = {
@@ -596,6 +617,24 @@ export type RpcGenerateEcashResponse = {
   ecash: string;
   cancelAt: number;
   operationId: RpcOperationId;
+};
+
+export type RpcGuardianRemittanceAccountInfo = { serializedAccount: string };
+
+export type RpcGuardianRemittanceDashboard = {
+  dayBuckets: Array<RpcGuardianRemittanceDayBucket>;
+};
+
+export type RpcGuardianRemittanceDayBucket = {
+  dayKey: string;
+  totalAmountRemitted: RpcAmount;
+  remittanceCount: number;
+  moduleTotals: Array<RpcGuardianRemittanceModuleTotal>;
+};
+
+export type RpcGuardianRemittanceModuleTotal = {
+  module: string;
+  totalAmount: RpcAmount;
 };
 
 export type RpcImageInfo = {
@@ -831,6 +870,13 @@ export type RpcMethods = {
   spv2DepositToSeek: [spv2DepositToSeek, RpcOperationId];
   spv2Withdraw: [spv2Withdraw, RpcOperationId];
   spv2WithdrawAll: [spv2WithdrawAll, RpcOperationId];
+  spv2GuardianRemittanceAccount: [
+    spv2GuardianRemittanceAccount,
+    RpcGuardianRemittanceAccountInfo,
+  ];
+  spv2GuardianRemittanceDashboard: [spv2GuardianRemittanceDashboard, null];
+  spv2GuardianRemittanceBalance: [spv2GuardianRemittanceBalance, null];
+  spv2WithdrawGuardianRemittanceAll: [spv2WithdrawGuardianRemittanceAll, null];
   spv2AverageFeeRate: [spv2AverageFeeRate, bigint];
   spv2AvailableLiquidity: [spv2AvailableLiquidity, RpcAmount];
   spv2OurPaymentAddress: [spv2OurPaymentAddress, string];
@@ -852,12 +898,12 @@ export type RpcMethods = {
     null,
   ];
   setSPv2ModuleFediFeeSchedule: [setSPv2ModuleFediFeeSchedule, null];
-  getAccruedOutstandingFediFeesPerTXType: [
-    getAccruedOutstandingFediFeesPerTXType,
+  getAccruedOutstandingFediFeesPerTXTypeByStream: [
+    getAccruedOutstandingFediFeesPerTXTypeByStream,
     Array<[string, RpcTransactionDirection, RpcAmount]>,
   ];
-  getAccruedPendingFediFeesPerTXType: [
-    getAccruedPendingFediFeesPerTXType,
+  getAccruedPendingFediFeesPerTXTypeByStream: [
+    getAccruedPendingFediFeesPerTXTypeByStream,
     Array<[string, RpcTransactionDirection, RpcAmount]>,
   ];
   dumpDb: [dumpDb, string];
@@ -1400,7 +1446,8 @@ export type RpcTimelineItemEvent = {
 export type RpcTransaction = {
   id: string;
   amount: RpcAmount;
-  fediFeeStatus: RpcOperationFediFeeStatus | null;
+  fediAppFeeStatus: RpcOperationFediFeeStatus | null;
+  fediGuardianFeeStatus: RpcOperationFediFeeStatus | null;
   txnNotes: string | null;
   txDateFiatInfo: FiatFXInfo | null;
   frontendMetadata: FrontendMetadata;
@@ -1439,6 +1486,7 @@ export type RpcTransaction = {
       kind: "sPV2Withdrawal";
       state: RpcSPV2WithdrawalState;
       sweeper_initiated: boolean;
+      guardian_remittance: boolean;
     }
   | { kind: "sPV2TransferOut"; state: RpcSPV2TransferOutState }
   | { kind: "sPV2TransferIn"; state: RpcSPV2TransferInState }
@@ -1479,6 +1527,7 @@ export type RpcTransactionKind =
       kind: "sPV2Withdrawal";
       state: RpcSPV2WithdrawalState;
       sweeper_initiated: boolean;
+      guardian_remittance: boolean;
     }
   | { kind: "sPV2TransferOut"; state: RpcSPV2TransferOutState }
   | { kind: "sPV2TransferIn"; state: RpcSPV2TransferInState };
@@ -1487,7 +1536,8 @@ export type RpcTransactionListEntry = {
   createdAt: number;
   id: string;
   amount: RpcAmount;
-  fediFeeStatus: RpcOperationFediFeeStatus | null;
+  fediAppFeeStatus: RpcOperationFediFeeStatus | null;
+  fediGuardianFeeStatus: RpcOperationFediFeeStatus | null;
   txnNotes: string | null;
   txDateFiatInfo: FiatFXInfo | null;
   frontendMetadata: FrontendMetadata;
@@ -1526,6 +1576,7 @@ export type RpcTransactionListEntry = {
       kind: "sPV2Withdrawal";
       state: RpcSPV2WithdrawalState;
       sweeper_initiated: boolean;
+      guardian_remittance: boolean;
     }
   | { kind: "sPV2TransferOut"; state: RpcSPV2TransferOutState }
   | { kind: "sPV2TransferIn"; state: RpcSPV2TransferInState }
@@ -1856,12 +1907,14 @@ export type generateInvoice = {
 
 export type generateReusedEcashProofs = { federationId: RpcFederationId };
 
-export type getAccruedOutstandingFediFeesPerTXType = {
+export type getAccruedOutstandingFediFeesPerTXTypeByStream = {
   federationId: RpcFederationId;
+  stream: RpcFediFeeStream;
 };
 
-export type getAccruedPendingFediFeesPerTXType = {
+export type getAccruedPendingFediFeesPerTXTypeByStream = {
   federationId: RpcFederationId;
+  stream: RpcFediFeeStream;
 };
 
 export type getFeatureCatalog = {};
@@ -2341,6 +2394,18 @@ export type spv2DepositToSeek = {
   frontendMeta: FrontendMetadata;
 };
 
+export type spv2GuardianRemittanceAccount = { federationId: RpcFederationId };
+
+export type spv2GuardianRemittanceBalance = {
+  federationId: RpcFederationId;
+  streamId: RpcStreamId<RpcAmount>;
+};
+
+export type spv2GuardianRemittanceDashboard = {
+  federationId: RpcFederationId;
+  streamId: RpcStreamId<RpcGuardianRemittanceDashboard>;
+};
+
 export type spv2NextCycleStartTime = { federationId: RpcFederationId };
 
 export type spv2OurPaymentAddress = {
@@ -2373,6 +2438,10 @@ export type spv2Withdraw = {
 export type spv2WithdrawAll = {
   federationId: RpcFederationId;
   frontendMeta: FrontendMetadata;
+};
+
+export type spv2WithdrawGuardianRemittanceAll = {
+  federationId: RpcFederationId;
 };
 
 export type stabilityPoolAccountInfo = {

@@ -103,6 +103,13 @@ describe('makeTxnDetailItems', () => {
         const spv2Withdraw = makeTestTxnEntry('sPV2Withdrawal', {
             amount: 100_000 as MSats,
         })
+        const guardianRemittanceWithdrawal = makeTestTxnEntry(
+            'sPV2Withdrawal',
+            {
+                amount: 100_000 as MSats,
+                guardian_remittance: true,
+            },
+        )
         const sPV2Deposit = makeTestTxnEntry(
             'sPV2Deposit',
 
@@ -165,6 +172,26 @@ describe('makeTxnDetailItems', () => {
         expect(spv2WithdrawItems).toContainEqual({
             label: t('feature.stabilitypool.current-value'),
             value: '0.10 USD',
+        })
+
+        const guardianRemittanceWithdrawalItems = makeTxnDetailItems(
+            t,
+            guardianRemittanceWithdrawal,
+            SupportedCurrency.USD,
+            'sats',
+            makeFormattedAmountsFromMSats,
+            convertCentsToFormattedFiat,
+        )
+
+        expect(guardianRemittanceWithdrawalItems).not.toContainEqual({
+            label: t('feature.stabilitypool.current-value'),
+            value: '0.10 USD',
+        })
+        expect(guardianRemittanceWithdrawalItems).not.toContainEqual({
+            label: t('feature.stabilitypool.withdrawal-from'),
+            value: t('feature.stabilitypool.currency-balance', {
+                currency: SupportedCurrency.USD,
+            }),
         })
 
         const sPV2DepositItems = makeTxnDetailItems(

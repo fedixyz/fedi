@@ -61,6 +61,17 @@ describe('makeTxnTypeText', () => {
         expect(makeTxnTypeText(sPV2TransferIn, t)).toBe(t('words.multispend'))
     })
 
+    it('[guardian remittance] should return the guardian fee transaction type', () => {
+        const guardianRemittanceWithdrawal = makeTestTxnEntry(
+            'sPV2Withdrawal',
+            { guardian_remittance: true },
+        )
+
+        expect(makeTxnTypeText(guardianRemittanceWithdrawal, t)).toBe(
+            t('phrases.guardian-fee'),
+        )
+    })
+
     it('[multispend] should return the correct transaction type', () => {
         const multispendDeposit = makeTestTxnEntry('multispendDeposit')
         const multispendWithdrawal = makeTestTxnEntry('multispendWithdrawal')

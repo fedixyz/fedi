@@ -1161,6 +1161,24 @@ pub enum RpcFormType {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "type"
+)]
+#[ts(export)]
+pub enum RpcFormClientAction {
+    GuardianFeesOpenDashboard {
+        invite_code: String,
+    },
+    GuardianFeesSyncRemittanceAccount {
+        invite_code: String,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcFormOption {
@@ -1169,6 +1187,9 @@ pub struct RpcFormOption {
     pub label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub i18n_key_label: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_action: Option<RpcFormClientAction>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

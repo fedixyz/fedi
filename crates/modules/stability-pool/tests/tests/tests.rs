@@ -10,11 +10,13 @@ use devimint::federation::Federation;
 use devimint::util::Command;
 use devimint::{DevFed, cmd, dev_fed};
 use fedimint_core::Amount;
-use fedimint_core::module::serde_json;
+use fedimint_core::module::{ModuleConsensusVersion, serde_json};
 use fedimint_core::secp256k1::schnorr;
+use fedimint_core::task::sleep_in_test;
 use stability_pool_common::{
-    Account, AccountId, AccountType, ActiveDeposits, FeeRate, FiatAmount, FiatOrAll, Provide, Seek,
-    SignedTransferRequest, SyncResponse, TransferRequest,
+    Account, AccountHistoryItem, AccountHistoryItemKind, AccountId, AccountType, ActiveDeposits,
+    BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION, BtcBalanceDepositMetadata, FeeRate, FiatAmount,
+    FiatOrAll, Provide, Seek, SignedTransferRequest, SyncResponse, TransferRequest,
 };
 use tracing::info;
 
@@ -26,7 +28,8 @@ async fn flaky_starter_test() -> anyhow::Result<()> {
         .unwrap_or(4);
     let (process_mgr, _) = devi::DevFed::process_setup(fed_size).await?;
 
-    let (seeker_peg_in_sats, provider_peg_in_sats) = (10_000u64, 15_000u64);
+    let (seeker_peg_in_sats, provider_peg_in_sats, btc_depositor_peg_in_sats) =
+        (10_000u64, 15_000u64, 1_000u64);
     let (seeker_peg_in_msats, provider_peg_in_msats) =
         (seeker_peg_in_sats * 1000, provider_peg_in_sats * 1000);
 
@@ -43,27 +46,33 @@ async fn flaky_starter_test() -> anyhow::Result<()> {
         recurringdv2,
     } = dev_fed(&process_mgr).await?;
 
-    // Get clients for seeker and provider
-    let (seeker, provider) =
-        tokio::try_join!(ForkedClient::new("seeker"), ForkedClient::new("provider"))?;
+    // Get clients for seeker, provider, and btc depositor
+    let (seeker, provider, btc_depositor) = tokio::try_join!(
+        ForkedClient::new("seeker"),
+        ForkedClient::new("provider"),
+        ForkedClient::new("btc-depositor-test")
+    )?;
 
-    // Make them join the federation
+    // Make all three join the federation
     let invite_code = fed.invite_code()?;
     tokio::try_join!(
         seeker.join_federation(invite_code.clone()),
-        provider.join_federation(invite_code.clone())
+        provider.join_federation(invite_code.clone()),
+        btc_depositor.join_federation(invite_code.clone())
     )?;
 
-    // Peg in for seeker and provider and verify balances
+    // Peg in for all clients and verify balances
     fed.await_block_sync().await?;
-    let (seeker_peg_in_op_id, provider_peg_in_op_id) = tokio::try_join!(
+    let (seeker_peg_in_op_id, provider_peg_in_op_id, btc_depositor_peg_in_op_id) = tokio::try_join!(
         seeker.initiate_peg_in(&fed, &bitcoind, seeker_peg_in_sats),
-        provider.initiate_peg_in(&fed, &bitcoind, provider_peg_in_sats)
+        provider.initiate_peg_in(&fed, &bitcoind, provider_peg_in_sats),
+        btc_depositor.initiate_peg_in(&fed, &bitcoind, btc_depositor_peg_in_sats)
     )?;
     bitcoind.mine_blocks(30).await?;
     tokio::try_join!(
         seeker.await_peg_in_complete(&seeker_peg_in_op_id),
         provider.await_peg_in_complete(&provider_peg_in_op_id),
+        btc_depositor.await_peg_in_complete(&btc_depositor_peg_in_op_id),
     )?;
     assert_eq!(
         tokio::try_join!(seeker.balance(), provider.balance())?,
@@ -79,6 +88,54 @@ async fn flaky_starter_test() -> anyhow::Result<()> {
     let seeker2 = Arc::new(ForkedClient::new("seeker2").await?);
     seeker2.join_federation(invite_code).await?;
     transfer_tests(seeker, seeker2, provider).await?;
+
+    btc_balance_deposit_upgrade_test(&btc_depositor).await?;
+
+    Ok(())
+}
+
+async fn btc_balance_deposit_upgrade_test(btc_depositor: &ForkedClient) -> anyhow::Result<()> {
+    let metadata = BtcBalanceDepositMetadata(vec![1, 2, 3, 4]);
+    let deposit_amount = Amount::from_msats(123_000);
+
+    // In an all-upgraded federation, the module should automatically start
+    // voting for the highest commonly supported consensus version.
+    btc_depositor
+        .wait_for_module_consensus_version(BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION)
+        .await?;
+
+    let btc_balance_account = btc_depositor
+        .get_account(AccountType::BtcDepositor)
+        .await?
+        .id();
+    let initial_account_info = btc_depositor
+        .get_sp_account_info(AccountType::BtcDepositor)
+        .await?;
+    let initial_history_count = initial_account_info.sync_response.account_history_count;
+    let initial_staged_balance = initial_account_info.sync_response.staged_balance;
+
+    let updated_account_info = btc_depositor
+        .deposit_to_btc_balance(deposit_amount.msats, metadata.clone())
+        .await?;
+    assert_eq!(
+        updated_account_info.sync_response.staged_balance,
+        initial_staged_balance + deposit_amount
+    );
+
+    let history = btc_depositor
+        .account_history(
+            btc_balance_account,
+            initial_history_count..updated_account_info.sync_response.account_history_count,
+        )
+        .await?;
+    assert_matches!(
+        history.as_slice(),
+        [AccountHistoryItem {
+            kind: AccountHistoryItemKind::DepositToBtcBalance { metadata: history_metadata },
+            amount,
+            ..
+        }] if *history_metadata == metadata && *amount == deposit_amount
+    );
 
     Ok(())
 }
@@ -837,6 +894,24 @@ impl ForkedClient {
         self.get_sp_account_info(AccountType::Provider).await
     }
 
+    async fn deposit_to_btc_balance(
+        &self,
+        amount: u64,
+        metadata: BtcBalanceDepositMetadata,
+    ) -> anyhow::Result<AccountInfo> {
+        cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "deposit-to-btc-balance",
+            amount,
+            serde_json::to_string(&metadata)?,
+        )
+        .run()
+        .await?;
+        self.get_sp_account_info(AccountType::BtcDepositor).await
+    }
+
     async fn withdraw(
         &self,
         account_type: AccountType,
@@ -935,6 +1010,70 @@ impl ForkedClient {
         self.get_sp_account_info(account_type).await
     }
 
+    async fn module_consensus_version(&self) -> anyhow::Result<ModuleConsensusVersion> {
+        let response = cmd!(
+            self,
+            "dev",
+            "api",
+            "--module",
+            "multi_sig_stability_pool",
+            "module_consensus_version",
+        )
+        .out_json()
+        .await?;
+        Ok(serde_json::from_value(
+            response
+                .get("value")
+                .cloned()
+                .expect("dev api output contains value field"),
+        )?)
+    }
+
+    async fn wait_for_module_consensus_version(
+        &self,
+        expected_version: ModuleConsensusVersion,
+    ) -> anyhow::Result<()> {
+        for _ in 0..30 {
+            if self.module_consensus_version().await? == expected_version {
+                return Ok(());
+            }
+            sleep_in_test(
+                "waiting for stability-pool module consensus version upgrade",
+                Duration::from_secs(2),
+            )
+            .await;
+        }
+        bail!(
+            "Timed out waiting for module consensus version {:?}",
+            expected_version
+        );
+    }
+
+    async fn account_history(
+        &self,
+        account_id: AccountId,
+        range: std::ops::Range<u64>,
+    ) -> anyhow::Result<Vec<AccountHistoryItem>> {
+        let account_type_str = match account_id.acc_type() {
+            AccountType::Seeker => "seeker",
+            AccountType::Provider => "provider",
+            AccountType::BtcDepositor => "btc-depositor",
+        };
+        Ok(serde_json::from_value(
+            cmd!(
+                self,
+                "module",
+                "multi_sig_stability_pool",
+                "account-history",
+                account_type_str,
+                range.start.to_string(),
+                range.end.to_string(),
+            )
+            .out_json()
+            .await?,
+        )?)
+    }
+
     async fn wait_for_locked_seek_change(
         &self,
         initial_account_info: AccountInfo,
@@ -955,7 +1094,13 @@ impl ForkedClient {
                 ) if old_locked != new_locked => {
                     return self.get_sp_account_info(AccountType::Seeker).await;
                 }
-                (_, _) => tokio::time::sleep(Duration::from_secs(2)).await,
+                (_, _) => {
+                    sleep_in_test(
+                        "waiting for locked seeker deposits to change",
+                        Duration::from_secs(2),
+                    )
+                    .await
+                }
             }
         }
     }
@@ -980,7 +1125,13 @@ impl ForkedClient {
                 ) if old_locked != new_locked => {
                     return self.get_sp_account_info(AccountType::Provider).await;
                 }
-                (_, _) => tokio::time::sleep(Duration::from_secs(2)).await,
+                (_, _) => {
+                    sleep_in_test(
+                        "waiting for locked provider deposits to change",
+                        Duration::from_secs(2),
+                    )
+                    .await
+                }
             }
         }
     }

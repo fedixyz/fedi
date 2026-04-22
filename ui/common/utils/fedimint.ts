@@ -277,6 +277,28 @@ export class FedimintBridge {
         return this.rpcTyped('spv2WithdrawAll', { federationId, frontendMeta })
     }
 
+    async spv2GuardianRemittanceAccount(federationId: string) {
+        return this.rpcTyped('spv2GuardianRemittanceAccount', { federationId })
+    }
+
+    spv2GuardianRemittanceDashboard(
+        args: StreamRpcArgs<'spv2GuardianRemittanceDashboard'>,
+    ): UnsubscribeFn {
+        return this.rpcStream('spv2GuardianRemittanceDashboard', args)
+    }
+
+    spv2GuardianRemittanceBalance(
+        args: StreamRpcArgs<'spv2GuardianRemittanceBalance'>,
+    ): UnsubscribeFn {
+        return this.rpcStream('spv2GuardianRemittanceBalance', args)
+    }
+
+    async spv2WithdrawGuardianRemittanceAll(federationId: string) {
+        return this.rpcTyped('spv2WithdrawGuardianRemittanceAll', {
+            federationId,
+        })
+    }
+
     async spv2AverageFeeRate(federationId: string, numCycles: number) {
         return this.rpcTyped('spv2AverageFeeRate', {
             federationId,
@@ -1109,16 +1131,19 @@ export class FedimintBridge {
         return this.rpcTyped('dumpDb', args)
     }
 
-    async getAccruedOutstandingFediFeesPerTXType(
-        args: bindings.RpcPayload<'getAccruedOutstandingFediFeesPerTXType'>,
+    async getAccruedOutstandingFediFeesPerTXTypeByStream(
+        args: bindings.RpcPayload<'getAccruedOutstandingFediFeesPerTXTypeByStream'>,
     ) {
-        return this.rpcTyped('getAccruedOutstandingFediFeesPerTXType', args)
+        return this.rpcTyped(
+            'getAccruedOutstandingFediFeesPerTXTypeByStream',
+            args,
+        )
     }
 
-    async getAccruedPendingFediFeesPerTXType(
-        args: bindings.RpcPayload<'getAccruedPendingFediFeesPerTXType'>,
+    async getAccruedPendingFediFeesPerTXTypeByStream(
+        args: bindings.RpcPayload<'getAccruedPendingFediFeesPerTXTypeByStream'>,
     ) {
-        return this.rpcTyped('getAccruedPendingFediFeesPerTXType', args)
+        return this.rpcTyped('getAccruedPendingFediFeesPerTXTypeByStream', args)
     }
 
     async matrixGetMediaPreview(

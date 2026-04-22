@@ -135,6 +135,11 @@ pub enum UserOperationHistoryItemKind {
     ///
     /// (X)+ means 1 or more of X
     TransferOut { to: AccountId, meta: Vec<u8> },
+
+    /// Single inbound deposit into a btc-balance account. These deposits do
+    /// not participate in the staged-to-locked seeker lifecycle, so we model
+    /// them as their own user operation and preserve the attached metadata.
+    BtcBalanceDeposit { metadata: Vec<u8> },
 }
 
 #[derive(Debug, Encodable, Decodable)]

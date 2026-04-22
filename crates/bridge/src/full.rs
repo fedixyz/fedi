@@ -347,7 +347,7 @@ impl BridgeFull {
     ) -> Result<()> {
         self.federations
             .fedi_fee_helper
-            .set_module_fee_schedule(
+            .set_app_module_fee_schedule(
                 federation_id.0,
                 module_kind,
                 ModuleFediFeeSchedule {

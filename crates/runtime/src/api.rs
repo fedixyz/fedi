@@ -10,12 +10,12 @@ use api_types::device_control::{DeviceIdentifierV0, DeviceIndexV0, SeedCommitmen
 use api_types::fee_schedule::FeesV0;
 pub use api_types::invoice_generator::TransactionDirection;
 use api_types::invoice_generator::{
-    FirstCommunityInviteCodeState, GenerateInvoiceRequestV4, GenerateInvoiceResponseV4,
+    FirstCommunityInviteCodeState, GenerateInvoiceBreakdownItemV5, GenerateInvoiceRequestV5,
+    GenerateInvoiceResponseV5,
 };
 use bitcoin::Network;
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::secret::RootSecretStrategy;
-use fedimint_core::core::ModuleKind;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{Amount, apply, async_trait_maybe_send};
 use lightning_invoice::Bolt11Invoice;
@@ -103,11 +103,10 @@ pub trait IFediApi: MaybeSend + MaybeSync + 'static {
         &self,
         amount: Amount,
         network: Network,
-        module: ModuleKind,
-        tx_direction: TransactionDirection,
         accrued_fee_delta: Amount,
         spv2_balance_delta_cents: Option<i64>,
         first_comm_invite_code: FirstCommunityInviteCodeState,
+        breakdown: Vec<GenerateInvoiceBreakdownItemV5>,
     ) -> anyhow::Result<Bolt11Invoice>;
 
     /// Fetches a list of all registered devices (as recorded by Fedi's servers)
@@ -232,11 +231,10 @@ impl IFediApi for LiveFediApi {
         &self,
         amount: Amount,
         network: Network,
-        module: ModuleKind,
-        tx_direction: TransactionDirection,
         accrued_fee_delta: Amount,
         spv2_balance_delta_cents: Option<i64>,
         first_comm_invite_code: FirstCommunityInviteCodeState,
+        breakdown: Vec<GenerateInvoiceBreakdownItemV5>,
     ) -> anyhow::Result<Bolt11Invoice> {
         let api_url = match network {
             Network::Bitcoin => FEDI_INVOICE_API_URL_MAINNET,
@@ -246,13 +244,12 @@ impl IFediApi for LiveFediApi {
         let invoice_v4 = fedimint_core::task::timeout(Duration::from_secs(15), async {
             self.client
                 .post(api_url)
-                .json(&GenerateInvoiceRequestV4 {
+                .json(&GenerateInvoiceRequestV5 {
                     amount_msat: amount.msats,
-                    module: module.to_string(),
-                    tx_direction,
                     accrued_fee_delta_msat: accrued_fee_delta.msats,
                     spv2_balance_delta_cents,
                     first_comm_invite_code,
+                    breakdown,
                 })
                 .send()
                 .await
@@ -260,7 +257,7 @@ impl IFediApi for LiveFediApi {
         .await
         .context("Request to fetch fee invoice took too long")?
         .context("Fetch fee invoice response error")?
-        .json::<GenerateInvoiceResponseV4>()
+        .json::<GenerateInvoiceResponseV5>()
         .await?;
 
         Ok(Bolt11Invoice::from_str(&invoice_v4.invoice).context("Failed to parse fee invoice")?)
@@ -367,11 +364,10 @@ impl IFediApi for MockFediApi {
         &self,
         _amount: Amount,
         _network: Network,
-        _module: ModuleKind,
-        _tx_direction: TransactionDirection,
         _accrued_fee_delta: Amount,
         _spv2_balance_delta_cents: Option<i64>,
         _first_comm_invite_code: FirstCommunityInviteCodeState,
+        _breakdown: Vec<GenerateInvoiceBreakdownItemV5>,
     ) -> anyhow::Result<Bolt11Invoice> {
         self.fedi_fee_invoice
             .clone()

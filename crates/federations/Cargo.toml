@@ -22,6 +22,7 @@ fedimint-meta-client = { workspace = true }
 fedi-social-client = { workspace = true }
 stability-pool-client-old = { workspace = true }
 stability-pool-client = { workspace = true }
+fedimint-aead = { workspace = true }
 bug-report = { workspace = true }
 device-registration = { workspace = true }
 matrix = { workspace = true }
@@ -58,6 +59,7 @@ async-recursion = "1.1.0"
 async-stream.workspace = true
 runtime = { workspace = true }
 rpc-types = { workspace = true }
+time = { version = "0.3", default-features = false, features = ["std"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }

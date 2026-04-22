@@ -114,7 +114,7 @@ impl Federations {
             "fedi fee schedule fetcher",
             async move {
                 this.fedi_fee_helper
-                    .update_fee_schedule_continuously()
+                    .update_app_fee_schedule_continuously()
                     .await;
             },
         );
@@ -123,7 +123,7 @@ impl Federations {
         self.runtime.task_group.clone().spawn_cancellable(
             "fedi fee schedule updater",
             async move {
-                let mut updates = this.fedi_fee_helper.subscribe_to_updates();
+                let mut updates = this.fedi_fee_helper.subscribe_to_app_fee_schedule_updates();
 
                 while let Some(maybe_new_schedule) = updates.next().await {
                     let Some(new_schedule_map) = maybe_new_schedule else {

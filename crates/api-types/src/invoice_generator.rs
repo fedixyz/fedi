@@ -168,3 +168,34 @@ pub struct GenerateInvoiceRequestV4 {
 pub struct GenerateInvoiceResponseV4 {
     pub invoice: String,
 }
+
+// v5 - federation-scoped app-fee remittance reporting
+//
+// v4 assumes one remittance request corresponds to exactly one
+// `(module, tx_direction)` bucket. App-fee remittance is now moving to a
+// federation-scoped model, so we preserve the aggregate reporting fields while
+// carrying the detailed fee breakdown explicitly.
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "v5")]
+pub struct GenerateInvoiceRequestV5 {
+    pub amount_msat: u64,
+    pub accrued_fee_delta_msat: u64,
+    // Optional because federation may not have SPV2 module
+    pub spv2_balance_delta_cents: Option<i64>,
+    pub first_comm_invite_code: FirstCommunityInviteCodeState,
+    pub breakdown: Vec<GenerateInvoiceBreakdownItemV5>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GenerateInvoiceBreakdownItemV5 {
+    pub module: String,
+    pub tx_direction: TransactionDirection,
+    pub amount_msat: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "v5")]
+pub struct GenerateInvoiceResponseV5 {
+    pub invoice: String,
+}

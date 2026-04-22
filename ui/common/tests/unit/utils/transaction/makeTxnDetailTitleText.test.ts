@@ -165,6 +165,17 @@ describe('makeTxnDetailTitleText', () => {
         )
     })
 
+    it('[guardian remittance] should use the guardian fee transfer title', () => {
+        const guardianRemittanceWithdrawal = makeTestTxnEntry(
+            'sPV2Withdrawal',
+            { guardian_remittance: true },
+        )
+
+        expect(makeTxnDetailTitleText(t, guardianRemittanceWithdrawal)).toBe(
+            t('feature.guardian-fees.transfer-success'),
+        )
+    })
+
     it('[sPV2TransferIn] should determine the title based on the txn state and kind', () => {
         const spv2TransferInCompleted = makeTestTxnEntry('sPV2TransferIn', {
             state: makeTestSPV2TransferInState(

@@ -144,8 +144,9 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     useEffect(() => {
         if (paymentFederation) {
             fedimint
-                .getAccruedOutstandingFediFeesPerTXType({
+                .getAccruedOutstandingFediFeesPerTXTypeByStream({
                     federationId: paymentFederation.id,
+                    stream: 'app',
                 })
                 .then(res => {
                     const sendFeesMap: FeesMap = {}
@@ -160,7 +161,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 })
                 .catch(err =>
                     log.warn(
-                        'Failed to get accured outstanding fedi fees',
+                        'Failed to get accrued outstanding fedi fees',
                         err,
                     ),
                 )
@@ -170,8 +171,9 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     useEffect(() => {
         if (paymentFederation) {
             fedimint
-                .getAccruedPendingFediFeesPerTXType({
+                .getAccruedPendingFediFeesPerTXTypeByStream({
                     federationId: paymentFederation.id,
+                    stream: 'app',
                 })
                 .then(res => {
                     const sendFeesMap: FeesMap = {}
@@ -185,10 +187,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     setPendingFediReceiveFeesMap(receiveFeesMap)
                 })
                 .catch(err =>
-                    log.warn(
-                        'Failed to get pending outstanding fedi fees',
-                        err,
-                    ),
+                    log.warn('Failed to get accrued pending fedi fees', err),
                 )
         }
     }, [paymentFederation, fedimint])
@@ -744,7 +743,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         </View>
                     ))}
                 </SettingsSection>
-                {/* TODO: Clean up this mess */}
                 {Object.keys(outstandingFediSendFeesMap).length !== 0 ? (
                     Object.entries(outstandingFediSendFeesMap).map(
                         ([module, fee]) => (

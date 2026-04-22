@@ -21,10 +21,19 @@ use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 
 pub mod config;
+pub mod endpoint_constants;
 use config::StabilityPoolClientConfig;
 
 pub const KIND: ModuleKind = ModuleKind::from_static_str("multi_sig_stability_pool");
-pub const CONSENSUS_VERSION: ModuleConsensusVersion = ModuleConsensusVersion::new(2, 0);
+/// Highest stability-pool module consensus version this binary understands.
+pub const CONSENSUS_VERSION: ModuleConsensusVersion = ModuleConsensusVersion::new(2, 1);
+/// Federations that have not activated any upgrade yet are treated as 2.0.
+pub const INITIAL_MODULE_CONSENSUS_VERSION: ModuleConsensusVersion =
+    ModuleConsensusVersion::new(2, 0);
+/// `DepositToBtcBalance` is only valid once the federation activates this
+/// module consensus version.
+pub const BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION: ModuleConsensusVersion =
+    ModuleConsensusVersion::new(2, 1);
 
 pub const MSATS_PER_BTC: u128 = 100_000_000_000;
 
@@ -119,15 +128,9 @@ pub enum AccountType {
     Provider,
     /// A BtcDepositor only wants to hold Bitcoin in the stability pool module
     /// (typically in a multisig) without any sort of fiat-value stabilization.
-    /// To avoid creating new balance buckets and module input/output types, we
-    /// can represent this account type as a staged-only seeker. This is
-    /// hacky, yes. But one might argue that it is a lot less hacky compared
-    /// to writing new data types for a bitcoin-only multisig within a
-    /// stability pool module; less hacky than stuffing two different
-    /// modules into one. Plus it allows for a ton of code reuse because the
-    /// staging area is a well-defined state for deposits that are
-    /// unstabilized, and we have already handled deposits, withdrawals and
-    /// transfers associated with the staging area.
+    /// We still reuse the staged seeker machinery for this account type, but
+    /// keep the semantics separate: btc depositors never participate in the
+    /// stabilization cycle and may grow specialized deposit flows over time.
     BtcDepositor,
 }
 
@@ -335,6 +338,15 @@ where
 /// A seek is just a deposit without any additional meta.
 pub type Seek = Deposit<()>;
 
+/// Metadata attached to btc-balance deposits.
+///
+/// The normal seek lifecycle remains `Deposit<()>`; btc-balance deposits carry
+/// this payload through `DepositToBtcBalance` and the corresponding
+/// `AccountHistoryItemKind::DepositToBtcBalance` history item without widening
+/// normal seeker semantics.
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, Encodable, Decodable)]
+pub struct BtcBalanceDepositMetadata(pub Vec<u8>);
+
 /// Newtype to express fee rate in PPB (parts per billion).
 #[derive(
     Copy,
@@ -436,6 +448,19 @@ pub struct DepositToSeekOutput {
     pub seek_request: SeekRequest,
 }
 
+/// Represents a module output for depositing bitcoin into a btc-depositor
+/// account while carrying metadata alongside the deposit.
+///
+/// This is intentionally restricted to `AccountType::BtcDepositor` so we do
+/// not widen normal seeker semantics before deciding how metadata should
+/// behave across the stabilized seek lifecycle.
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize, Encodable, Decodable)]
+pub struct DepositToBtcBalanceOutput {
+    pub account_id: AccountId,
+    pub seek_request: SeekRequest,
+    pub metadata: BtcBalanceDepositMetadata,
+}
+
 /// Represents a module output for depositing the given `amount` into the given
 /// `account_id`s staging balance as a provide with the specified `min_fee_rate`
 /// in parts-per-billion. Provides are assigned auto-incrementing sequences by
@@ -453,11 +478,52 @@ pub struct TransferOutput {
     pub signed_request: SignedTransferRequest,
 }
 
-extensible_associated_module_type!(
-    StabilityPoolOutput,
-    StabilityPoolOutputV0,
-    UnknownStabilityPoolOutputVariantError
-);
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Deserialize, Serialize, Encodable, Decodable)]
+pub enum StabilityPoolOutput {
+    V0(StabilityPoolOutputV0),
+    V1(StabilityPoolOutputV1),
+    #[encodable_default]
+    Default {
+        variant: u64,
+        bytes: Vec<u8>,
+    },
+}
+
+impl StabilityPoolOutput {
+    pub fn maybe_v0_ref(&self) -> Option<&StabilityPoolOutputV0> {
+        match self {
+            StabilityPoolOutput::V0(v0) => Some(v0),
+            _ => None,
+        }
+    }
+}
+
+#[derive(
+    Debug,
+    thiserror::Error,
+    Clone,
+    Eq,
+    PartialEq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    fedimint_core::encoding::Encodable,
+    fedimint_core::encoding::Decodable,
+)]
+#[error("Unknown StabilityPoolOutput variant {variant}")]
+pub struct UnknownStabilityPoolOutputVariantError {
+    pub variant: u64,
+}
+
+/// Versioned stability-pool outputs introduced under module consensus version
+/// 2.1. V1 preserves all legacy outputs and adds btc-balance deposits.
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize, Encodable, Decodable)]
+pub enum StabilityPoolOutputV1 {
+    DepositToSeek(DepositToSeekOutput),
+    DepositToProvide(DepositToProvideOutput),
+    Transfer(TransferOutput),
+    DepositToBtcBalance(DepositToBtcBalanceOutput),
+}
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Encodable, Decodable, Serialize, Deserialize)]
 pub struct SeekRequest(pub Amount);
@@ -674,13 +740,25 @@ pub struct StabilityPoolConsensusItemV0 {
     pub price: FiatAmount,
 }
 
-extensible_associated_module_type!(
-    StabilityPoolConsensusItem,
-    StabilityPoolConsensusItemV0,
-    UnknownStabilityPoolConsensusItemVariantError
-);
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Deserialize, Serialize, Encodable, Decodable)]
+pub enum StabilityPoolConsensusItem {
+    V0(StabilityPoolConsensusItemV0),
+    V1(ModuleConsensusVersion),
+    #[encodable_default]
+    Default {
+        variant: u64,
+        bytes: Vec<u8>,
+    },
+}
 
 impl StabilityPoolConsensusItem {
+    pub fn maybe_v0_ref(&self) -> Option<&StabilityPoolConsensusItemV0> {
+        match self {
+            StabilityPoolConsensusItem::V0(v0) => Some(v0),
+            _ => None,
+        }
+    }
+
     pub fn new_v0(
         next_cycle_index: u64,
         time: SystemTime,
@@ -693,12 +771,29 @@ impl StabilityPoolConsensusItem {
         })
     }
 
+    pub fn new_module_consensus_version_vote(
+        version: ModuleConsensusVersion,
+    ) -> StabilityPoolConsensusItem {
+        StabilityPoolConsensusItem::V1(version)
+    }
+
+    pub fn module_consensus_version_vote(&self) -> anyhow::Result<Option<ModuleConsensusVersion>> {
+        match self {
+            StabilityPoolConsensusItem::V0(_) => Ok(None),
+            StabilityPoolConsensusItem::V1(version) => Ok(Some(*version)),
+            StabilityPoolConsensusItem::Default { .. } => Ok(None),
+        }
+    }
+
     pub fn next_cycle_index(&self) -> anyhow::Result<u64> {
         match self {
             StabilityPoolConsensusItem::V0(StabilityPoolConsensusItemV0 {
                 next_cycle_index,
                 ..
             }) => Ok(*next_cycle_index),
+            StabilityPoolConsensusItem::V1(version) => {
+                bail!("Unsupported module consensus version vote {version:?}")
+            }
             StabilityPoolConsensusItem::Default { variant, .. } => {
                 bail!("Unsupported variant {variant}")
             }
@@ -708,6 +803,9 @@ impl StabilityPoolConsensusItem {
     pub fn time(&self) -> anyhow::Result<SystemTime> {
         match self {
             StabilityPoolConsensusItem::V0(StabilityPoolConsensusItemV0 { time, .. }) => Ok(*time),
+            StabilityPoolConsensusItem::V1(version) => {
+                bail!("Unsupported module consensus version vote {version:?}")
+            }
             StabilityPoolConsensusItem::Default { variant, .. } => {
                 bail!("Unsupported variant {variant}")
             }
@@ -719,11 +817,31 @@ impl StabilityPoolConsensusItem {
             StabilityPoolConsensusItem::V0(StabilityPoolConsensusItemV0 { price, .. }) => {
                 Ok(*price)
             }
+            StabilityPoolConsensusItem::V1(version) => {
+                bail!("Unsupported module consensus version vote {version:?}")
+            }
             StabilityPoolConsensusItem::Default { variant, .. } => {
                 bail!("Unsupported variant {variant}")
             }
         }
     }
+}
+
+#[derive(
+    Debug,
+    thiserror::Error,
+    Clone,
+    Eq,
+    PartialEq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    fedimint_core::encoding::Encodable,
+    fedimint_core::encoding::Decodable,
+)]
+#[error("Unknown StabilityPoolConsensusItem variant {variant}")]
+pub struct UnknownStabilityPoolConsensusItemVariantError {
+    pub variant: u64,
 }
 
 /// Errors that might be returned by the server when using an input from the
@@ -859,6 +977,53 @@ impl Display for StabilityPoolOutputV0 {
     }
 }
 
+impl Display for StabilityPoolOutputV1 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StabilityPoolOutputV1::DepositToSeek(seek_output) => write!(
+                f,
+                "Deposit {} into account {} for seeking",
+                seek_output.seek_request.0, seek_output.account_id
+            ),
+            StabilityPoolOutputV1::DepositToProvide(provide_output) => write!(
+                f,
+                "Deposit {} into account {} for providing with min fee rate {} ppb",
+                provide_output.provide_request.amount,
+                provide_output.account_id,
+                provide_output.provide_request.min_fee_rate.0
+            ),
+            StabilityPoolOutputV1::Transfer(transfer_output) => write!(
+                f,
+                "Transfer {} fiat amount from account {} to account {}",
+                transfer_output
+                    .signed_request
+                    .transfer_request
+                    .transfer_amount
+                    .0,
+                transfer_output.signed_request.transfer_request.from.id(),
+                transfer_output.signed_request.transfer_request.to,
+            ),
+            StabilityPoolOutputV1::DepositToBtcBalance(deposit_output) => write!(
+                f,
+                "Deposit {} into btc-balance account {} with metadata",
+                deposit_output.seek_request.0, deposit_output.account_id
+            ),
+        }
+    }
+}
+
+impl Display for StabilityPoolOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StabilityPoolOutput::V0(inner) => Display::fmt(inner, f),
+            StabilityPoolOutput::V1(inner) => Display::fmt(inner, f),
+            StabilityPoolOutput::Default { variant, .. } => {
+                write!(f, "Unknown variant (variant={variant})")
+            }
+        }
+    }
+}
+
 impl Display for StabilityPoolOutputOutcomeV0 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Output outcome is a unit struct",)
@@ -872,6 +1037,24 @@ impl Display for StabilityPoolConsensusItemV0 {
             "Consensus item for cycle index {:?} with time {:?} and price {}",
             self.next_cycle_index, self.time, self.price.0
         )
+    }
+}
+
+impl Display for StabilityPoolConsensusItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StabilityPoolConsensusItem::V0(inner) => Display::fmt(inner, f),
+            StabilityPoolConsensusItem::V1(version) => {
+                write!(
+                    f,
+                    "Stability pool consensus version vote {}.{}",
+                    version.major, version.minor
+                )
+            }
+            StabilityPoolConsensusItem::Default { variant, .. } => {
+                write!(f, "Unknown variant (variant={variant})")
+            }
+        }
     }
 }
 
@@ -1077,15 +1260,20 @@ pub enum AccountHistoryItemKind {
     /// of the funds gave up some locked deposits that were immediately given to
     /// the recipient.
     LockedTransferOut { to: AccountId, meta: Vec<u8> },
+
+    /// Fresh deposit into a btc-balance account, carrying metadata that should
+    /// stay coupled to the persisted history record rather than a side table.
+    DepositToBtcBalance { metadata: BtcBalanceDepositMetadata },
 }
 
 #[cfg(test)]
 mod tests {
     use fedimint_core::Amount;
+    use fedimint_core::encoding::{Decodable, Encodable};
     use proptest::collection::vec;
     use proptest::prelude::*;
 
-    use super::FiatAmount;
+    use super::{BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION, FiatAmount, StabilityPoolConsensusItem};
 
     fn price_strategy() -> impl Strategy<Value = FiatAmount> {
         (20_000_u64 * 100..200_000_u64 * 100).prop_map(FiatAmount)
@@ -1187,5 +1375,24 @@ mod tests {
             prop_assert!(parts_sum_fiat <= total_fiat.0 + 1);
             prop_assert!(total_fiat.0 <= parts_sum_fiat + underflow_bound);
         }
+    }
+
+    #[test]
+    fn module_consensus_version_vote_roundtrips() {
+        let item = StabilityPoolConsensusItem::new_module_consensus_version_vote(
+            BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
+        );
+        let decoded = StabilityPoolConsensusItem::consensus_decode_whole(
+            &item.consensus_encode_to_vec(),
+            &Default::default(),
+        )
+        .expect("module consensus vote should decode");
+
+        assert_eq!(
+            decoded
+                .module_consensus_version_vote()
+                .expect("version vote should parse"),
+            Some(BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION)
+        );
     }
 }

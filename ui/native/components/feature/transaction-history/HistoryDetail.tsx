@@ -28,10 +28,11 @@ import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
 
 export type HistoryDetailProps = {
-    txn: TransactionListEntry
+    txn?: TransactionListEntry
     icon: React.ReactNode
     title: React.ReactNode
     amount: string
+    secondaryAmount?: string
     fees?: string
     items: HistoryDetailItemProps[]
     onPressFees?: () => void
@@ -49,6 +50,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     icon,
     title,
     amount,
+    secondaryAmount,
     items,
     fees,
     txn,
@@ -72,7 +74,11 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
 
     const { makeFormattedAmountsFromTxn } = useAmountFormatter({ federationId })
 
-    const { formattedSecondaryAmount } = makeFormattedAmountsFromTxn(txn, 'end')
+    const formattedSecondaryAmount =
+        secondaryAmount ??
+        (txn
+            ? makeFormattedAmountsFromTxn(txn, 'end').formattedSecondaryAmount
+            : undefined)
 
     // If notes prop changes, update notes state
     useEffect(() => {
@@ -93,7 +99,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     }, [handleSaveNotes, onClose])
 
     const handleCheckIncomingFunds = useCallback(async () => {
-        if (!federationId) return
+        if (!federationId || !txn) return
 
         setCheckLoading(true)
         try {
@@ -125,7 +131,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
         } finally {
             setCheckLoading(false)
         }
-    }, [federationId, txn.id, fetchTransactions, t, toast, fedimint])
+    }, [federationId, txn, fetchTransactions, t, toast, fedimint])
 
     const style = styles(theme)
 
@@ -147,28 +153,30 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                         {amount}
                     </Text>
                 )}
-                <Pressable
-                    hitSlop={10}
-                    onPress={() =>
-                        dispatch(
-                            setTransactionDisplayType(
-                                transactionDisplayType === 'sats'
-                                    ? 'fiat'
-                                    : 'sats',
-                            ),
-                        )
-                    }>
-                    <Row gap="xs" align="center">
-                        <Text color={theme.colors.grey} medium>
-                            {formattedSecondaryAmount}
-                        </Text>
-                        <SvgImage
-                            name="Switch"
-                            size={20}
-                            color={theme.colors.grey}
-                        />
-                    </Row>
-                </Pressable>
+                {formattedSecondaryAmount && (
+                    <Pressable
+                        hitSlop={10}
+                        onPress={() =>
+                            dispatch(
+                                setTransactionDisplayType(
+                                    transactionDisplayType === 'sats'
+                                        ? 'fiat'
+                                        : 'sats',
+                                ),
+                            )
+                        }>
+                        <Row gap="xs" align="center">
+                            <Text color={theme.colors.grey} medium>
+                                {formattedSecondaryAmount}
+                            </Text>
+                            <SvgImage
+                                name="Switch"
+                                size={20}
+                                color={theme.colors.grey}
+                            />
+                        </Row>
+                    </Pressable>
+                )}
             </Column>
             <Column gap="xs" fullWidth style={style.detailItemsContainer}>
                 {items.map((item, idx) => (
@@ -215,7 +223,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                     />
                 )}
             </Column>
-            {txn.kind === 'onchainDeposit' && (
+            {txn?.kind === 'onchainDeposit' && (
                 <View style={style.checkFundsContainer}>
                     <Button
                         title={

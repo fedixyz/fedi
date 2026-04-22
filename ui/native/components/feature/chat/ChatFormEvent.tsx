@@ -1,3 +1,4 @@
+import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
@@ -93,9 +94,13 @@ export const FormEventContainer = ({
 const ChatFormEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const navigation = useNavigation()
 
     const { isSentByMe, messageText, actionButton, options } =
-        useMatrixFormEvent(event, t)
+        useMatrixFormEvent(event, t, {
+            openGuardianFeesDashboard: federationId =>
+                navigation.navigate('GuardianFees', { federationId }),
+        })
 
     let extra: React.ReactNode = null
     if (actionButton || options.length > 0) {

@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use std::time::SystemTime;
 
 use bitcoin::secp256k1;
@@ -22,6 +24,7 @@ pub enum BridgeDbPrefix {
     LastBackupTimestamp = 0xb4,
     TransactionNote = 0xb7,
     OutstandingFediFees = 0xb8,
+    #[deprecated]
     OperationFediFeeStatus = 0xb9,
     #[deprecated]
     LastUsedGateway = 0xba,
@@ -35,6 +38,7 @@ pub enum BridgeDbPrefix {
     // We need to track pending accrued Fedi app fees separately from outstanding/successfully
     // accrued Fedi app fees. As pending operations succeed, we move their share of the pending
     // Fedi app fees to the oustanding Fedi app fees.
+    #[deprecated]
     PendingFediFees = 0xbc,
 
     // In a subsequent iteration of the app fee design, we decided to split fee collection by
@@ -43,7 +47,9 @@ pub enum BridgeDbPrefix {
     // value is msat. Essentially, we split up the single counters for outstanding and pending
     // Fedi fees into (2 * M) counters where M is the number of fee-relevant modules. Currently M
     // = 4 (mint, ln, wallet, stability-pool).
+    #[deprecated]
     OutstandingFediFeesPerTXType = 0xbd,
+    #[deprecated]
     PendingFediFeesPerTXType = 0xbe,
 
     // For each TX, we record the fiat display currency and the fiat value at the time of the TX.
@@ -69,6 +75,7 @@ pub enum BridgeDbPrefix {
     // only works with a remittance threshold amount, which can lead to long time periods in
     // between queries. To somewhat normalize the reporting frequency for Fedi gift data, we also
     // decide to introduce a time-based check to trigger Fedi fee invoice generation.
+    #[deprecated]
     FediFeesRemittanceTimestampPerTXType = 0xc3,
 
     // For the Fedi gift project (iteration #1), we would also like to know the aggregate SPV2
@@ -79,15 +86,21 @@ pub enum BridgeDbPrefix {
 
     // Opposed to the Oustanding fedi fee which increases between remissions, and is cleared out
     // to 0 upon remission, the total accrued fedi fee only ever goes up.
+    #[deprecated]
     TotalAccruedFediFeesPerTXType = 0xc5,
 
     // For the Fedi gift project (iteration #1), we ask for a 0-invoice amount when the
     // outstanding fee is below the threshold. However, we would still like to tell the server
     // about the additional accrued fee since last time so that TX volume can be approximated.
+    #[deprecated]
     LastFediFeesRemittanceTotalAccruedFees = 0xc6,
 
     // Gateway override used by gateway selection
     GatewayOverride = 0xc7,
+
+    // Prefix partition for all stream-era fee state. Individual fee keys live
+    // under their own subprefixes inside this namespace.
+    FediFeePrefix = 0xc8,
 
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
@@ -132,6 +145,7 @@ impl_db_record!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct OutstandingFediFeesKey;
 
 impl_db_record!(
@@ -141,7 +155,12 @@ impl_db_record!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct OperationFediFeeStatusKey(pub OperationId);
+
+#[derive(Debug, Encodable, Decodable)]
+#[deprecated]
+pub struct OperationFediFeeStatusKeyPrefix;
 
 impl_db_record!(
     key = OperationFediFeeStatusKey,
@@ -149,7 +168,13 @@ impl_db_record!(
     db_prefix = BridgeDbPrefix::OperationFediFeeStatus,
 );
 
+impl_db_lookup!(
+    key = OperationFediFeeStatusKey,
+    query_prefix = OperationFediFeeStatusKeyPrefix,
+);
+
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct PendingFediFeesKey;
 
 impl_db_record!(
@@ -195,9 +220,11 @@ impl_db_record!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct OutstandingFediFeesPerTXTypeKey(pub ModuleKind, pub RpcTransactionDirection);
 
 #[derive(Debug, Encodable, Decodable)]
+#[deprecated]
 pub struct OutstandingFediFeesPerTXTypeKeyPrefix;
 
 impl_db_record!(
@@ -212,9 +239,11 @@ impl_db_lookup!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct PendingFediFeesPerTXTypeKey(pub ModuleKind, pub RpcTransactionDirection);
 
 #[derive(Debug, Encodable, Decodable)]
+#[deprecated]
 pub struct PendingFediFeesPerTXTypeKeyPrefix;
 
 impl_db_record!(
@@ -229,7 +258,12 @@ impl_db_lookup!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct TotalAccruedFediFeesPerTXTypeKey(pub ModuleKind, pub RpcTransactionDirection);
+
+#[derive(Debug, Encodable, Decodable)]
+#[deprecated]
+pub struct TotalAccruedFediFeesPerTXTypeKeyPrefix;
 
 impl_db_record!(
     key = TotalAccruedFediFeesPerTXTypeKey,
@@ -237,13 +271,28 @@ impl_db_record!(
     db_prefix = BridgeDbPrefix::TotalAccruedFediFeesPerTXType,
 );
 
+impl_db_lookup!(
+    key = TotalAccruedFediFeesPerTXTypeKey,
+    query_prefix = TotalAccruedFediFeesPerTXTypeKeyPrefix,
+);
+
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct FediFeesRemittanceTimestampPerTXTypeKey(pub ModuleKind, pub RpcTransactionDirection);
+
+#[derive(Debug, Encodable, Decodable)]
+#[deprecated]
+pub struct FediFeesRemittanceTimestampPerTXTypeKeyPrefix;
 
 impl_db_record!(
     key = FediFeesRemittanceTimestampPerTXTypeKey,
     value = SystemTime,
     db_prefix = BridgeDbPrefix::FediFeesRemittanceTimestampPerTXType,
+);
+
+impl_db_lookup!(
+    key = FediFeesRemittanceTimestampPerTXTypeKey,
+    query_prefix = FediFeesRemittanceTimestampPerTXTypeKeyPrefix,
 );
 
 #[derive(Debug, Decodable, Encodable)]
@@ -256,6 +305,7 @@ impl_db_record!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct LastFediFeesRemittanceTotalAccruedFeesKey(pub ModuleKind, pub RpcTransactionDirection);
 
 impl_db_record!(

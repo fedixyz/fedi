@@ -19,6 +19,7 @@ use federations::federation_sm::FederationState;
 use federations::federation_v2::client::ClientExt;
 use federations::federation_v2::spv2_pay_address::Spv2PaymentAddress;
 use federations::federation_v2::FederationV2;
+use federations::fedi_fee::FediFeeStream;
 use federations::Federations;
 use fedimint_client::db::ChronologicalOperationLogKey;
 use fedimint_connectors::ConnectorRegistry;
@@ -56,12 +57,13 @@ use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{
     FrontendMetadata, GuardianStatus, NetworkError, RpcAmount, RpcAppFlavor, RpcEcashInfo,
     RpcEventId, RpcFederation, RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview,
-    RpcFeeDetails, RpcFiatAmount, RpcGenerateEcashResponse, RpcInvoice, RpcLightningGateway,
-    RpcMediaUploadParams, RpcOperationId, RpcParseInviteCodeResult, RpcPayInvoiceResponse,
-    RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey, RpcRecoveryId, RpcRegisteredDevice,
-    RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature, RpcSignedLnurlMessage,
-    RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection, RpcTransactionListEntry,
-    SocialRecoveryQr,
+    RpcFediFeeStream, RpcFeeDetails, RpcFiatAmount, RpcGenerateEcashResponse,
+    RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard, RpcInvoice,
+    RpcLightningGateway, RpcMediaUploadParams, RpcOperationId, RpcParseInviteCodeResult,
+    RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey, RpcRecoveryId,
+    RpcRegisteredDevice, RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature,
+    RpcSignedLnurlMessage, RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection,
+    RpcTransactionListEntry, SocialRecoveryQr,
 };
 use runtime::api::{IFediApi, LiveFediApi, MockFediApi};
 use runtime::bridge_runtime::Runtime;
@@ -1021,6 +1023,48 @@ async fn spv2WithdrawAll(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
+async fn spv2GuardianRemittanceAccount(
+    federation: Arc<FederationV2>,
+) -> anyhow::Result<RpcGuardianRemittanceAccountInfo> {
+    federation.spv2_guardian_remittance_account_info().await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn spv2GuardianRemittanceDashboard(
+    federation: Arc<FederationV2>,
+    stream_id: RpcStreamId<RpcGuardianRemittanceDashboard>,
+) -> anyhow::Result<()> {
+    let stream = federation
+        .spv2_subscribe_guardian_remittance_dashboard()
+        .await?;
+    federation
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
+        .await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn spv2GuardianRemittanceBalance(
+    federation: Arc<FederationV2>,
+    stream_id: RpcStreamId<RpcAmount>,
+) -> anyhow::Result<()> {
+    let stream = federation
+        .spv2_subscribe_guardian_remittance_balance()
+        .await?;
+    federation
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
+        .await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn spv2WithdrawGuardianRemittanceAll(federation: Arc<FederationV2>) -> anyhow::Result<()> {
+    federation.spv2_withdraw_guardian_remittance_all().await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
 async fn spv2OurPaymentAddress(
     federation: Arc<FederationV2>,
     include_invite: bool,
@@ -1229,11 +1273,13 @@ async fn setSPv2ModuleFediFeeSchedule(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
-async fn getAccruedOutstandingFediFeesPerTXType(
+async fn getAccruedOutstandingFediFeesPerTXTypeByStream(
     federation: Arc<FederationV2>,
+    stream: RpcFediFeeStream,
 ) -> anyhow::Result<Vec<(String, RpcTransactionDirection, RpcAmount)>> {
+    let stream: FediFeeStream = stream.into();
     Ok(federation
-        .get_outstanding_fedi_fees_per_tx_type()
+        .get_outstanding_fedi_fees_per_tx_type_by_stream(stream)
         .await
         .into_iter()
         .map(|(kind, dir, amount)| (kind.to_string(), dir, RpcAmount(amount)))
@@ -1241,11 +1287,13 @@ async fn getAccruedOutstandingFediFeesPerTXType(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
-async fn getAccruedPendingFediFeesPerTXType(
+async fn getAccruedPendingFediFeesPerTXTypeByStream(
     federation: Arc<FederationV2>,
+    stream: RpcFediFeeStream,
 ) -> anyhow::Result<Vec<(String, RpcTransactionDirection, RpcAmount)>> {
+    let stream: FediFeeStream = stream.into();
     Ok(federation
-        .get_pending_fedi_fees_per_tx_type()
+        .get_pending_fedi_fees_per_tx_type_by_stream(stream)
         .await
         .into_iter()
         .map(|(kind, dir, amount)| (kind.to_string(), dir, RpcAmount(amount)))
@@ -2555,6 +2603,10 @@ rpc_methods!(RpcMethods {
     spv2DepositToSeek,
     spv2Withdraw,
     spv2WithdrawAll,
+    spv2GuardianRemittanceAccount,
+    spv2GuardianRemittanceDashboard,
+    spv2GuardianRemittanceBalance,
+    spv2WithdrawGuardianRemittanceAll,
     spv2AverageFeeRate,
     spv2AvailableLiquidity,
     spv2OurPaymentAddress,
@@ -2571,8 +2623,8 @@ rpc_methods!(RpcMethods {
     setLightningModuleFediFeeSchedule,
     setStabilityPoolModuleFediFeeSchedule,
     setSPv2ModuleFediFeeSchedule,
-    getAccruedOutstandingFediFeesPerTXType,
-    getAccruedPendingFediFeesPerTXType,
+    getAccruedOutstandingFediFeesPerTXTypeByStream,
+    getAccruedPendingFediFeesPerTXTypeByStream,
     dumpDb,
 
     // Device Registration

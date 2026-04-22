@@ -5,6 +5,7 @@ use std::time::SystemTime;
 use anyhow::ensure;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_core::encoding::{Decodable, Encodable};
+use fedimint_core::module::ModuleConsensusVersion;
 use fedimint_core::{Amount, PeerId, TransactionId, impl_db_lookup, impl_db_record};
 use futures::StreamExt;
 use stability_pool_common::{
@@ -76,6 +77,13 @@ pub enum DbKeyPrefix {
     /// Every [`TransferRequest`] coming to the client is hashed and stored in
     /// the server DB to guard against replay attacks.
     TransferRequests,
+
+    /// PeerId => voted module consensus version.
+    ConsensusVersionVote,
+
+    /// Local flag enabling this guardian to start voting for the latest
+    /// supported module consensus version.
+    ConsensusVersionVotingActivation,
 }
 
 #[derive(Debug, Encodable, Decodable)]
@@ -246,6 +254,40 @@ impl_db_record!(
     key = TransferRequestsKey,
     value = (),
     db_prefix = DbKeyPrefix::TransferRequests
+);
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct ConsensusVersionVoteKey(pub PeerId);
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct ConsensusVersionVotePrefix;
+
+impl_db_record!(
+    key = ConsensusVersionVoteKey,
+    value = ModuleConsensusVersion,
+    db_prefix = DbKeyPrefix::ConsensusVersionVote
+);
+
+impl_db_lookup!(
+    key = ConsensusVersionVoteKey,
+    query_prefix = ConsensusVersionVotePrefix
+);
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct ConsensusVersionVotingActivationKey;
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct ConsensusVersionVotingActivationPrefix;
+
+impl_db_record!(
+    key = ConsensusVersionVotingActivationKey,
+    value = (),
+    db_prefix = DbKeyPrefix::ConsensusVersionVotingActivation
+);
+
+impl_db_lookup!(
+    key = ConsensusVersionVotingActivationKey,
+    query_prefix = ConsensusVersionVotingActivationPrefix
 );
 
 /// Insert new account history items for an account.

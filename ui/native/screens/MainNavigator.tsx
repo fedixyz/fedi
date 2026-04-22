@@ -114,6 +114,8 @@ import FediModBrowser from './FediModBrowser'
 import FediModSettings from './FediModSettings'
 import GlobalCurrency from './GlobalCurrency'
 import GroupMultispend from './GroupMultispend'
+import GuardianFees from './GuardianFees'
+import GuardianFeesSuccess from './GuardianFeesSuccess'
 import HelpCentre from './HelpCentre'
 import Initializing from './Initializing'
 import JoinFederation from './JoinFederation'
@@ -1166,6 +1168,25 @@ export const MainNavigator = () => {
                                         />
                                     ),
                                 })}
+                            />
+                            <Stack.Screen
+                                name="GuardianFees"
+                                component={GuardianFees}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.settings.guardian-fees',
+                                            )}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="GuardianFeesSuccess"
+                                component={GuardianFeesSuccess}
+                                options={{ headerShown: false }}
                             />
                             <Stack.Screen
                                 name="FederationDetails"

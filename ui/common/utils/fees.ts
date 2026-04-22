@@ -4,5 +4,10 @@ import { RpcFeeDetails } from '../types/bindings'
 export function sumFeeDetails(feeDetails: RpcFeeDetails) {
     return (feeDetails.federationFee +
         feeDetails.networkFee +
-        feeDetails.fediFee) as MSats
+        feeDetails.fediAppFee +
+        feeDetails.fediGuardianFee) as MSats
+}
+
+export function sumFediFeeDetails(feeDetails: RpcFeeDetails) {
+    return (feeDetails.fediAppFee + feeDetails.fediGuardianFee) as MSats
 }

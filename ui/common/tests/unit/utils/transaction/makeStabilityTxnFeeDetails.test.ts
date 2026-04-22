@@ -44,13 +44,39 @@ describe('makeStabilityTxnDetailItems', () => {
     it('should display the fedi fee for stability transactions', () => {
         const txn = makeTestTxnEntry('sPV2Deposit', {
             // For the sake of this test, the fedi fee is 10 sats
-            fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
 
         expect(
             makeStabilityTxnFeeDetails(t, txn, makeFormattedAmountsFromMSats),
         ).toContainEqual({
             label: t('phrases.fedi-fee'),
+            formattedAmount: '0.01 USD (10 SATS)',
+        })
+    })
+
+    it('should display the guardian fee for stability transactions', () => {
+        const txn = makeTestTxnEntry('sPV2Deposit', {
+            fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
+        })
+
+        expect(
+            makeStabilityTxnFeeDetails(t, txn, makeFormattedAmountsFromMSats),
+        ).toContainEqual({
+            label: t('phrases.guardian-fee'),
+            formattedAmount: '0.01 USD (10 SATS)',
+        })
+    })
+
+    it('should display the guardian fee for stability transactions', () => {
+        const txn = makeTestTxnEntry('sPV2Deposit', {
+            fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
+        })
+
+        expect(
+            makeStabilityTxnFeeDetails(t, txn, makeFormattedAmountsFromMSats),
+        ).toContainEqual({
+            label: t('phrases.guardian-fee'),
             formattedAmount: '0.01 USD (10 SATS)',
         })
     })
@@ -94,14 +120,15 @@ describe('makeStabilityTxnDetailItems', () => {
             state: makeTestSPDepositState('completeDeposit', {
                 fees_paid_so_far: 20_000 as MSats,
             }),
-            fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
 
         expect(
             makeStabilityTxnFeeDetails(t, txn, makeFormattedAmountsFromMSats),
         ).toContainEqual({
             label: t('phrases.total-fees'),
-            formattedAmount: '0.03 USD (30 SATS)',
+            formattedAmount: '0.04 USD (40 SATS)',
         })
     })
 })

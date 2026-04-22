@@ -9,7 +9,8 @@ import {
 const MOCK_TRANSACTION: RpcTransaction = {
     id: 'tx123',
     amount: 1000000 as MSats,
-    fediFeeStatus: null,
+    fediAppFeeStatus: null,
+    fediGuardianFeeStatus: null,
     txnNotes: 'test',
     txDateFiatInfo: null,
     frontendMetadata: {

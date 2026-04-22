@@ -507,6 +507,11 @@ export type ChatEventAction = {
     loading?: boolean
     disabled?: boolean
 }
+
+export type MatrixFormEventOptions = {
+    openGuardianFeesDashboard?: (federationId: string) => void | Promise<void>
+}
+
 type PaymentThunkAction = ReturnType<
     | typeof cancelMatrixPayment
     | typeof acceptMatrixPaymentRequest
@@ -839,6 +844,7 @@ export function useMatrixPaymentEvent({
 export function useMatrixFormEvent(
     event: MatrixFormEvent,
     t: TFunction,
+    formEventOptions: MatrixFormEventOptions = {},
 ): {
     isSentByMe: boolean
     messageText: string
@@ -847,6 +853,7 @@ export function useMatrixFormEvent(
 } {
     const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
+    const toast = useToast()
     const matrixAuth = useCommonSelector(selectMatrixAuth)
     const isSentByMe = event.sender === matrixAuth?.userId
 
@@ -864,8 +871,60 @@ export function useMatrixFormEvent(
     // if we have the string for the i18n key, use it, otherwise use the body
     let messageText = getLocalizedTextWithFallback(t, i18nKeyLabel, body)
 
+    const onSelectClientActionOption = async (option: RpcFormOption) => {
+        const action = option.clientAction
+        if (!action) return
+
+        switch (action.type) {
+            case 'guardianFeesSyncRemittanceAccount': {
+                const { federationId } = await fedimint.parseInviteCode(
+                    action.inviteCode,
+                )
+
+                const { serializedAccount } =
+                    await fedimint.spv2GuardianRemittanceAccount(federationId)
+
+                await dispatch(
+                    sendMatrixFormResponse({
+                        fedimint,
+                        roomId: event.roomId,
+                        formResponse: {
+                            responseType: type,
+                            responseValue: serializedAccount,
+                            responseBody: option.label || option.value || '',
+                            responseI18nKey: option.i18nKeyLabel || '',
+                            respondingToEventId: event.id,
+                        },
+                    }),
+                ).unwrap()
+                break
+            }
+            case 'guardianFeesOpenDashboard': {
+                const { federationId } = await fedimint.parseInviteCode(
+                    action.inviteCode,
+                )
+
+                if (!formEventOptions.openGuardianFeesDashboard) {
+                    log.warn('Missing Guardian fees dashboard handler')
+                    return
+                }
+
+                await formEventOptions.openGuardianFeesDashboard(federationId)
+                break
+            }
+            default:
+                log.warn('Ignoring unknown Matrix form client action', action)
+                break
+        }
+    }
+
     const onSelectOption = async (option: RpcFormOption) => {
         try {
+            if (option.clientAction) {
+                await onSelectClientActionOption(option)
+                return
+            }
+
             await dispatch(
                 sendMatrixFormResponse({
                     fedimint,
@@ -881,6 +940,7 @@ export function useMatrixFormEvent(
             ).unwrap()
         } catch (error) {
             log.error('Failed to send form response', error)
+            toast.error(t, error, 'errors.unknown-error')
         }
     }
     const onButtonPressed = async () => {

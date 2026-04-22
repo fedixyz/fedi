@@ -141,4 +141,8 @@ impl StabilityPoolSyncService {
     ) -> impl Stream<Item = Option<CachedSyncResponseValue>> + use<> {
         WatchStream::new(self.sync_response.subscribe())
     }
+
+    pub fn current_sync_response(&self) -> Option<CachedSyncResponseValue> {
+        self.sync_response.borrow().clone()
+    }
 }

@@ -2,6 +2,7 @@ import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 
 import {
+    isGuardianRemittanceWithdrawal,
     isMultispendTransfer,
     makeTxnStatusBadge,
 } from '@fedi/common/utils/transaction'
@@ -27,6 +28,9 @@ export const getTxnIcon = (
     else if (isMultispendTransfer(txn)) {
         icon = 'MultispendGroupCircle'
         color = theme.colors.moneyGreen
+    } else if (isGuardianRemittanceWithdrawal(txn)) {
+        icon = 'BitcoinCircle'
+        color = theme.colors.orange
     } else if (
         txn.kind === 'spDeposit' ||
         txn.kind === 'spWithdraw' ||

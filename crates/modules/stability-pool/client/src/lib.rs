@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
-use std::ops::Not;
 use std::sync::Arc;
 use std::{ffi, iter};
 
-use anyhow::bail;
+use anyhow::{bail, ensure};
 use async_stream::stream;
 use clap::{Parser, ValueEnum};
 use common::config::StabilityPoolClientConfig;
@@ -34,7 +33,7 @@ use fedimint_core::module::{
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::{Amount, OutPoint, TransactionId, apply, async_trait_maybe_send};
-use fedimint_derive_secret::DerivableSecret;
+use fedimint_derive_secret::{ChildId, DerivableSecret};
 use futures::{Stream, StreamExt};
 use rand::Rng;
 use secp256k1::{Keypair, Secp256k1, schnorr};
@@ -42,12 +41,16 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub use stability_pool_common as common;
 use stability_pool_common::{
-    Account, AccountId, AccountType, ActiveDeposits, DepositToProvideOutput, DepositToSeekOutput,
-    FeeRate, FiatAmount, FiatOrAll, KIND, SignedTransferRequest, StabilityPoolInputV0,
-    StabilityPoolOutputV0, TransferOutput, TransferRequest, TransferRequestId,
-    UnlockForWithdrawalInput, UnlockRequestStatus, WithdrawalInput,
+    Account, AccountId, AccountType, ActiveDeposits, BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
+    BtcBalanceDepositMetadata, DepositToBtcBalanceOutput, DepositToProvideOutput,
+    DepositToSeekOutput, FeeRate, FiatAmount, FiatOrAll, KIND, SignedTransferRequest,
+    StabilityPoolInputV0, StabilityPoolOutputV0, StabilityPoolOutputV1, TransferOutput,
+    TransferRequest, TransferRequestId, UnlockForWithdrawalInput, UnlockRequestStatus,
+    WithdrawalInput,
 };
 use tracing::info;
+
+use crate::api::StabilityPoolApiExt;
 
 pub mod api;
 pub mod db;
@@ -56,6 +59,8 @@ mod sync_service;
 
 pub use history_service::StabilityPoolHistoryService;
 pub use sync_service::StabilityPoolSyncService;
+
+const BTC_DEPOSITOR_ACCOUNT_CHILD_ID: ChildId = ChildId(0);
 
 #[derive(Debug, Clone)]
 pub struct StabilityPoolClientInit;
@@ -93,6 +98,7 @@ impl ClientModuleInit for StabilityPoolClientInit {
     }
 
     fn supported_api_versions(&self) -> MultiApiVersion {
+        // Client minor is the minimum supported minor within major 0.
         MultiApiVersion::try_from_iter([ApiVersion { major: 0, minor: 0 }])
             .expect("no version conflicts")
     }
@@ -176,6 +182,19 @@ impl ClientModule for StabilityPoolClientModule {
                 Ok(serde_json::to_value(active_deposits)?)
             }
 
+            CliCommand::AccountHistory {
+                account_type,
+                start,
+                end,
+            } => {
+                let account_id = self.our_account(account_type.into()).id();
+                let history = self
+                    .module_api
+                    .account_history(account_id, start..end)
+                    .await?;
+                Ok(serde_json::to_value(history)?)
+            }
+
             CliCommand::DepositToSeek { amount_msats } => {
                 let operation_id = self.deposit_to_seek(amount_msats, ()).await?;
                 let mut updates = self
@@ -224,6 +243,40 @@ impl ClientModule for StabilityPoolClientModule {
 
                 Ok(serde_json::Value::String(
                     "deposit-to-provide success".to_string(),
+                ))
+            }
+
+            CliCommand::DepositToBtcBalance {
+                amount_msats,
+                metadata,
+            } => {
+                let operation_id = self
+                    .deposit_to_btc_balance(
+                        self.our_account(AccountType::BtcDepositor).id(),
+                        amount_msats,
+                        metadata,
+                        (),
+                    )
+                    .await?;
+                let mut updates = self
+                    .subscribe_deposit_operation(operation_id)
+                    .await?
+                    .into_stream();
+
+                while let Some(update) = updates.next().await {
+                    match update {
+                        StabilityPoolDepositOperationState::TxRejected(e) => {
+                            bail!("TX rejected: {e}")
+                        }
+                        StabilityPoolDepositOperationState::PrimaryOutputError(e) => {
+                            bail!("Change output error: {e}")
+                        }
+                        _ => info!("Update: {:?}", update),
+                    }
+                }
+
+                Ok(serde_json::Value::String(
+                    "deposit-to-btc-balance success".to_string(),
                 ))
             }
 
@@ -452,7 +505,7 @@ impl State for StabilityPoolWithdrawalStateMachine {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StabilityPoolMeta {
-    /// Deposit given amount for seeking or providing
+    /// Deposit the given amount into a stability-pool account.
     Deposit {
         txid: TransactionId,
         change_outpoints: Vec<OutPoint>,
@@ -522,8 +575,20 @@ pub enum StabilityPoolTransferOperationState {
 }
 
 impl StabilityPoolClientModule {
+    pub fn our_keypair(&self, acc_type: AccountType) -> Keypair {
+        match acc_type {
+            // Keep the btc-depositor account on a separate derivation path so it
+            // is not linkable to the normal seeker/provider account key.
+            AccountType::BtcDepositor => self
+                .module_root_secret
+                .child_key(BTC_DEPOSITOR_ACCOUNT_CHILD_ID)
+                .to_secp_key(secp256k1::SECP256K1),
+            AccountType::Seeker | AccountType::Provider => self.client_key_pair,
+        }
+    }
+
     pub fn our_account(&self, acc_type: AccountType) -> Account {
-        Account::single(self.client_key_pair.public_key(), acc_type)
+        Account::single(self.our_keypair(acc_type).public_key(), acc_type)
     }
 
     /// Derive the secret for a given multispend group.
@@ -589,14 +654,85 @@ impl StabilityPoolClientModule {
     ) -> anyhow::Result<OperationId> {
         let (operation_id, _) = submit_tx_with_output(
             self,
-            StabilityPoolOutputV0::DepositToSeek(DepositToSeekOutput {
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToSeek(DepositToSeekOutput {
                 account_id: self.our_account(AccountType::Seeker).id(),
                 seek_request: SeekRequest(amount),
-            }),
+            })),
             extra_meta,
         )
         .await?;
         Ok(operation_id)
+    }
+
+    pub async fn deposit_to_btc_balance(
+        &self,
+        account_id: AccountId,
+        amount: Amount,
+        metadata: BtcBalanceDepositMetadata,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<OperationId> {
+        ensure!(
+            account_id.acc_type() == AccountType::BtcDepositor,
+            "DepositToBtcBalance requires a btc-balance account"
+        );
+        ensure!(
+            self.module_api.module_consensus_version().await?
+                >= BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
+            "Stability pool module consensus version doesn't support btc-balance deposits"
+        );
+
+        // This remains a generic client helper: callers choose the recipient
+        // account and metadata, while higher layers decide what those bytes
+        // mean.
+        let (operation_id, _) = submit_tx_with_output(
+            self,
+            btc_balance_deposit_output(account_id, amount, metadata),
+            extra_meta,
+        )
+        .await?;
+        Ok(operation_id)
+    }
+
+    pub async fn ensure_btc_balance_deposit_supported(
+        &self,
+        account_id: AccountId,
+    ) -> anyhow::Result<()> {
+        ensure!(
+            account_id.acc_type() == AccountType::BtcDepositor,
+            "DepositToBtcBalance requires a btc-balance account"
+        );
+        ensure!(
+            self.module_api.module_consensus_version().await?
+                >= BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
+            "Stability pool module consensus version doesn't support btc-balance deposits"
+        );
+        Ok(())
+    }
+
+    /// Submits a btc-balance deposit inside a caller-provided DB transaction
+    /// so higher layers can atomically create the operation alongside their
+    /// own bookkeeping.
+    pub async fn deposit_to_btc_balance_dbtx(
+        &self,
+        dbtx: &mut DatabaseTransaction<'_>,
+        operation_id: OperationId,
+        account_id: AccountId,
+        amount: Amount,
+        metadata: BtcBalanceDepositMetadata,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<OutPointRange> {
+        ensure!(
+            account_id.acc_type() == AccountType::BtcDepositor,
+            "DepositToBtcBalance requires a btc-balance account"
+        );
+        submit_tx_with_output_dbtx(
+            self,
+            dbtx,
+            operation_id,
+            btc_balance_deposit_output(account_id, amount, metadata),
+            extra_meta,
+        )
+        .await
     }
 
     pub async fn deposit_to_provide(
@@ -607,13 +743,15 @@ impl StabilityPoolClientModule {
     ) -> anyhow::Result<OperationId> {
         let (operation_id, _) = submit_tx_with_output(
             self,
-            StabilityPoolOutputV0::DepositToProvide(DepositToProvideOutput {
-                account_id: self.our_account(AccountType::Provider).id(),
-                provide_request: ProvideRequest {
-                    amount,
-                    min_fee_rate,
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToProvide(
+                DepositToProvideOutput {
+                    account_id: self.our_account(AccountType::Provider).id(),
+                    provide_request: ProvideRequest {
+                        amount,
+                        min_fee_rate,
+                    },
                 },
-            }),
+            )),
             extra_meta,
         )
         .await?;
@@ -665,7 +803,8 @@ impl StabilityPoolClientModule {
 
     pub fn sign_transfer_request(&self, request: &TransferRequest) -> schnorr::Signature {
         let message = secp256k1::Message::from(&TransferRequestId::from(request));
-        self.client_key_pair.sign_schnorr(message)
+        self.our_keypair(request.from().acc_type())
+            .sign_schnorr(message)
     }
 
     pub async fn transfer(
@@ -677,7 +816,7 @@ impl StabilityPoolClientModule {
 
         let (operation_id, txid) = submit_tx_with_output(
             self,
-            StabilityPoolOutputV0::Transfer(transfer_output),
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(transfer_output)),
             extra_meta,
         )
         .await?;
@@ -737,6 +876,7 @@ impl StabilityPoolClientModule {
         let operation_id = OperationId::new_random();
 
         let account = self.our_account(acc_type);
+        let signing_key = self.our_keypair(acc_type);
         let input = ClientInput {
             amounts: Amounts::ZERO,
             input: StabilityPoolInput::V0(StabilityPoolInputV0::UnlockForWithdrawal(
@@ -745,7 +885,7 @@ impl StabilityPoolClientModule {
                     amount: unlock_amount,
                 },
             )),
-            keys: vec![self.client_key_pair],
+            keys: vec![signing_key],
         };
         let sm = ClientInputSM {
             state_machines: Arc::new(move |out_point_range| {
@@ -787,12 +927,10 @@ impl StabilityPoolClientModule {
         operation_id: OperationId,
     ) -> anyhow::Result<UpdateStreamOrOutcome<StabilityPoolWithdrawalOperationState>> {
         let operation = stability_pool_operation(&self.client_ctx, operation_id).await?;
-        if matches!(
+        if !matches!(
             operation.meta::<StabilityPoolMeta>(),
             StabilityPoolMeta::Withdrawal { .. }
-        )
-        .not()
-        {
+        ) {
             bail!("Operation is not of type withdrawal");
         }
 
@@ -873,7 +1011,7 @@ impl StabilityPoolClientModule {
                 account: account.clone(),
                 amount,
             })),
-            keys: vec![self.client_key_pair],
+            keys: vec![self.our_keypair(acc_type)],
         };
         let sm = ClientInputSM {
             state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
@@ -957,42 +1095,14 @@ async fn stability_pool_operation(
 
 async fn submit_tx_with_output(
     module: &StabilityPoolClientModule,
-    output_v0: StabilityPoolOutputV0,
+    output: StabilityPoolOutput,
     extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
 ) -> anyhow::Result<(OperationId, TransactionId)> {
     let operation_id = OperationId::new_random();
     let client_ctx = &module.client_ctx;
-    let amount = match output_v0 {
-        StabilityPoolOutputV0::DepositToSeek(ref output) => output.seek_request.0,
-        StabilityPoolOutputV0::DepositToProvide(ref output) => output.provide_request.amount,
-        StabilityPoolOutputV0::Transfer(_) => Amount::ZERO,
-    };
-    let output = ClientOutputBundle::new(
-        vec![ClientOutput {
-            amounts: Amounts::new_bitcoin(amount),
-            output: StabilityPoolOutput::V0(output_v0.clone()),
-        }],
-        vec![ClientOutputSM {
-            state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
-        }],
-    );
-    let tx = TransactionBuilder::new().with_outputs(client_ctx.make_client_outputs(output));
-    let meta_gen = move |out_point_range: OutPointRange| match output_v0.clone() {
-        StabilityPoolOutputV0::Transfer(output) => StabilityPoolMeta::Transfer {
-            txid: out_point_range.txid,
-            signed_request: output.signed_request,
-            extra_meta: serde_json::to_value(extra_meta.clone()).expect("to value must never fail"),
-        },
-        StabilityPoolOutputV0::DepositToSeek(..) | StabilityPoolOutputV0::DepositToProvide(..) => {
-            StabilityPoolMeta::Deposit {
-                txid: out_point_range.txid,
-                change_outpoints: out_point_range.into_iter().collect(),
-                amount,
-                extra_meta: serde_json::to_value(extra_meta.clone())
-                    .expect("to value must never fail"),
-            }
-        }
-    };
+    let output_bundle = build_output_bundle(&output);
+    let tx = TransactionBuilder::new().with_outputs(client_ctx.make_client_outputs(output_bundle));
+    let meta_gen = output_meta_generator(output, extra_meta);
     let out_point_range = client_ctx
         .finalize_and_submit_transaction(
             operation_id,
@@ -1002,6 +1112,121 @@ async fn submit_tx_with_output(
         )
         .await?;
     Ok((operation_id, out_point_range.txid))
+}
+
+/// Like `submit_tx_with_output`, but composes transaction submission into an
+/// existing caller-owned DB transaction.
+async fn submit_tx_with_output_dbtx(
+    module: &StabilityPoolClientModule,
+    dbtx: &mut DatabaseTransaction<'_>,
+    operation_id: OperationId,
+    output: StabilityPoolOutput,
+    extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+) -> anyhow::Result<OutPointRange> {
+    let client_ctx = &module.client_ctx;
+    let output_bundle = build_output_bundle(&output);
+    let tx = TransactionBuilder::new().with_outputs(client_ctx.make_client_outputs(output_bundle));
+    let meta_gen = output_meta_generator(output, extra_meta);
+    client_ctx
+        .finalize_and_submit_transaction_dbtx(
+            dbtx,
+            operation_id,
+            StabilityPoolCommonGen::KIND.as_str(),
+            meta_gen,
+            tx,
+        )
+        .await
+}
+
+/// Builds the shared output bundle for any output-only stability-pool
+/// transaction submission path.
+fn build_output_bundle(
+    output: &StabilityPoolOutput,
+) -> ClientOutputBundle<StabilityPoolOutput, StabilityPoolStateMachine> {
+    let amount = amount_for_output(output);
+    ClientOutputBundle::<StabilityPoolOutput, StabilityPoolStateMachine>::new(
+        vec![ClientOutput {
+            amounts: Amounts::new_bitcoin(amount),
+            output: output.clone(),
+        }],
+        vec![ClientOutputSM {
+            state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
+        }],
+    )
+}
+
+/// Produces the operation metadata generator shared by the normal and DBTX
+/// output submission helpers.
+fn output_meta_generator(
+    output: StabilityPoolOutput,
+    extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+) -> impl Fn(OutPointRange) -> StabilityPoolMeta + Clone {
+    let amount = amount_for_output(&output);
+    let extra_meta =
+        serde_json::to_value(extra_meta).expect("serializing operation metadata must not fail");
+    move |out_point_range: OutPointRange| match output.clone() {
+        StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(output))
+        | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(output)) => {
+            StabilityPoolMeta::Transfer {
+                txid: out_point_range.txid,
+                signed_request: output.signed_request,
+                extra_meta: extra_meta.clone(),
+            }
+        }
+        StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToSeek(..))
+        | StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToProvide(..))
+        | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToSeek(..))
+        | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToProvide(..))
+        | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToBtcBalance(
+            DepositToBtcBalanceOutput { .. },
+        )) => StabilityPoolMeta::Deposit {
+            txid: out_point_range.txid,
+            change_outpoints: out_point_range.into_iter().collect(),
+            amount,
+            extra_meta: extra_meta.clone(),
+        },
+        StabilityPoolOutput::Default { variant, .. } => {
+            panic!("unexpected unknown stability-pool output variant in client bundle: {variant}")
+        }
+    }
+}
+
+/// Returns the bitcoin amount represented by a stability-pool output.
+fn amount_for_output(output: &StabilityPoolOutput) -> Amount {
+    match output {
+        StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToSeek(output))
+        | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToSeek(output)) => {
+            output.seek_request.0
+        }
+        StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToProvide(output))
+        | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToProvide(output)) => {
+            output.provide_request.amount
+        }
+        StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToBtcBalance(output)) => {
+            output.seek_request.0
+        }
+        StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(_))
+        | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(_)) => Amount::ZERO,
+        StabilityPoolOutput::Default { variant, .. } => {
+            panic!("unexpected unknown stability-pool output variant in client bundle: {variant}")
+        }
+    }
+}
+
+/// Constructs the generic btc-balance deposit output used by both ordinary and
+/// DBTX-composed deposit submission paths.
+fn btc_balance_deposit_output(
+    account_id: AccountId,
+    amount: Amount,
+    metadata: BtcBalanceDepositMetadata,
+) -> StabilityPoolOutput {
+    StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToBtcBalance(
+        DepositToBtcBalanceOutput {
+            account_id,
+            seek_request: SeekRequest(amount),
+            metadata,
+        },
+    ))
 }
 
 async fn await_tx_accepted(
@@ -1044,13 +1269,14 @@ async fn claim_idle_balance_input(
     old_state: StabilityPoolWithdrawalStateMachine,
     idle_balance: Amount,
 ) -> StabilityPoolWithdrawalStateMachine {
+    let signing_key = context.module.our_keypair(old_state.account.acc_type());
     let input = ClientInput {
         amounts: Amounts::new_bitcoin(idle_balance),
         input: StabilityPoolInput::V0(StabilityPoolInputV0::Withdrawal(WithdrawalInput {
             account: old_state.account.clone(),
             amount: idle_balance,
         })),
-        keys: vec![context.module.client_key_pair],
+        keys: vec![signing_key],
     };
     let state_machines = ClientInputSM {
         state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
@@ -1130,6 +1356,15 @@ pub enum CliCommand {
         #[arg(value_enum)]
         account_type: AccountTypeArg,
     },
+    /// Get account history for seeker, provider, or btc-balance account
+    AccountHistory {
+        #[arg(value_enum)]
+        account_type: AccountTypeArg,
+        /// Inclusive start index
+        start: u64,
+        /// Exclusive end index
+        end: u64,
+    },
     /// Deposit amount to seek liquidity
     DepositToSeek {
         /// Amount in msats to deposit
@@ -1142,6 +1377,14 @@ pub enum CliCommand {
         /// Fee rate in parts per billion
         #[arg(value_parser = parse_json_value::<FeeRate>)]
         fee_rate: FeeRate,
+    },
+    /// Deposit amount to a btc-balance account with attached metadata
+    DepositToBtcBalance {
+        /// Amount in msats to deposit
+        amount_msats: Amount,
+        /// Metadata bytes encoded as JSON, for example: [1,2,3]
+        #[arg(value_parser = parse_json_value::<BtcBalanceDepositMetadata>)]
+        metadata: BtcBalanceDepositMetadata,
     },
     /// Withdraw from seeker or provider account
     Withdraw {

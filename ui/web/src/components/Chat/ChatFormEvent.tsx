@@ -1,9 +1,11 @@
+import { useRouter } from 'next/router'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMatrixFormEvent } from '@fedi/common/hooks/matrix'
 import { MatrixFormEvent } from '@fedi/common/types'
 
+import { guardianFeesRoute } from '../../constants/routes'
 import { styled } from '../../styles'
 import { Button } from '../Button'
 
@@ -13,9 +15,14 @@ interface Props {
 
 export const ChatFormEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
+    const router = useRouter()
 
     const { isSentByMe, messageText, actionButton, options } =
-        useMatrixFormEvent(event, t)
+        useMatrixFormEvent(event, t, {
+            openGuardianFeesDashboard: async federationId => {
+                await router.push(guardianFeesRoute(federationId))
+            },
+        })
 
     let extra: React.ReactNode = null
     if (actionButton || options.length > 0) {

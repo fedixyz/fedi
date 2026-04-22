@@ -63,6 +63,10 @@ export const getTxnDirection = (
     }
 }
 
+export const isGuardianRemittanceWithdrawal = (
+    txn: TransactionListEntry,
+): boolean => txn.kind === 'sPV2Withdrawal' && txn.guardian_remittance
+
 export const makeTxnTypeText = (
     txn: TransactionListEntry,
     t: TFunction,
@@ -79,8 +83,11 @@ export const makeTxnTypeText = (
         case 'spDeposit':
         case 'spWithdraw':
         case 'sPV2Deposit':
-        case 'sPV2Withdrawal':
             return t('feature.stabilitypool.stable-balance')
+        case 'sPV2Withdrawal':
+            return isGuardianRemittanceWithdrawal(txn)
+                ? t('phrases.guardian-fee')
+                : t('feature.stabilitypool.stable-balance')
         case 'sPV2TransferIn':
         case 'sPV2TransferOut':
             return isMultispendTransfer(txn)
@@ -115,8 +122,11 @@ export const makeTxnDetailTitleText = (
         case 'sPV2Deposit':
             return t('feature.stabilitypool.you-deposited')
         case 'spWithdraw':
-        case 'sPV2Withdrawal':
             return t('feature.stabilitypool.you-withdrew')
+        case 'sPV2Withdrawal':
+            return isGuardianRemittanceWithdrawal(txn)
+                ? t('feature.guardian-fees.transfer-success')
+                : t('feature.stabilitypool.you-withdrew')
         case 'oobReceive':
             return t('feature.receive.you-received')
         case 'lnReceive':
@@ -691,13 +701,13 @@ export const makeTxnFeeDetails = (
     let totalFee = 0
     // Handle Fedi Fee
     if (
-        txn.fediFeeStatus &&
+        txn.fediAppFeeStatus &&
         // TODO: render "pending" txns differently than
         // success txns. For now, we render each the same
-        (txn.fediFeeStatus.type === 'success' ||
-            txn.fediFeeStatus.type === 'pendingSend')
+        (txn.fediAppFeeStatus.type === 'success' ||
+            txn.fediAppFeeStatus.type === 'pendingSend')
     ) {
-        const fediFee = txn.fediFeeStatus.fedi_fee ?? (0 as MSats)
+        const fediFee = txn.fediAppFeeStatus.fedi_fee ?? (0 as MSats)
         const { formattedPrimaryAmount, formattedSecondaryAmount } =
             makeFormattedAmountsFromMSats(fediFee)
         items.push({
@@ -705,6 +715,24 @@ export const makeTxnFeeDetails = (
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
         totalFee += fediFee
+    }
+
+    // Handle Guardian Fee
+    if (
+        txn.fediGuardianFeeStatus &&
+        // TODO: render "pending" txns differently than
+        // success txns. For now, we render each the same
+        (txn.fediGuardianFeeStatus.type === 'success' ||
+            txn.fediGuardianFeeStatus.type === 'pendingSend')
+    ) {
+        const guardianFee = txn.fediGuardianFeeStatus.fedi_fee ?? (0 as MSats)
+        const { formattedPrimaryAmount, formattedSecondaryAmount } =
+            makeFormattedAmountsFromMSats(guardianFee)
+        items.push({
+            label: t('phrases.guardian-fee'),
+            formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
+        })
+        totalFee += guardianFee
     }
 
     // Handle Lightning Fee
@@ -784,10 +812,11 @@ export const makeTxnDetailItems = (
     // shows the value of ecash sent in/out of stabilitypool at today's price
     // in local currency (historical value at time of txn shows elsewhere)
     if (
-        txn.kind === 'spWithdraw' ||
-        txn.kind === 'spDeposit' ||
-        txn.kind === 'sPV2Withdrawal' ||
-        txn.kind === 'sPV2Deposit'
+        !isGuardianRemittanceWithdrawal(txn) &&
+        (txn.kind === 'spWithdraw' ||
+            txn.kind === 'spDeposit' ||
+            txn.kind === 'sPV2Withdrawal' ||
+            txn.kind === 'sPV2Deposit')
     ) {
         items.push({
             label: t('feature.stabilitypool.current-value'),
@@ -892,7 +921,10 @@ export const makeTxnDetailItems = (
                 currency: getCurrencyCode(currency),
             }),
         })
-    } else if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
+    } else if (
+        txn.kind === 'spWithdraw' ||
+        (txn.kind === 'sPV2Withdrawal' && !isGuardianRemittanceWithdrawal(txn))
+    ) {
         items.push({
             label: t('feature.stabilitypool.withdrawal-from'),
             value: t('feature.stabilitypool.currency-balance', {
@@ -919,7 +951,7 @@ export const makeStabilityTxnDetailTitleText = (
             : t('feature.send.you-sent')
     }
 
-    if (txn.kind === 'sPV2Withdrawal' || txn.kind === 'spWithdraw') {
+    if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
         return t('feature.stabilitypool.you-withdrew')
     } else if (txn.kind === 'sPV2TransferIn') {
         return isMultispendTransfer(txn)
@@ -1000,13 +1032,13 @@ export const makeStabilityTxnFeeDetails = (
     let totalFee = 0
     // Handle Fedi Fee
     if (
-        txn.fediFeeStatus &&
+        txn.fediAppFeeStatus &&
         // TODO: render "pending" txns differently than
         // success txns. For now, we render each the same
-        (txn.fediFeeStatus.type === 'success' ||
-            txn.fediFeeStatus.type === 'pendingSend')
+        (txn.fediAppFeeStatus.type === 'success' ||
+            txn.fediAppFeeStatus.type === 'pendingSend')
     ) {
-        const fediFee = txn.fediFeeStatus.fedi_fee ?? (0 as MSats)
+        const fediFee = txn.fediAppFeeStatus.fedi_fee ?? (0 as MSats)
         const { formattedPrimaryAmount, formattedSecondaryAmount } =
             makeFormattedAmountsFromMSats(fediFee)
         items.push({
@@ -1014,6 +1046,24 @@ export const makeStabilityTxnFeeDetails = (
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
         totalFee += fediFee
+    }
+
+    // Handle Guardian Fee
+    if (
+        txn.fediGuardianFeeStatus &&
+        // TODO: render "pending" txns differently than
+        // success txns. For now, we render each the same
+        (txn.fediGuardianFeeStatus.type === 'success' ||
+            txn.fediGuardianFeeStatus.type === 'pendingSend')
+    ) {
+        const guardianFee = txn.fediGuardianFeeStatus.fedi_fee ?? (0 as MSats)
+        const { formattedPrimaryAmount, formattedSecondaryAmount } =
+            makeFormattedAmountsFromMSats(guardianFee)
+        items.push({
+            label: t('phrases.guardian-fee'),
+            formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
+        })
+        totalFee += guardianFee
     }
 
     if (

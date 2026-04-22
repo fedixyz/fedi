@@ -181,6 +181,15 @@ pub struct FediFeeConfig {
     /// invoice from Fedi's servers to keep up a reasonable syncing cadences
     #[ts(type = "number")]
     pub remittance_max_delay_secs: u32,
+    /// Base interval between guardian remittance attempts once due
+    #[ts(type = "number")]
+    pub guardian_remittance_interval_secs: u32,
+    /// Max deterministic per-client jitter added to guardian remittance due-at
+    #[ts(type = "number")]
+    pub guardian_remittance_jitter_max_secs: u32,
+    /// How long to wait between guardian fee remittance scheduler polls
+    #[ts(type = "number")]
+    pub guardian_remittance_poll_interval_secs: u32,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -234,7 +243,10 @@ impl FeatureCatalog {
                     .expect("guardianito url must be valid"),
             },
             fedi_fee: FediFeeConfig {
-                remittance_max_delay_secs: 300, // 5 minutes for testing
+                remittance_max_delay_secs: 300,             // 5 minutes for testing
+                guardian_remittance_interval_secs: 10 * 60, // 10 minutes
+                guardian_remittance_jitter_max_secs: 0,     // no jitter in dev
+                guardian_remittance_poll_interval_secs: 60, // 1 minute
             },
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
@@ -280,7 +292,10 @@ impl FeatureCatalog {
                     .expect("guardianito url must be valid"),
             },
             fedi_fee: FediFeeConfig {
-                remittance_max_delay_secs: 300, // 5 minutes for testing
+                remittance_max_delay_secs: 300,            // 5 minutes for testing
+                guardian_remittance_interval_secs: 5,      // 5 seconds for tests
+                guardian_remittance_jitter_max_secs: 0,    // no jitter for tests
+                guardian_remittance_poll_interval_secs: 5, // fast polling for tests
             },
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
@@ -318,7 +333,10 @@ impl FeatureCatalog {
                     .expect("guardianito url must be valid"),
             },
             fedi_fee: FediFeeConfig {
-                remittance_max_delay_secs: 300, // 5 minutes for testing
+                remittance_max_delay_secs: 300,             // 5 minutes for testing
+                guardian_remittance_interval_secs: 10 * 60, // 10 minutes
+                guardian_remittance_jitter_max_secs: 0,     // no jitter in staging
+                guardian_remittance_poll_interval_secs: 60, // 1 minute
             },
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
@@ -360,6 +378,9 @@ impl FeatureCatalog {
             },
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 3 * 24 * 60 * 60, // 3 days for prod
+                guardian_remittance_interval_secs: 3 * 24 * 60 * 60, // 3 days
+                guardian_remittance_jitter_max_secs: 6 * 60 * 60, // 6 hours
+                guardian_remittance_poll_interval_secs: 60 * 10, // 10 minutes
             },
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 3 * 24 * 60 * 60, // 3 days for prod

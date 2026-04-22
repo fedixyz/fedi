@@ -42,10 +42,10 @@ describe('makeTxnFeeDetails', () => {
     it('should display the fedi fee for success/pendingSend transactions', () => {
         const txn = makeTestTxnEntry('lnPay', {
             // For the sake of this test, the fedi fee is 10 sats
-            fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
         const txnPendingFee = makeTestTxnEntry('lnPay', {
-            fediFeeStatus: makeTestFediFeeStatus('pendingSend', 10_000),
+            fediAppFeeStatus: makeTestFediFeeStatus('pendingSend', 10_000),
         })
 
         const detailsFeeSuccess = makeTxnFeeDetails(
@@ -62,6 +62,58 @@ describe('makeTxnFeeDetails', () => {
         expect(detailsFeeSuccess).toEqual(detailsFeePending)
         expect(detailsFeeSuccess).toContainEqual({
             label: t('phrases.fedi-fee'),
+            formattedAmount: '0.01 USD (10 SATS)',
+        })
+    })
+
+    it('should display the guardian fee for success/pendingSend transactions', () => {
+        const txn = makeTestTxnEntry('lnPay', {
+            fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
+        })
+        const txnPendingFee = makeTestTxnEntry('lnPay', {
+            fediGuardianFeeStatus: makeTestFediFeeStatus('pendingSend', 10_000),
+        })
+
+        const detailsFeeSuccess = makeTxnFeeDetails(
+            t,
+            txn,
+            makeFormattedAmountsFromMSats,
+        )
+        const detailsFeePending = makeTxnFeeDetails(
+            t,
+            txnPendingFee,
+            makeFormattedAmountsFromMSats,
+        )
+
+        expect(detailsFeeSuccess).toEqual(detailsFeePending)
+        expect(detailsFeeSuccess).toContainEqual({
+            label: t('phrases.guardian-fee'),
+            formattedAmount: '0.01 USD (10 SATS)',
+        })
+    })
+
+    it('should display the guardian fee for success/pendingSend transactions', () => {
+        const txn = makeTestTxnEntry('lnPay', {
+            fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
+        })
+        const txnPendingFee = makeTestTxnEntry('lnPay', {
+            fediGuardianFeeStatus: makeTestFediFeeStatus('pendingSend', 10_000),
+        })
+
+        const detailsFeeSuccess = makeTxnFeeDetails(
+            t,
+            txn,
+            makeFormattedAmountsFromMSats,
+        )
+        const detailsFeePending = makeTxnFeeDetails(
+            t,
+            txnPendingFee,
+            makeFormattedAmountsFromMSats,
+        )
+
+        expect(detailsFeeSuccess).toEqual(detailsFeePending)
+        expect(detailsFeeSuccess).toContainEqual({
+            label: t('phrases.guardian-fee'),
             formattedAmount: '0.01 USD (10 SATS)',
         })
     })
@@ -97,29 +149,30 @@ describe('makeTxnFeeDetails', () => {
     it('should display the total fees for various transactions', () => {
         const lnTxn = makeTestTxnEntry('lnPay', {
             // For the sake of this test, the fedi fee is 10 sats
-            fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
             // For the sake of this test, the lightning fee is 20 sats
             lightning_fees: 20_000 as MSats,
         })
         const onchainWithdrawTxn = makeTestTxnEntry('onchainWithdraw', {
-            fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 10_000),
             // For the sake of this test, the network fee is 30 sats
             onchain_fees: 30_000 as MSats,
         })
         const onchainDepositTxn = makeTestTxnEntry('onchainDeposit', {
-            fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 10_000),
             // For the sake of this test, the network fee is 30 sats
             peg_in_fees: 1_000_000 as MSats,
         })
         const oobTxn = makeTestTxnEntry('oobSend', {
-            fediFeeStatus: makeTestFediFeeStatus('success', 50_000),
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 50_000),
         })
 
         expect(
             makeTxnFeeDetails(t, lnTxn, makeFormattedAmountsFromMSats),
         ).toContainEqual({
             label: t('phrases.total-fees'),
-            formattedAmount: '0.03 USD (30 SATS)',
+            formattedAmount: '0.04 USD (40 SATS)',
         })
         expect(
             makeTxnFeeDetails(

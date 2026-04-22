@@ -13,6 +13,8 @@ export const communitiesRoute = '/communities'
 export const communityRoute = (id: string) => `${communitiesRoute}/${id}`
 export const settingsRoute = '/settings'
 export const transactionsRoute = '/transactions'
+export const guardianFeesRoute = (id: string) => `/guardian-fees/${id}`
+export const guardianFeesSuccessRoute = '/guardian-fees/success'
 export const sendRoute = '/send'
 export const requestRoute = '/request'
 export const ecashRoute = '/ecash'

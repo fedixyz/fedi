@@ -3,18 +3,25 @@ use std::time::SystemTime;
 
 use fedimint_core::Amount;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
-use fedimint_core::module::{ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion, api_endpoint};
+use fedimint_core::module::{
+    ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion, ModuleConsensusVersion, api_endpoint,
+};
+use fedimint_core::net::auth::check_auth;
 use futures::{StreamExt, stream};
+use stability_pool_common::endpoint_constants::{
+    ACTIVATE_CONSENSUS_VERSION_VOTING_ENDPOINT, MODULE_CONSENSUS_VERSION_ENDPOINT,
+    SUPPORTED_MODULE_CONSENSUS_VERSION_ENDPOINT,
+};
 use stability_pool_common::{
-    AccountHistoryItem, AccountHistoryRequest, AccountId, AccountType, ActiveDeposits, FeeRate,
-    LiquidityStats, SyncResponse, UnlockRequestStatus,
+    AccountHistoryItem, AccountHistoryRequest, AccountId, AccountType, ActiveDeposits,
+    CONSENSUS_VERSION, FeeRate, LiquidityStats, SyncResponse, UnlockRequestStatus,
 };
 
 use crate::StabilityPool;
 use crate::db::{
-    CurrentCycleKey, IdleBalanceKey, PastCycleKeyPrefix, SeekLifetimeFeeKey, StagedProvidesKey,
-    StagedProvidesKeyPrefix, StagedSeeksKey, StagedSeeksKeyPrefix, UnlockRequestKey,
-    account_history_count, get_account_history_items,
+    ConsensusVersionVotingActivationKey, CurrentCycleKey, IdleBalanceKey, PastCycleKeyPrefix,
+    SeekLifetimeFeeKey, StagedProvidesKey, StagedProvidesKeyPrefix, StagedSeeksKey,
+    StagedSeeksKeyPrefix, UnlockRequestKey, account_history_count, get_account_history_items,
 };
 
 pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
@@ -23,7 +30,40 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
             "account_history",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: AccountHistoryRequest| -> Vec<AccountHistoryItem> {
+                // We intentionally do not down-convert btc-balance deposit
+                // history here. Older clients could not have created
+                // `DepositToBtcBalance` entries in the first place.
                 Ok(get_account_history_items(&mut context.db().begin_transaction_nc().await, request.account_id, request.range.start..request.range.end).await)
+            }
+        },
+        api_endpoint! {
+            MODULE_CONSENSUS_VERSION_ENDPOINT,
+            ApiVersion::new(0, 1),
+            async |module: &StabilityPool, context, _request: ()| -> ModuleConsensusVersion {
+                let db = context.db();
+                let mut dbtx = db.begin_transaction_nc().await;
+                Ok(module.consensus_module_consensus_version(&mut dbtx).await)
+            }
+        },
+        api_endpoint! {
+            SUPPORTED_MODULE_CONSENSUS_VERSION_ENDPOINT,
+            ApiVersion::new(0, 1),
+            async |_module: &StabilityPool, _context, _request: ()| -> ModuleConsensusVersion {
+                Ok(CONSENSUS_VERSION)
+            }
+        },
+        api_endpoint! {
+            ACTIVATE_CONSENSUS_VERSION_VOTING_ENDPOINT,
+            ApiVersion::new(0, 1),
+            async |_module: &StabilityPool, context, _request: ()| -> () {
+                check_auth(context)?;
+                let db = context.db();
+                let mut dbtx = db.begin_transaction().await;
+                dbtx.to_ref()
+                    .insert_entry(&ConsensusVersionVotingActivationKey, &())
+                    .await;
+                dbtx.commit_tx_result().await?;
+                Ok(())
             }
         },
         api_endpoint! {

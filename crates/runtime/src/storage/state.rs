@@ -24,6 +24,7 @@ use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_derive_secret::DerivableSecret;
 use matrix_sdk::authentication::matrix::MatrixSession;
 use serde::{Deserialize, Serialize};
+use stability_pool_client::common::Account;
 use ts_rs::TS;
 
 use super::FIRST_FEDERATION_DB_PREFIX;
@@ -291,6 +292,15 @@ pub struct FederationInfo {
     #[serde(default)]
     pub fedi_fee_schedule: FediFeeSchedule,
 
+    /// Guardian fee policy charged to users within this federation.
+    #[serde(default)]
+    pub guardian_fee_config: Option<FediGuardianFeeConfig>,
+
+    /// Once enabled, this device/federation pair should initialize the
+    /// guardian remittance account subsystem on startup.
+    #[serde(default)]
+    pub guardian_remittance_account_enabled: bool,
+
     /// Kind of bitcoin network backing the federation--mainnet, signet, etc.
     #[serde(default)]
     pub network: Option<bitcoin::Network>,
@@ -327,6 +337,14 @@ pub struct FediFeeSchedule {
     /// known module (identified by ModuleKind) has its own fee
     /// schedule for its transactions.
     pub modules: BTreeMap<ModuleKind, ModuleFediFeeSchedule>,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+pub struct FediGuardianFeeConfig {
+    /// Guardian fee charged on send-side transactions, in ppm.
+    pub send_ppm: u64,
+    /// Destination account for guardian-fee remittance.
+    pub remittance_account: Account,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]

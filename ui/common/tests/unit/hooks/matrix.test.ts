@@ -99,6 +99,9 @@ describe('useMatrixPaymentTransaction', () => {
 describe('useMatrixFormEvent hook', () => {
     const chatbotUserId = `@fedichatbot:m1.8fa.in`
     const userId = `@npub123:m1.8fa.in`
+    const guardianFederationId = 'guardian-fed'
+    const guardianInviteCode = 'fed1guardian'
+    const serializedGuardianAccount = '{"id":"guardian-account"}'
     let store: ReturnType<typeof setupStore>
 
     beforeEach(() => {
@@ -241,6 +244,122 @@ describe('useMatrixFormEvent hook', () => {
             )
             expect(result.current.actionButton).toBeUndefined()
             expect(result.current.options).toHaveLength(0)
+        })
+    })
+
+    describe('client actions', () => {
+        it('should sync Guardian fees remittance account in the response body', async () => {
+            const t = createMockT()
+            const sendMessage = jest.fn().mockResolvedValue(undefined)
+            const mockFedimint = createMockFedimintBridge({
+                parseInviteCode: { federationId: guardianFederationId },
+                spv2GuardianRemittanceAccount: {
+                    serializedAccount: serializedGuardianAccount,
+                },
+            })
+            mockFedimint.getMatrixClient = jest.fn().mockReturnValue({
+                sendMessage,
+            }) as unknown as MockFedimintBridge['getMatrixClient']
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
+
+            const mockFormEvent = createMockFormEvent({
+                roomId: '!guardianito:m1.8fa.in',
+                sender: chatbotUserId,
+                content: {
+                    type: 'radio',
+                    options: [
+                        {
+                            value: 'sync',
+                            label: 'Sync remittance account',
+                            i18nKeyLabel: null,
+                            clientAction: {
+                                type: 'guardianFeesSyncRemittanceAccount',
+                                inviteCode: guardianInviteCode,
+                            },
+                        },
+                    ],
+                },
+            })
+
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
+                mockFedimint,
+            )
+
+            await act(async () => {
+                await result.current.options[0].handler()
+            })
+
+            expect(mockFedimint.parseInviteCode).toHaveBeenCalledWith(
+                guardianInviteCode,
+            )
+            expect(
+                mockFedimint.spv2GuardianRemittanceAccount,
+            ).toHaveBeenCalledWith(guardianFederationId)
+            expect(sendMessage).toHaveBeenCalledWith(
+                '!guardianito:m1.8fa.in',
+                expect.objectContaining({
+                    body: serializedGuardianAccount,
+                    formResponse: expect.objectContaining({
+                        responseValue: serializedGuardianAccount,
+                        responseBody: 'Sync remittance account',
+                    }),
+                    msgtype: 'xyz.fedi.form',
+                }),
+            )
+        })
+
+        it('should open the Guardian fees dashboard without sending a form response', async () => {
+            const t = createMockT()
+            const sendMessage = jest.fn().mockResolvedValue(undefined)
+            const openGuardianFeesDashboard = jest
+                .fn()
+                .mockResolvedValue(undefined)
+            const mockFedimint = createMockFedimintBridge({
+                parseInviteCode: { federationId: guardianFederationId },
+            })
+            mockFedimint.getMatrixClient = jest.fn().mockReturnValue({
+                sendMessage,
+            }) as unknown as MockFedimintBridge['getMatrixClient']
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
+
+            const mockFormEvent = createMockFormEvent({
+                roomId: '!guardianito:m1.8fa.in',
+                sender: chatbotUserId,
+                content: {
+                    type: 'radio',
+                    options: [
+                        {
+                            value: 'open',
+                            label: 'Open dashboard',
+                            i18nKeyLabel: null,
+                            clientAction: {
+                                type: 'guardianFeesOpenDashboard',
+                                inviteCode: guardianInviteCode,
+                            },
+                        },
+                    ],
+                },
+            })
+
+            const { result } = renderHookWithState(
+                () =>
+                    useMatrixFormEvent(mockFormEvent, t, {
+                        openGuardianFeesDashboard,
+                    }),
+                store,
+                mockFedimint,
+            )
+
+            await act(async () => {
+                await result.current.options[0].handler()
+            })
+
+            expect(openGuardianFeesDashboard).toHaveBeenCalledWith(
+                guardianFederationId,
+            )
+            expect(sendMessage).not.toHaveBeenCalled()
         })
     })
 

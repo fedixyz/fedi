@@ -592,14 +592,16 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
     }
 
     const makeLightningFeeContent = (feeDetails: RpcFeeDetails) => {
-        // prettier-ignore
         const lightningSendTotalFeeMsats = sumFeeDetails(feeDetails)
-
         // Format fedi fee
         const {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.fediFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.fediAppFee)
+        const {
+            formattedPrimaryAmount: formattedGuardianFee,
+            formattedSecondaryAmount: formattedGuardianFeeSecondary,
+        } = makeFormattedAmountsFromMSats(feeDetails.fediGuardianFee)
         const {
             formattedPrimaryAmount: formattedFederationFee,
             formattedSecondaryAmount: formattedFederationFeeSecondary,
@@ -615,6 +617,10 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
+            },
+            {
+                label: t('phrases.guardian-fee'),
+                formattedAmount: `${formattedGuardianFee} (${formattedGuardianFeeSecondary})`,
             },
             {
                 label: t('phrases.federation-fee'),
@@ -641,7 +647,11 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
         const {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.fediFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.fediAppFee)
+        const {
+            formattedPrimaryAmount: formattedGuardianFee,
+            formattedSecondaryAmount: formattedGuardianFeeSecondary,
+        } = makeFormattedAmountsFromMSats(feeDetails.fediGuardianFee)
         const {
             formattedPrimaryAmount: formattedNetworkFee,
             formattedSecondaryAmount: formattedNetworkFeeSecondary,
@@ -657,6 +667,10 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
+            },
+            {
+                label: t('phrases.guardian-fee'),
+                formattedAmount: `${formattedGuardianFee} (${formattedGuardianFeeSecondary})`,
             },
             {
                 label: t('phrases.network-fee'),

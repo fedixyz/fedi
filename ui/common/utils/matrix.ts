@@ -859,7 +859,8 @@ export const coerceMultispendTxn = (
         counter: event.counter,
         time: event.time,
         amount: 0 as MSats,
-        fediFeeStatus: null,
+        fediAppFeeStatus: null,
+        fediGuardianFeeStatus: null,
         txnNotes: '',
         txDateFiatInfo: null,
         frontendMetadata: {

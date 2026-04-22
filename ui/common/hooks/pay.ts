@@ -216,7 +216,8 @@ export function useOmniPaymentState(
                         amountUtils.msatToSat(meltSummary.totalAmount),
                     )
                     setFeeDetails({
-                        fediFee: 0 as MSats,
+                        fediAppFee: 0 as MSats,
+                        fediGuardianFee: 0 as MSats,
                         networkFee: meltSummary.totalFees,
                         federationFee: 0 as MSats,
                     })

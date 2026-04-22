@@ -1,6 +1,7 @@
 pub mod client;
 pub mod db;
 mod dev;
+mod guardian_remittance;
 mod lnurl_receives_service;
 mod meta;
 
@@ -23,8 +24,7 @@ use bitcoin::{Address, Network};
 use bug_report::reused_ecash_proofs::{self, SerializedReusedEcashProofs};
 use client::ClientExt;
 use db::{
-    FediRawClientConfigKey, InviteCodeKey, LastStabilityPoolV2DepositCycleKey,
-    TotalAccruedFediFeesPerTXTypeKey, TransactionNotesKey,
+    FediRawClientConfigKey, InviteCodeKey, LastStabilityPoolV2DepositCycleKey, TransactionNotesKey,
 };
 use device_registration::DeviceRegistrationService;
 use fedi_social_client::common::VerificationDocument;
@@ -46,7 +46,10 @@ use fedimint_client::{Client, ClientBuilder, ClientHandle};
 use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::config::{ClientConfig, FederationId};
 use fedimint_core::core::{ModuleKind, OperationId};
-use fedimint_core::db::{Committable, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::db::{
+    AutocommitResultExt, Committable, Database, DatabaseTransaction,
+    IDatabaseTransactionOpsCoreTyped,
+};
 use fedimint_core::encoding::Encodable;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::module::registry::ModuleDecoderRegistry;
@@ -82,6 +85,7 @@ use fedimint_wallet_client::{
     WithdrawState,
 };
 use futures::{FutureExt, Stream, StreamExt};
+use guardian_remittance::GuardianRemittanceAccount;
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
 use lnurl_receives_service::LnurlReceivesService;
 use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries};
@@ -94,8 +98,9 @@ use rpc_types::{
     BaseMetadata, EcashReceiveMetadata, EcashSendMetadata, FrontendMetadata, GuardianStatus,
     LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
-    RpcGenerateEcashResponse, RpcJsonClientConfig, RpcLightningGateway, RpcOperationFediFeeStatus,
-    RpcOperationId, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
+    RpcGenerateEcashResponse, RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard,
+    RpcJsonClientConfig, RpcLightningGateway, RpcOperationFediFeeStatus, RpcOperationId,
+    RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
     RpcReturningMemberStatus, RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState,
     RpcSPV2TransferOutState, RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcSPv2CachedSyncResponse,
     RpcTransaction, RpcTransactionDirection, RpcTransactionKind, RpcTransactionListEntry,
@@ -111,7 +116,9 @@ use runtime::constants::{
 };
 use runtime::db::FederationPendingRejoinFromScratchKey;
 use runtime::nightly_panic;
-use runtime::storage::state::{DatabaseInfo, FederationInfo, FediFeeSchedule};
+use runtime::storage::state::{
+    DatabaseInfo, FederationInfo, FediFeeSchedule, FediGuardianFeeConfig,
+};
 use runtime::utils::{display_currency, timeout_log_only, to_unix_time};
 use serde::de::DeserializeOwned;
 use spv2_sweeper_service::SPv2SweeperService;
@@ -134,10 +141,11 @@ use tokio::sync::{Mutex, OnceCell};
 use tracing::{Level, error, info, instrument, warn};
 
 use self::backup_service::BackupService;
+#[allow(deprecated)]
 use self::db::{
-    LastStabilityPoolDepositCycleKey, OperationFediFeeStatusKey, OutstandingFediFeesPerTXTypeKey,
-    OutstandingFediFeesPerTXTypeKeyPrefix, PendingFediFeesPerTXTypeKey,
-    PendingFediFeesPerTXTypeKeyPrefix, TransactionDateFiatInfoKey,
+    LastStabilityPoolDepositCycleKey, OperationFediFeeStatusKey, OperationFediFeeStatusKeyPrefix,
+    OutstandingFediFeesPerTXTypeKeyPrefix, PendingFediFeesPerTXTypeKeyPrefix,
+    TransactionDateFiatInfoKey,
 };
 use self::dev::{
     override_localhost, override_localhost_client_config, override_localhost_invite_code,
@@ -145,7 +153,17 @@ use self::dev::{
 use self::ln_gateway_service::LnGatewayService;
 use self::stability_pool_sweeper_service::StabilityPoolSweeperService;
 use super::federations_locker::FederationLockGuard;
-use crate::fedi_fee::{FediFeeHelper, FediFeeRemittanceService};
+use crate::fedi_fee::db::{
+    AppFeeStreamStateInitializedKey, NextFediFeeRemittanceDueAtByStreamKey,
+    OperationFediFeeStatusByStreamKey, OutstandingFediFeesByStreamKey,
+    OutstandingFediFeesByStreamPerTXTypeKey, OutstandingFediFeesByStreamPerTXTypeKeyPrefix,
+    PendingFediFeesByStreamKey, PendingFediFeesByStreamPerTXTypeKey,
+    PendingFediFeesByStreamPerTXTypeKeyPrefix, TotalAccruedFediFeesByStreamKey,
+};
+use crate::fedi_fee::{
+    FediFeeHelper, FediFeeRemittanceService, FediFeeStream, GuardianFeeRemittanceService,
+    parse_fedi_guardian_fee_config,
+};
 
 // Trait for multispend notifications required by federation
 #[apply(async_trait_maybe_send!)]
@@ -366,6 +384,7 @@ pub struct FederationV2 {
     pub fedi_fee_helper: Arc<FediFeeHelper>,
     pub backup_service: BackupService,
     pub fedi_fee_remittance_service: OnceCell<FediFeeRemittanceService>,
+    pub guardian_fee_remittance_service: OnceCell<GuardianFeeRemittanceService>,
     pub recovering: bool,
     pub gateway_service: OnceCell<LnGatewayService>,
     pub stability_pool_sweeper_service: OnceCell<StabilityPoolSweeperService>,
@@ -381,6 +400,7 @@ pub struct FederationV2 {
     // Stability pool v2 services for syncing accout history between client and server
     pub spv2_sync_service: OnceCell<StabilityPoolSyncService>,
     pub spv2_history_service: OnceCell<StabilityPoolHistoryService>,
+    pub guardian_remittance_account: OnceCell<GuardianRemittanceAccount>,
     pub spv2_sweeper_service: OnceCell<SPv2SweeperService>,
     pub multispend_services: Arc<dyn MultispendNotifications>,
     pub lnurl_receives_service: OnceCell<LnurlReceivesService>,
@@ -431,7 +451,7 @@ impl FederationV2 {
         device_registration_service: Arc<DeviceRegistrationService>,
     ) -> Arc<Self> {
         let recovering = client.has_pending_recoveries();
-        let federation = Arc::new_cyclic(|weak| Self {
+        Arc::new_cyclic(|weak| Self {
             task_group: runtime.task_group.make_subgroup(),
             runtime,
             operation_states: Default::default(),
@@ -439,6 +459,7 @@ impl FederationV2 {
             fedi_fee_helper,
             backup_service: BackupService::new(device_registration_service),
             fedi_fee_remittance_service: OnceCell::new(),
+            guardian_fee_remittance_service: OnceCell::new(),
             recovering,
             gateway_service: OnceCell::new(),
             stability_pool_sweeper_service: OnceCell::new(),
@@ -451,14 +472,11 @@ impl FederationV2 {
             spt_notifications,
             spv2_sync_service: Default::default(),
             spv2_history_service: Default::default(),
+            guardian_remittance_account: Default::default(),
             spv2_sweeper_service: Default::default(),
             lnurl_receives_service: Default::default(),
             guardian_status_cache: Mutex::new(None),
-        });
-        if !recovering {
-            federation.start_background_tasks().await;
-        }
-        federation
+        })
     }
 
     pub fn spawn_cancellable<Fut>(
@@ -478,14 +496,21 @@ impl FederationV2 {
         });
     }
 
+    async fn start_background_tasks_if_ready(&self) {
+        if self.recovering() {
+            return;
+        }
+        self.start_background_tasks().await;
+    }
+
     /// Starts a bunch of async tasks and ensures username is
-    /// saved to db (e.g. after recovery)
+    /// saved to db.
     async fn start_background_tasks(&self) {
         self.subscribe_balance_updates().await;
         self.spawn_cancellable("backup_service", move |fed| async move {
             fed.backup_service.run_continuously(&fed.client).await;
         });
-        self.subscribe_to_all_operations().await;
+        self.initialize_app_fee_stream_state().await;
 
         if self
             .gateway_service
@@ -505,11 +530,31 @@ impl FederationV2 {
             error!("fedi fee remittance service already initialized");
         }
 
+        if self
+            .guardian_fee_remittance_service
+            .set(GuardianFeeRemittanceService::init(self))
+            .is_err()
+        {
+            error!("guardian fee remittance service already initialized");
+        }
+
+        // Replay existing operations only after fee/remittance services are
+        // initialized, so recovered in-flight fee remittances can hand off to
+        // their reconciliation services immediately.
+        self.subscribe_to_all_operations().await;
+
+        let cached_meta = self.get_cached_meta().await;
+        self.sync_guardian_fee_config_from_meta(&cached_meta).await;
+
         self.spawn_cancellable("send_meta_updates", |fed| async move {
             fed.client.meta_service().wait_initialization().await;
+            let meta = fed.get_cached_meta().await;
+            fed.sync_guardian_fee_config_from_meta(&meta).await;
             fed.send_federation_event().await;
             let mut subscribe_to_updates = pin!(fed.client.meta_service().subscribe_to_updates());
             while subscribe_to_updates.next().await.is_some() {
+                let meta = fed.get_cached_meta().await;
+                fed.sync_guardian_fee_config_from_meta(&meta).await;
                 fed.send_federation_event().await;
             }
         });
@@ -551,6 +596,12 @@ impl FederationV2 {
                 let history_service = fed.spv2_history_service.get().expect("init above");
                 history_service.update_continuously(sync_service).await
             });
+
+            if self.guardian_remittance_account_enabled().await
+                && let Err(error) = self.start_guardian_remittance_account().await
+            {
+                error!(?error, "failed to initialize guardian remittance subsystem");
+            }
 
             #[cfg(not(feature = "test-support"))]
             if self
@@ -647,7 +698,7 @@ impl FederationV2 {
 
         maybe_backfill_federation_network(&runtime, federation_id, &client).await;
 
-        Ok(Self::new(
+        let federation = Self::new(
             runtime,
             client,
             guard,
@@ -657,7 +708,9 @@ impl FederationV2 {
             spt_notifications,
             device_registration_service,
         )
-        .await)
+        .await;
+        federation.start_background_tasks_if_ready().await;
+        Ok(federation)
     }
 
     pub async fn federation_preview(
@@ -818,8 +871,10 @@ impl FederationV2 {
         // exist in the app_state, and we'd reattempt to join it. And the name of the
         // DB file is random so there shouldn't be any collisions.
         let fedi_fee_schedule = network
-            .and_then(|n| this.fedi_fee_helper.maybe_latest_schedule(n))
+            .and_then(|n| this.fedi_fee_helper.maybe_latest_app_fee_schedule(n))
             .unwrap_or_default();
+        let cached_meta = this.get_cached_meta().await;
+        let guardian_fee_config = parse_fedi_guardian_fee_config(&cached_meta).ok().flatten();
         runtime
             .app_state
             .with_write_lock(|state| {
@@ -829,6 +884,8 @@ impl FederationV2 {
                         version: 2,
                         database: DatabaseInfo::DatabasePrefix(db_prefix),
                         fedi_fee_schedule,
+                        guardian_fee_config,
+                        guardian_remittance_account_enabled: false,
                         network,
                         join_timestamp_secs_since_epoch: Some(
                             fedimint_core::time::duration_since_epoch().as_secs(),
@@ -838,6 +895,7 @@ impl FederationV2 {
                 assert!(old_value.is_none(), "must not override a federation");
             })
             .await?;
+        this.start_background_tasks_if_ready().await;
         Ok(this)
     }
 
@@ -855,9 +913,48 @@ impl FederationV2 {
     /// consumers can always get a valid fee schedule back.
     pub async fn fedi_fee_schedule(&self) -> FediFeeSchedule {
         self.fedi_fee_helper
-            .get_federation_schedule(self.federation_id().to_string())
+            .get_app_fee_schedule(self.federation_id().to_string())
             .await
             .unwrap_or_default()
+    }
+
+    pub async fn guardian_fee_config(&self) -> Option<FediGuardianFeeConfig> {
+        self.runtime
+            .app_state
+            .with_read_lock(|state| {
+                state
+                    .joined_federations
+                    .get(&self.federation_id().to_string())
+                    .and_then(|fed_info| fed_info.guardian_fee_config.clone())
+            })
+            .await
+    }
+
+    pub async fn guardian_remittance_account_enabled(&self) -> bool {
+        self.runtime
+            .app_state
+            .with_read_lock(|state| {
+                state
+                    .joined_federations
+                    .get(&self.federation_id().to_string())
+                    .is_some_and(|fed_info| fed_info.guardian_remittance_account_enabled)
+            })
+            .await
+    }
+
+    async fn start_guardian_remittance_account(
+        &self,
+    ) -> anyhow::Result<&GuardianRemittanceAccount> {
+        self.client.spv2()?;
+        self.guardian_remittance_account
+            .get_or_try_init(|| async { GuardianRemittanceAccount::new(self).await })
+            .await
+    }
+
+    fn guardian_remittance_account(&self) -> anyhow::Result<&GuardianRemittanceAccount> {
+        self.guardian_remittance_account
+            .get()
+            .context("guardian remittance account is not initialized")
     }
 
     // Fetch which network we're using
@@ -902,9 +999,159 @@ impl FederationV2 {
         }
     }
 
+    async fn sync_guardian_fee_config_from_meta(&self, meta: &MetaEntries) {
+        let parsed_config = match parse_fedi_guardian_fee_config(meta) {
+            Ok(config) => config,
+            Err(error) => {
+                // Keep the last valid cached config on malformed meta. We only
+                // clear the cache when guardian fee config is actually absent.
+                // Guardians that want to disable new accrual while still
+                // draining existing outstanding fee should set send_ppm = 0
+                // rather than removing the config entirely.
+                warn!(?error, "Invalid guardian fee config in federation meta");
+                return;
+            }
+        };
+
+        let federation_id = self.federation_id().to_string();
+        if let Err(error) = self
+            .runtime
+            .app_state
+            .with_write_lock(move |state| {
+                if let Some(fed_info) = state.joined_federations.get_mut(&federation_id) {
+                    fed_info.guardian_fee_config = parsed_config;
+                }
+            })
+            .await
+        {
+            warn!(?error, "Failed to sync guardian fee config into app state");
+        }
+    }
+
+    /// Seeds the stream-scoped app-fee keys from the legacy app-fee schema.
+    /// This is intentionally one-way and idempotent: the method only copies
+    /// legacy state into the stream-scoped keys when those keys are still
+    /// absent.
+    #[allow(deprecated)]
+    async fn initialize_app_fee_stream_state(&self) {
+        let stream = FediFeeStream::App;
+        let outstanding_by_type = self
+            .dbtx()
+            .await
+            .into_nc()
+            .find_by_prefix(&OutstandingFediFeesPerTXTypeKeyPrefix)
+            .await
+            .collect::<Vec<_>>()
+            .await;
+        let pending_by_type = self
+            .dbtx()
+            .await
+            .into_nc()
+            .find_by_prefix(&PendingFediFeesPerTXTypeKeyPrefix)
+            .await
+            .collect::<Vec<_>>()
+            .await;
+        let total_accrued_by_type = self
+            .dbtx()
+            .await
+            .into_nc()
+            .find_by_prefix(&db::TotalAccruedFediFeesPerTXTypeKeyPrefix)
+            .await
+            .collect::<Vec<_>>()
+            .await;
+        let remittance_timestamps_by_type = self
+            .dbtx()
+            .await
+            .into_nc()
+            .find_by_prefix(&db::FediFeesRemittanceTimestampPerTXTypeKeyPrefix)
+            .await
+            .collect::<Vec<_>>()
+            .await;
+        let operation_statuses: Vec<(OperationFediFeeStatusKey, OperationFediFeeStatus)> = self
+            .dbtx()
+            .await
+            .into_nc()
+            .find_by_prefix(&OperationFediFeeStatusKeyPrefix)
+            .await
+            .collect::<Vec<_>>()
+            .await;
+        let fedi_fee_db = self.fedi_fee_db();
+        let mut dbtx = fedi_fee_db.begin_transaction().await;
+        if dbtx
+            .get_value(&AppFeeStreamStateInitializedKey)
+            .await
+            .is_some()
+        {
+            return;
+        }
+
+        let outstanding_total = outstanding_by_type
+            .iter()
+            .fold(Amount::ZERO, |acc, (_, amount)| acc + *amount);
+        let pending_total = pending_by_type
+            .iter()
+            .fold(Amount::ZERO, |acc, (_, amount)| acc + *amount);
+        let total_accrued = total_accrued_by_type
+            .iter()
+            .fold(Amount::ZERO, |acc, (_, amount)| acc + *amount);
+        let remittance_delay = Duration::from_secs(
+            self.runtime
+                .feature_catalog
+                .fedi_fee
+                .remittance_max_delay_secs
+                .into(),
+        );
+        let next_due_at = remittance_timestamps_by_type
+            .iter()
+            .filter_map(|(_, last_remitted_at)| last_remitted_at.checked_add(remittance_delay))
+            .min()
+            .unwrap_or_else(|| fedimint_core::time::now() + remittance_delay);
+
+        dbtx.insert_entry(&OutstandingFediFeesByStreamKey(stream), &outstanding_total)
+            .await;
+        dbtx.insert_entry(&PendingFediFeesByStreamKey(stream), &pending_total)
+            .await;
+        dbtx.insert_entry(&TotalAccruedFediFeesByStreamKey(stream), &total_accrued)
+            .await;
+        dbtx.insert_entry(&NextFediFeeRemittanceDueAtByStreamKey(stream), &next_due_at)
+            .await;
+        for (key, amount) in outstanding_by_type {
+            dbtx.insert_entry(
+                &OutstandingFediFeesByStreamPerTXTypeKey(stream, key.0, key.1),
+                &amount,
+            )
+            .await;
+        }
+        for (key, amount) in pending_by_type {
+            dbtx.insert_entry(
+                &PendingFediFeesByStreamPerTXTypeKey(stream, key.0, key.1),
+                &amount,
+            )
+            .await;
+        }
+        for (key, status) in operation_statuses {
+            dbtx.insert_entry(
+                &OperationFediFeeStatusByStreamKey(key.0, FediFeeStream::App),
+                &status,
+            )
+            .await;
+            dbtx.remove_entry(&key).await;
+        }
+        dbtx.insert_entry(&AppFeeStreamStateInitializedKey, &())
+            .await;
+        dbtx.commit_tx().await;
+    }
+
     /// Create database transaction
     pub async fn dbtx(&self) -> DatabaseTransaction<'_, Committable> {
         self.client.db().begin_transaction().await
+    }
+
+    /// Returns the prefixed database view that owns stream-era fee state.
+    pub fn fedi_fee_db(&self) -> Database {
+        self.client
+            .db()
+            .with_prefix(vec![db::BridgeDbPrefix::FediFeePrefix as u8])
     }
 
     pub async fn select_gateway(&self) -> anyhow::Result<Option<LightningGateway>> {
@@ -932,8 +1179,15 @@ impl FederationV2 {
             .get_note_counts_by_denomination(&mut dbtx)
             .await
             .total_amount();
-        let fedi_fee_sum =
-            self.get_outstanding_fedi_fees().await + self.get_pending_fedi_fees().await;
+        let fedi_fee_sum = [FediFeeStream::App, FediFeeStream::Guardian]
+            .into_iter()
+            .map(|stream| async move {
+                self.get_outstanding_fedi_fees_by_stream(stream).await
+                    + self.get_pending_fedi_fees_by_stream(stream).await
+            })
+            .collect::<futures::stream::FuturesOrdered<_>>()
+            .fold(Amount::ZERO, |acc, fee| async move { acc + fee })
+            .await;
         if raw_fedimint_balance < fedi_fee_sum {
             warn!(
                 "Fee {} is somehow greater than fm balance {} for federation {}",
@@ -1031,59 +1285,125 @@ impl FederationV2 {
         result
     }
 
-    pub async fn get_outstanding_fedi_fees(&self) -> Amount {
-        self.dbtx()
+    /// Reads the outstanding fees for a given stream from the stream-scoped
+    /// ledger.
+    pub async fn get_outstanding_fedi_fees_by_stream(&self, stream: FediFeeStream) -> Amount {
+        self.fedi_fee_db()
+            .begin_transaction_nc()
             .await
-            .into_nc()
-            .find_by_prefix(&OutstandingFediFeesPerTXTypeKeyPrefix)
+            .get_value(&OutstandingFediFeesByStreamKey(stream))
             .await
-            .fold(Amount::ZERO, |acc, (_, amt)| async move { acc + amt })
-            .await
+            .unwrap_or(Amount::ZERO)
     }
 
-    pub async fn get_outstanding_fedi_fees_per_tx_type(
+    /// Reads the outstanding per-(module, tx_direction) breakdown for a given
+    /// stream from the stream-scoped ledger.
+    pub async fn get_outstanding_fedi_fees_per_tx_type_by_stream(
         &self,
+        stream: FediFeeStream,
     ) -> Vec<(ModuleKind, RpcTransactionDirection, Amount)> {
-        self.dbtx()
+        self.fedi_fee_db()
+            .begin_transaction_nc()
             .await
-            .into_nc()
-            .find_by_prefix(&OutstandingFediFeesPerTXTypeKeyPrefix)
+            .find_by_prefix(&OutstandingFediFeesByStreamPerTXTypeKeyPrefix(stream))
             .await
-            .map(|(key, amt)| (key.0, key.1, amt))
+            .map(|(key, amt)| (key.1, key.2, amt))
             .collect()
             .await
     }
 
-    pub async fn get_pending_fedi_fees(&self) -> Amount {
-        self.dbtx()
+    /// Reads the pending fees for a given stream from the stream-scoped
+    /// ledger.
+    pub async fn get_pending_fedi_fees_by_stream(&self, stream: FediFeeStream) -> Amount {
+        self.fedi_fee_db()
+            .begin_transaction_nc()
             .await
-            .into_nc()
-            .find_by_prefix(&PendingFediFeesPerTXTypeKeyPrefix)
+            .get_value(&PendingFediFeesByStreamKey(stream))
             .await
-            .fold(Amount::ZERO, |acc, (_, amt)| async move { acc + amt })
+            .unwrap_or(Amount::ZERO)
+    }
+
+    /// Reads the pending per-(module, tx_direction) breakdown for a given
+    /// stream from the stream-scoped ledger.
+    pub async fn get_pending_fedi_fees_per_tx_type_by_stream(
+        &self,
+        stream: FediFeeStream,
+    ) -> Vec<(ModuleKind, RpcTransactionDirection, Amount)> {
+        self.fedi_fee_db()
+            .begin_transaction_nc()
+            .await
+            .find_by_prefix(&PendingFediFeesByStreamPerTXTypeKeyPrefix(stream))
+            .await
+            .map(|(key, amt)| (key.1, key.2, amt))
+            .collect()
             .await
     }
 
-    pub async fn get_pending_fedi_fees_per_tx_type(
+    async fn get_fee_ppms_by_stream(
         &self,
-    ) -> Vec<(ModuleKind, RpcTransactionDirection, Amount)> {
-        self.dbtx()
-            .await
-            .into_nc()
-            .find_by_prefix(&PendingFediFeesPerTXTypeKeyPrefix)
-            .await
-            .map(|(key, amt)| (key.0, key.1, amt))
-            .collect()
-            .await
+        module: ModuleKind,
+        direction: RpcTransactionDirection,
+    ) -> anyhow::Result<Vec<(FediFeeStream, u64)>> {
+        let mut fee_ppms = Vec::with_capacity(2);
+        for stream in [FediFeeStream::App, FediFeeStream::Guardian] {
+            let fee_ppm = self
+                .fedi_fee_helper
+                .get_fee_ppm(
+                    stream,
+                    self.federation_id().to_string(),
+                    module.clone(),
+                    direction.clone(),
+                )
+                .await?;
+            fee_ppms.push((stream, fee_ppm));
+        }
+        Ok(fee_ppms)
+    }
+
+    async fn get_fee_amounts_by_stream(
+        &self,
+        module: ModuleKind,
+        direction: RpcTransactionDirection,
+        amount: Amount,
+    ) -> anyhow::Result<Vec<(FediFeeStream, Amount)>> {
+        Ok(self
+            .get_fee_ppms_by_stream(module, direction)
+            .await?
+            .into_iter()
+            .map(|(stream, fee_ppm)| {
+                (
+                    stream,
+                    Amount::from_msats((amount.msats * fee_ppm).div_ceil(MILLION)),
+                )
+            })
+            .collect())
+    }
+
+    fn total_fedi_fee_amount(fees_by_stream: &[(FediFeeStream, Amount)]) -> Amount {
+        fees_by_stream
+            .iter()
+            .fold(Amount::ZERO, |total, (_, fee)| total + *fee)
+    }
+
+    fn fedi_fee_amount_for_stream(
+        fees_by_stream: &[(FediFeeStream, Amount)],
+        stream: FediFeeStream,
+    ) -> Amount {
+        fees_by_stream
+            .iter()
+            .find_map(|(fee_stream, fee)| (*fee_stream == stream).then_some(*fee))
+            .unwrap_or(Amount::ZERO)
+    }
+
+    fn total_fedi_fee_ppm(fee_ppms: &[(FediFeeStream, u64)]) -> u64 {
+        fee_ppms.iter().map(|(_, fee_ppm)| *fee_ppm).sum()
     }
 
     /// Generate bitcoin address
     pub async fn generate_address(&self, frontend_meta: FrontendMetadata) -> Result<String> {
         // FIXME: add fedi fees once fedimint await primary module outputs
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(
                 fedimint_wallet_client::KIND,
                 RpcTransactionDirection::Receive,
             )
@@ -1093,7 +1413,7 @@ impl FederationV2 {
             .wallet()?
             .allocate_deposit_address_expert_only(BaseMetadata::from(frontend_meta))
             .await?;
-        self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
+        self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
             .await?;
 
         self.subscribe_deposit(operation_id);
@@ -1112,13 +1432,8 @@ impl FederationV2 {
         // some apps have issues paying invoices that are in msats
         // so round up amount to nearest sat
         let amount = Amount::from_sats(amount.0.msats.div_ceil(1000));
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
-                fedimint_ln_common::KIND,
-                RpcTransactionDirection::Receive,
-            )
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(fedimint_ln_common::KIND, RpcTransactionDirection::Receive)
             .await?;
         let gateway = self.select_gateway().await?;
         let (operation_id, invoice, _) = self
@@ -1135,7 +1450,7 @@ impl FederationV2 {
             )
             .await?;
 
-        self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
+        self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
             .await?;
         let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
         self.subscribe_invoice(operation_id, invoice.clone())
@@ -1178,16 +1493,15 @@ impl FederationV2 {
                             .saturating_sub(federation_fees);
                         // FIXME: add fedi fees once fedimint await primary module outputs
                         if let DepositStateV2::Claimed { .. } = &update {
-                            fed.write_success_receive_fedi_fee(operation_id, amount)
+                            fed.write_success_receive_fedi_fees(operation_id, amount)
                                 .await
-                                .map(|(_, status)| status)
                                 .ok();
                         }
                         let _ = fed.record_tx_date_fiat_info(operation_id, amount).await;
                         fed.send_transaction_event(operation_id).await;
                     }
                     DepositStateV2::Failed(reason) => {
-                        let _ = fed.write_failed_receive_fedi_fee(operation_id).await;
+                        let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
                         // FIXME: handle this
                         error!("Failed to claim on-chain deposit: {reason}");
                     }
@@ -1233,14 +1547,13 @@ impl FederationV2 {
                         let amount = Amount {
                             msats: invoice.amount_milli_satoshis().unwrap(),
                         };
-                        fed.write_success_receive_fedi_fee(operation_id, amount)
+                        fed.write_success_receive_fedi_fees(operation_id, amount)
                             .await
-                            .map(|(_, status)| status)
                             .ok();
                         fed.send_transaction_event(operation_id).await;
                     }
                     LnReceiveState::Canceled { reason } => {
-                        let _ = fed.write_failed_receive_fedi_fee(operation_id).await;
+                        let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
                         // FIXME: handle this
                         error!("Failed to claim incoming contract: {reason}");
                     }
@@ -1260,15 +1573,16 @@ impl FederationV2 {
         );
 
         // Fedi app fee applies regardless of internal/external payment
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
                 fedimint_ln_common::KIND,
                 RpcTransactionDirection::Send,
+                amount,
             )
             .await?;
-        let fedi_fee = (amount.msats * fedi_fee_ppm).div_ceil(MILLION);
+        let fedi_app_fee = Self::fedi_fee_amount_for_stream(&fees_by_stream, FediFeeStream::App);
+        let fedi_guardian_fee =
+            Self::fedi_fee_amount_for_stream(&fees_by_stream, FediFeeStream::Guardian);
 
         // Logic inside the if statement below is currently copied from
         // fedimint-ln-client to determine when the destination of a lightning invoice
@@ -1302,7 +1616,8 @@ impl FederationV2 {
         };
 
         Ok(RpcFeeDetails {
-            fedi_fee: RpcAmount(Amount::from_msats(fedi_fee)),
+            fedi_app_fee: RpcAmount(fedi_app_fee),
+            fedi_guardian_fee: RpcAmount(fedi_guardian_fee),
             network_fee,
             federation_fee: RpcAmount(Amount::ZERO),
         })
@@ -1340,22 +1655,29 @@ impl FederationV2 {
         let network_fee = gateway_fees.base_msat as u64
             + (amount.msats * gateway_fees.proportional_millionths as u64).div_ceil(MILLION);
 
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(fedimint_ln_common::KIND, RpcTransactionDirection::Send)
+            .await?;
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
                 fedimint_ln_common::KIND,
                 RpcTransactionDirection::Send,
+                amount,
             )
             .await?;
-        let fedi_fee = (amount.msats * fedi_fee_ppm).div_ceil(MILLION);
+        let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
 
         let spend_guard = self.spend_guard.lock().await;
         let virtual_balance = self.get_balance().await;
-        let est_total_spend = amount.msats + fedi_fee + network_fee;
+        let est_total_spend = amount.msats + fedi_fee.msats + network_fee;
         if est_total_spend > virtual_balance.msats {
             bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, Some(gateway_fees))
+                get_max_spendable_amount(
+                    virtual_balance,
+                    Self::total_fedi_fee_ppm(&fee_ppms),
+                    None,
+                    Some(gateway_fees),
+                )
             )));
         }
 
@@ -1393,7 +1715,7 @@ impl FederationV2 {
             bail!(ErrorCode::PayLnInvoiceAlreadyPaid);
         }
 
-        self.write_pending_send_fedi_fee(payment_type.operation_id(), Amount::from_msats(fedi_fee))
+        self.write_pending_send_fedi_fees(payment_type.operation_id(), &fees_by_stream)
             .await?;
         drop(spend_guard);
 
@@ -1430,12 +1752,15 @@ impl FederationV2 {
         address: Address<NetworkUnchecked>,
         amount: bitcoin::Amount,
     ) -> Result<RpcFeeDetails> {
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
+            .await?;
+        let amount_msat = amount.to_sat() * 1000;
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
                 fedimint_wallet_client::KIND,
                 RpcTransactionDirection::Send,
+                Amount::from_msats(amount_msat),
             )
             .await?;
         let wallet = self.client.wallet()?;
@@ -1447,20 +1772,27 @@ impl FederationV2 {
             )
             .await?;
         let federation_fee = wallet.get_fee_consensus().peg_out_abs;
-
-        let amount_msat = amount.to_sat() * 1000;
-        let fedi_fee = (amount_msat * fedi_fee_ppm).div_ceil(MILLION);
+        let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
+        let fedi_app_fee = Self::fedi_fee_amount_for_stream(&fees_by_stream, FediFeeStream::App);
+        let fedi_guardian_fee =
+            Self::fedi_fee_amount_for_stream(&fees_by_stream, FediFeeStream::Guardian);
         let network_fees_msat = network_fees.amount().to_sat() * 1000;
-        let est_total_spend = amount_msat + fedi_fee + network_fees_msat;
+        let est_total_spend = amount_msat + fedi_fee.msats + network_fees_msat;
         let virtual_balance = self.get_balance().await;
         if est_total_spend > virtual_balance.msats {
             bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(virtual_balance, fedi_fee_ppm, Some(network_fees), None)
+                get_max_spendable_amount(
+                    virtual_balance,
+                    Self::total_fedi_fee_ppm(&fee_ppms),
+                    Some(network_fees),
+                    None,
+                )
             )));
         }
 
         Ok(RpcFeeDetails {
-            fedi_fee: RpcAmount(Amount::from_msats(fedi_fee)),
+            fedi_app_fee: RpcAmount(fedi_app_fee),
+            fedi_guardian_fee: RpcAmount(fedi_guardian_fee),
             network_fee: RpcAmount(Amount::from_msats(network_fees_msat)),
             federation_fee: RpcAmount(federation_fee),
         })
@@ -1474,12 +1806,15 @@ impl FederationV2 {
         frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
         let wallet = self.client.wallet()?;
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
+            .await?;
+        let amount_msat = amount.to_sat() * 1000;
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
                 fedimint_wallet_client::KIND,
                 RpcTransactionDirection::Send,
+                Amount::from_msats(amount_msat),
             )
             .await?;
         let network_fees = wallet
@@ -1489,17 +1824,20 @@ impl FederationV2 {
                 amount,
             )
             .await?;
-
-        let amount_msat = amount.to_sat() * 1000;
-        let fedi_fee = (amount_msat * fedi_fee_ppm).div_ceil(MILLION);
+        let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
         let network_fees_msat = network_fees.amount().to_sat() * 1000;
-        let est_total_spend = amount_msat + fedi_fee + network_fees_msat;
+        let est_total_spend = amount_msat + fedi_fee.msats + network_fees_msat;
 
         let spend_guard = self.spend_guard.lock().await;
         let virtual_balance = self.get_balance().await;
         if est_total_spend > virtual_balance.msats {
             bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(virtual_balance, fedi_fee_ppm, Some(network_fees), None)
+                get_max_spendable_amount(
+                    virtual_balance,
+                    Self::total_fedi_fee_ppm(&fee_ppms),
+                    Some(network_fees),
+                    None,
+                )
             )));
         }
 
@@ -1512,7 +1850,7 @@ impl FederationV2 {
                 BaseMetadata::from(frontend_meta),
             )
             .await?;
-        self.write_pending_send_fedi_fee(operation_id, Amount::from_msats(fedi_fee))
+        self.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
             .await?;
         drop(spend_guard);
         let _ = self
@@ -1684,15 +2022,36 @@ impl FederationV2 {
                 }
             }
             STABILITY_POOL_V2_OPERATION_TYPE => match operation.meta::<StabilityPoolMeta>() {
-                StabilityPoolMeta::Deposit { .. } => {
-                    self.spawn_cancellable("subscribe_spv2_deposit", move |fed| async move {
-                        fed.subscribe_spv2_deposit_to_seek(operation_id).await
-                    });
+                StabilityPoolMeta::Deposit { extra_meta, .. } => {
+                    // Guardian fee remittances are internal maintenance
+                    // operations. The dedicated remittance service owns their
+                    // recovery and re-subscription.
+                    if !matches!(
+                        serde_json::from_value::<SPv2DepositMetadata>(extra_meta).ok(),
+                        Some(SPv2DepositMetadata::GuardianFeeRemittance { .. })
+                    ) {
+                        self.spawn_cancellable("subscribe_spv2_deposit", move |fed| async move {
+                            fed.subscribe_spv2_deposit_to_seek(operation_id).await
+                        });
+                    }
                 }
-                StabilityPoolMeta::Withdrawal { .. } => {
-                    self.spawn_cancellable("subscribe_spv2_withdraw", move |fed| async move {
-                        fed.subscribe_spv2_withdraw(operation_id).await
-                    });
+                StabilityPoolMeta::Withdrawal { extra_meta, .. } => {
+                    if matches!(
+                        serde_json::from_value::<SPv2WithdrawMetadata>(extra_meta).ok(),
+                        Some(SPv2WithdrawMetadata::GuardianRemittanceAccount)
+                    ) {
+                        self.spawn_cancellable(
+                            "subscribe_guardian_remittance_withdraw",
+                            move |fed| async move {
+                                fed.subscribe_guardian_remittance_withdraw(operation_id)
+                                    .await
+                            },
+                        );
+                    } else {
+                        self.spawn_cancellable("subscribe_spv2_withdraw", move |fed| async move {
+                            fed.subscribe_spv2_withdraw(operation_id).await
+                        });
+                    }
                 }
                 StabilityPoolMeta::Transfer {
                     extra_meta,
@@ -1750,10 +2109,10 @@ impl FederationV2 {
             match update {
                 WithdrawState::Created => (),
                 WithdrawState::Succeeded(_) => {
-                    let _ = self.write_success_send_fedi_fee(op_id).await;
+                    let _ = self.write_success_send_fedi_fees(op_id).await;
                 }
                 WithdrawState::Failed(_) => {
-                    let _ = self.write_failed_send_fedi_fee(op_id).await;
+                    let _ = self.write_failed_send_fedi_fees(op_id).await;
                 }
             }
             self.send_transaction_event(op_id).await;
@@ -1777,11 +2136,11 @@ impl FederationV2 {
                     if !extra_meta.is_fedi_fee_remittance {
                         match update {
                             InternalPayState::Preimage(_) => {
-                                let _ = self.write_success_send_fedi_fee(operation_id).await;
+                                let _ = self.write_success_send_fedi_fees(operation_id).await;
                             }
                             InternalPayState::Funding => (),
                             _ => {
-                                let _ = self.write_failed_send_fedi_fee(operation_id).await;
+                                let _ = self.write_failed_send_fedi_fees(operation_id).await;
                             }
                         }
                     }
@@ -1830,12 +2189,12 @@ impl FederationV2 {
                     if !extra_meta.is_fedi_fee_remittance {
                         match update {
                             LnPayState::Success { .. } => {
-                                let _ = self.write_success_send_fedi_fee(operation_id).await;
+                                let _ = self.write_success_send_fedi_fees(operation_id).await;
                             }
                             LnPayState::Refunded { .. }
                             | LnPayState::Canceled
                             | LnPayState::UnexpectedError { .. } => {
-                                let _ = self.write_failed_send_fedi_fee(operation_id).await;
+                                let _ = self.write_failed_send_fedi_fees(operation_id).await;
                             }
                             _ => (),
                         }
@@ -2114,13 +2473,8 @@ impl FederationV2 {
         frontend_meta: FrontendMetadata,
     ) -> Result<(Amount, OperationId)> {
         let ecash = OOBNotes::from_str(&ecash)?;
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
-                fedimint_mint_client::KIND,
-                RpcTransactionDirection::Receive,
-            )
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(fedimint_mint_client::KIND, RpcTransactionDirection::Receive)
             .await?;
         let amount = ecash.total_amount();
         let operation_id = self
@@ -2134,7 +2488,7 @@ impl FederationV2 {
                 },
             )
             .await?;
-        self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
+        self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
             .await?;
         let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
         self.subscribe_to_operation(operation_id).await?;
@@ -2171,13 +2525,13 @@ impl FederationV2 {
                 ReissueExternalNotesState::Done => {
                     if !is_overissue_correction {
                         let _ = self
-                            .write_success_receive_fedi_fee(operation_id, amount)
+                            .write_success_receive_fedi_fees(operation_id, amount)
                             .await;
                     }
                 }
                 ReissueExternalNotesState::Failed(_) => {
                     if !is_overissue_correction {
-                        let _ = self.write_failed_receive_fedi_fee(operation_id).await;
+                        let _ = self.write_failed_receive_fedi_fees(operation_id).await;
                     }
                 }
                 _ => (),
@@ -2199,28 +2553,22 @@ impl FederationV2 {
         // Let's say that amount we're looking for is max. We wish to satisfy this
         // equation: max + fedi_fee = virtual_balance
         //
-        // fedi_fee is calculated as follows:
-        // fedi_fee = (max * fedi_fee_ppm) / MILLION
+        // total_fedi_fee is calculated as follows:
+        // total_fedi_fee = (max * total_fedi_fee_ppm) / MILLION
         //
         // Plugging this into the original equation, we get:
-        // max + [(max * fedi_fee_ppm) / MILLION] = virtual_balance
+        // max + [(max * total_fedi_fee_ppm) / MILLION] = virtual_balance
         //
         // We can solve this for max as follows:
-        // max = (virtual_balance * MILLION) / (MILLION + fedi_fee_ppm)
+        // max = (virtual_balance * MILLION) / (MILLION + total_fedi_fee_ppm)
         // We use floor division here
-
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
-                fedimint_mint_client::KIND,
-                RpcTransactionDirection::Send,
-            )
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(fedimint_mint_client::KIND, RpcTransactionDirection::Send)
             .await?;
         let virtual_balance = self.get_balance().await;
         let max = {
             let numerator = virtual_balance.mul_u64(MILLION).msats;
-            let denominator = MILLION + fedi_fee_ppm;
+            let denominator = MILLION + Self::total_fedi_fee_ppm(&fee_ppms);
             numerator / denominator
         };
         Ok(RpcAmount(Amount::from_msats(max)))
@@ -2234,15 +2582,19 @@ impl FederationV2 {
         frontend_meta: FrontendMetadata,
     ) -> Result<RpcGenerateEcashResponse> {
         let _guard = self.generate_ecash_lock.lock().await;
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
                 fedimint_mint_client::KIND,
                 RpcTransactionDirection::Send,
+                amount,
             )
             .await?;
-        let fedi_fee = Amount::from_msats((amount.msats * fedi_fee_ppm).div_ceil(MILLION));
+        let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
+        let total_fedi_fee_ppm = Self::total_fedi_fee_ppm(
+            &self
+                .get_fee_ppms_by_stream(fedimint_mint_client::KIND, RpcTransactionDirection::Send)
+                .await?,
+        );
 
         let mint = self.client.mint()?;
 
@@ -2261,7 +2613,7 @@ impl FederationV2 {
             let virtual_balance = self.get_balance().await;
             if amount + fedi_fee > virtual_balance {
                 bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                    get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, None)
+                    get_max_spendable_amount(virtual_balance, total_fedi_fee_ppm, None, None)
                 )));
             }
 
@@ -2326,7 +2678,7 @@ impl FederationV2 {
             // and retry
         };
 
-        self.write_pending_send_fedi_fee(operation_id, fedi_fee)
+        self.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
             .await?;
         // spend_guard must be dropped after writing fee since virtual balance only
         // updates once fee is written
@@ -2373,11 +2725,11 @@ impl FederationV2 {
             match update {
                 fedimint_mint_client::SpendOOBState::UserCanceledSuccess
                 | fedimint_mint_client::SpendOOBState::Refunded => {
-                    let _ = self.write_failed_send_fedi_fee(op_id).await;
+                    let _ = self.write_failed_send_fedi_fees(op_id).await;
                 }
                 fedimint_mint_client::SpendOOBState::UserCanceledFailure
                 | fedimint_mint_client::SpendOOBState::Success => {
-                    let _ = self.write_success_send_fedi_fee(op_id).await;
+                    let _ = self.write_success_send_fedi_fees(op_id).await;
                 }
                 _ => (),
             }
@@ -2759,21 +3111,41 @@ impl FederationV2 {
             .await
             .get_value(&TransactionDateFiatInfoKey(operation_id))
             .await;
-        let fedi_fee_status = self
-            .client
-            .db()
+        let app_fedi_fee_status = self
+            .fedi_fee_db()
             .begin_transaction_nc()
             .await
-            .get_value(&OperationFediFeeStatusKey(operation_id))
+            .get_value(&OperationFediFeeStatusByStreamKey(
+                operation_id,
+                FediFeeStream::App,
+            ))
             .await
             .map(Into::into);
-        let fedi_fee_msats = match fedi_fee_status {
+        let guardian_fedi_fee_status = self
+            .fedi_fee_db()
+            .begin_transaction_nc()
+            .await
+            .get_value(&OperationFediFeeStatusByStreamKey(
+                operation_id,
+                FediFeeStream::Guardian,
+            ))
+            .await
+            .map(Into::into);
+        let app_fedi_fee_msats = match app_fedi_fee_status {
             Some(
                 RpcOperationFediFeeStatus::PendingSend { fedi_fee }
                 | RpcOperationFediFeeStatus::Success { fedi_fee },
             ) => fedi_fee.0.msats,
             _ => 0,
         };
+        let guardian_fedi_fee_msats = match guardian_fedi_fee_status {
+            Some(
+                RpcOperationFediFeeStatus::PendingSend { fedi_fee }
+                | RpcOperationFediFeeStatus::Success { fedi_fee },
+            ) => fedi_fee.0.msats,
+            _ => 0,
+        };
+        let fedi_fee_msats = app_fedi_fee_msats + guardian_fedi_fee_msats;
         let outcome_time = entry.outcome_time();
         let (transaction_amount, transaction_kind, frontend_metadata);
         match entry.operation_module_kind() {
@@ -2999,14 +3371,24 @@ impl FederationV2 {
                     extra_meta,
                     ..
                 } => {
+                    let typed_extra_meta =
+                        serde_json::from_value::<SPv2DepositMetadata>(extra_meta.clone()).ok();
+                    if matches!(
+                        typed_extra_meta,
+                        Some(SPv2DepositMetadata::GuardianFeeRemittance { .. })
+                    ) {
+                        // Guardian fee remittance deposits are internal bridge
+                        // maintenance operations and should not surface in the
+                        // normal transaction list.
+                        return Ok(None);
+                    }
                     transaction_amount = RpcAmount(amount + Amount::from_msats(fedi_fee_msats));
-                    frontend_metadata =
-                        match serde_json::from_value::<SPv2DepositMetadata>(extra_meta) {
-                            Ok(SPv2DepositMetadata::StableBalance { frontend_metadata }) => {
-                                frontend_metadata
-                            }
-                            _ => None,
-                        };
+                    frontend_metadata = match typed_extra_meta {
+                        Some(SPv2DepositMetadata::StableBalance { frontend_metadata }) => {
+                            frontend_metadata
+                        }
+                        _ => None,
+                    };
                     let outcome = self
                         .get_client_operation_outcome(operation_id, entry, |op_id| async move {
                             self.client.spv2()?.subscribe_deposit_operation(op_id).await
@@ -3058,8 +3440,12 @@ impl FederationV2 {
                 } => {
                     let typed_extra_meta =
                         serde_json::from_value::<SPv2WithdrawMetadata>(extra_meta).ok();
+                    let guardian_remittance = matches!(
+                        &typed_extra_meta,
+                        Some(SPv2WithdrawMetadata::GuardianRemittanceAccount)
+                    );
                     let sweeper_initiated =
-                        matches!(typed_extra_meta, Some(SPv2WithdrawMetadata::Sweeper));
+                        matches!(&typed_extra_meta, Some(SPv2WithdrawMetadata::Sweeper));
                     frontend_metadata =
                         if let Some(SPv2WithdrawMetadata::StableBalance { frontend_metadata }) =
                             typed_extra_meta
@@ -3086,10 +3472,15 @@ impl FederationV2 {
                                     error: e.to_string(),
                                 },
                                 sweeper_initiated,
+                                guardian_remittance,
                             }
                         }
                         _ => RpcTransactionKind::SPV2Withdrawal {
-                            state: if let Some(item) = self.spv2_user_op_history_item(txid).await {
+                            state: if let Some(item) = if guardian_remittance {
+                                self.spv2_guardian_remittance_op_history_item(txid).await
+                            } else {
+                                self.spv2_user_op_history_item(txid).await
+                            } {
                                 transaction_amount = RpcAmount(item.amount);
                                 match item.kind {
                                     UserOperationHistoryItemKind::PendingWithdrawal => {
@@ -3113,6 +3504,7 @@ impl FederationV2 {
                                 RpcSPV2WithdrawalState::DataNotInCache
                             },
                             sweeper_initiated,
+                            guardian_remittance,
                         },
                     }
                 }
@@ -3375,7 +3767,8 @@ impl FederationV2 {
         Ok(Some(RpcTransaction {
             id: operation_id.fmt_full().to_string(),
             amount: transaction_amount,
-            fedi_fee_status,
+            fedi_app_fee_status: app_fedi_fee_status,
+            fedi_guardian_fee_status: guardian_fedi_fee_status,
             txn_notes: notes.or_else(|| frontend_metadata.initial_notes.clone()),
             tx_date_fiat_info,
             frontend_metadata,
@@ -3404,7 +3797,7 @@ impl FederationV2 {
             .expect("invite code must exist")
     }
 
-    async fn update_operation_state<T>(&self, operation_id: OperationId, state: T)
+    pub(crate) async fn update_operation_state<T>(&self, operation_id: OperationId, state: T)
     where
         T: MaybeSend + MaybeSync + 'static,
     {
@@ -3520,20 +3913,30 @@ impl FederationV2 {
         frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
         let spv2 = self.client.spv2()?;
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(
                 stability_pool_client::common::KIND,
                 RpcTransactionDirection::Send,
             )
             .await?;
-        let fedi_fee = Amount::from_msats((amount.msats * fedi_fee_ppm).div_ceil(MILLION));
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
+                stability_pool_client::common::KIND,
+                RpcTransactionDirection::Send,
+                amount,
+            )
+            .await?;
+        let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
         let spend_guard = self.spend_guard.lock().await;
         let virtual_balance = self.get_balance().await;
         if amount + fedi_fee > virtual_balance {
             bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, None)
+                get_max_spendable_amount(
+                    virtual_balance,
+                    Self::total_fedi_fee_ppm(&fee_ppms),
+                    None,
+                    None,
+                )
             )));
         }
 
@@ -3545,7 +3948,7 @@ impl FederationV2 {
                 },
             )
             .await?;
-        self.write_pending_send_fedi_fee(operation_id, fedi_fee)
+        self.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
             .await?;
         let _ = self
             .record_tx_date_fiat_info(operation_id, amount + fedi_fee)
@@ -3584,12 +3987,25 @@ impl FederationV2 {
         Ok(operation_id)
     }
 
-    async fn subscribe_spv2_deposit_to_seek(&self, operation_id: OperationId) {
+    pub(crate) async fn subscribe_spv2_deposit_to_seek(&self, operation_id: OperationId) {
         let Ok(spv2) = self.client.spv2() else {
             return;
         };
 
-        let update_stream = spv2.subscribe_deposit_operation(operation_id).await;
+        let Some(operation) = self
+            .client
+            .operation_log()
+            .get_operation(operation_id)
+            .await
+        else {
+            return;
+        };
+        let update_stream = match operation.meta::<StabilityPoolMeta>() {
+            StabilityPoolMeta::Deposit { .. } => {
+                spv2.subscribe_deposit_operation(operation_id).await
+            }
+            _ => return,
+        };
         if let Ok(update_stream) = update_stream {
             let mut updates = update_stream.into_stream();
             while let Some(state) = updates.next().await {
@@ -3598,12 +4014,12 @@ impl FederationV2 {
                 match state {
                     StabilityPoolDepositOperationState::TxRejected(_)
                     | StabilityPoolDepositOperationState::PrimaryOutputError(_) => {
-                        let _ = self.write_failed_send_fedi_fee(operation_id).await;
+                        let _ = self.write_failed_send_fedi_fees(operation_id).await;
                     }
                     StabilityPoolDepositOperationState::Success => {
                         // Force sync spv2 once deposit op is complete
                         self.spv2_force_sync();
-                        let _ = self.write_success_send_fedi_fee(operation_id).await;
+                        let _ = self.write_success_send_fedi_fees(operation_id).await;
                     }
                     _ => (),
                 }
@@ -3615,7 +4031,7 @@ impl FederationV2 {
             }
         } else {
             // TODO shaurya ok to ignore result? Or should bridge panic if error?
-            let _ = self.write_failed_send_fedi_fee(operation_id).await;
+            let _ = self.write_failed_send_fedi_fees(operation_id).await;
         }
     }
 
@@ -3629,10 +4045,8 @@ impl FederationV2 {
         frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
         let spv2 = self.client.spv2()?;
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(
                 stability_pool_client::common::KIND,
                 RpcTransactionDirection::Receive,
             )
@@ -3646,12 +4060,67 @@ impl FederationV2 {
                 },
             )
             .await?;
-        self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
+        self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
             .await?;
         self.spawn_cancellable("subscribe_spv2_withdraw", move |fed| async move {
             fed.subscribe_spv2_withdraw(operation_id).await
         });
         Ok(operation_id)
+    }
+
+    async fn enable_guardian_remittance_account(&self) -> anyhow::Result<()> {
+        let federation_id = self.federation_id().to_string();
+        self.runtime
+            .app_state
+            .with_write_lock(move |state| {
+                let Some(fed_info) = state.joined_federations.get_mut(&federation_id) else {
+                    bail!("federation not found in app state");
+                };
+                fed_info.guardian_remittance_account_enabled = true;
+                Ok(())
+            })
+            .await??;
+        self.start_guardian_remittance_account().await?;
+        Ok(())
+    }
+
+    pub async fn spv2_guardian_remittance_account_info(
+        &self,
+    ) -> anyhow::Result<RpcGuardianRemittanceAccountInfo> {
+        let spv2 = self.client.spv2()?;
+        let account = spv2.our_account(AccountType::BtcDepositor);
+        Ok(RpcGuardianRemittanceAccountInfo {
+            serialized_account: serde_json::to_string(&account)?,
+        })
+    }
+
+    pub async fn spv2_withdraw_guardian_remittance_all(&self) -> Result<()> {
+        let spv2 = self.client.spv2()?;
+        let (operation_id, _) = spv2
+            .withdraw(
+                stability_pool_client::common::AccountType::BtcDepositor,
+                stability_pool_client::common::FiatOrAll::All,
+                SPv2WithdrawMetadata::GuardianRemittanceAccount,
+            )
+            .await?;
+        self.subscribe_guardian_remittance_withdraw(operation_id)
+            .await;
+        Ok(())
+    }
+
+    pub async fn spv2_subscribe_guardian_remittance_dashboard(
+        &self,
+    ) -> anyhow::Result<impl Stream<Item = RpcGuardianRemittanceDashboard> + use<>> {
+        self.enable_guardian_remittance_account().await?;
+        self.guardian_remittance_account()?
+            .subscribe_dashboard(self)
+    }
+
+    pub async fn spv2_subscribe_guardian_remittance_balance(
+        &self,
+    ) -> anyhow::Result<impl Stream<Item = RpcAmount> + use<>> {
+        self.enable_guardian_remittance_account().await?;
+        Ok(self.guardian_remittance_account()?.subscribe_balance())
     }
 
     async fn subscribe_spv2_withdraw(&self, operation_id: OperationId) {
@@ -3671,7 +4140,7 @@ impl FederationV2 {
                         self.spv2_force_sync();
 
                         let _ = self
-                            .write_success_receive_fedi_fee(operation_id, amount)
+                            .write_success_receive_fedi_fees(operation_id, amount)
                             .await;
                         let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
                     }
@@ -3679,7 +4148,7 @@ impl FederationV2 {
                     | StabilityPoolWithdrawalOperationState::UnlockProcessingError(_)
                     | StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(_)
                     | StabilityPoolWithdrawalOperationState::PrimaryOutputError(_) => {
-                        let _ = self.write_failed_receive_fedi_fee(operation_id).await;
+                        let _ = self.write_failed_receive_fedi_fees(operation_id).await;
                     }
                     StabilityPoolWithdrawalOperationState::UnlockTxAccepted => {
                         // Force sync spv2 once unlock TX is accepted
@@ -3692,6 +4161,40 @@ impl FederationV2 {
                     operation_id,
                     state,
                 ))
+            }
+        }
+    }
+
+    async fn subscribe_guardian_remittance_withdraw(&self, operation_id: OperationId) {
+        let Ok(spv2) = self.client.spv2() else {
+            return;
+        };
+        let Ok(account) = self.start_guardian_remittance_account().await else {
+            error!("failed to initialize guardian remittance account for withdrawal subscription");
+            return;
+        };
+
+        let update_stream = spv2.subscribe_withdraw(operation_id).await;
+        if let Ok(update_stream) = update_stream {
+            let mut updates = update_stream.into_stream();
+            while let Some(state) = updates.next().await {
+                self.update_operation_state(operation_id, state.clone())
+                    .await;
+                match state {
+                    StabilityPoolWithdrawalOperationState::Success(_)
+                    | StabilityPoolWithdrawalOperationState::UnlockTxAccepted => {
+                        let res = account.update_once().await;
+                        if let Err(e) = res {
+                            error!(%e, "Error syncing guardian remittance account");
+                        }
+                    }
+                    _ => {}
+                }
+                self.runtime.event_sink.typed_event(&Event::spv2_withdrawal(
+                    self.federation_id().to_string(),
+                    operation_id,
+                    state,
+                ));
             }
         }
     }
@@ -3874,6 +4377,21 @@ impl FederationV2 {
             .await
     }
 
+    async fn spv2_guardian_remittance_op_history_item(
+        &self,
+        txid: TransactionId,
+    ) -> Option<UserOperationHistoryItem> {
+        let spv2 = self.client.spv2().ok()?;
+        let account_id = spv2.our_account(AccountType::BtcDepositor).id();
+
+        spv2.db
+            .clone()
+            .begin_transaction_nc()
+            .await
+            .get_value(&UserOperationHistoryItemKey { account_id, txid })
+            .await
+    }
+
     async fn spv2_seek_lifetime_fee(&self, txid: TransactionId) -> Option<Amount> {
         let spv2 = self.client.spv2().ok()?;
 
@@ -3957,26 +4475,36 @@ impl FederationV2 {
     /// cycle turnover occurs, staged seeks are processed in order
     /// to produce locks.
     pub async fn stability_pool_deposit_to_seek(&self, amount: Amount) -> Result<OperationId> {
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(
                 stability_pool_client_old::common::KIND,
                 RpcTransactionDirection::Send,
             )
             .await?;
-        let fedi_fee = Amount::from_msats((amount.msats * fedi_fee_ppm).div_ceil(MILLION));
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
+                stability_pool_client_old::common::KIND,
+                RpcTransactionDirection::Send,
+                amount,
+            )
+            .await?;
+        let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
         let spend_guard = self.spend_guard.lock().await;
         let virtual_balance = self.get_balance().await;
         if amount + fedi_fee > virtual_balance {
             bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, None)
+                get_max_spendable_amount(
+                    virtual_balance,
+                    Self::total_fedi_fee_ppm(&fee_ppms),
+                    None,
+                    None,
+                )
             )));
         }
 
         let module = self.client.sp()?;
         let operation_id = module.deposit_to_seek(amount).await?;
-        self.write_pending_send_fedi_fee(operation_id, fedi_fee)
+        self.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
             .await?;
         let _ = self
             .record_tx_date_fiat_info(operation_id, amount + fedi_fee)
@@ -4025,10 +4553,8 @@ impl FederationV2 {
         unlocked_amount: Amount,
         locked_bps: u32,
     ) -> Result<OperationId> {
-        let fedi_fee_ppm = self
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                self.federation_id().to_string(),
+        let fee_ppms = self
+            .get_fee_ppms_by_stream(
                 stability_pool_client_old::common::KIND,
                 RpcTransactionDirection::Receive,
             )
@@ -4038,7 +4564,7 @@ impl FederationV2 {
             .sp()?
             .withdraw(unlocked_amount, locked_bps)
             .await?;
-        self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
+        self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
             .await?;
         self.spawn_cancellable("subscribe_stability_pool_withdraw", move |fed| async move {
             fed.subscribe_stability_pool_withdraw(operation_id).await
@@ -4062,10 +4588,10 @@ impl FederationV2 {
                 match state {
                     stability_pool_client_old::StabilityPoolDepositOperationState::TxRejected(_)
                     | stability_pool_client_old::StabilityPoolDepositOperationState::PrimaryOutputError(_) => {
-                        let _ = self.write_failed_send_fedi_fee(operation_id).await;
+                        let _ = self.write_failed_send_fedi_fees(operation_id).await;
                     }
                     stability_pool_client_old::StabilityPoolDepositOperationState::Success => {
-                        let _ = self.write_success_send_fedi_fee(operation_id).await;
+                        let _ = self.write_success_send_fedi_fees(operation_id).await;
                     }
                     _ => (),
                 }
@@ -4079,7 +4605,7 @@ impl FederationV2 {
             }
         } else {
             // TODO shaurya ok to ignore result? Or should bridge panic if error?
-            let _ = self.write_failed_send_fedi_fee(operation_id).await;
+            let _ = self.write_failed_send_fedi_fees(operation_id).await;
         }
     }
 
@@ -4097,7 +4623,7 @@ impl FederationV2 {
                 match state {
                     stability_pool_client_old::StabilityPoolWithdrawalOperationState::Success(amount) => {
                         let _ = self
-                            .write_success_receive_fedi_fee(operation_id, amount)
+                            .write_success_receive_fedi_fees(operation_id, amount)
                             .await;
                         let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
                     }
@@ -4107,7 +4633,7 @@ impl FederationV2 {
                     | stability_pool_client_old::StabilityPoolWithdrawalOperationState::CancellationSubmissionFailure(_)
                     | stability_pool_client_old::StabilityPoolWithdrawalOperationState::AwaitCycleTurnoverError(_)
                     | stability_pool_client_old::StabilityPoolWithdrawalOperationState::WithdrawIdleSubmissionFailure(_) => {
-                        let _ = self.write_failed_receive_fedi_fee(operation_id).await;
+                        let _ = self.write_failed_receive_fedi_fees(operation_id).await;
                     }
                     _ => (),
                 }
@@ -4128,12 +4654,10 @@ impl FederationV2 {
         reused_ecash_proofs::generate(&*self.client.mint()?).await
     }
 
-    /// We record the fee within the pending counter. On success, we move the
-    /// fee to the success/accrued counter. On failure, we refund the fee.
-    async fn write_pending_send_fedi_fee(
+    async fn write_pending_send_fedi_fees(
         &self,
         operation_id: OperationId,
-        fedi_fee: Amount,
+        fees_by_stream: &[(FediFeeStream, Amount)],
     ) -> anyhow::Result<()> {
         let module = ModuleKind::clone_from_str(
             self.client
@@ -4144,52 +4668,343 @@ impl FederationV2 {
                 .operation_module_kind(),
         );
         let res = self
-            .client
-            .db()
+            .fedi_fee_db()
             .autocommit(
                 |dbtx, _| {
                     Box::pin({
                         let module = module.clone();
+                        let fees_by_stream = fees_by_stream.to_vec();
                         async move {
-                            let db_key =
-                                PendingFediFeesPerTXTypeKey(module, RpcTransactionDirection::Send);
-                            let pending_fedi_fees =
-                                fedi_fee + dbtx.get_value(&db_key).await.unwrap_or(Amount::ZERO);
-                            dbtx.insert_entry(
-                                &OperationFediFeeStatusKey(operation_id),
-                                &OperationFediFeeStatus::PendingSend { fedi_fee },
-                            )
-                            .await;
-                            dbtx.insert_entry(&db_key, &pending_fedi_fees).await;
+                            for (stream, fedi_fee) in fees_by_stream {
+                                Self::insert_pending_send_fedi_fee_in_db(
+                                    dbtx,
+                                    stream,
+                                    operation_id,
+                                    module.clone(),
+                                    fedi_fee,
+                                )
+                                .await?;
+                            }
                             Ok::<(), anyhow::Error>(())
                         }
                     })
                 },
-                Some(100),
+                None,
             )
             .await
-            .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
-                    anyhow::anyhow!(last_error)
-                }
-                fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
-            });
+            .unwrap_autocommit();
 
         match res {
             Ok(_) => info!(
-                "Successfully wrote pending send fedi fee for op ID {} with amount {}",
-                operation_id.fmt_short(),
-                fedi_fee
+                "Successfully wrote pending send fedi fees for op ID {}",
+                operation_id.fmt_short()
             ),
             Err(ref e) => warn!(
-                "Error writing pending send fedi fee for op ID {} with amount {}: {}",
+                "Error writing pending send fedi fees for op ID {}: {}",
                 operation_id.fmt_short(),
-                fedi_fee,
                 e
             ),
         }
 
         res
+    }
+
+    async fn write_success_send_fedi_fees(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let module = ModuleKind::clone_from_str(
+            self.client
+                .operation_log()
+                .get_operation(operation_id)
+                .await
+                .ok_or(anyhow!("operation not found!"))?
+                .operation_module_kind(),
+        );
+        let res = self
+            .fedi_fee_db()
+            .autocommit(
+                |dbtx, _| {
+                    Box::pin({
+                        let module = module.clone();
+                        async move {
+                            let app_changed = Self::transition_success_send_fedi_fee_in_db(
+                                dbtx,
+                                FediFeeStream::App,
+                                operation_id,
+                                module.clone(),
+                            )
+                            .await?;
+                            Self::transition_success_send_fedi_fee_in_db(
+                                dbtx,
+                                FediFeeStream::Guardian,
+                                operation_id,
+                                module,
+                            )
+                            .await?;
+                            Ok::<bool, anyhow::Error>(app_changed)
+                        }
+                    })
+                },
+                None,
+            )
+            .await
+            .unwrap_autocommit();
+
+        match res {
+            Ok(app_changed) => {
+                if app_changed && let Some(service) = self.fedi_fee_remittance_service.get() {
+                    service.remit_fedi_fee_if_threshold_met(self).await;
+                }
+                info!(
+                    "Successfully wrote success send fedi fees for op ID {}",
+                    operation_id.fmt_short()
+                );
+                Ok(())
+            }
+            Err(e) => {
+                warn!(
+                    "Error writing success send fedi fees for op ID {}: {}",
+                    operation_id.fmt_short(),
+                    e
+                );
+                Err(e)
+            }
+        }
+    }
+
+    async fn write_failed_send_fedi_fees(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let module = ModuleKind::clone_from_str(
+            self.client
+                .operation_log()
+                .get_operation(operation_id)
+                .await
+                .ok_or(anyhow!("operation not found!"))?
+                .operation_module_kind(),
+        );
+        let res = self
+            .fedi_fee_db()
+            .autocommit(
+                |dbtx, _| {
+                    Box::pin({
+                        let module = module.clone();
+                        async move {
+                            Self::transition_failed_send_fedi_fee_in_db(
+                                dbtx,
+                                FediFeeStream::App,
+                                operation_id,
+                                module.clone(),
+                            )
+                            .await?;
+                            Self::transition_failed_send_fedi_fee_in_db(
+                                dbtx,
+                                FediFeeStream::Guardian,
+                                operation_id,
+                                module,
+                            )
+                            .await?;
+                            Ok::<(), anyhow::Error>(())
+                        }
+                    })
+                },
+                None,
+            )
+            .await
+            .unwrap_autocommit();
+
+        match res {
+            Ok(_) => info!(
+                "Successfully wrote failed send fedi fees for op ID {}",
+                operation_id.fmt_short()
+            ),
+            Err(ref e) => warn!(
+                "Error writing failed send fedi fees for op ID {}: {}",
+                operation_id.fmt_short(),
+                e
+            ),
+        }
+
+        res
+    }
+
+    async fn write_pending_receive_fedi_fee_ppms(
+        &self,
+        operation_id: OperationId,
+        fee_ppms: &[(FediFeeStream, u64)],
+    ) -> anyhow::Result<()> {
+        let res = self
+            .fedi_fee_db()
+            .autocommit(
+                |dbtx, _| {
+                    Box::pin({
+                        let fee_ppms = fee_ppms.to_vec();
+                        async move {
+                            for (stream, fedi_fee_ppm) in fee_ppms {
+                                Self::insert_pending_receive_fedi_fee_ppm_in_db(
+                                    dbtx,
+                                    stream,
+                                    operation_id,
+                                    fedi_fee_ppm,
+                                )
+                                .await?;
+                            }
+                            Ok::<(), anyhow::Error>(())
+                        }
+                    })
+                },
+                None,
+            )
+            .await
+            .unwrap_autocommit();
+
+        match res {
+            Ok(_) => info!(
+                "Successfully wrote pending receive fedi fees for op ID {}",
+                operation_id.fmt_short()
+            ),
+            Err(ref e) => warn!(
+                "Error writing pending receive fedi fees for op ID {}: {}",
+                operation_id.fmt_short(),
+                e
+            ),
+        }
+
+        res
+    }
+
+    async fn write_success_receive_fedi_fees(
+        &self,
+        operation_id: OperationId,
+        amount: Amount,
+    ) -> anyhow::Result<()> {
+        let module = ModuleKind::clone_from_str(
+            self.client
+                .operation_log()
+                .get_operation(operation_id)
+                .await
+                .ok_or(anyhow!("operation not found!"))?
+                .operation_module_kind(),
+        );
+        let res = self
+            .fedi_fee_db()
+            .autocommit(
+                |dbtx, _| {
+                    Box::pin({
+                        let module = module.clone();
+                        async move {
+                            let app_changed = Self::transition_success_receive_fedi_fee_in_db(
+                                dbtx,
+                                FediFeeStream::App,
+                                operation_id,
+                                module.clone(),
+                                amount,
+                            )
+                            .await?;
+                            Self::transition_success_receive_fedi_fee_in_db(
+                                dbtx,
+                                FediFeeStream::Guardian,
+                                operation_id,
+                                module,
+                                amount,
+                            )
+                            .await?;
+                            Ok::<bool, anyhow::Error>(app_changed)
+                        }
+                    })
+                },
+                None,
+            )
+            .await
+            .unwrap_autocommit();
+
+        match res {
+            Ok(app_changed) => {
+                if app_changed && let Some(service) = self.fedi_fee_remittance_service.get() {
+                    service.remit_fedi_fee_if_threshold_met(self).await;
+                }
+                info!(
+                    "Successfully wrote success receive fedi fees for op ID {}",
+                    operation_id.fmt_short()
+                );
+                Ok(())
+            }
+            Err(e) => {
+                warn!(
+                    "Error writing success receive fedi fees for op ID {}: {}",
+                    operation_id.fmt_short(),
+                    e
+                );
+                Err(e)
+            }
+        }
+    }
+
+    async fn write_failed_receive_fedi_fees(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<()> {
+        let res = self
+            .fedi_fee_db()
+            .autocommit(
+                |dbtx, _| {
+                    Box::pin(async move {
+                        Self::transition_failed_receive_fedi_fee_in_db(
+                            dbtx,
+                            FediFeeStream::App,
+                            operation_id,
+                        )
+                        .await?;
+                        Self::transition_failed_receive_fedi_fee_in_db(
+                            dbtx,
+                            FediFeeStream::Guardian,
+                            operation_id,
+                        )
+                        .await?;
+                        Ok::<(), anyhow::Error>(())
+                    })
+                },
+                None,
+            )
+            .await
+            .unwrap_autocommit();
+
+        match res {
+            Ok(_) => info!(
+                "Successfully wrote failed receive fedi fees for op ID {}",
+                operation_id.fmt_short()
+            ),
+            Err(ref e) => warn!(
+                "Error writing failed receive fedi fees for op ID {}: {}",
+                operation_id.fmt_short(),
+                e
+            ),
+        }
+
+        res
+    }
+
+    async fn insert_pending_send_fedi_fee_in_db(
+        dbtx: &mut DatabaseTransaction<'_>,
+        stream: FediFeeStream,
+        operation_id: OperationId,
+        module: ModuleKind,
+        fedi_fee: Amount,
+    ) -> anyhow::Result<()> {
+        let pending_tx_type_key =
+            PendingFediFeesByStreamPerTXTypeKey(stream, module, RpcTransactionDirection::Send);
+        let pending_key = PendingFediFeesByStreamKey(stream);
+        let pending_tx_type_fees = fedi_fee
+            + dbtx
+                .get_value(&pending_tx_type_key)
+                .await
+                .unwrap_or(Amount::ZERO);
+        let pending_fees = fedi_fee + dbtx.get_value(&pending_key).await.unwrap_or(Amount::ZERO);
+        dbtx.insert_entry(
+            &OperationFediFeeStatusByStreamKey(operation_id, stream),
+            &OperationFediFeeStatus::PendingSend { fedi_fee },
+        )
+        .await;
+        dbtx.insert_entry(&pending_tx_type_key, &pending_tx_type_fees)
+            .await;
+        dbtx.insert_entry(&pending_key, &pending_fees).await;
+        Ok(())
     }
 
     /// Transitions the OperationFediFeeStatus for a send operation from pending
@@ -4199,122 +5014,76 @@ impl FederationV2 {
     /// fee amount. Returns Ok((true, new_status)) if a DB write actually
     /// occurred, and Ok((false, current_status)) if no write was needed,
     /// meaning that the status has already been recorded as a success.
-    async fn write_success_send_fedi_fee(
-        &self,
+    async fn transition_success_send_fedi_fee_in_db(
+        dbtx: &mut DatabaseTransaction<'_>,
+        stream: FediFeeStream,
         operation_id: OperationId,
-    ) -> anyhow::Result<(bool, OperationFediFeeStatus)> {
-        let module = ModuleKind::clone_from_str(
-            self.client
-                .operation_log()
-                .get_operation(operation_id)
-                .await
-                .ok_or(anyhow!("operation not found!"))?
-                .operation_module_kind(),
-        );
-        let res = self
-            .client
-            .db()
-            .autocommit(
-                |dbtx, _| {
-                    Box::pin({
-                        let module = module.clone();
-                        async move {
-                            let op_key = OperationFediFeeStatusKey(operation_id);
-                            let (did_overwrite, status) = match dbtx.get_value(&op_key).await {
-                                Some(OperationFediFeeStatus::PendingSend { fedi_fee }) => {
-                                    // Transition operation status
-                                    let new_status = OperationFediFeeStatus::Success { fedi_fee };
-                                    dbtx.insert_entry(&op_key, &new_status).await;
+        module: ModuleKind,
+    ) -> anyhow::Result<bool> {
+        let op_key = OperationFediFeeStatusByStreamKey(operation_id, stream);
+        match dbtx.get_value(&op_key).await {
+            Some(OperationFediFeeStatus::PendingSend { fedi_fee }) => {
+                let new_status = OperationFediFeeStatus::Success { fedi_fee };
+                dbtx.insert_entry(&op_key, &new_status).await;
 
-                                    // Reduce pending counter
-                                    let pending_key = PendingFediFeesPerTXTypeKey(
-                                        module.clone(),
-                                        RpcTransactionDirection::Send,
-                                    );
-                                    let pending_fedi_fees = dbtx
-                                        .get_value(&pending_key)
-                                        .await
-                                        .unwrap_or(Amount::ZERO)
-                                        .saturating_sub(fedi_fee);
-                                    dbtx.insert_entry(&pending_key, &pending_fedi_fees).await;
-
-                                    // Increment outstanding/success counter and total accrued
-                                    // counter
-                                    let outstanding_key = OutstandingFediFeesPerTXTypeKey(
-                                        module.clone(),
-                                        RpcTransactionDirection::Send,
-                                    );
-                                    let outstanding_fedi_fees = fedi_fee
-                                        + dbtx
-                                            .get_value(&outstanding_key)
-                                            .await
-                                            .unwrap_or(Amount::ZERO);
-                                    let total_accrued_key = TotalAccruedFediFeesPerTXTypeKey(
-                                        module,
-                                        RpcTransactionDirection::Send,
-                                    );
-                                    let total_accrued_fees = fedi_fee
-                                        + dbtx
-                                            .get_value(&total_accrued_key)
-                                            .await
-                                            .unwrap_or(Amount::ZERO);
-                                    dbtx.insert_entry(&outstanding_key, &outstanding_fedi_fees)
-                                        .await;
-                                    dbtx.insert_entry(&total_accrued_key, &total_accrued_fees)
-                                        .await;
-                                    (true, new_status)
-                                }
-                                Some(status @ OperationFediFeeStatus::Success { .. }) => {
-                                    (false, status)
-                                }
-                                Some(_) => bail!("Invalid operation fedi fee status found!"),
-                                None => bail!("No operation fedi fee status found!"),
-                            };
-                            Ok::<(bool, OperationFediFeeStatus), anyhow::Error>((
-                                did_overwrite,
-                                status,
-                            ))
-                        }
-                    })
-                },
-                Some(100),
-            )
-            .await
-            .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
-                    anyhow::anyhow!(last_error)
-                }
-                fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
-            });
-
-        match res {
-            Ok((true, _)) => {
-                info!(
-                    "Successfully wrote success send fedi fee for op ID {}",
-                    operation_id.fmt_short()
+                let pending_tx_type_key = PendingFediFeesByStreamPerTXTypeKey(
+                    stream,
+                    module.clone(),
+                    RpcTransactionDirection::Send,
                 );
-                if let Some(service) = self.fedi_fee_remittance_service.get() {
-                    service
-                        .remit_fedi_fee_if_threshold_met(
-                            self,
-                            module,
-                            RpcTransactionDirection::Send,
-                        )
+                let pending_key = PendingFediFeesByStreamKey(stream);
+                let pending_tx_type_fees = dbtx
+                    .get_value(&pending_tx_type_key)
+                    .await
+                    .unwrap_or(Amount::ZERO)
+                    .saturating_sub(fedi_fee);
+                let pending_fees = dbtx
+                    .get_value(&pending_key)
+                    .await
+                    .unwrap_or(Amount::ZERO)
+                    .saturating_sub(fedi_fee);
+                dbtx.insert_entry(&pending_tx_type_key, &pending_tx_type_fees)
+                    .await;
+                dbtx.insert_entry(&pending_key, &pending_fees).await;
+
+                let outstanding_tx_type_key = OutstandingFediFeesByStreamPerTXTypeKey(
+                    stream,
+                    module.clone(),
+                    RpcTransactionDirection::Send,
+                );
+                let outstanding_key = OutstandingFediFeesByStreamKey(stream);
+                let outstanding_tx_type_fees = fedi_fee
+                    + dbtx
+                        .get_value(&outstanding_tx_type_key)
+                        .await
+                        .unwrap_or(Amount::ZERO);
+                let outstanding_fees = fedi_fee
+                    + dbtx
+                        .get_value(&outstanding_key)
+                        .await
+                        .unwrap_or(Amount::ZERO);
+                dbtx.insert_entry(&outstanding_tx_type_key, &outstanding_tx_type_fees)
+                    .await;
+                dbtx.insert_entry(&outstanding_key, &outstanding_fees).await;
+                if stream == FediFeeStream::App {
+                    let total_accrued_key = TotalAccruedFediFeesByStreamKey(FediFeeStream::App);
+                    let total_accrued_fees = fedi_fee
+                        + dbtx
+                            .get_value(&total_accrued_key)
+                            .await
+                            .unwrap_or(Amount::ZERO);
+                    dbtx.insert_entry(&total_accrued_key, &total_accrued_fees)
                         .await;
                 }
+                Ok(true)
             }
-            Ok((false, _)) => info!(
-                "Already recorded success send fedi fee for op ID {}, nothing overwritten",
-                operation_id.fmt_short()
-            ),
-            Err(ref e) => warn!(
-                "Error writing success send fedi fee for op ID {}: {}",
-                operation_id.fmt_short(),
-                e
-            ),
+            Some(OperationFediFeeStatus::Success { .. }) => Ok(false),
+            Some(_) => bail!("Invalid operation fedi fee status found!"),
+            // Operations that were started before guardian fees existed will not
+            // have a guardian fee-status row. Treat that as a no-op on upgrade.
+            None if stream == FediFeeStream::Guardian => Ok(false),
+            None => bail!("No operation fedi fee status found!"),
         }
-
-        res
     }
 
     /// Transitions the OperationFediFeeStatus for a send operation from pending
@@ -4323,87 +5092,46 @@ impl FederationV2 {
     /// Returns Ok((true, new_status)) if a DB write actually occurred, and
     /// Ok((false, current_status)) if no write was needed, meaning that the
     /// status has already been recorded as a failure.
-    async fn write_failed_send_fedi_fee(
-        &self,
+    async fn transition_failed_send_fedi_fee_in_db(
+        dbtx: &mut DatabaseTransaction<'_>,
+        stream: FediFeeStream,
         operation_id: OperationId,
-    ) -> anyhow::Result<(bool, OperationFediFeeStatus)> {
-        let module = ModuleKind::clone_from_str(
-            self.client
-                .operation_log()
-                .get_operation(operation_id)
-                .await
-                .ok_or(anyhow!("operation not found!"))?
-                .operation_module_kind(),
-        );
-        let res = self
-            .client
-            .db()
-            .autocommit(
-                |dbtx, _| {
-                    Box::pin({
-                        let module = module.clone();
-                        async move {
-                            let op_key = OperationFediFeeStatusKey(operation_id);
-                            let (did_overwrite, status) = match dbtx.get_value(&op_key).await {
-                                Some(OperationFediFeeStatus::PendingSend { fedi_fee }) => {
-                                    // Transition operation status
-                                    let new_status =
-                                        OperationFediFeeStatus::FailedSend { fedi_fee };
-                                    dbtx.insert_entry(&op_key, &new_status).await;
+        module: ModuleKind,
+    ) -> anyhow::Result<bool> {
+        let op_key = OperationFediFeeStatusByStreamKey(operation_id, stream);
+        match dbtx.get_value(&op_key).await {
+            Some(OperationFediFeeStatus::PendingSend { fedi_fee }) => {
+                let new_status = OperationFediFeeStatus::FailedSend { fedi_fee };
+                dbtx.insert_entry(&op_key, &new_status).await;
 
-                                    // Reduce pending counter
-                                    let pending_key = PendingFediFeesPerTXTypeKey(
-                                        module,
-                                        RpcTransactionDirection::Send,
-                                    );
-                                    let pending_fedi_fees = dbtx
-                                        .get_value(&pending_key)
-                                        .await
-                                        .unwrap_or(Amount::ZERO)
-                                        .saturating_sub(fedi_fee);
-                                    dbtx.insert_entry(&pending_key, &pending_fedi_fees).await;
-                                    (true, new_status)
-                                }
-                                Some(status @ OperationFediFeeStatus::FailedSend { .. }) => {
-                                    (false, status)
-                                }
-                                Some(_) => bail!("Invalid operation fedi fee status found!"),
-                                None => bail!("No operation fedi fee status found!"),
-                            };
-                            Ok::<(bool, OperationFediFeeStatus), anyhow::Error>((
-                                did_overwrite,
-                                status,
-                            ))
-                        }
-                    })
-                },
-                Some(100),
-            )
-            .await
-            .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
-                    anyhow::anyhow!(last_error)
-                }
-                fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
-            });
-
-        match res {
-            Ok((true, _)) => info!(
-                "Successfully wrote failed send fedi fee for op ID {}",
-                operation_id.fmt_short()
-            ),
-            Ok((false, _)) => info!(
-                "Already recorded failed send fedi fee for op ID {}, nothing overwritten",
-                operation_id.fmt_short()
-            ),
-            Err(ref e) => warn!(
-                "Error writing failed send fedi fee for op ID {}: {}",
-                operation_id.fmt_short(),
-                e
-            ),
+                let pending_tx_type_key = PendingFediFeesByStreamPerTXTypeKey(
+                    stream,
+                    module,
+                    RpcTransactionDirection::Send,
+                );
+                let pending_key = PendingFediFeesByStreamKey(stream);
+                let pending_tx_type_fees = dbtx
+                    .get_value(&pending_tx_type_key)
+                    .await
+                    .unwrap_or(Amount::ZERO)
+                    .saturating_sub(fedi_fee);
+                let pending_fees = dbtx
+                    .get_value(&pending_key)
+                    .await
+                    .unwrap_or(Amount::ZERO)
+                    .saturating_sub(fedi_fee);
+                dbtx.insert_entry(&pending_tx_type_key, &pending_tx_type_fees)
+                    .await;
+                dbtx.insert_entry(&pending_key, &pending_fees).await;
+                Ok(true)
+            }
+            Some(OperationFediFeeStatus::FailedSend { .. }) => Ok(false),
+            Some(_) => bail!("Invalid operation fedi fee status found!"),
+            // Operations that were started before guardian fees existed will not
+            // have a guardian fee-status row. Treat that as a no-op on upgrade.
+            None if stream == FediFeeStream::Guardian => Ok(false),
+            None => bail!("No operation fedi fee status found!"),
         }
-
-        res
     }
 
     /// We don't always know the amount to be received (in the case of
@@ -4411,50 +5139,18 @@ impl FederationV2 {
     /// received (from which the fee is to be debited) is not in the user's
     /// possession until the operation completes. So for receives, we just
     /// record the ppm, and when the operation succeeds, we debit the fee.
-    async fn write_pending_receive_fedi_fee_ppm(
-        &self,
+    async fn insert_pending_receive_fedi_fee_ppm_in_db(
+        dbtx: &mut DatabaseTransaction<'_>,
+        stream: FediFeeStream,
         operation_id: OperationId,
         fedi_fee_ppm: u64,
     ) -> anyhow::Result<()> {
-        let res = self
-            .client
-            .db()
-            .autocommit(
-                |dbtx, _| {
-                    Box::pin(async move {
-                        dbtx.insert_entry(
-                            &OperationFediFeeStatusKey(operation_id),
-                            &OperationFediFeeStatus::PendingReceive { fedi_fee_ppm },
-                        )
-                        .await;
-                        Ok::<(), anyhow::Error>(())
-                    })
-                },
-                Some(100),
-            )
-            .await
-            .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
-                    anyhow::anyhow!(last_error)
-                }
-                fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
-            });
-
-        match res {
-            Ok(_) => info!(
-                "Successfully wrote pending receive fedi fee for op ID {} with ppm {}",
-                operation_id.fmt_short(),
-                fedi_fee_ppm
-            ),
-            Err(ref e) => warn!(
-                "Error writing pending receive fedi fee for op ID {} with ppm {}: {}",
-                operation_id.fmt_short(),
-                fedi_fee_ppm,
-                e
-            ),
-        }
-
-        res
+        dbtx.insert_entry(
+            &OperationFediFeeStatusByStreamKey(operation_id, stream),
+            &OperationFediFeeStatus::PendingReceive { fedi_fee_ppm },
+        )
+        .await;
+        Ok(())
     }
 
     /// Transitions the OperationFediFeeStatus for a receive operation from
@@ -4464,110 +5160,57 @@ impl FederationV2 {
     /// possession. Returns Ok((true, new_status)) if a DB write actually
     /// occurred, and Ok((false, current_status)) if no write was needed,
     /// meaning that the status has already been recorded as a success.
-    async fn write_success_receive_fedi_fee(
-        &self,
+    async fn transition_success_receive_fedi_fee_in_db(
+        dbtx: &mut DatabaseTransaction<'_>,
+        stream: FediFeeStream,
         operation_id: OperationId,
+        module: ModuleKind,
         amount: Amount,
-    ) -> anyhow::Result<(bool, OperationFediFeeStatus)> {
-        let module = ModuleKind::clone_from_str(
-            self.client
-                .operation_log()
-                .get_operation(operation_id)
-                .await
-                .ok_or(anyhow!("operation not found!"))?
-                .operation_module_kind(),
-        );
-        let res = self
-            .client
-            .db()
-            .autocommit(
-                |dbtx, _| {
-                    Box::pin({
-                        let module = module.clone();
-                        async move {
-                            let op_key = OperationFediFeeStatusKey(operation_id);
-                            let (did_overwrite, status) = match dbtx.get_value(&op_key).await {
-                                Some(OperationFediFeeStatus::PendingReceive { fedi_fee_ppm }) => {
-                                    let fedi_fee = Amount::from_msats(
-                                        (amount.msats * fedi_fee_ppm).div_ceil(MILLION),
-                                    );
-                                    let outstanding_key = OutstandingFediFeesPerTXTypeKey(
-                                        module.clone(),
-                                        RpcTransactionDirection::Receive,
-                                    );
-                                    let outstanding_fedi_fees = fedi_fee
-                                        + dbtx
-                                            .get_value(&outstanding_key)
-                                            .await
-                                            .unwrap_or(Amount::ZERO);
-                                    let total_accrued_key = TotalAccruedFediFeesPerTXTypeKey(
-                                        module,
-                                        RpcTransactionDirection::Receive,
-                                    );
-                                    let total_accrued_fees = fedi_fee
-                                        + dbtx
-                                            .get_value(&total_accrued_key)
-                                            .await
-                                            .unwrap_or(Amount::ZERO);
-                                    let new_status = OperationFediFeeStatus::Success { fedi_fee };
-                                    dbtx.insert_entry(&op_key, &new_status).await;
-                                    dbtx.insert_entry(&outstanding_key, &outstanding_fedi_fees)
-                                        .await;
-                                    dbtx.insert_entry(&total_accrued_key, &total_accrued_fees)
-                                        .await;
-                                    (true, new_status)
-                                }
-                                Some(status @ OperationFediFeeStatus::Success { .. }) => {
-                                    (false, status)
-                                }
-                                Some(_) => bail!("Invalid operation fedi fee status found!"),
-                                None => bail!("No operation fedi fee status found!"),
-                            };
-                            Ok::<(bool, OperationFediFeeStatus), anyhow::Error>((
-                                did_overwrite,
-                                status,
-                            ))
-                        }
-                    })
-                },
-                Some(100),
-            )
-            .await
-            .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
-                    anyhow::anyhow!(last_error)
-                }
-                fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
-            });
-
-        match res {
-            Ok((true, _)) => {
-                info!(
-                    "Successfully wrote success receive fedi fee for op ID {}",
-                    operation_id.fmt_short()
+    ) -> anyhow::Result<bool> {
+        let op_key = OperationFediFeeStatusByStreamKey(operation_id, stream);
+        match dbtx.get_value(&op_key).await {
+            Some(OperationFediFeeStatus::PendingReceive { fedi_fee_ppm }) => {
+                let fedi_fee = Amount::from_msats((amount.msats * fedi_fee_ppm).div_ceil(MILLION));
+                let outstanding_tx_type_key = OutstandingFediFeesByStreamPerTXTypeKey(
+                    stream,
+                    module.clone(),
+                    RpcTransactionDirection::Receive,
                 );
-                if let Some(service) = self.fedi_fee_remittance_service.get() {
-                    service
-                        .remit_fedi_fee_if_threshold_met(
-                            self,
-                            module,
-                            RpcTransactionDirection::Receive,
-                        )
+                let outstanding_key = OutstandingFediFeesByStreamKey(stream);
+                let outstanding_tx_type_fees = fedi_fee
+                    + dbtx
+                        .get_value(&outstanding_tx_type_key)
+                        .await
+                        .unwrap_or(Amount::ZERO);
+                let outstanding_fees = fedi_fee
+                    + dbtx
+                        .get_value(&outstanding_key)
+                        .await
+                        .unwrap_or(Amount::ZERO);
+                let new_status = OperationFediFeeStatus::Success { fedi_fee };
+                dbtx.insert_entry(&op_key, &new_status).await;
+                dbtx.insert_entry(&outstanding_tx_type_key, &outstanding_tx_type_fees)
+                    .await;
+                dbtx.insert_entry(&outstanding_key, &outstanding_fees).await;
+                if stream == FediFeeStream::App {
+                    let total_accrued_key = TotalAccruedFediFeesByStreamKey(FediFeeStream::App);
+                    let total_accrued_fees = fedi_fee
+                        + dbtx
+                            .get_value(&total_accrued_key)
+                            .await
+                            .unwrap_or(Amount::ZERO);
+                    dbtx.insert_entry(&total_accrued_key, &total_accrued_fees)
                         .await;
                 }
+                Ok(true)
             }
-            Ok((false, _)) => info!(
-                "Already recorded success receive fedi fee for op ID {}, nothing overwritten",
-                operation_id.fmt_short()
-            ),
-            Err(ref e) => warn!(
-                "Error writing success receive fedi fee for op ID {}: {}",
-                operation_id.fmt_short(),
-                e
-            ),
+            Some(OperationFediFeeStatus::Success { .. }) => Ok(false),
+            Some(_) => bail!("Invalid operation fedi fee status found!"),
+            // Operations that were started before guardian fees existed will not
+            // have a guardian fee-status row. Treat that as a no-op on upgrade.
+            None if stream == FediFeeStream::Guardian => Ok(false),
+            None => bail!("No operation fedi fee status found!"),
         }
-
-        res
     }
 
     /// Transitions the OperationFediFeeStatus for a receive operation from
@@ -4576,60 +5219,25 @@ impl FederationV2 {
     /// write actually occurred, and Ok((false, current_status)) if no write
     /// was needed, meaning that the status has already been recorded as a
     /// failure.
-    async fn write_failed_receive_fedi_fee(
-        &self,
+    async fn transition_failed_receive_fedi_fee_in_db(
+        dbtx: &mut DatabaseTransaction<'_>,
+        stream: FediFeeStream,
         operation_id: OperationId,
-    ) -> anyhow::Result<(bool, OperationFediFeeStatus)> {
-        let res = self
-            .client
-            .db()
-            .autocommit(
-                |dbtx, _| {
-                    Box::pin(async move {
-                        let key = OperationFediFeeStatusKey(operation_id);
-                        let (did_overwrite, status) = match dbtx.get_value(&key).await {
-                            Some(OperationFediFeeStatus::PendingReceive { fedi_fee_ppm }) => {
-                                let new_status =
-                                    OperationFediFeeStatus::FailedReceive { fedi_fee_ppm };
-                                dbtx.insert_entry(&key, &new_status).await;
-                                (true, new_status)
-                            }
-                            Some(status @ OperationFediFeeStatus::FailedReceive { .. }) => {
-                                (false, status)
-                            }
-                            Some(_) => bail!("Invalid operation fedi fee status found!"),
-                            None => bail!("No operation fedi fee status found!"),
-                        };
-                        Ok::<(bool, OperationFediFeeStatus), anyhow::Error>((did_overwrite, status))
-                    })
-                },
-                Some(100),
-            )
-            .await
-            .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
-                    anyhow::anyhow!(last_error)
-                }
-                fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
-            });
-
-        match res {
-            Ok((true, _)) => info!(
-                "Successfully wrote failed receive fedi fee for op ID {}",
-                operation_id.fmt_short()
-            ),
-            Ok((false, _)) => info!(
-                "Already recorded failed receive fedi fee for op ID {}, nothing overwritten",
-                operation_id.fmt_short()
-            ),
-            Err(ref e) => warn!(
-                "Error writing failed receive fedi fee for op ID {}: {}",
-                operation_id.fmt_short(),
-                e
-            ),
+    ) -> anyhow::Result<bool> {
+        let key = OperationFediFeeStatusByStreamKey(operation_id, stream);
+        match dbtx.get_value(&key).await {
+            Some(OperationFediFeeStatus::PendingReceive { fedi_fee_ppm }) => {
+                let new_status = OperationFediFeeStatus::FailedReceive { fedi_fee_ppm };
+                dbtx.insert_entry(&key, &new_status).await;
+                Ok(true)
+            }
+            Some(OperationFediFeeStatus::FailedReceive { .. }) => Ok(false),
+            Some(_) => bail!("Invalid operation fedi fee status found!"),
+            // Operations that were started before guardian fees existed will not
+            // have a guardian fee-status row. Treat that as a no-op on upgrade.
+            None if stream == FediFeeStream::Guardian => Ok(false),
+            None => bail!("No operation fedi fee status found!"),
         }
-
-        res
     }
 
     #[instrument(skip(self), err, ret)]
@@ -4840,7 +5448,7 @@ fn get_per_federation_secret(
 // ^return value^                ^really "=="^
 fn get_max_spendable_amount(
     virtual_balance: Amount,
-    fedi_fee_ppm: u64,
+    total_fedi_fee_ppm: u64,
     on_chain_fee: Option<PegOutFees>,
     gateway_fee: Option<RoutingFees>,
 ) -> Amount {
@@ -4857,8 +5465,8 @@ fn get_max_spendable_amount(
     let gateway_base = gateway_fee.map_or(0, |f| f.base_msat as u64);
     let gateway_ppm = gateway_fee.map_or(0, |f| f.proportional_millionths as u64);
 
-    // Let's say the max spend is x, Fedi fee ppm is (ppm_F), and virtual balance is
-    // V. Gateway fees is made up of (base) and (ppm_G).
+    // Let's say the max spend is x, total Fedi fee ppm is (ppm_F), and virtual
+    // balance is V. Gateway fees is made up of (base) and (ppm_G).
     //
     // Then:
     // x + [(x * ppm_F) / M] + base + [(X * ppm_G) / M] = V, where M is the constant
@@ -4870,7 +5478,7 @@ fn get_max_spendable_amount(
     // Finally:
     // x = [(V - base) * M]/(M + ppm_F + ppm_G)
     let numerator_msats = (virtual_balance.msats.saturating_sub(gateway_base)) * MILLION;
-    let denominator_msats = MILLION + fedi_fee_ppm + gateway_ppm;
+    let denominator_msats = MILLION + total_fedi_fee_ppm + gateway_ppm;
     Amount::from_msats(numerator_msats / denominator_msats)
 }
 

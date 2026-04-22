@@ -21,10 +21,11 @@ import { Text } from '../Text'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
 
 export interface HistoryDetailDialogProps {
-    txn: TransactionListEntry
+    txn?: TransactionListEntry
     icon: React.ReactNode
     title: React.ReactNode
     amount: string
+    secondaryAmount?: string
     items: HistoryDetailItemProps[]
     notes?: string
     onSaveNotes?: (notes: string) => void
@@ -36,6 +37,7 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
     icon,
     title,
     amount,
+    secondaryAmount,
     items,
     notes: propsNotes,
     onSaveNotes,
@@ -46,10 +48,12 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
     const [inputEl, setInputEl] = useState<HTMLTextAreaElement | null>(null)
     const { t } = useTranslation()
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
-    const { formattedSecondaryAmount } = makeFormattedAmountsFromMSats(
-        txn.amount,
-        'end',
-    )
+    const formattedSecondaryAmount =
+        secondaryAmount ??
+        (txn
+            ? makeFormattedAmountsFromMSats(txn.amount, 'end')
+                  .formattedSecondaryAmount
+            : undefined)
 
     const dispatch = useAppDispatch()
     const transactionDisplayType = useAppSelector(selectTransactionDisplayType)
@@ -90,21 +94,23 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
                         {amount}
                     </Text>
                 )}
-                <CurrencySwitch
-                    onClick={() =>
-                        dispatch(
-                            setTransactionDisplayType(
-                                transactionDisplayType === 'fiat'
-                                    ? 'sats'
-                                    : 'fiat',
-                            ),
-                        )
-                    }>
-                    <Text css={{ color: theme.colors.grey }}>
-                        {formattedSecondaryAmount}
-                    </Text>
-                    <Icon icon={switchIcon} size="xs" />
-                </CurrencySwitch>
+                {formattedSecondaryAmount && (
+                    <CurrencySwitch
+                        onClick={() =>
+                            dispatch(
+                                setTransactionDisplayType(
+                                    transactionDisplayType === 'fiat'
+                                        ? 'sats'
+                                        : 'fiat',
+                                ),
+                            )
+                        }>
+                        <Text css={{ color: theme.colors.grey }}>
+                            {formattedSecondaryAmount}
+                        </Text>
+                        <Icon icon={switchIcon} size="xs" />
+                    </CurrencySwitch>
+                )}
                 <Details>
                     {items.map((item, idx) => (
                         <HistoryDetailItem key={idx} {...item} />

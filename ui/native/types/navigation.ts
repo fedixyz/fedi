@@ -155,6 +155,8 @@ export type RootStackParamList = {
         federationId: Federation['id']
         federationName: string
     }
+    GuardianFees: { federationId: Federation['id'] }
+    GuardianFeesSuccess: undefined
     FederationModSettings: { type?: string; federationId: Federation['id'] }
     FederationInvite: { inviteLink: string }
     FederationGreeting: undefined

@@ -7,7 +7,7 @@ use std::sync::Once;
 use std::thread::available_parallelism;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Context};
 use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use assert_matches::assert_matches;
 use bridge::RuntimeExt as _;
@@ -16,6 +16,7 @@ use devimint::cmd;
 use devimint::util::FedimintCli;
 use federations::federation_sm::FederationState;
 use federations::federation_v2::FederationV2;
+use federations::fedi_fee::{parse_fedi_guardian_fee_config, FediFeeStream};
 use fedi_social_client::common::VerificationDocument;
 use fedimint_core::db::IDatabaseTransactionOpsCore;
 use fedimint_core::encoding::Encodable;
@@ -36,6 +37,7 @@ use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
 use runtime::storage::state::CommunityJson;
 use runtime::storage::BRIDGE_DB_PREFIX;
+use stability_pool_client::common::Account;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{info, warn};
@@ -82,6 +84,68 @@ async fn cli_generate_ecash(amount: fedimint_core::Amount) -> anyhow::Result<Str
 async fn cli_receive_ecash(ecash: String) -> anyhow::Result<()> {
     cmd!(FedimintCli, "reissue", ecash).run().await?;
     Ok(())
+}
+
+async fn cli_submit_guardian_fee_meta(
+    remittance_account: String,
+    guardian_fee_send_ppm: u64,
+) -> anyhow::Result<()> {
+    let fed_size = std::env::var("FM_FED_SIZE")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(4);
+    let meta_json = serde_json::json!({
+        "stability_pool_disabled": "false",
+        "multispend_disabled": "false",
+        "fedi:guardian_fee_send_ppm": guardian_fee_send_ppm.to_string(),
+        "fedi:guardian_fee_remittance_account": remittance_account,
+    })
+    .to_string();
+
+    for peer in 0..fed_size {
+        cmd!(
+            FedimintCli,
+            "--our-id",
+            peer,
+            "--password",
+            "pass",
+            "module",
+            "meta",
+            "submit",
+            &meta_json,
+        )
+        .run()
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn cli_wait_for_guardian_fee_meta(expected_send_ppm: u64) -> anyhow::Result<()> {
+    retry("wait meta consensus", aggressive_backoff(), || async {
+        let value = cmd!(FedimintCli, "module", "meta", "get")
+            .out_json()
+            .await?;
+        let value = value
+            .get("value")
+            .and_then(serde_json::Value::as_object)
+            .context("meta consensus value is missing")?;
+        let send_ppm = value
+            .get("fedi:guardian_fee_send_ppm")
+            .and_then(serde_json::Value::as_str)
+            .context("guardian fee send ppm missing from meta consensus")?;
+        if send_ppm != expected_send_ppm.to_string() {
+            bail!("guardian fee send ppm not in consensus yet");
+        }
+        let remittance_account = value
+            .get("fedi:guardian_fee_remittance_account")
+            .and_then(serde_json::Value::as_str)
+            .context("guardian remittance account missing from meta consensus")?;
+        let _: Account = serde_json::from_str(remittance_account)
+            .context("invalid guardian remittance account in meta consensus")?;
+        Ok(())
+    })
+    .await
 }
 
 fn get_command_for_alias(alias: &str, default: &str) -> devimint::util::Command {
@@ -716,7 +780,8 @@ async fn test_ecash_overissue(_dev_fed: DevFed) -> anyhow::Result<()> {
     let fedi_fee_ppm = bridge
         .federations
         .fedi_fee_helper
-        .get_fedi_fee_ppm(
+        .get_fee_ppm(
+            FediFeeStream::App,
             federation.rpc_federation_id().0,
             fedimint_mint_client::KIND,
             RpcTransactionDirection::Send,
@@ -1001,7 +1066,8 @@ async fn test_backup_and_recovery_inner(from_scratch: bool) -> anyhow::Result<()
         let fedi_fee_ppm = bridge
             .federations
             .fedi_fee_helper
-            .get_fedi_fee_ppm(
+            .get_fee_ppm(
+                FediFeeStream::App,
                 federation.rpc_federation_id().0,
                 stability_pool_client_old::common::KIND,
                 RpcTransactionDirection::Send,
@@ -1113,7 +1179,8 @@ async fn test_social_backup_and_recovery(_dev_fed: DevFed) -> anyhow::Result<()>
     let fedi_fee_ppm = original_bridge
         .federations
         .fedi_fee_helper
-        .get_fedi_fee_ppm(
+        .get_fee_ppm(
+            FediFeeStream::App,
             federation.rpc_federation_id().0,
             stability_pool_client_old::common::KIND,
             RpcTransactionDirection::Send,
@@ -1826,7 +1893,8 @@ async fn test_transfer_device_registration_post_recovery(_dev_fed: DevFed) -> an
     let fedi_fee_ppm = backup_bridge
         .federations
         .fedi_fee_helper
-        .get_fedi_fee_ppm(
+        .get_fee_ppm(
+            FediFeeStream::App,
             federation.rpc_federation_id().0,
             stability_pool_client_old::common::KIND,
             RpcTransactionDirection::Send,
@@ -2353,17 +2421,34 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
         .await?;
     wait_for_ecash_reissue(federation).await?;
     assert_eq!(ecash_receive_amount, federation.get_balance().await);
-    assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
-    assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_pending_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
 
     // Make SP deposit, verify pending fees
     let amount_to_deposit = Amount::from_msats(5_000_000);
     stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
     assert_eq!(
         Amount::from_msats(105_000),
-        federation.get_pending_fedi_fees().await
+        federation
+            .get_pending_fedi_fees_by_stream(FediFeeStream::App)
+            .await
     );
-    assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
 
     // Wait for SP deposit to be accepted, verify outstanding fees
     loop {
@@ -2379,10 +2464,17 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
 
         fedimint_core::task::sleep(Duration::from_millis(100)).await;
     }
-    assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_pending_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
     assert_eq!(
         Amount::from_msats(105_000),
-        federation.get_outstanding_fedi_fees().await
+        federation
+            .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+            .await
     );
 
     // No fee can be remitted just yet cuz we haven't mocked invoice endpoint
@@ -2410,8 +2502,18 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
 
     // Ensure outstanding fee has been cleared
     let federation = wait_for_federation_loading(new_bridge, &federation_id.to_string()).await?;
-    assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
-    assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_pending_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
 
     Ok(())
 }
@@ -2444,17 +2546,34 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
         .await?;
     wait_for_ecash_reissue(federation).await?;
     assert_eq!(ecash_receive_amount, federation.get_balance().await);
-    assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
-    assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_pending_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
 
     // Make SP deposit, verify pending fees
     let amount_to_deposit = Amount::from_msats(5_000_000);
     stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
     assert_eq!(
         Amount::from_msats(105_000),
-        federation.get_pending_fedi_fees().await
+        federation
+            .get_pending_fedi_fees_by_stream(FediFeeStream::App)
+            .await
     );
-    assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
 
     // Wait for SP deposit to be accepted, verify fee remittance
     loop {
@@ -2479,8 +2598,182 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
     })
     .await?;
     // Ensure outstanding fee has been cleared
-    assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
-    assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_pending_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
+    assert_eq!(
+        Amount::ZERO,
+        federation
+            .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+            .await
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_guardian_remittance_account_withdraw_all() -> anyhow::Result<()> {
+    if should_skip_test_using_stock_fedimintd() {
+        return Ok(());
+    }
+
+    let _dev_fed = DevFed::new_with_setup(4).await?;
+    let guardian_td = TestDevice::new().await?;
+    let guardian_federation = guardian_td.join_default_fed().await?;
+    // set guardian fees config in federation
+    let guardian_account_serialized = spv2GuardianRemittanceAccount(guardian_federation.clone())
+        .await?
+        .serialized_account;
+    let guardian_account: Account = serde_json::from_str(&guardian_account_serialized)?;
+    let guardian_account_id = guardian_account.id();
+
+    cli_submit_guardian_fee_meta(guardian_account_serialized, 209_999).await?;
+    cli_wait_for_guardian_fee_meta(209_999).await?;
+
+    let user_td = TestDevice::new().await?;
+    let user_federation = user_td.join_default_fed().await?;
+
+    retry("wait guardian fee config", aggressive_backoff(), || {
+        let user_federation = user_federation.clone();
+        async move {
+            let cached_meta = user_federation.get_cached_meta().await;
+            let parsed_cached_send_ppm = parse_fedi_guardian_fee_config(&cached_meta)
+                .ok()
+                .flatten()
+                .map(|cfg| cfg.send_ppm);
+            let Some(config) = user_federation.guardian_fee_config().await else {
+                let mut cached_keys = cached_meta.keys().cloned().collect::<Vec<_>>();
+                cached_keys.sort_unstable();
+                bail!(
+                    "guardian fee config is missing; parsed_cached_send_ppm={parsed_cached_send_ppm:?} cached_keys={cached_keys:?}"
+                );
+            };
+            if config.send_ppm != 209_999 {
+                bail!("guardian fee send ppm not updated yet");
+            }
+            Ok(())
+        }
+    })
+    .await?;
+
+    let ecash = cli_generate_ecash(Amount::from_msats(2_000_000)).await?;
+    user_federation
+        .receive_ecash(ecash, FrontendMetadata::default())
+        .await?;
+    wait_for_ecash_reissue(user_federation).await?;
+
+    let amount_to_deposit = Amount::from_msats(1_000_000);
+    let deposit_events_before = user_td
+        .event_sink()
+        .num_events_of_type("spv2Deposit".into());
+    spv2DepositToSeek(
+        user_federation.clone(),
+        RpcAmount(amount_to_deposit),
+        FrontendMetadata::default(),
+    )
+    .await?;
+    loop {
+        if user_td
+            .event_sink()
+            .num_events_of_type("spv2Deposit".into())
+            >= deposit_events_before + 3
+        {
+            break;
+        }
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+    }
+
+    retry("wait guardian fee accrual", aggressive_backoff(), || {
+        let user_federation = user_federation.clone();
+        async move {
+            if user_federation
+                .get_outstanding_fedi_fees_by_stream(FediFeeStream::Guardian)
+                .await
+                == Amount::ZERO
+            {
+                bail!("guardian outstanding fee has not accrued yet");
+            }
+            Ok(())
+        }
+    })
+    .await?;
+
+    retry(
+        "wait guardian remittance settlement",
+        aggressive_backoff(),
+        || {
+            let user_federation = user_federation.clone();
+            async move {
+                if user_federation
+                    .get_outstanding_fedi_fees_by_stream(FediFeeStream::Guardian)
+                    .await
+                    != Amount::ZERO
+                {
+                    bail!("guardian remittance still pending");
+                }
+                Ok(())
+            }
+        },
+    )
+    .await?;
+
+    retry(
+        "wait guardian remittance account balance",
+        aggressive_backoff(),
+        || {
+            let guardian_federation = guardian_federation.clone();
+            async move {
+                let sync = guardian_federation
+                    .multispend_group_sync_info(guardian_account_id)
+                    .await?;
+                let total_msats =
+                    sync.idle_balance.msats + sync.staged_balance.msats + sync.locked_balance.msats;
+                if total_msats == 0 {
+                    bail!("guardian remittance account is still empty");
+                }
+                Ok(())
+            }
+        },
+    )
+    .await?;
+
+    let withdraw_events_before = guardian_td
+        .event_sink()
+        .num_events_of_type("spv2Withdrawal".into());
+    spv2WithdrawGuardianRemittanceAll(guardian_federation.clone()).await?;
+    loop {
+        if guardian_td
+            .event_sink()
+            .num_events_of_type("spv2Withdrawal".into())
+            >= withdraw_events_before + 5
+        {
+            break;
+        }
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+    }
+
+    retry(
+        "wait guardian remittance account drained",
+        aggressive_backoff(),
+        || {
+            let guardian_federation = guardian_federation.clone();
+            async move {
+                let sync = guardian_federation
+                    .multispend_group_sync_info(guardian_account_id)
+                    .await?;
+                let total_msats =
+                    sync.idle_balance.msats + sync.staged_balance.msats + sync.locked_balance.msats;
+                if total_msats != 0 {
+                    bail!("guardian remittance account still has balance");
+                }
+                Ok(())
+            }
+        },
+    )
+    .await?;
 
     Ok(())
 }
