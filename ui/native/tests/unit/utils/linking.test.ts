@@ -191,6 +191,174 @@ describe('linking', () => {
                     ],
                 })
             })
+
+            it('should open FediModBrowser with a path param', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://browser/google.com',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'FediModBrowser',
+                            params: { url: 'https://google.com' },
+                        },
+                    ],
+                })
+            })
+
+            it('should preserve a full https URL passed as a path param', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://browser/https://stacker.news',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'FediModBrowser',
+                            params: { url: 'https://stacker.news' },
+                        },
+                    ],
+                })
+            })
+        })
+
+        describe('path param internal deep links', () => {
+            it('should route room links using the screen config path', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://room/!NWczlYaBOhSghaxCXr:staging.m1.8fa.in',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'ChatRoomConversation',
+                            params: {
+                                roomId: '!NWczlYaBOhSghaxCXr:staging.m1.8fa.in',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            it('should decode encoded room path params', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://room/%21NWczlYaBOhSghaxCXr%3Astaging.m1.8fa.in',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'ChatRoomConversation',
+                            params: {
+                                roomId: '!NWczlYaBOhSghaxCXr:staging.m1.8fa.in',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            it('should ignore query params when resolving room path params', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://room/abc?source=notification',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'ChatRoomConversation',
+                            params: {
+                                roomId: 'abc',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            it('should route user links using the screen config path', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://user/@alice:staging.m1.8fa.in',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'ChatUserConversation',
+                            params: {
+                                userId: '@alice:staging.m1.8fa.in',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            it('should decode encoded user path params', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://user/%40alice%3Astaging.m1.8fa.in',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'ChatUserConversation',
+                            params: {
+                                userId: '@alice:staging.m1.8fa.in',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            it('should route share logs links using the screen config path', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://share-logs/12345',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'ShareLogs',
+                            params: {
+                                ticketNumber: '12345',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            it('should route ecash links using the screen config path', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://ecash/some-token-id',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'ClaimEcash',
+                            params: {
+                                id: 'some-token-id',
+                            },
+                        },
+                    ],
+                })
+            })
+
+            it('should normalize join links using the screen config path', () => {
+                const result = linking.getInternalLinkRoute(
+                    'fedi://join/community10abc',
+                )
+
+                expect(result).toEqual({
+                    routes: [
+                        {
+                            name: 'JoinFederation',
+                            params: {
+                                invite: 'fedi:community10abc',
+                            },
+                        },
+                    ],
+                })
+            })
         })
     })
 

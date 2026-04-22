@@ -12,6 +12,7 @@ import { Linking } from 'react-native'
 import { setRedirectTo } from '@fedi/common/redux'
 import {
     getNavigationLink,
+    isFediInternalLink,
     normalizeCommunityInviteCode,
 } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
@@ -67,6 +68,35 @@ const pendingLinks: string[] = []
 let pendingUnlockNavigationArgs: NavigationArgs | undefined
 let pendingUnlockExternalUrl: string | undefined
 
+const rootScreenPaths: Partial<Record<RootScreen, string>> = {
+    ChatRoomConversation: 'room/:roomId',
+    ChatUserConversation: 'user/:userId',
+    ShareLogs: 'share-logs/:ticketNumber',
+    ClaimEcash: 'ecash/:id',
+    JoinFederation: 'join/:invite',
+    FediModBrowser: 'browser/:url',
+}
+
+const deepLinksConfig: NonNullable<
+    LinkingOptions<RootStackParamList>['config']
+> = {
+    screens: {
+        TabsNavigator: {
+            // @ts-expect-error: Nested screens are not allowed with the
+            // current TabsNavigator param type ({ initialRouteName }),
+            // but we need it here for deep linking to individual tabs
+            // while preserving initialRouteName usage in RootStackParamList
+            screens: {
+                Wallet: 'wallet',
+                Chat: 'chat',
+                Mods: 'mods',
+                Home: 'home',
+            },
+        },
+        ...rootScreenPaths,
+    },
+}
+
 // Mapping used to convert path names to screens
 export const screenMap: Record<
     string,
@@ -104,7 +134,7 @@ export const screenMap: Record<
         const raw = params?.url ?? params?.id
         if (!raw) return { kind: 'root', screen: 'FediModBrowser' }
         // Ensure bare domains get https:// prefix, matching AddressBarOverlay behavior
-        const url = /^https?:\/\//.test(raw) ? raw : `https://${raw}`
+        const url = normalizeBrowserUrl(raw)
         return { kind: 'root', screen: 'FediModBrowser', params: { url } }
     },
     ecash: () => ({ kind: 'root', screen: 'ClaimEcash' }),
@@ -134,7 +164,7 @@ export const screenMap: Record<
     'join-then-browse': (params: Record<string, string>) => {
         const { invite, url: raw } = params
         if (!invite || !raw) return undefined
-        const url = /^https?:\/\//.test(raw) ? raw : `https://${raw}`
+        const url = normalizeBrowserUrl(raw)
         return {
             kind: 'root',
             screen: 'JoinFederation',
@@ -147,6 +177,99 @@ export const screenMap: Record<
 }
 
 type ScreenKey = keyof typeof screenMap
+
+function stripSupportedPrefix(path: string): string {
+    return SUPPORTED_PREFIXES.reduce((acc, prefix) => {
+        return acc.startsWith(prefix) ? acc.slice(prefix.length) : acc
+    }, path)
+}
+
+// Aligns bare browser deeplinks with the in-app address bar behavior.
+function normalizeBrowserUrl(raw: string): string {
+    return /^https?:\/\//.test(raw) ? raw : `https://${raw}`
+}
+
+// Decodes percent-encoded path params while tolerating malformed input.
+function decodePathParam(value: string): string {
+    try {
+        return decodeURIComponent(value)
+    } catch {
+        return value
+    }
+}
+
+// Applies per-screen param normalization after a deeplink target is resolved.
+function normalizeTarget(target: InternalLinkTarget): InternalLinkTarget {
+    if (target.screen === 'FediModBrowser' && target.params?.url) {
+        return {
+            ...target,
+            params: {
+                ...target.params,
+                url: normalizeBrowserUrl(target.params.url),
+            },
+        }
+    }
+
+    if (target.screen === 'JoinFederation' && target.params?.invite) {
+        return {
+            ...target,
+            params: {
+                ...target.params,
+                invite: normalizeCommunityInviteCode(target.params.invite),
+            },
+        }
+    }
+
+    return target
+}
+
+// Allows browser deeplinks to treat everything after `browser/` as the URL payload.
+function getBrowserPathTarget(path: string): InternalLinkTarget | undefined {
+    if (!path.startsWith('browser/')) return undefined
+
+    const rawUrl = decodePathParam(path.slice('browser/'.length))
+    if (!rawUrl) return undefined
+
+    return normalizeTarget({
+        kind: 'root',
+        screen: 'FediModBrowser',
+        params: { url: rawUrl },
+    })
+}
+
+// Distinguishes unknown internal paths from known routes with missing params.
+function isKnownInternalPath(path: string): boolean {
+    const normalizedPath = stripSupportedPrefix(path)
+    const [rawScreen] = normalizedPath.split('?')
+
+    if (!rawScreen) return false
+    if (rawScreen.startsWith('browser/')) return true
+
+    const [screenName] = rawScreen.split('/')
+    return screenName in screenMap
+}
+
+// Resolves simple `screen/:param` root routes from the shared route config.
+function getConfigPathTarget(path: string): InternalLinkTarget | undefined {
+    for (const [screen, pattern] of Object.entries(rootScreenPaths)) {
+        if (!pattern) continue
+
+        const [patternBase, patternParam] = pattern.split('/:')
+        if (!patternBase || !patternParam) continue
+        if (!path.startsWith(`${patternBase}/`)) continue
+
+        const value = decodePathParam(path.slice(patternBase.length + 1))
+        if (!value || value.includes('/')) continue
+
+        return normalizeTarget({
+            kind: 'root',
+            screen: screen as RootScreen,
+            params: { [patternParam]: value },
+        })
+    }
+
+    return undefined
+}
 
 export function consumePendingUnlockNavigationArgs():
     | NavigationArgs
@@ -212,39 +335,45 @@ export function patchLinkingOpenURL(
 // Unknown fedi: paths intentionally fall back to Wallet.
 function getInternalLinkTarget(path: string): InternalLinkTarget | undefined {
     try {
-        // Strip any supported prefix from the path
-        const [rawScreen, queryString] = SUPPORTED_PREFIXES.reduce(
-            (acc, prefix) => {
-                return acc.startsWith(prefix) ? acc.slice(prefix.length) : acc
-            },
-            path,
-        ).split('?')
+        const normalizedPath = stripSupportedPrefix(path)
+        const [rawScreen, queryString] = normalizedPath.split('?')
 
         if (!rawScreen) return undefined
 
+        const browserPathTarget = getBrowserPathTarget(normalizedPath)
+        if (browserPathTarget) return browserPathTarget
+
         const mapper = screenMap[rawScreen as ScreenKey]
-        if (!mapper) {
-            if (path.toLowerCase().startsWith('fedi:'))
-                return { kind: 'tab', screen: 'Wallet', params: {} }
-            return undefined
+        if (mapper) {
+            const queryParams: Record<string, string> = {}
+            if (queryString) {
+                new URLSearchParams(queryString).forEach((value, key) => {
+                    queryParams[key] = value
+                })
+            }
+
+            const target = mapper(queryParams)
+            if (target) {
+                return normalizeTarget({
+                    ...target,
+                    params: target.params ?? queryParams,
+                })
+            }
         }
 
-        const queryParams: Record<string, string> = {}
-        if (queryString) {
-            new URLSearchParams(queryString).forEach((value, key) => {
-                queryParams[key] = value
-            })
+        const configTarget = getConfigPathTarget(rawScreen)
+        if (configTarget) return normalizeTarget(configTarget)
+
+        if (isFediInternalLink(path) && !isKnownInternalPath(path)) {
+            return { kind: 'tab', screen: 'Wallet', params: {} }
         }
 
-        const target = mapper(queryParams)
-        if (!target) return undefined
-
-        return {
-            ...target,
-            params: target.params ?? queryParams,
-        }
+        return undefined
     } catch (err) {
         log.error('getInternalLinkTarget: invalid URL', err)
+        if (isFediInternalLink(path)) {
+            return { kind: 'tab', screen: 'Wallet', params: {} }
+        }
         return undefined
     }
 }
@@ -387,7 +516,7 @@ export function getInternalLinkRoute(
 ): TypedInitialState | undefined {
     const target = getInternalLinkTarget(path)
     if (target) return targetToInitialState(target)
-    if (path.toLowerCase().startsWith('fedi:')) return undefined
+    if (isFediInternalLink(path)) return undefined
 
     return defaultGetStateFromPath(path, options) as
         | TypedInitialState
@@ -402,28 +531,7 @@ export const getLinking = (
 ): LinkingOptions<RootStackParamList> => ({
     prefixes: SUPPORTED_PREFIXES,
 
-    config: {
-        screens: {
-            TabsNavigator: {
-                // @ts-expect-error: Nested screens are not allowed with the
-                // current TabsNavigator param type ({ initialRouteName }),
-                // but we need it here for deep linking to individual tabs
-                // while preserving initialRouteName usage in RootStackParamList
-                screens: {
-                    Wallet: 'wallet',
-                    Chat: 'chat',
-                    Mods: 'mods',
-                    Home: 'home',
-                },
-            },
-            ChatRoomConversation: 'room/:roomId',
-            ChatUserConversation: 'user/:userId',
-            ShareLogs: 'share-logs/:ticketNumber',
-            ClaimEcash: 'ecash/:id',
-            JoinFederation: 'join/:invite',
-            FediModBrowser: 'browser/:url',
-        },
-    },
+    config: deepLinksConfig,
 
     getStateFromPath(
         path: string,
