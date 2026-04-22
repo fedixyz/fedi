@@ -90,6 +90,7 @@ rc_invites:
 
 max_upload_size: 1000M
 session_lifetime: 1m
+refresh_token_lifetime: 30s
 nonrefreshable_access_token_lifetime: 20s
 refreshable_access_token_lifetime: 20s
 "#;

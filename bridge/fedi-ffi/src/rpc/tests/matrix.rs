@@ -49,8 +49,8 @@ pub async fn test_matrix_access_token_expiry_repro(_dev_fed: DevFed) -> anyhow::
     .await?;
 
     sleep_in_test(
-        "wait for matrix access token to expire",
-        Duration::from_secs(25),
+        "wait for matrix access and refresh tokens to expire",
+        Duration::from_secs(35),
     )
     .await;
 

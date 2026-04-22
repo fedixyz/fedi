@@ -7099,7 +7099,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk"
 version = "0.16.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-4#560f879381faace899ac0975b209c4a7e71a806d"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-5#543444d632793a826839f34d2fdb5940809661ba"
 dependencies = [
  "anymap2",
  "aquamarine 0.6.0",
@@ -7154,7 +7154,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-base"
 version = "0.16.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-4#560f879381faace899ac0975b209c4a7e71a806d"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-5#543444d632793a826839f34d2fdb5940809661ba"
 dependencies = [
  "as_variant",
  "async-trait",
@@ -7180,7 +7180,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-common"
 version = "0.16.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-4#560f879381faace899ac0975b209c4a7e71a806d"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-5#543444d632793a826839f34d2fdb5940809661ba"
 dependencies = [
  "eyeball-im",
  "futures-core",
@@ -7203,7 +7203,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-crypto"
 version = "0.16.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-4#560f879381faace899ac0975b209c4a7e71a806d"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-5#543444d632793a826839f34d2fdb5940809661ba"
 dependencies = [
  "aes",
  "aquamarine 0.6.0",
@@ -7243,7 +7243,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-indexeddb"
 version = "0.16.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-4#560f879381faace899ac0975b209c4a7e71a806d"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-5#543444d632793a826839f34d2fdb5940809661ba"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -7275,7 +7275,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-sqlite"
 version = "0.16.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-4#560f879381faace899ac0975b209c4a7e71a806d"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-5#543444d632793a826839f34d2fdb5940809661ba"
 dependencies = [
  "as_variant",
  "async-trait",
@@ -7302,7 +7302,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-store-encryption"
 version = "0.16.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-4#560f879381faace899ac0975b209c4a7e71a806d"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-5#543444d632793a826839f34d2fdb5940809661ba"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -7322,7 +7322,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-ui"
 version = "0.16.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-4#560f879381faace899ac0975b209c4a7e71a806d"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20260310-5#543444d632793a826839f34d2fdb5940809661ba"
 dependencies = [
  "as_variant",
  "async-rx",
