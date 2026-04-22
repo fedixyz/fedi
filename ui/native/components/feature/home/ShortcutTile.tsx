@@ -52,17 +52,23 @@ export const ShortcutTileIcon = ({ shortcut }: ShortcutTileIconProps) => {
     const [imageSrc, setImageSrc] = useState<ImageSourcePropType>(
         FediModImages.default,
     )
+    const {
+        id: shortcutId,
+        imageUrl: shortcutImageUrl,
+        type: shortcutType,
+        url: shortcutUrl,
+    } = shortcut
 
     useEffect(() => {
-        if (isMod(shortcut)) {
+        if (shortcutType === ShortcutType.fediMod) {
             // use local image if we have it
-            if (FediModImages[shortcut.id]) {
-                setImageSrc(FediModImages[shortcut.id])
-            } else if (shortcut.imageUrl) {
+            if (FediModImages[shortcutId]) {
+                setImageSrc(FediModImages[shortcutId])
+            } else if (shortcutImageUrl) {
                 // then try image url
-                setImageSrc({ uri: shortcut.imageUrl, cache: 'force-cache' })
+                setImageSrc({ uri: shortcutImageUrl, cache: 'force-cache' })
             } else {
-                constructUrl(shortcut.url)
+                constructUrl(shortcutUrl)
                     .asyncAndThen(tryFetchUrlMetadata)
                     .match(
                         ({ icon }) => {
@@ -74,7 +80,7 @@ export const ShortcutTileIcon = ({ shortcut }: ShortcutTileIconProps) => {
                     )
             }
         }
-    }, [shortcut])
+    }, [shortcutId, shortcutImageUrl, shortcutType, shortcutUrl])
 
     if (isMod(shortcut) && imageSrc) {
         const isSvg =

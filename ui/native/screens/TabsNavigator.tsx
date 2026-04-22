@@ -78,10 +78,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     > = {
         [HomeNavigationTab.Home]: 'Home',
         [HomeNavigationTab.Chat]: 'Chat',
-        // Temporary workaround for a bug in the Mini Apps screen:
-        // route older stored Mini Apps sessions to Home until Mini Apps can safely cold-start.
-        // [HomeNavigationTab.MiniApps]: 'Mods',
-        [HomeNavigationTab.MiniApps]: 'Home',
+        [HomeNavigationTab.MiniApps]: 'Mods',
         [HomeNavigationTab.Wallet]: 'Wallet',
     }
 
