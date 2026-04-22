@@ -40,6 +40,11 @@
       url = "github:maan2003/andy/prebuilt";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    llm-agents = {
+      url = "github:numtide/llm-agents.nix";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
   };
 
   outputs =
@@ -54,6 +59,7 @@
       android-nixpkgs,
       flakebox,
       andy,
+      llm-agents,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -85,6 +91,7 @@
               rocksdb_7_10 = nixpkgs.legacyPackages.${system}.rocksdb_7_10;
               fs-dir-cache = fs-dir-cache.packages.${system}.default;
               cargo-deluxe = cargo-deluxe.packages.${system}.default;
+              agent-browser = llm-agents.packages.${system}.agent-browser;
               esplora-electrs = pkgs-fedimint.esplora-electrs;
               # remove after upgrading pkgs-fedimint
               bitcoind = pkgs-fedimint.bitcoind;
@@ -207,6 +214,7 @@
             ];
             typos.pre-commit.enable = false;
             git.pre-commit.trailing_newline = false;
+            rootDir.".agents/skills/agent-browser".source = pkgs.agent-browser.src + /skills/agent-browser;
             # we must not use --workspace anywhere
             just.rules.clippy.content = lib.mkForce ''
               # run `cargo clippy` on everything
@@ -399,6 +407,7 @@
                 pkgs.android-tools
                 androidSdk
                 andy.packages.${system}.default
+                pkgs.agent-browser
               ]
               ++ lib.optionals pkgs.stdenv.isDarwin [
                 # add some darwin pkgs if on macos
