@@ -55,9 +55,9 @@ pub const FEDI_FEE_API_URL_MAINNET: &str =
 
 // URL for Fedi fee lightning invoice generator API
 pub const FEDI_INVOICE_API_URL_MUTINYNET: &str =
-    "https://staging.fee-collection.dev.fedibtc.com/v4/generate-invoice";
+    "https://staging.fee-collection.dev.fedibtc.com/v5/generate-invoice";
 pub const FEDI_INVOICE_API_URL_MAINNET: &str =
-    "https://prod.fee-collection.dev.fedibtc.com/v4/generate-invoice";
+    "https://prod.fee-collection.dev.fedibtc.com/v5/generate-invoice";
 
 pub const COMMUNITY_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community");
 pub const COMMUNITY_V2_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community2");
