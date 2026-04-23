@@ -50,6 +50,7 @@ import { clearAllMiniAppPermissions } from '@fedi/common/redux/mod'
 import { FediModCacheMode, SupportedCurrency } from '@fedi/common/types'
 import {
     GuardianStatus,
+    RpcFediFeeStream,
     RpcLightningGateway,
     RpcPublicKey,
 } from '@fedi/common/types/bindings'
@@ -78,6 +79,9 @@ export type Props = NativeStackScreenProps<
 >
 type FeesMap = { [key: string]: number }
 
+const sumFeesMap = (feesMap: FeesMap) =>
+    Object.values(feesMap).reduce((total, fee) => total + fee, 0)
+
 const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
@@ -95,6 +99,16 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const [pendingFediSendFeesMap, setPendingFediSendFeesMap] =
         useState<FeesMap>({})
     const [pendingFediReceiveFeesMap, setPendingFediReceiveFeesMap] =
+        useState<FeesMap>({})
+    const [outstandingGuardianSendFeesMap, setOutstandingGuardianSendFeesMap] =
+        useState<FeesMap>({})
+    const [
+        outstandingGuardianReceiveFeesMap,
+        setOutstandingGuardianReceiveFeesMap,
+    ] = useState<FeesMap>({})
+    const [pendingGuardianSendFeesMap, setPendingGuardianSendFeesMap] =
+        useState<FeesMap>({})
+    const [pendingGuardianReceiveFeesMap, setPendingGuardianReceiveFeesMap] =
         useState<FeesMap>({})
     const [isSharingState, setIsSharingState] = useState(false)
     const [isSensitiveLogging, setIsSensitiveLogging] = useState<boolean>(false)
@@ -171,6 +185,33 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     useEffect(() => {
         if (paymentFederation) {
             fedimint
+                .getAccruedOutstandingFediFeesPerTXTypeByStream({
+                    federationId: paymentFederation.id,
+                    stream: 'guardian' as RpcFediFeeStream,
+                })
+                .then(res => {
+                    const sendFeesMap: FeesMap = {}
+                    const receiveFeesMap: FeesMap = {}
+                    res.map(fee => {
+                        if (fee[1] === 'send') sendFeesMap[fee[0]] = fee[2]
+                        else if (fee[1] === 'receive')
+                            receiveFeesMap[fee[0]] = fee[2]
+                    }, {})
+                    setOutstandingGuardianSendFeesMap(sendFeesMap)
+                    setOutstandingGuardianReceiveFeesMap(receiveFeesMap)
+                })
+                .catch(err =>
+                    log.warn(
+                        'Failed to get accrued outstanding guardian fees',
+                        err,
+                    ),
+                )
+        }
+    }, [paymentFederation, fedimint])
+
+    useEffect(() => {
+        if (paymentFederation) {
+            fedimint
                 .getAccruedPendingFediFeesPerTXTypeByStream({
                     federationId: paymentFederation.id,
                     stream: 'app',
@@ -188,6 +229,33 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 })
                 .catch(err =>
                     log.warn('Failed to get accrued pending fedi fees', err),
+                )
+        }
+    }, [paymentFederation, fedimint])
+
+    useEffect(() => {
+        if (paymentFederation) {
+            fedimint
+                .getAccruedPendingFediFeesPerTXTypeByStream({
+                    federationId: paymentFederation.id,
+                    stream: 'guardian' as RpcFediFeeStream,
+                })
+                .then(res => {
+                    const sendFeesMap: FeesMap = {}
+                    const receiveFeesMap: FeesMap = {}
+                    res.map(fee => {
+                        if (fee[1] === 'send') sendFeesMap[fee[0]] = fee[2]
+                        else if (fee[1] === 'receive')
+                            receiveFeesMap[fee[0]] = fee[2]
+                    }, {})
+                    setPendingGuardianSendFeesMap(sendFeesMap)
+                    setPendingGuardianReceiveFeesMap(receiveFeesMap)
+                })
+                .catch(err =>
+                    log.warn(
+                        'Failed to get accrued pending guardian fees',
+                        err,
+                    ),
                 )
         }
     }, [paymentFederation, fedimint])
@@ -799,6 +867,82 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 ) : (
                     <Text>No pending receive fees</Text>
                 )}
+                <SettingsSection title="Outstanding guardian fees">
+                    <Text
+                        style={
+                            style.version
+                        }>{`Total Outstanding Guardian Fees: ${
+                        sumFeesMap(outstandingGuardianSendFeesMap) +
+                        sumFeesMap(outstandingGuardianReceiveFeesMap)
+                    }`}</Text>
+                    {Object.keys(outstandingGuardianSendFeesMap).length !==
+                    0 ? (
+                        Object.entries(outstandingGuardianSendFeesMap).map(
+                            ([module, fee]) => (
+                                <View
+                                    key={`outstanding-guardian-send-fees-${module}`}>
+                                    <Text
+                                        style={
+                                            style.version
+                                        }>{`Outstanding Guardian Send Fees for ${module}: ${fee}`}</Text>
+                                </View>
+                            ),
+                        )
+                    ) : (
+                        <Text>No outstanding guardian send fees</Text>
+                    )}
+                    {Object.keys(outstandingGuardianReceiveFeesMap).length !==
+                    0 ? (
+                        Object.entries(outstandingGuardianReceiveFeesMap).map(
+                            ([module, fee]) => (
+                                <View
+                                    key={`outstanding-guardian-receive-fees-${module}`}>
+                                    <Text
+                                        style={
+                                            style.version
+                                        }>{`Outstanding Guardian Receive Fees for ${module}: ${fee}`}</Text>
+                                </View>
+                            ),
+                        )
+                    ) : (
+                        <Text>No outstanding guardian receive fees</Text>
+                    )}
+                    <Text
+                        style={style.version}>{`Total Pending Guardian Fees: ${
+                        sumFeesMap(pendingGuardianSendFeesMap) +
+                        sumFeesMap(pendingGuardianReceiveFeesMap)
+                    }`}</Text>
+                    {Object.keys(pendingGuardianSendFeesMap).length !== 0 ? (
+                        Object.entries(pendingGuardianSendFeesMap).map(
+                            ([module, fee]) => (
+                                <View
+                                    key={`pending-guardian-send-fees-${module}`}>
+                                    <Text
+                                        style={
+                                            style.version
+                                        }>{`Pending Guardian Send Fees for ${module}: ${fee}`}</Text>
+                                </View>
+                            ),
+                        )
+                    ) : (
+                        <Text>No pending guardian send fees</Text>
+                    )}
+                    {Object.keys(pendingGuardianReceiveFeesMap).length !== 0 ? (
+                        Object.entries(pendingGuardianReceiveFeesMap).map(
+                            ([module, fee]) => (
+                                <View
+                                    key={`pending-guardian-receive-fees-${module}`}>
+                                    <Text
+                                        style={
+                                            style.version
+                                        }>{`Pending Guardian Receive Fees for ${module}: ${fee}`}</Text>
+                                </View>
+                            ),
+                        )
+                    ) : (
+                        <Text>No pending guardian receive fees</Text>
+                    )}
+                </SettingsSection>
                 {stabilityPoolSupported && (
                     <View style={style.switchWrapper}>
                         <View style={style.switchLabelContainer}>
