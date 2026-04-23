@@ -51,7 +51,12 @@ export const Options = ({ options }: { options: ChatEventAction[] }) => {
             fullWidth
             style={style.actionButtons}>
             {options.map(option => (
-                <Row gap="md" align="center" justify="between">
+                <Row
+                    key={option.label}
+                    gap="md"
+                    align="center"
+                    justify="between"
+                    fullWidth>
                     <Text medium caption style={style.optionText}>
                         {option.label}
                     </Text>
