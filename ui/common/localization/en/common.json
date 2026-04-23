@@ -793,12 +793,13 @@
             "guardian-fee-rate-update-proposed": "⏳ Proposing Guardian Fee Rate update to your guardians...\n\nPlease wait while the federation reaches consensus on this change.",
             "guardian-fees": "💸 Guardian Fees",
             "guardian-fees-adjust-rate": "⚙️ Adjust Guardian Fee %",
-            "guardian-fees-ask-custom-rate": "⚙️ Custom Guardian Fee %\n\nEnter a custom Guardian Fee Rate between 0% and 21%.\n\nExamples: 0.25%, 1%, 2.5%",
-            "guardian-fees-ask-rate": "⚙️ Adjust Guardian Fee %\n\nChoose the guardian fee rate.",
+            "guardian-fees-ask-custom-rate": "⚙️ Adjust Guardian Fee %\n\nEnter a custom Guardian Fee Rate between 0% and 10%.\n\nExamples: 0.25%, 1%, 2.5%",
+            "guardian-fees-ask-rate": "⚙️ Adjust Guardian Fee %",
             "guardian-fees-custom-rate": "Custom",
+            "guardian-fees-rate-none": "No fee (0%)",
             "guardian-fees-sync-in-progress": "⏳ Syncing Guardian Fees...\n\nThe Guardian Fees menu will open automatically once approved.",
             "guardian-fees-view-dashboard": "📊 View Dashboard & Withdraw Fees",
-            "invalid-guardian-fee-rate": "Invalid guardian fee rate. Please choose one of the available options or enter a percentage between 0% and 21%."
+            "invalid-guardian-fee-rate": "Invalid guardian fee rate. Please choose one of the available options or enter a percentage between 0% and 10%."
         },
         "home": {
             "backup-wallet-description": "It's time to backup your seed phrase to keep your funds safe.",
