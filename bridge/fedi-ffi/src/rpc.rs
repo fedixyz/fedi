@@ -497,6 +497,14 @@ async fn calculateMaxGenerateEcash(federation: Arc<FederationV2>) -> anyhow::Res
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
+async fn estimateEcashFees(
+    federation: Arc<FederationV2>,
+    amount: RpcAmount,
+) -> anyhow::Result<RpcFeeDetails> {
+    federation.estimate_ecash_fees(amount.0).await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
 async fn generateEcash(
     federation: Arc<FederationV2>,
     amount: RpcAmount,
@@ -927,6 +935,16 @@ async fn stabilityPoolAvailableLiquidity(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
+async fn estimateStabilityPoolDepositFees(
+    federation: Arc<FederationV2>,
+    amount: RpcAmount,
+) -> anyhow::Result<RpcFeeDetails> {
+    federation
+        .estimate_stability_pool_deposit_fees(amount.0)
+        .await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
 async fn stabilityPoolDepositToSeek(
     federation: Arc<FederationV2>,
     amount: RpcAmount,
@@ -982,6 +1000,14 @@ async fn spv2AverageFeeRate(federation: Arc<FederationV2>, num_cycles: u32) -> a
 #[macro_rules_derive(federation_rpc_method!)]
 async fn spv2AvailableLiquidity(federation: Arc<FederationV2>) -> anyhow::Result<RpcAmount> {
     federation.spv2_available_liquidity().await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn estimateSPv2DepositFees(
+    federation: Arc<FederationV2>,
+    amount: RpcAmount,
+) -> anyhow::Result<RpcFeeDetails> {
+    federation.estimate_spv2_deposit_fees(amount.0).await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -2539,6 +2565,7 @@ rpc_methods!(RpcMethods {
     payAddress,
     // Ecash
     calculateMaxGenerateEcash,
+    estimateEcashFees,
     generateEcash,
     receiveEcash,
     parseEcash,
@@ -2592,6 +2619,7 @@ rpc_methods!(RpcMethods {
     stabilityPoolAccountInfo,
     stabilityPoolNextCycleStartTime,
     stabilityPoolCycleStartPrice,
+    estimateStabilityPoolDepositFees,
     stabilityPoolDepositToSeek,
     stabilityPoolWithdraw,
     stabilityPoolAverageFeeRate,
@@ -2600,6 +2628,7 @@ rpc_methods!(RpcMethods {
     spv2AccountInfo,
     spv2SubscribeAccountInfo,
     spv2NextCycleStartTime,
+    estimateSPv2DepositFees,
     spv2DepositToSeek,
     spv2Withdraw,
     spv2WithdrawAll,

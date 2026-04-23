@@ -804,6 +804,7 @@ export type RpcMethods = {
   previewPayAddress: [previewPayAddress, RpcFeeDetails];
   payAddress: [payAddress, RpcOperationId];
   calculateMaxGenerateEcash: [calculateMaxGenerateEcash, RpcAmount];
+  estimateEcashFees: [estimateEcashFees, RpcFeeDetails];
   generateEcash: [generateEcash, RpcGenerateEcashResponse];
   receiveEcash: [receiveEcash, [RpcAmount, RpcOperationId]];
   parseEcash: [parseEcash, RpcEcashInfo];
@@ -860,6 +861,10 @@ export type RpcMethods = {
   ];
   stabilityPoolNextCycleStartTime: [stabilityPoolNextCycleStartTime, bigint];
   stabilityPoolCycleStartPrice: [stabilityPoolCycleStartPrice, bigint];
+  estimateStabilityPoolDepositFees: [
+    estimateStabilityPoolDepositFees,
+    RpcFeeDetails,
+  ];
   stabilityPoolDepositToSeek: [stabilityPoolDepositToSeek, RpcOperationId];
   stabilityPoolWithdraw: [stabilityPoolWithdraw, RpcOperationId];
   stabilityPoolAverageFeeRate: [stabilityPoolAverageFeeRate, bigint];
@@ -867,6 +872,7 @@ export type RpcMethods = {
   spv2AccountInfo: [spv2AccountInfo, RpcSPv2CachedSyncResponse];
   spv2SubscribeAccountInfo: [spv2SubscribeAccountInfo, null];
   spv2NextCycleStartTime: [spv2NextCycleStartTime, bigint];
+  estimateSPv2DepositFees: [estimateSPv2DepositFees, RpcFeeDetails];
   spv2DepositToSeek: [spv2DepositToSeek, RpcOperationId];
   spv2Withdraw: [spv2Withdraw, RpcOperationId];
   spv2WithdrawAll: [spv2WithdrawAll, RpcOperationId];
@@ -1873,7 +1879,22 @@ export type dumpDb = {
   includeFederationSecret: boolean | null;
 };
 
+export type estimateEcashFees = {
+  federationId: RpcFederationId;
+  amount: RpcAmount;
+};
+
 export type estimateLnFees = { federationId: RpcFederationId; invoice: string };
+
+export type estimateSPv2DepositFees = {
+  federationId: RpcFederationId;
+  amount: RpcAmount;
+};
+
+export type estimateStabilityPoolDepositFees = {
+  federationId: RpcFederationId;
+  amount: RpcAmount;
+};
 
 export type evilSpamAddress = { federationId: RpcFederationId };
 

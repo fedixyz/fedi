@@ -7,7 +7,10 @@ import { Alert, Keyboard, StyleSheet } from 'react-native'
 import { useAmountFormatter, useBalance } from '@fedi/common/hooks/amount'
 import { useSendEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
-import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
+import {
+    useEcashFeeDetails,
+    useFeeDisplayUtils,
+} from '@fedi/common/hooks/transactions'
 import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
@@ -40,8 +43,11 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const { formattedBalanceText } = useBalance(t, paymentFederation?.id || '')
     const { feeBreakdownTitle, ecashFeesGuidanceText, makeEcashFeeContent } =
         useFeeDisplayUtils(t, paymentFederation?.id || '')
+    const amountMsats = amountUtils.satToMsat(amount)
+    const feeDetails = useEcashFeeDetails(amountMsats, paymentFederation?.id)
     const { formattedTotalFee, feeItemsBreakdown } = makeEcashFeeContent(
-        amountUtils.satToMsat(amount),
+        amountMsats,
+        feeDetails,
     )
     const { makeFormattedAmountsFromSats } = useAmountFormatter({
         federationId: paymentFederation?.id,
@@ -62,7 +68,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
                 navigation.dispatch(
                     reset('SendOfflineQr', {
                         ecash: res.ecash,
-                        amount: amountUtils.satToMsat(amount),
+                        amount: amountMsats,
                     }),
                 )
             }
@@ -72,7 +78,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
             // We need to notify the user if they have an insufficient balance to send the desired amount
             toast.error(t, error)
         }
-    }, [amount, notes, navigation, toast, t, generateEcash])
+    }, [amount, amountMsats, notes, navigation, toast, t, generateEcash])
 
     const handleConfirm = useCallback(() => {
         Alert.alert(

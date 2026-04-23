@@ -133,6 +133,16 @@ export class FedimintBridge {
         )
     }
 
+    async estimateStabilityPoolDepositFees(
+        amount: RpcAmount,
+        federationId: string,
+    ) {
+        return this.rpcTyped('estimateStabilityPoolDepositFees', {
+            amount,
+            federationId,
+        })
+    }
+
     async stabilityPoolAccountInfo(federationId: string, forceUpdate = true) {
         return this.rpcTyped<
             'stabilityPoolAccountInfo',
@@ -232,6 +242,13 @@ export class FedimintBridge {
 
     async spv2NextCycleStartTime(federationId: string) {
         return this.rpcTyped('spv2NextCycleStartTime', { federationId })
+    }
+
+    async estimateSPv2DepositFees(amount: RpcAmount, federationId: string) {
+        return this.rpcTyped('estimateSPv2DepositFees', {
+            amount,
+            federationId,
+        })
     }
 
     async spv2DepositToSeek(
@@ -418,6 +435,10 @@ export class FedimintBridge {
 
     async estimateLnFees(invoice: string, federationId: string) {
         return this.rpcTyped('estimateLnFees', { invoice, federationId })
+    }
+
+    async estimateEcashFees(amount: MSats, federationId: string) {
+        return this.rpcTyped('estimateEcashFees', { amount, federationId })
     }
 
     async payInvoice(invoice: string, federationId: string, notes?: string) {

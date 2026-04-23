@@ -1395,6 +1395,19 @@ impl FederationV2 {
             .unwrap_or(Amount::ZERO)
     }
 
+    fn fedi_fee_details_from_streams(fees_by_stream: &[(FediFeeStream, Amount)]) -> RpcFeeDetails {
+        let fedi_app_fee = Self::fedi_fee_amount_for_stream(fees_by_stream, FediFeeStream::App);
+        let fedi_guardian_fee =
+            Self::fedi_fee_amount_for_stream(fees_by_stream, FediFeeStream::Guardian);
+
+        RpcFeeDetails {
+            fedi_app_fee: RpcAmount(fedi_app_fee),
+            fedi_guardian_fee: RpcAmount(fedi_guardian_fee),
+            network_fee: RpcAmount(Amount::ZERO),
+            federation_fee: RpcAmount(Amount::ZERO),
+        }
+    }
+
     fn total_fedi_fee_ppm(fee_ppms: &[(FediFeeStream, u64)]) -> u64 {
         fee_ppms.iter().map(|(_, fee_ppm)| *fee_ppm).sum()
     }
@@ -2572,6 +2585,18 @@ impl FederationV2 {
             numerator / denominator
         };
         Ok(RpcAmount(Amount::from_msats(max)))
+    }
+
+    /// Estimates fees for generating e-cash in this federation.
+    pub async fn estimate_ecash_fees(&self, amount: Amount) -> Result<RpcFeeDetails> {
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
+                fedimint_mint_client::KIND,
+                RpcTransactionDirection::Send,
+                amount,
+            )
+            .await?;
+        Ok(Self::fedi_fee_details_from_streams(&fees_by_stream))
     }
 
     /// Generate ecash
@@ -3902,6 +3927,18 @@ impl FederationV2 {
         )))
     }
 
+    /// Estimates fees for depositing into the v2 stability pool module.
+    pub async fn estimate_spv2_deposit_fees(&self, amount: Amount) -> Result<RpcFeeDetails> {
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
+                stability_pool_client::common::KIND,
+                RpcTransactionDirection::Send,
+                amount,
+            )
+            .await?;
+        Ok(Self::fedi_fee_details_from_streams(&fees_by_stream))
+    }
+
     /// Deposit the given amount of msats into the stability pool
     /// with the intention of seeking. Once the fedimint transaction
     /// is accepted, the deposit is staged (pending). When the next
@@ -4467,6 +4504,21 @@ impl FederationV2 {
         Ok(RpcAmount(Amount::from_msats(
             stats.staged_provides_sum_msat,
         )))
+    }
+
+    /// Estimates fees for depositing into the v1 stability pool module.
+    pub async fn estimate_stability_pool_deposit_fees(
+        &self,
+        amount: Amount,
+    ) -> Result<RpcFeeDetails> {
+        let fees_by_stream = self
+            .get_fee_amounts_by_stream(
+                stability_pool_client_old::common::KIND,
+                RpcTransactionDirection::Send,
+                amount,
+            )
+            .await?;
+        Ok(Self::fedi_fee_details_from_streams(&fees_by_stream))
     }
 
     /// Deposit the given amount of msats into the stability pool

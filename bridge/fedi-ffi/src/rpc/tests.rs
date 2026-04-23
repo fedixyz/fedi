@@ -708,6 +708,16 @@ async fn test_ecash_with_fedi_fees(
     let ecash_send_amount = Amount::from_msats(ecash_receive_amount.msats / 2);
     let send_fedi_fee =
         Amount::from_msats((ecash_send_amount.msats * fedi_fees_send_ppm).div_ceil(MILLION));
+    let estimated_send_fees =
+        estimateEcashFees(federation.clone(), RpcAmount(ecash_send_amount)).await?;
+    assert_eq!(RpcAmount(send_fedi_fee), estimated_send_fees.fedi_app_fee);
+    assert_eq!(
+        RpcAmount(Amount::ZERO),
+        estimated_send_fees.fedi_guardian_fee
+    );
+    assert_eq!(RpcAmount(Amount::ZERO), estimated_send_fees.network_fee);
+    assert_eq!(RpcAmount(Amount::ZERO), estimated_send_fees.federation_fee);
+
     let send_ecash = generateEcash(
         federation.clone(),
         RpcAmount(ecash_send_amount),
@@ -1378,6 +1388,16 @@ async fn test_stability_pool_with_fedi_fees(
     let amount_to_deposit = Amount::from_msats(receive_amount.msats / 2);
     let deposit_fedi_fee =
         Amount::from_msats((amount_to_deposit.msats * fedi_fees_send_ppm).div_ceil(MILLION));
+    let estimated_deposit_fees =
+        estimateStabilityPoolDepositFees(federation.clone(), RpcAmount(amount_to_deposit)).await?;
+    assert_eq!(
+        RpcAmount(deposit_fedi_fee),
+        estimated_deposit_fees.fedi_app_fee
+    );
+    assert_eq!(
+        RpcAmount(Amount::ZERO),
+        estimated_deposit_fees.fedi_guardian_fee
+    );
     stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
     loop {
         // Wait until deposit operation succeeds
@@ -1513,6 +1533,16 @@ async fn test_spv2_with_fedi_fees(
     let amount_to_deposit = Amount::from_msats(receive_amount.msats / 2);
     let deposit_fedi_fee =
         Amount::from_msats((amount_to_deposit.msats * fedi_fees_send_ppm).div_ceil(MILLION));
+    let estimated_deposit_fees =
+        estimateSPv2DepositFees(federation.clone(), RpcAmount(amount_to_deposit)).await?;
+    assert_eq!(
+        RpcAmount(deposit_fedi_fee),
+        estimated_deposit_fees.fedi_app_fee
+    );
+    assert_eq!(
+        RpcAmount(Amount::ZERO),
+        estimated_deposit_fees.fedi_guardian_fee
+    );
     spv2DepositToSeek(
         federation.clone(),
         RpcAmount(amount_to_deposit),
@@ -2665,7 +2695,23 @@ async fn test_guardian_remittance_account_withdraw_all() -> anyhow::Result<()> {
         .await?;
     wait_for_ecash_reissue(user_federation).await?;
 
+    let ecash_send_amount = Amount::from_msats(1_000_000);
+    let expected_guardian_fee =
+        Amount::from_msats((ecash_send_amount.msats * 209_999).div_ceil(MILLION));
+    let estimated_ecash_fees =
+        estimateEcashFees(user_federation.clone(), RpcAmount(ecash_send_amount)).await?;
+    assert_eq!(
+        RpcAmount(expected_guardian_fee),
+        estimated_ecash_fees.fedi_guardian_fee
+    );
+
     let amount_to_deposit = Amount::from_msats(1_000_000);
+    let estimated_spv2_deposit_fees =
+        estimateSPv2DepositFees(user_federation.clone(), RpcAmount(amount_to_deposit)).await?;
+    assert_eq!(
+        RpcAmount(expected_guardian_fee),
+        estimated_spv2_deposit_fees.fedi_guardian_fee
+    );
     let deposit_events_before = user_td
         .event_sink()
         .num_events_of_type("spv2Deposit".into());

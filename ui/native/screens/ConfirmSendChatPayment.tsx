@@ -7,7 +7,10 @@ import { StyleSheet } from 'react-native'
 import { useAmountFormatter, useBalance } from '@fedi/common/hooks/amount'
 import { useChatPaymentPush } from '@fedi/common/hooks/chat'
 import { useCommonSelector } from '@fedi/common/hooks/redux'
-import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
+import {
+    useEcashFeeDetails,
+    useFeeDisplayUtils,
+} from '@fedi/common/hooks/transactions'
 import {
     selectCurrency,
     selectMatrixRoom,
@@ -42,8 +45,10 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const { feeBreakdownTitle, ecashFeesGuidanceText, makeEcashFeeContent } =
         useFeeDisplayUtils(t, paymentFederation?.id || '')
+    const amountMsats = amountUtils.satToMsat(amount)
+    const feeDetails = useEcashFeeDetails(amountMsats, paymentFederation?.id)
     const { formattedTotalFee, feeItemsBreakdown, formattedTotalAmount } =
-        makeEcashFeeContent(amountUtils.satToMsat(amount))
+        makeEcashFeeContent(amountMsats, feeDetails)
     const { formattedBalanceText } = useBalance(t, paymentFederation?.id || '')
     const selectedCurrency = useCommonSelector(s =>
         selectCurrency(s, paymentFederation?.id),

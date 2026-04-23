@@ -7,7 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
-import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
+import {
+    useFeeDisplayUtils,
+    useStabilityPoolDepositFeeDetails,
+} from '@fedi/common/hooks/transactions'
 import {
     increaseStableBalance,
     selectFormattedDepositTime,
@@ -60,6 +63,11 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
         t,
         federationId,
     )
+    const amountMsats = amountUtils.satToMsat(amount)
+    const feeDetails = useStabilityPoolDepositFeeDetails(
+        amountMsats,
+        federationId,
+    )
     const stabilityPoolAverageFeeRate = useAppSelector(s =>
         selectStabilityPoolAverageFeeRate(s, federationId),
     )
@@ -67,11 +75,10 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
     const handleSubmit = async () => {
         try {
             setProcessingDeposit(true)
-            const amountToDeposit = amountUtils.satToMsat(amount)
             await dispatch(
                 increaseStableBalance({
                     fedimint,
-                    amount: amountToDeposit,
+                    amount: amountMsats,
                     federationId,
                 }),
             ).unwrap()
@@ -99,7 +106,7 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
 
     // TODO: refactor this to use the shared SendPreviewDetails component
     const renderDetails = () => {
-        const feeContent = makeSPDepositFeeContent(amount)
+        const feeContent = makeSPDepositFeeContent(feeDetails)
         const { formattedTotalFee, feeItemsBreakdown } = feeContent
 
         return (

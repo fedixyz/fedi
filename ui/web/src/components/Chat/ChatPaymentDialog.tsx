@@ -8,7 +8,10 @@ import {
     useChatPaymentUtils,
 } from '@fedi/common/hooks/chat'
 import { useToast } from '@fedi/common/hooks/toast'
-import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
+import {
+    useEcashFeeDetails,
+    useFeeDisplayUtils,
+} from '@fedi/common/hooks/transactions'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     selectCurrency,
@@ -74,12 +77,15 @@ export const ChatPaymentDialog: React.FC<Props> = ({
     })
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromSats(amount)
+    const amountMsats = amountUtils.satToMsat(amount)
+    const feeDetails = useEcashFeeDetails(amountMsats, paymentFederation?.id)
     const { makeEcashFeeContent } = useFeeDisplayUtils(
         t,
         paymentFederation?.id || '',
     )
     const { formattedTotalFee, formattedTotalAmount } = makeEcashFeeContent(
-        amountUtils.satToMsat(amount),
+        amountMsats,
+        feeDetails,
     )
     const { isProcessing, handleSendPayment } = useChatPaymentPush(
         t,

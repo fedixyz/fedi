@@ -1,17 +1,16 @@
 import { TFunction } from 'i18next'
-import { useCallback, useContext } from 'react'
+import { useCallback, useContext, useEffect, useState } from 'react'
 
 import { FedimintContext } from '../components/FedimintProvider'
 import {
     fetchMultispendEvents,
     selectCurrency,
-    selectEcashFeeSchedule,
     selectFederationStabilityPoolConfig,
     selectMatrixRoomMembers,
     selectMatrixRoomMultispendStatus,
     selectTransactionDisplayType,
     selectStabilityPoolAverageFeeRate,
-    selectStabilityPoolFeeSchedule,
+    selectStabilityPoolVersion,
 } from '../redux'
 import {
     fetchTransactions as reduxFetchTransactions,
@@ -27,13 +26,11 @@ import {
     MultispendActiveInvitation,
     MultispendFinalized,
     MultispendTransactionListEntry,
-    Sats,
     SupportedCurrency,
     TransactionListEntry,
     UsdCents,
 } from '../types'
 import { RpcFeeDetails, RpcRoomId } from '../types/bindings'
-import amountUtils from '../utils/AmountUtils'
 import {
     makeBase64CSVUri,
     makeCSVFilename,
@@ -528,15 +525,79 @@ export type FeeItem = {
     formattedAmount: string
 }
 
-// Ecash fees are ppm values specified in the federations feeSchedule so we calculate
-// the fee from the amount and provide all formatted UI display content
+export function useEcashFeeDetails(
+    amount: MSats | undefined,
+    federationId: string | undefined,
+) {
+    const fedimint = useFedimint()
+    const [feeDetails, setFeeDetails] = useState<RpcFeeDetails>()
+
+    useEffect(() => {
+        if (!amount || !federationId) {
+            setFeeDetails(undefined)
+            return
+        }
+
+        let cancelled = false
+        fedimint
+            .estimateEcashFees(amount, federationId)
+            .then(fees => {
+                if (!cancelled) setFeeDetails(fees)
+            })
+            .catch(() => {
+                if (!cancelled) setFeeDetails(undefined)
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [amount, federationId, fedimint])
+
+    return feeDetails
+}
+
+export function useStabilityPoolDepositFeeDetails(
+    amount: MSats | undefined,
+    federationId: string | undefined,
+) {
+    const fedimint = useFedimint()
+    const stabilityPoolVersion = useCommonSelector(s =>
+        federationId ? selectStabilityPoolVersion(s, federationId) : undefined,
+    )
+    const [feeDetails, setFeeDetails] = useState<RpcFeeDetails>()
+
+    useEffect(() => {
+        if (!amount || !federationId || !stabilityPoolVersion) {
+            setFeeDetails(undefined)
+            return
+        }
+
+        const estimateFees =
+            stabilityPoolVersion === 2
+                ? fedimint.estimateSPv2DepositFees(amount, federationId)
+                : fedimint.estimateStabilityPoolDepositFees(
+                      amount,
+                      federationId,
+                  )
+
+        let cancelled = false
+        estimateFees
+            .then(fees => {
+                if (!cancelled) setFeeDetails(fees)
+            })
+            .catch(() => {
+                if (!cancelled) setFeeDetails(undefined)
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [amount, federationId, fedimint, stabilityPoolVersion])
+
+    return feeDetails
+}
+
 export function useFeeDisplayUtils(t: TFunction, federationId: string) {
-    const ecashFeeSchedule = useCommonSelector(s =>
-        selectEcashFeeSchedule(s, federationId),
-    )
-    const stabilityPoolFeeSchedule = useCommonSelector(s =>
-        selectStabilityPoolFeeSchedule(s, federationId),
-    )
     const stabilityPoolAverageFeeRate = useCommonSelector(s =>
         selectStabilityPoolAverageFeeRate(s, federationId),
     )
@@ -548,26 +609,29 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
         selectFederationStabilityPoolConfig(s, federationId),
     )
 
-    const makeEcashFeeContent = (amount: MSats) => {
-        let fediFee: MSats = 0 as MSats
-        let federationFee: MSats = 0 as MSats
-        // Fedi fee for sending ecash is calculated from the federation fee schedule
-        if (ecashFeeSchedule) {
-            fediFee = (amount * (ecashFeeSchedule.sendPpm / 1000000)) as MSats
-            // Federation fee is hard-coded to 0 sats for now
-            // TODO: fetch this from bridge
-            federationFee = 0 as MSats
+    const makeEcashFeeContent = (amount: MSats, feeDetails?: RpcFeeDetails) => {
+        if (!feeDetails) {
+            return {
+                feeItemsBreakdown: [],
+                formattedTotalFee: '',
+                formattedTotalAmount: '',
+            }
         }
-        const totalFees: MSats = (fediFee + federationFee) as MSats
+
+        const totalFees = sumFeeDetails(feeDetails)
 
         const {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
-        } = makeFormattedAmountsFromMSats(fediFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.fediAppFee)
+        const {
+            formattedPrimaryAmount: formattedGuardianFee,
+            formattedSecondaryAmount: formattedGuardianFeeSecondary,
+        } = makeFormattedAmountsFromMSats(feeDetails.fediGuardianFee)
         const {
             formattedPrimaryAmount: formattedFederationFee,
             formattedSecondaryAmount: formattedFederationFeeSecondary,
-        } = makeFormattedAmountsFromMSats(federationFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.federationFee)
         const { formattedPrimaryAmount: formattedTotalFee } =
             makeFormattedAmountsFromMSats(totalFees)
         const { formattedPrimaryAmount: formattedTotalAmount } =
@@ -577,6 +641,10 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
+            },
+            {
+                label: t('phrases.guardian-fee'),
+                formattedAmount: `${formattedGuardianFee} (${formattedGuardianFeeSecondary})`,
             },
             {
                 label: t('phrases.federation-fee'),
@@ -690,28 +758,28 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
         }
     }
 
-    const makeSPDepositFeeContent = (amount: Sats) => {
-        const amountMsats = amountUtils.satToMsat(amount)
-        let fediFee: MSats = 0 as MSats
-        let federationFee: MSats = 0 as MSats
-        // Fedi fee for sending ecash is calculated from the federation fee schedule
-        if (stabilityPoolFeeSchedule) {
-            fediFee = (amountMsats *
-                (stabilityPoolFeeSchedule.sendPpm / 1000000)) as MSats
-            // Federation fee is hard-coded to 0 sats for now
-            // TODO: fetch this from bridge
-            federationFee = 0 as MSats
+    const makeSPDepositFeeContent = (feeDetails?: RpcFeeDetails) => {
+        if (!feeDetails) {
+            return {
+                feeItemsBreakdown: [],
+                formattedTotalFee: '',
+            }
         }
-        const totalFees: MSats = (fediFee + federationFee) as MSats
+
+        const totalFees = sumFeeDetails(feeDetails)
 
         const {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
-        } = makeFormattedAmountsFromMSats(fediFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.fediAppFee)
+        const {
+            formattedPrimaryAmount: formattedGuardianFee,
+            formattedSecondaryAmount: formattedGuardianFeeSecondary,
+        } = makeFormattedAmountsFromMSats(feeDetails.fediGuardianFee)
         const {
             formattedPrimaryAmount: formattedFederationFee,
             formattedSecondaryAmount: formattedFederationFeeSecondary,
-        } = makeFormattedAmountsFromMSats(federationFee)
+        } = makeFormattedAmountsFromMSats(feeDetails.federationFee)
         const { formattedPrimaryAmount: formattedTotalFee } =
             makeFormattedAmountsFromMSats(totalFees)
 
@@ -732,6 +800,10 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
+            },
+            {
+                label: t('phrases.guardian-fee'),
+                formattedAmount: `${formattedGuardianFee} (${formattedGuardianFeeSecondary})`,
             },
             {
                 label: t('phrases.federation-fee'),
