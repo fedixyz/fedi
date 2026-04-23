@@ -5,11 +5,26 @@ import {
     useMatrixFormEvent,
     useMatrixPaymentTransaction,
     useMentionInput,
+    useMatrixRoomPreview,
 } from '@fedi/common/hooks/matrix'
-import { setupStore, setMatrixAuth } from '@fedi/common/redux'
-import { MatrixAuth, MatrixRoomMember, MentionSelect } from '@fedi/common/types'
-
 import {
+    addMatrixRoomInfo,
+    handleMatrixRoomListStreamUpdates,
+    setChatDraft,
+    setMatrixAuth,
+    setMatrixRoomPowerLevels,
+    setupStore,
+} from '@fedi/common/redux'
+import {
+    MatrixAuth,
+    MatrixRoom,
+    MatrixRoomMember,
+    MentionSelect,
+} from '@fedi/common/types'
+
+import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
+import {
+    createMockNonPaymentEvent,
     createMockPaymentEvent,
     createMockFormEvent,
     mockRoomMembers,
@@ -21,6 +36,110 @@ import {
 } from '../../utils/fedimint'
 import { renderHookWithState } from '../../utils/render'
 import { createMockT } from '../../utils/setup'
+
+function addMatrixRoomToStore(
+    store: ReturnType<typeof setupStore>,
+    room: MatrixRoom,
+) {
+    store.dispatch(addMatrixRoomInfo(room))
+    store.dispatch(
+        handleMatrixRoomListStreamUpdates([
+            {
+                Append: {
+                    values: [
+                        {
+                            status: 'ready' as const,
+                            id: room.id,
+                        },
+                    ],
+                },
+            },
+        ]),
+    )
+}
+
+describe('useMatrixRoomPreview', () => {
+    let store: ReturnType<typeof setupStore>
+
+    beforeEach(() => {
+        jest.clearAllMocks()
+        store = setupStore()
+    })
+
+    it('should ignore unrelated room updates while keeping preview fields current', () => {
+        const roomId = '!room:example.com'
+        const otherRoomId = '!other-room:example.com'
+        const previewBody = 'latest message'
+        const t = createMockT()
+        let renderCount = 0
+
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            preview: createMockNonPaymentEvent({
+                roomId,
+                content: {
+                    body: previewBody,
+                },
+            }),
+        })
+
+        const { result } = renderHookWithState(() => {
+            renderCount += 1
+            return useMatrixRoomPreview({ roomId, t })
+        }, store)
+
+        expect(result.current).toEqual({
+            text: previewBody,
+            isUnread: false,
+            isNotice: false,
+            isPublicBroadcast: null,
+        })
+
+        const renderCountAfterInitialRender = renderCount
+
+        act(() => {
+            store.dispatch(
+                setChatDraft({
+                    roomId: otherRoomId,
+                    text: 'unrelated draft',
+                }),
+            )
+        })
+        expect(renderCount).toBe(renderCountAfterInitialRender)
+
+        act(() => {
+            store.dispatch(
+                setMatrixRoomPowerLevels({
+                    roomId,
+                    powerLevels: {
+                        events: {
+                            'm.room.message': 0,
+                        },
+                    },
+                }),
+            )
+        })
+        expect(renderCount).toBe(renderCountAfterInitialRender)
+
+        act(() => {
+            store.dispatch(
+                setChatDraft({
+                    roomId,
+                    text: 'current room draft',
+                }),
+            )
+        })
+
+        expect(renderCount).toBe(renderCountAfterInitialRender + 1)
+        expect(result.current).toEqual({
+            text: 'feature.chat.draft-text',
+            isUnread: false,
+            isNotice: 'current room draft',
+            isPublicBroadcast: null,
+        })
+    })
+})
 
 /*
 // Payment Transaction Hook Tests

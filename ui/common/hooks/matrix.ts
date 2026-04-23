@@ -1482,12 +1482,16 @@ export function useMatrixRoomPreview({
     roomId: string
     t: TFunction
 }) {
-    const matrixRoom = useCommonSelector(s => selectMatrixRoom(s, roomId))
-    const defaultRoom = useCommonSelector(s =>
-        selectDefaultMatrixRoom(s, roomId),
+    const matrixRoom = useCommonSelector<MatrixRoom | undefined>(
+        s => selectMatrixRoom(s, roomId),
+        areMatrixRoomPreviewInputsEqual,
     )
-    const roomDraft = useCommonSelector(selectChatDrafts)[matrixRoom?.id || '']
-    const myId = useCommonSelector(selectMatrixAuth)?.userId
+    const defaultRoom = useCommonSelector<MatrixRoom | undefined>(
+        s => selectDefaultMatrixRoom(s, roomId),
+        areMatrixRoomPreviewInputsEqual,
+    )
+    const roomDraft = useCommonSelector(s => selectChatDrafts(s)[roomId])
+    const myId = useCommonSelector(s => selectMatrixAuth(s)?.userId)
 
     const isPublicBroadcast = matrixRoom?.isPublic && matrixRoom.broadcastOnly
 
@@ -1552,6 +1556,22 @@ export function useMatrixRoomPreview({
         isNotice,
         isPublicBroadcast,
     }
+}
+
+function areMatrixRoomPreviewInputsEqual(prev?: MatrixRoom, next?: MatrixRoom) {
+    if (prev === next) return true
+    if (!prev || !next) return prev === next
+
+    return (
+        prev.id === next.id &&
+        prev.preview === next.preview &&
+        prev.notificationCount === next.notificationCount &&
+        prev.isMarkedUnread === next.isMarkedUnread &&
+        prev.isBlocked === next.isBlocked &&
+        prev.broadcastOnly === next.broadcastOnly &&
+        prev.isPublic === next.isPublic &&
+        prev.roomState === next.roomState
+    )
 }
 
 /**

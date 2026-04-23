@@ -1,4 +1,5 @@
 import { Theme, useTheme } from '@rneui/themed'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
@@ -63,6 +64,31 @@ const ChatRoomTile = ({ room, onSelect, onLongPress }: ChatRoomTileProps) => {
     )
 }
 
+const areChatRoomTilePropsEqual = (
+    prev: ChatRoomTileProps,
+    next: ChatRoomTileProps,
+) => {
+    if (prev.onSelect !== next.onSelect) return false
+    if (prev.onLongPress !== next.onLongPress) return false
+
+    const prevRoom = prev.room
+    const nextRoom = next.room
+
+    return (
+        prevRoom.id === nextRoom.id &&
+        prevRoom.name === nextRoom.name &&
+        prevRoom.isDirect === nextRoom.isDirect &&
+        prevRoom.broadcastOnly === nextRoom.broadcastOnly &&
+        prevRoom.avatarUrl === nextRoom.avatarUrl &&
+        prevRoom.directUserId === nextRoom.directUserId &&
+        prevRoom.isBlocked === nextRoom.isBlocked &&
+        prevRoom.roomState === nextRoom.roomState &&
+        prevRoom.notificationCount === nextRoom.notificationCount &&
+        prevRoom.isMarkedUnread === nextRoom.isMarkedUnread &&
+        prevRoom.preview === nextRoom.preview
+    )
+}
+
 const styles = (theme: Theme) =>
     StyleSheet.create({
         messagePreview: {
@@ -84,4 +110,4 @@ const styles = (theme: Theme) =>
         },
     })
 
-export default ChatRoomTile
+export default memo(ChatRoomTile, areChatRoomTilePropsEqual)

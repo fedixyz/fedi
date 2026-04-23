@@ -36,7 +36,7 @@ const ChatsList: React.FC = () => {
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
 
-    const rooms = useAppSelector(selectMatrixChatsList)
+    const rooms = useAppSelector(selectMatrixChatsList, areChatListRoomsEqual)
     const syncStatus = useAppSelector(selectMatrixStatus)
     const [isRefetching, setIsRefetching] = useState(false)
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
@@ -143,5 +143,30 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.sm,
         },
     })
+
+function areChatListRoomsEqual(prev: MatrixRoom[], next: MatrixRoom[]) {
+    if (prev === next) return true
+    if (prev.length !== next.length) return false
+
+    return prev.every((prevRoom, index) =>
+        areChatListRoomEqual(prevRoom, next[index]),
+    )
+}
+
+function areChatListRoomEqual(prevRoom: MatrixRoom, nextRoom: MatrixRoom) {
+    return (
+        prevRoom.id === nextRoom.id &&
+        prevRoom.name === nextRoom.name &&
+        prevRoom.isDirect === nextRoom.isDirect &&
+        prevRoom.broadcastOnly === nextRoom.broadcastOnly &&
+        prevRoom.avatarUrl === nextRoom.avatarUrl &&
+        prevRoom.directUserId === nextRoom.directUserId &&
+        prevRoom.isBlocked === nextRoom.isBlocked &&
+        prevRoom.roomState === nextRoom.roomState &&
+        prevRoom.notificationCount === nextRoom.notificationCount &&
+        prevRoom.isMarkedUnread === nextRoom.isMarkedUnread &&
+        prevRoom.preview === nextRoom.preview
+    )
+}
 
 export default ChatsList
