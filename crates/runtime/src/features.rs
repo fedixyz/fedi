@@ -239,7 +239,7 @@ impl FeatureCatalog {
                 invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
             },
             guardianito: GuardianitoFeatureConfig {
-                api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
+                api_base_url: Url::parse("https://staging-porteiro.dev.fedibtc.com")
                     .expect("guardianito url must be valid"),
             },
             fedi_fee: FediFeeConfig {
@@ -288,7 +288,7 @@ impl FeatureCatalog {
                 invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
             },
             guardianito: GuardianitoFeatureConfig {
-                api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
+                api_base_url: Url::parse("https://staging-porteiro.dev.fedibtc.com")
                     .expect("guardianito url must be valid"),
             },
             fedi_fee: FediFeeConfig {
@@ -329,7 +329,7 @@ impl FeatureCatalog {
                 invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
             },
             guardianito: GuardianitoFeatureConfig {
-                api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
+                api_base_url: Url::parse("https://staging-porteiro.dev.fedibtc.com")
                     .expect("guardianito url must be valid"),
             },
             fedi_fee: FediFeeConfig {
