@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native'
 
 import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
 import dateUtils from '@fedi/common/utils/DateUtils'
+import { areChatListRoomRenderFieldsEqual } from '@fedi/common/utils/matrix'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
 import { MatrixRoom } from '../../../types'
@@ -70,23 +71,7 @@ const areChatRoomTilePropsEqual = (
 ) => {
     if (prev.onSelect !== next.onSelect) return false
     if (prev.onLongPress !== next.onLongPress) return false
-
-    const prevRoom = prev.room
-    const nextRoom = next.room
-
-    return (
-        prevRoom.id === nextRoom.id &&
-        prevRoom.name === nextRoom.name &&
-        prevRoom.isDirect === nextRoom.isDirect &&
-        prevRoom.broadcastOnly === nextRoom.broadcastOnly &&
-        prevRoom.avatarUrl === nextRoom.avatarUrl &&
-        prevRoom.directUserId === nextRoom.directUserId &&
-        prevRoom.isBlocked === nextRoom.isBlocked &&
-        prevRoom.roomState === nextRoom.roomState &&
-        prevRoom.notificationCount === nextRoom.notificationCount &&
-        prevRoom.isMarkedUnread === nextRoom.isMarkedUnread &&
-        prevRoom.preview === nextRoom.preview
-    )
+    return areChatListRoomRenderFieldsEqual(prev.room, next.room)
 }
 
 const styles = (theme: Theme) =>

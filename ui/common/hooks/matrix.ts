@@ -91,6 +91,7 @@ import {
     isTextEvent,
     shouldShowUnreadIndicator,
     getRoomPreviewText,
+    areMatrixRoomPreviewInputsEqual,
 } from '../utils/matrix'
 import { useAmountFormatter } from './amount'
 import { useFedimint } from './fedimint'
@@ -1556,22 +1557,6 @@ export function useMatrixRoomPreview({
         isNotice,
         isPublicBroadcast,
     }
-}
-
-function areMatrixRoomPreviewInputsEqual(prev?: MatrixRoom, next?: MatrixRoom) {
-    if (prev === next) return true
-    if (!prev || !next) return prev === next
-
-    return (
-        prev.id === next.id &&
-        prev.preview === next.preview &&
-        prev.notificationCount === next.notificationCount &&
-        prev.isMarkedUnread === next.isMarkedUnread &&
-        prev.isBlocked === next.isBlocked &&
-        prev.broadcastOnly === next.broadcastOnly &&
-        prev.isPublic === next.isPublic &&
-        prev.roomState === next.roomState
-    )
 }
 
 /**

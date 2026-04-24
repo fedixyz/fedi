@@ -3,6 +3,11 @@ import assert from 'assert'
 import { MatrixEvent, MatrixMultispendEvent, MatrixRoom } from '../../../types'
 import { RpcTimelineEventItemId } from '../../../types/bindings'
 import {
+    CHAT_LIST_ROOM_RENDER_FIELDS,
+    MATRIX_ROOM_PREVIEW_INPUT_FIELDS,
+    areChatListRoomRenderFieldsEqual,
+    areChatListRoomsEqual,
+    areMatrixRoomPreviewInputsEqual,
     decodeFediMatrixUserUri,
     encodeFediMatrixUserUri,
     filterMultispendEvents,
@@ -18,6 +23,7 @@ import {
     getRoomPreviewText,
 } from '../../../utils/matrix'
 import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
+import { createMockNonPaymentEvent } from '../../mock-data/matrix-event'
 import { createMockT } from '../../utils/setup'
 
 describe('encodeFediMatrixUserUri', () => {
@@ -418,6 +424,134 @@ describe('Reply utility functions', () => {
             expect(result).toBe(
                 '> incomplete quote without user\n\nreply content',
             )
+        })
+    })
+})
+
+describe('room equality helpers (drift-prevention)', () => {
+    const samplePreview = createMockNonPaymentEvent({
+        roomId: MOCK_MATRIX_ROOM.id,
+        content: { body: 'hello' },
+    })
+
+    const chatListFieldMutations = {
+        id: { id: 'other-id' },
+        name: { name: 'other-name' },
+        isDirect: { isDirect: true },
+        broadcastOnly: { broadcastOnly: true },
+        avatarUrl: { avatarUrl: 'https://example.com/a.png' },
+        directUserId: { directUserId: '@user:example.com' },
+        isBlocked: { isBlocked: true },
+        roomState: { roomState: 'invited' },
+        notificationCount: { notificationCount: 5 },
+        isMarkedUnread: { isMarkedUnread: true },
+        preview: { preview: samplePreview },
+    } satisfies Record<
+        (typeof CHAT_LIST_ROOM_RENDER_FIELDS)[number],
+        Partial<MatrixRoom>
+    >
+
+    const previewInputFieldMutations = {
+        id: { id: 'other-id' },
+        preview: { preview: samplePreview },
+        notificationCount: { notificationCount: 5 },
+        isMarkedUnread: { isMarkedUnread: true },
+        isBlocked: { isBlocked: true },
+        broadcastOnly: { broadcastOnly: true },
+        isPublic: { isPublic: true },
+        roomState: { roomState: 'invited' },
+    } satisfies Record<
+        (typeof MATRIX_ROOM_PREVIEW_INPUT_FIELDS)[number],
+        Partial<MatrixRoom>
+    >
+
+    describe('areChatListRoomRenderFieldsEqual', () => {
+        it('returns true for equal rooms', () => {
+            const a = { ...MOCK_MATRIX_ROOM }
+            const b = { ...MOCK_MATRIX_ROOM }
+            expect(areChatListRoomRenderFieldsEqual(a, b)).toBe(true)
+        })
+
+        it.each(CHAT_LIST_ROOM_RENDER_FIELDS)(
+            'detects changes to %s',
+            field => {
+                const mutated = {
+                    ...MOCK_MATRIX_ROOM,
+                    ...chatListFieldMutations[field],
+                }
+                expect(
+                    areChatListRoomRenderFieldsEqual(MOCK_MATRIX_ROOM, mutated),
+                ).toBe(false)
+            },
+        )
+
+        it('ignores fields outside the render list', () => {
+            const mutated = { ...MOCK_MATRIX_ROOM, joinedMemberCount: 999 }
+            expect(
+                areChatListRoomRenderFieldsEqual(MOCK_MATRIX_ROOM, mutated),
+            ).toBe(true)
+        })
+    })
+
+    describe('areChatListRoomsEqual', () => {
+        it('treats the same array as equal', () => {
+            const rooms = [MOCK_MATRIX_ROOM]
+            expect(areChatListRoomsEqual(rooms, rooms)).toBe(true)
+        })
+
+        it('treats arrays of different lengths as unequal', () => {
+            expect(
+                areChatListRoomsEqual(
+                    [MOCK_MATRIX_ROOM],
+                    [MOCK_MATRIX_ROOM, MOCK_MATRIX_ROOM],
+                ),
+            ).toBe(false)
+        })
+
+        it('detects when any element differs on a tracked field', () => {
+            expect(
+                areChatListRoomsEqual(
+                    [MOCK_MATRIX_ROOM],
+                    [{ ...MOCK_MATRIX_ROOM, notificationCount: 3 }],
+                ),
+            ).toBe(false)
+        })
+    })
+
+    describe('areMatrixRoomPreviewInputsEqual', () => {
+        it('treats two undefineds as equal', () => {
+            expect(areMatrixRoomPreviewInputsEqual(undefined, undefined)).toBe(
+                true,
+            )
+        })
+
+        it('returns false when exactly one side is undefined', () => {
+            expect(
+                areMatrixRoomPreviewInputsEqual(MOCK_MATRIX_ROOM, undefined),
+            ).toBe(false)
+            expect(
+                areMatrixRoomPreviewInputsEqual(undefined, MOCK_MATRIX_ROOM),
+            ).toBe(false)
+        })
+
+        it.each(MATRIX_ROOM_PREVIEW_INPUT_FIELDS)(
+            'detects changes to %s',
+            field => {
+                const mutated = {
+                    ...MOCK_MATRIX_ROOM,
+                    ...previewInputFieldMutations[field],
+                }
+                expect(
+                    areMatrixRoomPreviewInputsEqual(MOCK_MATRIX_ROOM, mutated),
+                ).toBe(false)
+            },
+        )
+
+        it('ignores fields outside the preview input list', () => {
+            const mutated = { ...MOCK_MATRIX_ROOM, name: 'renamed' }
+            expect(
+                areMatrixRoomPreviewInputsEqual(MOCK_MATRIX_ROOM, mutated),
+            ).toBe(true)
         })
     })
 })

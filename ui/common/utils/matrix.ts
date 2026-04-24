@@ -1572,6 +1572,59 @@ export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
     return getEventBodyPreview(preview)
 }
 
+export const CHAT_LIST_ROOM_RENDER_FIELDS = [
+    'id',
+    'name',
+    'isDirect',
+    'broadcastOnly',
+    'avatarUrl',
+    'directUserId',
+    'isBlocked',
+    'roomState',
+    'notificationCount',
+    'isMarkedUnread',
+    'preview',
+] as const satisfies ReadonlyArray<keyof MatrixRoom>
+
+export const MATRIX_ROOM_PREVIEW_INPUT_FIELDS = [
+    'id',
+    'preview',
+    'notificationCount',
+    'isMarkedUnread',
+    'isBlocked',
+    'broadcastOnly',
+    'isPublic',
+    'roomState',
+] as const satisfies ReadonlyArray<keyof MatrixRoom>
+
+export function areChatListRoomRenderFieldsEqual(
+    prev: MatrixRoom,
+    next: MatrixRoom,
+): boolean {
+    if (prev === next) return true
+    return CHAT_LIST_ROOM_RENDER_FIELDS.every(f => prev[f] === next[f])
+}
+
+export function areChatListRoomsEqual(
+    prev: MatrixRoom[],
+    next: MatrixRoom[],
+): boolean {
+    if (prev === next) return true
+    if (prev.length !== next.length) return false
+    return prev.every((prevRoom, i) =>
+        areChatListRoomRenderFieldsEqual(prevRoom, next[i]),
+    )
+}
+
+export function areMatrixRoomPreviewInputsEqual(
+    prev?: MatrixRoom,
+    next?: MatrixRoom,
+): boolean {
+    if (prev === next) return true
+    if (!prev || !next) return prev === next
+    return MATRIX_ROOM_PREVIEW_INPUT_FIELDS.every(f => prev[f] === next[f])
+}
+
 export function isPowerLevelGreaterOrEqual(
     powerLevel: RpcUserPowerLevel,
     threshold: RpcUserPowerLevel | number,
