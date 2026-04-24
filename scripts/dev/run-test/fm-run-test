@@ -37,7 +37,27 @@ on_exit() {
 trap on_error ERR
 trap on_exit EXIT
 
-command time -q --format="$time_fmt" -o "$time_out_path" timeout -k 10 245 "$@" 2>&1 | ts -s > "$test_out_path"
+# We use process substitution `> >(ts ...)` instead of a pipe `| ts ...` to
+# prevent orphan daemon processes from blocking the script indefinitely.
+#
+# The test command spawns daemon processes (fedimintd, bitcoind, etc.) via
+# devimint. Many of these daemons call setsid() to create new sessions/process
+# groups. When `timeout` fires, it sends signals to its child's process group,
+# but daemons in different groups survive as orphans.
+#
+# With a pipeline (`timeout ... "$@" 2>&1 | ts`), bash waits for ALL pipeline
+# components to finish. Orphan daemons inherit the pipe's write-end FD through
+# the fork chain. After timeout kills the main test and exits, the pipe's write
+# end stays open (held by orphans), so `ts` blocks on read() waiting for EOF.
+# Since bash waits for `ts`, the pipeline never completes, the ERR trap never
+# fires, and GNU parallel's hard timeout eventually kills the entire job —
+# with no diagnostic output.
+#
+# With process substitution, bash only waits for the main command, not for the
+# `ts` process inside `>(...)`. When timeout kills the test and exits, bash
+# immediately proceeds — regardless of whether orphan daemons are still holding
+# the FIFO write end open and keeping `ts` alive in the background.
+command time -q --format="$time_fmt" -o "$time_out_path" timeout -k 10 245 "$@" > >(ts -s > "$test_out_path") 2>&1
 
 awk 'BEGIN {FS="\t"} {printf "## STAT: %8.2fs %8dB %8dW %8dc\n", $1, $2, $3, $4}' < "$time_out_path"
 echo "## DONE: $test_name$version_str"
