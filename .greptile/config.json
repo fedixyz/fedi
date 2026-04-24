@@ -1,0 +1,12 @@
+{
+  "strictness": 3,
+  "summarySection": {
+    "included": false
+  },
+  "confidenceScoreSection": {
+    "included": false
+  },
+  "sequenceDiagramSection": {
+    "included": false
+  }
+}
