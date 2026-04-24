@@ -18,6 +18,9 @@ on:
     schedule: # runs every day at 2 UTC
         - cron: '0 2 * * *'
 
+permissions:
+  contents: read
+
 jobs:
     build-run-e2e-tests:
         name: 'Build & run end-to-end tests (React Native: iOS + Android)'

@@ -6,6 +6,9 @@ on:
 # It is only meant to be run manually by developers and should run
 # on the same MacOS runner that deploys builds to TestFlight
 
+permissions:
+  contents: read
+
 jobs:
     renew-ios-certs:
         name: Renew certificates for Apple App Store Connect

@@ -5,6 +5,9 @@ on:
         # will not fire for draft releases
         types: [published, edited]
 
+permissions:
+  contents: read
+
 jobs:
     deploy-public-apk:
         runs-on: [self-hosted, linux]

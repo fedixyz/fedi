@@ -2,6 +2,9 @@ name: Public Repo - Sync Or Resolve Conflicts
 on:
     workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
     sync-repos:
         runs-on: [self-hosted, linux]

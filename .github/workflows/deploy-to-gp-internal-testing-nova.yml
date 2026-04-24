@@ -3,6 +3,9 @@ on:
     workflow_dispatch:
     workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
     release-android:
         name: Build Android AAB & Upload to Google Play Dev Console

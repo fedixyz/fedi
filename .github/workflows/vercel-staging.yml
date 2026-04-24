@@ -15,6 +15,10 @@ on:
             - bridge/fedi-wasm/**
             - ui/web/**
             - ui/common/**
+
+permissions:
+  contents: read
+
 jobs:
     Deploy-Staging:
         runs-on: [self-hosted, linux]

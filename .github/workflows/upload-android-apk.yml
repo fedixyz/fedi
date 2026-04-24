@@ -2,9 +2,14 @@ name: Upload APK to GitHub
 on:
     workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
     release-android:
         name: Build Android APK and publish in GitHub draft release
+        permissions:
+            contents: write # softprops/action-gh-release creates draft GitHub releases
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo

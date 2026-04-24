@@ -6,6 +6,10 @@ on:
 # The version of this workflow on master should always be a no-op with a placeholder step
 # developers can branch off and add steps or scripts and then manually dispatch this workflow
 # from their branch to test what the CI run would look like
+
+permissions:
+  contents: read
+
 jobs:
     test-ci-workflow:
         name: Test CI Workflow

@@ -1,6 +1,10 @@
 name: Bump version - Native UI
 on:
     workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
     bump-version:
         permissions:
