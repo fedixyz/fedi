@@ -7,7 +7,7 @@ jobs:
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout script in repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
             - name: Install required node modules
               run: nix develop -c npm install @actions/exec @octokit/rest
             - name: Sync or resolve conflicts between public and private repositories

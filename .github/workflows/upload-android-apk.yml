@@ -8,15 +8,15 @@ jobs:
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
               with:
                   submodules: true
 
-            - uses: cachix/install-nix-action@v30
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
 
-            - uses: cachix/cachix-action@v15
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -61,7 +61,7 @@ jobs:
                   bash ./scripts/ci/verify-bridge-hash.sh "$APK_PATH" "${{ github.sha }}"
 
             - name: Create draft GitHub release with APK
-              uses: softprops/action-gh-release@v2.2.2
+              uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
               with:
                   tag_name: ${{ steps.prep-apk.outputs.APK_VERSION }}
                   name: '${{ steps.prep-apk.outputs.APK_VERSION }}'

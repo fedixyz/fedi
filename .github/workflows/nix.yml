@@ -47,7 +47,7 @@ jobs:
                   fi
                   echo "IS_PUSH_TO_TAG=$IS_PUSH_TO_TAG" >> $GITHUB_OUTPUT
             - name: Check out code
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
               with:
                   fetch-depth: 20
             - name: Check for changes outside 'ui/**'
@@ -76,11 +76,11 @@ jobs:
         runs-on: [self-hosted, linux]
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
-            - uses: cachix/install-nix-action@v30
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@v15
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -109,11 +109,11 @@ jobs:
             needs.precheck.outputs.IS_PUSH_TO_MASTER == '1' ||
             needs.precheck.outputs.IS_PUSH_TO_TAG == '1'
         steps:
-            - uses: actions/checkout@v4
-            - uses: cachix/install-nix-action@v30
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@v15
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -145,11 +145,11 @@ jobs:
         runs-on: [ self-hosted, linux ]
         timeout-minutes: 60
         steps:
-            - uses: actions/checkout@v4
-            - uses: cachix/install-nix-action@v30
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@v15
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -193,11 +193,11 @@ jobs:
         runs-on: [self-hosted, linux ]
         timeout-minutes: 60
         steps:
-            - uses: actions/checkout@v4
-            - uses: cachix/install-nix-action@v30
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@v15
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -220,11 +220,11 @@ jobs:
         runs-on: [self-hosted, macos, arm64, macstadium]
         timeout-minutes: 60
         steps:
-            - uses: actions/checkout@v4
-            - uses: cachix/install-nix-action@v30
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@v15
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -258,15 +258,15 @@ jobs:
         timeout-minutes: ${{ matrix.timeout }}
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
               if: github.ref == 'refs/heads/master' || matrix.build-in-pr
 
-            - uses: cachix/install-nix-action@v30
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               if: github.ref == 'refs/heads/master' || matrix.build-in-pr
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
 
-            - uses: cachix/cachix-action@v15
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
               if: github.ref == 'refs/heads/master' || matrix.build-in-pr
               with:
                   name: fedibtc
@@ -289,17 +289,17 @@ jobs:
       timeout-minutes: 30
       steps:
         - name: Checkout Code
-          uses: actions/checkout@v4
+          uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         - name: Prepare
           uses: ./.github/actions/prepare
-        - uses: actions/checkout@v4
-        - uses: cachix/install-nix-action@v30
+        - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
           with:
             nix_path: nixpkgs=channel:nixos-23.11
             extra_nix_config: |
               connect-timeout = 15
               stalled-download-timeout = 15
-        - uses: cachix/cachix-action@v15
+        - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
           with:
             name: fedibtc
             authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -330,7 +330,7 @@ jobs:
 
         - name: Login to Docker Hub
           if: github.ref == 'refs/heads/master' || github.ref_type == 'tag'
-          uses: docker/login-action@v3
+          uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
           with:
             username: dawidfedi
             password: ${{ secrets.DOCKER_HUB_DAWIDFEDI_ACCESS_TOKEN }}
