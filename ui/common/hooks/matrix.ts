@@ -91,6 +91,7 @@ import {
     isTextEvent,
     shouldShowUnreadIndicator,
     getRoomPreviewText,
+    areChatListRoomsEqual,
     areMatrixRoomPreviewInputsEqual,
 } from '../utils/matrix'
 import { useAmountFormatter } from './amount'
@@ -134,7 +135,10 @@ export function useChatsListSearch(initialQuery?: string) {
     const chatsListSearchQuery = useCommonSelector(
         s => s.matrix.chatsListSearchQuery,
     )
-    const chatsList = useCommonSelector(s => selectMatrixChatsList(s))
+    const chatsList = useCommonSelector<MatrixRoom[]>(
+        s => selectMatrixChatsList(s),
+        areChatListRoomsEqual,
+    )
 
     const filteredChatsList = useMemo(() => {
         if (!chatsListSearchQuery) return chatsList

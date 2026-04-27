@@ -6,6 +6,7 @@ import {
     useMatrixPaymentTransaction,
     useMentionInput,
     useMatrixRoomPreview,
+    useChatsListSearch,
 } from '@fedi/common/hooks/matrix'
 import {
     addMatrixRoomInfo,
@@ -17,6 +18,7 @@ import {
 } from '@fedi/common/redux'
 import {
     MatrixAuth,
+    MatrixPowerLevel,
     MatrixRoom,
     MatrixRoomMember,
     MentionSelect,
@@ -138,6 +140,68 @@ describe('useMatrixRoomPreview', () => {
             isNotice: 'current room draft',
             isPublicBroadcast: null,
         })
+    })
+})
+
+describe('useChatsListSearch', () => {
+    let store: ReturnType<typeof setupStore>
+
+    beforeEach(() => {
+        jest.clearAllMocks()
+        store = setupStore()
+    })
+
+    it('should ignore equivalent chat list churn while keeping rendered fields current', () => {
+        const roomId = '!room:example.com'
+        let renderCount = 0
+
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            name: 'Alpha room',
+        })
+
+        const { result } = renderHookWithState(() => {
+            renderCount += 1
+            return useChatsListSearch()
+        }, store)
+
+        expect(result.current.filteredChatsList.map(room => room.id)).toEqual([
+            roomId,
+        ])
+
+        const renderCountAfterInitialRender = renderCount
+
+        act(() => {
+            store.dispatch(
+                setMatrixRoomPowerLevels({
+                    roomId,
+                    powerLevels: {
+                        events: {
+                            'm.room.message': MatrixPowerLevel.Member,
+                        },
+                    },
+                }),
+            )
+        })
+
+        expect(renderCount).toBe(renderCountAfterInitialRender)
+
+        act(() => {
+            store.dispatch(
+                setMatrixRoomPowerLevels({
+                    roomId,
+                    powerLevels: {
+                        events: {
+                            'm.room.message': MatrixPowerLevel.Moderator,
+                        },
+                    },
+                }),
+            )
+        })
+
+        expect(renderCount).toBe(renderCountAfterInitialRender + 1)
+        expect(result.current.filteredChatsList[0].broadcastOnly).toBe(true)
     })
 })
 

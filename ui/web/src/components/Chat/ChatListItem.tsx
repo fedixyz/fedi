@@ -5,7 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
 import { MatrixRoom } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
-import { shouldShowUnreadIndicator } from '@fedi/common/utils/matrix'
+import {
+    areChatListRoomRenderFieldsEqual,
+    shouldShowUnreadIndicator,
+} from '@fedi/common/utils/matrix'
 
 import { theme } from '../../styles'
 import { getMatrixPreviewIcon } from '../../utils/matrix'
@@ -16,7 +19,7 @@ interface Props {
     room: MatrixRoom
 }
 
-export const ChatListItem: React.FC<Props> = ({ room }) => {
+export const ChatListItem = React.memo(function ChatListItem({ room }: Props) {
     const { query } = useRouter()
 
     const isActive = room.id === query?.path?.[1]
@@ -65,4 +68,8 @@ export const ChatListItem: React.FC<Props> = ({ room }) => {
             showUnreadIndicator={showUnreadIndicator}
         />
     )
+}, areChatListItemPropsEqual)
+
+function areChatListItemPropsEqual(prev: Props, next: Props) {
+    return areChatListRoomRenderFieldsEqual(prev.room, next.room)
 }
