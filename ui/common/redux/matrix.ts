@@ -2514,10 +2514,9 @@ export const selectMatrixRoomMembersHaveLoaded = (
 ) => s.matrix.roomMembers[roomId] !== undefined
 
 export const selectMatrixRoomEvents = createSelector(
-    (s: CommonState) => s.matrix.roomTimelines,
-    (_s: CommonState, roomId: MatrixRoom['id']) => roomId,
-    (roomTimelines, roomId): MatrixEvent[] => {
-        const timeline = roomTimelines[roomId]
+    (s: CommonState, roomId: MatrixRoom['id']) =>
+        s.matrix.roomTimelines[roomId],
+    (timeline): MatrixEvent[] => {
         if (!timeline) return []
 
         // Filter out non-events from the timeline
@@ -2535,10 +2534,9 @@ export const selectMatrixRoomEvents = createSelector(
 )
 
 export const selectMatrixRoomRawEvents = createSelector(
-    (s: CommonState) => s.matrix.roomTimelines,
-    (_s: CommonState, roomId: MatrixRoom['id']) => roomId,
-    (roomTimelines, roomId): MatrixEvent[] => {
-        const timeline = roomTimelines[roomId]
+    (s: CommonState, roomId: MatrixRoom['id']) =>
+        s.matrix.roomTimelines[roomId],
+    (timeline): MatrixEvent[] => {
         if (!timeline) return []
 
         return timeline.filter((item): item is MatrixEvent => item !== null)
@@ -2546,10 +2544,9 @@ export const selectMatrixRoomRawEvents = createSelector(
 )
 
 export const selectMatrixRoomSelectableEventIds = createSelector(
-    (s: CommonState) => s.matrix.roomTimelines,
-    (_s: CommonState, roomId: MatrixRoom['id']) => roomId,
-    (roomTimelines, roomId) => {
-        const timeline = roomTimelines[roomId]
+    (s: CommonState, roomId: MatrixRoom['id']) =>
+        s.matrix.roomTimelines[roomId],
+    timeline => {
         if (!timeline) return []
 
         return timeline.flatMap(event => {
