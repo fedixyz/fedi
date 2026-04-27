@@ -7,6 +7,7 @@ export class OnboardingTest extends AppiumTestBase {
         await new Promise(resolve => setTimeout(resolve, 10000)) // waiting for 10 seconds for the username to generate
         await this.clickElementByKey('Get started')
         await this.clickElementByKey('ManualSetupButton')
+        await this.scrollToElement('FediTestnetJoinButton')
         await this.clickElementByKey('FediTestnetJoinButton')
         await this.clickElementByKey('JoinFederationButton')
         //TODO: validate the seed here

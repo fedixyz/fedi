@@ -6,17 +6,13 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 $REPO_ROOT/scripts/enforce-nix.sh
 
 if [[ -n "$CI" ]]; then
-    # run metro in background with logfile & PID
-    echo "ui: starting react-native metro bundler in CI"
     export ENABLE_LOGBOX=0
-    
+
     pushd $REPO_ROOT/ui/native
     yarn start > $REPO_ROOT/metro.log 2>&1 &
     echo $! > $REPO_ROOT/metro_pid.txt
     popd
-    
     sleep 5
-    cat $REPO_ROOT/metro.log
 else
     # prompt for LogBox setting
     echo "ui: starting react-native metro bundler"

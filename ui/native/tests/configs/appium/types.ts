@@ -18,6 +18,8 @@ export interface AppiumConfig {
     'appium:platformVersion'?: string
     'appium:bundleId'?: string
     'appium:includeSafariInWebviews'?: boolean
+    // Allow additional driver-specific capabilities
+    [key: `appium:${string}`]: string | number | boolean | undefined
 }
 
 export const currentPlatform: Platform = (() => {

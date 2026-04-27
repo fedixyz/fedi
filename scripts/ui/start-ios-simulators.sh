@@ -18,15 +18,15 @@ trap cleanup INT TERM
 declare -A DEVICE_TYPES
 declare -A RUNTIMES
 DEVICE_TYPES["ios-15"]="com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation"
-DEVICE_TYPES["ios-18"]="com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro"
+DEVICE_TYPES["ios-26"]="com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
 RUNTIMES["ios-15"]="com.apple.CoreSimulator.SimRuntime.iOS-15-5"
-RUNTIMES["ios-18"]="com.apple.CoreSimulator.SimRuntime.iOS-18-1"
+RUNTIMES["ios-26"]="com.apple.CoreSimulator.SimRuntime.iOS-26-4"
 
 # Extracts UDID or state from simulator list output `xcrun simctl list devices`
 # Usage: extract_sim_info "search_term" "udid|state"
 # sample output:
-#   iPhone SE (3rd generation) (58D0D47E-36DC-4E40-AF61-892FDDC36FA4) (Shutdown) 
-#   ios-18 (863FC926-F6BA-48D0-A8F1-3846A739CA4B) (Shutdown)
+#   iPhone SE (3rd generation) (58D0D47E-36DC-4E40-AF61-892FDDC36FA4) (Shutdown)
+#   ios-26 (863FC926-F6BA-48D0-A8F1-3846A739CA4B) (Shutdown)
 extract_sim_info() {
     local search_term="$1"
     local info_type="$2"
@@ -48,13 +48,13 @@ extract_sim_info() {
     esac
 }
 
-# In CI we start all configured simulators; locally we only start ios-18
+# In CI we start all configured simulators; locally we only start ios-26
 if [[ -n "${CI:-}" ]]; then
     echo "Starting all configured iOS simulators for CI"
-    SIM_NAMES=("ios-15" "ios-18")
+    SIM_NAMES=("ios-15" "ios-26")
 else
-    echo "Starting only ios-18 simulator for development"
-    SIM_NAMES=("ios-18")
+    echo "Starting only ios-26 simulator for development"
+    SIM_NAMES=("ios-26")
 fi
 
 create_simulator() {
@@ -134,7 +134,7 @@ done
 echo "Exporting simulator UUIDs for test scripts..."
 for sim_name in "${SIM_NAMES[@]}"; do
     udid="${SIMULATOR_UDIDS[$sim_name]}"
-    # Convert ios-15 -> IOS_15_UDID, ios-18 -> IOS_18_UDID
+    # Convert ios-15 -> IOS_15_UDID, ios-26 -> IOS_26_UDID
     env_var_name=$(echo "$sim_name" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_UDID
     
     export "$env_var_name"="$udid"

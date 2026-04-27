@@ -22,12 +22,20 @@ cleanup() {
 trap cleanup INT TERM
 
 # makes sure the defined android virtual devices exist and can be booted
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64)        ABI="x86_64" ;;
+    arm64|aarch64) ABI="arm64-v8a" ;;
+    *) echo "ERROR: Unsupported architecture: $ARCH"; exit 1 ;;
+esac
+echo "Host architecture: $ARCH -> using ABI: $ABI"
+
 declare -A AVD_CONFIGS
 declare -A SCREEN_WIDTH
 declare -A SCREEN_HEIGHT
 declare -A SCREEN_DENSITY
-AVD_CONFIGS["android-14"]="system-images;android-34;google_apis;arm64-v8a"
-AVD_CONFIGS["android-7.1"]="system-images;android-25;google_apis;arm64-v8a"
+AVD_CONFIGS["android-14"]="system-images;android-34;google_apis;${ABI}"
+AVD_CONFIGS["android-7.1"]="system-images;android-25;google_apis;${ABI}"
 # Screen dimensions per device
 SCREEN_WIDTH["android-14"]=1440
 SCREEN_HEIGHT["android-14"]=3120

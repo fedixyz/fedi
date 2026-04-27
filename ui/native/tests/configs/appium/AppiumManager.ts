@@ -31,6 +31,8 @@ const getCapabilities = (): AppiumConfig => {
             'appium:appPackage': config.APP_PACKAGE || 'com.fedi',
             'appium:appActivity':
                 config.APP_ACTIVITY || '' /*'com.fedi.MainActivity'*/,
+            'appium:uiautomator2ServerInstallTimeout': 120000,
+            'appium:uiautomator2ServerLaunchTimeout': 120000,
         }
     } else {
         return {
@@ -40,6 +42,12 @@ const getCapabilities = (): AppiumConfig => {
             'appium:udid': config.DEVICE_ID || process.env.DEVICE_ID,
             'appium:bundleId': config.BUNDLE_ID || 'org.fedi.alpha',
             'appium:includeSafariInWebviews': true,
+            'appium:wdaStartupRetries': 4,
+            'appium:wdaStartupRetryInterval': 20000,
+            'appium:wdaLaunchTimeout': 120000,
+            'appium:wdaConnectionTimeout': 120000,
+            'appium:simulatorStartupTimeout': 120000,
+            'appium:connectHardwareKeyboard': false,
         }
     }
 }
@@ -70,10 +78,11 @@ export default class AppiumManager {
                 throw error
             }
 
+            const appiumPort = parseInt(process.env.APPIUM_PORT || '4723', 10)
             this.driver = await remote({
                 protocol: 'http',
                 hostname: '127.0.0.1',
-                port: 4723,
+                port: appiumPort,
                 path: '/',
                 capabilities: getCapabilities(),
             })
