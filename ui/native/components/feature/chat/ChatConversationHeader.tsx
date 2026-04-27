@@ -147,7 +147,7 @@ const ChatConversationHeader: React.FC = () => {
                             onPress={() => navigateToRoom()}
                             style={style.headerButton}>
                             <SvgImage
-                                name="Profile"
+                                name="Cog"
                                 maxFontSizeMultiplier={
                                     theme.multipliers.headerMaxFontMultiplier
                                 }
