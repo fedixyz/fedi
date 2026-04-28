@@ -1,5 +1,5 @@
 import { useTheme, Theme } from '@rneui/themed'
-import React, { memo, useRef, useState, useEffect } from 'react'
+import React, { memo, useRef, useState, useEffect, useMemo } from 'react'
 import { StyleSheet, View, Animated } from 'react-native'
 import { Swipeable } from 'react-native-gesture-handler'
 
@@ -30,10 +30,17 @@ const ChatSwipeableEventContainer: React.FC<SwipeableEventContainerProps> =
         >(null)
         const [renderKey, setRenderKey] = useState(0)
 
+        const style = useMemo(() => styles(theme), [theme])
+        const hasMountedRef = useRef(false)
         const scaleAnim = useRef(new Animated.Value(1)).current
         const opacityAnim = useRef(new Animated.Value(1)).current
 
         useEffect(() => {
+            if (!hasMountedRef.current) {
+                hasMountedRef.current = true
+                return
+            }
+
             // Start with a nice entrance animation when the action becomes visible
             Animated.sequence([
                 Animated.parallel([
@@ -108,14 +115,12 @@ const ChatSwipeableEventContainer: React.FC<SwipeableEventContainerProps> =
                 <View
                     key={`${actionSide}-${renderKey}-${currentSwipeDirection || 'fallback'}`}
                     style={[
-                        styles(theme).actionContainer,
-                        isLeftSide
-                            ? styles(theme).leftAction
-                            : styles(theme).rightAction,
+                        style.actionContainer,
+                        isLeftSide ? style.leftAction : style.rightAction,
                     ]}>
                     <Animated.View
                         style={[
-                            styles(theme).action,
+                            style.action,
                             {
                                 transform: [{ scale: scaleAnim }],
                                 opacity: opacityAnim,
@@ -133,7 +138,7 @@ const ChatSwipeableEventContainer: React.FC<SwipeableEventContainerProps> =
         }
 
         return (
-            <View style={styles(theme).container}>
+            <View style={style.container}>
                 <Swipeable
                     ref={swipeRef}
                     renderLeftActions={() => {
