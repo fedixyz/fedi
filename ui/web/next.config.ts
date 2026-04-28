@@ -1,5 +1,9 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import bundleAnalyzer from '@next/bundle-analyzer'
+import type { NextConfig } from 'next'
+import nextPwa from 'next-pwa'
+
+const nextConfig: NextConfig = {
+    devIndicators: false,
     transpilePackages: ['@fedi/common'],
     webpack(config) {
         config.experiments = { asyncWebAssembly: true, layers: true }
@@ -28,13 +32,13 @@ const nextConfig = {
     },
 }
 
-const withPwa = require('next-pwa')({
+const withPwa = nextPwa({
     dest: 'public',
     customWorkerDir: 'src/worker',
 })
 
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
+const withBundleAnalyzer = bundleAnalyzer({
     enabled: !!process.env.ANALYZE_BUILD,
 })
 
-module.exports = withBundleAnalyzer(withPwa(nextConfig))
+export default withBundleAnalyzer(withPwa(nextConfig))

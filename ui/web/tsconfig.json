@@ -26,6 +26,6 @@
             "path": "../common"
         }
     ],
-    "include": ["next-env.d.ts", "src/types/*.d.ts", "src", "tests"],
+    "include": ["next-env.d.ts", "next.config.ts", "src", "tests"],
     "exclude": ["node_modules"]
 }

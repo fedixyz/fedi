@@ -8,6 +8,20 @@ const isReactNativeDevMode = () => {
     return typeof __DEV__ !== 'undefined' && __DEV__ === true
 }
 
+// If localhost string is detected, we're running locally
+export const isLocal = () => {
+    if (typeof window === 'undefined') return false
+    if (!window.location?.hostname) return false
+
+    const { hostname } = window.location
+
+    return (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1'
+    )
+}
+
 export const isDev = () => {
     return (
         (!!process && process.env.NODE_ENV === 'development') ||
