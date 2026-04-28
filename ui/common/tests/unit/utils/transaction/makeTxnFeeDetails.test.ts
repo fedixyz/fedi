@@ -66,7 +66,7 @@ describe('makeTxnFeeDetails', () => {
         })
     })
 
-    it('should display the guardian fee for success/pendingSend transactions', () => {
+    it('should display guardian fees as federation fees for success/pendingSend transactions', () => {
         const txn = makeTestTxnEntry('lnPay', {
             fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
@@ -87,12 +87,17 @@ describe('makeTxnFeeDetails', () => {
 
         expect(detailsFeeSuccess).toEqual(detailsFeePending)
         expect(detailsFeeSuccess).toContainEqual({
-            label: t('phrases.guardian-fee'),
+            label: t('phrases.federation-fee'),
             formattedAmount: '0.01 USD (10 SATS)',
         })
+        expect(detailsFeeSuccess.map(item => item.label)).toEqual([
+            t('phrases.federation-fee'),
+            t('phrases.lightning-network'),
+            t('phrases.total-fees'),
+        ])
     })
 
-    it('should display the guardian fee for success/pendingSend transactions', () => {
+    it('should display guardian fees as federation fees for success/pendingSend transactions', () => {
         const txn = makeTestTxnEntry('lnPay', {
             fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
@@ -113,7 +118,7 @@ describe('makeTxnFeeDetails', () => {
 
         expect(detailsFeeSuccess).toEqual(detailsFeePending)
         expect(detailsFeeSuccess).toContainEqual({
-            label: t('phrases.guardian-fee'),
+            label: t('phrases.federation-fee'),
             formattedAmount: '0.01 USD (10 SATS)',
         })
     })

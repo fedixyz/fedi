@@ -717,7 +717,7 @@ export const makeTxnFeeDetails = (
         totalFee += fediFee
     }
 
-    // Handle Guardian Fee
+    // Guardian fees are displayed as part of the federation fee.
     if (
         txn.fediGuardianFeeStatus &&
         // TODO: render "pending" txns differently than
@@ -729,7 +729,7 @@ export const makeTxnFeeDetails = (
         const { formattedPrimaryAmount, formattedSecondaryAmount } =
             makeFormattedAmountsFromMSats(guardianFee)
         items.push({
-            label: t('phrases.guardian-fee'),
+            label: t('phrases.federation-fee'),
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
         totalFee += guardianFee
@@ -758,8 +758,7 @@ export const makeTxnFeeDetails = (
         })
         totalFee += onchainFee
     }
-    // TODO - Add Federation Fee once RPC supports it
-    //  t('phrases.federation-fee'),
+    // TODO - Add non-guardian federation fees once RPC supports it.
 
     if (txn.kind === 'onchainDeposit') {
         const pegInFees = txn.peg_in_fees ?? (0 as MSats)
@@ -1048,7 +1047,7 @@ export const makeStabilityTxnFeeDetails = (
         totalFee += fediFee
     }
 
-    // Handle Guardian Fee
+    // Guardian fees are displayed as part of the federation fee.
     if (
         txn.fediGuardianFeeStatus &&
         // TODO: render "pending" txns differently than
@@ -1060,7 +1059,7 @@ export const makeStabilityTxnFeeDetails = (
         const { formattedPrimaryAmount, formattedSecondaryAmount } =
             makeFormattedAmountsFromMSats(guardianFee)
         items.push({
-            label: t('phrases.guardian-fee'),
+            label: t('phrases.federation-fee'),
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
         totalFee += guardianFee
@@ -1081,8 +1080,7 @@ export const makeStabilityTxnFeeDetails = (
         })
         totalFee += feesPaidSoFar
     }
-    // TODO - Add Federation Fee once RPC supports it
-    //  t('phrases.federation-fee'),
+    // TODO - Add non-guardian federation fees once RPC supports it.
 
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromMSats(totalFee as MSats)

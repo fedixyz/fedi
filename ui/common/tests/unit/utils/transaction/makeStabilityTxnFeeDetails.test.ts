@@ -55,7 +55,7 @@ describe('makeStabilityTxnDetailItems', () => {
         })
     })
 
-    it('should display the guardian fee for stability transactions', () => {
+    it('should display guardian fees as federation fees for stability transactions', () => {
         const txn = makeTestTxnEntry('sPV2Deposit', {
             fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
@@ -63,22 +63,32 @@ describe('makeStabilityTxnDetailItems', () => {
         expect(
             makeStabilityTxnFeeDetails(t, txn, makeFormattedAmountsFromMSats),
         ).toContainEqual({
-            label: t('phrases.guardian-fee'),
+            label: t('phrases.federation-fee'),
             formattedAmount: '0.01 USD (10 SATS)',
         })
     })
 
-    it('should display the guardian fee for stability transactions', () => {
+    it('should display guardian fees as federation fees for stability transactions', () => {
         const txn = makeTestTxnEntry('sPV2Deposit', {
             fediGuardianFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
 
-        expect(
-            makeStabilityTxnFeeDetails(t, txn, makeFormattedAmountsFromMSats),
-        ).toContainEqual({
-            label: t('phrases.guardian-fee'),
-            formattedAmount: '0.01 USD (10 SATS)',
-        })
+        const feeDetails = makeStabilityTxnFeeDetails(
+            t,
+            txn,
+            makeFormattedAmountsFromMSats,
+        )
+
+        expect(feeDetails).toEqual([
+            {
+                label: t('phrases.federation-fee'),
+                formattedAmount: '0.01 USD (10 SATS)',
+            },
+            {
+                label: t('phrases.total-fees'),
+                formattedAmount: '0.01 USD (10 SATS)',
+            },
+        ])
     })
 
     it('should display the fees paid (so far) for deposits', () => {

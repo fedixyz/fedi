@@ -624,14 +624,12 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
         } = makeFormattedAmountsFromMSats(feeDetails.fediAppFee)
-        const {
-            formattedPrimaryAmount: formattedGuardianFee,
-            formattedSecondaryAmount: formattedGuardianFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.fediGuardianFee)
+        const federationFeeWithGuardianFee = (feeDetails.federationFee +
+            feeDetails.fediGuardianFee) as MSats
         const {
             formattedPrimaryAmount: formattedFederationFee,
             formattedSecondaryAmount: formattedFederationFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.federationFee)
+        } = makeFormattedAmountsFromMSats(federationFeeWithGuardianFee)
         const { formattedPrimaryAmount: formattedTotalFee } =
             makeFormattedAmountsFromMSats(totalFees)
         const { formattedPrimaryAmount: formattedTotalAmount } =
@@ -641,10 +639,6 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
-            },
-            {
-                label: t('phrases.guardian-fee'),
-                formattedAmount: `${formattedGuardianFee} (${formattedGuardianFeeSecondary})`,
             },
             {
                 label: t('phrases.federation-fee'),
@@ -666,14 +660,12 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
         } = makeFormattedAmountsFromMSats(feeDetails.fediAppFee)
-        const {
-            formattedPrimaryAmount: formattedGuardianFee,
-            formattedSecondaryAmount: formattedGuardianFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.fediGuardianFee)
+        const federationFeeWithGuardianFee = (feeDetails.federationFee +
+            feeDetails.fediGuardianFee) as MSats
         const {
             formattedPrimaryAmount: formattedFederationFee,
             formattedSecondaryAmount: formattedFederationFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.federationFee)
+        } = makeFormattedAmountsFromMSats(federationFeeWithGuardianFee)
         const {
             formattedPrimaryAmount: formattedNetworkFee,
             formattedSecondaryAmount: formattedNetworkFeeSecondary,
@@ -685,10 +677,6 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
-            },
-            {
-                label: t('phrases.guardian-fee'),
-                formattedAmount: `${formattedGuardianFee} (${formattedGuardianFeeSecondary})`,
             },
             {
                 label: t('phrases.federation-fee'),
@@ -717,17 +705,15 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             formattedSecondaryAmount: formattedFediFeeSecondary,
         } = makeFormattedAmountsFromMSats(feeDetails.fediAppFee)
         const {
-            formattedPrimaryAmount: formattedGuardianFee,
-            formattedSecondaryAmount: formattedGuardianFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.fediGuardianFee)
-        const {
             formattedPrimaryAmount: formattedNetworkFee,
             formattedSecondaryAmount: formattedNetworkFeeSecondary,
         } = makeFormattedAmountsFromMSats(feeDetails.networkFee)
+        const federationFeeWithGuardianFee = (feeDetails.federationFee +
+            feeDetails.fediGuardianFee) as MSats
         const {
             formattedPrimaryAmount: formattedFederationFee,
             formattedSecondaryAmount: formattedFederationFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.federationFee)
+        } = makeFormattedAmountsFromMSats(federationFeeWithGuardianFee)
         const { formattedPrimaryAmount: formattedTotalFee } =
             makeFormattedAmountsFromMSats(onchainSendTotalFeeMsats)
 
@@ -735,10 +721,6 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
-            },
-            {
-                label: t('phrases.guardian-fee'),
-                formattedAmount: `${formattedGuardianFee} (${formattedGuardianFeeSecondary})`,
             },
             {
                 label: t('phrases.network-fee'),
@@ -772,14 +754,12 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             formattedPrimaryAmount: formattedFediFee,
             formattedSecondaryAmount: formattedFediFeeSecondary,
         } = makeFormattedAmountsFromMSats(feeDetails.fediAppFee)
-        const {
-            formattedPrimaryAmount: formattedGuardianFee,
-            formattedSecondaryAmount: formattedGuardianFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.fediGuardianFee)
+        const federationFeeWithGuardianFee = (feeDetails.federationFee +
+            feeDetails.fediGuardianFee) as MSats
         const {
             formattedPrimaryAmount: formattedFederationFee,
             formattedSecondaryAmount: formattedFederationFeeSecondary,
-        } = makeFormattedAmountsFromMSats(feeDetails.federationFee)
+        } = makeFormattedAmountsFromMSats(federationFeeWithGuardianFee)
         const { formattedPrimaryAmount: formattedTotalFee } =
             makeFormattedAmountsFromMSats(totalFees)
 
@@ -800,10 +780,6 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
             {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
-            },
-            {
-                label: t('phrases.guardian-fee'),
-                formattedAmount: `${formattedGuardianFee} (${formattedGuardianFeeSecondary})`,
             },
             {
                 label: t('phrases.federation-fee'),
