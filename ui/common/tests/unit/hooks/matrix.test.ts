@@ -11,7 +11,9 @@ import {
 import {
     addMatrixRoomInfo,
     handleMatrixRoomListStreamUpdates,
+    selectToast,
     setChatDraft,
+    setFederations,
     setMatrixAuth,
     setMatrixRoomPowerLevels,
     setupStore,
@@ -24,6 +26,7 @@ import {
     MentionSelect,
 } from '@fedi/common/types'
 
+import { mockFederation1 } from '../../mock-data/federation'
 import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
 import {
     createMockNonPaymentEvent,
@@ -431,6 +434,12 @@ describe('useMatrixFormEvent hook', () => {
     })
 
     describe('client actions', () => {
+        const guardianFederation = {
+            ...mockFederation1,
+            id: guardianFederationId,
+            inviteCode: guardianInviteCode,
+        }
+
         it('should sync Guardian fees remittance account in the response body', async () => {
             const t = createMockT()
             const sendMessage = jest.fn().mockResolvedValue(undefined)
@@ -440,6 +449,7 @@ describe('useMatrixFormEvent hook', () => {
                     serializedAccount: serializedGuardianAccount,
                 },
             })
+            store.dispatch(setFederations([guardianFederation]))
             mockFedimint.getMatrixClient = jest.fn().mockReturnValue({
                 sendMessage,
             }) as unknown as MockFedimintBridge['getMatrixClient']
@@ -502,6 +512,7 @@ describe('useMatrixFormEvent hook', () => {
             const mockFedimint = createMockFedimintBridge({
                 parseInviteCode: { federationId: guardianFederationId },
             })
+            store.dispatch(setFederations([guardianFederation]))
             mockFedimint.getMatrixClient = jest.fn().mockReturnValue({
                 sendMessage,
             }) as unknown as MockFedimintBridge['getMatrixClient']
@@ -543,6 +554,62 @@ describe('useMatrixFormEvent hook', () => {
                 guardianFederationId,
             )
             expect(sendMessage).not.toHaveBeenCalled()
+        })
+
+        it('should show an error and not open Guardian fees dashboard when federation is not joined', async () => {
+            const t = createMockT()
+            const sendMessage = jest.fn().mockResolvedValue(undefined)
+            const openGuardianFeesDashboard = jest
+                .fn()
+                .mockResolvedValue(undefined)
+            const mockFedimint = createMockFedimintBridge({
+                parseInviteCode: { federationId: guardianFederationId },
+            })
+            mockFedimint.getMatrixClient = jest.fn().mockReturnValue({
+                sendMessage,
+            }) as unknown as MockFedimintBridge['getMatrixClient']
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
+
+            const mockFormEvent = createMockFormEvent({
+                roomId: '!guardianito:m1.8fa.in',
+                sender: chatbotUserId,
+                content: {
+                    type: 'radio',
+                    options: [
+                        {
+                            value: 'open',
+                            label: 'Open dashboard',
+                            i18nKeyLabel: null,
+                            clientAction: {
+                                type: 'guardianFeesOpenDashboard',
+                                inviteCode: guardianInviteCode,
+                            },
+                        },
+                    ],
+                },
+            })
+
+            const { result } = renderHookWithState(
+                () =>
+                    useMatrixFormEvent(mockFormEvent, t, {
+                        openGuardianFeesDashboard,
+                    }),
+                store,
+                mockFedimint,
+            )
+
+            await act(async () => {
+                await result.current.options[0].handler()
+            })
+
+            expect(openGuardianFeesDashboard).not.toHaveBeenCalled()
+            expect(sendMessage).not.toHaveBeenCalled()
+            expect(selectToast(store.getState())).toEqual(
+                expect.objectContaining({
+                    content: 'errors.please-join-wallet-federation',
+                    status: 'error',
+                }),
+            )
         })
     })
 

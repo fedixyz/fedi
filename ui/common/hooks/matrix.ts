@@ -53,6 +53,7 @@ import {
     selectMatrixRoomSelectableEventIds,
     selectMatrixRoomSelfPowerLevel,
     selectDefaultMatrixRoom,
+    selectFederationIds,
 } from '../redux'
 import {
     MatrixEvent,
@@ -860,6 +861,7 @@ export function useMatrixFormEvent(
     const dispatch = useCommonDispatch()
     const toast = useToast()
     const matrixAuth = useCommonSelector(selectMatrixAuth)
+    const federationIds = useCommonSelector(selectFederationIds)
     const isSentByMe = event.sender === matrixAuth?.userId
 
     let actionButton: ChatEventAction | undefined = undefined
@@ -876,13 +878,23 @@ export function useMatrixFormEvent(
     // if we have the string for the i18n key, use it, otherwise use the body
     let messageText = getLocalizedTextWithFallback(t, i18nKeyLabel, body)
 
+    const ensureGuardianFeesFederationJoined = async (inviteCode: string) => {
+        const { federationId } = await fedimint.parseInviteCode(inviteCode)
+
+        if (!federationIds.includes(federationId)) {
+            throw new Error('errors.please-join-wallet-federation')
+        }
+
+        return federationId
+    }
+
     const onSelectClientActionOption = async (option: RpcFormOption) => {
         const action = option.clientAction
         if (!action) return
 
         switch (action.type) {
             case 'guardianFeesSyncRemittanceAccount': {
-                const { federationId } = await fedimint.parseInviteCode(
+                const federationId = await ensureGuardianFeesFederationJoined(
                     action.inviteCode,
                 )
 
@@ -905,7 +917,7 @@ export function useMatrixFormEvent(
                 break
             }
             case 'guardianFeesOpenDashboard': {
-                const { federationId } = await fedimint.parseInviteCode(
+                const federationId = await ensureGuardianFeesFederationJoined(
                     action.inviteCode,
                 )
 
