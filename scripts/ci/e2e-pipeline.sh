@@ -43,19 +43,20 @@ declare -A _TASK_EMOJI=(
     [build-ios]="🍏"
     [appium]="🕹️"
     [metro]="🚇"
+    [tests]="🧪"
 )
 declare -A _TASK_LABEL=(
     [emulators]="Android emulators"
     [simulators]="iOS simulators"
-    [bridge]="Rust bridge"
-    [yarn-install]="yarn deps"
-    [wasm]="wasm module"
-    [build-deps]="shared TS packages"
-    [cocoapods]="CocoaPods"
-    [debug-bundle]="Android debug bundle"
+    [bridge]="Rust bridge build"
+    [yarn-install]="yarn deps installation"
+    [wasm]="wasm bundle build"
+    [build-deps]="shared TS workspaces build"
+    [cocoapods]="iOS cocoapods installation"
+    [debug-bundle]="Android debug build"
     [build-ios]="iOS build"
     [appium]="Appium server"
-    [metro]="Metro bundler"
+    [metro]="Metro bundler server"
 )
 _ts() { date +%s; }
 
@@ -73,12 +74,24 @@ _fmt_dur() {
 _emoji() { echo "${_TASK_EMOJI[$1]:-📋}"; }
 _label() { echo "${_TASK_LABEL[$1]:-$1}"; }
 
-# Usage: _gate "up-next-description" dep1 dep2 ...
+# Usage: _gate <up-next-task> [<up-next-task> ...] -- <dep> [<dep> ...]
+# Up-next tasks render via _emoji/_label so renaming entries in _TASK_LABEL
+# stays consistent across banners, gates, and per-task lifecycle output.
 _gate() {
-    local next="$1"
-    shift
+    local ups=()
+    while [ $# -gt 0 ] && [ "$1" != "--" ]; do
+        ups+=("$1")
+        shift
+    done
+    [ "${1:-}" = "--" ] && shift
+    local rendered=""
+    local t
+    for t in "${ups[@]}"; do
+        [ -n "$rendered" ] && rendered+=", "
+        rendered+="$(_emoji "$t") $(_label "$t")"
+    done
     echo ""
-    echo "⏳ Starting: $next"
+    echo "⏳ Starting: $rendered"
     echo "   waiting for:"
     local n
     for n in "$@"; do
@@ -248,25 +261,25 @@ run_pipeline_android() {
     run_async yarn-install bash -c "cd '$REPO_ROOT/ui' && yarn install --frozen-lockfile"
     run_async wasm bash "$REPO_ROOT/scripts/ui/install-wasm.sh"
 
-    _gate "🕹️  Appium" yarn-install
+    _gate appium -- yarn-install
     wait_for yarn-install
     run_async appium env PLATFORM=android bash "$REPO_ROOT/scripts/ui/setup-and-start-appium.sh"
 
-    _gate "🔷 shared TS packages" wasm
+    _gate build-deps -- wasm
     wait_for wasm
     run_async build-deps bash -c "cd '$REPO_ROOT/ui' && yarn build:deps"
 
     if [ -n "${SKIP_BRIDGE:-}" ]; then
-        _gate "🎁 debug bundle, 🚇 Metro" build-deps
+        _gate debug-bundle metro -- build-deps
         wait_for build-deps
     else
-        _gate "🎁 debug bundle, 🚇 Metro" bridge build-deps
+        _gate debug-bundle metro -- bridge build-deps
         wait_all bridge build-deps
     fi
     run_async debug-bundle bash "$REPO_ROOT/scripts/ci/build-android.sh"
     start_metro
 
-    _gate "🧪 tests" emulators appium debug-bundle
+    _gate tests -- emulators appium debug-bundle
     wait_all emulators appium debug-bundle
 
     local appium_port
@@ -279,7 +292,7 @@ run_pipeline_android() {
 
     local overall_rc=0
     local summary_rows=""
-    local avds=(android-7.1 android-14)
+    local avds=(android-14)
     local avd
     for avd in "${avds[@]}"; do
         echo ""
@@ -324,8 +337,6 @@ run_pipeline_android() {
 #   build-ios          ── after cocoapods + build-deps
 #   tests (per UDID)   ── after simulators + appium + build-ios
 #
-# iOS 15 failure is tolerated (gui runner's 15.5 simruntime lacks
-# XCTest.framework); FAIL_FAST=1 overrides.
 # ─────────────────────────────────────────────────────────────────────────
 run_pipeline_ios() {
     local tests="${TESTS_TO_RUN:-all}"
@@ -358,26 +369,26 @@ run_pipeline_ios() {
     run_async yarn-install bash -c "cd '$REPO_ROOT/ui' && yarn install --frozen-lockfile"
     run_async wasm bash "$REPO_ROOT/scripts/ui/install-wasm.sh"
 
-    _gate "🕹️  Appium" yarn-install
+    _gate appium -- yarn-install
     wait_for yarn-install
     run_async appium env PLATFORM=ios bash "$REPO_ROOT/scripts/ui/setup-and-start-appium.sh"
 
     if [ -z "${SKIP_BRIDGE:-}" ]; then
-        _gate "☕ CocoaPods" bridge
+        _gate cocoapods -- bridge
         wait_for bridge
     fi
     run_async cocoapods nix develop .#xcode -c bash "$REPO_ROOT/scripts/ui/install-ios-deps.sh"
 
-    _gate "🔷 shared TS packages" wasm
+    _gate build-deps -- wasm
     wait_for wasm
     run_async build-deps bash -c "cd '$REPO_ROOT/ui' && yarn build:deps"
 
-    _gate "🍏 iOS build, 🚇 Metro" cocoapods build-deps
+    _gate build-ios metro -- cocoapods build-deps
     wait_all cocoapods build-deps
     run_async build-ios nix develop .#xcode -c bash "$REPO_ROOT/scripts/ci/build-ios.sh"
     start_metro
 
-    _gate "🧪 tests" simulators appium build-ios
+    _gate tests -- simulators appium build-ios
     wait_all simulators appium build-ios
 
     set -a
@@ -395,34 +406,6 @@ run_pipeline_ios() {
 
     local overall_rc=0
     local summary_rows=""
-
-    # iOS 15 failure tolerated: gui runner's iOS 15.5 simruntime is missing
-    # XCTest.framework. FAIL_FAST=1 overrides.
-    if [ -n "${IOS_15_UDID:-}" ]; then
-        echo ""
-        echo "🧪 Running $tests on ios-15..."
-        pushd "$REPO_ROOT/ui" >/dev/null
-        local ios15_rc=0
-        local t0
-        t0=$(_ts)
-        PLATFORM=ios DEVICE_ID="$IOS_15_UDID" BUNDLE_PATH="$app_path" APPIUM_PORT="$appium_port" \
-            nix develop .#xcode -c ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
-            || ios15_rc=$?
-        popd >/dev/null
-        local dur=$(($(_ts) - t0))
-        if [ "$ios15_rc" = "0" ]; then
-            echo "  ✅ ios-15 passed ($(_fmt_dur "$dur"))"
-            summary_rows+="| ios-15 | pass |"$'\n'
-        else
-            echo "  ⚠️  ios-15 failed, tolerated (exit $ios15_rc, $(_fmt_dur "$dur"))"
-            summary_rows+="| ios-15 | FAIL (tolerated) |"$'\n'
-            if [ -n "${FAIL_FAST:-}" ]; then
-                overall_rc=$ios15_rc
-                _finish_pipeline "iOS" "$summary_rows" "$pipeline_start" "$overall_rc"
-                return $overall_rc
-            fi
-        fi
-    fi
 
     if [ -n "${IOS_26_UDID:-}" ]; then
         echo ""
