@@ -285,8 +285,10 @@ export const {
     updateLastSeenModDate,
 } = modSlice.actions
 
-export const selectCustomMods = (s: CommonState) =>
-    Object.values(s.mod.customGlobalMods)
+export const selectCustomMods = createSelector(
+    (s: CommonState) => s.mod.customGlobalMods,
+    customGlobalMods => Object.values(customGlobalMods),
+)
 
 // Community-set mods
 export const selectCommunityMods = createSelector(

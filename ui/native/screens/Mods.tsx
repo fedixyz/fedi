@@ -86,25 +86,29 @@ const Mods: React.FC = () => {
         setModToBeRemoved(fediMod)
     }
 
-    const sortedMiniApps = [...mods]
-        .sort((a, b) => {
-            const aIndex = miniAppOrder.indexOf(a.id)
-            const bIndex = miniAppOrder.indexOf(b.id)
+    const sortedMiniApps = useMemo(
+        () =>
+            [...mods]
+                .sort((a, b) => {
+                    const aIndex = miniAppOrder.indexOf(a.id)
+                    const bIndex = miniAppOrder.indexOf(b.id)
 
-            // use place in order if present
-            if (aIndex >= 0 && bIndex >= 0) {
-                return aIndex - bIndex
-            } else if (aIndex >= 0) {
-                return -1
-            } else if (bIndex >= 0) {
-                return 1
-            }
+                    // use place in order if present
+                    if (aIndex >= 0 && bIndex >= 0) {
+                        return aIndex - bIndex
+                    } else if (aIndex >= 0) {
+                        return -1
+                    } else if (bIndex >= 0) {
+                        return 1
+                    }
 
-            return 0
-        })
-        .map(miniApp => {
-            return new FediMod(miniApp)
-        })
+                    return 0
+                })
+                .map(miniApp => {
+                    return new FediMod(miniApp)
+                }),
+        [miniAppOrder, mods],
+    )
 
     useEffect(() => {
         if (miniAppOrder.length === 0) {
