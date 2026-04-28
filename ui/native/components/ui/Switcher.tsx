@@ -38,7 +38,14 @@ export function Switcher<T extends string>({
                                 : style.itemUnselected,
                         ]}
                         onPress={() => onChange(option.value)}>
-                        <Text style={style.itemText}>{option.label}</Text>
+                        <Text
+                            style={style.itemText}
+                            numberOfLines={2}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.5}
+                            ellipsizeMode="tail">
+                            {option.label}
+                        </Text>
                     </TouchableOpacity>
                 )
             })}
@@ -50,7 +57,7 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             borderRadius: 20,
-            height: 40,
+            minHeight: 40,
             overflow: 'hidden',
             backgroundColor: theme.colors.extraLightGrey,
         },
@@ -61,6 +68,8 @@ const styles = (theme: Theme) =>
             justifyContent: 'center',
             alignItems: 'center',
             borderColor: theme.colors.extraLightGrey,
+            paddingHorizontal: theme.spacing.sm,
+            paddingVertical: theme.spacing.xs,
         },
         itemSelected: {
             backgroundColor: theme.colors.white,
@@ -71,5 +80,6 @@ const styles = (theme: Theme) =>
         itemText: {
             fontSize: 14,
             color: theme.colors.night,
+            textAlign: 'center',
         },
     })
