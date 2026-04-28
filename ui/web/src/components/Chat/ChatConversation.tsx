@@ -324,7 +324,7 @@ export const ChatConversation: React.FC<Props> = ({
                         <ChatConversationEventRow
                             key={row.event.id}
                             roomId={id}
-                            row={row}
+                            {...row}
                             highlightedMessageId={highlightedMessageId}
                             onReplyTap={scrollToMessage}
                         />

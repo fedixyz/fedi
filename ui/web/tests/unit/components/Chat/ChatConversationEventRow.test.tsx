@@ -78,7 +78,7 @@ describe('/components/Chat/ChatConversationEventRow', () => {
         const row = makeRow()
 
         const { container } = renderWithProviders(
-            <ChatConversationEventRow roomId={ROOM_ID} row={row} />,
+            <ChatConversationEventRow roomId={ROOM_ID} {...row} />,
             { store: storeWithMembers() },
         )
 
@@ -91,7 +91,7 @@ describe('/components/Chat/ChatConversationEventRow', () => {
         const row = makeRow()
 
         renderWithProviders(
-            <ChatConversationEventRow roomId={ROOM_ID} row={row} />,
+            <ChatConversationEventRow roomId={ROOM_ID} {...row} />,
             { store: storeWithMembers() },
         )
 
@@ -103,7 +103,7 @@ describe('/components/Chat/ChatConversationEventRow', () => {
             const row = makeRow({ showTimestamp: true })
 
             renderWithProviders(
-                <ChatConversationEventRow roomId={ROOM_ID} row={row} />,
+                <ChatConversationEventRow roomId={ROOM_ID} {...row} />,
                 { store: storeWithMembers() },
             )
 
@@ -117,7 +117,7 @@ describe('/components/Chat/ChatConversationEventRow', () => {
             const row = makeRow({ showTimestamp: false })
 
             const { container } = renderWithProviders(
-                <ChatConversationEventRow roomId={ROOM_ID} row={row} />,
+                <ChatConversationEventRow roomId={ROOM_ID} {...row} />,
                 { store: storeWithMembers() },
             )
 
@@ -153,7 +153,7 @@ describe('/components/Chat/ChatConversationEventRow', () => {
             )
 
             renderWithProviders(
-                <ChatConversationEventRow roomId={ROOM_ID} row={row} />,
+                <ChatConversationEventRow roomId={ROOM_ID} {...row} />,
                 { store },
             )
 
@@ -175,7 +175,7 @@ describe('/components/Chat/ChatConversationEventRow', () => {
             })
 
             renderWithProviders(
-                <ChatConversationEventRow roomId={ROOM_ID} row={row} />,
+                <ChatConversationEventRow roomId={ROOM_ID} {...row} />,
                 { store: storeWithMembers() },
             )
 
@@ -192,7 +192,7 @@ describe('/components/Chat/ChatConversationEventRow', () => {
             const { container } = renderWithProviders(
                 <ChatConversationEventRow
                     roomId={ROOM_ID}
-                    row={row}
+                    {...row}
                     highlightedMessageId="$test-event"
                 />,
                 { store: storeWithMembers() },
@@ -210,7 +210,7 @@ describe('/components/Chat/ChatConversationEventRow', () => {
             const { container } = renderWithProviders(
                 <ChatConversationEventRow
                     roomId={ROOM_ID}
-                    row={row}
+                    {...row}
                     highlightedMessageId="$other-event"
                 />,
                 { store: storeWithMembers() },

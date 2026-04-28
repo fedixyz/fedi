@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
+import { MatrixEvent } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
-import { ChatConversationRow } from '@fedi/common/utils/chatConversationRows'
 
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
@@ -14,14 +14,22 @@ import { ChatEventError } from './ChatEventError'
 
 interface Props {
     roomId: string
-    row: ChatConversationRow
+    event: MatrixEvent
+    showTimestamp: boolean
+    showUsername: boolean
+    showAvatar: boolean
+    showUsernames: boolean
     highlightedMessageId?: string | null
     onReplyTap?: (eventId: string) => void
 }
 
-export const ChatConversationEventRow: React.FC<Props> = ({
+const ChatConversationEventRowComponent: React.FC<Props> = ({
     roomId,
-    row,
+    event,
+    showTimestamp,
+    showUsername,
+    showAvatar,
+    showUsernames,
     highlightedMessageId,
     onReplyTap,
 }) => {
@@ -29,7 +37,6 @@ export const ChatConversationEventRow: React.FC<Props> = ({
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const roomMembers = useAppSelector(s => selectMatrixRoomMembers(s, roomId))
 
-    const { event } = row
     const sentBy = event.sender || ''
     const roomMember = roomMembers.find(m => m.id === sentBy)
     const isMe = sentBy === matrixAuth?.userId
@@ -41,27 +48,27 @@ export const ChatConversationEventRow: React.FC<Props> = ({
           ? t('feature.chat.former-member')
           : roomMember?.displayName || '...'
 
-    const showUsername = row.showUsernames && row.showUsername && !isMe
-    const reserveAvatarSlot = row.showUsernames && !isMe
-    const showAvatar = reserveAvatarSlot && row.showAvatar
+    const shouldShowUsername = showUsernames && showUsername && !isMe
+    const reserveAvatarSlot = showUsernames && !isMe
+    const shouldShowAvatar = reserveAvatarSlot && showAvatar
     const isHighlighted = highlightedMessageId === event.id
 
     return (
         <Container
             data-event-id={event.id}
-            senderBreak={showUsername && !row.showTimestamp}
+            senderBreak={shouldShowUsername && !showTimestamp}
             highlighted={isHighlighted}>
-            {row.showTimestamp && event.timestamp && (
+            {showTimestamp && event.timestamp && (
                 <MessageTimestamp>
                     {dateUtils.formatMessageItemTimestamp(
                         event.timestamp / 1000,
                     )}
                 </MessageTimestamp>
             )}
-            {showUsername && <Username>{displayName}</Username>}
+            {shouldShowUsername && <Username>{displayName}</Username>}
             <MessageRow>
                 {reserveAvatarSlot && (
-                    <AvatarSlot visible={showAvatar}>
+                    <AvatarSlot visible={shouldShowAvatar}>
                         <ChatAvatar
                             user={roomMember || { id: sentBy }}
                             size="sm"
@@ -77,6 +84,10 @@ export const ChatConversationEventRow: React.FC<Props> = ({
         </Container>
     )
 }
+
+export const ChatConversationEventRow = React.memo(
+    ChatConversationEventRowComponent,
+)
 
 const Container = styled('div', {
     display: 'flex',
