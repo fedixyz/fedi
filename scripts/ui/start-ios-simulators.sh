@@ -69,6 +69,13 @@ create_simulator() {
     
     if [[ -n "$simulator_udid" ]]; then
         echo "Found existing simulator '$sim_name' with UDID: $simulator_udid" >&2
+        # In CI, wipe accumulated state (installed apps, defaults, WDA caches)
+        # so a wedged session or persisted app data can't carry between runs.
+        if [[ -n "${CI:-}" ]]; then
+            echo "CI: erasing '$sim_name' for a clean run" >&2
+            xcrun simctl shutdown "$simulator_udid" 2>/dev/null || true
+            xcrun simctl erase "$simulator_udid"
+        fi
     else
         echo "No existing simulator found. Creating new one..." >&2
         echo "Running: xcrun simctl create '$sim_name' '$device_type_id' '$runtime_id'" >&2
