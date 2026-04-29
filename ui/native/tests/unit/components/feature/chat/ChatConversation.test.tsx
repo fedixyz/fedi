@@ -12,6 +12,7 @@ import {
 import {
     createMockNonPaymentEvent,
     createMockPaymentEvent,
+    mockMatrixEventImage,
     mockRoomMembers,
 } from '@fedi/common/tests/mock-data/matrix-event'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
@@ -31,6 +32,8 @@ import { renderWithProviders } from '../../../../utils/render'
 const mockScrollToIndex = jest.fn()
 const mockScrollToOffset = jest.fn()
 const mockHandlePaginate = jest.fn()
+const mockHandleCopyResource = jest.fn()
+const mockEventRowRenderCounts = new Map<string, number>()
 let usingFakeTimers = false
 const MOCK_AVERAGE_ITEM_LENGTH = 48
 let mockScrollToIndexFailureCount = 0
@@ -188,6 +191,39 @@ jest.mock(
         return {
             __esModule: true,
             ChatUserActionsOverlay: () => null,
+        }
+    },
+)
+
+jest.mock('../../../../../utils/hooks/media', () => ({
+    useDownloadResource: jest.fn(() => ({
+        uri: null,
+        isError: false,
+        setIsError: jest.fn(),
+        handleCopyResource: mockHandleCopyResource,
+    })),
+}))
+
+jest.mock(
+    '../../../../../components/feature/chat/ChatConversationEventRow',
+    () => {
+        const ReactModule = jest.requireActual<typeof import('react')>('react')
+        const actual = jest.requireActual(
+            '../../../../../components/feature/chat/ChatConversationEventRow',
+        )
+
+        return {
+            __esModule: true,
+            default: (props: any) => {
+                const eventId = props.row.event.id as string
+
+                mockEventRowRenderCounts.set(
+                    eventId,
+                    (mockEventRowRenderCounts.get(eventId) ?? 0) + 1,
+                )
+
+                return ReactModule.createElement(actual.default, props)
+            },
         }
     },
 )
@@ -506,6 +542,7 @@ describe('ChatConversation', () => {
         mockScrollToIndex.mockReset()
         mockScrollToOffset.mockReset()
         mockHandlePaginate.mockReset()
+        mockEventRowRenderCounts.clear()
         usingFakeTimers = false
         mockScrollToIndexFailureCount = 0
         mockSuppressScrollToIndexViewability = false
@@ -707,6 +744,60 @@ describe('ChatConversation', () => {
         fireEvent.press(screen.getByText('reply:$target-event'))
 
         expectScrollToIndex(0)
+    })
+
+    it('does not rerender event rows when list viewability changes', async () => {
+        const listRef = makeListRef()
+        const store = storeWithLoadedConversation(makeBurstEvents(3))
+
+        renderChat(store, {
+            listRefOverride: listRef as any,
+        })
+
+        await act(async () => {
+            await Promise.resolve()
+        })
+
+        mockEventRowRenderCounts.clear()
+
+        act(() => {
+            listRef.__onViewableItemsChangedRef.current?.({
+                viewableItems: [{ key: '$burst-1' }],
+            })
+        })
+
+        expect(mockEventRowRenderCounts.size).toBe(0)
+    })
+
+    it('loads media only after its row becomes viewable', async () => {
+        const imageEvent: MatrixEvent<'m.image'> = {
+            ...mockMatrixEventImage,
+            id: '$image-event' as RpcTimelineEventItemId,
+            roomId: ROOM_ID,
+            sender: '@alice:example.com',
+            timestamp: 1_750_083_034_389,
+        }
+        const listRef = makeListRef()
+        const store = storeWithLoadedConversation([imageEvent])
+
+        renderChat(store, {
+            listRefOverride: listRef as any,
+        })
+
+        await act(async () => {
+            await Promise.resolve()
+        })
+
+        expect(mockHandleCopyResource).not.toHaveBeenCalled()
+
+        await act(async () => {
+            listRef.__onViewableItemsChangedRef.current?.({
+                viewableItems: [{ key: '$image-event' }],
+            })
+            await Promise.resolve()
+        })
+
+        expect(mockHandleCopyResource).toHaveBeenCalledTimes(1)
     })
 
     describe.each([

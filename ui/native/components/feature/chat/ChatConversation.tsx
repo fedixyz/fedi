@@ -47,6 +47,7 @@ import NoMembersNotice from './NoMembersNotice'
 import NoMessagesNotice from './NoMessagesNotice'
 import {
     ConversationListRefOverride,
+    ConversationMessageVisibilityContext,
     ScrollToMessageRequest,
     useConversationMessageFocus,
 } from './useConversationMessageFocus'
@@ -162,7 +163,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const {
         listRef,
         highlightedMessageId,
-        visibleItemIds,
+        messageVisibilityStore,
         handleViewableItemsChanged,
         handleScrollToIndexFailed,
         focusMessage,
@@ -254,7 +255,6 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                 isPublic={isPublic}
                 onReplyTap={handleReplyTap}
                 highlightedMessageId={highlightedMessageId}
-                isInViewport={visibleItemIds.has(item.event.id as string)}
             />
         ),
         [
@@ -265,7 +265,6 @@ const ChatConversation: React.FC<MessagesListProps> = ({
             isPublic,
             myId,
             roomMembersById,
-            visibleItemIds,
         ],
     )
 
@@ -282,65 +281,70 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     return (
         <>
             {shouldRenderConversationList ? (
-                <FlatList
-                    data={chatRows}
-                    ref={
-                        listRefOverride
-                            ? undefined
-                            : (listRef as React.RefObject<FlatList<ChatConversationRow> | null>)
-                    }
-                    renderItem={renderEventRow}
-                    keyExtractor={item => item.event.id as string}
-                    style={[
-                        style.listContainer,
-                        {
-                            paddingHorizontal:
-                                type === 'group'
-                                    ? theme.spacing.lg
-                                    : theme.spacing.xl,
-                        },
-                    ]}
-                    contentContainerStyle={contentContainerStyle}
-                    ListEmptyComponent={
-                        isAlone ? (
-                            <NoMembersNotice roomId={id} />
-                        ) : (
-                            <NoMessagesNotice
-                                isBroadcast={isBroadcast}
-                                isDefault={isDefault}
-                            />
-                        )
-                    }
-                    ListHeaderComponent={
-                        isBlocked ? (
-                            <Column
-                                align="center"
-                                fullWidth
-                                style={style.blockedContainer}>
-                                <Text tiny style={style.blockedText}>
-                                    {t('feature.chat.user-is-blocked-guidance')}
-                                </Text>
-                            </Column>
-                        ) : undefined
-                    }
-                    onScroll={handleScroll}
-                    onScrollToIndexFailed={handleScrollToIndexFailed}
-                    inverted={chatRows.length > 0}
-                    onEndReachedThreshold={0.1}
-                    onEndReached={() => handlePaginate()}
-                    refreshing={isPaginating}
-                    maintainVisibleContentPosition={{
-                        minIndexForVisible: 1,
-                        autoscrollToTopThreshold: 100,
-                    }}
-                    scrollsToTop={false}
-                    removeClippedSubviews={false}
-                    maxToRenderPerBatch={10}
-                    windowSize={10}
-                    initialNumToRender={10}
-                    onViewableItemsChanged={handleViewableItemsChanged}
-                    viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
-                />
+                <ConversationMessageVisibilityContext.Provider
+                    value={messageVisibilityStore}>
+                    <FlatList
+                        data={chatRows}
+                        ref={
+                            listRefOverride
+                                ? undefined
+                                : (listRef as React.RefObject<FlatList<ChatConversationRow> | null>)
+                        }
+                        renderItem={renderEventRow}
+                        keyExtractor={item => item.event.id as string}
+                        style={[
+                            style.listContainer,
+                            {
+                                paddingHorizontal:
+                                    type === 'group'
+                                        ? theme.spacing.lg
+                                        : theme.spacing.xl,
+                            },
+                        ]}
+                        contentContainerStyle={contentContainerStyle}
+                        ListEmptyComponent={
+                            isAlone ? (
+                                <NoMembersNotice roomId={id} />
+                            ) : (
+                                <NoMessagesNotice
+                                    isBroadcast={isBroadcast}
+                                    isDefault={isDefault}
+                                />
+                            )
+                        }
+                        ListHeaderComponent={
+                            isBlocked ? (
+                                <Column
+                                    align="center"
+                                    fullWidth
+                                    style={style.blockedContainer}>
+                                    <Text tiny style={style.blockedText}>
+                                        {t(
+                                            'feature.chat.user-is-blocked-guidance',
+                                        )}
+                                    </Text>
+                                </Column>
+                            ) : undefined
+                        }
+                        onScroll={handleScroll}
+                        onScrollToIndexFailed={handleScrollToIndexFailed}
+                        inverted={chatRows.length > 0}
+                        onEndReachedThreshold={0.1}
+                        onEndReached={() => handlePaginate()}
+                        refreshing={isPaginating}
+                        maintainVisibleContentPosition={{
+                            minIndexForVisible: 1,
+                            autoscrollToTopThreshold: 100,
+                        }}
+                        scrollsToTop={false}
+                        removeClippedSubviews={false}
+                        maxToRenderPerBatch={10}
+                        windowSize={10}
+                        initialNumToRender={10}
+                        onViewableItemsChanged={handleViewableItemsChanged}
+                        viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
+                    />
+                </ConversationMessageVisibilityContext.Provider>
             ) : (
                 <Column justify="center" grow>
                     <ActivityIndicator

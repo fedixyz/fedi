@@ -50,6 +50,17 @@ export type ScrollToMessageRequest = {
     nonce: number
 }
 
+export type ConversationMessageVisibilityStore = {
+    isVisible: (eventId: string) => boolean
+    subscribe: (
+        eventId: string,
+        listener: (isVisible: boolean) => void,
+    ) => () => void
+}
+
+export const ConversationMessageVisibilityContext =
+    React.createContext<ConversationMessageVisibilityStore | null>(null)
+
 type ScrollToLoadedMessageResult =
     | 'focused'
     | 'loadedButNotVisible'
@@ -92,10 +103,12 @@ export const useConversationMessageFocus = ({
     const [highlightedMessageId, setHighlightedMessageId] = useState<
         string | null
     >(null)
-    const [visibleItemIds, setVisibleItemIds] = useState<Set<string>>(
-        () => new Set(),
-    )
+    // Viewability changes a lot while scrolling. Keep it out of React state so
+    // the whole list does not rerender; media rows can subscribe to their own id.
     const visibleItemIdsRef = useRef<Set<string>>(new Set())
+    const visibilityListenersRef = useRef<
+        Map<string, Set<(isVisible: boolean) => void>>
+    >(new Map())
     const internalListRef = useRef<FlatList<ChatConversationRow>>(null)
     const [hasMountedInternalList, setHasMountedInternalList] = useState(false)
     const listRef = useMemo(
@@ -180,6 +193,35 @@ export const useConversationMessageFocus = ({
     const handlePaginateRef = useUpdatingRef(handlePaginate)
     const rawEventCountRef = useUpdatingRef(rawEvents.length)
 
+    const messageVisibilityStore = useMemo<ConversationMessageVisibilityStore>(
+        () => ({
+            isVisible: (eventId: string) =>
+                visibleItemIdsRef.current.has(eventId),
+            subscribe: (
+                eventId: string,
+                listener: (isVisible: boolean) => void,
+            ) => {
+                const listenersForEvent =
+                    visibilityListenersRef.current.get(eventId) ?? new Set()
+
+                listenersForEvent.add(listener)
+                visibilityListenersRef.current.set(eventId, listenersForEvent)
+
+                return () => {
+                    const currentListeners =
+                        visibilityListenersRef.current.get(eventId)
+
+                    currentListeners?.delete(listener)
+
+                    if (currentListeners?.size === 0) {
+                        visibilityListenersRef.current.delete(eventId)
+                    }
+                }
+            },
+        }),
+        [],
+    )
+
     const resolveMessageVisibilityWaiters = useCallback(
         (eventIds: Iterable<string>, didBecomeVisible: boolean) => {
             Array.from(new Set(eventIds)).forEach(eventId => {
@@ -200,6 +242,33 @@ export const useConversationMessageFocus = ({
             false,
         )
     }, [resolveMessageVisibilityWaiters])
+
+    const updateVisibleItemIds = useCallback(
+        (nextVisibleItemIds: Set<string>) => {
+            const previousVisibleItemIds = visibleItemIdsRef.current
+
+            visibleItemIdsRef.current = nextVisibleItemIds
+
+            const changedEventIds = new Set([
+                ...previousVisibleItemIds,
+                ...nextVisibleItemIds,
+            ])
+
+            changedEventIds.forEach(eventId => {
+                const wasVisible = previousVisibleItemIds.has(eventId)
+                const isVisible = nextVisibleItemIds.has(eventId)
+
+                if (wasVisible === isVisible) return
+
+                visibilityListenersRef.current
+                    .get(eventId)
+                    ?.forEach(listener => listener(isVisible))
+            })
+
+            resolveMessageVisibilityWaiters(nextVisibleItemIds, true)
+        },
+        [resolveMessageVisibilityWaiters],
+    )
 
     const clearHighlightTimeout = useCallback(() => {
         if (highlightTimeoutRef.current) {
@@ -271,8 +340,7 @@ export const useConversationMessageFocus = ({
 
     useEffect(() => {
         setHighlightedMessageId(null)
-        setVisibleItemIds(new Set())
-        visibleItemIdsRef.current = new Set()
+        updateVisibleItemIds(new Set())
         routeRequestStateRef.current = {
             lastHandledKey: null,
             pendingKey: null,
@@ -284,7 +352,12 @@ export const useConversationMessageFocus = ({
         focusPaginationRequestRef.current = null
         clearMessageVisibilityWaiters()
         clearHighlightTimeout()
-    }, [clearHighlightTimeout, clearMessageVisibilityWaiters, roomId])
+    }, [
+        clearHighlightTimeout,
+        clearMessageVisibilityWaiters,
+        roomId,
+        updateVisibleItemIds,
+    ])
 
     useEffect(
         () => () => {
@@ -533,11 +606,9 @@ export const useConversationMessageFocus = ({
                 viewableItems.flatMap(item => (item.key ? [item.key] : [])),
             )
 
-            visibleItemIdsRef.current = nextVisibleItemIds
-            setVisibleItemIds(nextVisibleItemIds)
-            resolveMessageVisibilityWaiters(nextVisibleItemIds, true)
+            updateVisibleItemIds(nextVisibleItemIds)
         },
-        [resolveMessageVisibilityWaiters],
+        [updateVisibleItemIds],
     )
 
     useEffect(() => {
@@ -659,7 +730,7 @@ export const useConversationMessageFocus = ({
     return {
         listRef,
         highlightedMessageId,
-        visibleItemIds,
+        messageVisibilityStore,
         handleViewableItemsChanged,
         handleScrollToIndexFailed,
         focusMessage,

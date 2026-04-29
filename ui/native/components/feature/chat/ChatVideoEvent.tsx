@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -22,15 +22,14 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useDownloadResource } from '../../../utils/hooks/media'
 import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
+import { ConversationMessageVisibilityContext } from './useConversationMessageFocus'
 
 type ChatVideoEventProps = {
     event: MatrixEvent<'m.video'>
-    isInViewport?: boolean
 }
 
 const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
     event,
-    isInViewport = true,
 }: ChatVideoEventProps) => {
     // If the user sends a video, try to find the preview image matching the `event.content` to derive the existing URI
     const matchingPreviewVideo = useAppSelector(s =>
@@ -44,6 +43,12 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
     const videoRef = useRef<VideoRef | null>(null)
     const dispatch = useAppDispatch()
     const navigation = useNavigation()
+    const messageVisibilityStore = useContext(
+        ConversationMessageVisibilityContext,
+    )
+    const [isInViewport, setIsInViewport] = useState(
+        () => messageVisibilityStore?.isVisible(event.id as string) ?? true,
+    )
 
     const resolvedUri = matchingPreviewVideo?.media?.uri ?? uri ?? ''
 
@@ -61,6 +66,19 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
     )
 
     const videoBaseStyle = [style.videoBase, dimensions]
+
+    useEffect(() => {
+        if (!messageVisibilityStore) {
+            setIsInViewport(true)
+            return
+        }
+
+        const eventId = event.id as string
+
+        setIsInViewport(messageVisibilityStore.isVisible(eventId))
+
+        return messageVisibilityStore.subscribe(eventId, setIsInViewport)
+    }, [event.id, messageVisibilityStore])
 
     useEffect(() => {
         if (resolvedUri || !isInViewport) return

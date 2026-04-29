@@ -53,7 +53,6 @@ type Props = {
     isPublic?: boolean
     onReplyTap?: (eventId: string) => void
     highlightedMessageId?: string | null
-    isInViewport?: boolean
 }
 
 const ChatEvent: React.FC<Props> = ({
@@ -63,7 +62,6 @@ const ChatEvent: React.FC<Props> = ({
     // Defaults to true so we don't default to loading chat events with media
     isPublic = true,
     onReplyTap,
-    isInViewport,
 }: Props) => {
     const { theme } = useTheme()
     const [hasWidePreview, setHasWidePreview] = useState(false)
@@ -131,17 +129,11 @@ const ChatEvent: React.FC<Props> = ({
                             ) : isFormEvent(event) ? (
                                 <ChatFormEvent event={event} />
                             ) : isImageEvent(event) ? (
-                                <ChatImageEvent
-                                    event={event}
-                                    isInViewport={isInViewport}
-                                />
+                                <ChatImageEvent event={event} />
                             ) : isFileEvent(event) ? (
                                 <ChatFileEvent event={event} />
                             ) : isVideoEvent(event) ? (
-                                <ChatVideoEvent
-                                    event={event}
-                                    isInViewport={isInViewport}
-                                />
+                                <ChatVideoEvent event={event} />
                             ) : isDeletedEvent(event) ? (
                                 <ChatDeletedEvent event={event} />
                             ) : isPreviewMediaEvent(event) ? (
@@ -223,25 +215,13 @@ const styles = (theme: Theme) =>
     })
 
 const areEqual = (
-    {
-        event: prevEvent,
-        highlightedMessageId: prevHighlighted,
-        isInViewport: prevIsInViewport,
-    }: Props,
-    {
-        event: currEvent,
-        highlightedMessageId: currHighlighted,
-        isInViewport: currIsInViewport,
-    }: Props,
+    { event: prevEvent, highlightedMessageId: prevHighlighted }: Props,
+    { event: currEvent, highlightedMessageId: currHighlighted }: Props,
 ) => {
     if (prevHighlighted !== currHighlighted) {
         return false
     }
     if (prevEvent.localEcho !== currEvent.localEcho) return false
-
-    if (prevIsInViewport !== currIsInViewport) {
-        return false
-    }
 
     if (isPaymentEvent(currEvent) && isPaymentEvent(prevEvent)) {
         return (

@@ -27,7 +27,6 @@ type Props = {
     onSelect: (userId: string) => void
     onReplyTap?: (eventId: string) => void
     highlightedMessageId?: string | null
-    isInViewport?: boolean
 }
 
 const AVATAR_SLOT_WIDTH = 43
@@ -43,7 +42,6 @@ const ChatConversationEventRow = memo(
         onSelect,
         onReplyTap,
         highlightedMessageId,
-        isInViewport = true,
     }: Props) => {
         const { t } = useTranslation()
         const { theme } = useTheme()
@@ -92,7 +90,6 @@ const ChatConversationEventRow = memo(
                     isPublic={isPublic}
                     onReplyTap={onReplyTap}
                     highlightedMessageId={highlightedMessageId}
-                    isInViewport={isInViewport}
                 />
             </View>
         )
