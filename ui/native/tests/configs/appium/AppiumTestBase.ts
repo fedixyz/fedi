@@ -687,9 +687,19 @@ export abstract class AppiumTestBase {
                     ])
                 } catch (error: unknown) {
                     console.log(
-                        `Unable to accept alert with buttonLabel ${button} on Android. Reason: ${(error as Error).message}. Trying to infer the allow button`,
+                        `Unable to accept alert with buttonLabel ${button} on Android. Reason: ${(error as Error).message}. Trying to infer the allow button.`,
                     )
-                    await this.driver.executeScript('mobile: acceptAlert', [])
+                    try {
+                        await this.driver.executeScript(
+                            'mobile: acceptAlert',
+                            [],
+                        )
+                    } catch (fallbackError: unknown) {
+                        console.log(
+                            `No system alert detected. Falling back to tapping button by text. Reason: ${(fallbackError as Error).message}`,
+                        )
+                        await this.clickOnText(button.toUpperCase(), 0, true)
+                    }
                 }
                 break
             case Platform.IOS:
@@ -740,9 +750,19 @@ export abstract class AppiumTestBase {
                     ])
                 } catch (error: unknown) {
                     console.log(
-                        `Unable to dismiss alert with buttonLabel ${button} on Android. Reason: ${(error as Error).message}. Trying to infer the dismiss button`,
+                        `Unable to dismiss alert with buttonLabel ${button} on Android. Reason: ${(error as Error).message}. Trying to infer the dismiss button.`,
                     )
-                    await this.driver.executeScript('mobile: dismissAlert', [])
+                    try {
+                        await this.driver.executeScript(
+                            'mobile: dismissAlert',
+                            [],
+                        )
+                    } catch (fallbackError: unknown) {
+                        console.log(
+                            `No system alert detected. Falling back to tapping button by text. Reason: ${(fallbackError as Error).message}`,
+                        )
+                        await this.clickOnText(button.toUpperCase(), 0, true)
+                    }
                 }
                 break
             case Platform.IOS:
