@@ -5,6 +5,7 @@ import { selectMatrixStatus } from '@fedi/common/redux'
 import { MatrixSyncStatus } from '@fedi/common/types'
 
 import { ChatBlock } from '../../components/Chat/ChatBlock'
+import { ChatConfirmJoinPublicRoom } from '../../components/Chat/ChatConfirmJoinPublicRoom'
 import { ChatEditRoom } from '../../components/Chat/ChatEditRoom'
 import { ChatList } from '../../components/Chat/ChatList'
 import { ChatNew } from '../../components/Chat/ChatNew'
@@ -47,6 +48,8 @@ function ChatPage() {
         content = <ChatList isSearchMode={chatType === 'search'} />
     } else if (chatType === 'edit-room') {
         content = <ChatEditRoom roomId={chatId} />
+    } else if (chatType === 'join-room' && chatId) {
+        content = <ChatConfirmJoinPublicRoom roomId={chatId} />
     } else {
         return <Redirect path="/chat" />
     }

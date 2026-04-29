@@ -5,9 +5,9 @@ import { makeMatrixEventGroups } from '@fedi/common/utils/matrix'
 
 import { chatRoute } from '../../constants/routes'
 import { styled } from '../../styles'
-import { Avatar } from '../Avatar'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
+import { ChatAvatar } from './ChatAvatar'
 import { ChatEventCollection } from './ChatEventCollection'
 
 interface Props {
@@ -29,7 +29,7 @@ export const ChatPreviewConversation: React.FC<Props> = ({ id, preview }) => {
         <Layout.Root>
             <Layout.Header back={chatRoute}>
                 <HeaderContent>
-                    <Avatar size="sm" id={id} name={preview.info.name} />
+                    <ChatAvatar size="sm" room={preview.info} />
                     <Text weight="medium">{preview.info.name}</Text>
                 </HeaderContent>
             </Layout.Header>

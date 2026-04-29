@@ -8,27 +8,31 @@ import SearchIcon from '@fedi/common/assets/svgs/search.svg'
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
+    getMatrixRoomPreview,
     paginateMatrixRoomTimeline,
     selectGroupPreview,
     selectMatrixRoom,
     selectMatrixRoomEvents,
     sendMatrixMessage,
+    selectShouldShowJoinOnChatPreview,
 } from '@fedi/common/redux'
 import { ChatType } from '@fedi/common/types'
 import { RpcMediaUploadParams } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
+import {
+    chatRoute,
+    chatConfirmJoinPublicRoomRoute,
+} from '../../constants/routes'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint, writeBridgeFile } from '../../lib/bridge'
-import { styled } from '../../styles'
+import { styled, theme } from '../../styles'
 import { getMediaDimensions } from '../../utils/media'
 import { Button } from '../Button'
-import { Row } from '../Flex'
+import { Column, Row } from '../Flex'
 import { HoloLoader } from '../HoloLoader'
 import { Icon } from '../Icon'
-import { Text } from '../Text'
 import { ChatConversation } from './ChatConversation'
-import { ChatEmptyState } from './ChatEmptyState'
 import { ChatPaymentDialog } from './ChatPaymentDialog'
 import { ChatPreviewConversation } from './ChatPreviewConversation'
 import { ChatRoomSearch } from './ChatRoomSearch'
@@ -42,7 +46,7 @@ interface Props {
 
 export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     const { t } = useTranslation()
-    const { query, back, push } = useRouter()
+    const { query, push, replace } = useRouter()
     const dispatch = useAppDispatch()
     const { error } = useToast()
 
@@ -53,8 +57,10 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
     const events = useAppSelector(s => selectMatrixRoomEvents(s, roomId))
+    const shouldShowJoinButton = useAppSelector(s =>
+        selectShouldShowJoinOnChatPreview(s, roomId),
+    )
 
-    const [isLoading, setIsLoading] = useState(!room)
     const [isPaymentOpen, setIsPaymentOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
@@ -63,12 +69,26 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     const directUserId = room?.directUserId
     const isDirectChat = room?.isDirect
 
-    // If we don't have info about this member, attempt to fetch a pubkey for them
     useEffect(() => {
-        if (room) return
-        setIsLoading(false)
-        // TODO: Fetch the room?
-    }, [room])
+        if (room || groupPreview) return
+
+        let isCancelled = false
+        const previewRequest = dispatch(
+            getMatrixRoomPreview({ fedimint, roomId }),
+        )
+
+        previewRequest.unwrap().catch(err => {
+            if (isCancelled) return
+
+            log.warn('Failed to fetch room preview', err)
+            replace(chatRoute)
+        })
+
+        return () => {
+            isCancelled = true
+            previewRequest.abort()
+        }
+    }, [dispatch, groupPreview, replace, room, roomId])
 
     const handleSend = useCallback(
         async (
@@ -148,28 +168,33 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
         return <ChatRoomSearch room={room} />
     }
 
-    if (isLoading) {
-        return (
-            <LoadingContainer>
-                <HoloLoader size="xl" />
-            </LoadingContainer>
-        )
-    } else if (!room) {
+    if (!room) {
         if (groupPreview) {
             return (
-                <ChatPreviewConversation id={roomId} preview={groupPreview} />
+                <Column grow basis={false}>
+                    <ChatPreviewConversation
+                        id={roomId}
+                        preview={groupPreview}
+                    />
+                    {shouldShowJoinButton && (
+                        <JoinButtonWrapper>
+                            <Button
+                                width="full"
+                                onClick={() =>
+                                    push(chatConfirmJoinPublicRoomRoute(roomId))
+                                }>
+                                {t('feature.chat.join-group')}
+                            </Button>
+                        </JoinButtonWrapper>
+                    )}
+                </Column>
             )
         }
 
         return (
-            <ChatEmptyState>
-                <Text>
-                    {t('feature.chat.member-not-found', {
-                        username: roomId,
-                    })}
-                </Text>
-                <Button onClick={() => back()}>{t('phrases.go-back')}</Button>
-            </ChatEmptyState>
+            <LoadingContainer>
+                <HoloLoader size="md" />
+            </LoadingContainer>
         )
     }
 
@@ -225,4 +250,9 @@ const LoadingContainer = styled('div', {
     alignItems: 'center',
     width: '100%',
     height: '100%',
+})
+
+const JoinButtonWrapper = styled('div', {
+    background: theme.colors.white,
+    padding: theme.spacing.xl,
 })
