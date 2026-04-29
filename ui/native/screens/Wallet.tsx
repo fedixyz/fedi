@@ -25,7 +25,7 @@ import WalletSetupEmpty from '../components/feature/wallet/WalletSetupEmpty'
 import { Column, Row } from '../components/ui/Flex'
 import { Pressable } from '../components/ui/Pressable'
 import { PressableIcon } from '../components/ui/PressableIcon'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { Switcher } from '../components/ui/Switcher'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { LoadedFederation } from '../types'
@@ -239,7 +239,7 @@ function SelectedWalletHeader({
                 name="ChevronRight"
                 color={theme.colors.darkGrey}
                 containerStyle={style.icon}
-                size={SvgImageSize.sm}
+                size="sm"
             />
         </Pressable>
     )

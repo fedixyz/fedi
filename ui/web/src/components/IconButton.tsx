@@ -3,17 +3,15 @@ import React from 'react'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
 import { styled, theme } from '../styles'
-import { Icon, IconProps } from './Icon'
+import { Icon, IconProps, IconSize } from './Icon'
 
 interface Props extends Omit<IconProps, 'size' | 'onClick'> {
     variant?: 'primary' | 'secondary' | 'basic'
-    size?: Exclude<IconProps['size'], number | 'xs'>
+    size?: Exclude<IconSize, 'xxs'>
     outline?: boolean
     disabled?: boolean
     onClick?: React.MouseEventHandler<HTMLButtonElement>
 }
-
-const sizeOrder = ['xs', 'sm', 'md', 'lg', 'xl'] as const
 
 export const IconButton: React.FC<Props> = ({
     onClick,
@@ -22,12 +20,22 @@ export const IconButton: React.FC<Props> = ({
     disabled,
     variant = 'basic',
     outline = false,
+    style,
     ...props
 }) => {
-    const iconSize = sizeOrder[sizeOrder.indexOf(size) - 1]
+    // Since IconButton has a width and height of `size`,
+    // Downscale the icon by one size
+    const iconSizeMap: Record<typeof size, IconSize> = {
+        xl: 'lg',
+        lg: 'md',
+        md: 'sm',
+        sm: 'xs',
+        xs: 'xxs',
+    }
+    const iconSize: IconSize = iconSizeMap[size]
+    const buttonPadding = fediTheme.sizes[size] * 0.2
     const sharedProps = {
         variant: variant,
-        size: size,
         outline: outline,
         onClick: onClick,
         disabled,
@@ -36,6 +44,12 @@ export const IconButton: React.FC<Props> = ({
         <ButtonBase
             {...(props as React.HTMLAttributes<HTMLButtonElement>)}
             {...sharedProps}
+            style={{
+                ...style,
+                width: fediTheme.sizes[size],
+                height: fediTheme.sizes[size],
+                padding: buttonPadding,
+            }}
             type="button">
             <Icon size={iconSize} icon={icon} />
         </ButtonBase>
@@ -70,28 +84,6 @@ const ButtonBase = styled('button', {
             basic: {
                 background: 'transparent',
                 color: theme.colors.primary,
-            },
-        },
-        size: {
-            sm: {
-                width: theme.sizes.sm,
-                height: theme.sizes.sm,
-                padding: `${fediTheme.sizes.sm * 0.2}px`,
-            },
-            md: {
-                width: theme.sizes.md,
-                height: theme.sizes.md,
-                padding: `${fediTheme.sizes.md * 0.2}px`,
-            },
-            lg: {
-                width: theme.sizes.lg,
-                height: theme.sizes.lg,
-                padding: `${fediTheme.sizes.lg * 0.2}px`,
-            },
-            xl: {
-                width: theme.sizes.xl,
-                height: theme.sizes.xl,
-                padding: `${fediTheme.sizes.xl * 0.2}px`,
             },
         },
         disabled: {

@@ -6,7 +6,7 @@ import { theme as globalTheme } from '@fedi/common/constants/theme'
 
 import { BubbleView } from '../../ui/BubbleView'
 import { Row } from '../../ui/Flex'
-import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
+import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 export interface InfoEntryListItemProps {
     item: { icon: SvgImageName; text: string }
@@ -24,7 +24,7 @@ const InfoEntryListItem: React.FC<InfoEntryListItemProps> = ({
                 <BubbleView containerStyle={iconStyles.bubble}>
                     <SvgImage
                         name={item.icon}
-                        size={SvgImageSize.sm}
+                        size="sm"
                         color={theme.colors.white}
                     />
                 </BubbleView>

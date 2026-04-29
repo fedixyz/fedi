@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { Row } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 export const HistoryRowError: React.FC = () => {
     const { t } = useTranslation()
@@ -15,11 +15,7 @@ export const HistoryRowError: React.FC = () => {
     return (
         <Row center style={style.container}>
             <View style={style.leftContainer}>
-                <SvgImage
-                    name="Error"
-                    color={theme.colors.red}
-                    size={SvgImageSize.md}
-                />
+                <SvgImage name="Error" color={theme.colors.red} size="md" />
             </View>
             <View style={style.centerContainer}>
                 <Text>{t('errors.history-render-error')}</Text>

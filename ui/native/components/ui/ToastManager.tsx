@@ -19,7 +19,7 @@ import { useAppSelector } from '../../state/hooks'
 import { toastStyles as styles } from '../../styles/toast'
 import { useLaunchZendesk } from '../../utils/hooks/support'
 import { Row, Column } from './Flex'
-import SvgImage, { SvgImageSize } from './SvgImage'
+import SvgImage from './SvgImage'
 
 type ToastAction = {
     label: string
@@ -175,7 +175,7 @@ export default function ToastManager() {
                                                     gap="sm">
                                                     <SvgImage
                                                         name="SmileMessage"
-                                                        size={SvgImageSize.xs}
+                                                        size="xs"
                                                         color={
                                                             theme.colors.white
                                                         }

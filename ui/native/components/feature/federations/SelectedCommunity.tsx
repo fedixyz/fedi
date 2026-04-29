@@ -9,7 +9,7 @@ import { Community } from '@fedi/common/types'
 import { NavigationHook } from '../../../types/navigation'
 import { Column, Row } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from './FederationLogo'
 
 export type Props = { community: Community }
@@ -49,7 +49,7 @@ const SelectedCommunity: React.FC<Props> = ({ community }) => {
                 <SvgImage
                     name="ChevronRight"
                     color={theme.colors.grey}
-                    size={SvgImageSize.sm}
+                    size="sm"
                 />
             </Row>
         </Pressable>

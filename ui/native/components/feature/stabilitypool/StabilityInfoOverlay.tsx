@@ -7,7 +7,7 @@ import { STABLE_BALANCE_SUPPORT_ARTICLE_URL } from '@fedi/common/constants/linki
 
 import CenterOverlay from '../../ui/CenterOverlay'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 type StabilityInfoOverlayProps = {
     onDismiss: () => void
@@ -33,7 +33,7 @@ const StabilityInfoOverlay: React.FC<StabilityInfoOverlayProps> = ({
             overlayStyle={style.container}>
             <SvgImage
                 name="UsdCircleFilled"
-                size={SvgImageSize.xl}
+                size="xl"
                 color={theme.colors.mint}
             />
             <Column gap={theme.spacing.md}>

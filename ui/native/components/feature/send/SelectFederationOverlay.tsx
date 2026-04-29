@@ -11,7 +11,7 @@ import { useAppSelector, useStabilityPool } from '../../../state/hooks'
 import { LoadedFederation, MSats } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 
 const SelectFederationOverlay: React.FC<{
@@ -111,7 +111,7 @@ const SelectFederationListItem: React.FC<{
             {isSelected && (
                 <SvgImage
                     name="Check"
-                    size={SvgImageSize.sm}
+                    size="sm"
                     containerStyle={{
                         marginLeft: 'auto',
                     }}

@@ -6,7 +6,7 @@ import { selectOnboardingCompleted } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
 
 import { Column } from '../components/ui/Flex'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import {
     NavigationArgs,
@@ -74,7 +74,7 @@ const Initializing: React.FC<Props> = () => {
 
     return (
         <Column center style={{ width: '100%', height: '100%' }}>
-            <SvgImage size={SvgImageSize.lg} name="FediLogoIcon" />
+            <SvgImage size="lg" name="FediLogoIcon" />
         </Column>
     )
 }

@@ -10,7 +10,7 @@ import { isDev } from '@fedi/common/utils/environment'
 
 import { useAppSelector } from '../../../state/hooks'
 import { Row } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 type Props = {
     federationId?: Federation['id']
@@ -43,7 +43,7 @@ const StabilityWalletTitle: React.FC<Props> = ({
         <Row align="center" justify="start" gap="sm">
             <SvgImage
                 name="UsdCircleFilled"
-                size={SvgImageSize.sm}
+                size="sm"
                 color={theme.colors.mint}
             />
             <Row align="center" shrink style={style.labelRow}>

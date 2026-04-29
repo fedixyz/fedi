@@ -18,7 +18,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvatar'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -96,7 +96,7 @@ const StabilityConfirmWithdraw: React.FC<Props> = ({ route, navigation }) => {
                 <SvgImage name="ArrowRight" color={theme.colors.primaryLight} />
                 <SvgImage
                     name="BitcoinCircle"
-                    size={SvgImageSize.md}
+                    size="md"
                     color={theme.colors.orange}
                 />
             </View>

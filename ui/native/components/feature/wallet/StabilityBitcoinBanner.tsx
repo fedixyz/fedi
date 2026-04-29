@@ -12,7 +12,7 @@ import { Federation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
 import { Row } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 export type Props = {
     federationId: Federation['id']
@@ -39,11 +39,7 @@ export const StabilityBitcoinBanner: React.FC<Props> = ({ federationId }) => {
             gap="xs"
             fullWidth
             style={style.container}>
-            <SvgImage
-                color={theme.colors.night}
-                name="Info"
-                size={SvgImageSize.xs}
-            />
+            <SvgImage color={theme.colors.night} name="Info" size="xs" />
             <Text small medium style={style.text}>
                 {t('feature.stabilitypool.no-bitcoin-notice', {
                     currency,

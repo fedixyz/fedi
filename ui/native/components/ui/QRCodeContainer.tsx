@@ -14,7 +14,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { Row, Column } from './Flex'
 import QRCode from './QRCode'
-import SvgImage, { SvgImageSize } from './SvgImage'
+import SvgImage from './SvgImage'
 
 const log = makeLog('QRCodeContainer')
 
@@ -106,7 +106,7 @@ const QRCodeContainer = ({
                                     : 'Copy'
                             }
                             color={theme.colors.primary}
-                            size={SvgImageSize.xs}
+                            size="xs"
                         />
                         <Text
                             style={style.inlineActionText}

@@ -28,7 +28,7 @@ import StabilityWalletTitle from '../components/feature/stabilitypool/StabilityW
 import { AvatarSize } from '../components/ui/Avatar'
 import { Column, Row } from '../components/ui/Flex'
 import NotesInput from '../components/ui/NotesInput'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetAfterSendSuccess } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -148,13 +148,13 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
                 <View style={style.conversionIndicator}>
                     <SvgImage
                         name="UsdCircleFilled"
-                        size={SvgImageSize.sm}
+                        size="sm"
                         color={theme.colors.mint}
                     />
-                    <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                    <SvgImage name="ArrowRight" size="sm" />
                     <SvgImage
                         name="UsdCircleFilled"
-                        size={SvgImageSize.sm}
+                        size="sm"
                         color={theme.colors.mint}
                     />
                 </View>

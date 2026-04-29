@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { Asset } from 'react-native-image-picker'
 
 import { Row, Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 interface Props {
     assets: Asset[]
@@ -64,7 +64,7 @@ export const AssetsList: React.FC<Props> = ({ assets, setAttachments }) => {
                         }>
                         <SvgImage
                             name="Close"
-                            size={SvgImageSize.xs}
+                            size="xs"
                             color={theme.colors.white}
                         />
                     </Pressable>

@@ -12,7 +12,7 @@ import { useLaunchZendesk } from '../../../utils/hooks/support'
 import CenterOverlay from '../../ui/CenterOverlay'
 import { Row, Column } from '../../ui/Flex'
 import OverlayToast from '../../ui/OverlayToast'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { FeeBreakdown } from '../send/FeeBreakdown'
 import { HistoryDetail, HistoryDetailProps } from './HistoryDetail'
 
@@ -96,7 +96,7 @@ const HistoryDetailOverlay: React.FC<HistoryDetailOverlayProps> = ({
                         <SvgImage
                             name="Error"
                             color={theme.colors.red}
-                            size={SvgImageSize.lg}
+                            size="lg"
                         />
                         <Text style={style.overlayErrorText}>
                             {t('errors.history-render-error')}
@@ -113,7 +113,7 @@ const HistoryDetailOverlay: React.FC<HistoryDetailOverlayProps> = ({
                             <SvgImage
                                 name="SmileMessage"
                                 color={theme.colors.white}
-                                size={SvgImageSize.sm}
+                                size="sm"
                             />
                             <Text style={style.askFediText}>
                                 {t('feature.support.title')}

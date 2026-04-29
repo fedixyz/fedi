@@ -15,7 +15,7 @@ import type { SeedWords } from '@fedi/common/types'
 import { Images } from '../assets/images'
 import { Row, Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -110,7 +110,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
                         <ImageBackground
                             source={Images.HoloBackground}
                             style={style.iconBackground}>
-                            <SvgImage name="WordList" size={SvgImageSize.lg} />
+                            <SvgImage name="WordList" size="lg" />
                         </ImageBackground>
                         <Text
                             style={style.title}
@@ -127,10 +127,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
                         <Column style={style.warning}>
                             <Row center>
                                 <View style={style.warningIconWrapper}>
-                                    <SvgImage
-                                        name="Warning"
-                                        size={SvgImageSize.xs}
-                                    />
+                                    <SvgImage name="Warning" size="xs" />
                                 </View>
                                 <Text
                                     style={style.warningText}

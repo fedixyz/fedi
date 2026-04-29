@@ -9,7 +9,7 @@ import { Federation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
 import { Row } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 export type Props = {
     federationId: Federation['id']
@@ -30,7 +30,7 @@ export const NetworkBanner: React.FC<Props> = ({ federationId }) => {
             <SvgImage
                 color={theme.colors.night}
                 name="Info"
-                size={SvgImageSize.xs}
+                size="xs"
                 maxFontSizeMultiplier={1.2}
             />
             <Text

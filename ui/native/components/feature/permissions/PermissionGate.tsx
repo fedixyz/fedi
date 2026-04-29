@@ -7,7 +7,7 @@ import { Row, Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import HoloCircle from '../../ui/HoloCircle'
 import { SafeAreaContainer } from '../../ui/SafeArea'
-import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
+import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 interface Props {
     icon: SvgImageName
@@ -35,7 +35,7 @@ export const PermissionGate: React.FC<Props> = ({
         <SafeAreaContainer style={style.container} edges="notop">
             <Column grow center gap="lg">
                 <HoloCircle
-                    content={<SvgImage name={icon} size={SvgImageSize.md} />}
+                    content={<SvgImage name={icon} size="md" />}
                     size={72}
                 />
                 <Text h2 medium style={style.title}>
@@ -46,11 +46,7 @@ export const PermissionGate: React.FC<Props> = ({
                     style={style.descriptionContainer}>
                     <Row center gap="sm">
                         {descriptionIcons.map(name => (
-                            <SvgImage
-                                key={name}
-                                name={name}
-                                size={SvgImageSize.sm}
-                            />
+                            <SvgImage key={name} name={name} size="sm" />
                         ))}
                     </Row>
                     <Text medium style={style.descriptionText}>

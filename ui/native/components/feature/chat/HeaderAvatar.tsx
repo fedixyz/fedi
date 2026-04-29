@@ -8,7 +8,6 @@ import { useAppSelector } from '../../../state/hooks'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
 import { Pressable } from '../../ui/Pressable'
 import { PressableIcon } from '../../ui/PressableIcon'
-import { SvgImageSize } from '../../ui/SvgImage'
 
 type Props = {
     onPress: () => void
@@ -28,7 +27,7 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
                     hitSlop={10}
                     onPress={onPress}
                     svgName="ProfileThicker"
-                    svgProps={{ size: SvgImageSize.sm }}
+                    svgProps={{ size: 'sm' }}
                     containerStyle={style.iconContainer}
                     maxFontSizeMultiplier={
                         theme.multipliers.headerMaxFontMultiplier

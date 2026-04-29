@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useKeyboard } from '../../utils/hooks/keyboard'
 import { Row } from './Flex'
-import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
+import SvgImage, { SvgImageName } from './SvgImage'
 
 type OverlayButton = {
     text: string
@@ -154,7 +154,7 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
                 }}>
                 {icon && (
                     <SvgImage
-                        size={SvgImageSize.md}
+                        size="md"
                         name={icon}
                         containerStyle={style.overlayIcon}
                     />

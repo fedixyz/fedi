@@ -4,7 +4,7 @@ import { t } from 'i18next'
 import React from 'react'
 import { StyleSheet, View, Pressable } from 'react-native'
 
-import SvgImage, { SvgImageSize } from '../../../components/ui/SvgImage'
+import SvgImage from '../../../components/ui/SvgImage'
 import { Column } from '../../ui/Flex'
 
 const CommunityChatsPlaceholder: React.FC = () => {
@@ -23,7 +23,7 @@ const CommunityChatsPlaceholder: React.FC = () => {
                 onPress={() => navigation.navigate('PublicFederations')}>
                 <View style={style.iconContainer}>
                     <View style={style.bubbleContainer}>
-                        <SvgImage name="Chat" size={SvgImageSize.md} />
+                        <SvgImage name="Chat" size="md" />
                     </View>
                 </View>
                 <Column grow style={style.textContainer}>

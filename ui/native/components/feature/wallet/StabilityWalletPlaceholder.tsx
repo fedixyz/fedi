@@ -14,7 +14,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { useAppSelector } from '../../../state/hooks'
 import { BubbleCard } from '../../ui/BubbleView'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 const StabilityWalletPlaceholder: React.FC = () => {
     const { t } = useTranslation()
@@ -41,7 +41,7 @@ const StabilityWalletPlaceholder: React.FC = () => {
                         <Column style={stylesPlaceholder.titleContainer}>
                             <SvgImage
                                 name="UsdCircle"
-                                size={SvgImageSize.md}
+                                size="md"
                                 color={theme.colors.white}
                             />
                             <Text

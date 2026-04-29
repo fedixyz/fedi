@@ -7,7 +7,7 @@ import { useFederationPreview } from '@fedi/common/hooks/federation'
 import { RpcEcashInfo } from '@fedi/common/types/bindings'
 
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import FederationPreview from '../onboarding/FederationPreview'
 
@@ -111,7 +111,7 @@ export default function OmniReceiveEcash({
                     </Text>
                 </Column>
                 <View style={style.arrowContainer}>
-                    <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                    <SvgImage name="ArrowRight" size="sm" />
                 </View>
             </Pressable>
         )

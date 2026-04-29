@@ -6,7 +6,7 @@ import { Pressable, StyleSheet } from 'react-native'
 import { ReceiverType } from '../../../screens/StabilitySend'
 import { AvatarSize } from '../../ui/Avatar'
 import { Column, Row } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from '../chat/ChatAvatar'
 import RecipientSelectorOverlay from './RecipientSelectorOverlay'
 
@@ -52,7 +52,7 @@ const RecipientSelector: React.FC<{
                         <Row align="center" gap="xs">
                             <SvgImage
                                 name="ChevronRight"
-                                size={SvgImageSize.sm}
+                                size="sm"
                                 containerStyle={{
                                     transform: [
                                         { rotate: '90deg' },

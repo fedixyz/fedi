@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvatar'
 import { Row } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { resetToWallets } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -33,7 +33,7 @@ const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
                 <SvgImage name="ArrowRight" color={theme.colors.primaryLight} />
                 <SvgImage
                     name="BitcoinCircle"
-                    size={SvgImageSize.md}
+                    size="md"
                     color={theme.colors.orange}
                 />
             </Row>
@@ -41,7 +41,7 @@ const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
                 <HoloCircle
                     content={
                         <View style={style.holoContentContainer}>
-                            <SvgImage name="Check" size={SvgImageSize.md} />
+                            <SvgImage name="Check" size="md" />
                             <Text medium style={[style.holoText]}>{`${t(
                                 'feature.stabilitypool.will-be-withdrawn',
                                 {

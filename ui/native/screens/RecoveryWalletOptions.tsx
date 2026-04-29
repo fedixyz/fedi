@@ -9,7 +9,7 @@ import { hexToRgba } from '@fedi/common/utils/color'
 import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import { Pressable } from '../components/ui/Pressable'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -38,10 +38,7 @@ const RecoveryWalletOptions: React.FC<Props> = ({ navigation }: Props) => {
                         navigation.navigate('RecoveryWalletTransfer')
                     }>
                     <Column center style={style.roundIconContainer}>
-                        <SvgImage
-                            name="ArrowLoopRight"
-                            size={SvgImageSize.sm}
-                        />
+                        <SvgImage name="ArrowLoopRight" size="sm" />
                     </Column>
                     <Column align="start" gap="xxs">
                         <Text medium>
@@ -52,7 +49,7 @@ const RecoveryWalletOptions: React.FC<Props> = ({ navigation }: Props) => {
                         </Text>
                     </Column>
                     <View style={style.arrowContainer}>
-                        <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                        <SvgImage name="ArrowRight" size="sm" />
                     </View>
                 </Pressable>
                 <Pressable
@@ -62,7 +59,7 @@ const RecoveryWalletOptions: React.FC<Props> = ({ navigation }: Props) => {
                     // way to communicate this
                     disabled>
                     <Column center style={style.roundIconContainer}>
-                        <SvgImage name="Wallet" size={SvgImageSize.sm} />
+                        <SvgImage name="Wallet" size="sm" />
                     </Column>
                     <Column align="start" gap="xxs">
                         <Text medium>
@@ -73,7 +70,7 @@ const RecoveryWalletOptions: React.FC<Props> = ({ navigation }: Props) => {
                         </Text>
                     </Column>
                     <View style={style.arrowContainer}>
-                        <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                        <SvgImage name="ArrowRight" size="sm" />
                     </View>
                 </Pressable>
             </Column>

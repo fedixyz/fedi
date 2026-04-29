@@ -17,7 +17,7 @@ import { hexToRgba } from '@fedi/common/utils/color'
 import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
 import { Column } from '../components/ui/Flex'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -71,7 +71,7 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
                 disabled={isProcessing}
                 onPress={() => selectDevice(device)}>
                 <Column center style={style.roundIconContainer}>
-                    <SvgImage name={iconName} size={SvgImageSize.sm} />
+                    <SvgImage name={iconName} size="sm" />
                 </Column>
                 <Column
                     align="start"
@@ -91,7 +91,7 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
                     {isProcessing ? (
                         <ActivityIndicator />
                     ) : (
-                        <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                        <SvgImage name="ArrowRight" size="sm" />
                     )}
                 </View>
             </Pressable>
@@ -122,7 +122,7 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
                         align="center"
                         gap="lg"
                         style={style.centeredContainer}>
-                        <SvgImage name="Error" size={SvgImageSize.lg} />
+                        <SvgImage name="Error" size="lg" />
                         <Text h2 medium style={style.title}>
                             {t('feature.recovery.device-not-found')}
                         </Text>

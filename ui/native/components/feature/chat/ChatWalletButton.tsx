@@ -8,7 +8,7 @@ import { selectAreAllFederationsRecovering } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { RecoveryInProgressOverlay } from '../recovery/RecoveryInProgressOverlay'
 
 type ChatWalletButtonProps = {
@@ -41,7 +41,7 @@ const ChatWalletButton: React.FC<ChatWalletButtonProps> = ({
             <Pressable onPress={handlePress} hitSlop={10}>
                 <SvgImage
                     name="Wallet"
-                    size={SvgImageSize.md}
+                    size="md"
                     color={
                         areAllFederationsRecovering
                             ? theme.colors.primaryVeryLight

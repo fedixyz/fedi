@@ -7,7 +7,7 @@ import { STABLE_BALANCE_SUPPORT_ARTICLE_URL } from '@fedi/common/constants/linki
 
 import CenterOverlay from '../../ui/CenterOverlay'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 type ChatInfoOverlayProps = {
     onDismiss: () => void
@@ -32,11 +32,7 @@ const ChatInfoOverlay: React.FC<ChatInfoOverlayProps> = ({
             onBackdropPress={onDismiss}
             showCloseButton
             overlayStyle={style.container}>
-            <SvgImage
-                name="Info"
-                size={SvgImageSize.lg}
-                color={theme.colors.black}
-            />
+            <SvgImage name="Info" size="lg" color={theme.colors.black} />
             <Column gap={theme.spacing.md}>
                 <Text h2 bolder center>
                     {t('feature.chat.chat-info-title')}

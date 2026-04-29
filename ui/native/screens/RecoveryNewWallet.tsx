@@ -8,7 +8,7 @@ import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 
 import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -34,7 +34,7 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
         <Column grow center gap="lg" style={style.container}>
             <Column align="center" gap="lg" style={style.centeredContainer}>
                 <HoloCircle
-                    content={<SvgImage name="Wallet" size={SvgImageSize.md} />}
+                    content={<SvgImage name="Wallet" size="md" />}
                     size={64}
                 />
 

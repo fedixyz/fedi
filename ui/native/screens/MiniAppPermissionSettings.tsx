@@ -29,7 +29,7 @@ import {
 import { FediModImages } from '../assets/images'
 import { Column, Row } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import SvgImage, { SvgImageName, SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage, { SvgImageName } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 
@@ -186,7 +186,7 @@ const MiniAppPermissionSettings: React.FC<Props> = () => {
                     <Row center gap={8}>
                         <SvgImage
                             name={info.iconName as SvgImageName}
-                            size={SvgImageSize.sm}
+                            size="sm"
                         />
                         <Column>
                             <Text bold>
@@ -207,7 +207,7 @@ const MiniAppPermissionSettings: React.FC<Props> = () => {
                                 }>
                                 <SvgImage
                                     name="ChevronDown"
-                                    size={SvgImageSize.sm}
+                                    size="sm"
                                     containerStyle={{
                                         transform: [
                                             {
@@ -310,7 +310,7 @@ const MiniAppPermissionRow = (props: MiniAppPermissionRowProps) => {
                     onPress={onReset}
                     hitSlop={12}
                     style={style.resetButton}>
-                    <SvgImage name="Close" size={SvgImageSize.sm} />
+                    <SvgImage name="Close" size="sm" />
                 </Pressable>
             </Row>
         </Row>

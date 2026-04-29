@@ -9,7 +9,7 @@ import { useAppSelector } from '../../../state/hooks'
 import CenterOverlay from '../../ui/CenterOverlay'
 import { Row, Column } from '../../ui/Flex'
 import HoloCircle from '../../ui/HoloCircle'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 type DisplayNameOverlayProps = {
     show?: boolean
@@ -28,7 +28,7 @@ const DisplayNameOverlay: React.FC<DisplayNameOverlayProps> = ({
         <CenterOverlay show={show} onBackdropPress={onDismiss}>
             <Column align="center">
                 <HoloCircle
-                    content={<SvgImage name="Profile" size={SvgImageSize.lg} />}
+                    content={<SvgImage name="Profile" size="lg" />}
                     size={64}
                 />
 

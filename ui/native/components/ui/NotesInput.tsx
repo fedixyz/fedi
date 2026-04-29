@@ -6,7 +6,7 @@ import { Pressable, StyleSheet } from 'react-native'
 
 import EditNotesOverlay from '../feature/send/EditNotesOverlay'
 import { Column, Row } from './Flex'
-import SvgImage, { SvgImageSize } from './SvgImage'
+import SvgImage from './SvgImage'
 
 type NotesInputProps = {
     notes: string
@@ -48,7 +48,7 @@ export default function NotesInput({
                             {label ?? t('words.notes')}
                         </Text>
                         <Row align="center" gap="xs">
-                            <SvgImage name="EditPaper" size={SvgImageSize.sm} />
+                            <SvgImage name="EditPaper" size="sm" />
                             <Text caption>
                                 {notes ? t('words.edit') : t('words.add')}
                             </Text>

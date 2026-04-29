@@ -7,7 +7,7 @@ import { useTotalBalance } from '@fedi/common/hooks/amount'
 
 import { Row } from './Flex'
 import GradientView from './GradientView'
-import SvgImage, { SvgImageSize } from './SvgImage'
+import SvgImage from './SvgImage'
 
 const TotalBalance: React.FC = () => {
     const { theme } = useTheme()
@@ -27,7 +27,7 @@ const TotalBalance: React.FC = () => {
         <Row align="center" justify="start" style={style.container}>
             <Pressable onPress={handlePress}>
                 <GradientView variant="white" style={style.gradientContainer}>
-                    <SvgImage name="Wallet" size={SvgImageSize.xs} />
+                    <SvgImage name="Wallet" size="xs" />
                     <Text style={style.balanceText} caption medium>
                         {t('words.balance')}: {formattedBalance}
                     </Text>

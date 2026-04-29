@@ -6,7 +6,7 @@ import { StyleSheet } from 'react-native'
 
 import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -24,12 +24,7 @@ const RecoveryWalletTransfer: React.FC<Props> = ({ navigation }: Props) => {
         <Column grow center gap="lg" style={style.container}>
             <Column align="center" gap="lg" style={style.centeredContainer}>
                 <HoloCircle
-                    content={
-                        <SvgImage
-                            name="ArrowLoopRight"
-                            size={SvgImageSize.md}
-                        />
-                    }
+                    content={<SvgImage name="ArrowLoopRight" size="md" />}
                     size={64}
                 />
 

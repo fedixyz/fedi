@@ -16,7 +16,7 @@ import { prefixFileUri } from '@fedi/common/utils/media'
 
 import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -121,7 +121,7 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
                                 <SvgImage
                                     name="Play"
                                     color={theme.colors.white}
-                                    size={SvgImageSize.lg}
+                                    size="lg"
                                 />
                             </Pressable>
                         )}

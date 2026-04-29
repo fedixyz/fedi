@@ -11,7 +11,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { Column } from '../components/ui/Flex'
 import HoloGuidance from '../components/ui/HoloGuidance'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -45,9 +45,7 @@ const SocialBackupCloudUpload: React.FC<Props> = ({ navigation }: Props) => {
     return (
         <Column grow center style={style.container}>
             <HoloGuidance
-                iconImage={
-                    <SvgImage name="GoogleDrive" size={SvgImageSize.lg} />
-                }
+                iconImage={<SvgImage name="GoogleDrive" size="lg" />}
                 title={t('feature.backup.cloud-backup')}
                 message={t('feature.backup.cloud-backup-instructions')}
             />

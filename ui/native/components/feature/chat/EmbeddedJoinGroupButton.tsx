@@ -10,7 +10,7 @@ import { encodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 
 import { NavigationHook } from '../../../types/navigation'
 import { Row } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 type Props = {
     groupId: string
@@ -47,7 +47,7 @@ const EmbeddedJoinGroupButton: React.FC<Props> = ({ groupId }: Props) => {
                 <Row center style={style.contents}>
                     <SvgImage
                         containerStyle={style.icon}
-                        size={SvgImageSize.xs}
+                        size="xs"
                         name={'SocialPeople'}
                         // TODO: Implement room preview to show group type
                         // name={

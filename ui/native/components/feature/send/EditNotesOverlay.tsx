@@ -5,7 +5,6 @@ import { StyleSheet } from 'react-native'
 import { Row } from '../../ui/Flex'
 import FullModalOverlay from '../../ui/FullModalOverlay'
 import { PressableIcon } from '../../ui/PressableIcon'
-import { SvgImageSize } from '../../ui/SvgImage'
 
 type EditNotesOverlayProps = {
     show: boolean
@@ -35,7 +34,7 @@ const EditNotesOverlay = ({
                         <PressableIcon
                             svgName="Close"
                             onPress={() => dismiss()}
-                            svgProps={{ size: SvgImageSize.md }}
+                            svgProps={{ size: 'md' }}
                             containerStyle={style.backIconContainer}
                         />
                         <Text bold style={style.title}>

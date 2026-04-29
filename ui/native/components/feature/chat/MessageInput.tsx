@@ -47,7 +47,7 @@ import { matrixIdToUsername } from '@fedi/common/utils/matrix'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useMessageAttachments } from '../../../utils/hooks/attachments'
 import { useKeyboard } from '../../../utils/hooks/keyboard'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { AssetsList } from './AssetsList'
 import ChatMentionSuggestions from './ChatMentionSuggestions'
 import ChatWalletButton from './ChatWalletButton'
@@ -409,7 +409,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         disabled={inputDisabled || isSendingMessage}>
                         <SvgImage
                             name="SendArrowUpCircle"
-                            size={SvgImageSize.md}
+                            size="md"
                             color={
                                 inputDisabled || isSendingMessage
                                     ? theme.colors.primaryVeryLight
@@ -511,7 +511,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                     }>
                                     <SvgImage
                                         name="SendArrowUpCircle"
-                                        size={SvgImageSize.md}
+                                        size="md"
                                         color={
                                             inputDisabled || isSendingMessage
                                                 ? theme.colors.primaryVeryLight

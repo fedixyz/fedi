@@ -22,7 +22,6 @@ import {
 import { Column } from '../../ui/Flex'
 import RotatingSvg from '../../ui/RotatingSvg'
 import { SafeAreaContainer } from '../../ui/SafeArea'
-import { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 
 type Props = {
@@ -71,7 +70,7 @@ const CommunityPreview: React.FC<Props> = ({
             <Column grow center style={s.loadingContainer}>
                 <RotatingSvg
                     name="FediLogoIcon"
-                    size={SvgImageSize.md}
+                    size="md"
                     containerStyle={s.loadingIcon}
                 />
             </Column>

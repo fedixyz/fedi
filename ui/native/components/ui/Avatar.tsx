@@ -24,11 +24,11 @@ export enum AvatarSize {
     lg = 'lg',
 }
 
-const svgImageSizeMapping = {
-    [AvatarSize.xs]: SvgImageSize.xxs,
-    [AvatarSize.sm]: SvgImageSize.xs,
-    [AvatarSize.md]: SvgImageSize.sm,
-    [AvatarSize.lg]: SvgImageSize.md,
+const svgImageSizeMapping: Record<AvatarSize, SvgImageSize> = {
+    [AvatarSize.xs]: 'xxs',
+    [AvatarSize.sm]: 'xs',
+    [AvatarSize.md]: 'sm',
+    [AvatarSize.lg]: 'md',
 }
 
 export type AvatarProps = {

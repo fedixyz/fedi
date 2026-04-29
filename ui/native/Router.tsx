@@ -13,7 +13,7 @@ import { HomeNavigationTab } from '@fedi/common/types/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { OmniLinkHandler } from './components/feature/omni/OmniLinkHandler'
-import SvgImage, { SvgImageSize } from './components/ui/SvgImage'
+import SvgImage from './components/ui/SvgImage'
 import ToastManager from './components/ui/ToastManager'
 import { MainNavigator } from './screens/MainNavigator'
 import { useOmniLinkContext } from './state/contexts/OmniLinkContext'
@@ -141,7 +141,7 @@ const Router = () => {
             }}
             fallback={
                 <View style={style.container}>
-                    <SvgImage size={SvgImageSize.lg} name="FediLogoIcon" />
+                    <SvgImage size="lg" name="FediLogoIcon" />
                 </View>
             }
             onStateChange={handleStateChange}>

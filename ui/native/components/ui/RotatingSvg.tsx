@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import { Animated } from 'react-native'
 
-import SvgImage, { SvgImageName, SvgImageProps, SvgImageSize } from './SvgImage'
+import SvgImage, { SvgImageName, SvgImageProps } from './SvgImage'
 
 type RotatingSvgProps = Omit<SvgImageProps, 'name'> & {
     name: SvgImageName
@@ -9,7 +9,7 @@ type RotatingSvgProps = Omit<SvgImageProps, 'name'> & {
 
 const RotatingSvg: React.FC<RotatingSvgProps> = ({
     name,
-    size = SvgImageSize.md,
+    size = 'md',
     containerStyle,
     color,
     dimensions,

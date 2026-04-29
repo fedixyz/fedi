@@ -9,7 +9,7 @@ import { clearChatReplyingToMessage } from '@fedi/common/redux'
 import { MatrixEvent, MatrixRoomMember } from '@fedi/common/types'
 
 import { useAppDispatch } from '../../../state/hooks'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 type MessageInputReplyBarProps = {
     repliedEvent: MatrixEvent
@@ -72,7 +72,7 @@ const MessageInputReplyBar: React.FC<MessageInputReplyBarProps> = ({
                     onPress={() => dispatch(clearChatReplyingToMessage())}>
                     <SvgImage
                         name="Close"
-                        size={SvgImageSize.xs}
+                        size="xs"
                         color={theme.colors.grey}
                     />
                 </Pressable>

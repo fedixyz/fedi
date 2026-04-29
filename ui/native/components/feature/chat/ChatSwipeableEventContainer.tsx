@@ -8,7 +8,7 @@ import { MatrixEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppDispatch } from '../../../state/hooks'
-import SvgImage, { SvgImageSize, SvgImageName } from '../../ui/SvgImage'
+import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 const log = makeLog('ChatSwipeableEventContainer')
 
@@ -129,7 +129,7 @@ const ChatSwipeableEventContainer: React.FC<SwipeableEventContainerProps> =
                         <SvgImage
                             key={`icon-${renderKey}-${currentSwipeDirection || 'fallback'}-${iconToUse}`}
                             name={iconToUse}
-                            size={SvgImageSize.md}
+                            size="md"
                             color={theme.colors.white}
                         />
                     </Animated.View>

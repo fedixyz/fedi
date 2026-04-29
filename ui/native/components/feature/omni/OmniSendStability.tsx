@@ -8,7 +8,7 @@ import { ParsedStabilityAddress } from '@fedi/common/types'
 
 import { Column } from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import FederationPreview from '../onboarding/FederationPreview'
 
@@ -115,7 +115,7 @@ export default function OmniSendStability({
                     </Text>
                 </Column>
                 <View style={style.arrowContainer}>
-                    <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                    <SvgImage name="ArrowRight" size="sm" />
                 </View>
             </Pressable>
         )

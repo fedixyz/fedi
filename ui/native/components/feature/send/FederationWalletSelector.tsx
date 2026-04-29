@@ -13,7 +13,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { LoadedFederation } from '../../../types'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import SelectFederationOverlay from './SelectFederationOverlay'
 
@@ -68,7 +68,7 @@ const FederationWalletSelector: React.FC<{
                 {readonly ? null : (
                     <SvgImage
                         name="ChevronRight"
-                        size={SvgImageSize.sm}
+                        size="sm"
                         containerStyle={{
                             transform: [{ rotate: '90deg' }],
                             marginLeft: 'auto',

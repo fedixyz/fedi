@@ -14,7 +14,7 @@ import { Row, Column } from '../components/ui/Flex'
 import GradientView from '../components/ui/GradientView'
 import QRScreen from '../components/ui/QRScreen'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch } from '../state/hooks'
 import {
     resetAfterFailedSocialRecovery,
@@ -132,7 +132,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
                         <GradientView
                             variant="sky-banner"
                             style={style.userIconWrapper}>
-                            <SvgImage name="User" size={SvgImageSize.xs} />
+                            <SvgImage name="User" size="xs" />
                         </GradientView>
                         <Text style={{ flex: 1 }}>{approval.guardianName}</Text>
                         <Text

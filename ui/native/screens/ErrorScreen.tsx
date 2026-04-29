@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ErrorFallbackProps } from '@fedi/common/components/ErrorBoundary'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { version } from '../package.json'
 import { useShareNativeLogs } from '../utils/hooks/export'
 
@@ -23,7 +23,7 @@ export const ErrorScreen: React.FC<Props> = ({ error }) => {
 
     return (
         <SafeAreaView style={style.container}>
-            <SvgImage name="Error" size={SvgImageSize.lg} />
+            <SvgImage name="Error" size="lg" />
             <Text h2 style={style.title}>
                 {t('errors.please-force-quit-the-app')}
             </Text>

@@ -1,10 +1,14 @@
 import React from 'react'
 
-import { css, theme } from '../styles'
+import { theme as fediTheme } from '@fedi/common/constants/theme'
 
+export type IconSize = keyof Pick<
+    typeof fediTheme.sizes,
+    'xxs' | 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+>
 interface BaseProps {
     icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
-    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number
+    size?: IconSize | number
 }
 
 export type IconProps = BaseProps &
@@ -12,30 +16,26 @@ export type IconProps = BaseProps &
 
 export const Icon: React.FC<IconProps> = ({
     icon: SvgIcon,
-    size,
+    size = 'sm',
+    style,
     ...props
 }) => {
-    const className = svgCss({
-        size: typeof size !== 'number' ? size : undefined,
-    })
-    const style =
-        typeof size === 'number' ? { width: size, height: size } : undefined
-    return <SvgIcon className={className} style={style} {...props} />
+    const dimensions =
+        typeof size === 'number'
+            ? { width: size, height: size }
+            : {
+                  width: fediTheme.sizes[size],
+                  height: fediTheme.sizes[size],
+              }
+
+    return (
+        <SvgIcon
+            style={{
+                display: 'inline-block',
+                ...dimensions,
+                ...style,
+            }}
+            {...props}
+        />
+    )
 }
-
-const svgCss = css({
-    display: 'inline-block',
-
-    variants: {
-        size: {
-            xs: { width: theme.sizes.xs, height: theme.sizes.xs },
-            sm: { width: theme.sizes.sm, height: theme.sizes.sm },
-            md: { width: theme.sizes.md, height: theme.sizes.md },
-            lg: { width: theme.sizes.lg, height: theme.sizes.lg },
-            xl: { width: theme.sizes.xl, height: theme.sizes.xl },
-        },
-    },
-    defaultVariants: {
-        size: 'sm',
-    },
-})

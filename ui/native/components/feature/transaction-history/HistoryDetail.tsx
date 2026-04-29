@@ -24,7 +24,7 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { Federation, TransactionListEntry } from '../../../types'
 import { Row, Column } from '../../ui/Flex'
 import NotesInput from '../../ui/NotesInput'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
 
 export type HistoryDetailProps = {
@@ -143,7 +143,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
             <TouchableOpacity
                 style={style.closeIconContainer}
                 onPress={handleClose}>
-                <SvgImage name="Close" size={SvgImageSize.md} />
+                <SvgImage name="Close" size="md" />
             </TouchableOpacity>
             {icon}
             <Text style={style.detailTitle}>{title}</Text>

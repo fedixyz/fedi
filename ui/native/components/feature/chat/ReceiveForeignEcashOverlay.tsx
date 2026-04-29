@@ -8,7 +8,7 @@ import { useAcceptForeignEcash } from '@fedi/common/hooks/chat'
 import { MatrixPaymentEvent } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import FederationPreview from '../onboarding/FederationPreview'
 
@@ -88,10 +88,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                             </Text>
                         </Column>
                         <View style={style.arrowContainer}>
-                            <SvgImage
-                                name="ArrowRight"
-                                size={SvgImageSize.sm}
-                            />
+                            <SvgImage name="ArrowRight" size="sm" />
                         </View>
                     </Pressable>
                 ) : (
@@ -112,7 +109,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                 ]}>
                                 <SvgImage
                                     name="Bolt"
-                                    size={SvgImageSize.sm}
+                                    size="sm"
                                     color={theme.colors.white}
                                 />
                             </View>
@@ -138,7 +135,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                             <View style={style.arrowContainer}>
                                 <SvgImage
                                     name="ArrowRight"
-                                    size={SvgImageSize.sm}
+                                    size="sm"
                                 />
                             </View>
                         </Pressable> */}
@@ -156,7 +153,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                 ]}>
                                 <SvgImage
                                     name="BrokenHeart"
-                                    size={SvgImageSize.sm}
+                                    size="sm"
                                     color={theme.colors.white}
                                 />
                             </Column>
@@ -166,10 +163,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                 </Text>
                             </Column>
                             <View style={style.arrowContainer}>
-                                <SvgImage
-                                    name="ArrowRight"
-                                    size={SvgImageSize.sm}
-                                />
+                                <SvgImage name="ArrowRight" size="sm" />
                             </View>
                         </Pressable>
                     </>
@@ -196,7 +190,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                     ? 'ChevronRight'
                                     : 'ChevronLeft'
                             }
-                            size={SvgImageSize.sm}
+                            size="sm"
                         />
                     </View>
                 </Pressable>

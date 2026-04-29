@@ -6,7 +6,6 @@ import { DetailItem } from '@fedi/common/utils/transaction'
 
 import { Column } from '../../ui/Flex'
 import { PressableIcon } from '../../ui/PressableIcon'
-import { SvgImageSize } from '../../ui/SvgImage'
 import { FeeBreakdownItem } from './FeeBreakdownItem'
 
 export type FeeBreakdownProps = {
@@ -38,7 +37,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
                 <PressableIcon
                     svgName="ChevronLeft"
                     onPress={() => onPressBack()}
-                    svgProps={{ size: SvgImageSize.md }}
+                    svgProps={{ size: 'md' }}
                     containerStyle={[
                         style.backIconContainer,
                         !showBack && style.hide,
@@ -47,7 +46,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
                 <PressableIcon
                     containerStyle={style.closeIconContainer}
                     svgName="Close"
-                    svgProps={{ size: SvgImageSize.md }}
+                    svgProps={{ size: 'md' }}
                     onPress={() => onClose()}
                 />
             </View>

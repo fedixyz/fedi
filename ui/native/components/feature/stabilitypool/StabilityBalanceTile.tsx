@@ -9,7 +9,7 @@ import { Federation, LoadedFederation } from '@fedi/common/types'
 import { useStabilityPool } from '../../../state/hooks'
 import { Row, Column } from '../../ui/Flex'
 import { ImageBadge } from '../../ui/ImageBadge'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import SelectFederationOverlay from '../send/SelectFederationOverlay'
 
@@ -56,7 +56,7 @@ const StabilityBalanceTile = ({
                                                 ? 'UsdCircleFilled'
                                                 : 'BitcoinCircle'
                                         }
-                                        size={SvgImageSize.sm}
+                                        size="sm"
                                         color={
                                             badgeLogo === 'usd'
                                                 ? theme.colors.mint

@@ -12,7 +12,7 @@ import {
     useBackupRecoveryContext,
 } from '../../../state/contexts/BackupRecoveryContext'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 const log = makeLog('ReviewVideo')
 
@@ -87,7 +87,7 @@ const ReviewVideo = ({ onConfirmVideo }: Props) => {
                                 }}>
                                 <SvgImage
                                     name="Play"
-                                    size={SvgImageSize.lg}
+                                    size="lg"
                                     color={theme.colors.white}
                                 />
                             </Pressable>

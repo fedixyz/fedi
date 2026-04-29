@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 import { formatFileSize } from '@fedi/common/utils/media'
 import { upsertListItem } from '@fedi/common/utils/redux'
 
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 type DocumentItem = {
     id: string
@@ -76,7 +76,7 @@ export const DocumentsList: React.FC<Props> = ({
                             onPress={() => onRemove(document.uri)}>
                             <SvgImage
                                 name="Close"
-                                size={SvgImageSize.xs}
+                                size="xs"
                                 color={theme.colors.white}
                             />
                         </Pressable>

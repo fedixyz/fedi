@@ -4,7 +4,7 @@ import { ImageBackground, StyleSheet } from 'react-native'
 
 import { Images } from '../../../assets/images'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 export default function BetaBanner() {
     const { t } = useTranslation()
@@ -17,7 +17,7 @@ export default function BetaBanner() {
             <ImageBackground
                 source={Images.HoloBackground}
                 style={style.gradient}>
-                <SvgImage name="NorthStar" size={SvgImageSize.sm} />
+                <SvgImage name="NorthStar" size="sm" />
                 <Text>{t('feature.backup.beta-backup')}</Text>
             </ImageBackground>
         </Column>

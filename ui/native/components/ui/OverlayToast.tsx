@@ -17,7 +17,7 @@ import { useToastScope } from '../../state/contexts/ToastScopeContext'
 import { useAppSelector } from '../../state/hooks'
 import { toastStyles as styles } from '../../styles/toast'
 import { Row, Column } from './Flex'
-import SvgImage, { SvgImageSize } from './SvgImage'
+import SvgImage from './SvgImage'
 
 export default function OverlayToast() {
     const { scope, setScope } = useToastScope()
@@ -135,7 +135,7 @@ export default function OverlayToast() {
                                                     gap="sm">
                                                     <SvgImage
                                                         name="SmileMessage"
-                                                        size={SvgImageSize.xs}
+                                                        size="xs"
                                                         color={
                                                             theme.colors.white
                                                         }

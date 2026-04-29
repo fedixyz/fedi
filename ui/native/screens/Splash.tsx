@@ -23,7 +23,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
 import { Row, Column } from '../components/ui/Flex'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import SvgImage from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
@@ -119,7 +119,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                     fullWidth
                     style={style.welcomeContainer}>
                     <Column center style={style.iconContainer}>
-                        <SvgImage size={SvgImageSize.lg} name="FediLogoIcon" />
+                        <SvgImage size="lg" name="FediLogoIcon" />
                     </Column>
                     <Text style={style.title}>
                         {t('feature.onboarding.fedi')}
@@ -199,7 +199,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                             }}>
                             <SvgImage
                                 color={theme.colors.night}
-                                size={SvgImageSize.xs}
+                                size="xs"
                                 name="SmileMessage"
                             />
                             <Text style={style.askFediText}>

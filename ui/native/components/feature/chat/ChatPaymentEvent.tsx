@@ -38,9 +38,10 @@ export const PaymentEventStatus = ({
     const style = styles(theme)
 
     const iconProps = {
-        size: SvgImageSize.xs,
+        size: 'xs' as SvgImageSize,
         color: theme.colors.secondary,
     }
+
     const icon =
         statusIcon === 'x' ? (
             <SvgImage {...iconProps} name={'Close'} />

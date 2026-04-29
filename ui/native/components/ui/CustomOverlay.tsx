@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getOverlayBottomPadding } from '../../utils/layout'
 import { Column, Row } from './Flex'
-import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
+import SvgImage, { SvgImageName } from './SvgImage'
 
 type CustomOverlayButton = {
     text: string
@@ -210,7 +210,7 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                         paddingHorizontal: 0,
                     },
                 ]}>
-                {icon && <SvgImage size={SvgImageSize.md} name={icon} />}
+                {icon && <SvgImage size="md" name={icon} />}
                 {headerElement}
                 {url && (
                     <Text style={style.overlayUrl} numberOfLines={5}>

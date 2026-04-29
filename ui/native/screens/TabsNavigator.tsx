@@ -32,10 +32,7 @@ import WalletHeader from '../components/feature/federations/WalletHeader'
 import HomeHeader from '../components/feature/home/HomeHeader'
 import SelectWalletOverlay from '../components/feature/send/SelectWalletOverlay'
 import GradientView from '../components/ui/GradientView'
-import SvgImage, {
-    SvgImageSize,
-    getIconSizeMultiplier,
-} from '../components/ui/SvgImage'
+import SvgImage, { getIconSizeMultiplier } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import {
     RootStackParamList,
@@ -357,8 +354,7 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
     // Tab bar height must be a fixed value due to its internal logic, but the height
     // is affected by fontScale, so we need to calculate it manually.
     const itemPadding = theme.spacing.lg
-    const iconSize =
-        theme.sizes[SvgImageSize.sm] * getIconSizeMultiplier(fontScale)
+    const iconSize = theme.sizes.sm * getIconSizeMultiplier(fontScale)
     const iconPadding = theme.spacing.xs
     const fontSize = fediTheme.fontSizes.caption * fontScale
     const tabBarHeight = itemPadding * 2 + iconPadding + iconSize + fontSize

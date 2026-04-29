@@ -23,7 +23,7 @@ import { getMiniAppTileIconSize } from '../../../utils/layout'
 import { BubbleView } from '../../ui/BubbleView'
 import { Row } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
-import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
+import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 type ShortcutTileProps = {
     disabled?: boolean
@@ -139,7 +139,7 @@ export const ShortcutTileIcon = ({ shortcut }: ShortcutTileIconProps) => {
             <SvgImage
                 containerStyle={style.iconSvg}
                 name={shortcut.icon.svg as SvgImageName}
-                size={SvgImageSize.md}
+                size="md"
                 color={theme.colors.secondary}
                 maxFontSizeMultiplier={1.2}
             />

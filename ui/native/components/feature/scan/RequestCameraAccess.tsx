@@ -8,7 +8,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 const log = makeLog('RequestCameraAccess')
 
@@ -100,7 +100,7 @@ const RequestCameraAccess: React.FC<RequestCameraAccessProps> = ({
     return (
         <Column grow align="center" justify="between" style={style.container}>
             <Column grow center>
-                <SvgImage name="AllowCameraAccessIcon" size={SvgImageSize.lg} />
+                <SvgImage name="AllowCameraAccessIcon" size="lg" />
                 <Text h2 style={style.titleText}>
                     {t('phrases.allow-camera-access')}
                 </Text>

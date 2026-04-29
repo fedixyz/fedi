@@ -11,7 +11,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { BubbleCard } from '../../ui/BubbleView'
 import { Column } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 const BitcoinWalletPlaceholder: React.FC = () => {
     const { t } = useTranslation()
@@ -38,7 +38,7 @@ const BitcoinWalletPlaceholder: React.FC = () => {
                         <Column style={stylesPlaceholder.titleContainer}>
                             <SvgImage
                                 name="BitcoinCircle"
-                                size={SvgImageSize.md}
+                                size="md"
                                 color={theme.colors.white}
                             />
                             <Column>

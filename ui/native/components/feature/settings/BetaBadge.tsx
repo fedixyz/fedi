@@ -4,7 +4,7 @@ import { ImageBackground, StyleSheet } from 'react-native'
 
 import { Images } from '../../../assets/images'
 import { Row } from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 
 export const BetaBadge = () => {
     const { theme } = useTheme()
@@ -14,7 +14,7 @@ export const BetaBadge = () => {
     return (
         <ImageBackground style={style.betaBadge} source={Images.HoloBackground}>
             <Row center gap="xs" style={style.betaBadgeInner}>
-                <SvgImage name="NorthStar" size={SvgImageSize.xs} />
+                <SvgImage name="NorthStar" size="xs" />
                 <Text caption medium>
                     {t('words.beta')}
                 </Text>
