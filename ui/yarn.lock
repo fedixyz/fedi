@@ -3259,10 +3259,10 @@
     "@emnapi/runtime" "^1.5.0"
     "@tybys/wasm-util" "^0.10.1"
 
-"@next/bundle-analyzer@15.5.11":
-  version "15.5.11"
-  resolved "https://registry.yarnpkg.com/@next/bundle-analyzer/-/bundle-analyzer-15.5.11.tgz#fb375d39ff7c65a8c455b39847cce733acf6a410"
-  integrity sha512-G9JIdFJGvQuIXIkDImoTFQQjas0Hx2FKDHk/8lsSxPNhv/9aye5t1z0sA4U0VmyPKbIPRh+/yxhoDUiMsTreSw==
+"@next/bundle-analyzer@15.5.7":
+  version "15.5.7"
+  resolved "https://registry.yarnpkg.com/@next/bundle-analyzer/-/bundle-analyzer-15.5.7.tgz#a83aacbebb3878f52f03b4dffed3c30cfa2c824a"
+  integrity sha512-bKCGI9onUYyLaAQKvJOTeSv1vt3CYtF4Or+CRlCP/1Yu8NR9W4A2kd4qBs2OYFbT+/38fKg8BIPNt7IcMLKZCA==
   dependencies:
     webpack-bundle-analyzer "4.10.1"
 
@@ -3271,10 +3271,10 @@
   resolved "https://registry.yarnpkg.com/@next/env/-/env-15.5.7.tgz#4168db34ae3bc9fd9ad3b951d327f4cfc38d4362"
   integrity sha512-4h6Y2NyEkIEN7Z8YxkA27pq6zTkS09bUSYC0xjd0NpwFxjnIKeZEeH591o5WECSmjpUhLn3H2QLJcDye3Uzcvg==
 
-"@next/eslint-plugin-next@15.5.11":
-  version "15.5.11"
-  resolved "https://registry.yarnpkg.com/@next/eslint-plugin-next/-/eslint-plugin-next-15.5.11.tgz#af9dd51c1cfaf989145afa888d375a6ec8f0b3e9"
-  integrity sha512-tS/HYQOjIoX9ZNDQitba/baS8sTvo3ekY6Vgdx5lmhN4jov082bdApIChXr94qhMZHvEciz9DZglFFnhguQp/A==
+"@next/eslint-plugin-next@15.5.7":
+  version "15.5.7"
+  resolved "https://registry.yarnpkg.com/@next/eslint-plugin-next/-/eslint-plugin-next-15.5.7.tgz#69ab374b5f4a8a19a7cc1e2b89e5d50035cfb02d"
+  integrity sha512-DtRU2N7BkGr8r+pExfuWHwMEPX5SD57FeA6pxdgCHODo+b/UgIgjE+rgWKtJAbEbGhVZ2jtHn4g3wNhWFoNBQQ==
   dependencies:
     fast-glob "3.3.1"
 
@@ -8990,12 +8990,12 @@ escodegen@^2.0.0, escodegen@^2.1.0:
   optionalDependencies:
     source-map "~0.6.1"
 
-eslint-config-next@15.5.11:
-  version "15.5.11"
-  resolved "https://registry.yarnpkg.com/eslint-config-next/-/eslint-config-next-15.5.11.tgz#949d1cb4a9165f16e11905729ab6a3fc23ce3566"
-  integrity sha512-RQNY69VUv0BzXkLEKDh/OPUzA+krFOnYRxO0JA3UsW429ovLa2nXx8kZuXCl18P27PyJBdS3qgJJkIhi9H8SuQ==
+eslint-config-next@15.5.7:
+  version "15.5.7"
+  resolved "https://registry.yarnpkg.com/eslint-config-next/-/eslint-config-next-15.5.7.tgz#c0e8cfab54bbc85a0e339a9747da69136c065b60"
+  integrity sha512-nU/TRGHHeG81NeLW5DeQT5t6BDUqbpsNQTvef1ld/tqHT+/zTx60/TIhKnmPISTTe++DVo+DLxDmk4rnwHaZVw==
   dependencies:
-    "@next/eslint-plugin-next" "15.5.11"
+    "@next/eslint-plugin-next" "15.5.7"
     "@rushstack/eslint-patch" "^1.10.3"
     "@typescript-eslint/eslint-plugin" "^5.4.2 || ^6.0.0 || ^7.0.0 || ^8.0.0"
     "@typescript-eslint/parser" "^5.4.2 || ^6.0.0 || ^7.0.0 || ^8.0.0"
