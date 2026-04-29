@@ -42,9 +42,30 @@ interface AppiumSessionClient extends AppiumSession {
 interface CachedSessionState {
     bundleId: string
     headless: boolean
+    mjpegServerPort: number
     port: number
     sessionId: string
     udid: string
+    wdaLocalPort: number
+}
+
+interface CachedSessionEntry {
+    path: string
+    state: CachedSessionState
+}
+
+interface SessionCacheKey {
+    bundleId: string
+    headless: boolean
+    mjpegServerPort: number
+    port: number
+    udid: string
+    wdaLocalPort: number
+}
+
+interface SessionPorts {
+    mjpegServerPort: number
+    wdaLocalPort: number
 }
 
 type SteveCommand =
@@ -54,6 +75,7 @@ type SteveCommand =
     | 'launch'
     | 'open-url'
     | 'reset'
+    | 'restart'
     | 'screens'
     | 'screenshot'
     | 'stop'
@@ -86,11 +108,24 @@ interface SimDevice {
     udid: string
 }
 
+interface ResolvedDevice {
+    device: SimDevice
+    simulators: SimDevice[]
+}
+
 const DEFAULT_BUNDLE_ID = process.env.STEVE_BUNDLE_ID || 'org.fedi.alpha'
 const REPO_ROOT = path.resolve(__dirname, '../../..')
 const STEVE_CACHE_DIR = path.join(REPO_ROOT, '.cache/steve')
-const STEVE_SESSION_STATE_PATH = path.join(STEVE_CACHE_DIR, 'session.json')
+const STEVE_SESSION_STATE_DIR = path.join(STEVE_CACHE_DIR, 'sessions')
+const STEVE_LEGACY_SESSION_STATE_PATH = path.join(
+    STEVE_CACHE_DIR,
+    'session.json',
+)
+const STEVE_DERIVED_DATA_DIR = path.join(STEVE_CACHE_DIR, 'derived-data')
 const APPIUM_PID_FILE = path.join(REPO_ROOT, 'ui/.appium/appium_pid.txt')
+const WDA_LOCAL_PORT_BASE = 8100
+const MJPEG_SERVER_PORT_BASE = 9100
+const PARALLEL_PORT_RANGE = 1000
 
 async function main(): Promise<void> {
     const options = parseCli(process.argv.slice(2))
@@ -107,6 +142,9 @@ async function main(): Promise<void> {
             return
         case 'launch':
             launchApp(options)
+            return
+        case 'restart':
+            restartApp(options)
             return
         case 'stop':
             await stopApp(options)
@@ -228,6 +266,7 @@ Commands:
   screens                     list available iOS simulators
   info                        print selected simulator info as JSON
   launch                      launch the configured bundle ID
+  restart                     terminate and relaunch without clearing Appium session
   stop                        terminate the configured bundle ID
   reset                       uninstall the configured bundle ID, reinstall if --app is provided
   open-url <url>              open a URL in the simulator
@@ -283,6 +322,15 @@ function launchApp(options: CliOptions): void {
     process.stdout.write(result)
 }
 
+function restartApp(options: CliOptions): void {
+    const device = resolveDevice(options)
+
+    runXcrun(['simctl', 'terminate', device.udid, options.bundleId], true)
+
+    const result = runXcrun(['simctl', 'launch', device.udid, options.bundleId])
+    process.stdout.write(result)
+}
+
 async function stopApp(options: CliOptions): Promise<void> {
     const device = resolveDevice(options)
     const result = runXcrun([
@@ -295,7 +343,7 @@ async function stopApp(options: CliOptions): Promise<void> {
         process.stdout.write(result)
     }
 
-    await deleteCachedSessionIfPresent()
+    await deleteCachedSessionsForDevice(device, options.bundleId)
 }
 
 async function resetApp(options: CliOptions): Promise<void> {
@@ -308,7 +356,7 @@ async function resetApp(options: CliOptions): Promise<void> {
         runXcrun(['simctl', 'install', device.udid, options.appPath])
     }
 
-    await deleteCachedSessionIfPresent()
+    await deleteCachedSessionsForDevice(device, options.bundleId)
 }
 
 function openUrl(options: CliOptions): void {
@@ -462,8 +510,14 @@ function listSimulators(): SimDevice[] {
 }
 
 function resolveDevice(options: CliOptions): SimDevice {
+    return resolveDeviceWithSimulators(options).device
+}
+
+function resolveDeviceWithSimulators(options: CliOptions): ResolvedDevice {
+    let simulators = listSimulators()
+
     if (options.deviceId) {
-        const device = listSimulators().find(
+        const device = simulators.find(
             simulator => simulator.udid === options.deviceId,
         )
 
@@ -474,20 +528,27 @@ function resolveDevice(options: CliOptions): SimDevice {
         if (device.state !== 'Booted' && options.autoBoot) {
             runXcrun(['simctl', 'boot', device.udid], true)
             waitForBootedDevice(device.udid)
-            return {
+            const bootedDevice = {
                 ...device,
                 state: 'Booted',
             }
+
+            return {
+                device: bootedDevice,
+                simulators: simulators.map(simulator =>
+                    simulator.udid === bootedDevice.udid
+                        ? bootedDevice
+                        : simulator,
+                ),
+            }
         }
 
-        return device
+        return { device, simulators }
     }
 
-    let device = listSimulators().find(
-        simulator => simulator.state === 'Booted',
-    )
+    let device = simulators.find(simulator => simulator.state === 'Booted')
     if (device) {
-        return device
+        return { device, simulators }
     }
 
     if (!options.autoBoot) {
@@ -495,12 +556,13 @@ function resolveDevice(options: CliOptions): SimDevice {
     }
 
     ensureSimulatorBooted()
-    device = listSimulators().find(simulator => simulator.state === 'Booted')
+    simulators = listSimulators()
+    device = simulators.find(simulator => simulator.state === 'Booted')
     if (!device) {
         throw new Error('Failed to boot an iOS simulator')
     }
 
-    return device
+    return { device, simulators }
 }
 
 function ensureSimulatorBooted(): void {
@@ -530,7 +592,7 @@ async function withAppiumSession<T>(
     options: CliOptions,
     fn: (client: AppiumSessionClient) => Promise<T>,
 ): Promise<T> {
-    const device = resolveDevice(options)
+    const { device, simulators } = resolveDeviceWithSimulators(options)
     ensureAppiumServer()
     const port = detectAppiumPort()
 
@@ -545,35 +607,44 @@ async function withAppiumSession<T>(
     }
 
     const client = createAppiumClient(port)
-    const cachedState = loadCachedSession()
+    const cacheKey = getSessionCacheKey(options, device, port, simulators)
+    const cachePath = getSessionCachePath(cacheKey)
+    await deleteLegacyCachedSessionIfPresent()
+    const cachedState = loadCachedSession(cachePath)
     let session: AppiumSession
 
-    if (
-        cachedState &&
-        cachedState.port === port &&
-        cachedState.udid === device.udid &&
-        cachedState.bundleId === options.bundleId &&
-        cachedState.headless === options.headless
-    ) {
+    if (cachedState && isCachedSessionMatch(cachedState, cacheKey)) {
         session = { sessionId: cachedState.sessionId }
         const isReusable = await isSessionReusable(client, session)
 
         if (!isReusable) {
-            clearCachedSession()
-            session = await createAndCacheSession(client, options, device, port)
+            clearCachedSession(cachePath)
+            session = await createAndCacheSession(
+                client,
+                options,
+                device,
+                cacheKey,
+                cachePath,
+            )
         }
     } else {
         if (cachedState) {
-            await deleteCachedSessionIfPresent()
+            await deleteCachedSession(cachedState, cachePath)
         }
-        session = await createAndCacheSession(client, options, device, port)
+        session = await createAndCacheSession(
+            client,
+            options,
+            device,
+            cacheKey,
+            cachePath,
+        )
     }
 
     try {
         return await fn(createSessionClient(client, session))
     } catch (error) {
         if (isInvalidSessionError(error)) {
-            clearCachedSession()
+            clearCachedSession(cachePath)
         }
         throw error
     }
@@ -817,25 +888,31 @@ async function createAndCacheSession(
     client: AppiumClient,
     options: CliOptions,
     device: SimDevice,
-    port: number,
+    cacheKey: SessionCacheKey,
+    cachePath: string,
 ): Promise<AppiumSession> {
     const session = await client.createSession({
         'appium:automationName': 'XCUITest',
         'appium:autoAcceptAlerts': true,
         'appium:bundleId': options.bundleId,
+        'appium:derivedDataPath': getDerivedDataPath(device.udid),
         'appium:isHeadless': options.headless,
         'appium:includeSafariInWebviews': true,
+        'appium:mjpegServerPort': cacheKey.mjpegServerPort,
         'appium:platformName': 'iOS',
         'appium:udid': device.udid,
+        'appium:wdaLocalPort': cacheKey.wdaLocalPort,
         ...(options.appPath ? { 'appium:app': options.appPath } : {}),
     })
 
-    saveCachedSession({
-        bundleId: options.bundleId,
-        headless: options.headless,
-        port,
+    saveCachedSession(cachePath, {
+        bundleId: cacheKey.bundleId,
+        headless: cacheKey.headless,
+        mjpegServerPort: cacheKey.mjpegServerPort,
+        port: cacheKey.port,
         sessionId: session.sessionId,
-        udid: device.udid,
+        udid: cacheKey.udid,
+        wdaLocalPort: cacheKey.wdaLocalPort,
     })
 
     return session
@@ -897,13 +974,186 @@ function runScript(scriptPath: string): void {
     }
 }
 
-function loadCachedSession(): CachedSessionState | undefined {
+function getSessionCacheKey(
+    options: CliOptions,
+    device: SimDevice,
+    port: number,
+    simulators: SimDevice[],
+): SessionCacheKey {
+    const sessionPorts = getSessionPorts(device.udid, simulators)
+
+    return {
+        bundleId: options.bundleId,
+        headless: options.headless,
+        mjpegServerPort: sessionPorts.mjpegServerPort,
+        port,
+        udid: device.udid,
+        wdaLocalPort: sessionPorts.wdaLocalPort,
+    }
+}
+
+function getSessionCachePath(key: SessionCacheKey): string {
+    const mode = key.headless ? 'headless' : 'windowed'
+    const fileName = [String(key.port), key.udid, key.bundleId, mode]
+        .map(sanitizeCachePathPart)
+        .join('--')
+
+    return path.join(STEVE_SESSION_STATE_DIR, `${fileName}.json`)
+}
+
+function isCachedSessionMatch(
+    state: CachedSessionState,
+    key: SessionCacheKey,
+): boolean {
+    return (
+        state.port === key.port &&
+        state.udid === key.udid &&
+        state.bundleId === key.bundleId &&
+        state.headless === key.headless &&
+        state.mjpegServerPort === key.mjpegServerPort &&
+        state.wdaLocalPort === key.wdaLocalPort
+    )
+}
+
+function getSessionPorts(udid: string, simulators: SimDevice[]): SessionPorts {
+    const portOffset = getSimulatorPortOffset(udid, simulators)
+
+    return {
+        mjpegServerPort: MJPEG_SERVER_PORT_BASE + portOffset,
+        wdaLocalPort: WDA_LOCAL_PORT_BASE + portOffset,
+    }
+}
+
+function getSimulatorPortOffset(udid: string, simulators: SimDevice[]): number {
+    const sortedUdids = simulators
+        .map(device => device.udid)
+        .sort((a, b) => a.localeCompare(b))
+    const usedOffsets = new Set<number>()
+
+    // Collision handling depends on the current simulator list. If that list
+    // changes, a cached session may be recreated with newly assigned ports.
+    for (const simulatorUdid of sortedUdids) {
+        const offset = findAvailablePortOffset(simulatorUdid, usedOffsets)
+        if (simulatorUdid === udid) {
+            return offset
+        }
+    }
+
+    throw new Error(
+        `Could not allocate Appium ports for unknown simulator ${udid}`,
+    )
+}
+
+function findAvailablePortOffset(
+    udid: string,
+    usedOffsets: Set<number>,
+): number {
+    const preferredOffset = stableHash(udid) % PARALLEL_PORT_RANGE
+
+    for (let attempt = 0; attempt < PARALLEL_PORT_RANGE; attempt += 1) {
+        const offset = (preferredOffset + attempt) % PARALLEL_PORT_RANGE
+        if (!usedOffsets.has(offset)) {
+            usedOffsets.add(offset)
+            return offset
+        }
+    }
+
+    throw new Error(
+        `Could not allocate unique Appium ports for simulator ${udid}`,
+    )
+}
+
+function getDerivedDataPath(udid: string): string {
+    return path.join(STEVE_DERIVED_DATA_DIR, sanitizeCachePathPart(udid))
+}
+
+function listCachedSessionEntries(): CachedSessionEntry[] {
+    const paths: string[] = []
+
     try {
-        if (!fs.existsSync(STEVE_SESSION_STATE_PATH)) {
+        if (fs.existsSync(STEVE_SESSION_STATE_DIR)) {
+            paths.push(
+                ...fs
+                    .readdirSync(STEVE_SESSION_STATE_DIR)
+                    .filter(fileName => fileName.endsWith('.json'))
+                    .map(fileName =>
+                        path.join(STEVE_SESSION_STATE_DIR, fileName),
+                    ),
+            )
+        }
+    } catch {
+        return []
+    }
+
+    return paths.flatMap(sessionPath => {
+        const state = loadCachedSession(sessionPath)
+        return state ? [{ path: sessionPath, state }] : []
+    })
+}
+
+async function deleteLegacyCachedSessionIfPresent(): Promise<void> {
+    const cachedState = loadLegacyCachedSession()
+    if (!cachedState) {
+        clearCachedSession(STEVE_LEGACY_SESSION_STATE_PATH)
+        return
+    }
+
+    await deleteCachedSession(cachedState, STEVE_LEGACY_SESSION_STATE_PATH)
+}
+
+function stableHash(value: string): number {
+    let hash = 0
+
+    for (const char of value) {
+        hash = (hash * 31 + char.charCodeAt(0)) % 4294967296
+    }
+
+    return hash
+}
+
+function sanitizeCachePathPart(value: string): string {
+    return value.replace(/[^a-zA-Z0-9._-]/g, '_')
+}
+
+function loadLegacyCachedSession(): CachedSessionState | undefined {
+    try {
+        if (!fs.existsSync(STEVE_LEGACY_SESSION_STATE_PATH)) {
             return undefined
         }
 
-        const raw = fs.readFileSync(STEVE_SESSION_STATE_PATH, 'utf8')
+        const raw = fs.readFileSync(STEVE_LEGACY_SESSION_STATE_PATH, 'utf8')
+        const parsed = JSON.parse(raw) as Partial<CachedSessionState>
+
+        if (
+            typeof parsed.sessionId !== 'string' ||
+            typeof parsed.port !== 'number'
+        ) {
+            return undefined
+        }
+
+        return {
+            bundleId:
+                typeof parsed.bundleId === 'string' ? parsed.bundleId : '',
+            headless:
+                typeof parsed.headless === 'boolean' ? parsed.headless : false,
+            mjpegServerPort: 0,
+            port: parsed.port,
+            sessionId: parsed.sessionId,
+            udid: typeof parsed.udid === 'string' ? parsed.udid : '',
+            wdaLocalPort: 0,
+        }
+    } catch {
+        return undefined
+    }
+}
+
+function loadCachedSession(cachePath: string): CachedSessionState | undefined {
+    try {
+        if (!fs.existsSync(cachePath)) {
+            return undefined
+        }
+
+        const raw = fs.readFileSync(cachePath, 'utf8')
         const parsed = JSON.parse(raw) as Partial<CachedSessionState>
 
         if (
@@ -911,7 +1161,9 @@ function loadCachedSession(): CachedSessionState | undefined {
             typeof parsed.port !== 'number' ||
             typeof parsed.udid !== 'string' ||
             typeof parsed.bundleId !== 'string' ||
-            typeof parsed.headless !== 'boolean'
+            typeof parsed.headless !== 'boolean' ||
+            typeof parsed.mjpegServerPort !== 'number' ||
+            typeof parsed.wdaLocalPort !== 'number'
         ) {
             return undefined
         }
@@ -922,32 +1174,53 @@ function loadCachedSession(): CachedSessionState | undefined {
     }
 }
 
-function saveCachedSession(state: CachedSessionState): void {
-    fs.mkdirSync(STEVE_CACHE_DIR, { recursive: true })
-    fs.writeFileSync(STEVE_SESSION_STATE_PATH, JSON.stringify(state, null, 2))
+function saveCachedSession(cachePath: string, state: CachedSessionState): void {
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true })
+
+    const tmpPath = `${cachePath}.${process.pid}.tmp`
+    try {
+        fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2))
+        fs.renameSync(tmpPath, cachePath)
+    } catch (error) {
+        fs.rmSync(tmpPath, { force: true })
+        throw error
+    }
 }
 
-function clearCachedSession(): void {
+function clearCachedSession(cachePath: string): void {
     try {
-        fs.rmSync(STEVE_SESSION_STATE_PATH, { force: true })
+        fs.rmSync(cachePath, { force: true })
     } catch {
         return
     }
 }
 
-async function deleteCachedSessionIfPresent(): Promise<void> {
-    const cachedState = loadCachedSession()
-    if (!cachedState) {
-        return
-    }
-
+async function deleteCachedSession(
+    cachedState: CachedSessionState,
+    cachePath: string,
+): Promise<void> {
     try {
         const client = createAppiumClient(cachedState.port)
         await client.deleteSession(cachedState.sessionId)
     } catch {
         // Ignore stale sessions; they are common after simulator/app restarts.
     } finally {
-        clearCachedSession()
+        clearCachedSession(cachePath)
+    }
+}
+
+async function deleteCachedSessionsForDevice(
+    device: SimDevice,
+    bundleId: string,
+): Promise<void> {
+    const entries = listCachedSessionEntries().filter(
+        entry =>
+            entry.state.udid === device.udid &&
+            entry.state.bundleId === bundleId,
+    )
+
+    for (const entry of entries) {
+        await deleteCachedSession(entry.state, entry.path)
     }
 }
 

@@ -27,6 +27,9 @@ steve swipe 200 700 200 200 300 && steve a11y && steve screenshot /tmp/s.png
 
 # Type into the focused element
 steve type "hello"
+
+# Target a specific simulator; use this for parallel agents/simulators
+steve --device <UDID> a11y
 ```
 
 ## Workflow tips
@@ -37,6 +40,7 @@ steve type "hello"
 - **`tap "text"` is exact-match only.** Use the exact visible accessibility text from `a11y`.
 - **`a11y` output is normalized, not raw Appium XML.** Bounds are printed in `(left,top,right,bottom)` form.
 - **For navigation, prefer visible buttons like `HeaderBackButton`, `Close`, or direct coordinate taps.** There is no Android-style `key 4 BACK` command here.
+- **For parallel simulator work, pass `--device <UDID>` on every command.** Steve keeps separate Appium sessions per device, bundle, port, and headless mode.
 - **If the app or simulator gets into a bad state, reuse `launch`, `stop`, or `reset`** rather than trying random taps.
 - **Use screenshots for real UI verification.** `a11y` is enough for navigation, but screenshots are better for confirming layout and styling.
 
@@ -46,6 +50,7 @@ steve type "hello"
 steve screens                      # list available iOS simulators
 steve info                         # print selected simulator info as JSON
 steve launch                       # launch the configured bundle ID
+steve restart                      # terminate and relaunch without clearing Appium session
 steve stop                         # terminate the configured bundle ID
 steve reset                        # uninstall the configured bundle ID, reinstall if --app is provided
 steve open-url https://example.com # open URL in the simulator
