@@ -1,12 +1,15 @@
-import { useTheme, Theme } from '@rneui/themed'
+import { useTheme, Theme, Text } from '@rneui/themed'
 import React from 'react'
-import { TouchableOpacity, StyleSheet, Text } from 'react-native'
+import { TouchableOpacity, StyleSheet } from 'react-native'
 
 import { Row } from './Flex'
+import HelpTooltip from './HelpTooltip'
 
 export interface Option<T extends string> {
     label: string
     value: T
+    disabled?: boolean
+    disabledMessage?: React.ReactElement | string
 }
 
 interface Props<T extends string> {
@@ -37,15 +40,34 @@ export function Switcher<T extends string>({
                                 ? style.itemSelected
                                 : style.itemUnselected,
                         ]}
+                        disabled={option.disabled}
                         onPress={() => onChange(option.value)}>
                         <Text
-                            style={style.itemText}
+                            style={[
+                                style.itemText,
+                                option.disabled && style.itemTextDisabled,
+                            ]}
                             numberOfLines={2}
                             adjustsFontSizeToFit
                             minimumFontScale={0.5}
                             ellipsizeMode="tail">
                             {option.label}
                         </Text>
+                        {option.disabledMessage && option.disabled && (
+                            <HelpTooltip
+                                svgProps={{
+                                    color: theme.colors.grey,
+                                    size: 20,
+                                }}>
+                                {typeof option.disabledMessage === 'string' ? (
+                                    <Text caption>
+                                        {option.disabledMessage}
+                                    </Text>
+                                ) : (
+                                    option.disabledMessage
+                                )}
+                            </HelpTooltip>
+                        )}
                     </TouchableOpacity>
                 )
             })}
@@ -62,6 +84,8 @@ const styles = (theme: Theme) =>
             backgroundColor: theme.colors.extraLightGrey,
         },
         item: {
+            display: 'flex',
+            flexDirection: 'row',
             flex: 1,
             borderWidth: 2,
             borderRadius: 20,
@@ -81,5 +105,9 @@ const styles = (theme: Theme) =>
             fontSize: 14,
             color: theme.colors.night,
             textAlign: 'center',
+        },
+        itemTextDisabled: {
+            color: theme.colors.grey,
+            fontWeight: 'normal',
         },
     })

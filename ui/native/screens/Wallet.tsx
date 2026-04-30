@@ -1,7 +1,7 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { useNavigation } from '@react-navigation/native'
-import { Button, Text, Tooltip, useTheme, type Theme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import { Button, Text, useTheme, type Theme } from '@rneui/themed'
+import React, { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 
@@ -23,8 +23,8 @@ import WalletBalanceCard from '../components/feature/federations/BalanceCard'
 import FederationStatusAvatar from '../components/feature/federations/FederationStatusAvatar'
 import WalletSetupEmpty from '../components/feature/wallet/WalletSetupEmpty'
 import { Column, Row } from '../components/ui/Flex'
+import HelpTooltip from '../components/ui/HelpTooltip'
 import { Pressable } from '../components/ui/Pressable'
-import { PressableIcon } from '../components/ui/PressableIcon'
 import SvgImage from '../components/ui/SvgImage'
 import { Switcher } from '../components/ui/Switcher'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -184,8 +184,6 @@ function SelectedWalletHeader({
 }: {
     federation: LoadedFederation
 }) {
-    const [tooltipOpen, setTooltipOpen] = useState(false)
-
     const navigation = useNavigation()
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -210,31 +208,13 @@ function SelectedWalletHeader({
             <Text medium h2 style={style.title}>
                 {federation.name}
             </Text>
-            <Tooltip
-                visible={tooltipOpen}
-                onClose={() => setTooltipOpen(false)}
-                onOpen={() => setTooltipOpen(true)}
-                closeOnlyOnBackdropPress
-                withOverlay
-                overlayColor={theme.colors.overlay}
-                width={200}
-                height={75}
-                backgroundColor={theme.colors.blue100}
-                popover={
-                    <Text caption>
-                        {t('feature.wallet.wallet-provider-guidance')}
-                    </Text>
-                }>
-                <PressableIcon
-                    svgName="Help"
-                    onPress={e => {
-                        e.stopPropagation()
-                        setTooltipOpen(true)
-                    }}
-                    hitSlop={8}
-                    svgProps={{ color: theme.colors.grey }}
-                />
-            </Tooltip>
+            <HelpTooltip
+                hitSlop={8}
+                svgProps={{ color: theme.colors.grey, size: 24 }}>
+                <Text caption>
+                    {t('feature.wallet.wallet-provider-guidance')}
+                </Text>
+            </HelpTooltip>
             <SvgImage
                 name="ChevronRight"
                 color={theme.colors.darkGrey}

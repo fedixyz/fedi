@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Text, Theme, Tooltip, useTheme } from '@rneui/themed'
+import { Text, Theme, useTheme } from '@rneui/themed'
 import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
@@ -15,7 +15,7 @@ import { FederationLogo } from '../components/feature/federations/FederationLogo
 import { AmountScreen } from '../components/ui/AmountScreen'
 import CustomOverlay from '../components/ui/CustomOverlay'
 import { Column, Row } from '../components/ui/Flex'
-import SvgImage from '../components/ui/SvgImage'
+import HelpTooltip from '../components/ui/HelpTooltip'
 import { useAppSelector, useStabilityPool } from '../state/hooks'
 import { resetToWallets } from '../state/navigation'
 import { Sats } from '../types'
@@ -37,7 +37,6 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [notes, setNotes] = useState<string>('')
-    const [infoTooltip, setInfoTooltip] = useState(false)
     const [insufficientBalanceOverlay, setInsufficientBalanceOverlay] =
         useState(false)
     const matchingFederation = useAppSelector(s =>
@@ -120,7 +119,7 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                             .invitation.federationName
                                     }
                                 </Text>
-                                <Row align="center" gap="sm">
+                                <Row align="center">
                                     <Text
                                         medium
                                         caption
@@ -129,48 +128,32 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                         color={theme.colors.darkGrey}>
                                         {formattedStableBalance}
                                     </Text>
-                                    <Tooltip
-                                        visible={infoTooltip}
-                                        onOpen={() => setInfoTooltip(true)}
-                                        onClose={() => setInfoTooltip(false)}
-                                        popover={
-                                            <View style={style.tooltipContent}>
-                                                <Text
-                                                    caption
-                                                    maxFontSizeMultiplier={1}
-                                                    style={style.tooltipText}>
-                                                    <Trans
-                                                        i18nKey="feature.multispend.stable-balance-info"
-                                                        t={t}
-                                                        components={{
-                                                            boldlink: (
-                                                                <StableBalanceLink
-                                                                    onPress={() => {
-                                                                        setInfoTooltip(
-                                                                            false,
-                                                                        )
-                                                                        navigation.dispatch(
-                                                                            resetToWallets(),
-                                                                        )
-                                                                    }}
-                                                                />
-                                                            ),
-                                                        }}
-                                                    />
-                                                </Text>
-                                            </View>
-                                        }
-                                        closeOnlyOnBackdropPress
-                                        withOverlay
-                                        overlayColor={theme.colors.overlay}
-                                        // This size handles 2-3 lines of text
-                                        // which covers all languages, assuming
-                                        // scaling is disabled via maxFontSizeMultiplier
-                                        width={200}
-                                        height={75}
-                                        backgroundColor={theme.colors.blue100}>
-                                        <SvgImage name="Info" size={12} />
-                                    </Tooltip>
+                                    <HelpTooltip
+                                        svgProps={{
+                                            size: 16,
+                                            color: theme.colors.grey,
+                                        }}>
+                                        <Text
+                                            caption
+                                            maxFontSizeMultiplier={1}
+                                            style={style.tooltipText}>
+                                            <Trans
+                                                i18nKey="feature.multispend.stable-balance-info"
+                                                t={t}
+                                                components={{
+                                                    boldlink: (
+                                                        <StableBalanceLink
+                                                            onPress={() => {
+                                                                navigation.dispatch(
+                                                                    resetToWallets(),
+                                                                )
+                                                            }}
+                                                        />
+                                                    ),
+                                                }}
+                                            />
+                                        </Text>
+                                    </HelpTooltip>
                                 </Row>
                             </Column>
                         </View>
@@ -273,6 +256,7 @@ export const styles = (theme: Theme) =>
             justifyContent: 'center',
         },
         tooltipText: {
+            maxWidth: 200,
             textAlign: 'center',
         },
     })

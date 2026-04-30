@@ -1088,6 +1088,8 @@
             "claim-ecash-online": "Come back online to claim it",
             "copied-payment-code": "Copied payment request",
             "enable-onchain-deposits": "Enable onchain deposits",
+            "onchain-deposits-disabled-by-federation": "Onchain deposits have been disabled in <bold>{{federationName}}</bold>",
+            "lnurl-unsupported-by-federation": "LNURL receives are not supported in <bold>{{federationName}}</bold>",
             "hide-other-methods": "Hide other methods",
             "join-new-federation": "Join new federation",
             "join-to-receive": "Join <bold>{{federation}}</bold> to receive",

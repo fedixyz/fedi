@@ -1,8 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { View } from 'react-native'
+import { useTheme, Text } from '@rneui/themed'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 
 import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
 import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
@@ -16,8 +15,9 @@ import LnurlReceiveQr from '../components/feature/receive/LnurlReceiveQr'
 import OnchainReceiveQr from '../components/feature/receive/OnchainReceiveQr'
 import RequestLightningAmount from '../components/feature/receive/RequestLightningAmount'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
+import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import { Switcher } from '../components/ui/Switcher'
+import { Option, Switcher } from '../components/ui/Switcher'
 import { useAppSelector } from '../state/hooks'
 import { BitcoinOrLightning } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -26,7 +26,8 @@ import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 export type Props = NativeStackScreenProps<RootStackParamList, 'ReceiveBitcoin'>
 
 const ReceiveBitcoin: React.FC<Props> = () => {
-    const federationId = useAppSelector(selectPaymentFederation)?.id ?? ''
+    const federation = useAppSelector(selectPaymentFederation)
+    const federationId = federation?.id ?? ''
 
     const [activeTab, setActiveTab] = useState<BitcoinOrLightning>(
         BitcoinOrLightning.lightning,
@@ -45,29 +46,49 @@ const ReceiveBitcoin: React.FC<Props> = () => {
     const isOffline = useAppSelector(selectIsInternetUnreachable)
 
     // Setup switcher options
-    const switcherOptions: Array<{
-        label: string
-        value: BitcoinOrLightning
-    }> = [
-        {
-            label: t('words.lightning'),
-            value: BitcoinOrLightning.lightning,
-        },
-    ]
-
-    if (supportsLnurl) {
-        switcherOptions.push({
-            label: t('words.lnurl'),
-            value: BitcoinOrLightning.lnurl,
-        })
-    }
-
-    if (isOnchainSupported) {
-        switcherOptions.push({
-            label: t('words.onchain'),
-            value: BitcoinOrLightning.bitcoin,
-        })
-    }
+    const switcherOptions: Option<BitcoinOrLightning>[] = useMemo(
+        () => [
+            {
+                label: t('words.lightning'),
+                value: BitcoinOrLightning.lightning,
+            },
+            {
+                label: t('words.lnurl'),
+                value: BitcoinOrLightning.lnurl,
+                disabled: !supportsLnurl,
+                disabledMessage: (
+                    <Text caption>
+                        <Trans
+                            t={t}
+                            i18nKey="feature.receive.lnurl-unsupported-by-federation"
+                            components={{
+                                bold: <Text caption bold />,
+                            }}
+                            values={{ federationName: federation?.name }}
+                        />
+                    </Text>
+                ),
+            },
+            {
+                label: t('words.onchain'),
+                value: BitcoinOrLightning.bitcoin,
+                disabled: !isOnchainSupported,
+                disabledMessage: (
+                    <Text caption>
+                        <Trans
+                            t={t}
+                            i18nKey="feature.receive.onchain-deposits-disabled-by-federation"
+                            components={{
+                                bold: <Text caption bold />,
+                            }}
+                            values={{ federationName: federation?.name }}
+                        />
+                    </Text>
+                ),
+            },
+        ],
+        [t, supportsLnurl, isOnchainSupported, federation],
+    )
 
     useEffect(() => {
         if (
@@ -89,7 +110,7 @@ const ReceiveBitcoin: React.FC<Props> = () => {
                 edges="bottom"
                 padding="xl"
                 style={{ gap: theme.spacing.xl }}>
-                <View
+                <Column
                     style={{
                         marginTop: theme.spacing.lg,
                         paddingHorizontal: theme.spacing.xl,
@@ -103,7 +124,7 @@ const ReceiveBitcoin: React.FC<Props> = () => {
                         />
                     )}
                     <FederationWalletSelector fullWidth />
-                </View>
+                </Column>
                 {activeTab === BitcoinOrLightning.bitcoin && (
                     <OnchainReceiveQr
                         generatedOnchainAddress={generatedOnchainAddress}
