@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import React from 'react'
 
-import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
-
 import { styled, theme } from '../styles'
 import { Icon, IconProps } from './Icon'
 import { Text } from './Text'
@@ -62,7 +60,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ menu }) => {
                                         <Icon icon={item.icon} />
                                         <Text>{item.label}</Text>
                                         {item.action || (
-                                            <Icon icon={ChevronRightIcon} />
+                                            <Icon icon="ChevronRight" />
                                         )}
                                     </>
                                 </MenuItem>

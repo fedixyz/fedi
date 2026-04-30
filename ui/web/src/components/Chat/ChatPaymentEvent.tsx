@@ -1,9 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CheckIcon from '@fedi/common/assets/svgs/check.svg'
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import { MatrixPaymentEvent } from '@fedi/common/types'
@@ -55,11 +52,11 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
 
     const icon =
         statusIcon === 'x' ? (
-            <Icon size="xs" icon={CloseIcon} />
+            <Icon size="xs" icon="Close" />
         ) : statusIcon === 'check' ? (
-            <Icon size="xs" icon={CheckIcon} />
+            <Icon size="xs" icon="Check" />
         ) : statusIcon === 'error' ? (
-            <Icon size="xs" icon={ErrorIcon} />
+            <Icon size="xs" icon="Error" />
         ) : statusIcon === 'loading' ? (
             <CircularLoader size="xs" />
         ) : null

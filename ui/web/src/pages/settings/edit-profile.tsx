@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import EditIcon from '@fedi/common/assets/svgs/edit.svg'
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -152,7 +151,7 @@ const EditProfile = () => {
                                 {isChangingAvatar ? (
                                     <CircularLoader size="sm" />
                                 ) : (
-                                    <Icon icon={EditIcon} size="md" />
+                                    <Icon icon="Edit" size="md" />
                                 )}
                             </AvatarEdit>
                         </ChatAvatarContainer>

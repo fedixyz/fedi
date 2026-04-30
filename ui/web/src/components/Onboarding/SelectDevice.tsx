@@ -2,10 +2,6 @@ import { useRouter } from 'next/router'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AndroidDeviceIcon from '@fedi/common/assets/svgs/device-android.svg'
-import WebDeviceIcon from '@fedi/common/assets/svgs/device-browser.svg'
-import IosDeviceIcon from '@fedi/common/assets/svgs/device-ios.svg'
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
@@ -13,20 +9,20 @@ import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 import { styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { HoloLoader } from '../HoloLoader'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
 
-const getIcon = (iconName: string) => {
+const getIcon = (iconName: string): SvgIconName => {
     switch (iconName) {
         case 'DeviceBrowser':
-            return WebDeviceIcon
+            return 'DeviceBrowser'
         case 'DeviceIos':
-            return IosDeviceIcon
+            return 'DeviceIos'
         case 'DeviceAndroid':
-            return AndroidDeviceIcon
+            return 'DeviceAndroid'
         default:
-            return ErrorIcon
+            return 'Error'
     }
 }
 
@@ -105,7 +101,7 @@ export const SelectDevice: React.FC = () => {
                     {registeredDevices.length === 0 ? (
                         <>
                             <IconWrap>
-                                <Icon icon={ErrorIcon} size="sm" />
+                                <Icon icon="Error" size="sm" />
                             </IconWrap>
                             <Text center variant="h2">
                                 {t('feature.recovery.device-not-found')}

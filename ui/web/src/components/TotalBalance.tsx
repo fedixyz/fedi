@@ -1,7 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
 import { useTotalBalance } from '@fedi/common/hooks/amount'
 
 import { styled, theme } from '../styles'
@@ -22,7 +21,7 @@ export const TotalBalance: React.FC = () => {
             align="center"
             gap="xs"
             aria-label="Total Balance">
-            <Icon icon={WalletIcon} size="xs" />
+            <Icon icon="Wallet" size="xs" />
             <Text variant="small" weight="medium">
                 {t('words.balance')}: {formattedBalance}
             </Text>

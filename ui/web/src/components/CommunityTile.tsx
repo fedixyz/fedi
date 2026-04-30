@@ -1,7 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import QRIcon from '@fedi/common/assets/svgs/qr.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { Community } from '@fedi/common/types'
 import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
@@ -41,7 +40,7 @@ const CommunityTile: React.FC<CommunityTileProps> = ({
             {showInviteCode && (
                 <IconContainer>
                     <Icon
-                        icon={QRIcon}
+                        icon="Qr"
                         size="sm"
                         onClick={(e: React.MouseEvent<SVGElement>) => {
                             e.stopPropagation()

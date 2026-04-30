@@ -1,14 +1,12 @@
 import React, { memo, useRef, useState, useEffect, useCallback } from 'react'
 
-import ArrowCornerUpLeftIcon from '@fedi/common/assets/svgs/corner-up-left-double.svg'
-import ArrowCornerUpRightIcon from '@fedi/common/assets/svgs/corner-up-right-double.svg'
 import { setChatReplyingToMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppDispatch } from '../../hooks'
 import { styled, theme } from '../../styles'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 
 const log = makeLog('ChatSwipeableEventContainer')
 
@@ -248,16 +246,16 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
         const renderAction = (actionSide: 'left' | 'right') => {
             const isLeftSide = actionSide === 'left'
 
-            let iconComponent: typeof ArrowCornerUpLeftIcon
+            let iconComponent: SvgIconName
             if (currentSwipeDirection) {
                 iconComponent =
                     currentSwipeDirection === 'left'
-                        ? ArrowCornerUpLeftIcon
-                        : ArrowCornerUpRightIcon
+                        ? 'ArrowCornerUpLeftDouble'
+                        : 'ArrowCornerUpRightDouble'
             } else {
                 iconComponent = isLeftSide
-                    ? ArrowCornerUpRightIcon
-                    : ArrowCornerUpLeftIcon
+                    ? 'ArrowCornerUpRightDouble'
+                    : 'ArrowCornerUpLeftDouble'
             }
 
             return (

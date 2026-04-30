@@ -2,9 +2,6 @@ import { styled } from '@stitches/react'
 import { Dispatch, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BitcoinCircleIcon from '@fedi/common/assets/svgs/bitcoin-circle.svg'
-import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
-import QrIcon from '@fedi/common/assets/svgs/qr.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { useBalance } from '@fedi/common/hooks/amount'
 import {
@@ -86,7 +83,7 @@ function WalletListItem({
                     {federation.name}
                 </Text>
                 <IconButton
-                    icon={QrIcon}
+                    icon="Qr"
                     size="md"
                     onClick={() => onClickInvite(federation.id)}
                 />
@@ -97,10 +94,10 @@ function WalletListItem({
                     dispatch(setPaymentType('bitcoin'))
                     onOpenChange(false)
                 }}>
-                <Icon icon={BitcoinCircleIcon} color={theme.colors.orange} />
+                <Icon icon="BitcoinCircle" color={theme.colors.orange} />
                 <BitcoinLabel>{t('words.bitcoin')}</BitcoinLabel>
                 <Text>{formattedBalance}</Text>
-                <Icon icon={ChevronRightIcon} color={theme.colors.grey} />
+                <Icon icon="ChevronRight" color={theme.colors.grey} />
             </BalanceItem>
         </Column>
     )

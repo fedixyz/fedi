@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import InviteMembersIcon from '@fedi/common/assets/svgs/invite-members.svg'
-import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
-import ScrollIcon from '@fedi/common/assets/svgs/scroll.svg'
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
-import TableExportIcon from '@fedi/common/assets/svgs/table-export.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useExportTransactions } from '@fedi/common/hooks/transactions'
 import { selectAuthenticatedGuardian } from '@fedi/common/redux'
@@ -23,6 +18,7 @@ import {
 import { useAppSelector } from '../hooks'
 import { AccordionMenu, MenuItemInfo, MenuItemName } from './AccordionMenu'
 import { FederationAvatar } from './FederationAvatar'
+import { SvgIconName } from './Icon'
 import { MenuGroup } from './SettingsMenu'
 
 interface FederationMenuProps {
@@ -72,40 +68,40 @@ export const FederationMenu = ({
         items: [
             {
                 label: t('feature.recovery.guardian-access'),
-                icon: SocialPeopleIcon,
+                icon: 'SocialPeople' as SvgIconName,
                 href: settingsStartRecoveryAssistRoute,
                 hidden: authenticatedGuardian?.federationId !== federation.id,
             },
             {
                 label: t('feature.federations.invite-members'),
-                icon: InviteMembersIcon,
+                icon: 'InviteMembers' as SvgIconName,
                 onClick: () => onInviteMembers(federation.id),
                 disabled: !shouldShowInvite,
             },
             {
                 label: t('feature.backup.social-backup'),
-                icon: SocialPeopleIcon,
+                icon: 'SocialPeople' as SvgIconName,
                 href: `${settingsBackupSocialRoute}#id=${federation.id}`,
                 hidden: !shouldShowSocialRecovery(federation),
             },
             {
                 label: t('phrases.terms-and-conditions'),
-                icon: ScrollIcon,
+                icon: 'Scroll' as SvgIconName,
                 href: tosUrl,
                 disabled: !tosUrl,
             },
             {
                 label: t('feature.backup.export-transactions-to-csv'),
-                icon: TableExportIcon,
+                icon: 'TableExport' as SvgIconName,
                 onClick: () => exportTransactionsAsCsv(federation),
                 disabled: !!exportingFederationId,
             },
             {
                 label: t('feature.federations.leave-federation'),
-                icon: LeaveFederationIcon,
+                icon: 'LeaveFederation' as SvgIconName,
                 onClick: () => onLeaveFederation(federation),
             },
-        ].filter(item => !item.hidden),
+        ].filter(item => !('hidden' in item) || !item.hidden),
     }
 
     const header = (

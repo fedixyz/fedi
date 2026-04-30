@@ -1,7 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CheckIcon from '@fedi/common/assets/svgs/check.svg'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
     selectCurrency,
@@ -91,7 +90,7 @@ function FederationListItem({
                     {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
                 </Text>
             </Column>
-            {isSelected && <Icon icon={CheckIcon} size="sm" />}
+            {isSelected && <Icon icon="Check" size="sm" />}
         </FederationListItemButton>
     )
 }

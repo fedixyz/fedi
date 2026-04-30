@@ -1,6 +1,5 @@
 import React from 'react'
 
-import BitcoinCircleIcon from '@fedi/common/assets/svgs/bitcoin-circle.svg'
 import { TransactionListEntry } from '@fedi/common/types'
 import { makeTxnStatusBadge } from '@fedi/common/utils/transaction'
 
@@ -17,7 +16,7 @@ export const TransactionIcon: React.FC<Props> = ({ txn }) => {
 
     return (
         <HistoryIcon badge={badge} color={theme.colors.orange}>
-            <Icon icon={BitcoinCircleIcon} size={38} />
+            <Icon icon="BitcoinCircle" size={38} />
         </HistoryIcon>
     )
 }

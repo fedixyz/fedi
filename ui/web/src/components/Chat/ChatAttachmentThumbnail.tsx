@@ -1,9 +1,6 @@
 import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-import FileIcon from '@fedi/common/assets/svgs/file.svg'
-
 import { styled, theme } from '../../styles'
 import { Icon } from '../Icon'
 
@@ -76,7 +73,7 @@ export const ChatAttachmentThumbnail: React.FC<Props> = ({
             // pdf, docx etc
             return (
                 <AttachmentThumbnail aria-label="file-thumbnail">
-                    <Icon icon={FileIcon} size={24} />
+                    <Icon icon="File" size={24} />
                 </AttachmentThumbnail>
             )
         }
@@ -87,7 +84,7 @@ export const ChatAttachmentThumbnail: React.FC<Props> = ({
     return (
         <ThumbnailWrapper>
             <RemoveIconWrapper aria-label="remove-button" onClick={onRemove}>
-                <RemoveIcon icon={CloseIcon} size={16} />
+                <RemoveIcon icon="Close" size={16} />
             </RemoveIconWrapper>
             {generateThumbnail(file, src)}
         </ThumbnailWrapper>

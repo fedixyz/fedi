@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import UserIcon from '@fedi/common/assets/svgs/user.svg'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { completeSocialRecovery } from '@fedi/common/redux'
@@ -118,7 +117,7 @@ export const CompleteSocialRecovery = () => {
             return (
                 <Row gap="sm" justify="between" align="center" key={`gr-${i}`}>
                     <IconContainer>
-                        <Icon icon={UserIcon} size="xs" />
+                        <Icon icon="User" size="xs" />
                     </IconContainer>
                     <Text variant="caption" css={{ flex: 1 }}>
                         {approval.guardianName}

@@ -1,10 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import InviteMembersIcon from '@fedi/common/assets/svgs/invite-members.svg'
-import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
-import ScrollIcon from '@fedi/common/assets/svgs/scroll.svg'
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import { useLeaveCommunity } from '@fedi/common/hooks/leave'
 import { selectCommunityModsById } from '@fedi/common/redux'
 import { Community } from '@fedi/common/types'
@@ -16,6 +12,7 @@ import {
 import { useAppSelector } from '../hooks'
 import { AccordionMenu, MenuItemInfo, MenuItemName } from './AccordionMenu'
 import { FederationAvatar } from './FederationAvatar'
+import { SvgIconName } from './Icon'
 import { MenuGroup } from './SettingsMenu'
 
 interface CommunityMenuProps {
@@ -45,7 +42,7 @@ export const CommunityMenu = ({
         items: [
             {
                 label: t('feature.communities.community-details'),
-                icon: ScrollIcon,
+                icon: 'Scroll',
                 // TODO: Add href when community details page exists
                 disabled: true,
             },
@@ -53,7 +50,7 @@ export const CommunityMenu = ({
                 ? [
                       {
                           label: t('feature.communities.community-mods'),
-                          icon: SocialPeopleIcon,
+                          icon: 'SocialPeople' as SvgIconName,
                           // TODO: Add href when community mods page exists
                           disabled: true,
                       },
@@ -61,13 +58,13 @@ export const CommunityMenu = ({
                 : []),
             {
                 label: t('feature.federations.invite-members'),
-                icon: InviteMembersIcon,
+                icon: 'InviteMembers',
                 onClick: () => onInviteMembers(community.id),
                 disabled: !shouldShowInvite,
             },
             {
                 label: t('feature.communities.community-terms'),
-                icon: ScrollIcon,
+                icon: 'Scroll',
                 href: tosUrl,
                 disabled: !tosUrl,
             },
@@ -75,7 +72,7 @@ export const CommunityMenu = ({
                 ? [
                       {
                           label: t('feature.communities.leave-community'),
-                          icon: LeaveFederationIcon,
+                          icon: 'LeaveFederation' as SvgIconName,
                           onClick: () => onLeaveCommunity(community),
                       },
                   ]

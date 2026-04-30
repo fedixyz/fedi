@@ -75,8 +75,8 @@ jest.mock('react-native-mmkv', () => {
 })
 
 // Mock native SVGs to return mock functions for every key
-jest.mock('@fedi/native/assets/images/svgs', () => {
-    const actual = jest.requireActual('@fedi/native/assets/images/svgs')
+jest.mock('@fedi/common/assets/svgs', () => {
+    const actual = jest.requireActual('@fedi/common/assets/svgs')
     return Object.keys(actual).reduce((acc: any, key: string) => {
         acc[key] = jest.fn()
         return acc

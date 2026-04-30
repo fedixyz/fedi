@@ -2,9 +2,6 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import alertIcon from '@fedi/common/assets/svgs/alert-warning-triangle.svg'
-import cashIcon from '@fedi/common/assets/svgs/cash.svg'
-import checkIcon from '@fedi/common/assets/svgs/check.svg'
 import { useClaimEcash, useParseEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import amountUtils from '@fedi/common/utils/AmountUtils'
@@ -76,7 +73,7 @@ function EcashPage() {
     } else if (!parsedEcash) {
         content = (
             <Content>
-                <Icon icon={alertIcon} size="lg" />
+                <Icon icon="AlertWarningTriangle" size="lg" />
                 <Text variant="h2" weight="medium">
                     {t('feature.ecash.invalid-ecash-token')}
                 </Text>
@@ -93,7 +90,7 @@ function EcashPage() {
     } else if (ecashClaimed) {
         content = (
             <Content>
-                <Icon icon={checkIcon} size="lg" />
+                <Icon icon="Check" size="lg" />
                 <Text variant="h2" weight="medium">
                     {t('feature.ecash.ecash-claimed')}
                 </Text>
@@ -116,7 +113,7 @@ function EcashPage() {
     } else {
         content = (
             <Content>
-                <Icon icon={cashIcon} size="lg" />
+                <Icon icon="Cash" size="lg" />
                 <Text variant="h2" weight="medium">
                     {amountUtils.msatToSatString(parsedEcash.amount)} SATS
                 </Text>

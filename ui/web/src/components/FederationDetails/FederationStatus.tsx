@@ -1,14 +1,11 @@
 import { useTranslation } from 'react-i18next'
 
-import offlineIcon from '@fedi/common/assets/svgs/alert-warning-triangle.svg'
-import onlineIcon from '@fedi/common/assets/svgs/dot.svg'
-import unstableIcon from '@fedi/common/assets/svgs/info.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { useFederationStatus } from '@fedi/common/hooks/federation'
 
 import { styled } from '../../styles'
 import { Row } from '../Flex'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 import { Text } from '../Text'
 
 export function FederationStatus({ federationId }: { federationId: string }) {
@@ -20,13 +17,13 @@ export function FederationStatus({ federationId }: { federationId: string }) {
         statusIcon,
         statusIconColor,
         statusWord,
-    } = useFederationStatus({
+    } = useFederationStatus<SvgIconName>({
         federationId,
         t,
         statusIconMap: {
-            offline: offlineIcon,
-            online: onlineIcon,
-            unstable: unstableIcon,
+            offline: 'AlertWarningTriangle',
+            online: 'Dot',
+            unstable: 'Info',
         },
     })
 

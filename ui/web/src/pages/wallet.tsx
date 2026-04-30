@@ -2,12 +2,6 @@ import { useRouter } from 'next/router'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ArrowDown from '@fedi/common/assets/svgs/arrow-down.svg'
-import ArrowUp from '@fedi/common/assets/svgs/arrow-up.svg'
-import BitcoinCircle from '@fedi/common/assets/svgs/bitcoin-circle.svg'
-import ChevronRight from '@fedi/common/assets/svgs/chevron-right.svg'
-import HelpIcon from '@fedi/common/assets/svgs/help.svg'
-import TxnHistory from '@fedi/common/assets/svgs/txn-history.svg'
 import { HIDDEN_AMOUNT_MASK } from '@fedi/common/constants/currency'
 import { theme } from '@fedi/common/constants/theme'
 import { useBalance } from '@fedi/common/hooks/amount'
@@ -114,7 +108,7 @@ function WalletPage() {
                             </Text>
                         }>
                         <IconButton
-                            icon={HelpIcon}
+                            icon="Help"
                             size="md"
                             style={{ color: theme.colors.darkGrey }}
                             onClick={e => {
@@ -123,7 +117,7 @@ function WalletPage() {
                             }}
                         />
                     </TourTip>
-                    <Icon icon={ChevronRight} color={theme.colors.darkGrey} />
+                    <Icon icon="ChevronRight" color={theme.colors.darkGrey} />
                 </PaymentFederationHeader>
                 <BalanceCard>
                     <BalanceHeader
@@ -134,13 +128,13 @@ function WalletPage() {
                         }>
                         <Row gap="sm" align="center">
                             <Icon
-                                icon={BitcoinCircle}
+                                icon="BitcoinCircle"
                                 color={theme.colors.orange}
                             />
                             <Text weight="bold">{t('words.bitcoin')}</Text>
                         </Row>
 
-                        <Icon icon={TxnHistory} size="sm" />
+                        <Icon icon="TxnHistory" size="sm" />
                     </BalanceHeader>
                     <Column center gap="xs" grow>
                         {recoveryInProgress ? (
@@ -168,7 +162,7 @@ function WalletPage() {
                 </BalanceCard>
                 <Row align="center" gap="md">
                     <Button
-                        icon={ArrowDown}
+                        icon="ArrowDown"
                         width="full"
                         disabled={receiveDisabled}
                         onClick={() => {
@@ -178,7 +172,7 @@ function WalletPage() {
                         {t('words.receive')}
                     </Button>
                     <Button
-                        icon={ArrowUp}
+                        icon="ArrowUp"
                         width="full"
                         disabled={sendDisabled}
                         onClick={() => {

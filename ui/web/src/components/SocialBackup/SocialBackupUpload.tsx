@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
@@ -81,7 +80,7 @@ export const SocialBackupUpload: React.FC<Props> = ({
             <Layout.Content centered>
                 {error ? (
                     <Error>
-                        <Icon icon={ErrorIcon} size="lg" />
+                        <Icon icon="Error" size="lg" />
                         <Text>
                             {formatErrorMessage(
                                 t,

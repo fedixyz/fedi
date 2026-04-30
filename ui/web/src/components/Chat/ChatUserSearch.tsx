@@ -3,10 +3,6 @@ import { useRouter } from 'next/router'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-import KeyboardIcon from '@fedi/common/assets/svgs/keyboard.svg'
-import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import { useMatrixUserSearch } from '@fedi/common/hooks/matrix'
 import { selectRecentMatrixRoomMembers } from '@fedi/common/redux'
 import { ParserDataType } from '@fedi/common/types'
@@ -96,7 +92,7 @@ export const ChatUserSearch: React.FC<Props> = ({ action }) => {
                     <SearchHeader>
                         {inputFocused && (
                             <CloseButton onClick={handleOnClose}>
-                                <Icon icon={CloseIcon} />
+                                <Icon icon="Close" />
                             </CloseButton>
                         )}
                         <SearchPrefix>{t('words.to')}:</SearchPrefix>
@@ -184,18 +180,18 @@ export const ChatUserSearch: React.FC<Props> = ({ action }) => {
                                       label: t(
                                           'feature.omni.action-enter-username',
                                       ),
-                                      icon: KeyboardIcon,
+                                      icon: 'Keyboard',
                                       onClick: () => setShowScanner(false),
                                   }
                                 : {
                                       label: t('feature.omni.action-scan'),
-                                      icon: ScanIcon,
+                                      icon: 'Scan',
                                       onClick: () => setShowScanner(true),
                                   },
                             'paste',
                             {
                                 label: t('feature.chat.create-a-group'),
-                                icon: SocialPeopleIcon,
+                                icon: 'SocialPeople',
                                 onClick: () => push('/chat/new/room'),
                             },
                         ]}

@@ -2,11 +2,6 @@ import { t } from 'i18next'
 import Link from 'next/link'
 import React from 'react'
 
-import ChatAdminIcon from '@fedi/common/assets/svgs/chat-admin.svg'
-import ChatModeratorIcon from '@fedi/common/assets/svgs/chat-moderator.svg'
-import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
-import CheckIcon from '@fedi/common/assets/svgs/check.svg'
-import UserIcon from '@fedi/common/assets/svgs/user.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectMatrixAuth,
@@ -29,7 +24,7 @@ import {
     DropdownSheetMenuLabel,
 } from '../DropdownSheet'
 import { EmptyState } from '../EmptyState'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
 
@@ -106,21 +101,21 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
         return false
     }
 
-    const roles = [
+    const roles: { label: string; powerLevel: number; icon: SvgIconName }[] = [
         {
             label: t('words.member'),
             powerLevel: MatrixPowerLevel.Member,
-            icon: UserIcon,
+            icon: 'User',
         },
         {
             label: t('words.moderator'),
             powerLevel: MatrixPowerLevel.Moderator,
-            icon: ChatModeratorIcon,
+            icon: 'ChatModerator',
         },
         {
             label: t('words.admin'),
             powerLevel: MatrixPowerLevel.Admin,
-            icon: ChatAdminIcon,
+            icon: 'ChatAdmin',
         },
     ]
 
@@ -135,7 +130,7 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
                         <DropdownSheetMenuItem
                             as={Link}
                             href={`/chat/user/${member.id}`}>
-                            <Icon icon={ChatIcon} />
+                            <Icon icon="Chat" />
                             <Text weight="bold">
                                 {t('feature.chat.go-to-direct-chat')}
                             </Text>
@@ -174,7 +169,7 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
                                                         'int' &&
                                                     role.powerLevel ===
                                                         member.powerLevel.value
-                                                        ? CheckIcon
+                                                        ? 'Check'
                                                         : role.icon
                                                 }
                                             />

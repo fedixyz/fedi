@@ -2,9 +2,6 @@ import { useRouter } from 'next/router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import EditIcon from '@fedi/common/assets/svgs/edit.svg'
-import QrCodeIcon from '@fedi/common/assets/svgs/qr.svg'
-import RoomIcon from '@fedi/common/assets/svgs/room.svg'
 import { useCreatedCommunities } from '@fedi/common/hooks/federation'
 import { useLeaveCommunity } from '@fedi/common/hooks/leave'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -83,14 +80,14 @@ function CommunityDetails() {
                         <Row gap="sm">
                             {canEditCommunity && (
                                 <Icon
-                                    icon={EditIcon}
+                                    icon="Edit"
                                     size="sm"
                                     onClick={handleEditCommunity}
                                 />
                             )}
                             {showInviteCode && (
                                 <Icon
-                                    icon={QrCodeIcon}
+                                    icon="Qr"
                                     size="sm"
                                     onClick={() =>
                                         setInvitingCommunityId(community.id)
@@ -169,7 +166,7 @@ function CommunityDetails() {
                 <Column gap="lg" align="center">
                     <IconContainer>
                         <Icon
-                            icon={RoomIcon}
+                            icon="Room"
                             size={64}
                             color={theme.colors.red as unknown as string}
                         />

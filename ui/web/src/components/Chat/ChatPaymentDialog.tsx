@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import FediLogoIcon from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
     useChatPaymentPush,
@@ -157,7 +156,7 @@ export const ChatPaymentDialog: React.FC<Props> = ({
             <Column grow>
                 <ConfirmContainer>
                     <Row gap="xs" center>
-                        <Icon icon={FediLogoIcon} size={16} />
+                        <Icon icon="FediLogoIcon" size={16} />
                         <Text weight="bold" variant="caption">
                             {t('words.ecash')}
                         </Text>

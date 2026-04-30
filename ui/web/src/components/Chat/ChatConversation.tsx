@@ -2,9 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
-import SendArrowUpCircleIcon from '@fedi/common/assets/svgs/send-arrow-up-circle.svg'
-import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
 import { GUARDIANITO_BOT_DISPLAY_NAME } from '@fedi/common/constants/matrix'
 import { useMessageInputState } from '@fedi/common/hooks/chat'
 import { useMentionInput } from '@fedi/common/hooks/matrix'
@@ -401,7 +398,7 @@ export const ChatConversation: React.FC<Props> = ({
                             {type === ChatType.direct && !isNewChat && (
                                 <Icon
                                     aria-label="wallet-icon"
-                                    icon={WalletIcon}
+                                    icon="Wallet"
                                     size={32}
                                     onClick={onWalletClick}
                                 />
@@ -409,7 +406,7 @@ export const ChatConversation: React.FC<Props> = ({
                             {!isPublic && !isNewChat && (
                                 <Icon
                                     aria-label="plus-icon"
-                                    icon={PlusIcon}
+                                    icon="Plus"
                                     size={26}
                                     onClick={attachments.triggerFilePicker}
                                 />
@@ -426,7 +423,7 @@ export const ChatConversation: React.FC<Props> = ({
                             onMouseDown={e => {
                                 e.preventDefault() // Prevents focus from shifting (keyboard stays open)
                             }}>
-                            <Icon icon={SendArrowUpCircleIcon} />
+                            <Icon icon="SendArrowUpCircle" />
                         </SendButton>
                     </ActionsRow>
                 )}

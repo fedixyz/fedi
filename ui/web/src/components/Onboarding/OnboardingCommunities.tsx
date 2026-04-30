@@ -4,9 +4,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import CommunityCreateImage from '@fedi/common/assets/images/community-create-graphic.png'
-import BuildingIcon from '@fedi/common/assets/svgs/building.svg'
-import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
-import ToolIcon from '@fedi/common/assets/svgs/tool.svg'
 import {
     COMMUNITY_TOOL_URL_PROD,
     COMMUNITY_TOOL_URL_STAGING,
@@ -24,7 +21,7 @@ import { useAppDispatch, useAppSelector } from '../../hooks'
 import { keyframes, styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { FediBrowser } from '../FediBrowser'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 import * as Layout from '../Layout'
 import { OmniInput } from '../OmniInput'
 import PublicFederations from '../PublicFederations'
@@ -46,7 +43,7 @@ const getTab = (tab: string): Tab => {
 
 // Add type and component for info entry list
 type InfoEntryItem = {
-    icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    icon: SvgIconName
     text: string
 }
 
@@ -102,9 +99,9 @@ export function OnboardingCommunities() {
 
     // Add createInfoItems for the create tab
     const createInfoItems: InfoEntryItem[] = [
-        { icon: BuildingIcon, text: t('feature.communities.create-info-1') },
-        { icon: ChatIcon, text: t('feature.communities.create-info-2') },
-        { icon: ToolIcon, text: t('feature.communities.create-info-3') },
+        { icon: 'Building', text: t('feature.communities.create-info-1') },
+        { icon: 'Chat', text: t('feature.communities.create-info-2') },
+        { icon: 'Tool', text: t('feature.communities.create-info-3') },
     ]
 
     useEffect(() => {

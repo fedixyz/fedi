@@ -3,7 +3,6 @@ import * as RadixToast from '@radix-ui/react-toast'
 import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
-import Close from '@fedi/common/assets/svgs/close.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectToast } from '@fedi/common/redux'
 
@@ -72,7 +71,7 @@ export const ToastManager: React.FC = () => {
                                 </Text>
                             </Description>
                             <CloseIcon onClick={() => handleCloseToast(false)}>
-                                <Icon icon={Close} />
+                                <Icon icon="Close" />
                             </CloseIcon>
                         </ToastInner>
                     )}

@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import CheckIcon from '@fedi/common/assets/svgs/check.svg'
 import {
     selectPaymentFederation,
     selectLoadedFederations,
@@ -159,7 +158,7 @@ export default function ShareLogsPage() {
                                 <Text weight="medium">
                                     {t('feature.bug.database-attached')} 🕷️🐞🦟
                                 </Text>
-                                <Icon icon={CheckIcon} />
+                                <Icon icon="Check" />
                             </SendDbContainer>
                             {walletFederations.length > 0 && (
                                 <>

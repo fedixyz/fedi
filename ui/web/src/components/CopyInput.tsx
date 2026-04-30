@@ -2,7 +2,6 @@ import * as RadixLabel from '@radix-ui/react-label'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CopyIcon from '@fedi/common/assets/svgs/copy.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 
 import { styled, theme } from '../styles'
@@ -38,7 +37,7 @@ export const CopyInput: React.FC<Props> = ({ value, onCopyMessage }) => {
             <InputWrap>
                 <TextInput value={value} />
                 <CopyButton onClick={handleCopy}>
-                    <Icon icon={CopyIcon} size={16} />
+                    <Icon icon="Copy" size={16} />
                     <Text variant="small" weight="medium">
                         {t('words.copy')}
                     </Text>

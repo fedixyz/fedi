@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import switchIcon from '@fedi/common/assets/svgs/switch.svg'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
     selectTransactionDisplayType,
@@ -94,23 +93,21 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
                         {amount}
                     </Text>
                 )}
-                {formattedSecondaryAmount && (
-                    <CurrencySwitch
-                        onClick={() =>
-                            dispatch(
-                                setTransactionDisplayType(
-                                    transactionDisplayType === 'fiat'
-                                        ? 'sats'
-                                        : 'fiat',
-                                ),
-                            )
-                        }>
-                        <Text css={{ color: theme.colors.grey }}>
-                            {formattedSecondaryAmount}
-                        </Text>
-                        <Icon icon={switchIcon} size="xs" />
-                    </CurrencySwitch>
-                )}
+                <CurrencySwitch
+                    onClick={() =>
+                        dispatch(
+                            setTransactionDisplayType(
+                                transactionDisplayType === 'fiat'
+                                    ? 'sats'
+                                    : 'fiat',
+                            ),
+                        )
+                    }>
+                    <Text css={{ color: theme.colors.grey }}>
+                        {formattedSecondaryAmount}
+                    </Text>
+                    <Icon icon="Switch" size="xs" />
+                </CurrencySwitch>
                 <Details>
                     {items.map((item, idx) => (
                         <HistoryDetailItem key={idx} {...item} />

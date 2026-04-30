@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 
-import clockIcon from '@fedi/common/assets/svgs/clock.svg'
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { LoadedFederation } from '@fedi/common/types'
 
@@ -22,7 +21,7 @@ export default function FederationPopupCountdown({
     return (
         <FederationEndCard>
             <Row align="center" gap="sm" grow>
-                <Icon icon={clockIcon} size={16} />
+                <Icon icon="Clock" size={16} />
                 <Text variant="caption">
                     {t('feature.federations.federation-ends-in')}
                 </Text>

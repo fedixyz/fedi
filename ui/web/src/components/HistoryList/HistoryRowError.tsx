@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 
 import { styled, theme } from '../../styles'
@@ -20,7 +19,7 @@ export const HistoryRowError: React.FC<Props> = ({ error, item }) => {
 
     return (
         <Container onClick={() => setIsShowingDetails(true)}>
-            <Icon icon={ErrorIcon} size={32} />
+            <Icon icon="Error" size={32} />
             <Message>
                 <Text variant="caption" weight="medium">
                     {t('errors.history-render-error')}

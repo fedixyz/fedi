@@ -1,14 +1,9 @@
 import React from 'react'
 
-import ArrowDownBadgeIcon from '@fedi/common/assets/svgs/arrow-down-badge.svg'
-import ArrowUpBadgeIcon from '@fedi/common/assets/svgs/arrow-up-badge.svg'
-import ExpiredBadgeIcon from '@fedi/common/assets/svgs/expired-badge.svg'
-import FailedBadge from '@fedi/common/assets/svgs/failed-badge.svg'
-import PendingBadgeIcon from '@fedi/common/assets/svgs/pending-badge.svg'
 import { TransactionStatusBadge } from '@fedi/common/types'
 
 import { CSSProp, styled, theme } from '../../styles'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 
 export interface HistoryIconProps {
     children: React.ReactNode
@@ -21,22 +16,22 @@ export const HistoryIcon: React.FC<HistoryIconProps> = ({
     badge,
     color,
 }) => {
-    let badgeIcon: typeof ArrowDownBadgeIcon | undefined
+    let badgeIcon: SvgIconName | undefined
     let badgeColor: CSSProp['color'] | undefined
     if (badge === 'incoming') {
-        badgeIcon = ArrowDownBadgeIcon
+        badgeIcon = 'ArrowDownBadge'
         badgeColor = theme.colors.green
     } else if (badge === 'outgoing') {
-        badgeIcon = ArrowUpBadgeIcon
+        badgeIcon = 'ArrowUpBadge'
         badgeColor = theme.colors.black
     } else if (badge === 'pending') {
-        badgeIcon = PendingBadgeIcon
+        badgeIcon = 'PendingBadge'
         badgeColor = theme.colors.fuschia
     } else if (badge === 'expired') {
-        badgeIcon = ExpiredBadgeIcon
+        badgeIcon = 'ExpiredBadgeIcon'
         badgeColor = theme.colors.red
     } else if (badge === 'failed') {
-        badgeIcon = FailedBadge
+        badgeIcon = 'FailedBadge'
         badgeColor = theme.colors.red
     }
 

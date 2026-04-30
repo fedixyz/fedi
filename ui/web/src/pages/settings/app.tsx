@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SettingsIcon from '@fedi/common/assets/svgs/settings.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectAnalyticsConsent,
@@ -53,7 +52,7 @@ const AppSettingsPage: React.FC = () => {
                     <Content>
                         <Row>
                             <TitleWrapper>
-                                <Icon icon={SettingsIcon} size="sm" />
+                                <Icon icon="Settings" size="sm" />
                                 <Label htmlFor="analytics-consent-switch">
                                     {t('feature.settings.usage-sharing')}
                                 </Label>

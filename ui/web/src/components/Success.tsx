@@ -1,8 +1,5 @@
 import React from 'react'
 
-import CheckIcon from '@fedi/common/assets/svgs/check.svg'
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-
 import * as Layout from '../components/Layout'
 import { styled, theme } from '../styles'
 import { Button } from './Button'
@@ -32,7 +29,7 @@ const Success: React.FC<Props> = ({
                     <Circle align="center" gap="md">
                         <Icon
                             size="md"
-                            icon={type === 'success' ? CheckIcon : CloseIcon}
+                            icon={type === 'success' ? 'Check' : 'Close'}
                         />
                         <Text weight="bold" center>
                             {title}

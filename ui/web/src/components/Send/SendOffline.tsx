@@ -2,9 +2,6 @@ import { dataToFrames } from 'qrloop'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CancelIcon from '@fedi/common/assets/svgs/close.svg'
-import CopyIcon from '@fedi/common/assets/svgs/copy.svg'
-import ShareIcon from '@fedi/common/assets/svgs/share.svg'
 import { WEB_APP_URL } from '@fedi/common/constants/api'
 import {
     useAmountFormatter,
@@ -135,14 +132,14 @@ export const SendOffline: React.FC<Props> = ({
                         <Button
                             width="full"
                             variant="secondary"
-                            icon={CopyIcon}
+                            icon="Copy"
                             onClick={handleCopy}>
                             Copy
                         </Button>
                         <Button
                             width="full"
                             variant="secondary"
-                            icon={ShareIcon}
+                            icon="Share"
                             onClick={handleShare}>
                             Share
                         </Button>
@@ -161,7 +158,7 @@ export const SendOffline: React.FC<Props> = ({
                     <Button
                         onClick={() => onCancel(ecash)}
                         variant="tertiary"
-                        icon={CancelIcon}
+                        icon="Close"
                         css={{ color: theme.colors.red }}>
                         {t('feature.send.cancel-send')}
                     </Button>

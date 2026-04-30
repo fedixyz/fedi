@@ -3,8 +3,6 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import closeIcon from '@fedi/common/assets/svgs/close.svg'
-
 import { keyframes, styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { Icon } from '../Icon'
@@ -48,7 +46,7 @@ export const Modal: React.FC<Props> = ({
                     <Children>{children}</Children>
                     {showCloseButton && (
                         <Close>
-                            <Icon icon={closeIcon} size={20} />
+                            <Icon icon="Close" size={20} />
                         </Close>
                     )}
                     {showActions && (

@@ -5,13 +5,13 @@ import StringUtils from '@fedi/common/utils/StringUtils'
 import { getIdentityColors } from '@fedi/common/utils/color'
 
 import { CSSProp, styled, theme } from '../styles'
-import { Icon } from './Icon'
+import { Icon, SvgIconName } from './Icon'
 
 export interface AvatarProps {
     id: string
     src?: string
     name?: string
-    icon?: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    icon?: SvgIconName
     size?: 'xs' | 'sm' | 'md' | 'lg'
     shape?: 'circle' | 'square'
     holo?: boolean

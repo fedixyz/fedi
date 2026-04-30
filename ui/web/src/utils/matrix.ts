@@ -1,18 +1,16 @@
-import PollIcon from '@fedi/common/assets/svgs/poll.svg'
 import { MatrixEvent, MatrixEventKind } from '@fedi/common/types'
 
+import { SvgIconName } from '../components/Icon'
+
 export const matrixEventToIconMap: Partial<
-    Record<
-        MatrixEventKind,
-        React.FunctionComponent<React.SVGAttributes<SVGElement>>
-    >
+    Record<MatrixEventKind, SvgIconName>
 > = {
-    'm.poll': PollIcon,
+    'm.poll': 'Poll',
 }
 
 export const getMatrixPreviewIcon = (
     event: MatrixEvent | null | undefined,
-): React.FunctionComponent<React.SVGAttributes<SVGElement>> | undefined => {
+): SvgIconName | undefined => {
     if (!event) return undefined
 
     return matrixEventToIconMap[event.content.msgtype]

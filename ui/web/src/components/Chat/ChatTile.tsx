@@ -3,7 +3,7 @@ import React, { ReactNode } from 'react'
 
 import { styled, theme } from '../../styles'
 import { Row } from '../Flex'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 import { NotificationDot } from '../NotificationDot'
 import { Text, TextProps } from '../Text'
 
@@ -16,7 +16,7 @@ export type ChatTileProps = {
     showUnreadIndicator?: boolean
     href: string
     active?: boolean
-    icon?: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    icon?: SvgIconName
 }
 
 export const ChatTile: React.FC<ChatTileProps> = ({

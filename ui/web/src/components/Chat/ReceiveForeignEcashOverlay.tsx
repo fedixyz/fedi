@@ -1,9 +1,5 @@
 import { Trans, useTranslation } from 'react-i18next'
 
-import ArrowRight from '@fedi/common/assets/svgs/arrow-right.svg'
-import BrokenHeart from '@fedi/common/assets/svgs/broken-heart.svg'
-import ChevronLeft from '@fedi/common/assets/svgs/chevron-left.svg'
-import ChevronRight from '@fedi/common/assets/svgs/chevron-right.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { useAcceptForeignEcash } from '@fedi/common/hooks/chat'
 import { MatrixPaymentEvent } from '@fedi/common/types'
@@ -85,7 +81,11 @@ export const ReceiveForeignEcashOverlay = ({
                                 : t('feature.receive.hide-other-methods')}
                         </Text>
                         <ChevronIcon
-                            icon={hideOtherMethods ? ChevronRight : ChevronLeft}
+                            icon={
+                                hideOtherMethods
+                                    ? 'ChevronRight'
+                                    : 'ChevronLeft'
+                            }
                             size="sm"
                         />
                     </Row>
@@ -111,14 +111,14 @@ function RejectPaymentCard({ onReject }: { onReject: () => void }) {
     return (
         <ActionCard onClick={onReject}>
             <RejectIconContainer center>
-                <Icon icon={BrokenHeart} size="md" color={theme.colors.white} />
+                <Icon icon="BrokenHeart" size="md" color={theme.colors.white} />
             </RejectIconContainer>
             <Column align="start" gap="xs" justify="between" grow>
                 <Text weight="medium">
                     {t('feature.receive.reject-payment')}
                 </Text>
             </Column>
-            <Icon icon={ArrowRight} size="sm" />
+            <Icon icon="ArrowRight" size="sm" />
         </ActionCard>
     )
 }
@@ -157,7 +157,7 @@ function FederationPreviewCard({
                     />
                 </TextDarkGrey>
             </Column>
-            <Icon icon={ArrowRight} size="sm" />
+            <Icon icon="ArrowRight" size="sm" />
         </ActionCard>
     )
 }

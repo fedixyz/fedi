@@ -1,7 +1,5 @@
 import * as React from 'react'
 
-import Close from '@fedi/common/assets/svgs/close.svg'
-import Video from '@fedi/common/assets/svgs/video.svg'
 import { theme as themeColors } from '@fedi/common/constants/theme'
 
 import { styled, theme } from '../../styles'
@@ -27,10 +25,10 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                     : undefined
             }>
             <CloseButton onClick={() => onRemove(fileData.id)}>
-                <Icon icon={Close} size="xs" />
+                <Icon icon="Close" size="xs" />
             </CloseButton>
             {fileData.preview ? null : (
-                <Icon icon={Video} color={themeColors.colors.grey} />
+                <Icon icon="Video" color={themeColors.colors.grey} />
             )}
         </Container>
     )

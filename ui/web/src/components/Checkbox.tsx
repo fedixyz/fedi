@@ -2,8 +2,6 @@ import * as RadixCheckbox from '@radix-ui/react-checkbox'
 import * as RadixLabel from '@radix-ui/react-label'
 import React from 'react'
 
-import CheckIcon from '@fedi/common/assets/svgs/check.svg'
-
 import { styled, theme } from '../styles'
 import { Icon } from './Icon'
 import { Text, TextProps } from './Text'
@@ -27,7 +25,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
         <Root disabled={props.disabled}>
             <CheckboxRoot {...props} onCheckedChange={onChange}>
                 <CheckboxIndicator>
-                    <Icon size="xs" icon={CheckIcon} />
+                    <Icon size="xs" icon="Check" />
                 </CheckboxIndicator>
             </CheckboxRoot>
             {label && (

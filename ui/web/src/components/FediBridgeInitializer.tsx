@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import FediLogo from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
 import { FedimintProvider } from '@fedi/common/components/FedimintProvider'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
@@ -32,6 +31,7 @@ import { keyframes, styled } from '../styles'
 import { generateDeviceId } from '../utils/browserInfo'
 import { getHashParams } from '../utils/linking'
 import { tabRedirectPath } from '../utils/nav'
+import { Icon } from './Icon'
 import { Redirect } from './Redirect'
 import { Text } from './Text'
 
@@ -138,7 +138,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         return (
             <Content>
                 <Loader>
-                    <FediLogo width={50} />
+                    <Icon icon="FediLogoIcon" size={50} />
                 </Loader>
             </Content>
         )

@@ -2,14 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BitcoinIcon from '@fedi/common/assets/svgs/bitcoin.svg'
-import BoltIcon from '@fedi/common/assets/svgs/bolt.svg'
-import CashIcon from '@fedi/common/assets/svgs/cash.svg'
-import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
-import FederationIcon from '@fedi/common/assets/svgs/federation.svg'
-import FedimintIcon from '@fedi/common/assets/svgs/fedimint-logo.svg'
-import GlobeIcon from '@fedi/common/assets/svgs/globe.svg'
-import ScanSadIcon from '@fedi/common/assets/svgs/scan-sad.svg'
 import { useMatrixChatInvites } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -34,7 +26,7 @@ import { useAppSelector, useAppDispatch } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { keyframes, styled, theme } from '../../styles'
 import { Button } from '../Button'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 import { Text } from '../Text'
 
 interface Props {
@@ -96,7 +88,7 @@ export const OmniConfirmation: React.FC<Props> = ({
         continueOnClick,
         continueHref,
     } = ((): {
-        icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+        icon: SvgIconName
         url?: string
         text: React.ReactNode
         continueText?: React.ReactNode
@@ -109,7 +101,7 @@ export const OmniConfirmation: React.FC<Props> = ({
             !lastUsedFederationId
         ) {
             return {
-                icon: ScanSadIcon,
+                icon: 'ScanSad',
                 text: t('feature.omni.unsupported-no-federation'),
             }
         }
@@ -117,26 +109,26 @@ export const OmniConfirmation: React.FC<Props> = ({
         switch (parsedData.type) {
             case ParserDataType.OfflineError:
                 return {
-                    icon: ScanSadIcon,
+                    icon: 'ScanSad',
                     text: parsedData.data.title,
                 }
             case ParserDataType.Bolt11:
             case ParserDataType.LnurlPay:
                 return {
-                    icon: BoltIcon,
+                    icon: 'Bolt',
                     text: t('feature.omni.confirm-lightning-pay'),
                     continueOnClick: () => pushWithState('/send', parsedData),
                 }
             case ParserDataType.LnurlWithdraw:
                 return {
-                    icon: BoltIcon,
+                    icon: 'Bolt',
                     text: t('feature.omni.confirm-lightning-withdraw'),
                     continueOnClick: () =>
                         pushWithState('/request', parsedData),
                 }
             case ParserDataType.FedimintInvite:
                 return {
-                    icon: FederationIcon,
+                    icon: 'Federation',
                     text: t('feature.omni.confirm-federation-invite'),
                     continueOnClick: () =>
                         router.push(
@@ -152,7 +144,7 @@ export const OmniConfirmation: React.FC<Props> = ({
 
                 if (existingCommunity)
                     return {
-                        icon: FederationIcon,
+                        icon: 'Federation',
                         text: t('feature.communities.existing-membership'),
                         continueText: t('phrases.take-me-there'),
                         continueOnClick: () => {
@@ -166,7 +158,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                     }
 
                 return {
-                    icon: FederationIcon,
+                    icon: 'Federation',
                     text: t('feature.omni.confirm-community-invite'),
                     continueOnClick: () =>
                         router.push(
@@ -176,20 +168,20 @@ export const OmniConfirmation: React.FC<Props> = ({
             }
             case ParserDataType.CashuEcash:
                 return {
-                    icon: BoltIcon,
+                    icon: 'Bolt',
                     text: t('feature.omni.confirm-cashu-token'),
                     continueOnClick: () => pushWithState('/send', parsedData),
                 }
             case ParserDataType.DeepLink:
                 return {
-                    icon: GlobeIcon,
+                    icon: 'Globe',
                     text: t('feature.omni.confirm-deeplink-url'),
                     url: parsedData.data.url,
                     continueOnClick: () => router.push(parsedData.data.url),
                 }
             case ParserDataType.FedimintEcash:
                 return {
-                    icon: CashIcon,
+                    icon: 'Cash',
                     text: t('feature.omni.confirm-ecash-token'),
                     continueOnClick: () =>
                         router.push(
@@ -198,7 +190,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                 }
             case ParserDataType.LnurlAuth:
                 return {
-                    icon: BoltIcon,
+                    icon: 'Bolt',
                     text: t('feature.omni.confirm-lnurl-auth', {
                         domain: parsedData.data.domain,
                     }),
@@ -207,7 +199,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                 }
             case ParserDataType.FediChatUser:
                 return {
-                    icon: ChatIcon,
+                    icon: 'Chat',
                     text: t('feature.omni.confirm-fedi-chat', {
                         username: parsedData.data.displayName,
                     }),
@@ -215,19 +207,19 @@ export const OmniConfirmation: React.FC<Props> = ({
                 }
             case ParserDataType.FediChatRoom:
                 return {
-                    icon: ChatIcon,
+                    icon: 'Chat',
                     text: t('feature.omni.unsupported-chat-invite'),
                     continueOnClick: handleJoinRoom,
                 }
             case ParserDataType.LegacyFediChatGroup:
             case ParserDataType.LegacyFediChatMember:
                 return {
-                    icon: ScanSadIcon,
+                    icon: 'ScanSad',
                     text: t('feature.omni.unsupported-legacy-chat'),
                 }
             case ParserDataType.Website:
                 return {
-                    icon: GlobeIcon,
+                    icon: 'Globe',
                     text: t('feature.omni.confirm-website-url'),
                     url: parsedData.data.url,
                     continueHref: parsedData.data.url,
@@ -235,19 +227,19 @@ export const OmniConfirmation: React.FC<Props> = ({
                 }
             case ParserDataType.Bolt12:
                 return {
-                    icon: ScanSadIcon,
+                    icon: 'ScanSad',
                     text: t('feature.omni.unsupported-bolt12'),
                 }
             case ParserDataType.Bip21:
             case ParserDataType.BitcoinAddress:
                 return {
-                    icon: BitcoinIcon,
+                    icon: 'Bitcoin',
                     text: t('feature.omni.confirm-onchain-pay'),
                     continueOnClick: () => pushWithState('/send', parsedData),
                 }
             case ParserDataType.FedimintGuardian:
                 return {
-                    icon: FedimintIcon,
+                    icon: 'FedimintLogo',
                     text: t('feature.omni.confirm-fedimint-guardian'),
                     continueOnClick: () => {
                         const {
@@ -293,19 +285,19 @@ export const OmniConfirmation: React.FC<Props> = ({
                 }
             case ParserDataType.FedimintRecovery:
                 return {
-                    icon: FedimintIcon,
+                    icon: 'FedimintLogo',
                     text: t('feature.omni.confirm-fedimint-recovery'),
                 }
             case ParserDataType.Unknown:
                 return {
-                    icon: ScanSadIcon,
+                    icon: 'ScanSad',
                     text:
                         parsedData.data.message ||
                         t('feature.omni.unsupported-unknown'),
                 }
         }
         return {
-            icon: ScanSadIcon,
+            icon: 'ScanSad',
             text: t('feature.omni.unsupported-unknown'),
         }
     })()

@@ -3,8 +3,6 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
-import CogIcon from '@fedi/common/assets/svgs/cog.svg'
-import SearchIcon from '@fedi/common/assets/svgs/search.svg'
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -210,14 +208,10 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
                 onWalletClick={() => setIsPaymentOpen(true)}
                 headerActions={
                     <Row gap="sm" align="center">
-                        <Icon
-                            icon={SearchIcon}
-                            size={26}
-                            onClick={handleSearch}
-                        />
+                        <Icon icon="Search" size={26} onClick={handleSearch} />
                         {directUserId ? undefined : (
                             <Icon
-                                icon={CogIcon}
+                                icon="Cog"
                                 size={26}
                                 onClick={() => setIsSettingsOpen(true)}
                             />

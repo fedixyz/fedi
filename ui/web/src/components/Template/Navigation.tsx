@@ -3,15 +3,6 @@ import { useRouter } from 'next/router'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AppsFilledIcon from '@fedi/common/assets/svgs/apps-filled.svg'
-import AppsIcon from '@fedi/common/assets/svgs/apps.svg'
-import ChatFilledIcon from '@fedi/common/assets/svgs/chat-filled.svg'
-import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
-import CommunityFilledIcon from '@fedi/common/assets/svgs/community-filled.svg'
-import CommunityIcon from '@fedi/common/assets/svgs/community.svg'
-import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
-import WalletFilledIcon from '@fedi/common/assets/svgs/wallet-filled.svg'
-import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
 import {
     selectCommunities,
     selectLoadedFederations,
@@ -29,7 +20,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import CommunitiesOverlay from '../CommunitiesOverlay'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 import { NotificationDot } from '../NotificationDot'
 import { ScanDialog } from '../ScanDialog'
 import SelectWalletOverlay from '../SelectWalletOverlay'
@@ -38,8 +29,8 @@ import { Text } from '../Text'
 interface ScanLink {
     path: string
     label: string
-    icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
-    activeIcon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    icon: SvgIconName
+    activeIcon: SvgIconName
     hasNotification: boolean
 }
 
@@ -90,39 +81,39 @@ export const Navigation: React.FC = () => {
     const navLinks: (NavLink | ScanLink)[] = [
         {
             path: walletRoute,
-            icon: WalletIcon,
-            activeIcon: WalletFilledIcon,
+            icon: 'Wallet',
+            activeIcon: 'WalletFilled',
             hasNotification: false,
             label: t('words.wallet'),
             tab: HomeNavigationTab.Wallet,
         },
         {
             path: chatRoute,
-            icon: ChatIcon,
-            activeIcon: ChatFilledIcon,
+            icon: 'Chat',
+            activeIcon: 'ChatFilled',
             hasNotification: hasChatNotifications,
             label: t('words.chat'),
             tab: HomeNavigationTab.Chat,
         },
         {
             path: 'scan',
-            icon: ScanIcon,
-            activeIcon: ScanIcon,
+            icon: 'Scan',
+            activeIcon: 'Scan',
             hasNotification: false,
             label: t('phrases.scan-slash-paste'),
         },
         {
             path: miniAppsRoute,
-            icon: AppsIcon,
-            activeIcon: AppsFilledIcon,
+            icon: 'Apps',
+            activeIcon: 'AppsFilled',
             hasNotification: false,
             label: t('words.mods'),
             tab: HomeNavigationTab.MiniApps,
         },
         {
             path: homeRoute,
-            icon: CommunityIcon,
-            activeIcon: CommunityFilledIcon,
+            icon: 'Community',
+            activeIcon: 'CommunityFilled',
             hasNotification: false,
             label: t('words.community'),
             tab: HomeNavigationTab.Home,

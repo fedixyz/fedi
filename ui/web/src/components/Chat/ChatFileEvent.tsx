@@ -1,7 +1,5 @@
 import React from 'react'
 
-import DownloadIcon from '@fedi/common/assets/svgs/download.svg'
-import FileIcon from '@fedi/common/assets/svgs/file.svg'
 import { MatrixEvent } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 import { formatFileSize } from '@fedi/common/utils/media'
@@ -25,7 +23,7 @@ export const ChatFileEvent: React.FC<Props> = ({ event }) => {
         <AttachmentWrapper aria-label="file">
             <FileIconSection>
                 <FileIconWrapper>
-                    <Icon icon={FileIcon} size="sm" />
+                    <Icon icon="File" size="sm" />
                 </FileIconWrapper>
             </FileIconSection>
             <TextContent>
@@ -40,7 +38,7 @@ export const ChatFileEvent: React.FC<Props> = ({ event }) => {
                 <DownloadIconWrapper
                     aria-label="download-button"
                     onClick={() => downloadFile(src, event.content.body)}>
-                    <Icon icon={DownloadIcon} size="xs" />
+                    <Icon icon="Download" size="xs" />
                 </DownloadIconWrapper>
             </DownloadIconSection>
         </AttachmentWrapper>

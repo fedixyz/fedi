@@ -1,5 +1,3 @@
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-
 import { styled, theme } from '../../styles'
 import { Icon } from '../Icon'
 import { Text } from '../Text'
@@ -22,7 +20,7 @@ export const InstallBanner: React.FC<Props> = ({
     return (
         <Component aria-label="Install Banner">
             <IconWrapper onClick={onClose} aria-label="Close">
-                <Icon icon={CloseIcon} />
+                <Icon icon="Close" />
             </IconWrapper>
             <TextWrapper>
                 <Text weight="bold" variant="body">

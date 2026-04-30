@@ -1,4 +1,3 @@
-import tooltipIcon from '@fedi/common/assets/svgs/tooltip.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { useSurveyForm } from '@fedi/common/hooks/survey'
 
@@ -24,7 +23,7 @@ const SurveyModal = () => {
             showCloseButton>
             <ModalContents>
                 <IconWrapper>
-                    <Icon icon={tooltipIcon} size="md" />
+                    <Icon icon="Tooltip" size="md" />
                 </IconWrapper>
                 <h2>{activeSurvey.title}</h2>
                 <Description>{activeSurvey.description}</Description>

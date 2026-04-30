@@ -2,8 +2,6 @@ import * as RadixDialog from '@radix-ui/react-dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { useCallback } from 'react'
 
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-
 import { keyframes, styled, theme } from '../styles'
 import { Icon } from './Icon'
 import { Text } from './Text'
@@ -46,7 +44,7 @@ export const Dialog: React.FC<Props> = ({
             <>
                 {!hideCloseButton && (
                     <CloseButton data-testid="dialog-close-button">
-                        <Icon icon={CloseIcon} />
+                        <Icon icon="Close" />
                     </CloseButton>
                 )}
 

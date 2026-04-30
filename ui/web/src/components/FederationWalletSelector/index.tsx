@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import { useAmountFormatter, useBalance } from '@fedi/common/hooks/amount'
 import {
     selectLoadedFederations,
@@ -88,7 +87,7 @@ export const FederationWalletSelector: React.FC = () => {
                             </Text>
                         </ActiveFederationTextWrapper>
                         <IconWrapper isOpen={isSelectorOpen}>
-                            <Icon size="sm" icon={ChevronRightIcon} />
+                            <Icon size="sm" icon="ChevronRight" />
                         </IconWrapper>
                     </Inner>
                 </Wrapper>

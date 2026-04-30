@@ -1,9 +1,6 @@
 import QRCode from 'qrcode'
 import React, { useEffect, useState } from 'react'
 
-import ArrowLeft from '@fedi/common/assets/svgs/arrow-left.svg'
-import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
-
 import { styled, theme } from '../../styles'
 import { Icon } from '../Icon'
 
@@ -25,15 +22,15 @@ export const PaperEcashPaper: React.FC<Props> = ({ frames }) => {
         <Container>
             <Instructions>
                 <Arrow>
-                    <Icon icon={ArrowLeft} />
+                    <Icon icon="ArrowLeft" />
                 </Arrow>
                 <InstructionsText>
                     <span>Open</span>
-                    <Icon icon={ScanIcon} />
+                    <Icon icon="Scan" />
                     <span>Fedi Scanner. Move phone side to side.</span>
                 </InstructionsText>
                 <Arrow css={{ transform: 'rotate(180deg)' }}>
-                    <Icon icon={ArrowLeft} />
+                    <Icon icon="ArrowLeft" />
                 </Arrow>
             </Instructions>
             <QRCodes>

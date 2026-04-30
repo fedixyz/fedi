@@ -2,9 +2,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import RateFederationBg from '@fedi/common/assets/images/rate-federation-bg.png'
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-import StarOutlineIcon from '@fedi/common/assets/svgs/star-outline.svg'
-import StarIcon from '@fedi/common/assets/svgs/star.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { useFederationRating } from '@fedi/common/hooks/federation'
 import { scaleAttachment } from '@fedi/common/utils/media'
@@ -72,7 +69,7 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
                         )}
                     </FederationIconContainer>
                     <CloseButton onClick={handleDismiss}>
-                        <Icon icon={CloseIcon} />
+                        <Icon icon="Close" />
                     </CloseButton>
                 </Banner>
                 <Content>
@@ -89,8 +86,8 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
                                 <Icon
                                     icon={
                                         (rating ?? -1) < i
-                                            ? StarOutlineIcon
-                                            : StarIcon
+                                            ? 'StarOutline'
+                                            : 'Star'
                                     }
                                     style={{
                                         color:

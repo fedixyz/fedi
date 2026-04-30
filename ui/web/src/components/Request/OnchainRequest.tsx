@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BitcoinCircle2Icon from '@fedi/common/assets/svgs/bitcoin-circle-2.svg'
-import NetworkIcon from '@fedi/common/assets/svgs/network.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { useToast } from '@fedi/common/hooks/toast'
 
@@ -65,7 +63,7 @@ export default function OnchainRequest({
                 <OnchainInfo>
                     <OnchainInfoContent>
                         <Row align="center" gap="md">
-                            <Icon icon={NetworkIcon} />
+                            <Icon icon="Network" />
                             <Column>
                                 <Text weight="bold">
                                     {t(
@@ -80,7 +78,7 @@ export default function OnchainRequest({
                             </Column>
                         </Row>
                         <Row align="center" gap="md">
-                            <Icon icon={BitcoinCircle2Icon} />
+                            <Icon icon="BitcoinCircle2" />
                             <Column>
                                 <Text weight="bold">
                                     {t(

@@ -1,12 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import LanguageIcon from '@fedi/common/assets/svgs/language.svg'
-import NostrIcon from '@fedi/common/assets/svgs/nostr.svg'
-import NoteIcon from '@fedi/common/assets/svgs/note.svg'
-import SettingsIcon from '@fedi/common/assets/svgs/settings.svg'
-import UsdIcon from '@fedi/common/assets/svgs/usd.svg'
-import UserIcon from '@fedi/common/assets/svgs/user.svg'
 import { useLeaveCommunity, useLeaveFederation } from '@fedi/common/hooks/leave'
 import {
     selectAlphabeticallySortedCommunities,
@@ -94,32 +88,32 @@ function AdminPage() {
             items: [
                 {
                     label: t('phrases.edit-profile'),
-                    icon: UserIcon,
+                    icon: 'User',
                     href: '/settings/edit-profile',
                 },
                 {
                     label: t('words.language'),
-                    icon: LanguageIcon,
+                    icon: 'Language',
                     href: '/settings/language',
                 },
                 {
                     label: t('phrases.display-currency'),
-                    icon: UsdIcon,
+                    icon: 'Usd',
                     href: '/settings/currency',
                 },
                 {
                     label: t('feature.backup.personal-backup'),
-                    icon: NoteIcon,
+                    icon: 'Note',
                     href: `/settings/backup/personal`,
                 },
                 {
                     label: t('feature.nostr.nostr-settings'),
-                    icon: NostrIcon,
+                    icon: 'Nostr',
                     href: `/settings/nostr`,
                 },
                 {
                     label: t('feature.settings.app-settings'),
-                    icon: SettingsIcon,
+                    icon: 'Settings',
                     href: `/settings/app`,
                 },
             ],

@@ -2,7 +2,6 @@ import { TFunction } from 'i18next'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { AppContent, AppContainer } from '../components/Template'
@@ -48,7 +47,7 @@ export const AppError: React.FC<Props> = ({ error }) => {
                 <Layout.Root>
                     <Layout.Content>
                         <Content>
-                            <Icon icon={ErrorIcon} size="lg" />
+                            <Icon icon="Error" size="lg" />
                             <Text variant="h2" weight="medium">
                                 {t('errors.something-has-gone-wrong')}
                             </Text>

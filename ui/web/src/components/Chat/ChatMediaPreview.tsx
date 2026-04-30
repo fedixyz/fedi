@@ -2,9 +2,6 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import React from 'react'
 
-import Close from '@fedi/common/assets/svgs/close.svg'
-import Download from '@fedi/common/assets/svgs/download.svg'
-
 import { keyframes, styled, theme } from '../../styles'
 import { downloadFile } from '../../utils/media'
 import { Icon } from '../Icon'
@@ -32,11 +29,11 @@ export const ChatMediaPreview: React.FC<Props> = ({
             <Dialog.Portal>
                 <Overlay>
                     <Dialog.Close asChild>
-                        <CloseIcon icon={Close} size={24} />
+                        <CloseIcon icon="Close" size={24} />
                     </Dialog.Close>
                     {src && name && (
                         <DownloadIcon
-                            icon={Download}
+                            icon="Download"
                             size={20}
                             onClick={() => downloadFile(src, name)}
                             aria-label="download-button"

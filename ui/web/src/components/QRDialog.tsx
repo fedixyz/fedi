@@ -3,9 +3,6 @@ import { ResourceKey } from 'i18next'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import closeIcon from '@fedi/common/assets/svgs/close.svg'
-import CopyIcon from '@fedi/common/assets/svgs/copy.svg'
-import ShareIcon from '@fedi/common/assets/svgs/share.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 
 import { keyframes, styled, theme } from '../styles'
@@ -84,7 +81,7 @@ export const QRDialog: React.FC<Props> = ({
                                 {title}
                             </Title>
                             <Close onClick={() => onOpenChange?.(false)}>
-                                <Icon icon={closeIcon} size={24} />
+                                <Icon icon="Close" size={24} />
                             </Close>
                         </Header>
                         <Body>
@@ -94,14 +91,14 @@ export const QRDialog: React.FC<Props> = ({
                                     <Button
                                         width="full"
                                         variant="secondary"
-                                        icon={CopyIcon}
+                                        icon="Copy"
                                         onClick={handleCopy}>
                                         {t('words.copy')}
                                     </Button>
                                     <Button
                                         width="full"
                                         variant="secondary"
-                                        icon={ShareIcon}
+                                        icon="Share"
                                         onClick={handleShare}>
                                         {t('words.share')}
                                     </Button>

@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { Community } from '@fedi/common/types'
 
@@ -44,7 +43,7 @@ const SelectedCommunity: React.FC<Props> = ({ community }) => {
 
             <Row align="center" shrink={false}>
                 <Icon
-                    icon={ChevronRightIcon}
+                    icon="ChevronRight"
                     size="sm"
                     color={theme.colors.primary}
                 />

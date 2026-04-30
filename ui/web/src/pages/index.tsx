@@ -3,13 +3,13 @@ import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import welcomeBackground from '@fedi/common/assets/images/welcome-bg.png'
-import FediLogo from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { refreshOnboardingStatus } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
+import { Icon } from '../components/Icon'
 import * as Layout from '../components/Layout'
 import { Text } from '../components/Text'
 import { walletRoute } from '../constants/routes'
@@ -66,7 +66,7 @@ function WelcomePage() {
             <Layout.Root>
                 <Layout.Content centered fadeIn>
                     <ContentInner>
-                        <FediLogo width={50} />
+                        <Icon icon="FediLogoIcon" size={50} />
                         <Text variant="h2" weight="medium">
                             {t('feature.onboarding.fedi')}
                         </Text>

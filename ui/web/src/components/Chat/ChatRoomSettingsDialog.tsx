@@ -2,11 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import EditIcon from '@fedi/common/assets/svgs/edit.svg'
-import LeaveRoomIcon from '@fedi/common/assets/svgs/leave-room.svg'
-import RoomIcon from '@fedi/common/assets/svgs/room.svg'
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
-import SpeakerPhoneIcon from '@fedi/common/assets/svgs/speakerphone.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     leaveMatrixRoom,
@@ -115,31 +110,31 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
                 items: [
                     {
                         label: t('words.members'),
-                        icon: SocialPeopleIcon,
+                        icon: 'SocialPeople',
                         onClick: () => setPage('members'),
                         hidden: isDefaultGroup,
                     },
                     {
                         label: t('feature.chat.invite-to-group'),
-                        icon: RoomIcon,
+                        icon: 'Room',
                         onClick: () => setPage('invite'),
                         disabled: !isAdmin && !isModerator,
                     },
                     {
                         label: t('feature.chat.leave-group'),
-                        icon: LeaveRoomIcon,
+                        icon: 'LeaveRoom',
                         onClick: handleLeaveRoom,
                         disabled: isDefaultGroup,
                     },
                     {
                         label: t('feature.chat.change-group-name'),
-                        icon: EditIcon,
+                        icon: 'Edit',
                         onClick: () => push(chatEditRoomRoute(room.id)),
                         disabled: !isAdmin,
                     },
                     {
                         label: t('feature.chat.broadcast-only'),
-                        icon: SpeakerPhoneIcon,
+                        icon: 'SpeakerPhone',
                         action: (
                             <Switch
                                 checked={!!room.broadcastOnly}

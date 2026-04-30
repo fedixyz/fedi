@@ -1,7 +1,6 @@
 import { useRouter } from 'next/router'
 import React, { useState } from 'react'
 
-import ChevronDownIcon from '@fedi/common/assets/svgs/chevron-down.svg'
 import { selectCommunities, selectCommunityStack } from '@fedi/common/redux'
 
 import { onboardingRoute } from '../../constants/routes'
@@ -43,7 +42,7 @@ export const CommunitySelector: React.FC<Props> = ({ onClick }) => {
                         stackDirection="rtl"
                         size={32}
                     />
-                    <Icon icon={ChevronDownIcon} size="sm" />
+                    <Icon icon="ChevronDown" size="sm" />
                 </Wrapper>
             </Container>
             <CommunitiesOverlay

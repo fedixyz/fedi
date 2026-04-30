@@ -1,11 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CheckboxChecked from '@fedi/common/assets/svgs/checkbox-checked.svg'
-import CheckboxUnchecked from '@fedi/common/assets/svgs/checkbox-unchecked.svg'
-import SearchNoresult from '@fedi/common/assets/svgs/search-no-result.svg'
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
-import SpeakerPhoneIcon from '@fedi/common/assets/svgs/speakerphone.svg'
 import { useCreateMatrixRoom } from '@fedi/common/hooks/matrix'
 import { selectMatrixRooms } from '@fedi/common/redux'
 import { InjectionMessageResponseMap } from '@fedi/injections/src/types'
@@ -95,9 +90,7 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
                         id={''}
                         src=""
                         name={groupName}
-                        icon={
-                            broadcastOnly ? SpeakerPhoneIcon : SocialPeopleIcon
-                        }
+                        icon={broadcastOnly ? 'SpeakerPhone' : 'SocialPeople'}
                         size="md"
                     />
                     <Column gap="xs" fullWidth>
@@ -146,7 +139,7 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
         if (publicChats.length === 0) {
             return (
                 <>
-                    <Icon icon={SearchNoresult} size="lg" />
+                    <Icon icon="SearchNoResult" size="lg" />
 
                     <Text variant="h2">
                         {t('feature.chat.no-public-chats-yet')}
@@ -176,9 +169,9 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
                             {chat.name}
                         </Text>
                         {selectedChats.includes(chat.id) ? (
-                            <Icon icon={CheckboxChecked} size="sm" />
+                            <Icon icon="CheckboxChecked" size="sm" />
                         ) : (
-                            <Icon icon={CheckboxUnchecked} size="sm" />
+                            <Icon icon="CheckboxUnchecked" size="sm" />
                         )}
                     </ChatRow>
                 ))}

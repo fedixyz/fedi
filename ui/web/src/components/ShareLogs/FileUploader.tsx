@@ -1,7 +1,6 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import Plus from '@fedi/common/assets/svgs/plus.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -157,7 +156,7 @@ export const FileUploader = ({
                 multiple
             />
             <FileTrigger htmlFor="file-input">
-                <Icon icon={Plus} size="xs" />
+                <Icon icon="Plus" size="xs" />
                 <Text weight="medium">{t('words.upload')}</Text>
             </FileTrigger>
         </Container>

@@ -1,8 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import arrowLoopRightIcon from '@fedi/common/assets/svgs/arrow-loop-right.svg'
-
 import { styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { Icon } from '../Icon'
@@ -21,7 +19,7 @@ export const WalletTransfer: React.FC = () => {
             </Layout.Header>
             <Layout.Content centered>
                 <Content>
-                    <Icon icon={arrowLoopRightIcon} size="lg" />
+                    <Icon icon="ArrowLoopRight" size="lg" />
                     <Text variant="h2" weight="medium">
                         {t('feature.recovery.transfer-existing-wallet')}
                     </Text>

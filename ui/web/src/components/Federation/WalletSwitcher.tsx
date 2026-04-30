@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import { useBalance } from '@fedi/common/hooks/amount'
 import {
     selectLoadedFederation,
@@ -40,7 +39,7 @@ export default function WalletSwitcher() {
                         {formattedBalance}
                     </Text>
                 </Column>
-                <Icon icon={ChevronRightIcon} size="sm" />
+                <Icon icon="ChevronRight" size="sm" />
             </BalanceContainer>
             <FederationsOverlay open={isOpen} onOpenChange={setIsOpen} />
         </>

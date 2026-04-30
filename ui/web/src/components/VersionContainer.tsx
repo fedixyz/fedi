@@ -2,7 +2,6 @@ import Link from 'next/link'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import FediIcon from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
 import {
     selectFedimintVersion,
     selectPwaVersion,
@@ -10,6 +9,7 @@ import {
 
 import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
+import { Icon } from './Icon'
 import { Text } from './Text'
 
 export const VersionContainer = () => {
@@ -19,7 +19,7 @@ export const VersionContainer = () => {
 
     return (
         <Menu>
-            <FediIcon width={24} />
+            <Icon icon="FediLogoIcon" size={24} />
 
             <VersionsWrapper>
                 <Text variant="small" css={{ color: theme.colors.darkGrey }}>

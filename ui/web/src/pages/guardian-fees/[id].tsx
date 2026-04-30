@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BitcoinCircleIcon from '@fedi/common/assets/svgs/bitcoin-circle.svg'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useGuardianFeesDashboard } from '@fedi/common/hooks/guardianFees'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -168,7 +167,7 @@ const GuardianFeesPage: React.FC = () => {
 
 const GuardianFeeIcon = () => (
     <HistoryIcon color={theme.colors.orange}>
-        <Icon icon={BitcoinCircleIcon} size={38} />
+        <Icon icon="BitcoinCircle" size={38} />
     </HistoryIcon>
 )
 

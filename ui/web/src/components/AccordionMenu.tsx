@@ -1,8 +1,7 @@
 import { ReactNode, useState } from 'react'
 
-import ChevronDownIcon from '@fedi/common/assets/svgs/chevron-down.svg'
-
 import { styled, theme } from '../styles'
+import { Icon } from './Icon'
 import { MenuGroup, SettingsMenu } from './SettingsMenu'
 
 interface AccordionMenuProps {
@@ -33,7 +32,7 @@ export const AccordionMenu = ({ header, menu }: AccordionMenuProps) => {
                                 ? 'rotate(-180deg)'
                                 : 'rotate(0deg)',
                         }}>
-                        <ChevronDownIcon width={20} height={20} />
+                        <Icon icon="ChevronDown" size={20} />
                     </ChevronIcon>
                 </HeaderContent>
             </AccordionHeader>

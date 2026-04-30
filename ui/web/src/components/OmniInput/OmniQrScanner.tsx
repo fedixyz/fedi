@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ScanSadIcon from '@fedi/common/assets/svgs/scan-sad.svg'
-import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 
 import { styled, theme } from '../../styles'
@@ -60,7 +58,7 @@ export const OmniQrScanner: React.FC<Props> = ({ processing, onScan }) => {
             <PermissionContainer>
                 <PermissionInner>
                     <PermissionIconContainer>
-                        <Icon icon={ScanIcon} size="md" />
+                        <Icon icon="Scan" size="md" />
                     </PermissionIconContainer>
                     <PermissionTextContainer>
                         <Text variant="h2" weight="medium">
@@ -83,7 +81,7 @@ export const OmniQrScanner: React.FC<Props> = ({ processing, onScan }) => {
             <PermissionContainer>
                 <PermissionInner>
                     <PermissionIconContainer>
-                        <Icon icon={ScanSadIcon} size="md" />
+                        <Icon icon="ScanSad" size="md" />
                     </PermissionIconContainer>
                     <Text weight="medium">
                         {t('feature.omni.camera-permission-denied')}

@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import OfflineIcon from '@fedi/common/assets/svgs/offline.svg'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
@@ -261,7 +260,7 @@ const Send: React.FC = () => {
         if (isOfflineWalletSupported) {
             customActions.push({
                 label: t('feature.send.send-offline'),
-                icon: OfflineIcon,
+                icon: 'Offline',
                 onClick: () => setIsSendingOffline(true),
             })
         }

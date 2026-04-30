@@ -1,9 +1,6 @@
 import Link from 'next/link'
 import { useTranslation } from 'react-i18next'
 
-import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
-import ArrowRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
-import SpeakerPhoneIcon from '@fedi/common/assets/svgs/speakerphone.svg'
 import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
 import { MatrixRoom } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
@@ -23,7 +20,7 @@ export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
     return (
         <DefaultRoomContainer href={chatRoomRoute(room.id)}>
             <IconContainer>
-                <Icon icon={isPublicBroadcast ? SpeakerPhoneIcon : ChatIcon} />
+                <Icon icon={isPublicBroadcast ? 'SpeakerPhone' : 'Chat'} />
             </IconContainer>
             <DefaultRoomText>
                 <Text variant="body" weight="bold">
@@ -33,7 +30,7 @@ export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
             </DefaultRoomText>
             <NewsItemArrow>
                 <Icon
-                    icon={ArrowRightIcon}
+                    icon="ChevronRight"
                     color={theme.colors.grey.toString()}
                 />
             </NewsItemArrow>

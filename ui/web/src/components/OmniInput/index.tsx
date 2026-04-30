@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ClipboardIcon from '@fedi/common/assets/svgs/clipboard.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
@@ -21,12 +20,13 @@ import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 import { Button } from '../Button'
 import { HorizontalLine } from '../HorizontalLine'
+import { SvgIconName } from '../Icon'
 import { OmniConfirmation } from './OmniConfirmation'
 import { OmniQrScanner } from './OmniQrScanner'
 
 interface OmniCustomActionObject {
     label: React.ReactNode
-    icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    icon: SvgIconName
     onClick(): void
 }
 
@@ -195,7 +195,7 @@ export function OmniInput<
                                 onClick={handlePaste}
                                 disabled={isLoading}
                                 variant="secondary"
-                                icon={ClipboardIcon}>
+                                icon="Clipboard">
                                 {pasteLabel || t('feature.omni.action-paste')}
                             </Button>
                         )

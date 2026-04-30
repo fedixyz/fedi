@@ -1,6 +1,3 @@
-import CheckIcon from '@fedi/common/assets/svgs/check.svg'
-import CopyIcon from '@fedi/common/assets/svgs/copy.svg'
-
 import { Icon } from '../components/Icon'
 import { useCopy } from '../hooks'
 import { styled } from '../styles'
@@ -14,7 +11,7 @@ export const CopyButton: React.FC<Props> = ({ text }) => {
 
     return (
         <ButtonWrapper onClick={() => copy(text)}>
-            <Icon icon={copied ? CheckIcon : CopyIcon} size="sm" />
+            <Icon icon={copied ? 'Check' : 'Copy'} size="sm" />
         </ButtonWrapper>
     )
 }

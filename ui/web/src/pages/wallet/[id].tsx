@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import QrCodeIcon from '@fedi/common/assets/svgs/qr.svg'
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { useLeaveFederation } from '@fedi/common/hooks/leave'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -73,7 +72,7 @@ function FederationDetails() {
                     rightComponent={
                         federation && shouldShowInvite ? (
                             <Icon
-                                icon={QrCodeIcon}
+                                icon="Qr"
                                 size="sm"
                                 onClick={() =>
                                     setInvitingFederationId(federation.id)

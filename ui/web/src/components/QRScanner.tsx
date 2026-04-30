@@ -10,7 +10,6 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { getBufferEncoding } from '@fedi/common/utils/istextorbinary'
@@ -203,7 +202,7 @@ export const QRScanner: React.FC<Props> = ({ processing, onScan }) => {
             )}
             {mediaError && (
                 <ErrorComponent>
-                    <Icon icon={ErrorIcon} />
+                    <Icon icon="Error" />
                     <Text variant="caption">{mediaError}</Text>
                 </ErrorComponent>
             )}

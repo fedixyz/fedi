@@ -1,9 +1,6 @@
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-import SearchNoResultIcon from '@fedi/common/assets/svgs/search-no-result.svg'
-import SearchIcon from '@fedi/common/assets/svgs/search.svg'
 import { SEARCH_PAGINATION_SIZE } from '@fedi/common/constants/matrix'
 import { theme } from '@fedi/common/constants/theme'
 import { useChatTimelineSearch } from '@fedi/common/hooks/matrix'
@@ -51,7 +48,7 @@ export const ChatRoomSearch: React.FC<Props> = ({ room }) => {
                         placeholder={`${t('phrases.search-messages')}...`}
                         leftAdornment={
                             <IconContainer style={{ paddingLeft: '12px' }}>
-                                <Icon icon={SearchIcon} size={20} />
+                                <Icon icon="Search" size={20} />
                             </IconContainer>
                         }
                         rightAdornment={
@@ -59,7 +56,7 @@ export const ChatRoomSearch: React.FC<Props> = ({ room }) => {
                                 <IconContainer
                                     style={{ paddingRight: '12px' }}
                                     onClick={clearSearch}>
-                                    <Icon icon={CloseIcon} size={24} />
+                                    <Icon icon="Close" size={24} />
                                 </IconContainer>
                             )
                         }
@@ -81,7 +78,7 @@ export const ChatRoomSearch: React.FC<Props> = ({ room }) => {
                 ) : query && searchResults.length === 0 ? (
                     <EmptyState>
                         <Icon
-                            icon={SearchNoResultIcon}
+                            icon="SearchNoResult"
                             size={64}
                             color={theme.colors.primary}
                         />

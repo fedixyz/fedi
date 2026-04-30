@@ -1,8 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import PlayIcon from '@fedi/common/assets/svgs/play.svg'
-import VideoOff from '@fedi/common/assets/svgs/video-off.svg'
 import { MatrixEvent } from '@fedi/common/types'
 
 import { Icon } from '../../components/Icon'
@@ -41,7 +39,7 @@ export const ChatVideoEvent: React.FC<Props> = ({ event }) => {
     if (error) {
         return (
             <Error>
-                <Icon icon={VideoOff} size="sm" />
+                <Icon icon="VideoOff" size="sm" />
                 <Text variant="small" css={{ color: theme.colors.black }}>
                     {t('errors.failed-to-load-video')}
                 </Text>
@@ -62,7 +60,7 @@ export const ChatVideoEvent: React.FC<Props> = ({ event }) => {
                 trigger={
                     <VideoWrapper style={{ width, height }}>
                         <VideoOverlayWrapper>
-                            <PlayButtonIcon icon={PlayIcon} size="md" />
+                            <PlayButtonIcon icon="Play" size="md" />
                         </VideoOverlayWrapper>
                         <Video
                             {...(src ? { src } : {})}

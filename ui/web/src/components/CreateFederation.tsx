@@ -2,16 +2,13 @@ import Image from 'next/image'
 import { useTranslation } from 'react-i18next'
 
 import FederationCreateImage from '@fedi/common/assets/images/federation-create-graphic.png'
-import ShieldHalfFilledIcon from '@fedi/common/assets/svgs/shield-half-filled.svg'
-import UsersIcon from '@fedi/common/assets/svgs/social-people.svg'
-import UserIcon from '@fedi/common/assets/svgs/user.svg'
 
 import { styled, theme } from '../styles'
-import { Icon } from './Icon'
+import { Icon, SvgIconName } from './Icon'
 import { Text } from './Text'
 
 type InfoEntryItem = {
-    icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    icon: SvgIconName
     text: string
 }
 
@@ -43,15 +40,15 @@ export default function CreateFederation() {
 
     const createInfoItems: InfoEntryItem[] = [
         {
-            icon: UserIcon,
+            icon: 'User',
             text: t('feature.onboarding.create-info-1'),
         },
         {
-            icon: UsersIcon,
+            icon: 'SocialPeople',
             text: t('feature.onboarding.create-info-3'),
         },
         {
-            icon: ShieldHalfFilledIcon,
+            icon: 'ShieldHalfFilled',
             text: t('feature.onboarding.create-info-5'),
         },
     ]

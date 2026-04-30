@@ -1,7 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CopyIcon from '@fedi/common/assets/svgs/copy.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
@@ -58,7 +57,7 @@ export const HistoryDetailItem: React.FC<HistoryDetailItemProps> = props => {
                         }
                     }}>
                     {valueEl}
-                    <Icon icon={CopyIcon} size="xs" />
+                    <Icon icon="Copy" size="xs" />
                 </CopyButton>
             )
         }

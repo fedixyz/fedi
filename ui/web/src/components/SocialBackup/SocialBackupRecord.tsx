@@ -2,8 +2,6 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
-import PlayIcon from '@fedi/common/assets/svgs/play.svg'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
@@ -183,7 +181,7 @@ export const SocialBackupRecord: React.FC<Props> = ({ next, back }) => {
                         <VideoInner>
                             {error ? (
                                 <Error>
-                                    <Icon icon={ErrorIcon} />
+                                    <Icon icon="Error" />
                                     <Text>{error}</Text>
                                 </Error>
                             ) : (
@@ -198,10 +196,7 @@ export const SocialBackupRecord: React.FC<Props> = ({ next, back }) => {
                             )}
                             {isShowingPlay && (
                                 <PlayButton onClick={handlePlay}>
-                                    <Icon
-                                        icon={PlayIcon}
-                                        onClick={handlePlay}
-                                    />
+                                    <Icon icon="Play" onClick={handlePlay} />
                                 </PlayButton>
                             )}
                         </VideoInner>

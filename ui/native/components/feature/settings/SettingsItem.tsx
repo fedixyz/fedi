@@ -6,16 +6,15 @@ import {
     StyleSheet,
 } from 'react-native'
 
-import * as Svgs from '../../../assets/images/svgs'
 import { Row } from '../../ui/Flex'
-import SvgImage from '../../ui/SvgImage'
+import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 export type SettingsItemProps = {
     disabled?: boolean
-    icon: keyof typeof Svgs
+    icon: SvgImageName
     label: string
     action?: React.ReactNode
-    actionIcon?: keyof typeof Svgs
+    actionIcon?: SvgImageName
     isLoading?: boolean
     adornment?: React.ReactNode
     onPress: (event: GestureResponderEvent) => void

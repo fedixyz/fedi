@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import bulbIcon from '@fedi/common/assets/svgs/bulb.svg'
-import closeIcon from '@fedi/common/assets/svgs/close.svg'
 import { theme } from '@fedi/common/constants/theme'
 import {
     shouldShowAnalyticsConsentModal,
@@ -66,10 +64,10 @@ const AnalyticsConsentModal: React.FC = () => {
             description={t('feature.support.analytics-consent-description')}>
             <ModalContents>
                 <Close onClick={handleClickClose}>
-                    <Icon icon={closeIcon} size={20} />
+                    <Icon icon="Close" size={20} />
                 </Close>
                 <IconWrapper>
-                    <Icon icon={bulbIcon} size="md" />
+                    <Icon icon="Bulb" size="md" />
                 </IconWrapper>
                 <h2>{t('feature.support.analytics-consent-title')}</h2>
                 <Description>

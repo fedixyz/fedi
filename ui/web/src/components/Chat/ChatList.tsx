@@ -3,12 +3,6 @@ import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
-import SearchNoResultIcon from '@fedi/common/assets/svgs/search-no-result.svg'
-import SearchIcon from '@fedi/common/assets/svgs/search.svg'
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useChatsListSearch } from '@fedi/common/hooks/matrix'
 import { MatrixRoom } from '@fedi/common/types'
@@ -18,7 +12,7 @@ import { chatNewRoute, chatNewRoomRoute } from '../../constants/routes'
 import { styled, theme } from '../../styles'
 import { Dialog } from '../Dialog'
 import { Column, Row } from '../Flex'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 import { Input } from '../Input'
 import { Text } from '../Text'
 import { ChatListItem } from './ChatListItem'
@@ -44,7 +38,7 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
                 placeholder={`${t('phrases.search-chats')}...`}
                 leftAdornment={
                     <IconContainer style={{ paddingLeft: '12px' }}>
-                        <Icon icon={SearchIcon} size={20} />
+                        <Icon icon="Search" size={20} />
                     </IconContainer>
                 }
                 rightAdornment={
@@ -52,7 +46,7 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
                         <IconContainer
                             style={{ paddingRight: '12px' }}
                             onClick={onClearSearch}>
-                            <Icon icon={CloseIcon} size={24} />
+                            <Icon icon="Close" size={24} />
                         </IconContainer>
                     )
                 }
@@ -68,7 +62,7 @@ function ChatAddOption({
     icon,
 }: {
     href: string
-    icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    icon: SvgIconName
     text: string
 }) {
     return (
@@ -85,7 +79,7 @@ function ChatAddOption({
                     <Text weight="medium">{text}</Text>
                 </Row>
                 <Icon
-                    icon={ChevronRightIcon}
+                    icon="ChevronRight"
                     size={24}
                     color={theme.colors.grey.toString()}
                 />
@@ -111,7 +105,7 @@ const SearchableRoomsList: React.FC<SearchableRoomsListProps> = ({
     if (isSearchMode && query && rooms.length === 0) {
         return (
             <EmptySearchState>
-                <Icon icon={SearchNoResultIcon} size={64} />
+                <Icon icon="SearchNoResult" size={64} />
                 <Text
                     variant="h2"
                     weight="bold"
@@ -184,12 +178,12 @@ export const ChatList: React.FC<ChatListProps> = ({ isSearchMode }) => {
                 <ChatAddOption
                     href={chatNewRoomRoute}
                     text={t('feature.chat.create-a-group')}
-                    icon={SocialPeopleIcon}
+                    icon="SocialPeople"
                 />
                 <ChatAddOption
                     href={chatNewRoute}
                     text={t('phrases.scan-or-paste')}
-                    icon={ScanIcon}
+                    icon="Scan"
                 />
             </Column>
         )

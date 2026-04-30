@@ -1,8 +1,6 @@
 import { useRouter } from 'next/router'
 import React, { useState } from 'react'
 
-import ChevronLeft from '@fedi/common/assets/svgs/chevron-left.svg'
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 import { Community } from '@fedi/common/types'
 
 import { keyframes, styled, theme } from '../styles'
@@ -116,7 +114,7 @@ export function Header({
                 {back && (
                     <LeftComponentWrapper>
                         <Icon
-                            icon={ChevronLeft}
+                            icon="ChevronLeft"
                             size="sm"
                             onClick={() =>
                                 typeof back === 'function'
@@ -133,7 +131,7 @@ export function Header({
 
                 <RightComponentWrapper>
                     {showCloseButton ? (
-                        <Icon icon={CloseIcon} onClick={() => router.back()} />
+                        <Icon icon="Close" onClick={() => router.back()} />
                     ) : rightComponent ? (
                         rightComponent
                     ) : null}

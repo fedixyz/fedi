@@ -1,7 +1,5 @@
 import Image from 'next/image'
 
-import UserIcon from '@fedi/common/assets/svgs/profile.svg'
-
 import { styled } from '../../styles'
 import { Icon } from '../Icon'
 
@@ -23,7 +21,7 @@ export const ProfileIcon: React.FC<Props> = ({ url }) => {
             <Wrapper>
                 <Icon
                     data-testid="empty-profile-icon"
-                    icon={UserIcon}
+                    icon="Profile"
                     size={24}
                 />
             </Wrapper>

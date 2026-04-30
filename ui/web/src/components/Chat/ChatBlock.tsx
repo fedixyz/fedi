@@ -1,7 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 
 import { styled, theme } from '../../styles'
@@ -21,7 +20,7 @@ export const ChatBlock: React.FC<Props> = ({ children }) => {
                 <ErrorBoundary
                     fallback={
                         <Error>
-                            <Icon icon={ErrorIcon} />
+                            <Icon icon="Error" />
                             <Text variant="h2" weight="normal">
                                 {t('errors.unknown-error')}
                             </Text>

@@ -1,9 +1,6 @@
 import Link from 'next/link'
 import React from 'react'
 
-import HamburgerIcon from '@fedi/common/assets/svgs/hamburger-icon.svg'
-import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
-import SearchIcon from '@fedi/common/assets/svgs/search.svg'
 import { selectMatrixAuth } from '@fedi/common/redux'
 
 import { settingsRoute } from '../constants/routes'
@@ -32,17 +29,17 @@ const MainHeaderButtons: React.FC<Props> = ({
                 <IconButton
                     onClick={onMenuPress}
                     data-testid="MainHeaderButtons__HamburgerIcon">
-                    <Icon icon={HamburgerIcon} size="sm" />
+                    <Icon icon="HamburgerIcon" size="sm" />
                 </IconButton>
             )}
             {onSearchPress && (
                 <IconButton onClick={onSearchPress}>
-                    <Icon icon={SearchIcon} size="sm" />
+                    <Icon icon="Search" size="sm" />
                 </IconButton>
             )}
             {onAddPress && (
                 <IconButton onClick={onAddPress}>
-                    <Icon icon={PlusIcon} size="sm" />
+                    <Icon icon="Plus" size="sm" />
                 </IconButton>
             )}
             <Link href={settingsRoute}>

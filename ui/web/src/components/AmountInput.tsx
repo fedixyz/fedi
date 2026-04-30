@@ -1,8 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import arrowLeftIcon from '@fedi/common/assets/svgs/arrow-left.svg'
-import switchIcon from '@fedi/common/assets/svgs/switch.svg'
 import { useAmountInput } from '@fedi/common/hooks/amount'
 import { Federation, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
@@ -171,7 +169,7 @@ export const AmountInput: React.FC<Props> = ({
                                 <Currency>{t('words.sats')}</Currency>
                             </div>
                         </SnugInput>
-                        {!readOnly && isFiat && <Icon icon={switchIcon} />}
+                        {!readOnly && isFiat && <Icon icon="Switch" />}
                     </FieldWrap>
                     <FieldWrap
                         {...(isFiat ? activeWrapProps : inactiveWrapProps)}>
@@ -180,7 +178,7 @@ export const AmountInput: React.FC<Props> = ({
                                 {fiatValue} <Currency>{currency}</Currency>
                             </div>
                         </SnugInput>
-                        {!readOnly && !isFiat && <Icon icon={switchIcon} />}
+                        {!readOnly && !isFiat && <Icon icon="Switch" />}
                     </FieldWrap>
                     {error && (
                         <Error
@@ -202,7 +200,7 @@ export const AmountInput: React.FC<Props> = ({
                             isPlaceholder={btn === null}
                             onClick={() => handleNumpadPress(btn)}>
                             {btn === 'backspace' ? (
-                                <Icon icon={arrowLeftIcon} />
+                                <Icon icon="ArrowLeft" />
                             ) : (
                                 btn
                             )}

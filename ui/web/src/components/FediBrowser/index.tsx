@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
 
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-import RefreshIcon from '@fedi/common/assets/svgs/retry.svg'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { setSiteInfo } from '@fedi/common/redux'
 import { InjectionMessageType } from '@fedi/injections/src/types'
@@ -96,7 +94,7 @@ export const FediBrowser: React.FC<Props> = ({ url, onClose }) => {
                         <RefreshWrapper
                             aria-label="Refresh"
                             onClick={handleOnRefresh}>
-                            <Icon icon={RefreshIcon} />
+                            <Icon icon="Retry" />
                         </RefreshWrapper>
                     </NavLeft>
                     <NavCenter>
@@ -106,7 +104,7 @@ export const FediBrowser: React.FC<Props> = ({ url, onClose }) => {
                         <CloseWrapper
                             aria-label="close button"
                             onClick={handleClose}>
-                            <Icon icon={CloseIcon} />
+                            <Icon icon="Close" />
                         </CloseWrapper>
                     </NavRight>
                 </Nav>

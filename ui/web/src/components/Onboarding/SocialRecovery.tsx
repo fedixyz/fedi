@@ -4,8 +4,6 @@ import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SocialRecoveryFileIcon from '@fedi/common/assets/images/social-recovery-file.png'
-import CloseIcon from '@fedi/common/assets/svgs/close.svg'
-import FileIcon from '@fedi/common/assets/svgs/file.svg'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
@@ -112,7 +110,7 @@ export const SocialRecovery = () => {
                         {file && (
                             <FileContainer align="center">
                                 <Row align="center">
-                                    <Icon icon={FileIcon} />
+                                    <Icon icon="File" />
                                 </Row>
                                 <Column grow>
                                     <Text>{file.name}</Text>
@@ -129,7 +127,7 @@ export const SocialRecovery = () => {
                                 <Row
                                     align="center"
                                     onClick={() => setFile(null)}>
-                                    <Icon icon={CloseIcon} />
+                                    <Icon icon="Close" />
                                 </Row>
                             </FileContainer>
                         )}

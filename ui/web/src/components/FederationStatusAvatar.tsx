@@ -1,8 +1,6 @@
 import { styled } from '@stitches/react'
-import { SVGAttributes, FunctionComponent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import DotIcon from '@fedi/common/assets/svgs/dot.svg'
 import { theme } from '@fedi/common/constants/theme'
 import {
     useFederationStatus,
@@ -12,7 +10,7 @@ import { LoadedFederation } from '@fedi/common/types'
 
 import { AvatarProps } from './Avatar'
 import { FederationAvatar } from './FederationAvatar'
-import { Icon } from './Icon'
+import { Icon, SvgIconName } from './Icon'
 
 export default function FederationStatusAvatar({
     size = 'sm',
@@ -24,17 +22,16 @@ export default function FederationStatusAvatar({
     const { t } = useTranslation()
 
     const popupInfo = usePopupFederationInfo(federation.meta ?? {})
-    const { status, statusIcon, statusIconColor } = useFederationStatus<
-        FunctionComponent<SVGAttributes<SVGElement>>
-    >({
-        federationId: federation.id,
-        t,
-        statusIconMap: {
-            online: DotIcon,
-            unstable: DotIcon,
-            offline: DotIcon,
-        },
-    })
+    const { status, statusIcon, statusIconColor } =
+        useFederationStatus<SvgIconName>({
+            federationId: federation.id,
+            t,
+            statusIconMap: {
+                online: 'Dot',
+                unstable: 'Dot',
+                offline: 'Dot',
+            },
+        })
 
     const shouldShowDot = status !== 'online' || popupInfo
 

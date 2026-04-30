@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import EyeClosedIcon from '@fedi/common/assets/svgs/eye-closed.svg'
-import EyeIcon from '@fedi/common/assets/svgs/eye.svg'
 import { selectNostrNpub, selectNostrNsec } from '@fedi/common/redux'
 
 import { ContentBlock } from '../../components/ContentBlock'
@@ -59,9 +57,7 @@ function SettingsNostrPage() {
                                         }>
                                         <Icon
                                             icon={
-                                                showSecret
-                                                    ? EyeIcon
-                                                    : EyeClosedIcon
+                                                showSecret ? 'Eye' : 'EyeClosed'
                                             }
                                         />
                                     </InlineIconWrapper>

@@ -1,4 +1,3 @@
-import PinIcon from '@fedi/common/assets/svgs/pin.svg'
 import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
 
 import { styled } from '../../styles'
@@ -12,7 +11,7 @@ export default function PinnedMessage({
 }) {
     return (
         <PinnedMessageContainer>
-            <Icon icon={PinIcon} />
+            <Icon icon="Pin" />
             <Text variant="caption" css={{ flex: 1 }}>
                 {stripAndDeduplicateWhitespace(pinnedMessage)}
             </Text>

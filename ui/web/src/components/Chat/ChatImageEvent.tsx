@@ -2,7 +2,6 @@ import Image from 'next/image'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ImageOff from '@fedi/common/assets/svgs/image-off.svg'
 import { MatrixEvent } from '@fedi/common/types'
 
 import { Icon } from '../../components/Icon'
@@ -31,7 +30,7 @@ export const ChatImageEvent: React.FC<Props> = ({ event }) => {
     if (error) {
         return (
             <Error>
-                <Icon icon={ImageOff} size="sm" />
+                <Icon icon="ImageOff" size="sm" />
                 <Text variant="small" css={{ color: theme.colors.black }}>
                     {t('errors.failed-to-load-image')}
                 </Text>

@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import PlayIcon from '@fedi/common/assets/svgs/play.svg'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -184,10 +183,7 @@ export function CompleteRecoveryAssist() {
                                 <VideoWrapper>
                                     {!isPlaying && (
                                         <PlayButtonWrapper>
-                                            <PlayButton
-                                                icon={PlayIcon}
-                                                size="md"
-                                            />
+                                            <PlayButton icon="Play" size="md" />
                                         </PlayButtonWrapper>
                                     )}
                                     <Video

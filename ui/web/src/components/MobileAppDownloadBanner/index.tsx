@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 
-import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
 import {
     ANDROID_PLAY_STORE_URL,
     IOS_APP_STORE_URL,
@@ -27,7 +26,7 @@ export const MobileAppDownloadBanner: React.FC = () => {
             </TopRow>
             <Content>
                 <LogoWrapper>
-                    <Icon icon={FediLogo} size={100} />
+                    <Icon icon="FediLogo" size={100} />
                 </LogoWrapper>
                 <TextWrapper>
                     <Text variant="caption">

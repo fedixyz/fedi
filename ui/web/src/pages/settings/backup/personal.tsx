@@ -2,8 +2,6 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import WarningIcon from '@fedi/common/assets/svgs/warning.svg'
-import WordListIcon from '@fedi/common/assets/svgs/word-list.svg'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useToast } from '@fedi/common/hooks/toast'
 import { SeedWords } from '@fedi/common/types'
@@ -51,7 +49,7 @@ function PersonalBackupPage() {
                 <Layout.Content>
                     <Column gap="md" align="center">
                         <IconWrapper>
-                            <Icon icon={WordListIcon} size="md" />
+                            <Icon icon="WordList" size="md" />
                         </IconWrapper>
                         <Text
                             variant="h2"
@@ -69,7 +67,7 @@ function PersonalBackupPage() {
                         </Text>
                         <WarningBox>
                             <Row align="center" gap="sm">
-                                <Icon icon={WarningIcon} size="xs" />
+                                <Icon icon="Warning" size="xs" />
                                 <Text
                                     variant="small"
                                     css={{ color: theme.colors.black }}>

@@ -2,8 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
-
 import { styled } from '../styles'
 import { Button } from './Button'
 import { ContentBlock } from './ContentBlock'
@@ -23,7 +21,7 @@ export const PageError: React.FC = () => {
     return (
         <ContentBlock>
             <Container>
-                <Icon icon={ErrorIcon} size="lg" />
+                <Icon icon="Error" size="lg" />
                 <Text variant="h2" weight="medium">
                     {t('errors.unknown-error')}
                 </Text>
