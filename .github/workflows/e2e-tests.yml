@@ -32,7 +32,7 @@ on:
                 type: boolean
                 default: false
             debug_mode:
-                description: 'Dump every task log in-line at the end of the run (collapsible groups)'
+                description: 'Verbose logging: full Appium + WebdriverIO + xcodebuild output, all selector strategies tried, every retry logged. Also dumps each task log inline at the end of the run.'
                 type: boolean
                 default: false
     schedule: # runs every day at 2 UTC

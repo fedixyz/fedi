@@ -18,8 +18,12 @@
 #   FAIL_FAST=1         stop on first device test failure
 #   PERSIST_SERVICES=1  skip teardown so emulators/metro/appium stay alive
 #                       (useful when iterating locally)
-#   DEBUG_MODE=1        dump each task's log inline at pipeline end,
-#                       wrapped in GHA ::group:: blocks for collapsibility
+#   DEBUG_MODE=1        verbose logging: Appium server runs at debug level,
+#                       WebdriverIO runs at info level, AppiumTestBase tries
+#                       every selector strategy + retries the primary once
+#                       more, xcodebuild runs --verbose. Also dumps each
+#                       task's log inline at pipeline end, wrapped in GHA
+#                       ::group:: blocks for collapsibility.
 
 set -euo pipefail
 

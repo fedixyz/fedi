@@ -79,11 +79,15 @@ export default class AppiumManager {
             }
 
             const appiumPort = parseInt(process.env.APPIUM_PORT || '4723', 10)
+            const debugMode =
+                process.env.DEBUG_MODE === '1' ||
+                process.env.DEBUG_MODE === 'true'
             this.driver = await remote({
                 protocol: 'http',
                 hostname: '127.0.0.1',
                 port: appiumPort,
                 path: '/',
+                logLevel: debugMode ? 'info' : 'warn',
                 capabilities: getCapabilities(),
             })
 

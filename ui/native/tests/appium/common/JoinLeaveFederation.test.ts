@@ -71,6 +71,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         if (
             (await this.elementIsDisplayed(
                 'BitcoinPrinciplesFedAccordionButton',
+                2000,
             )) === true
         ) {
             throw new Error(
@@ -143,8 +144,10 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await this.clickElementByKey('Leave Federation')
         await this.acceptAlert('Yes')
         if (
-            (await this.elementIsDisplayed('E-CashClubFedAccordionButton')) ===
-            true
+            (await this.elementIsDisplayed(
+                'E-CashClubFedAccordionButton',
+                2000,
+            )) === true
         ) {
             throw new Error(
                 `Failed - E-Cash Club accordion is in the account settings after leaving`,

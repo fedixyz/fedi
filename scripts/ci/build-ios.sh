@@ -10,7 +10,10 @@ $REPO_ROOT/scripts/enforce-nix.sh
 pushd $REPO_ROOT/ui/native
 echo "Building iOS app bundle"
 
-build_options="--buildFolder ./build/ --extra-params ARCHS=arm64 --verbose"
+build_options="--buildFolder ./build/ --extra-params ARCHS=arm64"
+if [[ "${DEBUG_MODE:-}" == "1" ]]; then
+    build_options="$build_options --verbose"
+fi
 build_command="arch -arm64 npx react-native build-ios $build_options"
 
 # Launch on selected iOS device

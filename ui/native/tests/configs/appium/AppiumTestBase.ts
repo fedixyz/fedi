@@ -21,6 +21,13 @@ const DEFAULT_SCROLL_OPTIONS: Required<ScrollOptions> = {
 
 export const DEFAULT_TIMEOUT = 20000
 
+const E2E_DEBUG =
+    process.env.DEBUG_MODE === '1' || process.env.DEBUG_MODE === 'true'
+
+const debugLog = (...args: unknown[]) => {
+    if (E2E_DEBUG) console.log(...args)
+}
+
 export abstract class AppiumTestBase {
     protected driver: WebdriverIO.Browser
 
@@ -79,48 +86,51 @@ export abstract class AppiumTestBase {
 
         for (const strategy of strategies) {
             try {
-                console.log(
+                debugLog(
                     `Trying to find element with strategy: ${strategy.description}`,
                 )
                 const element = await this.driver.$(strategy.selector)
 
                 if (await element.isExisting()) {
-                    console.log(
+                    debugLog(
                         `Element found with strategy: ${strategy.description}`,
                     )
                     return element
                 } else {
                     const msg = `Element not found with strategy: ${strategy.description}`
-                    console.log(msg)
+                    debugLog(msg)
                     errors.push(msg)
                 }
             } catch (error: unknown) {
                 const msg = `Strategy ${strategy.description} failed: ${(error as Error).message}`
-                console.log(msg)
+                debugLog(msg)
                 errors.push(msg)
             }
         }
-        console.log(
-            `All strategies failed, trying the primary strategy once more:`,
-        )
-        try {
-            const element = await this.driver.$(primaryStrategy.selector)
 
-            if (await element.isExisting()) {
-                console.log(
-                    `Element found with primary strategy ${primaryStrategy.description} after the strategy failed the first time.`,
-                )
-                return element
-            }
-        } catch (error: unknown) {
-            console.log(
-                `A repeat atttempt with primary strategy ${primaryStrategy.description} failed: ${(error as Error).message}. Element most likely does not exist in XML tree. Try dumping it.`,
+        if (E2E_DEBUG) {
+            debugLog(
+                `All strategies failed, trying the primary strategy once more:`,
             )
+            try {
+                const element = await this.driver.$(primaryStrategy.selector)
+
+                if (await element.isExisting()) {
+                    debugLog(
+                        `Element found with primary strategy ${primaryStrategy.description} after the strategy failed the first time.`,
+                    )
+                    return element
+                }
+            } catch (error: unknown) {
+                debugLog(
+                    `A repeat atttempt with primary strategy ${primaryStrategy.description} failed: ${(error as Error).message}. Element most likely does not exist in XML tree. Try dumping it.`,
+                )
+            }
+            debugLog(
+                `Element with key "${key}" not found after trying all strategies:`,
+            )
+            errors.forEach((err, index) => debugLog(`  ${index + 1}. ${err}`))
         }
-        console.log(
-            `Element with key "${key}" not found after trying all strategies:`,
-        )
-        errors.forEach((err, index) => console.log(`  ${index + 1}. ${err}`))
 
         return null
     }
@@ -226,7 +236,7 @@ export abstract class AppiumTestBase {
                     }
                 } catch (error) {
                     const msg = `No elements found using ${strategy.description}. ${(error as Error).message}.`
-                    console.log(msg)
+                    debugLog(msg)
                     errors.push(msg)
                 }
                 await new Promise(resolve => setTimeout(resolve, 500))
@@ -235,7 +245,9 @@ export abstract class AppiumTestBase {
         console.log(
             `No elements with ${text} in them were found. If this is not intentional, check the XML tree dump or reproduce the test in Appium Inspector to find out why.`,
         )
-        errors.forEach((err, index) => console.log(`  ${index + 1}. ${err}`))
+        if (E2E_DEBUG) {
+            errors.forEach((err, index) => debugLog(`  ${index + 1}. ${err}`))
+        }
         return this.driver.$$([])
     }
 

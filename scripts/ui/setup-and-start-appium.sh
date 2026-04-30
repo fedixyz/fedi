@@ -218,7 +218,13 @@ for attempt in 1 2 3; do
   [[ $attempt -gt 1 ]] && sleep 2
 
   ATTEMPT_LOG="$APPIUM_HOME/appium-attempt-${attempt}.log"
+  if [[ "${DEBUG_MODE:-}" == "1" ]]; then
+    APPIUM_LOG_LEVEL="debug"
+  else
+    APPIUM_LOG_LEVEL="info"
+  fi
   nohup env -u MACOSX_DEPLOYMENT_TARGET appium --port "$APPIUM_PORT" \
+    --log-level "$APPIUM_LOG_LEVEL" \
     >"$ATTEMPT_LOG" 2>&1 </dev/null &
   APP_PID=$!
   echo "$APP_PID" >"$PID_FILE"
