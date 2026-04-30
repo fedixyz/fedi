@@ -100,6 +100,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
     const headerTextStyle = isMe
         ? style.outgoingHeaderText
         : style.incomingHeaderText
+    const isVoteDisabled = selections.length === 0 || isReadOnly
 
     return (
         <Pressable onLongPress={hasAnyAction ? handleLongPress : undefined}>
@@ -151,19 +152,32 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                                 style={
                                     isMe ? undefined : style.incomingVoteButton
                                 }
+                                disabledStyle={
+                                    isMe
+                                        ? { opacity: 0.8 }
+                                        : {
+                                              opacity: 1,
+                                              backgroundColor:
+                                                  theme.colors.darkGrey,
+                                          }
+                                }
                                 title={
                                     <Text
                                         medium
                                         small
-                                        style={
+                                        style={[
                                             isMe
                                                 ? style.outgoingVoteButtonTitle
-                                                : style.incomingVoteButtonTitle
-                                        }>
+                                                : style.incomingVoteButtonTitle,
+                                            isVoteDisabled &&
+                                                (isMe
+                                                    ? style.outgoingVoteButtonTitleDisabled
+                                                    : style.incomingVoteButtonTitleDisabled),
+                                        ]}>
                                         {t('words.vote')}
                                     </Text>
                                 }
-                                disabled={selections.length === 0 || isReadOnly}
+                                disabled={isVoteDisabled}
                                 onPress={handleRespondToPoll}
                             />
                         )}
@@ -388,6 +402,8 @@ const styles = (theme: Theme) =>
         incomingResultBar: { backgroundColor: theme.colors.lightGrey },
         outgoingVoteButtonTitle: { color: theme.colors.primary },
         incomingVoteButtonTitle: { color: theme.colors.white },
+        outgoingVoteButtonTitleDisabled: { color: theme.colors.darkGrey },
+        incomingVoteButtonTitleDisabled: { color: theme.colors.lightGrey },
         incomingVoteButton: { backgroundColor: theme.colors.night },
     })
 
