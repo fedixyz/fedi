@@ -11,6 +11,7 @@ import {
     ignoreUser,
     kickUser,
     selectMatrixAuth,
+    selectMatrixDirectMessageRoom,
     selectMatrixRoomMultispendStatus,
     selectMatrixRoomSelfPowerLevel,
     setMatrixRoomMemberPowerLevel,
@@ -26,6 +27,7 @@ import {
 import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '@fedi/native/state/hooks'
 
+import { resetToDirectChat } from '../../../state/navigation'
 import { Column } from '../../ui/Flex'
 import ChatAction from './ChatAction'
 import { ConfirmBlockOverlay } from './ConfirmBlockOverlay'
@@ -67,6 +69,9 @@ const ChatUserActions: React.FC<Props> = ({
     )
     const multispendStatus = useAppSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
+    )
+    const existingDirectRoom = useAppSelector(s =>
+        selectMatrixDirectMessageRoom(s, member.id),
     )
     const navigation = useNavigation()
     const dispatch = useAppDispatch()
@@ -177,6 +182,13 @@ const ChatUserActions: React.FC<Props> = ({
             label: t('feature.chat.go-to-direct-chat'),
             icon: 'Chat',
             onPress: () => {
+                if (existingDirectRoom) {
+                    navigation.dispatch(
+                        resetToDirectChat(existingDirectRoom.id),
+                    )
+                    dismiss()
+                    return
+                }
                 navigation.navigate('ChatUserConversation', {
                     userId: member.id,
                     displayName:
