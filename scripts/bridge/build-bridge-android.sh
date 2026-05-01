@@ -16,8 +16,10 @@ fi
 
 if [[ -n "$CI" ]]; then
   echo "Building bridge in CI using nix build..."
-  nix build -L .#fedi-android-bridge-libs
-  FM_BUILD_BRIDGE_ANDROID_LIBS_OUT=./result/share/fedi-android "$REPO_ROOT/scripts/bridge/install-bridge-android.sh"
+  # Default `nix build` writes a `./result` symlink in cwd that concurrent
+  # nix builds from the same cwd clobber. Use the store path directly.
+  BRIDGE_OUT=$(nix build -L --no-link --print-out-paths .#fedi-android-bridge-libs)
+  FM_BUILD_BRIDGE_ANDROID_LIBS_OUT="$BRIDGE_OUT/share/fedi-android" "$REPO_ROOT/scripts/bridge/install-bridge-android.sh"
 else
   export FM_BUILD_BRIDGE_ANDROID_LIBS_OUT=$REPO_ROOT/bridge/fedi-android/kotlinLibDeps
   source "$REPO_ROOT/scripts/bridge/build-bridge-android-libs.sh"

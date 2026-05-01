@@ -19,15 +19,17 @@ copy_deps() {
     echo "Looking for bridge libraries in: $BRIDGE_LIBS_SOURCE"
     mkdir -p "$JNI_LIBS_DEST"
     mkdir -p "$FFI_LIB_DEST"
-    if [ -d "$BRIDGE_LIBS_SOURCE" ]; then
-        echo "Copying from $BRIDGE_LIBS_SOURCE/jniLibs/* to $JNI_LIBS_DEST..."
-        cp -r "$BRIDGE_LIBS_SOURCE"/jniLibs/* "$JNI_LIBS_DEST"/ || true
-        echo "Copying from $BRIDGE_LIBS_SOURCE/fedi-ffi/* to $FFI_LIB_DEST..."
-        cp -r "$BRIDGE_LIBS_SOURCE"/fedi-ffi/* "$FFI_LIB_DEST"/ || true
-        # Ensure copied files and directories are writable (Nix store files are read-only) so we can clean up later
-        chmod -R u+w "$JNI_LIBS_DEST" 2>/dev/null || true
-        chmod -R u+w "$FFI_LIB_DEST" 2>/dev/null || true
+    if [ ! -d "$BRIDGE_LIBS_SOURCE" ]; then
+        echo "ERROR: bridge libs source not found at $BRIDGE_LIBS_SOURCE" >&2
+        exit 1
     fi
+    echo "Copying from $BRIDGE_LIBS_SOURCE/jniLibs/* to $JNI_LIBS_DEST..."
+    cp -r "$BRIDGE_LIBS_SOURCE"/jniLibs/* "$JNI_LIBS_DEST"/
+    echo "Copying from $BRIDGE_LIBS_SOURCE/fedi-ffi/* to $FFI_LIB_DEST..."
+    cp -r "$BRIDGE_LIBS_SOURCE"/fedi-ffi/* "$FFI_LIB_DEST"/
+    # Ensure copied files and directories are writable (Nix store files are read-only) so we can clean up later
+    chmod -R u+w "$JNI_LIBS_DEST" 2>/dev/null || true
+    chmod -R u+w "$FFI_LIB_DEST" 2>/dev/null || true
 }
 
 publish_to_maven() {
