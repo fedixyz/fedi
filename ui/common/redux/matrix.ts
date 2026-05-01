@@ -2508,10 +2508,16 @@ export const selectMatrixRoomEventsHaveLoaded = (
     roomId: MatrixRoom['id'],
 ) => s.matrix.roomTimelines[roomId] !== undefined
 
-export const selectMatrixRoomMembersHaveLoaded = (
-    s: CommonState,
-    roomId: MatrixRoom['id'],
-) => s.matrix.roomMembers[roomId] !== undefined
+// Conversation UI needs a settled joined-members snapshot, not just any
+// fetched member payload. During room creation the snapshot may still be
+// `[]` or contain only non-joined members while Matrix catches up.
+export const selectMatrixRoomMembersReadyForConversation = createSelector(
+    (s: CommonState, roomId: MatrixRoom['id']) =>
+        s.matrix.roomMembers[roomId] !== undefined,
+    selectMatrixRoomMembersCount,
+    (hasMemberSnapshot, joinedMembersCount) =>
+        hasMemberSnapshot && joinedMembersCount > 0,
+)
 
 export const selectMatrixRoomEvents = createSelector(
     (s: CommonState, roomId: MatrixRoom['id']) =>

@@ -591,6 +591,41 @@ describe('ChatConversation', () => {
         ).not.toBeOnTheScreen()
     })
 
+    it('shows loading state when members loaded but events have not loaded', () => {
+        const store = setupStore()
+        store.dispatch(
+            setMatrixRoomMembers({
+                roomId: ROOM_ID,
+                members: [{ ...mockRoomMembers[0], roomId: ROOM_ID }],
+            }),
+        )
+
+        renderChat(store)
+
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-one-is-in-this-group'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
+    })
+
+    it('renders the conversation shell for pending connection requests even before room data loads', () => {
+        const store = setupStore()
+
+        renderChat(store, { connectionRequestPending: true })
+
+        expect(
+            screen.getByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).toBeOnTheScreen()
+    })
+
     it('shows NoMembersNotice when events loaded and member count is 1 (alone)', () => {
         const store = storeWithEventsLoaded()
         store.dispatch(
@@ -607,6 +642,105 @@ describe('ChatConversation', () => {
                 exact: false,
             }),
         ).toBeOnTheScreen()
+    })
+
+    it('keeps showing loading state when members load as an empty snapshot during room creation', () => {
+        const store = storeWithEventsLoaded()
+        store.dispatch(
+            setMatrixRoomMembers({
+                roomId: ROOM_ID,
+                members: [],
+            }),
+        )
+
+        renderChat(store)
+
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-one-is-in-this-group'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
+    })
+
+    it('keeps showing loading state when members load but nobody has joined yet', () => {
+        const store = storeWithEventsLoaded()
+        store.dispatch(
+            setMatrixRoomMembers({
+                roomId: ROOM_ID,
+                members: [
+                    {
+                        ...mockRoomMembers[0],
+                        roomId: ROOM_ID,
+                        membership: 'invite',
+                    },
+                ],
+            }),
+        )
+
+        renderChat(store)
+
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-one-is-in-this-group'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
+    })
+
+    it('never flashes the no-messages state while member snapshots settle during room creation', async () => {
+        const store = storeWithEventsLoaded()
+
+        renderChat(store)
+
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
+
+        await act(async () => {
+            store.dispatch(
+                setMatrixRoomMembers({
+                    roomId: ROOM_ID,
+                    members: [],
+                }),
+            )
+        })
+
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
+
+        await act(async () => {
+            store.dispatch(
+                setMatrixRoomMembers({
+                    roomId: ROOM_ID,
+                    members: [{ ...mockRoomMembers[0], roomId: ROOM_ID }],
+                }),
+            )
+        })
+
+        expect(
+            screen.getByText(i18n.t('feature.chat.no-one-is-in-this-group'), {
+                exact: false,
+            }),
+        ).toBeOnTheScreen()
+        expect(
+            screen.queryByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).not.toBeOnTheScreen()
     })
 
     it('resolves a focused event to its exact row index inside a same-sender burst', () => {

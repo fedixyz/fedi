@@ -26,7 +26,7 @@ import {
     selectMatrixRoomIsBlocked,
     selectMatrixRoomMembers,
     selectMatrixRoomMembersCount,
-    selectMatrixRoomMembersHaveLoaded,
+    selectMatrixRoomMembersReadyForConversation,
     selectMatrixRoomRawEvents,
     selectPreviewMedia,
 } from '@fedi/common/redux'
@@ -90,14 +90,16 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const hasLoadedEvents = useAppSelector(s =>
         selectMatrixRoomEventsHaveLoaded(s, id),
     )
-    const hasLoadedMembers = useAppSelector(s =>
-        selectMatrixRoomMembersHaveLoaded(s, id),
+    const membersReadyForConversation = useAppSelector(s =>
+        selectMatrixRoomMembersReadyForConversation(s, id),
     )
     const roomMembers = useAppSelector(s => selectMatrixRoomMembers(s, id))
     const canSwipe = useAppSelector(s => selectCanReply(s, id))
     const isDefault = useAppSelector(s => selectIsDefaultGroup(s, id))
-    const isAlone =
-        useAppSelector(s => selectMatrixRoomMembersCount(s, id)) === 1
+    const joinedMembersCount = useAppSelector(s =>
+        selectMatrixRoomMembersCount(s, id),
+    )
+    const isAlone = joinedMembersCount === 1
     const isBlocked = useAppSelector(s => selectMatrixRoomIsBlocked(s, id))
     const events = useAppSelector(s => selectMatrixRoomEvents(s, id))
     const rawEvents = useAppSelector(s => selectMatrixRoomRawEvents(s, id))
@@ -113,7 +115,8 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const myId = matrixAuth?.userId
     const isBroadcast = !!room?.broadcastOnly
     const shouldRenderConversationList =
-        (hasLoadedEvents && hasLoadedMembers) || connectionRequestPending
+        (hasLoadedEvents && membersReadyForConversation) ||
+        connectionRequestPending
 
     const chatEvents = useMemo(() => {
         const visiblePreviewMedia = previewMedia.filter(m => m.visible)
