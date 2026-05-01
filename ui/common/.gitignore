@@ -3,6 +3,10 @@ node_modules
 npm-debug.log
 yarn-error.log
 
+# workaround for https://github.com/fedibtc/fedi/issues/3572
+**/*.d.ts
+!typings/*.d.ts
+
 # ts / build
 dist
 .turbo
