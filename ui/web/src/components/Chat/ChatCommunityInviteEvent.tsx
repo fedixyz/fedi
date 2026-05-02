@@ -125,7 +125,7 @@ export const ChatCommunityInviteEvent: React.FC<Props> = ({ event, isMe }) => {
             <Dialog
                 open={isShowing}
                 onOpenChange={setIsShowing}
-                title={t('phrases.join-community')}
+                title={t('phrases.join-space')}
                 type="tray"
                 disableClose={isJoining}>
                 {preview && (

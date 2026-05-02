@@ -167,7 +167,7 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
                 {activeTab === 'create' && (
                     <Button
                         fullWidth
-                        title={t('phrases.create-my-community')}
+                        title={t('phrases.create-my-space')}
                         onPress={() => {
                             dispatch(
                                 setCurrentUrl({

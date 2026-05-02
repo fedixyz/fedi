@@ -44,7 +44,7 @@ const HomeHeader: React.FC<Props> = ({ onOpenCommunitiesOverlay }) => {
                     containerStyle={style.headerContainer}
                     headerLeft={
                         <Text h2 medium numberOfLines={1} adjustsFontSizeToFit>
-                            {t('words.communities')}
+                            {t('words.spaces')}
                         </Text>
                     }
                     headerRight={

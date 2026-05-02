@@ -94,8 +94,8 @@ export class OnboardingTest extends AppiumTestBase {
         // TODO: test nostr details
         await this.scrollToElement('FediGlobal(Nightly)CommAccordionButton')
         await this.clickElementByKey('FediGlobal(Nightly)CommAccordionButton')
-        await this.scrollToElement('Community Mini Apps')
-        await this.clickElementByKey('Community Mini Apps')
+        await this.scrollToElement('Mini Apps')
+        await this.clickElementByKey('Mini Apps')
         await this.clickElementByKey('BitrefillVisibilityToggleButton')
         await this.clickElementByKey('HeaderBackButton')
         await new Promise(resolve => setTimeout(resolve, 1000))

@@ -100,7 +100,7 @@ const CommunityPreview: React.FC<Props> = ({
             <Button
                 testID="JoinFederationButton"
                 fullWidth
-                title={t('phrases.join-community')}
+                title={t('phrases.join-space')}
                 onPress={onJoin}
                 containerStyle={s.button}
                 disabled={isJoining}

@@ -285,7 +285,7 @@ export const MainNavigator = () => {
                             header: () => (
                                 <CenteredHeader
                                     backButton
-                                    title={t('phrases.join-a-community')}
+                                    title={t('phrases.join-a-space')}
                                 />
                             ),
                         })}

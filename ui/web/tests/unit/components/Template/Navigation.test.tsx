@@ -68,7 +68,7 @@ describe('Navigation', () => {
 
         renderWithProviders(<Navigation />, { store })
 
-        await user.click(screen.getByRole('link', { name: /community/i }))
+        await user.click(screen.getByRole('link', { name: /spaces/i }))
 
         expect(
             await screen.findByText('CommunitiesOverlayOpen'),

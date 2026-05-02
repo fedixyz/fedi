@@ -249,7 +249,7 @@ describe('/components/Chat/ChatCommunityInviteEvent', () => {
 
             const confirmButtons = screen.getAllByRole('button')
             const confirmButton = confirmButtons.find(btn =>
-                btn.textContent?.includes(i18n.t('phrases.join-community')),
+                btn.textContent?.includes(i18n.t('phrases.join-space')),
             )
             expect(confirmButton).toBeTruthy()
             fireEvent.click(confirmButton!)

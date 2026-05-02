@@ -96,7 +96,7 @@ const CommunityPreview: React.FC<Props> = ({
                 </Column>
             ) : (
                 <Button width="full" onClick={onJoin} loading={isJoining}>
-                    {t('phrases.join-community')}
+                    {t('phrases.join-space')}
                 </Button>
             )}
         </>

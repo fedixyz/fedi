@@ -29,7 +29,7 @@ const JoinCommunityOverlay: React.FC<Props> = ({
             show={show}
             onBackdropPress={onDismiss}
             contents={{
-                title: t('phrases.join-community'),
+                title: t('phrases.join-space'),
                 body: preview ? (
                     <CommunityPreview
                         onJoin={onJoin}

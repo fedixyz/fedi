@@ -62,7 +62,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
                                 medium
                                 numberOfLines={1}
                                 adjustsFontSizeToFit>
-                                {`${t('words.communities')}`}
+                                {`${t('words.spaces')}`}
                             </Text>
                             {communities.length === 0 && (
                                 <Text style={style.drawerSubtitle}>

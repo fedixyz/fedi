@@ -325,7 +325,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     })}
                     options={() => ({
                         tabBarTestID: 'HomeTabButton',
-                        title: t('words.community'),
+                        title: t('words.spaces'),
                         header: () => (
                             <HomeHeader
                                 onOpenCommunitiesOverlay={() =>

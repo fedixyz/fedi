@@ -70,7 +70,7 @@ function HomePage() {
         <ContentBlock>
             <Layout.Root>
                 <Layout.PageHeader
-                    title={t('words.communities')}
+                    title={t('words.spaces')}
                     onAddPress={() => push(onboardingCommunitiesRoute)}
                     onMenuPress={
                         communities.length >= 2

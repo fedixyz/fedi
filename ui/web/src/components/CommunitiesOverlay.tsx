@@ -37,7 +37,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
     return (
         <>
             <Dialog
-                title={t('words.communities')}
+                title={t('words.spaces')}
                 open={open}
                 onOpenChange={onOpenChange}
                 type="tray">

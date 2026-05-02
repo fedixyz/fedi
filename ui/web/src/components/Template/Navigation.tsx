@@ -115,7 +115,7 @@ export const Navigation: React.FC = () => {
             icon: 'Community',
             activeIcon: 'CommunityFilled',
             hasNotification: false,
-            label: t('words.community'),
+            label: t('words.spaces'),
             tab: HomeNavigationTab.Home,
         },
     ]

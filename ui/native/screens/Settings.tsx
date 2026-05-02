@@ -77,7 +77,7 @@ const Settings: React.FC<Props> = () => {
                         <Text
                             color={theme.colors.night}
                             style={style.sectionTitle}>
-                            {t('words.communities')}
+                            {t('words.spaces')}
                         </Text>
                         {sortedCommunities.map(federation => (
                             <CommunityMenu

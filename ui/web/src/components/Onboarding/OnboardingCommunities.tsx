@@ -165,7 +165,7 @@ export function OnboardingCommunities() {
         actions = (
             <Layout.Actions>
                 <Button width="full" onClick={handleOnCreate}>
-                    {t('phrases.create-my-community')}
+                    {t('phrases.create-my-space')}
                 </Button>
             </Layout.Actions>
         )
@@ -178,7 +178,7 @@ export function OnboardingCommunities() {
             <Layout.Root>
                 <Layout.Header centered back>
                     <Layout.Title subheader>
-                        {t('phrases.join-a-community')}
+                        {t('phrases.join-a-space')}
                     </Layout.Title>
                 </Layout.Header>
                 <Layout.Content>

@@ -191,7 +191,7 @@ function AdminPage() {
                         {sortedCommunities.length > 0 && (
                             <Column>
                                 <Text css={{ marginBottom: 16 }}>
-                                    {t('words.communities')}
+                                    {t('words.spaces')}
                                 </Text>
                                 {sortedCommunities.map(community => (
                                     <CommunityMenu
