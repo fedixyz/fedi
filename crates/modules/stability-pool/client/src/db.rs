@@ -39,6 +39,12 @@ pub enum DbKeyPrefix {
     /// the case of marking pending deposits that have been fully withdrawn as
     /// "completed". This entry is short-lived: only while a deposit is pending.
     DepositSequenceTransactionLookup = 0x07,
+    /// Marker for one-time repair of completed withdrawal history rows. Older
+    /// clients could double-count `LockedToIdle` fragments after completing a
+    /// withdrawal from a pending unlock request, inflating local user-op
+    /// history. The repair rebuilds those completed withdrawal amounts from
+    /// durable account-history fragments and records this marker after it runs.
+    CompletedWithdrawalHistoryRepair = 0x08,
 }
 
 #[derive(Debug, Encodable, Decodable)]
@@ -287,4 +293,15 @@ impl_db_record!(
     key = DepositSequenceTransactionLookupKey,
     value = DepositSequenceTransactionLookupValue,
     db_prefix = DbKeyPrefix::DepositSequenceTransactionLookup,
+);
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct CompletedWithdrawalHistoryRepairKey {
+    pub account_id: AccountId,
+}
+
+impl_db_record!(
+    key = CompletedWithdrawalHistoryRepairKey,
+    value = (),
+    db_prefix = DbKeyPrefix::CompletedWithdrawalHistoryRepair,
 );
