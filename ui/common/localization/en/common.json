@@ -686,6 +686,7 @@
             "claim-ecash": "Claim Ecash",
             "claim-ecash-description": "Click on the button below to claim your ecash",
             "claim-ecash-error": "Failed to claim ecash",
+            "claim-ecash-new-members-disabled": "This ecash cannot be claimed because this wallet service is not accepting new members",
             "claim-ecash-success-description": "You have successfully claimed your ecash. Click on the button below to view your wallet.",
             "go-to-wallet": "Go to wallet",
             "ecash-claimed": "Ecash claimed",

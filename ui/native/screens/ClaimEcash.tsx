@@ -35,6 +35,7 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
         parsed: parsedEcash,
         ecashToken,
         federation,
+        newMembersDisabled,
     } = useParseEcash()
 
     const {
@@ -117,6 +118,25 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
                     {t('phrases.maybe-later')}
                 </Button>
             </>
+        )
+    } else if (newMembersDisabled) {
+        content = (
+            <>
+                <SvgImage name="AlertWarningTriangle" size={48} />
+                <Text h2>
+                    {amountUtils.msatToSatString(parsedEcash.amount)} SATS
+                </Text>
+                <Text center>
+                    {t('feature.ecash.claim-ecash-new-members-disabled')}
+                </Text>
+            </>
+        )
+        actions = (
+            <Button
+                fullWidth
+                onPress={() => navigation.dispatch(navigateToHome())}>
+                {t('words.cancel')}
+            </Button>
         )
     } else {
         content = (

@@ -32,6 +32,7 @@ function EcashPage() {
         parsed: parsedEcash,
         ecashToken,
         federation,
+        newMembersDisabled,
     } = useParseEcash()
 
     const {
@@ -109,6 +110,23 @@ function EcashPage() {
                     {t('phrases.maybe-later')}
                 </Button>
             </>
+        )
+    } else if (newMembersDisabled) {
+        content = (
+            <Content>
+                <Icon icon="AlertWarningTriangle" size="lg" />
+                <Text variant="h2" weight="medium">
+                    {amountUtils.msatToSatString(parsedEcash.amount)} SATS
+                </Text>
+                <Text variant="body">
+                    {t('feature.ecash.claim-ecash-new-members-disabled')}
+                </Text>
+            </Content>
+        )
+        actions = (
+            <Button width="full" variant="tertiary" href={homeRoute}>
+                {t('words.cancel')}
+            </Button>
         )
     } else {
         content = (

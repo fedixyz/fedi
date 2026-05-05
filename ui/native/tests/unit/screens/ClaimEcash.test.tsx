@@ -35,6 +35,7 @@ describe('/screens/ClaimEcash', () => {
             ecashToken: '123',
             isError: false,
             federation: mockFederation1 as LoadedFederation,
+            newMembersDisabled: false,
         }))
 
         jest.spyOn(PayHooks, 'useClaimEcash').mockImplementation(() => ({

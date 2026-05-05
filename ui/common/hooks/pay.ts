@@ -30,6 +30,7 @@ import amountUtils from '../utils/AmountUtils'
 import {
     getFederationPreview,
     shouldShowInviteCode,
+    shouldShowJoinFederation,
 } from '../utils/FederationUtils'
 import {
     MeltSummary,
@@ -455,13 +456,20 @@ export function useParseEcash() {
         [fedimint],
     )
 
+    const federation = loadedFederation || federationPreview
+    const newMembersDisabled =
+        parsedEcash?.federation_type === 'notJoined' &&
+        !!federation?.meta &&
+        !shouldShowJoinFederation(federation.meta)
+
     return {
         parseEcash: parseEcashFn,
         loading,
         parsed: parsedEcash,
         ecashToken,
         isError,
-        federation: loadedFederation || federationPreview,
+        federation,
+        newMembersDisabled,
     }
 }
 

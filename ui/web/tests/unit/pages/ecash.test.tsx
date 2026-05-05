@@ -26,6 +26,7 @@ jest.mock('@fedi/common/hooks/pay', () => ({
         },
         ecashToken: '123',
         federation: mockFederation1,
+        newMembersDisabled: false,
     }),
     useClaimEcash: () => ({
         claimEcash: claimEcashSpy,
