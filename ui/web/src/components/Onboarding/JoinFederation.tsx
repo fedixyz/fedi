@@ -3,6 +3,7 @@ import React, { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useFederationPreview } from '@fedi/common/hooks/federation'
+import { detectInviteCodeType } from '@fedi/common/utils/FederationUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { walletRoute, homeRoute } from '../../constants/routes'
@@ -95,7 +96,12 @@ export const JoinFederation: React.FC = () => {
         <Layout.Root>
             <Layout.Header back>
                 <Layout.Title subheader>
-                    {t('phrases.wallet-service')}
+                    {t(
+                        inviteCode &&
+                            detectInviteCodeType(inviteCode) === 'community'
+                            ? 'phrases.space-invitation'
+                            : 'phrases.wallet-service',
+                    )}
                 </Layout.Title>
             </Layout.Header>
             <Layout.Content>{content}</Layout.Content>
