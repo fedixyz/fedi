@@ -1692,17 +1692,17 @@ export const selectHasSeenFederationRating = (
 export const selectShouldRateFederation = createSelector(
     (s: CommonState) => s.federation.seenFederationRatings,
     (s: CommonState) => selectIsNostrClientEnabled(s),
-    (s: CommonState) => selectPaymentFederation(s),
-    (seenFederationRatings, isNostrClientEnabled, paymentFederation) => {
+    (s: CommonState) => selectLastUsedFederation(s),
+    (seenFederationRatings, isNostrClientEnabled, lastUsedFederation) => {
         log.debug('selectShouldRateFederation', {
             seenFederationRatings,
             isNostrClientEnabled,
-            paymentFederation: `${paymentFederation?.id} - ${paymentFederation?.name}`,
+            lastUsedFederation: `${lastUsedFederation?.id} - ${lastUsedFederation?.name}`,
         })
         // dont rate if the user has no wallet federations
-        if (!paymentFederation) return false
+        if (!lastUsedFederation) return false
         // dont rate if the user has already rated this federation
-        if (seenFederationRatings.includes(paymentFederation.id)) return false
+        if (seenFederationRatings.includes(lastUsedFederation.id)) return false
         // dont rate if nostr client is not enabled
         if (!isNostrClientEnabled) return false
         return true

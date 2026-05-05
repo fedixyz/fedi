@@ -15,6 +15,7 @@ import {
     increaseStableBalance,
     selectFormattedDepositTime,
     selectStabilityPoolAverageFeeRate,
+    setLastUsedFederationId,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
@@ -83,6 +84,8 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                 }),
             ).unwrap()
 
+            dispatch(setLastUsedFederationId(federationId))
+
             navigation.dispatch(
                 resetAfterSendSuccess({
                     title: t('feature.stabilitypool.deposited'),
@@ -90,9 +93,7 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                         'feature.stabilitypool.deposit-success-description',
                     ),
                     formattedAmount: formattedUsd,
-                    // TODO: make sure we either autoscroll or change the last used federation ID
-                    // so users with many wallets aren't confused
-                    // federationId,
+                    federationId,
                 }),
             )
         } catch (error) {

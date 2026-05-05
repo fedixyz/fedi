@@ -13,6 +13,7 @@ import {
     selectLoadedFederation,
     selectMatrixContactById,
     selectStableBalancePending,
+    setLastUsedFederationId,
     transferStableBalance,
     transferStableBalanceMatrix,
 } from '@fedi/common/redux'
@@ -100,10 +101,11 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
                         recipientMatrixId: recipient.matrixUserId,
                         federationId,
                     }),
-                )
+                ).unwrap()
                 // TODO: Kick them to the chat screens for confirmation/etc.
                 // This just shows the confirmation screen always.
                 setProcessingTransfer(false)
+                dispatch(setLastUsedFederationId(federationId))
                 navigation.dispatch(
                     resetAfterSendSuccess({
                         title: t('feature.send.transferred'),
@@ -120,8 +122,9 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
                         accountId: recipient.accountId,
                         federationId,
                     }),
-                )
+                ).unwrap()
                 setProcessingTransfer(false)
+                dispatch(setLastUsedFederationId(federationId))
                 navigation.dispatch(
                     resetAfterSendSuccess({
                         title: t('feature.send.transferred'),
