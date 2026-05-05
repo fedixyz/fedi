@@ -6,7 +6,10 @@ import { useAmountFormatter, useBtcFiatPrice } from '../../../../hooks/amount'
 import { MSats, SupportedCurrency } from '../../../../types'
 import { makeTxnAmountText } from '../../../../utils/transaction'
 import { renderHookWithState } from '../../../utils/render'
-import { makeTestTxnEntry } from '../../../utils/transaction'
+import {
+    makeTestFediFeeStatus,
+    makeTestTxnEntry,
+} from '../../../utils/transaction'
 
 describe('makeTxnAmountText', () => {
     const store = setupStore()
@@ -108,6 +111,63 @@ describe('makeTxnAmountText', () => {
 
         expect(amountSats).toBe('-10,000')
         expect(amountFiat).toBe('-10.00')
+    })
+
+    it('should include total fees in the displayed onchain withdraw amount', () => {
+        const txn = makeTestTxnEntry('onchainWithdraw', {
+            amount: 10000000 as MSats,
+            onchain_fees: 30_000 as MSats,
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 10_000),
+        })
+
+        const amountSats = makeTxnAmountText(
+            txn,
+            'sats',
+            false,
+            false,
+            'USD',
+            makeFormattedAmountsFromMSats,
+            convertCentsToFormattedFiat,
+            convertSatsToFormattedFiat,
+        )
+        const amountFiat = makeTxnAmountText(
+            txn,
+            'fiat',
+            false,
+            false,
+            'USD',
+            makeFormattedAmountsFromMSats,
+            convertCentsToFormattedFiat,
+            convertSatsToFormattedFiat,
+        )
+
+        expect(amountSats).toBe('-10,040')
+        expect(amountFiat).toBe('-10.04')
+    })
+
+    it('should include total fees when using historical fiat rates for onchain withdraws', () => {
+        const txn = makeTestTxnEntry('onchainWithdraw', {
+            amount: 10000000 as MSats,
+            onchain_fees: 30_000 as MSats,
+            fediAppFeeStatus: makeTestFediFeeStatus('success', 10_000),
+            txDateFiatInfo: {
+                btcToFiatHundredths: 4000000,
+                fiatCode: 'USD',
+            },
+        })
+
+        const amountFiat = makeTxnAmountText(
+            txn,
+            'fiat',
+            false,
+            false,
+            'USD',
+            makeFormattedAmountsFromMSats,
+            convertCentsToFormattedFiat,
+            convertSatsToFormattedFiat,
+        )
+
+        expect(amountFiat).toBe('-4.02')
     })
 
     it('should flip the sign', () => {

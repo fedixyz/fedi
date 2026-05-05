@@ -249,7 +249,7 @@ export const makeTxnAmountText = (
         txDateFiatInfo?: FiatFXInfo,
     ) => string,
 ): string => {
-    const { amount } = txn
+    const amount = getTxnDisplayAmount(txn)
     const { formattedSats } = makeFormattedAmountsFromMSats(amount, 'end')
     const [amt, satsSymbol] = formattedSats.split(' ')
     const sign = makeTxnSign(txn, flipSign)
@@ -266,7 +266,7 @@ export const makeTxnAmountText = (
     if (txnDisplay === 'fiat') {
         // If fiat amounts should be shown and historical info is present, use it:
         if (txn.txDateFiatInfo) {
-            const sats = amountUtils.msatToSat(txn.amount)
+            const sats = amountUtils.msatToSat(amount)
             // Use the historical exchange rate from txDateFiatInfo:
             formattedAmount = convertSatsToFormattedFiat(
                 sats,
@@ -345,6 +345,46 @@ export const makeTxnAmountText = (
     }
 
     return `${sign}${formattedAmount}${includeCurrency ? ` ${currency}` : ''}`
+}
+
+const getTxnDisplayAmount = (txn: TransactionListEntry): MSats => {
+    if (txn.kind !== 'onchainWithdraw') return txn.amount
+
+    return (txn.amount + getTxnTotalFee(txn)) as MSats
+}
+
+const getTxnTotalFee = (txn: TransactionListEntry): MSats => {
+    let totalFee = 0
+
+    if (
+        txn.fediAppFeeStatus &&
+        (txn.fediAppFeeStatus.type === 'success' ||
+            txn.fediAppFeeStatus.type === 'pendingSend')
+    ) {
+        totalFee += txn.fediAppFeeStatus.fedi_fee ?? (0 as MSats)
+    }
+
+    if (
+        txn.fediGuardianFeeStatus &&
+        (txn.fediGuardianFeeStatus.type === 'success' ||
+            txn.fediGuardianFeeStatus.type === 'pendingSend')
+    ) {
+        totalFee += txn.fediGuardianFeeStatus.fedi_fee ?? (0 as MSats)
+    }
+
+    if (txn.kind === 'lnPay') {
+        totalFee += txn.lightning_fees ?? (0 as MSats)
+    }
+
+    if (txn.kind === 'onchainWithdraw') {
+        totalFee += txn.onchain_fees ?? (0 as MSats)
+    }
+
+    if (txn.kind === 'onchainDeposit') {
+        totalFee += txn.peg_in_fees ?? (0 as MSats)
+    }
+
+    return totalFee as MSats
 }
 
 export const makeTxnStatusText = (
@@ -698,7 +738,6 @@ export const makeTxnFeeDetails = (
     makeFormattedAmountsFromMSats: (amt: MSats) => FormattedAmounts,
 ): FeeItem[] => {
     const items: FeeItem[] = []
-    let totalFee = 0
     // Handle Fedi Fee
     if (
         txn.fediAppFeeStatus &&
@@ -714,7 +753,6 @@ export const makeTxnFeeDetails = (
             label: t('phrases.fedi-fee'),
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
-        totalFee += fediFee
     }
 
     // Guardian fees are displayed as part of the federation fee.
@@ -732,7 +770,6 @@ export const makeTxnFeeDetails = (
             label: t('phrases.federation-fee'),
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
-        totalFee += guardianFee
     }
 
     // Handle Lightning Fee
@@ -744,7 +781,6 @@ export const makeTxnFeeDetails = (
             label: t('phrases.lightning-network'),
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
-        totalFee += lnFee
     }
 
     // Handle Onchain Fee
@@ -756,7 +792,6 @@ export const makeTxnFeeDetails = (
             label: t('phrases.network-fee'),
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
-        totalFee += onchainFee
     }
     // TODO - Add non-guardian federation fees once RPC supports it.
 
@@ -768,11 +803,10 @@ export const makeTxnFeeDetails = (
             label: t('phrases.peg-in-fee'),
             formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
         })
-        totalFee += pegInFees
     }
 
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
-        makeFormattedAmountsFromMSats(totalFee as MSats)
+        makeFormattedAmountsFromMSats(getTxnTotalFee(txn))
     const fediFee = {
         label: t('phrases.total-fees'),
         formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
