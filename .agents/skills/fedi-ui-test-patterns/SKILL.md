@@ -52,13 +52,17 @@ When working on integration tests:
 
 ### E2E Tests (Appium) — `ui/native/tests/appium/`
 
-Write Appium tests when:
+Write e2e tests only when unit & integration tests cannot adequately exercise the flow, for example:
 
-- **Navigation flows** need verification (screen-to-screen transitions)
-- **User-facing flows** need full-stack validation (onboarding, joining federation, sending payment)
-- **Visual state** matters and you need to verify the complete UI renders correctly with real data
+- **Navigation flows** - verification of screen-to-screen transitions
+- **Fresh app state** - assertions can be built up from scratch on a fresh app installation (onboarding, wallet setup, sending payment, etc)
+- **Visual state** - device-specific UI state matters and you need to verify the complete UI renders correctly with real data
 
-Appium tests run against a built app on a simulator. They're the most expensive and slowest. They use a class-based pattern (`extends AppiumTestBase`), not Jest describe/it.
+When you've decided an e2e test is required, read `references/appium-writing.md`
+
+After you've written a test or if you need to make sure no existing tests break, read: `references/appium-running-local.md`
+
+If running an e2e test locally seems broken or you want an alternative way to validate before merging changes: read `references/appium-running-ci.md`
 
 ### When NOT to test
 
@@ -71,11 +75,12 @@ The Fedi team follows a **pragmatic** approach. Don't write tests for:
 
 ## Running Tests
 
-ALWAYS use the top-level bash scripts to run tests. Further details on how to use these scripts are in the respective `references/integration-patterns.md` and `references/unit-patterns.md` guides.
+ALWAYS use the top-level bash scripts to run tests. Further details are in the respective reference guides.
 
 ```bash
-./scripts/ui/run-unit-tests.sh
-./scripts/ui/run-integration-tests.sh
+./scripts/ui/run-unit-tests.sh         # see references/unit-patterns.md
+./scripts/ui/run-integration-tests.sh  # see references/integration-patterns.md
+./scripts/ui/run-e2e.sh                # see references/appium-running-local.md
 ```
 
 ## File Locations & Naming
@@ -138,4 +143,6 @@ Naming: `<subject>.test.ts` for logic, `<Subject>.test.tsx` for components/scree
 - `references/integration-native-patterns.md` — Native integration-test patterns for `ui/native/tests/integration/`
 - `references/integration-web-patterns.md` — Web integration-test patterns for `ui/web/tests/integration/`
 - `references/mock-builders.md` — Read when you need concrete mock factories (transactions, federation, matrix events, fedimint bridge) or helper utilities like translation/locale/storage mocks
-- `references/appium-patterns.md` — Read when adding or editing Appium E2E tests, registering tests in the Appium runner, or using class-based assertions (`throw new Error(...)`)
+- `references/appium-writing.md` — Read when writing or editing an Appium e2e test, including the test class shape, element interaction API, dynamic testID patterns, and registering a new test
+- `references/appium-running-local.md` — Read when running an e2e test on your local machine via `scripts/ui/run-e2e.sh` and friends
+- `references/appium-running-ci.md` — Read when dispatching an e2e test in CI (canonical pre-merge validation, or a fallback when local is wedged) and when reading failure artifacts
