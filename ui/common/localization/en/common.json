@@ -156,6 +156,7 @@
         "unknown": "Unknown",
         "unstable": "Unstable",
         "unsupported": "Unsupported",
+        "update": "Update",
         "upload": "Upload",
         "url": "url",
         "URL": "URL",
@@ -301,6 +302,7 @@
         "to-user": "To User",
         "transaction-id": "Transaction ID",
         "type-message": "Type message...",
+        "update-now": "Update now",
         "valid-until": "⏳ Valid until: {{date}}",
         "view-public-federations": "View public federations",
         "wallet-balance": "Wallet balance: {{balance}} sats",
@@ -1464,6 +1466,14 @@
             "support-ticket-number": "Your Support Ticket Number",
             "title": "Ask Fedi",
             "zendesk-initialization-failed": "We couldn't reach the support chat. Please check your internet connection and try again."
+        },
+        "updates": {
+            "new-app-version": "New App Version",
+            "new-release-available": "New Fedi App release is available!",
+            "new-release-description": "We've been working hard to deliver you the best experience. Update your app to enjoy new features.",
+            "version-available-update-now": "{{version}} is available - update now",
+            "version-is-available": "{{version}} is available",
+            "whats-new-in-version": "What's new in {{version}}"
         },
         "wallet": {
             "available-balance-amount": "Available balance: {{amount}}",
