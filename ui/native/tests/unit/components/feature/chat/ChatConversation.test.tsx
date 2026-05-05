@@ -135,6 +135,7 @@ jest.mock('react-native', () => {
                 keyExtractor,
                 ListEmptyComponent,
                 ListHeaderComponent,
+                ListFooterComponent,
             } = this.props
 
             return (
@@ -153,6 +154,7 @@ jest.mock('react-native', () => {
                                   </actual.View>
                               )
                           })}
+                    {renderListComponent(ListFooterComponent)}
                 </actual.View>
             )
         }
