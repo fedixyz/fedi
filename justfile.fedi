@@ -127,7 +127,8 @@ lint-ui:
 
 # run UI tests
 test-ui:
-  @./scripts/ui/run-ui-tests.sh
+  @./scripts/ui/run-unit-tests.sh
+  @./scripts/ui/run-integration-tests.sh
 
 # run UI code formatter to check for formatting errors
 check-ui-code:
