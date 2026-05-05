@@ -18,7 +18,7 @@ const JoinFederationHeader: React.FC = () => {
 
     const titleKey =
         code && detectInviteCodeType(code) === 'community'
-            ? 'phrases.join-community'
+            ? 'phrases.space-invitation'
             : 'phrases.wallet-service'
 
     return (
