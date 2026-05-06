@@ -941,6 +941,7 @@ export type RpcMethods = {
   matrixRoomJoin: [matrixRoomJoin, null];
   matrixRoomJoinPublic: [matrixRoomJoinPublic, null];
   matrixRoomLeave: [matrixRoomLeave, null];
+  matrixRoomKnock: [matrixRoomKnock, null];
   matrixRoomSubscribeInfo: [matrixRoomSubscribeInfo, null];
   matrixRoomInviteUserById: [matrixRoomInviteUserById, null];
   matrixRoomSetName: [matrixRoomSetName, null];
@@ -958,6 +959,7 @@ export type RpcMethods = {
     RpcRoomPowerLevelsEventContent,
   ];
   matrixRoomSetPowerLevels: [matrixRoomSetPowerLevels, null];
+  matrixRoomSetAllowKnocking: [matrixRoomSetAllowKnocking, null];
   matrixRoomSendReceipt: [matrixRoomSendReceipt, boolean];
   matrixRoomSetNotificationMode: [matrixRoomSetNotificationMode, null];
   matrixRoomGetNotificationMode: [
@@ -974,6 +976,7 @@ export type RpcMethods = {
   matrixListIgnoredUsers: [matrixListIgnoredUsers, Array<RpcUserId>];
   matrixRoomPreviewContent: [matrixRoomPreviewContent, Array<RpcTimelineItem>];
   matrixPublicRoomInfo: [matrixPublicRoomInfo, RpcPublicRoomInfo];
+  matrixGetRoomPreview: [matrixGetRoomPreview, RpcRoomPreview];
   matrixRoomMarkAsUnread: [matrixRoomMarkAsUnread, null];
   matrixEditMessage: [matrixEditMessage, null];
   matrixDeleteMessage: [matrixDeleteMessage, null];
@@ -1206,6 +1209,15 @@ export type RpcReusedEcashProofs = JSONObject;
 
 export type RpcRoomId = string;
 
+export type RpcRoomJoinRule =
+  | "public"
+  | "knock"
+  | "invite"
+  | "restricted"
+  | "knockRestricted"
+  | "private"
+  | "unknown";
+
 export type RpcRoomMember = {
   userId: RpcUserId;
   displayName: string | null;
@@ -1224,6 +1236,14 @@ export type RpcRoomNotificationMode =
   | "mute";
 
 export type RpcRoomPowerLevelsEventContent = JSONObject;
+
+export type RpcRoomPreview = {
+  id: string;
+  name: string | null;
+  avatarUrl: string | null;
+  joinedMemberCount: number;
+  joinRule: RpcRoomJoinRule;
+};
 
 export type RpcSPDepositState =
   | { type: "pendingDeposit" }
@@ -1310,6 +1330,7 @@ export type RpcSerializedRoomInfo = {
   joinedMemberCount: number;
   isPreview: boolean;
   isPublic: boolean | null;
+  allowKnocking: boolean;
   roomState: RpcMatrixRoomState;
   /**
    * Opaque timestamp for room sorting. Higher values = more recent activity.
@@ -2038,6 +2059,8 @@ export type matrixGetAccountSession = { cached: boolean };
 
 export type matrixGetMediaPreview = { url: string };
 
+export type matrixGetRoomPreview = { roomId: RpcRoomId };
+
 export type matrixIgnoreUser = { userId: RpcUserId };
 
 export type matrixInitializeStatus = {
@@ -2107,6 +2130,8 @@ export type matrixRoomKickUser = {
   reason: string | null;
 };
 
+export type matrixRoomKnock = { roomId: RpcRoomId; reason: string | null };
+
 export type matrixRoomLeave = { roomId: RpcRoomId };
 
 export type matrixRoomListSetVisibleRooms = { roomIds: Array<RpcRoomId> };
@@ -2118,6 +2143,8 @@ export type matrixRoomPinMessage = { roomId: RpcRoomId; eventId: RpcEventId };
 export type matrixRoomPreviewContent = { roomId: RpcRoomId };
 
 export type matrixRoomSendReceipt = { roomId: RpcRoomId; eventId: string };
+
+export type matrixRoomSetAllowKnocking = { roomId: RpcRoomId; allow: boolean };
 
 export type matrixRoomSetName = { roomId: RpcRoomId; name: string };
 

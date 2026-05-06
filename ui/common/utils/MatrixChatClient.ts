@@ -1185,6 +1185,7 @@ export class MatrixChatClient {
             ...room,
             name: room.name ?? '',
             isPublic: true,
+            allowKnocking: false,
             // Private rooms don't have previews so these are always true
             isPreview: true,
             inviteCode: encodeFediMatrixRoomUri(room.id),

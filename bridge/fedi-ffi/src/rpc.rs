@@ -48,8 +48,8 @@ use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedE
 use rpc_types::matrix::{
     RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession, RpcMatrixInitializeStatus,
     RpcMatrixUploadResult, RpcMatrixUserDirectorySearchResponse, RpcPublicRoomInfo, RpcRoomId,
-    RpcRoomMember, RpcRoomNotificationMode, RpcSerializedRoomInfo, RpcSyncIndicator,
-    RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
+    RpcRoomMember, RpcRoomNotificationMode, RpcRoomPreview, RpcSerializedRoomInfo,
+    RpcSyncIndicator, RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
 };
 use rpc_types::nostril::{RpcNostrPubkey, RpcNostrSecret};
 use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferState, SpMatrixTransferId};
@@ -1687,6 +1687,16 @@ async fn matrixRoomLeave(bg_matrix: &BgMatrix, room_id: RpcRoomId) -> anyhow::Re
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn matrixRoomKnock(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+    reason: Option<String>,
+) -> anyhow::Result<()> {
+    let matrix = bg_matrix.wait().await;
+    matrix.room_knock(&room_id.into_typed()?, reason).await
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn matrixRoomSubscribeInfo(
     bg_matrix: &BgMatrix,
     stream_id: RpcStreamId<RpcSerializedRoomInfo>,
@@ -1855,6 +1865,15 @@ async fn matrixPublicRoomInfo(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn matrixGetRoomPreview(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+) -> anyhow::Result<RpcRoomPreview> {
+    let matrix = bg_matrix.wait().await;
+    matrix.get_room_preview(&room_id.into_typed()?).await
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn matrixSetDisplayName(bg_matrix: &BgMatrix, display_name: String) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
     matrix.set_display_name(display_name).await
@@ -1899,6 +1918,18 @@ async fn matrixRoomSetPowerLevels(
     let matrix = bg_matrix.wait().await;
     matrix
         .room_change_power_levels(&room_id.into_typed()?, new.0)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixRoomSetAllowKnocking(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+    allow: bool,
+) -> anyhow::Result<()> {
+    let matrix = bg_matrix.wait().await;
+    matrix
+        .room_set_allow_knocking(&room_id.into_typed()?, allow)
         .await
 }
 
@@ -2679,6 +2710,7 @@ rpc_methods!(RpcMethods {
     matrixRoomJoin,
     matrixRoomJoinPublic,
     matrixRoomLeave,
+    matrixRoomKnock,
     matrixRoomSubscribeInfo,
     matrixRoomInviteUserById,
     matrixRoomSetName,
@@ -2690,6 +2722,7 @@ rpc_methods!(RpcMethods {
     matrixUploadMedia,
     matrixRoomGetPowerLevels,
     matrixRoomSetPowerLevels,
+    matrixRoomSetAllowKnocking,
     matrixRoomSendReceipt,
     matrixRoomSetNotificationMode,
     matrixRoomGetNotificationMode,
@@ -2703,6 +2736,7 @@ rpc_methods!(RpcMethods {
     matrixListIgnoredUsers,
     matrixRoomPreviewContent,
     matrixPublicRoomInfo,
+    matrixGetRoomPreview,
     matrixRoomMarkAsUnread,
     matrixEditMessage,
     matrixDeleteMessage,

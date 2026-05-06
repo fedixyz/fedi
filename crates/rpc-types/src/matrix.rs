@@ -11,6 +11,7 @@ use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::api::client::user_directory::search_users::v3 as search_user_directory;
 use matrix_sdk::ruma::events::poll::start::PollKind;
 use matrix_sdk::ruma::events::room::MediaSource;
+use matrix_sdk::ruma::events::room::join_rules::JoinRule;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk::ruma::events::room::power_levels::UserPowerLevel;
 use matrix_sdk::ruma::events::{AnyTimelineEvent, Mentions};
@@ -730,6 +731,7 @@ pub struct RpcSerializedRoomInfo {
     pub joined_member_count: u64,
     pub is_preview: bool,
     pub is_public: Option<bool>,
+    pub allow_knocking: bool,
     pub room_state: RpcMatrixRoomState,
     /// Opaque timestamp for room sorting. Higher values = more recent activity.
     #[ts(type = "number | null")]
@@ -768,6 +770,7 @@ impl RpcSerializedRoomInfo {
             joined_member_count: room_info.joined_members_count(),
             is_preview: false,
             is_public: Some(room.encryption_settings().is_none()),
+            allow_knocking: matches!(room.join_rule(), Some(JoinRule::Knock)),
             room_state: match room_info.state() {
                 RoomState::Joined => RpcMatrixRoomState::Joined,
                 RoomState::Left => RpcMatrixRoomState::Left,
@@ -789,6 +792,34 @@ pub struct RpcPublicRoomInfo {
     pub avatar_url: Option<String>,
     #[ts(type = "number")]
     pub joined_member_count: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcRoomPreview {
+    pub id: String,
+    pub name: Option<String>,
+    pub avatar_url: Option<String>,
+    #[ts(type = "number")]
+    pub joined_member_count: u64,
+    pub join_rule: RpcRoomJoinRule,
+}
+
+// Mirrors matrix_sdk::ruma::room::JoinRuleSummary, projected onto a flat
+// string enum so the JS side can render based on the room's openness without
+// reaching into the SDK's enum shape.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcRoomJoinRule {
+    Public,
+    Knock,
+    Invite,
+    Restricted,
+    KnockRestricted,
+    Private,
+    Unknown,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

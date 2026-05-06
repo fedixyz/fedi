@@ -42,6 +42,7 @@ const makeRoomInfo = (
     joinedMemberCount: 3,
     isPreview: false,
     isPublic: false,
+    allowKnocking: false,
     roomState: 'joined',
     recencyStamp: 123,
     ...overrides,
