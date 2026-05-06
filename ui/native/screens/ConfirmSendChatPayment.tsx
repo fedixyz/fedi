@@ -19,6 +19,7 @@ import {
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import ChatAvatar from '../components/feature/chat/ChatAvatar'
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import PaymentType from '../components/feature/send/PaymentType'
 import SendAmounts from '../components/feature/send/SendAmounts'
@@ -82,6 +83,7 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
 
     return (
         <SafeAreaContainer style={style.container} edges="notop">
+            <FederationWalletSelector fullWidth />
             <Column style={style.content} fullWidth align="center" grow>
                 <Column style={style.amountContainer} align="center" fullWidth>
                     <PaymentType type="ecash" />
@@ -121,15 +123,6 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
                             <Divider />
                         </>
                     )}
-                    <Row align="center" justify="between" style={style.item}>
-                        <Text caption bold>
-                            {t('words.federation')}
-                        </Text>
-                        <Text caption medium>
-                            {paymentFederation?.name}
-                        </Text>
-                    </Row>
-                    <Divider />
                     <Column style={style.itemGroup} gap="md">
                         <Row align="center" justify="between">
                             <Text caption>{t('words.amount')}</Text>
