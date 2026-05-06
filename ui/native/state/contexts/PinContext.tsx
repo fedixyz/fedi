@@ -4,7 +4,6 @@ import {
     useContext,
     useEffect,
     useMemo,
-    useRef,
     useState,
 } from 'react'
 import * as Keychain from 'react-native-keychain'
@@ -40,6 +39,16 @@ const PinContext = createContext<UsePinReturn>({ status: 'loading' })
 
 const service = 'pin' as const
 
+const digitsSchema = z.array(z.number().nonnegative().int().lte(9))
+
+const makePinCheck =
+    (password: string) =>
+    (digits: Array<number>): boolean => {
+        const validation = digitsSchema.safeParse(digits)
+        if (!validation.success) return false
+        return digits.join('') === password
+    }
+
 export function PinContextProvider({
     children,
 }: {
@@ -47,20 +56,35 @@ export function PinContextProvider({
 }) {
     const [hasSetPin, setHasSetPin] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
-    const checkRef = useRef<(digits: Array<number>) => boolean>(() => false)
+    // wrapped because useState treats a raw function as a lazy initializer
+    const [checkFn, setCheckFn] = useState<(digits: Array<number>) => boolean>(
+        () => () => false,
+    )
 
     const dispatch = useAppDispatch()
     const protectedFeatures = useAppSelector(selectProtectedFeatures)
 
+    const reloadPinCheck = useCallback(async () => {
+        const pin = await Keychain.getGenericPassword({ service })
+
+        if (!pin) {
+            setCheckFn(() => () => false)
+            setHasSetPin(false)
+            setIsLoading(false)
+            return
+        }
+
+        setCheckFn(() => makePinCheck(pin.password))
+        setHasSetPin(true)
+        setIsLoading(false)
+    }, [])
+
     const set = useCallback(async (digits: Array<number>) => {
-        const parsedDigits = z
-            .array(z.number().nonnegative().int().lte(9))
-            .parse(digits)
+        const password = digitsSchema.parse(digits).join('')
 
-        await Keychain.setGenericPassword(service, parsedDigits.join(''), {
-            service,
-        })
+        await Keychain.setGenericPassword(service, password, { service })
 
+        setCheckFn(() => makePinCheck(password))
         setHasSetPin(true)
     }, [])
 
@@ -79,43 +103,21 @@ export function PinContextProvider({
             )
         }
 
-        setHasSetPin(false)
-    }, [dispatch, protectedFeatures])
+        await reloadPinCheck()
+    }, [dispatch, protectedFeatures, reloadPinCheck])
 
     useEffect(() => {
-        const loadPinCheck = async () => {
-            const pin = await Keychain.getGenericPassword({ service })
-
-            if (!pin) {
-                setIsLoading(false)
-                return
-            }
-
-            checkRef.current = (digits: Array<number>) => {
-                const digitsValidation = z
-                    .array(z.number().nonnegative().int().lte(9))
-                    .safeParse(digits)
-
-                if (!digitsValidation.success) return false
-
-                return digits.join('') === pin.password
-            }
-
-            setHasSetPin(true)
-            setIsLoading(false)
-        }
-
-        loadPinCheck()
-    }, [])
+        reloadPinCheck()
+    }, [reloadPinCheck])
 
     const value: UsePinReturn = useMemo(
         () =>
             isLoading
                 ? { status: 'loading' }
                 : hasSetPin
-                  ? { status: 'set', check: checkRef.current, set, unset }
+                  ? { status: 'set', check: checkFn, set, unset }
                   : { status: 'unset', set },
-        [isLoading, hasSetPin, checkRef, set, unset],
+        [isLoading, hasSetPin, checkFn, set, unset],
     )
 
     return <PinContext.Provider value={value}>{children}</PinContext.Provider>
