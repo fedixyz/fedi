@@ -19,10 +19,12 @@ export const ChatImageEvent: React.FC<Props> = ({ event }) => {
     const widthRef = useRef<HTMLDivElement>(null)
     const { error, src } = useLoadMedia(event)
     const { id, content } = event
+    const originalWidth = content.info?.width ?? 0
+    const originalHeight = content.info?.height ?? 0
     const { width, height } = useScaledDimensions({
         id,
-        originalWidth: content.info?.width ?? 0,
-        originalHeight: content.info?.height ?? 0,
+        originalWidth,
+        originalHeight,
         containerRef: widthRef,
     })
     const [showMediaPreview, setShowMediaPreview] = useState(false)
@@ -62,8 +64,8 @@ export const ChatImageEvent: React.FC<Props> = ({ event }) => {
                     <PreviewImg
                         src={src}
                         alt="preview-image"
-                        width={width}
-                        height={height}
+                        width={originalWidth || width}
+                        height={originalHeight || height}
                     />
                 )}
             </ChatMediaPreview>
@@ -92,7 +94,27 @@ const Img = styled(Image, {
 
 const PreviewImg = styled(Image, {
     height: 'auto',
-    width: '100%',
+    maxHeight: 'calc(100vh - 96px)',
+    maxWidth: 'calc(100vw - 32px)',
+    objectFit: 'contain',
+    width: 'auto',
+
+    '@sm': {
+        height: 'calc(100vh - 96px)',
+        maxWidth: '100vw',
+        width: '100vw',
+    },
+
+    '@supports (height: 100dvh)': {
+        maxHeight: 'calc(100dvh - 96px)',
+        maxWidth: 'calc(100dvw - 32px)',
+
+        '@sm': {
+            height: 'calc(100dvh - 96px)',
+            maxWidth: '100dvw',
+            width: '100dvw',
+        },
+    },
 })
 
 const Error = styled('div', {

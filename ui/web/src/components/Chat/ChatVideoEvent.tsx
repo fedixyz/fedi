@@ -19,10 +19,12 @@ export const ChatVideoEvent: React.FC<Props> = ({ event }) => {
     const videoRef = useRef<HTMLVideoElement>(null)
     const { error, src } = useLoadMedia(event)
     const { id, content } = event
+    const originalWidth = content.info?.width ?? 0
+    const originalHeight = content.info?.height ?? 0
     const { width, height } = useScaledDimensions({
         id,
-        originalWidth: content.info?.width ?? 0,
-        originalHeight: content.info?.height ?? 0,
+        originalWidth,
+        originalHeight,
         containerRef: widthRef,
     })
 
@@ -82,6 +84,8 @@ export const ChatVideoEvent: React.FC<Props> = ({ event }) => {
                         autoPlay
                         playsInline
                         aria-label="preview-video"
+                        width={originalWidth || width}
+                        height={originalHeight || height}
                     />
                 )}
             </ChatMediaPreview>
@@ -112,22 +116,46 @@ const Video = styled('video', {
 const VideoOverlayWrapper = styled('div', {
     background: 'rgba(0, 0, 0, 0.6)',
     borderRadius: '50%',
+    display: 'grid',
+    height: 48,
     left: '50%',
-    padding: 10,
+    placeItems: 'center',
     position: 'absolute',
     top: '50%',
     transform: 'translate(-50%, -50%)',
+    width: 48,
 })
 
 const PlayButtonIcon = styled(Icon, {
     color: theme.colors.white,
     height: 24,
+    transform: 'translateX(1px)',
     width: 24,
 })
 
 const PreviewVideo = styled('video', {
     height: 'auto',
-    width: '100%',
+    maxHeight: 'calc(100vh - 96px)',
+    maxWidth: 'calc(100vw - 32px)',
+    objectFit: 'contain',
+    width: 'auto',
+
+    '@sm': {
+        height: 'calc(100vh - 96px)',
+        maxWidth: '100vw',
+        width: '100vw',
+    },
+
+    '@supports (height: 100dvh)': {
+        maxHeight: 'calc(100dvh - 96px)',
+        maxWidth: 'calc(100dvw - 32px)',
+
+        '@sm': {
+            height: 'calc(100dvh - 96px)',
+            maxWidth: '100dvw',
+            width: '100dvw',
+        },
+    },
 })
 
 const Error = styled('div', {

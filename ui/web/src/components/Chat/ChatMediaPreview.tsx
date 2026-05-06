@@ -71,15 +71,30 @@ const Overlay = styled(Dialog.Overlay, {
 })
 
 const Content = styled(Dialog.Content, {
+    alignItems: 'center',
     display: 'flex',
     flexDirection: 'column',
     height: 'auto',
-    maxHeight: '80%',
-    maxWidth: 600,
+    justifyContent: 'center',
+    maxHeight: 'calc(100vh - 96px)',
+    maxWidth: 'calc(100vw - 32px)',
     position: 'relative',
     outline: 'none',
-    overflow: 'hidden',
+    overflow: 'visible',
     width: 'auto',
+
+    '@sm': {
+        maxWidth: '100vw',
+    },
+
+    '@supports (height: 100dvh)': {
+        maxHeight: 'calc(100dvh - 96px)',
+        maxWidth: 'calc(100dvw - 32px)',
+
+        '@sm': {
+            maxWidth: '100dvw',
+        },
+    },
 })
 
 const CloseIcon = styled(Icon, {
@@ -88,6 +103,7 @@ const CloseIcon = styled(Icon, {
     position: 'absolute',
     top: 12,
     left: 12,
+    zIndex: 1,
 })
 
 const DownloadIcon = styled(Icon, {
@@ -96,4 +112,5 @@ const DownloadIcon = styled(Icon, {
     position: 'absolute',
     right: 12,
     top: 12,
+    zIndex: 1,
 })
