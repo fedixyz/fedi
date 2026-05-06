@@ -1,4 +1,10 @@
-import { shouldHideNavigation } from '../../../src/utils/nav'
+import { HomeNavigationTab } from '@fedi/common/types/linking'
+import {
+    getRecoveryRedirectPath,
+    getRedirectPath,
+    getUnauthenticatedRedirectPath,
+    shouldHideNavigation,
+} from '@fedi/web/src/utils/nav'
 
 describe('utils/nav', () => {
     describe('shouldHideNavigation', () => {
@@ -65,6 +71,106 @@ describe('utils/nav', () => {
                 const result = shouldHideNavigation('/transactions')
                 expect(result).toBe(true)
             })
+        })
+    })
+
+    describe('getRecoveryRedirectPath', () => {
+        it('should force device index selection when required', () => {
+            const result = getRecoveryRedirectPath({
+                asPath: '/chat',
+                pathname: '/chat',
+                deviceIndexRequired: true,
+                socialRecoveryId: null,
+            })
+
+            expect(result).toBe('/onboarding/recover/wallet-transfer')
+        })
+
+        it('should force social recovery when in progress', () => {
+            const result = getRecoveryRedirectPath({
+                asPath: '/chat',
+                pathname: '/chat',
+                deviceIndexRequired: false,
+                socialRecoveryId: 'recovery-id',
+            })
+
+            expect(result).toBe('/onboarding/recover/social')
+        })
+
+        it('should not redirect when no recovery flow is active', () => {
+            const result = getRecoveryRedirectPath({
+                asPath: '/chat',
+                pathname: '/chat',
+                deviceIndexRequired: false,
+                socialRecoveryId: null,
+            })
+
+            expect(result).toBeUndefined()
+        })
+    })
+
+    describe('getRedirectPath', () => {
+        const defaultParams = {
+            asPath: '/',
+            pathname: '/',
+            hasLoadedStorage: true,
+            lastUsedTab: HomeNavigationTab.Wallet,
+        }
+
+        it('should redirect onboarded users from root to their last used tab', () => {
+            const result = getRedirectPath(defaultParams)
+
+            expect(result).toBe('/wallet')
+        })
+
+        it('should redirect onboarded users from a deferred chat screen hash', () => {
+            const result = getRedirectPath({
+                ...defaultParams,
+                asPath: '/#screen=chat',
+            })
+
+            expect(result).toBe('/chat')
+        })
+
+        it('should keep ecash ids in the hash when replaying a deferred ecash screen', () => {
+            const result = getRedirectPath({
+                ...defaultParams,
+                asPath: '/#screen=ecash&id=test-token',
+            })
+
+            expect(result).toBe('/ecash#id=test-token')
+        })
+
+        it('should not redirect away from non-root pages', () => {
+            const result = getRedirectPath({
+                ...defaultParams,
+                asPath: '/chat',
+                pathname: '/chat',
+            })
+
+            expect(result).toBeUndefined()
+        })
+    })
+
+    describe('getUnauthenticatedRedirectPath', () => {
+        it('should preserve target screens when users have not onboarded yet', () => {
+            const result = getUnauthenticatedRedirectPath({
+                asPath: '/chat',
+                pathname: '/chat',
+                href: 'https://app.fedi.xyz/chat',
+            })
+
+            expect(result).toBe('/#screen=chat')
+        })
+
+        it('should not redirect root routes', () => {
+            const result = getUnauthenticatedRedirectPath({
+                asPath: '/',
+                pathname: '/',
+                href: 'https://app.fedi.xyz/',
+            })
+
+            expect(result).toBeUndefined()
         })
     })
 })

@@ -19,18 +19,16 @@ import { selectStorageIsReady } from '@fedi/common/redux/storage'
 import { DeviceRegistrationEvent } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
-import {
-    onboardingRecoverRoute,
-    onboardingRecoverSocialRoute,
-    onboardingRecoverWalletTransferRoute,
-} from '../constants/routes'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint, initializeBridge } from '../lib/bridge'
 import { getAppFlavor } from '../lib/bridge/worker'
 import { keyframes, styled } from '../styles'
 import { generateDeviceId } from '../utils/browserInfo'
-import { getHashParams } from '../utils/linking'
-import { tabRedirectPath } from '../utils/nav'
+import {
+    getRecoveryRedirectPath,
+    getRedirectPath,
+    getUnauthenticatedRedirectPath,
+} from '../utils/nav'
 import { Icon } from './Icon'
 import { Redirect } from './Redirect'
 import { Text } from './Text'
@@ -162,46 +160,38 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         )
     }
 
-    // Navigates to personal recovery flow here because the user entered
-    // seed words but quit the app before completing device index selection
-    if (
-        deviceIndexRequired &&
-        asPath !== onboardingRecoverWalletTransferRoute &&
-        !asPath.includes('recover')
-    ) {
-        return <Redirect path={onboardingRecoverWalletTransferRoute} />
+    const recoveryRedirectPath = getRecoveryRedirectPath({
+        asPath,
+        pathname,
+        deviceIndexRequired,
+        socialRecoveryId,
+    })
+
+    if (recoveryRedirectPath) {
+        return <Redirect path={recoveryRedirectPath} />
     }
 
-    // If mid social recovery, force them to stay on the page
-    if (
-        socialRecoveryId &&
-        pathname !== '/' &&
-        !asPath.includes(onboardingRecoverRoute)
-    ) {
-        return <Redirect path={onboardingRecoverSocialRoute} />
-    }
+    if (onboardingCompleted) {
+        const redirectPath = getRedirectPath({
+            asPath,
+            pathname,
+            hasLoadedStorage,
+            lastUsedTab,
+        })
 
-    if (onboardingCompleted && asPath === '/' && hasLoadedStorage) {
-        return <Redirect path={tabRedirectPath(lastUsedTab)} />
-    }
-
-    if (
-        !onboardingCompleted &&
-        pathname !== '/' &&
-        !asPath.includes('recover')
-    ) {
-        // Preserve any query string or hash params when redirecting to Welcome/Splash page
-        const url = new URL(window.location.href)
-        const screen = url.pathname.replace(/^\/+/, '')
-        const id = url.searchParams.get('id') ?? getHashParams(url.hash).id
-
-        const params = new URLSearchParams({ screen })
-
-        if (id) {
-            params.set('id', id)
+        if (redirectPath) {
+            return <Redirect path={redirectPath} />
         }
+    } else {
+        const redirectPath = getUnauthenticatedRedirectPath({
+            asPath,
+            pathname,
+            href: window.location.href,
+        })
 
-        return <Redirect path={`/#${params.toString()}`} />
+        if (redirectPath) {
+            return <Redirect path={redirectPath} />
+        }
     }
 
     return <FedimintProvider fedimint={fedimint}>{children}</FedimintProvider>
