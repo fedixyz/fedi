@@ -17,6 +17,7 @@ on:
                 options:
                     - all
                     - onboarding
+                    - settings
                     - joinLeaveFederations
                 default: all
             skip_bridge_build:
