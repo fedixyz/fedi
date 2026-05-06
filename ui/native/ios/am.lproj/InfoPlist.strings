@@ -5,8 +5,8 @@
   Created by Someone on 01/01/2025.
 
 */
-"NSCameraUsageDescription" = "Fedi needs access to the camera to scan QR codes";
-"NSLocationWhenInUseUsageDescription" = "Fedi does not use your location";
-"NSMicrophoneUsageDescription" = "Fedi needs access to your microphone to record a social backup video";
-"NSPhotoLibraryAddUsageDescription" = "Fedi needs access to save photos to your photo library";
-"NSPhotoLibraryUsageDescription" = "Fedi needs access to your photo library to select media for your avatar and chat attachments";
+"NSCameraUsageDescription" = "Fedi የQR ኮዶችን ለመቃኘት የካሜራ ፍቃድ ያስፈልገዋል";
+"NSLocationWhenInUseUsageDescription" = "Fedi የእርስዎን አካባቢ አይጠቀምም";
+"NSMicrophoneUsageDescription" = "Fedi ማህበራዊ መጠባበቂያ ቪዲዮ ለመቅረጽ የማይክሮፎን ፍቃድ ያስፈልገዋል";
+"NSPhotoLibraryAddUsageDescription" = "Fedi ምስሎችን ወደ የፎቶ ቤተ-መጻሕፍትዎ ለማስቀመጥ ፍቃድ ያስፈልገዋል";
+"NSPhotoLibraryUsageDescription" = "Fedi ለመገለጫ ምስልዎ እና ለቻት አባሪዎች ሚዲያ ለመምረጥ የፎቶ ቤተ-መጻሕፍትዎን ይፈልጋል";
