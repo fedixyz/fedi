@@ -29,6 +29,12 @@ const debugLog = (...args: unknown[]) => {
 }
 
 export abstract class AppiumTestBase {
+    /** States required before execute(); default [] = fresh install. */
+    static prerequisites: readonly string[] = []
+
+    /** States the device satisfies after a successful execute(). */
+    static produces: readonly string[] = []
+
     protected driver: WebdriverIO.Browser
 
     /*constructor() {
@@ -912,6 +918,48 @@ export abstract class AppiumTestBase {
             default:
                 console.log(`TODO: Implement clipboard functions for PWA`)
         }
+    }
+
+    async resetAppToFresh(): Promise<void> {
+        console.log('Resetting app to fresh-install state...')
+        switch (currentPlatform) {
+            case Platform.IOS: {
+                const bundleId = process.env.BUNDLE_ID || 'org.fedi.alpha'
+                const appPath = process.env.BUNDLE_PATH
+                if (!appPath) {
+                    throw new Error(
+                        'resetAppToFresh requires BUNDLE_PATH to point at the cached .app',
+                    )
+                }
+                await this.driver.executeScript('mobile: terminateApp', [
+                    { bundleId },
+                ])
+                await this.driver.executeScript('mobile: removeApp', [
+                    { bundleId },
+                ])
+                await this.driver.executeScript('mobile: installApp', [
+                    { app: appPath },
+                ])
+                await this.driver.executeScript('mobile: launchApp', [
+                    { bundleId },
+                ])
+                break
+            }
+            case Platform.ANDROID: {
+                const appId = process.env.APP_PACKAGE || 'com.fedi'
+                await this.driver.executeScript('mobile: terminateApp', [
+                    { appId },
+                ])
+                await this.driver.executeScript('mobile: clearApp', [{ appId }])
+                await this.driver.executeScript('mobile: activateApp', [
+                    { appId },
+                ])
+                break
+            }
+            case Platform.PWA:
+                throw new Error('resetAppToFresh is not implemented for PWA')
+        }
+        console.log('App reset complete')
     }
 
     // Method to be implemented by each test class

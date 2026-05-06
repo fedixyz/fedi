@@ -2,6 +2,9 @@
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 
 export class JoinLeaveFederation extends AppiumTestBase {
+    static prerequisites = ['onboarded'] as const
+    static produces = ['onboarded', 'extraFederationsJoined'] as const
+
     async execute(): Promise<void> {
         console.log('Starting Joining Public Federation Test')
         await this.clickElementByKey('WalletTabButton')

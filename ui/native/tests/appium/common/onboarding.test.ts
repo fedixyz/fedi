@@ -1,17 +1,14 @@
 /* eslint-disable no-console */
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
+import { setupOnboarded } from '../fixtures/setupOnboarded'
 
 export class OnboardingTest extends AppiumTestBase {
+    static produces = ['onboarded'] as const
+
     async execute(): Promise<void> {
         console.log('Starting Onboarding Test')
-        await new Promise(resolve => setTimeout(resolve, 10000)) // waiting for 10 seconds for the username to generate
-        await this.clickElementByKey('Get started')
-        await this.clickElementByKey('ManualSetupButton')
-        await this.scrollToElement('FediTestnetJoinButton')
-        await this.clickElementByKey('FediTestnetJoinButton')
-        await this.clickElementByKey('JoinFederationButton')
+        await setupOnboarded.run(this)
         //TODO: validate the seed here
-        await this.clickElementByKey('HomeTabButton')
         await this.clickElementByKey('ChatTabButton')
         await this.clickElementByKey('ModsTabButton')
         await this.clickElementByKey('WalletTabButton')

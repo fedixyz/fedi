@@ -90,6 +90,12 @@ run_command="arch -arm64 npx react-native run-ios $run_options"
 $run_command
 popd
 
+APP_PATH="$REPO_ROOT/ui/native/ios/build/Build/Products/Debug-iphonesimulator/FediReactNative.app"
+if [[ ! -d "$APP_PATH" ]]; then
+  echo ".app not found at $APP_PATH after build."
+  exit 1
+fi
+
 echo "Running tests: $TESTS_TO_RUN"
-PLATFORM=ios DEVICE_ID="$DEVICE_ID" ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $TESTS_TO_RUN
+PLATFORM=ios DEVICE_ID="$DEVICE_ID" BUNDLE_PATH="$APP_PATH" ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $TESTS_TO_RUN
 

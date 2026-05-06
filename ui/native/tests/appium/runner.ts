@@ -6,14 +6,78 @@ import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { OnboardingTest } from './common/onboarding.test'
+import { setupOnboarded } from './fixtures/setupOnboarded'
+import { Fixture } from './fixtures/types'
 
-type TestConstructor = new () => AppiumTestBase
+type TestClass = (new () => AppiumTestBase) & {
+    prerequisites: readonly string[]
+    produces: readonly string[]
+}
 
-const availableTests: Record<string, TestConstructor> = {
+const availableTests: Record<string, TestClass> = {
     onboarding: OnboardingTest,
     joinLeaveFederations: JoinLeaveFederation,
 }
 type TestName = keyof typeof availableTests
+
+const fixtures: Record<string, Fixture> = {
+    [setupOnboarded.produces]: setupOnboarded,
+}
+
+// Mutated by ensureState as fixtures run; cleared on test failure (state untrusted).
+const currentState = new Set<string>()
+
+function resolvePlan(
+    needed: readonly string[],
+    have: ReadonlySet<string>,
+): Fixture[] {
+    const plan: Fixture[] = []
+    const visiting = new Set<string>()
+    const planned = new Set<string>()
+
+    function visit(state: string): void {
+        if (have.has(state) || planned.has(state)) return
+        if (visiting.has(state)) {
+            throw new Error(`Cyclic fixture dependency at "${state}"`)
+        }
+        const fixture = fixtures[state]
+        if (!fixture) {
+            throw new Error(
+                `No fixture produces state "${state}" — add one to fixtures or remove the prerequisite`,
+            )
+        }
+        visiting.add(state)
+        for (const req of fixture.requires) visit(req)
+        visiting.delete(state)
+        planned.add(state)
+        plan.push(fixture)
+    }
+
+    for (const state of needed) visit(state)
+    return plan
+}
+
+async function ensureState(
+    test: AppiumTestBase,
+    needed: readonly string[],
+): Promise<void> {
+    const neededSet = new Set(needed)
+    const extra = [...currentState].filter(t => !neededSet.has(t))
+
+    if (extra.length > 0) {
+        console.log(
+            `State has [${extra.join(', ')}] beyond what test requires — resetting`,
+        )
+        await test.resetAppToFresh()
+        currentState.clear()
+    }
+
+    const plan = resolvePlan(needed, currentState)
+    for (const fixture of plan) {
+        await fixture.run(test)
+        currentState.add(fixture.produces)
+    }
+}
 
 // Add flag to track if any test failed
 let anyTestFailed = false
@@ -103,13 +167,17 @@ async function runTests(testNames: string[]): Promise<void> {
         for (const testName of validTestNames) {
             console.log(`\n=== Starting test: ${testName} ===`)
 
+            const TestClass = availableTests[testName]
+            const test = new TestClass()
+
             try {
-                const TestClass = availableTests[testName]
-                const test = new TestClass()
-
                 await test.initialize()
-
+                await ensureState(test, TestClass.prerequisites)
                 await test.execute()
+
+                for (const state of TestClass.produces) {
+                    currentState.add(state)
+                }
 
                 results[testName] = { success: true }
                 console.log(`=== Test ${testName} completed successfully ===\n`)
@@ -148,7 +216,17 @@ async function runTests(testNames: string[]): Promise<void> {
                         screenshotError,
                     )
                 }
-                break
+
+                // Device state untrusted after failure — reset so ensureState rebuilds cleanly.
+                try {
+                    await test.resetAppToFresh()
+                } catch (resetError) {
+                    console.error(
+                        'Reset after failure failed — subsequent tests may not run cleanly:',
+                        resetError,
+                    )
+                }
+                currentState.clear()
             }
         }
 

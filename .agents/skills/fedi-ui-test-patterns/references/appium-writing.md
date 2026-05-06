@@ -9,6 +9,7 @@ For running tests locally, see `references/appium-running-local.md`. For dispatc
 ## Environment Summary
 
 - **Tests**: `ui/native/tests/appium/common/<Name>.test.ts`
+- **Fixtures**: `ui/native/tests/appium/fixtures/<setup>.ts`
 - **Runner**: `ui/native/tests/appium/runner.ts`
 - **Base class**: `ui/native/tests/configs/appium/AppiumTestBase.ts`
 - **Driver setup**: `ui/native/tests/configs/appium/AppiumManager.ts`
@@ -25,6 +26,8 @@ Read the existing tests in `ui/native/tests/appium/common/` before writing or ed
 Default shape:
 
 - named export of a class extending `AppiumTestBase`
+- optional `static prerequisites` declaring required states (default `[]` = fresh install)
+- optional `static produces` declaring the states the device satisfies after a successful run (default `[]`). Required if the test leaves the device in a state a subsequent test could rely on, otherwise the ledger lies and the next test re-runs setup against a non-fresh app
 - single `execute()` method containing the full flow
 - assertions are `throw new Error(...)` — never Jest matchers
 - a `catch` method at the end for error logging (convention)
@@ -37,6 +40,9 @@ Real example: `ui/native/tests/appium/common/onboarding.test.ts`
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 
 export class MyFeatureTest extends AppiumTestBase {
+    static prerequisites = ['onboarded'] as const
+    static produces = ['onboarded'] as const
+
     async execute(): Promise<void> {
         await this.clickElementByKey('HomeTabButton')
         await this.waitForElementDisplayed('SomeElement')
@@ -52,13 +58,62 @@ export class MyFeatureTest extends AppiumTestBase {
 
 ---
 
-## App State Across Tests
+## State, Prerequisites, And Fixtures
 
-There is no per-test fixture. Tests run sequentially in one Appium session, so app state carries between them.
+Each test gets a fresh app install by default. If a test needs a non-fresh starting state (onboarded user, joined federation, populated chat room), it declares the required states via `static prerequisites` and the runner gets the device there before `execute()` runs.
 
-- The `onboarding` test IS the onboarding flow. If it runs first, later tests start on the Home tab with Fedi Testnet joined.
-- If a test fails, subsequent tests are skipped — the run stops.
-- Plan ordering through the `availableTests` map in `runner.ts` and the CLI args.
+### How the runner satisfies prerequisites
+
+The runner keeps a `currentState` ledger of which states the device currently satisfies. Before each test:
+
+1. If the ledger has states **beyond** what the test needs, the runner calls `resetAppToFresh()` and clears the ledger.
+2. The runner then runs only the fixtures whose `produces` state is in `prerequisites` but not in the ledger, in topo-sorted order so transitive `requires` are satisfied first.
+3. Each fixture, on success, adds its `produces` state to the ledger.
+
+This means **adjacent tests with the same prerequisites pay the fixture cost once**, not once per test. It also means **test order is a performance hint, not a correctness contract** — the runner is correct in any order.
+
+### What happens on failure
+
+A failing test no longer stops the run. The runner captures a screenshot, calls `resetAppToFresh()`, clears the ledger, and continues with the next test. The run still exits non-zero if any test failed, but every test gets a chance to run.
+
+### Writing a fixture
+
+Fixtures live in `ui/native/tests/appium/fixtures/`. A fixture is an object with `produces` (the state it generates), `requires` (other states that must already hold), and an async `run` that drives the UI:
+
+```typescript
+// ui/native/tests/appium/fixtures/setupOnboarded.ts
+import { Fixture } from './types'
+
+export const setupOnboarded: Fixture = {
+    produces: 'onboarded',
+    requires: [],
+    async run(t) {
+        await new Promise(r => setTimeout(r, 10000))
+        await t.clickElementByKey('Get started')
+        await t.clickElementByKey('ManualSetupButton')
+        await t.scrollToElement('FediTestnetJoinButton')
+        await t.clickElementByKey('FediTestnetJoinButton')
+        await t.clickElementByKey('JoinFederationButton')
+        await t.clickElementByKey('HomeTabButton')
+    },
+}
+```
+
+Then register it in `runner.ts`'s `fixtures` map. The runner picks it up automatically — no other plumbing needed.
+
+A fixture should be **idempotent in its post-condition, not its execution**: it always runs from a fresh app and always leaves the device in the same observable state. Don't try to detect "already onboarded and short-circuit" — the runner guarantees the app is fresh when `run` is called.
+
+### Mid-test reset
+
+`this.resetAppToFresh()` is also available inside `execute()` for tests that need to wipe state mid-flow (e.g. onboard, capture seed, reset, recover with the captured seed). The Appium session survives — `this.driver` keeps working, JS variables in scope keep their values.
+
+### Adding a new prerequisite state
+
+To create a new state (e.g. `'joinedTestnet'`):
+
+1. Add `ui/native/tests/appium/fixtures/setupJoinedTestnet.ts` with `produces: 'joinedTestnet'` and `requires: ['onboarded']`.
+2. Register it in `fixtures` in `runner.ts`.
+3. Tests that need it declare `static prerequisites = ['joinedTestnet']`. The resolver chains `setupOnboarded` → `setupJoinedTestnet` automatically.
 
 ---
 
@@ -161,8 +216,9 @@ Three places must be updated together. Forgetting any one silently drops the tes
 ## Conventions And Gotchas
 
 - **No Jest** — class with `execute()`, throw on failure. Don't import Jest matchers.
-- **Tests share state** — a failing test stops the run. Order in the `availableTests` map matters.
+- **Default to fresh install** — a test that doesn't declare `static prerequisites` runs against a freshly reset app. Don't write tests that quietly assume what a prior test left behind; declare the prerequisite or do the setup yourself.
+- **Fixtures don't short-circuit** — when the runner calls a fixture's `run`, the app is always fresh. Don't add "already in state X" detection logic to fixtures.
 - **Some bottom-tab buttons trigger overlays, not navigation** — tapping `WalletTabButton` while already on the wallet tab opens the wallet switcher. Check `TabsNavigator.tsx` for `tabPress` listeners before assuming a tab tap is idempotent.
 - **Screenshots are failure-only** — captured by the runner only on test failure. A passing run's artifact bundle contains no screenshots.
-- **Locale leaks across sequential tests** — `clickOnText('Edit profile')` will break if a prior test left the app in Spanish. The onboarding test resets to `en` before finishing; new tests should preserve that or reset themselves.
+- **Locale changes need to be reverted within the test** — if a test changes language to Spanish, switch back to `en` before finishing. The runner's reset handles this between tests, but a test that assumes English mid-flow will break itself if it doesn't reset.
 - **Translated text is locale-dependent** — prefer `testID`s over `clickOnText` for English-only assertions.
