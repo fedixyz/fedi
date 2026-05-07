@@ -2,6 +2,9 @@
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 
 export class Settings extends AppiumTestBase {
+    static prerequisites = ['onboarded'] as const
+    static produces = ['onboarded'] as const
+
     async execute(): Promise<void> {
         console.log('Starting Settings Test')
 
