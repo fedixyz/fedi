@@ -227,9 +227,10 @@ const Content = styled('div', {
 })
 
 const Loader = styled('div', {
-    left: '50%',
-    top: '50%',
-    transform: 'translate(-50%, -50%)',
+    display: 'inline-flex',
+    height: 50,
+    lineHeight: 0,
     transformOrigin: 'center center',
+    width: 50,
     animation: `${rotate} 1.5s linear infinite, ${loaderFadeIn} 1s ease`,
 })

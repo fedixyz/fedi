@@ -3,8 +3,6 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AlertIcon from '@fedi/common/assets/svgs/alert-warning-triangle.svg'
-import RightArrowIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
 import {
     ANDROID_PLAY_STORE_URL,
@@ -145,11 +143,7 @@ const LinkingPage: NextPage = () => {
                                     )}
                                 </Text>
                             </Column>
-                            <Icon
-                                icon={RightArrowIcon}
-                                size="sm"
-                                color="white"
-                            />
+                            <Icon icon="ArrowRight" size="sm" color="white" />
                         </Step>
                         <Step step="two" onClick={handleOpenInFedi}>
                             <StepNo invert>
@@ -173,11 +167,7 @@ const LinkingPage: NextPage = () => {
                                     )}
                                 </Text>
                             </Column>
-                            <Icon
-                                icon={RightArrowIcon}
-                                size="sm"
-                                color="black"
-                            />
+                            <Icon icon="ArrowRight" size="sm" color="black" />
                         </Step>
                     </Column>
                 </Container>
@@ -189,7 +179,7 @@ const LinkingPage: NextPage = () => {
                 buttonText={t('phrases.i-understand')}
                 onClick={handleDownloadApp}>
                 <Column center css={{ padding: `0 ${theme.spacing.xl}` }}>
-                    <Icon icon={AlertIcon} size="md" />
+                    <Icon icon="AlertWarningTriangle" size="md" />
                     <Text variant="h2" weight="medium">
                         {t('feature.onboarding.landing-page-modal-title')}
                     </Text>
