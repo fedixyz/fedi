@@ -3,7 +3,13 @@ module.exports = {
     extends: ['plugin:react-hooks/recommended', '../.eslintrc.js'],
     parser: '@typescript-eslint/parser',
     plugins: ['@typescript-eslint'],
-    ignorePatterns: ['dist', 'wasm/*.js', 'types/bindings.ts'],
+    ignorePatterns: [
+        'dist',
+        'wasm/*.js',
+        'types/bindings.ts',
+        '**/*.d.ts',
+        '!**/typings/**/*.d.ts',
+    ],
     overrides: [
         {
             files: ['**/*.test.ts', '**/*.test.tsx', '**/tests/**/*'],
