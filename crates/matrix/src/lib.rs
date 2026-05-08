@@ -42,15 +42,12 @@ use matrix_sdk::ruma::events::room::encryption::RoomEncryptionEventContent;
 use matrix_sdk::ruma::events::room::history_visibility::{
     HistoryVisibility, RoomHistoryVisibilityEventContent,
 };
-use matrix_sdk::ruma::events::room::join_rules::{JoinRule, RoomJoinRulesEventContent};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContentWithoutRelation;
 use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use matrix_sdk::ruma::events::{
     AnyMessageLikeEventContent, AnySyncTimelineEvent, EmptyStateKey, InitialStateEvent,
 };
-use matrix_sdk::ruma::{
-    EventId, OwnedMxcUri, OwnedRoomId, OwnedRoomOrAliasId, RoomId, UInt, UserId, assign,
-};
+use matrix_sdk::ruma::{EventId, OwnedMxcUri, OwnedRoomId, RoomId, UInt, UserId, assign};
 use matrix_sdk::{Client, RoomMemberships, SessionChange};
 use matrix_sdk_ui::eyeball_im::VectorDiff;
 use matrix_sdk_ui::sync_service::{self, SyncService};
@@ -679,11 +676,6 @@ impl Matrix {
                     RoomHistoryVisibilityEventContent::new(HistoryVisibility::Invited),
                 )
                 .to_raw_any(),
-                InitialStateEvent::new(
-                    EmptyStateKey,
-                    RoomJoinRulesEventContent::new(JoinRule::Knock),
-                )
-                .to_raw_any(),
             ];
         }
         let room = self.client.create_room(request).await?;
@@ -727,13 +719,6 @@ impl Matrix {
         Ok(())
     }
 
-    /// Knock on a room to request permission to join.
-    pub async fn room_knock(&self, room_id: &RoomId, reason: Option<String>) -> Result<()> {
-        let room_id_or_alias = OwnedRoomOrAliasId::from(room_id.to_owned());
-        self.client.knock(room_id_or_alias, reason, vec![]).await?;
-        Ok(())
-    }
-
     pub async fn subscribe_room_info(
         &self,
         room_id: &RoomId,
@@ -768,22 +753,6 @@ impl Matrix {
         new: RoomPowerLevelsEventContent,
     ) -> Result<()> {
         self.room(room_id).await?.send_state_event(new).await?;
-        Ok(())
-    }
-
-    /// Set whether a room allows knocking (request-to-join).
-    /// When enabled, sets JoinRule::Knock; when disabled, sets
-    /// JoinRule::Invite.
-    pub async fn room_set_allow_knocking(&self, room_id: &RoomId, allow: bool) -> Result<()> {
-        let join_rule = if allow {
-            JoinRule::Knock
-        } else {
-            JoinRule::Invite
-        };
-        self.room(room_id)
-            .await?
-            .send_state_event(RoomJoinRulesEventContent::new(join_rule))
-            .await?;
         Ok(())
     }
 
@@ -894,32 +863,6 @@ impl Matrix {
             name: room.name.clone(),
             avatar_url: room.avatar_url.as_ref().map(|url| url.to_string()),
             joined_member_count: room.num_joined_members.into(),
-        })
-    }
-
-    /// Resolve a room's name/avatar/join rule for any room the homeserver
-    /// can describe — including knockable private rooms the user has not
-    /// joined. Uses MSC3266 (`/rooms/{id}/summary`) under the hood, falling
-    /// back to the public directory and room-state endpoints.
-    pub async fn get_room_preview(&self, room_id: &RoomId) -> Result<RpcRoomPreview> {
-        use matrix_sdk::ruma::room::JoinRuleSummary;
-        let room_or_alias = OwnedRoomOrAliasId::from(room_id.to_owned());
-        let preview = self.client.get_room_preview(&room_or_alias, vec![]).await?;
-        let join_rule = match preview.join_rule {
-            Some(JoinRuleSummary::Public) => RpcRoomJoinRule::Public,
-            Some(JoinRuleSummary::Knock) => RpcRoomJoinRule::Knock,
-            Some(JoinRuleSummary::Invite) => RpcRoomJoinRule::Invite,
-            Some(JoinRuleSummary::Restricted(_)) => RpcRoomJoinRule::Restricted,
-            Some(JoinRuleSummary::KnockRestricted(_)) => RpcRoomJoinRule::KnockRestricted,
-            Some(JoinRuleSummary::Private) => RpcRoomJoinRule::Private,
-            Some(_) | None => RpcRoomJoinRule::Unknown,
-        };
-        Ok(RpcRoomPreview {
-            id: preview.room_id.to_string(),
-            name: preview.name,
-            avatar_url: preview.avatar_url.map(|url| url.to_string()),
-            joined_member_count: preview.num_joined_members,
-            join_rule,
         })
     }
 
