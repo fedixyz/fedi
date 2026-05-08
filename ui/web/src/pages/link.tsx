@@ -1,22 +1,23 @@
+import { TFunction } from 'i18next'
 import type { NextPage } from 'next'
+import { Poppins } from 'next/font/google'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
 import {
     ANDROID_PLAY_STORE_URL,
     IOS_APP_STORE_URL,
 } from '@fedi/common/constants/linking'
 import { normalizeDeepLink } from '@fedi/common/utils/linking'
 
+import { Button } from '../components/Button'
 import { Column } from '../components/Flex'
 import { Icon } from '../components/Icon'
-import { Modal } from '../components/Modal'
 import { Text } from '../components/Text'
 import { useDeviceQuery } from '../hooks'
-import { styled, theme } from '../styles'
-import { getDeepLinkPath, getHashParams } from '../utils/linking'
+import { keyframes, styled, theme } from '../styles'
+import { getDeepLinkPath } from '../utils/linking'
 
 /*
  * Deeplinking flow for new users (via web)
@@ -26,11 +27,45 @@ import { getDeepLinkPath, getHashParams } from '../utils/linking'
  * 4. User returns to this page and clicks Open link in Fedi to replay the deeplink
  */
 
+const poppins = Poppins({
+    subsets: ['latin'],
+    weight: ['400', '500', '600', '700'],
+    variable: '--font-poppins',
+    display: 'swap',
+})
+
 const openDeepLinkInFedi = (href: string) => {
     const normalized = normalizeDeepLink(href)
     if (!normalized) return
 
     window.location.href = normalized.fediUri
+}
+
+type Normalized = NonNullable<ReturnType<typeof normalizeDeepLink>>
+
+const getLinkActionText = (normalized: Normalized, t: TFunction): string => {
+    const { screen, params } = normalized
+    const invite = (
+        params.get('invite') ??
+        params.get('id') ??
+        ''
+    ).toLowerCase()
+    const isCommunityInvite =
+        invite.startsWith('community') || invite.startsWith('fedi:community')
+
+    switch (screen) {
+        case 'join':
+            return isCommunityInvite
+                ? t('feature.onboarding.landing-page-cta')
+                : `${t('words.join')} ${t('words.wallet')}`
+        case 'ecash':
+            return t('feature.ecash.claim-ecash')
+        case 'chat':
+        case 'room':
+            return t('feature.chat.open-chat')
+        default:
+            return t('feature.onboarding.landing-page-cta')
+    }
 }
 
 const LinkingPage: NextPage = () => {
@@ -39,7 +74,10 @@ const LinkingPage: NextPage = () => {
     const { isMobile } = useDeviceQuery()
 
     const [loaded, setLoaded] = useState(false)
-    const [showModal, setShowModal] = useState(false)
+    const [clickCount, setClickCount] = useState(0)
+    const [linkActionText, setLinkActionText] = useState(
+        t('feature.onboarding.landing-page-cta'),
+    )
 
     useEffect(() => {
         if (typeof window === 'undefined' || isMobile === undefined) return
@@ -50,17 +88,16 @@ const LinkingPage: NextPage = () => {
         }
 
         const href = window.location.href
-        const parsedUrl = new URL(href)
-        const queryParams = new URLSearchParams(parsedUrl.search)
-        const hashParams = getHashParams(parsedUrl.hash)
+        const normalized = normalizeDeepLink(href)
 
-        if (!queryParams.has('screen') && !('screen' in hashParams)) {
+        if (!normalized) {
             replace('/')
             return
         }
 
+        setLinkActionText(getLinkActionText(normalized, t))
         setLoaded(true)
-    }, [isMobile, replace])
+    }, [isMobile, replace, t])
 
     // On mobile, attempt to open the app via fedi:// custom scheme.
     // This handles the case where Android App Links auto-verification
@@ -74,7 +111,6 @@ const LinkingPage: NextPage = () => {
     }, [loaded, isMobile])
 
     const handleDownloadApp = () => {
-        setShowModal(false)
         const ua = window.navigator.userAgent || ''
 
         if (/iPhone|iPad|iPod/i.test(ua)) {
@@ -91,11 +127,19 @@ const LinkingPage: NextPage = () => {
         openDeepLinkInFedi(window.location.href)
     }
 
+    const handleStepClick = () => {
+        handleOpenInFedi()
+        setClickCount(c => c + 1)
+    }
+
+    const showDownloadCta = clickCount >= 2
+    const shouldWiggle = clickCount >= 3
+
     if (!loaded) return null
 
     return (
         <>
-            <Page>
+            <Page className={poppins.variable}>
                 <Container>
                     <Hero
                         css={{
@@ -106,88 +150,97 @@ const LinkingPage: NextPage = () => {
                                 'linear-gradient(to bottom, rgba(229,229,229,0) 0%, rgba(229,229,229,0) 60%, rgba(229,229,229,0.32) 78%, rgba(229,229,229,0.68) 100%), radial-gradient(circle 260px at center, transparent 158px, white 158px, white 208px, transparent 208px)',
                         }}>
                         <Column center gap="md">
-                            <FediLogo width={100} />
-                            <Text variant="body">
-                                {t('feature.onboarding.tagline')}
-                            </Text>
+                            <Icon icon="FediLogo" size={120} />
                         </Column>
                     </Hero>
                     <Column
                         center
+                        grow
                         css={{
-                            gap: theme.spacing.xl,
                             padding: theme.spacing.lg,
+                            justifyContent: 'center',
                         }}>
-                        <Text>
+                        <Text
+                            variant="caption"
+                            weight="normal"
+                            css={{ color: theme.colors.black }}>
                             {t('feature.onboarding.landing-page-title')}
                         </Text>
-                        <Step step="one" onClick={() => setShowModal(true)}>
+                        <Step onClick={handleStepClick} css={{ marginTop: 13 }}>
                             <StepNo>
-                                <Text weight="bold" variant="caption">
-                                    1
-                                </Text>
+                                <Icon
+                                    icon="ExternalLink"
+                                    size="sm"
+                                    color="white"
+                                />
                             </StepNo>
-                            <Column grow>
-                                <Text
-                                    weight="bold"
-                                    css={{ color: theme.colors.white }}>
-                                    {t(
-                                        'feature.onboarding.landing-page-step-1-title',
-                                    )}
-                                </Text>
-                                <Text
-                                    variant="caption"
-                                    css={{ color: theme.colors.lightGrey }}>
-                                    {t(
-                                        'feature.onboarding.landing-page-step-1-description',
-                                    )}
-                                </Text>
-                            </Column>
+                            <Text
+                                variant="caption"
+                                weight="medium"
+                                css={{ color: theme.colors.white }}>
+                                {linkActionText}
+                            </Text>
+                            <Column grow></Column>
                             <Icon icon="ArrowRight" size="sm" color="white" />
                         </Step>
-                        <Step step="two" onClick={handleOpenInFedi}>
-                            <StepNo invert>
-                                <Text weight="bold" variant="caption">
-                                    2
-                                </Text>
-                            </StepNo>
-                            <Column grow>
-                                <Text
-                                    weight="bold"
-                                    css={{ color: theme.colors.black }}>
-                                    {t(
-                                        'feature.onboarding.landing-page-step-2-title',
-                                    )}
-                                </Text>
+
+                        <Column
+                            center
+                            css={{
+                                gap: theme.spacing.md,
+                                marginTop: 16,
+                                visibility: showDownloadCta
+                                    ? 'visible'
+                                    : 'hidden',
+                            }}
+                            aria-hidden={!showDownloadCta}>
+                            <Text variant="tiny" weight="medium" center>
+                                {t(
+                                    'feature.onboarding.landing-page-modal-title',
+                                )}
+                            </Text>
+                            <Button
+                                key={
+                                    shouldWiggle
+                                        ? `wiggle-${clickCount}`
+                                        : 'static'
+                                }
+                                variant="outline"
+                                onClick={handleDownloadApp}
+                                css={
+                                    shouldWiggle
+                                        ? {
+                                              animation: `${wiggle} 0.4s ease-in-out`,
+                                              borderColor: theme.colors.blue,
+                                          }
+                                        : undefined
+                                }>
                                 <Text
                                     variant="caption"
-                                    css={{ color: theme.colors.darkGrey }}>
+                                    weight="medium"
+                                    css={
+                                        shouldWiggle
+                                            ? { color: theme.colors.blue }
+                                            : undefined
+                                    }>
                                     {t(
-                                        'feature.onboarding.landing-page-step-2-description',
+                                        'feature.onboarding.landing-page-modal-description',
                                     )}
                                 </Text>
-                            </Column>
-                            <Icon icon="ArrowRight" size="sm" color="black" />
-                        </Step>
+                            </Button>
+                            <Text
+                                variant="tiny"
+                                weight="medium"
+                                center
+                                css={{
+                                    color: 'var(--Red-Red-600, #E00A00)',
+                                }}>
+                                then click <RedBold>{linkActionText}!</RedBold>
+                            </Text>
+                        </Column>
                     </Column>
                 </Container>
             </Page>
-
-            <Modal
-                open={showModal}
-                onOpenChange={() => setShowModal(false)}
-                buttonText={t('phrases.i-understand')}
-                onClick={handleDownloadApp}>
-                <Column center css={{ padding: `0 ${theme.spacing.xl}` }}>
-                    <Icon icon="AlertWarningTriangle" size="md" />
-                    <Text variant="h2" weight="medium">
-                        {t('feature.onboarding.landing-page-modal-title')}
-                    </Text>
-                    <Text variant="body">
-                        {t('feature.onboarding.landing-page-modal-description')}
-                    </Text>
-                </Column>
-            </Modal>
         </>
     )
 }
@@ -213,7 +266,7 @@ const Container = styled('div', {
 const Hero = styled('div', {
     alignItems: 'center',
     display: 'flex',
-    height: '45dvh',
+    height: '25dvh',
     justifyContent: 'center',
     overflow: 'hidden',
     position: 'relative',
@@ -234,38 +287,26 @@ const Hero = styled('div', {
 
 const Step = styled('div', {
     alignItems: 'center',
-    border: `1px solid transparent`,
-    borderRadius: 16,
+    alignSelf: 'stretch',
+    background: `linear-gradient(180deg, ${theme.colors.white20} -30.21%, transparent 100%), ${theme.colors.night}`,
+    border: `1px solid ${theme.colors.dividerGrey}`,
+    borderRadius: 20,
     cursor: 'pointer',
     display: 'flex',
-    gap: theme.spacing.md,
-    height: 60,
+    gap: theme.spacing.sm,
     padding: theme.spacing.md,
-    position: 'relative',
     width: '100%',
+})
 
-    '&:not(:last-child)::after': {
-        content: '""',
-        backgroundColor: theme.colors.lightGrey,
-        position: 'absolute',
-        left: 30,
-        top: '100%',
-        marginTop: 7,
-        height: 12,
-        width: 1,
-    },
+const RedBold = styled('span', {
+    fontWeight: 600,
+})
 
-    variants: {
-        step: {
-            one: {
-                background: `linear-gradient(${theme.colors.white20}, transparent), linear-gradient(${theme.colors.primary}, ${theme.colors.primary})`,
-            },
-            two: {
-                background: theme.colors.white,
-                borderColor: theme.colors.extraLightGrey,
-            },
-        },
-    },
+const wiggle = keyframes({
+    '0%, 100%': { transform: 'translateX(0)' },
+    '25%': { transform: 'translateX(-8px)' },
+    '50%': { transform: 'translateX(8px)' },
+    '75%': { transform: 'translateX(-4px)' },
 })
 
 const StepNo = styled('span', {
