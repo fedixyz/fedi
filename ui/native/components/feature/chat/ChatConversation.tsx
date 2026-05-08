@@ -58,11 +58,11 @@ type MessagesListProps = {
     multiUserChat?: boolean
     isPublic?: boolean
     newMessageBottomOffset: number
+    replyBarOffset?: number
     connectionRequestPending?: boolean
     listRefOverride?: ConversationListRefOverride
     scrollToMessageRequest?: ScrollToMessageRequest | null
     onScrollToMessageComplete?: (eventId: string) => void
-    onBottomStateChange?: (isAtBottom: boolean) => void
 }
 
 type ChatRoomConversationRouteProp = RouteProp<
@@ -75,11 +75,11 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     id,
     isPublic = true,
     newMessageBottomOffset = 90,
+    replyBarOffset = 0,
     connectionRequestPending = false,
     listRefOverride,
     scrollToMessageRequest = null,
     onScrollToMessageComplete,
-    onBottomStateChange,
 }: MessagesListProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -110,8 +110,6 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
     const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
     const isScrolledToBottomRef = useRef(true)
-    const lastBottomStateRef = useRef(true)
-    const isUserScrollActiveRef = useRef(false)
     const lastScrolledMessageIdRef = useRef<string | undefined>(undefined)
 
     const myId = matrixAuth?.userId
@@ -188,6 +186,16 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     })
 
     const style = useMemo(() => styles(theme), [theme])
+    const contentContainerStyle =
+        replyBarOffset > 0
+            ? [
+                  style.contentContainer,
+                  {
+                      paddingTop:
+                          style.contentContainer.paddingTop + replyBarOffset,
+                  },
+              ]
+            : style.contentContainer
 
     useEffect(() => {
         Animated.timing(animatedNewMessageBottom, {
@@ -197,16 +205,6 @@ const ChatConversation: React.FC<MessagesListProps> = ({
             easing: Easing.linear,
         }).start()
     }, [animatedNewMessageBottom, hasNewMessage, newMessageBottomOffset])
-
-    const handleBottomStateChange = useCallback(
-        (isAtBottom: boolean) => {
-            if (lastBottomStateRef.current !== isAtBottom) {
-                lastBottomStateRef.current = isAtBottom
-                onBottomStateChange?.(isAtBottom)
-            }
-        },
-        [onBottomStateChange],
-    )
 
     const scrollToEnd = useCallback(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: true })
@@ -234,30 +232,11 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
             const isAtBottom = event.nativeEvent.contentOffset.y <= 10
             isScrolledToBottomRef.current = isAtBottom
-            if (isUserScrollActiveRef.current) {
-                handleBottomStateChange(isAtBottom)
-            }
             if (isAtBottom) {
                 setHasNewMessages(false)
             }
         },
-        [handleBottomStateChange],
-    )
-
-    // Tracks if the user is scrolling to avoid animating the
-    // encryption indicator on scroll events NOT triggered by the user.
-    // e.g. when a message gets sent
-    const handleScrollBegin = useCallback(() => {
-        isUserScrollActiveRef.current = true
-    }, [])
-
-    const handleScrollEnd = useCallback(
-        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-            const isAtBottom = event.nativeEvent.contentOffset.y <= 10
-            handleBottomStateChange(isAtBottom)
-            isUserScrollActiveRef.current = false
-        },
-        [handleBottomStateChange],
+        [],
     )
 
     const handleReplyTap = useCallback(
@@ -325,7 +304,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                                         : theme.spacing.xl,
                             },
                         ]}
-                        contentContainerStyle={style.contentContainer}
+                        contentContainerStyle={contentContainerStyle}
                         ListEmptyComponent={
                             isAlone ? (
                                 <NoMembersNotice roomId={id} />
@@ -351,10 +330,6 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                             ) : undefined
                         }
                         onScroll={handleScroll}
-                        onScrollBeginDrag={handleScrollBegin}
-                        onMomentumScrollBegin={handleScrollBegin}
-                        onScrollEndDrag={handleScrollEnd}
-                        onMomentumScrollEnd={handleScrollEnd}
                         onScrollToIndexFailed={handleScrollToIndexFailed}
                         inverted={chatRows.length > 0}
                         onEndReachedThreshold={0.1}
@@ -409,7 +384,7 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.xl,
         },
         contentContainer: {
-            paddingTop: theme.spacing.xl + theme.spacing.md,
+            paddingTop: theme.spacing.md,
             flexGrow: 1,
         },
         newMessageButtonContainer: {

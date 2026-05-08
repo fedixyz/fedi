@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useConnectionRequestData } from '@fedi/common/hooks/matrix'
@@ -21,7 +21,6 @@ import { makeLog } from '@fedi/common/utils/log'
 import { stripFileUriPrefix } from '@fedi/common/utils/media'
 
 import ChatConversation from '../components/feature/chat/ChatConversation'
-import ChatEncryptionIndicator from '../components/feature/chat/ChatEncryptionIndicator'
 import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConversation'
 import ConnectionRequestBanner from '../components/feature/chat/ConnectionRequestBanner'
 import MessageInput from '../components/feature/chat/MessageInput'
@@ -67,7 +66,7 @@ const ChatRoomConversation: React.FC<Props> = ({
     )
     const toast = useToast()
     const { shouldShowHeader } = useMultispendDisplayUtils(t, roomId)
-    const [isConversationAtBottom, setIsConversationAtBottom] = useState(true)
+    const [replyBarHeight, setReplyBarHeight] = useState(0)
     const [pinnedScrollRequest, setPinnedScrollRequest] =
         useState<PinnedScrollRequest | null>(null)
     const [focusedPinnedEventId, setFocusedPinnedEventId] = useState<
@@ -218,25 +217,20 @@ const ChatRoomConversation: React.FC<Props> = ({
                     id={roomId || ''}
                     isPublic={room?.isPublic ?? false}
                     newMessageBottomOffset={bottomOffset}
+                    replyBarOffset={replyBarHeight}
                     connectionRequestPending={connectionRequestPending}
                     scrollToMessageRequest={pinnedScrollRequest}
                     onScrollToMessageComplete={setFocusedPinnedEventId}
-                    onBottomStateChange={setIsConversationAtBottom}
                 />
-                <View style={style.composerContainer}>
-                    <ChatEncryptionIndicator
-                        isEncrypted={!(room?.isPublic ?? false)}
-                        visible={isConversationAtBottom}
-                    />
-                    <MessageInput
-                        onMessageSubmitted={handleSend}
-                        id={roomId || directUserId || ''}
-                        isSending={isSending}
-                        isPublic={room?.isPublic ?? false}
-                        isDisabled={!!connectionRequestPending}
-                        onHeightChanged={setMessageInputHeight}
-                    />
-                </View>
+                <MessageInput
+                    onMessageSubmitted={handleSend}
+                    id={roomId || directUserId || ''}
+                    isSending={isSending}
+                    isPublic={room?.isPublic ?? false}
+                    isDisabled={!!connectionRequestPending}
+                    onHeightChanged={setMessageInputHeight}
+                    onReplyBarHeightChanged={setReplyBarHeight}
+                />
             </Column>
             <SelectedMessageOverlay isPublic={!!room.isPublic} />
         </SafeAreaContainer>
@@ -244,9 +238,6 @@ const ChatRoomConversation: React.FC<Props> = ({
 }
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        composerContainer: {
-            position: 'relative',
-        },
         joinGroupButton: {
             marginHorizontal: theme.spacing.lg,
         },

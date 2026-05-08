@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { ActivityIndicator } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
@@ -13,7 +13,6 @@ import {
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import ChatEncryptionIndicator from '../components/feature/chat/ChatEncryptionIndicator'
 import MessageInput from '../components/feature/chat/MessageInput'
 import NoMessagesNotice from '../components/feature/chat/NoMessagesNotice'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
@@ -96,6 +95,19 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
         [dispatch, userId, fedimint],
     )
 
+    const renderMessageInput = useCallback((): React.ReactElement => {
+        const messageInput = (
+            <MessageInput
+                isSending={isSending}
+                onMessageSubmitted={handleSend}
+                id={userId}
+                isPublic={false}
+            />
+        )
+
+        return messageInput
+    }, [handleSend, isSending, userId])
+
     return (
         <SafeAreaContainer
             edges="bottom"
@@ -108,25 +120,11 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
                 ) : (
                     <NoMessagesNotice />
                 )}
-                <View style={styles.conversationContainer}>
-                    <ChatEncryptionIndicator isEncrypted visible />
-                    <MessageInput
-                        isSending={isSending}
-                        onMessageSubmitted={handleSend}
-                        id={userId}
-                        isPublic={false}
-                    />
-                </View>
+                {renderMessageInput()}
             </Column>
             <SelectedMessageOverlay isPublic={false} />
         </SafeAreaContainer>
     )
 }
-
-const styles = StyleSheet.create({
-    conversationContainer: {
-        position: 'relative',
-    },
-})
 
 export default ChatUserConversation

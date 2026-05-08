@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Input, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -66,6 +66,7 @@ type MessageInputProps = {
     isPublic?: boolean
     isDisabled?: boolean
     onHeightChanged?: (height: number) => void
+    onReplyBarHeightChanged?: (height: number) => void
 }
 
 const SUGGESTIONS_MIN_HEIGHT = 120
@@ -77,6 +78,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     isPublic = true,
     isDisabled = false,
     onHeightChanged,
+    onReplyBarHeightChanged: onReplyBarHeightChanged,
 }: MessageInputProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -152,6 +154,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const inputRef = useRef<TextInput | null>(null)
     const inputDisabled = isSending || isReadOnly || isDisabled
+
+    useEffect(() => {
+        onReplyBarHeightChanged?.(0)
+    }, [onReplyBarHeightChanged])
 
     const attachments = useMessageAttachments()
 
@@ -292,7 +298,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     ? { paddingBottom: kbHeight + theme.spacing.sm }
                     : {
                           paddingBottom: Math.max(
-                              theme.spacing.xs,
+                              theme.spacing.sm,
                               insets.bottom || 0,
                           ),
                       },
