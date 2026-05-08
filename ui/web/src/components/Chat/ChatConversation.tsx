@@ -423,7 +423,7 @@ export const ChatConversation: React.FC<Props> = ({
                             onMouseDown={e => {
                                 e.preventDefault() // Prevents focus from shifting (keyboard stays open)
                             }}>
-                            <Icon icon="SendArrowUpCircle" />
+                            <Icon icon="SendArrowUpCircle" size={30} />
                         </SendButton>
                     </ActionsRow>
                 )}
