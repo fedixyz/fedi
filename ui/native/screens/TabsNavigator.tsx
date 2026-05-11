@@ -1,4 +1,7 @@
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import {
+    createBottomTabNavigator,
+    type BottomTabBarButtonProps,
+} from '@react-navigation/bottom-tabs'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
 import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
@@ -7,7 +10,9 @@ import {
     AppState,
     AppStateStatus,
     Pressable,
+    StyleProp,
     StyleSheet,
+    ViewStyle,
     useWindowDimensions,
 } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -49,6 +54,22 @@ const MAX_TABS_FONT_SCALE = 1.2
 export type Props = NativeStackScreenProps<RootStackParamList, 'TabsNavigator'>
 
 const Tab = createBottomTabNavigator<TabsNavigatorParamList>()
+
+type TabBarButtonProps = BottomTabBarButtonProps & {
+    pressedStyle: StyleProp<ViewStyle>
+}
+
+const TabBarButton: React.FC<TabBarButtonProps> = ({
+    pressedStyle,
+    style,
+    ...props
+}) => (
+    <Pressable
+        {...props}
+        testID={props.testID}
+        style={({ pressed }) => [style, pressed && pressedStyle]}
+    />
+)
 
 const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
@@ -121,47 +142,13 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     tabBarButton: props => {
                         switch (screenRoute.name) {
                             case 'Home':
-                                return (
-                                    <Pressable
-                                        {...props}
-                                        style={({ pressed }) => [
-                                            props.style,
-                                            pressed &&
-                                                style.tabBarButtonPressed,
-                                        ]}
-                                    />
-                                )
                             case 'Chat':
-                                return (
-                                    <Pressable
-                                        {...props}
-                                        style={({ pressed }) => [
-                                            props.style,
-                                            pressed &&
-                                                style.tabBarButtonPressed,
-                                        ]}
-                                    />
-                                )
                             case 'Mods':
-                                return (
-                                    <Pressable
-                                        {...props}
-                                        style={({ pressed }) => [
-                                            props.style,
-                                            pressed &&
-                                                style.tabBarButtonPressed,
-                                        ]}
-                                    />
-                                )
                             case 'Wallet':
                                 return (
-                                    <Pressable
+                                    <TabBarButton
                                         {...props}
-                                        style={({ pressed }) => [
-                                            props.style,
-                                            pressed &&
-                                                style.tabBarButtonPressed,
-                                        ]}
+                                        pressedStyle={style.tabBarButtonPressed}
                                     />
                                 )
                             default:
@@ -273,15 +260,12 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                         tabBarActiveTintColor: theme.colors.darkGrey,
                         tabBarInactiveTintColor: theme.colors.darkGrey,
                         tabBarButton: props => (
-                            <Pressable
+                            <TabBarButton
                                 {...props}
                                 onPress={() =>
                                     navigation.navigate('OmniScanner')
                                 }
-                                style={({ pressed }) => [
-                                    props.style,
-                                    pressed && style.tabBarButtonPressed,
-                                ]}
+                                pressedStyle={style.tabBarButtonPressed}
                             />
                         ),
                         tabBarIcon: () => (
