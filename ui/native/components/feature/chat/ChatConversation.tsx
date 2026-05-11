@@ -19,6 +19,7 @@ import {
     matchAndHidePreviewMedia,
     selectCanReply,
     selectIsDefaultGroup,
+    selectIsInternetUnreachable,
     selectMatrixAuth,
     selectMatrixRoom,
     selectMatrixRoomEvents,
@@ -99,7 +100,10 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const joinedMembersCount = useAppSelector(s =>
         selectMatrixRoomMembersCount(s, id),
     )
-    const isAlone = joinedMembersCount === 1
+    const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
+    const displayedJoinedMembersCount =
+        joinedMembersCount || room?.joinedMemberCount || 0
+    const isAlone = displayedJoinedMembersCount === 1
     const isBlocked = useAppSelector(s => selectMatrixRoomIsBlocked(s, id))
     const events = useAppSelector(s => selectMatrixRoomEvents(s, id))
     const rawEvents = useAppSelector(s => selectMatrixRoomRawEvents(s, id))
@@ -116,8 +120,18 @@ const ChatConversation: React.FC<MessagesListProps> = ({
 
     const myId = matrixAuth?.userId
     const isBroadcast = !!room?.broadcastOnly
+    const shouldRenderCachedOfflineConversation =
+        hasLoadedEvents && isInternetUnreachable
+    const hasRenderedCachedOfflineConversationRef = useRef(false)
+
+    if (shouldRenderCachedOfflineConversation) {
+        hasRenderedCachedOfflineConversationRef.current = true
+    }
+
     const shouldRenderConversationList =
-        (hasLoadedEvents && membersReadyForConversation) ||
+        (hasLoadedEvents &&
+            (membersReadyForConversation ||
+                hasRenderedCachedOfflineConversationRef.current)) ||
         connectionRequestPending
 
     const chatEvents = useMemo(() => {
