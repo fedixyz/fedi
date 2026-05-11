@@ -1,5 +1,11 @@
 import { useRoute } from '@react-navigation/native'
-import { act, cleanup, fireEvent, screen } from '@testing-library/react-native'
+import {
+    act,
+    cleanup,
+    fireEvent,
+    screen,
+    waitFor,
+} from '@testing-library/react-native'
 import React from 'react'
 
 import { DEFAULT_PAGINATION_SIZE } from '@fedi/common/constants/matrix'
@@ -497,7 +503,7 @@ function rerenderExactScrollChat({
     )
 }
 
-function expectExactScrollCompletion({
+async function expectExactScrollCompletion({
     mode,
     onScrollToMessageComplete,
     eventId,
@@ -507,7 +513,9 @@ function expectExactScrollCompletion({
     eventId: string
 }) {
     if (mode === 'pinned') {
-        expect(onScrollToMessageComplete).toHaveBeenCalledWith(eventId)
+        await waitFor(() => {
+            expect(onScrollToMessageComplete).toHaveBeenCalledWith(eventId)
+        })
         return
     }
 
@@ -1044,7 +1052,7 @@ describe('ChatConversation', () => {
                 DEFAULT_PAGINATION_SIZE,
             )
             expectScrollToIndex(0)
-            expectExactScrollCompletion({
+            await expectExactScrollCompletion({
                 mode,
                 onScrollToMessageComplete,
                 eventId: '$context-event',
@@ -1107,7 +1115,7 @@ describe('ChatConversation', () => {
 
             expect(mockHandlePaginate).toHaveBeenCalledTimes(1)
             expectScrollToIndex(0)
-            expectExactScrollCompletion({
+            await expectExactScrollCompletion({
                 mode,
                 onScrollToMessageComplete,
                 eventId: '$context-event',
@@ -1191,7 +1199,7 @@ describe('ChatConversation', () => {
                 DEFAULT_PAGINATION_SIZE,
             )
             expectScrollToIndex(0)
-            expectExactScrollCompletion({
+            await expectExactScrollCompletion({
                 mode,
                 onScrollToMessageComplete,
                 eventId: '$context-event',
