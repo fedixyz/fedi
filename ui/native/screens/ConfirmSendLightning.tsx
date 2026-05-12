@@ -57,6 +57,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         setInputAmount,
         handleOmniInput,
         handleOmniSend,
+        error,
     } = useOmniPaymentState(paymentFederation?.id, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
@@ -94,8 +95,8 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
                 amount: amountUtils.satToMsat(inputAmount),
                 unit,
             })
-        } catch (err) {
-            toast.error(t, err)
+        } catch {
+            /* no-op */
         }
         setIsPayingInvoice(false)
     }, [
@@ -188,6 +189,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
                         : []
                 }
                 notes={notes}
+                error={error}
                 setNotes={setNotes}
             />
         </>

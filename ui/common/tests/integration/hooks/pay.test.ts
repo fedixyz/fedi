@@ -118,6 +118,51 @@ describe('sending payments', () => {
             expect(lastUsedFederationId).toEqual(federationId)
         })
 
+        it('handleOmniSend should error if there are no gateways for a lightning payment', async () => {
+            await builder.withEcashReceived(10000)
+
+            const {
+                store,
+                bridge: { fedimint },
+            } = context
+
+            jest.spyOn(fedimint, 'listGateways').mockResolvedValue([])
+
+            const federationId = selectLastUsedFederationId(store.getState())
+            const { result } = renderHookWithBridge(
+                () => useOmniPaymentState(federationId, i18next.t),
+                store,
+                fedimint,
+            )
+
+            const invoice = await fedimint.generateInvoice(
+                1000 as MSats,
+                'memo',
+                federationId ?? '',
+            )
+
+            // Parse the invoice into ParsedData
+            const parsedData = (await parseUserInput(
+                invoice,
+                fedimint,
+                i18next.t,
+                federationId,
+                false,
+            )) as ParsedBolt11
+            const amountSats = amountUtils.msatToSat(parsedData.data.amount)
+
+            // Handle the parsed data
+            await act(() => result.current.handleOmniInput(parsedData))
+
+            await act(async () => {
+                await expect(
+                    result.current.handleOmniSend(amountSats),
+                ).rejects.toThrow(
+                    new Error(i18next.t('errors.no-lightning-gateways')),
+                )
+            })
+        })
+
         it('should parse and pay an lnurl receive code', async () => {
             await builder.withEcashReceived(10000)
 

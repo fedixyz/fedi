@@ -20,6 +20,7 @@ interface Props {
     extraInput?: React.ReactNode
     content?: React.ReactNode
     onChangeAmount?: (amount: Sats) => void
+    error?: string
 }
 
 export const AmountInput: React.FC<Props> = ({
@@ -33,6 +34,7 @@ export const AmountInput: React.FC<Props> = ({
     extraInput,
     content,
     onChangeAmount,
+    error: customError,
 }) => {
     const { t } = useTranslation()
     const {
@@ -76,7 +78,7 @@ export const AmountInput: React.FC<Props> = ({
     }, [submitAttempts])
 
     // Check validation for errors to render with suggestion for amount.
-    let error: React.ReactNode | undefined
+    let error: React.ReactNode | undefined = customError
     if (validation && (!validation.onlyShowOnSubmit || submitAttempts)) {
         // The way we handle clicking validation amount is:
         // 1. Fade out input container

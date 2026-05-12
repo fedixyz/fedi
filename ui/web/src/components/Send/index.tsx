@@ -69,6 +69,7 @@ const Send: React.FC = () => {
         setInputAmount,
         handleOmniInput,
         handleOmniSend,
+        error,
     } = useOmniPaymentState(federationId, t)
     const shouldRateFederation = useAppSelector(selectShouldRateFederation)
 
@@ -195,6 +196,7 @@ const Send: React.FC = () => {
             // Success can show errors too but needs a better name
             <Success
                 title={t('errors.failed-to-send-payment')}
+                description={error ?? t('errors.unknown-error')}
                 buttonText={t('words.done')}
                 onClick={() => router.push(walletRoute)}
                 type="error"

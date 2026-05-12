@@ -169,14 +169,14 @@ export function useOmniPaymentState(
                     const decoded = await fedimint.parseInvoice(
                         input.data.invoice,
                     )
-                    const fee = await fedimint.estimateLnFees(
-                        input.data.invoice,
-                        federationId,
-                    )
                     if (decoded.amount) {
                         setInputAmount(amountUtils.msatToSat(decoded.amount))
                     }
                     setInvoice(decoded)
+                    const fee = await fedimint.estimateLnFees(
+                        input.data.invoice,
+                        federationId,
+                    )
                     if (fee) {
                         setFeeDetails(fee)
                     }
