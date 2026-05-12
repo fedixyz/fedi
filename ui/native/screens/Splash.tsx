@@ -22,6 +22,7 @@ import { normalizeDeepLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
+import { DeepLinkRedirectLink } from '../components/ui/DeepLinkRedirectLink'
 import { Row, Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
@@ -175,6 +176,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                         day
                         title={t('phrases.recover-my-account')}
                     />
+                    <DeepLinkRedirectLink />
                     <Row align="center" justify="evenly" gap="xs">
                         <Text style={style.helpText}>
                             {t('feature.onboarding.need-help')}
@@ -224,6 +226,7 @@ const styles = (theme: Theme, fontScale: number) =>
             alignItems: 'center',
             justifyContent: 'flex-end',
             padding: theme.spacing.xl,
+            paddingBottom: 0,
         },
         welcomeContainer: {
             flexBasis: 'auto',

@@ -1,4 +1,4 @@
-import { isDevOrExperimental, isLocal } from '../utils/environment'
+import { isDev, isDevOrExperimental, isLocal } from '../utils/environment'
 
 export const WEB_APP_URL = 'https://app.fedi.xyz'
 export const WEB_APP_URL_STAGING = 'https://fedi-ashen.vercel.app'
@@ -16,6 +16,9 @@ export const FEDIBTC_META_JSON_URL = 'https://meta.dev.fedibtc.com/meta.json'
 export const PUBLIC_COMMUNITIES_META_JSON_URL = isDevOrExperimental
     ? `${API_ORIGIN}/meta-communities-nightly.json`
     : 'https://meta.dev.fedibtc.com/meta-communities.json'
+
+export const getDeeplinkResumeUrl = () =>
+    `${isDev() ? WEB_APP_URL_LOCAL : API_ORIGIN}/deeplink-redirect`
 
 export const PUBLIC_FEDERATIONS_API_URL = `${API_ORIGIN}/api/federations`
 export const AUTOSELECT_FEDERATIONS_API_URL = `${API_ORIGIN}/api/autoselect-federations`
