@@ -102,12 +102,6 @@ BUILD_NUMBER="${YY}${DDD}${HHMM}"
 nix develop -c npx react-native-version --target ios --increment-build --never-amend --set-build $BUILD_NUMBER
 
 # --- Workarounds for headless macOS 26.4 runners ---
-# Resolve keychain path for fastlane match: /var -> /private/var on macOS.
-# Uses $HOME (always absolute) so this works regardless of cwd.
-if [ -n "${MATCH_KEYCHAIN_NAME:-}" ]; then
-  MATCH_KEYCHAIN_NAME="$(cd "$HOME" && pwd -P)/$(basename "$MATCH_KEYCHAIN_NAME")"
-  export MATCH_KEYCHAIN_NAME
-fi
 # PhaseScriptExecution subprocesses can't access the keychain for distribution
 # codesigning. Ad-hoc sign in embed scripts; exportArchive re-signs with dist cert.
 for f in Pods/Target\ Support\ Files/Pods-*/Pods-*-frameworks.sh; do
