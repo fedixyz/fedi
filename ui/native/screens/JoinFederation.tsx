@@ -9,7 +9,6 @@ import {
     useFederationPreview,
     useLatestPublicFederations,
 } from '@fedi/common/hooks/federation'
-import { selectMatrixAuth } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import {
@@ -21,7 +20,6 @@ import FederationPreview from '../components/feature/onboarding/FederationPrevie
 import { HelpTextLoadingAnimation } from '../components/feature/onboarding/HelpTextLoadingAnimation'
 import { CameraPermissionGate } from '../components/feature/permissions/CameraPermissionGate'
 import { Column } from '../components/ui/Flex'
-import { useAppSelector } from '../state/hooks'
 import { reset, resetToHomeWithScreen } from '../state/navigation'
 import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -36,7 +34,6 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     const afterJoinEcash = route?.params?.afterJoinEcash
     const afterJoinUrl = route?.params?.afterJoinUrl
     const isFocused = useIsFocused()
-    const hasMatrixAuth = useAppSelector(s => !!selectMatrixAuth(s))
     const { publicFederations } = useLatestPublicFederations()
     const {
         isJoining,
@@ -101,17 +98,12 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
 
         if (!federationPreview && !communityPreview) return
 
-        if (hasMatrixAuth) {
-            navigation.replace('TabsNavigator', {
-                initialRouteName: homeTab,
-            })
-        } else {
-            navigation.replace('EnterDisplayName')
-        }
+        navigation.replace('TabsNavigator', {
+            initialRouteName: homeTab,
+        })
     }, [
         federationPreview,
         communityPreview,
-        hasMatrixAuth,
         navigation,
         afterJoinEcash,
         afterJoinUrl,
