@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { hasPermission } from '@fedi/common/hooks/browser'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
+    closeBrowser,
     joinCommunity,
     refreshCommunities,
     selectCommunities,
@@ -19,6 +20,7 @@ import {
     EditCommunityRequest,
 } from '@fedi/common/types/'
 import { prepareCreateCommunityPayload } from '@fedi/common/utils/fedimods'
+import { isDeepLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 import { UnsignedNostrEvent } from '@fedi/injections/src/injectables/nostr/types'
 import { eventHashFromEvent } from '@fedi/injections/src/injectables/nostr/utils'
@@ -28,10 +30,12 @@ import {
 } from '@fedi/injections/src/types'
 
 import { homeRoute } from '../constants/routes'
+import { getDeepLinkPath } from '../utils/linking'
 import { useAppDispatch, useAppSelector } from './store'
 
 type RequestPayload =
     | string
+    | { url: string; target?: string; features?: string }
     | UnsignedNostrEvent
     | CreateCommunityRequest
     | EditCommunityRequest // use type from injections if possible
@@ -39,7 +43,7 @@ type ResponsePayload =
     InjectionMessageResponseMap[keyof InjectionMessageResponseMap]['response']
 
 type Request = {
-    event: InjectionMessageType
+    event: InjectionMessageType | 'window_open'
     payload: RequestPayload
 }
 
@@ -60,7 +64,7 @@ export function useIFrameListener(
 ) {
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
-    const { replace } = useRouter()
+    const { push, replace } = useRouter()
     const nostrPublic = useAppSelector(selectNostrNpub)
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const communities = useAppSelector(selectCommunities)
@@ -106,6 +110,21 @@ export function useIFrameListener(
             const { event, payload }: Request = ev.data
 
             switch (event) {
+                case 'window_open': {
+                    const { url } = payload as { url?: string }
+
+                    if (!url) return
+
+                    if (isDeepLink(url)) {
+                        dispatch(closeBrowser())
+                        push(getDeepLinkPath(url))
+                        return
+                    }
+
+                    window.open(url, '_blank', 'noopener,noreferrer')
+                    break
+                }
+
                 /* window.nostr */
                 case InjectionMessageType.nostr_getPublicKey: {
                     try {
@@ -374,6 +393,7 @@ export function useIFrameListener(
         fedimint,
         nostrPublic,
         paymentFederation,
+        push,
         replace,
         sendSuccess,
         sendError,

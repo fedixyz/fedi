@@ -1,4 +1,7 @@
-import { normalizeCommunityInviteCode } from '@fedi/common/utils/linking'
+import {
+    normalizeBrowserUrl,
+    normalizeCommunityInviteCode,
+} from '@fedi/common/utils/linking'
 
 import {
     chatRoute,
@@ -6,10 +9,12 @@ import {
     chatUserRoute,
     ecashRoute,
     homeRoute,
-    onboardingJoinRoute,
+    onboardingRoute,
     shareLogsRoute,
     walletRoute,
 } from '../constants/routes'
+
+const browserRoute = '/browser'
 
 export const getDeepLinkPath = (url: string): string => {
     try {
@@ -25,9 +30,9 @@ export const getDeepLinkPath = (url: string): string => {
             case 'join': {
                 const inviteCode = params.get('invite') || params.get('id')
                 if (!inviteCode) return homeRoute
-                return onboardingJoinRoute(
+                return `${onboardingRoute}/join#id=${encodeURIComponent(
                     normalizeCommunityInviteCode(inviteCode),
-                )
+                )}`
             }
             case 'chat':
                 return chatRoute
@@ -53,11 +58,36 @@ export const getDeepLinkPath = (url: string): string => {
                 // Only use # so that ecash token isn't sent to server
                 return `${ecashRoute}#id=${token}`
             }
+            case 'browser': {
+                const rawUrl = params.get('url') || params.get('id')
+                if (!rawUrl) return browserRoute
+                return `${browserRoute}#url=${encodeURIComponent(
+                    normalizeBrowserUrl(rawUrl),
+                )}`
+            }
             case 'share-logs': {
                 const ticketNumber =
                     params.get('ticketNumber') || params.get('id')
                 if (!ticketNumber) return shareLogsRoute
                 return `${shareLogsRoute}?ticketNumber=${ticketNumber}`
+            }
+            case 'join-then-ecash': {
+                const inviteCode = params.get('invite') || params.get('id')
+                const ecash = params.get('ecash')
+                if (!inviteCode || !ecash) return homeRoute
+                return `${onboardingRoute}/join#id=${encodeURIComponent(
+                    normalizeCommunityInviteCode(inviteCode),
+                )}&afterJoinEcash=${encodeURIComponent(ecash)}`
+            }
+            case 'join-then-browse': {
+                const inviteCode = params.get('invite') || params.get('id')
+                const rawUrl = params.get('url')
+                if (!inviteCode || !rawUrl) return homeRoute
+                return `${onboardingRoute}/join#id=${encodeURIComponent(
+                    normalizeCommunityInviteCode(inviteCode),
+                )}&afterJoinUrl=${encodeURIComponent(
+                    normalizeBrowserUrl(rawUrl),
+                )}`
             }
             default:
                 return '/'

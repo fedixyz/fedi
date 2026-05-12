@@ -13,6 +13,7 @@ import { setRedirectTo } from '@fedi/common/redux'
 import {
     getNavigationLink,
     isFediInternalLink,
+    normalizeBrowserUrl,
     normalizeCommunityInviteCode,
 } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
@@ -182,11 +183,6 @@ function stripSupportedPrefix(path: string): string {
     return SUPPORTED_PREFIXES.reduce((acc, prefix) => {
         return acc.startsWith(prefix) ? acc.slice(prefix.length) : acc
     }, path)
-}
-
-// Aligns bare browser deeplinks with the in-app address bar behavior.
-function normalizeBrowserUrl(raw: string): string {
-    return /^https?:\/\//.test(raw) ? raw : `https://${raw}`
 }
 
 // Decodes percent-encoded path params while tolerating malformed input.

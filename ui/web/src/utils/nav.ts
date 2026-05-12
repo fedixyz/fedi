@@ -97,15 +97,17 @@ export const getRedirectPath = ({
 }) => {
     if (pathname !== '/' || !hasLoadedStorage) return
 
-    const { screen, id } = getHashParams(asPath)
+    const hashParams = getHashParams(asPath)
+    const { screen } = hashParams
 
     if (screen) {
         let path = `/${screen}`
+        const params = new URLSearchParams(hashParams)
+        params.delete('screen')
 
-        if (id) {
-            // Ecash screen must use hash params to avoid sending raw ecash to server
-            const delimiter = screen === 'ecash' ? '#' : '?'
-            path += `${delimiter}id=${id}`
+        const queryString = params.toString()
+        if (queryString) {
+            path += `#${queryString}`
         }
 
         return path
@@ -128,13 +130,14 @@ export const getUnauthenticatedRedirectPath = ({
     // Preserve any query string or hash params when redirecting to Welcome/Splash page
     const url = new URL(href)
     const screen = url.pathname.replace(/^\/+/, '')
-    const id = url.searchParams.get('id') ?? getHashParams(url.hash).id
 
     const params = new URLSearchParams({ screen })
 
-    if (id) {
-        params.set('id', id)
-    }
+    url.searchParams.forEach((value, key) => params.set(key, value))
+
+    Object.entries(getHashParams(url.hash)).forEach(([key, value]) => {
+        params.set(key, value)
+    })
 
     return `/#${params.toString()}`
 }

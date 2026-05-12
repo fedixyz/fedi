@@ -110,6 +110,11 @@ export const getNavigationLink = (url: string): string | undefined => {
     return undefined
 }
 
+// Aligns bare browser deeplinks with the in-app address bar behavior.
+export const normalizeBrowserUrl = (raw: string): string => {
+    return /^https?:\/\//.test(raw) ? raw : `https://${raw}`
+}
+
 /**
  * Ensure a community invite code has the `fedi:` prefix required by the
  * backend. Codes arriving from deeplinks may have the prefix stripped.

@@ -34,14 +34,16 @@ function WelcomePage() {
             await dispatch(refreshOnboardingStatus(fedimint)).unwrap()
 
             // Handle deeplink routing after onboarding
-            const { screen, id } = getHashParams(window.location.hash)
+            const hashParams = getHashParams(window.location.hash)
+            const { screen } = hashParams
             if (screen) {
                 let path = `/${screen}`
+                const params = new URLSearchParams(hashParams)
+                params.delete('screen')
 
-                if (id) {
-                    // Ecash screen must use hash params to avoid sending raw ecash to server
-                    const delimiter = screen === 'ecash' ? '#' : '?'
-                    path += `${delimiter}id=${id}`
+                const queryString = params.toString()
+                if (queryString) {
+                    path += `#${queryString}`
                 }
 
                 push(path)

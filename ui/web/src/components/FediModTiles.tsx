@@ -2,15 +2,10 @@ import Image from 'next/image'
 import React, { useState } from 'react'
 
 import DefaultFediModIcon from '@fedi/common/assets/images/fedimods/default.png'
-import {
-    closeBrowser,
-    selectCurrentUrl,
-    setCurrentUrl,
-} from '@fedi/common/redux/browser'
+import { setCurrentUrl } from '@fedi/common/redux/browser'
 import { selectAllVisibleMods } from '@fedi/common/redux/mod'
 import { FediMod } from '@fedi/common/types'
 
-import { FediBrowser } from '../components/FediBrowser'
 import { FEDIMOD_IMAGES } from '../constants/fedimodimages'
 import { useAppDispatch, useAppSelector, useDeviceQuery } from '../hooks'
 import { styled } from '../styles'
@@ -31,7 +26,6 @@ export const FediModTiles: React.FC<Props> = ({ mods }) => {
 
     const { isMobile } = useDeviceQuery()
     const defaultMods = useAppSelector(selectAllVisibleMods)
-    const currentUrl = useAppSelector(selectCurrentUrl)
 
     const fediMods = mods || defaultMods
 
@@ -46,27 +40,19 @@ export const FediModTiles: React.FC<Props> = ({ mods }) => {
     }
 
     return (
-        <>
-            {!!currentUrl && (
-                <FediBrowser
-                    url={currentUrl}
-                    onClose={() => dispatch(closeBrowser())}
-                />
-            )}
-            <Container>
-                {fediMods
-                    .filter(mod => !blacklist.includes(mod.id))
-                    .map(mod => {
-                        return (
-                            <FediModTile
-                                key={mod.id}
-                                mod={mod}
-                                onClick={handleOnClick}
-                            />
-                        )
-                    })}
-            </Container>
-        </>
+        <Container>
+            {fediMods
+                .filter(mod => !blacklist.includes(mod.id))
+                .map(mod => {
+                    return (
+                        <FediModTile
+                            key={mod.id}
+                            mod={mod}
+                            onClick={handleOnClick}
+                        />
+                    )
+                })}
+        </Container>
     )
 }
 

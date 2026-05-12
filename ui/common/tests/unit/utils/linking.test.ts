@@ -143,4 +143,21 @@ describe('common/utils/linking', () => {
             expect(linking.getNavigationLink(url)).toBeUndefined()
         })
     })
+
+    describe('normalizeBrowserUrl', () => {
+        it('should preserve http and https urls', () => {
+            expect(linking.normalizeBrowserUrl('https://example.com/app')).toBe(
+                'https://example.com/app',
+            )
+            expect(linking.normalizeBrowserUrl('http://example.com/app')).toBe(
+                'http://example.com/app',
+            )
+        })
+
+        it('should add https to bare urls', () => {
+            expect(linking.normalizeBrowserUrl('example.com/app')).toBe(
+                'https://example.com/app',
+            )
+        })
+    })
 })

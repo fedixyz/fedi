@@ -6,10 +6,8 @@ import { useCreatedCommunities } from '@fedi/common/hooks/federation'
 import { useLeaveCommunity } from '@fedi/common/hooks/leave'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    closeBrowser,
     selectCommunity,
     selectDefaultChats,
-    selectCurrentUrl,
     setCurrentUrl,
 } from '@fedi/common/redux'
 import {
@@ -24,7 +22,6 @@ import { CommunityInviteDialog } from '../../components/CommunityInviteDialog'
 import { ContentBlock } from '../../components/ContentBlock'
 import { Dialog } from '../../components/Dialog'
 import { FederationAvatar } from '../../components/FederationAvatar'
-import { FediBrowser } from '../../components/FediBrowser'
 import { Column, Row } from '../../components/Flex'
 import { Icon } from '../../components/Icon'
 import * as Layout from '../../components/Layout'
@@ -41,7 +38,6 @@ function CommunityDetails() {
 
     const [wantsToLeaveCommunity, setWantsToLeaveCommunity] = useState(false)
     const [invitingCommunityId, setInvitingCommunityId] = useState('')
-    const currentUrl = useAppSelector(selectCurrentUrl)
 
     const community = useAppSelector(s => selectCommunity(s, id))
     const chats = useAppSelector(s => selectDefaultChats(s, id))
@@ -151,13 +147,6 @@ function CommunityDetails() {
                     </Column>
                 </Layout.Actions>
             </Layout.Root>
-
-            {!!currentUrl && (
-                <FediBrowser
-                    url={currentUrl}
-                    onClose={() => dispatch(closeBrowser())}
-                />
-            )}
 
             <Dialog
                 open={wantsToLeaveCommunity}

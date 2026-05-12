@@ -8,19 +8,14 @@ import {
     COMMUNITY_TOOL_URL_PROD,
     COMMUNITY_TOOL_URL_STAGING,
 } from '@fedi/common/constants/fedimods'
-import {
-    closeBrowser,
-    selectCurrentUrl,
-    setCurrentUrl,
-} from '@fedi/common/redux/browser'
+import { setCurrentUrl } from '@fedi/common/redux/browser'
 import { ParserDataType } from '@fedi/common/types'
 import { isDev, isExperimental } from '@fedi/common/utils/environment'
 
 import { onboardingJoinRoute } from '../../constants/routes'
-import { useAppDispatch, useAppSelector } from '../../hooks'
+import { useAppDispatch } from '../../hooks'
 import { keyframes, styled, theme } from '../../styles'
 import { Button } from '../Button'
-import { FediBrowser } from '../FediBrowser'
 import { Icon, SvgIconName } from '../Icon'
 import * as Layout from '../Layout'
 import { OmniInput } from '../OmniInput'
@@ -76,8 +71,6 @@ export function OnboardingCommunities() {
     const dispatch = useAppDispatch()
 
     const [activeTab, setActiveTab] = useState<Tab>('join')
-
-    const currentUrl = useAppSelector(selectCurrentUrl)
 
     const switcherOptions: SwitcherOption[] = [
         // { label: t('words.discover'), value: 'discover' }, // This will be used at a later date
@@ -203,16 +196,6 @@ export function OnboardingCommunities() {
                 </Layout.Content>
                 {actions}
             </Layout.Root>
-            {!!currentUrl && (
-                <FediBrowser
-                    url={
-                        showStagingUrl
-                            ? COMMUNITY_TOOL_URL_STAGING
-                            : COMMUNITY_TOOL_URL_PROD
-                    }
-                    onClose={() => dispatch(closeBrowser())}
-                />
-            )}
         </>
     )
 }

@@ -141,6 +141,26 @@ describe('utils/nav', () => {
             expect(result).toBe('/ecash#id=test-token')
         })
 
+        it('should replay deferred onboarding links with all params in the hash', () => {
+            const result = getRedirectPath({
+                ...defaultParams,
+                asPath: '/#screen=onboarding%2Fjoin&id=fed1abc123&afterJoinUrl=https%3A%2F%2Fexample.com',
+            })
+
+            expect(result).toBe(
+                '/onboarding/join#id=fed1abc123&afterJoinUrl=https%3A%2F%2Fexample.com',
+            )
+        })
+
+        it('should replay deferred browser links with url in the hash', () => {
+            const result = getRedirectPath({
+                ...defaultParams,
+                asPath: '/#screen=browser&url=https%3A%2F%2Fexample.com',
+            })
+
+            expect(result).toBe('/browser#url=https%3A%2F%2Fexample.com')
+        })
+
         it('should not redirect away from non-root pages', () => {
             const result = getRedirectPath({
                 ...defaultParams,
@@ -161,6 +181,18 @@ describe('utils/nav', () => {
             })
 
             expect(result).toBe('/#screen=chat')
+        })
+
+        it('should preserve all query and hash params when users have not onboarded yet', () => {
+            const result = getUnauthenticatedRedirectPath({
+                asPath: '/onboarding/join#id=fed1abc123&afterJoinUrl=https%3A%2F%2Fexample.com',
+                pathname: '/onboarding/join',
+                href: 'https://app.fedi.xyz/onboarding/join#id=fed1abc123&afterJoinUrl=https%3A%2F%2Fexample.com',
+            })
+
+            expect(result).toBe(
+                '/#screen=onboarding%2Fjoin&id=fed1abc123&afterJoinUrl=https%3A%2F%2Fexample.com',
+            )
         })
 
         it('should not redirect root routes', () => {

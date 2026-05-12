@@ -2,13 +2,18 @@ import { useRouter } from 'next/router'
 import React from 'react'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { selectMatrixStatus } from '@fedi/common/redux'
+import {
+    closeBrowser,
+    selectCurrentUrl,
+    selectMatrixStatus,
+} from '@fedi/common/redux'
 import { MatrixSyncStatus } from '@fedi/common/types'
 
-import { useAppSelector } from '../../hooks'
+import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { shouldHideNavigation } from '../../utils/nav'
 import { ChatOfflineIndicator } from '../Chat/ChatOfflineIndicator'
+import { FediBrowser } from '../FediBrowser'
 import { PageError } from '../PageError'
 import { Navigation } from './Navigation'
 
@@ -18,8 +23,10 @@ interface Props {
 
 export const Template: React.FC<Props> = ({ children }) => {
     const router = useRouter()
+    const dispatch = useAppDispatch()
     const { asPath } = router
     const syncStatus = useAppSelector(selectMatrixStatus)
+    const currentUrl = useAppSelector(selectCurrentUrl)
 
     const hideNavigation = shouldHideNavigation(asPath)
 
@@ -37,6 +44,13 @@ export const Template: React.FC<Props> = ({ children }) => {
 
                 {!hideNavigation && <Navigation />}
             </AppContent>
+
+            {!!currentUrl && (
+                <FediBrowser
+                    url={currentUrl}
+                    onClose={() => dispatch(closeBrowser())}
+                />
+            )}
         </AppContainer>
     )
 }
