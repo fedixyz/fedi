@@ -13,6 +13,35 @@
 # Uncomment the line if you want fastlane to automatically update itself
 # update_fastlane
 
+# Build a .p8 + xcargs string so xcodebuild can authenticate to
+# developerservices2.apple.com during GatherProvisioningInputs. On Xcode 26
+# the local profile-resolver fails ("No profile for team matching ...") even
+# when match has correctly installed both cert and profile; passing the ASC
+# API key with -allowProvisioningUpdates is what unblocks archive.
+# CryptoKit's PEM parser requires 64-char lines per RFC 7468 — the JSON-stored
+# key is one long line, so we re-wrap before writing the .p8.
+require 'json'
+require 'securerandom'
+def asc_xcodebuild_auth_args
+  creds_path = File.expand_path('../decoded-asc-api-key-credentials.json', __dir__)
+  creds = JSON.parse(File.read(creds_path))
+  body = creds['key']
+    .gsub(/-----BEGIN[^-]*-----/, '')
+    .gsub(/-----END[^-]*-----/, '')
+    .gsub(/\s/, '')
+  wrapped = body.gsub(/(.{64})/, "\\1\n").chomp
+  # Avoid Tempfile: its GC finalizer can unlink the file before xcodebuild
+  # reads it (we hand the path off as a string).
+  p8_path = "/tmp/asc_authkey_#{Process.pid}_#{SecureRandom.hex(4)}.p8"
+  # O_EXCL + mode 0o600 creates the file atomically with restricted perms,
+  # avoiding the umask window between File.write and a follow-up chmod.
+  File.open(p8_path, File::CREAT | File::WRONLY | File::EXCL, 0o600) do |f|
+    f.write("-----BEGIN PRIVATE KEY-----\n#{wrapped}\n-----END PRIVATE KEY-----\n")
+  end
+  at_exit { File.unlink(p8_path) rescue nil }
+  "-allowProvisioningUpdates -authenticationKeyPath #{p8_path} -authenticationKeyID #{creds['key_id']} -authenticationKeyIssuerID #{creds['issuer_id']}"
+end
+
 default_platform(:ios)
 
 platform :ios do
@@ -35,6 +64,7 @@ platform :ios do
       workspace: "FediReactNative.xcworkspace",
       scheme: "FediReactNative",
       verbose: true,
+      xcargs: asc_xcodebuild_auth_args,
       export_options: {
         provisioningProfiles: {
           "org.fedi.alpha" => "match AppStore org.fedi.alpha"
@@ -123,6 +153,7 @@ platform :ios do
       workspace: "FediReactNative.xcworkspace",
       scheme: "FediNightly",
       verbose: true,
+      xcargs: asc_xcodebuild_auth_args,
       export_options: {
         provisioningProfiles: {
           "org.fedi.nightly" => "match AppStore org.fedi.nightly"
@@ -155,6 +186,7 @@ platform :ios do
       workspace: "FediReactNative.xcworkspace",
       scheme: "FediNova",
       verbose: true,
+      xcargs: asc_xcodebuild_auth_args,
       export_options: {
         provisioningProfiles: {
           "org.fedi.nova" => "match AppStore org.fedi.nova"
