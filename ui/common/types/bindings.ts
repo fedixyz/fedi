@@ -71,6 +71,8 @@ export type DeviceRegistrationState =
   | "success"
   | "overdue";
 
+export type DummyFeatureFeatureConfig = Record<string, never>;
+
 export type EncryptedSyncFeatureConfig = { server_url: string };
 
 export type ErrorCode =
@@ -202,6 +204,10 @@ export type FeatureCatalog = {
    * Allows users to rearrange the order of mini apps on the Mods screen.
    */
   rearrange_miniapps: RearrangeMiniappsFeatureConfig | null;
+  /**
+   * Remote-controlled dummy feature flag.
+   */
+  dummy_feature: DummyFeatureFeatureConfig | null;
   /**
    * Config for detecting and processing incoming LNURL receives
    */
@@ -395,6 +401,10 @@ export type OverrideLocalhostFeatureConfig = Record<string, never>;
 export type PanicEvent = { message: string };
 
 export type RearrangeMiniappsFeatureConfig = Record<string, never>;
+
+export type RemoteFeatures = {
+  dummyFeature: boolean;
+};
 
 export type RecoveryCompleteEvent = { federationId: RpcFederationId };
 

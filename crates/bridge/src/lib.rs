@@ -7,6 +7,7 @@ use bitcoin::key::Secp256k1;
 use either::Either;
 use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped as _};
+use fedimint_core::task::TaskGroup;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 pub use full::{BridgeFull, BridgeOffboardingReason};
 use futures::StreamExt as _;
@@ -68,15 +69,17 @@ pub enum BridgeState {
 }
 
 impl Bridge {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         storage: Storage,
+        global_db: Database,
         connectors: ConnectorRegistry,
         event_sink: EventSink,
+        task_group: TaskGroup,
         fedi_api: Arc<dyn IFediApi>,
         feature_catalog: Arc<FeatureCatalog>,
         device_identifier: DeviceIdentifier,
     ) -> anyhow::Result<Self> {
-        let global_db = storage.federation_database_v2("global").await?;
         let state = match AppState::load(&storage, &global_db, device_identifier.clone())
             .await
             .context("failed to load state")?
@@ -87,6 +90,7 @@ impl Bridge {
                     global_db,
                     connectors,
                     event_sink,
+                    task_group,
                     fedi_api,
                     state,
                     feature_catalog,
@@ -101,6 +105,7 @@ impl Bridge {
                 connectors,
                 global_db,
                 event_sink,
+                task_group,
                 feature_catalog,
                 device_identifier,
             ))),
@@ -126,6 +131,7 @@ impl Bridge {
         global_db: Database,
         connectors: ConnectorRegistry,
         event_sink: EventSink,
+        task_group: TaskGroup,
         fedi_api: Arc<dyn IFediApi>,
         app_state: AppState,
         feature_catalog: Arc<FeatureCatalog>,
@@ -136,6 +142,7 @@ impl Bridge {
             global_db,
             connectors,
             event_sink,
+            task_group,
             fedi_api,
             app_state,
             feature_catalog,

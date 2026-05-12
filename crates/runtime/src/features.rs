@@ -1,10 +1,17 @@
 use std::env;
 
-use reqwest::Url;
-use serde::Serialize;
+use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::task::TaskGroup;
+use reqwest::{Client, Url};
+use serde::{Deserialize, Serialize};
+use tracing::warn;
 use ts_rs::TS;
 
-use crate::constants::{FEDI_GLOBAL_COMMUNITY_PROD, FEDI_GLOBAL_COMMUNITY_STAGING};
+use crate::constants::{
+    FEDI_GLOBAL_COMMUNITY_PROD, FEDI_GLOBAL_COMMUNITY_STAGING, PROD_REMOTE_FEATURES_URL,
+    STAGING_REMOTE_FEATURES_URL,
+};
+use crate::db::RemoteFeaturesLastFetchedKey;
 
 /// Enum representing the environment in whose context the bridge is
 /// instantiated. For the Fedi app, this translates to the app flavors:
@@ -17,19 +24,34 @@ use crate::constants::{FEDI_GLOBAL_COMMUNITY_PROD, FEDI_GLOBAL_COMMUNITY_STAGING
 /// can be the most broken. Prod is the most strict and therefore should be the
 /// least broken.
 ///
-/// Depending on the runtime environment, features will be enabled or disabled.
+/// Most feature decisions are compiled into the app per runtime environment.
 /// Typically when development work starts on a new feature, the feature will be
 /// turned off for all runtimes. Once the feature is code-complete, it might be
 /// turned on only for the "Dev" and "Tests" environment. Shortly thereafter, it
 /// might also be turned on for the "Staging" environment so that internally it
 /// can be tested. Finally, when the feature is considered stable, it will also
 /// be turned on for the "Prod" environment.
-#[derive(Debug, Clone, TS, Serialize)]
+///
+/// A remote feature layer is applied on top of that compiled-in base for
+/// selected flags.
+#[derive(Debug, Clone, Copy, TS, Serialize)]
 pub enum RuntimeEnvironment {
     Dev,
     Tests,
     Staging,
     Prod,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+/// A remote feature layer fetched from Fedi's servers and applied on top of
+/// the compiled-in feature catalog.
+///
+/// Only a subset of features are controllable with remote features. This subset
+/// should be safe if adversary takes control of fedi server for short time.
+pub struct RemoteFeatures {
+    pub dummy_feature: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -106,6 +128,9 @@ pub struct FeatureCatalog {
 
     /// Allows users to rearrange the order of mini apps on the Mods screen.
     pub rearrange_miniapps: Option<RearrangeMiniappsFeatureConfig>,
+
+    /// Remote-controlled dummy feature flag.
+    pub dummy_feature: Option<DummyFeatureFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -202,6 +227,10 @@ pub struct RearrangeMiniappsFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct DummyFeatureFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -210,13 +239,41 @@ pub struct LnurlReceivesFeatureConfig {
 }
 
 impl FeatureCatalog {
-    pub fn new(runtime_env: RuntimeEnvironment) -> Self {
-        match runtime_env {
+    pub async fn new(
+        task_group: &TaskGroup,
+        bridge_db: Database,
+        runtime_env: RuntimeEnvironment,
+    ) -> Self {
+        let mut feature_catalog = match runtime_env {
             RuntimeEnvironment::Dev => Self::new_dev(),
             RuntimeEnvironment::Staging => Self::new_staging(),
             RuntimeEnvironment::Prod => Self::new_prod(),
             RuntimeEnvironment::Tests => Self::new_tests(),
+        };
+
+        {
+            let mut dbtx = bridge_db.begin_transaction_nc().await;
+            if let Some(remote_features) = dbtx.get_value(&RemoteFeaturesLastFetchedKey).await {
+                feature_catalog.apply_remote_layer(remote_features);
+            }
         }
+
+        task_group.spawn_cancellable("refresh remote features", async move {
+            if let Err(error) = refresh_remote_features(&bridge_db, &runtime_env).await {
+                warn!(?error, ?runtime_env, "failed to refresh remote features");
+            }
+        });
+
+        feature_catalog
+    }
+
+    /// Apply the remote feature layer on top of the compiled-in base catalog.
+    pub fn apply_remote_layer(&mut self, remote_features: RemoteFeatures) {
+        self.dummy_feature = if remote_features.dummy_feature {
+            Some(DummyFeatureFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -256,6 +313,7 @@ impl FeatureCatalog {
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
+            dummy_feature: Some(DummyFeatureFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -305,6 +363,7 @@ impl FeatureCatalog {
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
+            dummy_feature: Some(DummyFeatureFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -346,6 +405,7 @@ impl FeatureCatalog {
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
+            dummy_feature: Some(DummyFeatureFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -390,11 +450,40 @@ impl FeatureCatalog {
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
+            dummy_feature: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
         }
     }
+}
+
+async fn refresh_remote_features(
+    bridge_db: &Database,
+    runtime_env: &RuntimeEnvironment,
+) -> anyhow::Result<()> {
+    let url = match runtime_env {
+        RuntimeEnvironment::Prod => PROD_REMOTE_FEATURES_URL,
+        RuntimeEnvironment::Dev | RuntimeEnvironment::Staging => STAGING_REMOTE_FEATURES_URL,
+        // no dependency on remote stuff on tests
+        RuntimeEnvironment::Tests => return Ok(()),
+    };
+
+    let client = Client::new();
+    let response = client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<RemoteFeatures>()
+        .await?;
+
+    let mut dbtx = bridge_db.begin_transaction().await;
+    dbtx.insert_entry(&RemoteFeaturesLastFetchedKey, &response)
+        .await;
+    dbtx.commit_tx().await;
+
+    Ok(())
 }
 
 /// error! on prod and panic! on nightly

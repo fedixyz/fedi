@@ -25,6 +25,7 @@ use fedimint_client::db::ChronologicalOperationLogKey;
 use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::core::OperationId;
 use fedimint_core::invite_code::InviteCode;
+use fedimint_core::task::TaskGroup;
 use fedimint_core::timing::TimeReporter;
 use futures::Future;
 use lightning_invoice::Bolt11Invoice;
@@ -71,7 +72,7 @@ use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use runtime::rpc_stream::{RpcStreamId, RpcVecDiffStreamId};
 use runtime::storage::state::FiatFXInfo;
-use runtime::storage::{OnboardingCompletionMethod, Storage};
+use runtime::storage::{OnboardingCompletionMethod, Storage, BRIDGE_DB_PREFIX};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use stability_pool_client::common::{AccountId, AccountType, FiatAmount, FiatOrAll};
@@ -102,12 +103,16 @@ pub async fn fedimint_initialize_async(
     );
     let _g = TimeReporter::new("fedimint_initialize").level(Level::INFO);
 
-    let feature_catalog = Arc::new(FeatureCatalog::new(match app_flavor {
+    let runtime_env = match app_flavor {
         RpcAppFlavor::Dev => RuntimeEnvironment::Dev,
         RpcAppFlavor::Nightly => RuntimeEnvironment::Staging,
         RpcAppFlavor::Bravo => RuntimeEnvironment::Prod,
         RpcAppFlavor::Tests => RuntimeEnvironment::Tests,
-    }));
+    };
+    let global_db = storage.federation_database_v2("global").await?;
+    let bridge_db = global_db.with_prefix(vec![BRIDGE_DB_PREFIX]);
+    let task_group = TaskGroup::new();
+    let feature_catalog = Arc::new(FeatureCatalog::new(&task_group, bridge_db, runtime_env).await);
 
     let fedi_api: Arc<dyn IFediApi> = match app_flavor {
         RpcAppFlavor::Tests => Arc::new(MockFediApi::default()),
@@ -118,8 +123,10 @@ pub async fn fedimint_initialize_async(
 
     let bridge = Bridge::new(
         storage,
+        global_db,
         connectors,
         event_sink,
+        task_group,
         fedi_api,
         feature_catalog,
         device_identifier.parse()?,

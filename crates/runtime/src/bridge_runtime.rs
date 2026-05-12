@@ -32,16 +32,17 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         storage: Storage,
         global_db: Database,
         connectors: ConnectorRegistry,
         event_sink: EventSink,
+        task_group: TaskGroup,
         fedi_api: Arc<dyn IFediApi>,
         app_state: AppState,
         feature_catalog: Arc<FeatureCatalog>,
     ) -> Self {
-        let task_group = TaskGroup::new();
         let stream_pool = RpcStreamPool::new(event_sink.clone(), task_group.clone());
         Self {
             storage,

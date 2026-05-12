@@ -5,6 +5,7 @@ use anyhow::{Context as _, bail};
 use fedi_social_client::SocialRecoveryState;
 use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::db::Database;
+use fedimint_core::task::TaskGroup;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::retry;
 use rpc_types::RpcRegisteredDevice;
@@ -29,6 +30,7 @@ pub struct BridgeOnboarding {
     storage: Storage,
     connectors: ConnectorRegistry,
     event_sink: EventSink,
+    task_group: TaskGroup,
     feature_catalog: Arc<FeatureCatalog>,
     device_identifier: DeviceIdentifier,
     global_db: Database,
@@ -55,6 +57,7 @@ impl BridgeOnboarding {
         connectors: ConnectorRegistry,
         global_db: Database,
         event_sink: EventSink,
+        task_group: TaskGroup,
         feature_catalog: Arc<FeatureCatalog>,
         device_identifier: DeviceIdentifier,
     ) -> Self {
@@ -64,6 +67,7 @@ impl BridgeOnboarding {
             storage,
             global_db,
             event_sink,
+            task_group,
             feature_catalog,
             device_identifier,
             connectors,
@@ -152,6 +156,7 @@ impl BridgeOnboarding {
                 self.global_db.clone(),
                 self.connectors.clone(),
                 self.event_sink.clone(),
+                self.task_group.clone(),
                 self.fedi_api.clone(),
                 new_state,
                 self.feature_catalog.clone(),

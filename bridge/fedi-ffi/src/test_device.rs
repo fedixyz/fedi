@@ -10,6 +10,7 @@ use devimint::cmd;
 use devimint::util::LnCli;
 use federations::federation_v2::FederationV2;
 use fedimint_connectors::ConnectorRegistry;
+use fedimint_core::task::TaskGroup;
 use matrix::Matrix;
 use multispend::multispend_matrix::MultispendMatrix;
 use nostr::secp256k1::PublicKey;
@@ -18,7 +19,7 @@ pub use runtime::api::MockFediApi;
 use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use runtime::storage::state::DeviceIdentifier;
-use runtime::storage::{OnboardingCompletionMethod, Storage};
+use runtime::storage::{OnboardingCompletionMethod, Storage, BRIDGE_DB_PREFIX};
 use tempfile::TempDir;
 use tokio::sync::OnceCell;
 
@@ -29,10 +30,11 @@ pub struct TestDevice {
     // once{cell,lock} is for laziness of computing (the default) values
     // when user overrides the values, we just overwrite the entire OnceCell.
     storage: OnceCell<Storage>,
+    global_db: OnceCell<fedimint_core::db::Database>,
     connectors: ConnectorRegistry,
     device_identifier: OnceLock<DeviceIdentifier>,
     fedi_api: OnceLock<Arc<MockFediApi>>,
-    feature_catalog: OnceLock<Arc<FeatureCatalog>>,
+    feature_catalog: OnceCell<Arc<FeatureCatalog>>,
     event_sink: OnceLock<Arc<FakeEventSink>>,
     bridge_uncommited: OnceCell<Arc<Bridge>>,
     bridge_full: OnceCell<Arc<BridgeFull>>,
@@ -50,6 +52,7 @@ impl TestDevice {
     pub async fn new() -> anyhow::Result<Self> {
         Ok(Self {
             storage: Default::default(),
+            global_db: Default::default(),
             connectors: ConnectorRegistry::build_from_testing_defaults()
                 .bind()
                 .await?,
@@ -70,6 +73,7 @@ impl TestDevice {
         self.storage = OnceCell::from(Arc::new(
             PathBasedRedbStorage::new(TempDataDir(data_dir.into())).await?,
         ) as Storage);
+        self.global_db = Default::default();
         Ok(self)
     }
 
@@ -87,7 +91,7 @@ impl TestDevice {
     }
 
     pub fn with_feature_catalog(&mut self, feature_catalog: Arc<FeatureCatalog>) -> &mut Self {
-        self.feature_catalog = OnceLock::from(feature_catalog);
+        self.feature_catalog = OnceCell::from(feature_catalog);
         self
     }
 
@@ -105,6 +109,16 @@ impl TestDevice {
         &self.connectors
     }
 
+    async fn global_db(&self) -> anyhow::Result<fedimint_core::db::Database> {
+        Ok(self
+            .global_db
+            .get_or_try_init(|| async {
+                self.storage().await?.federation_database_v2("global").await
+            })
+            .await?
+            .clone())
+    }
+
     fn device_identifier(&self) -> DeviceIdentifier {
         self.device_identifier
             .get_or_init(|| DeviceIdentifier::from_str("test:device:default").unwrap())
@@ -117,10 +131,18 @@ impl TestDevice {
             .clone()
     }
 
-    fn feature_catalog(&self) -> Arc<FeatureCatalog> {
-        self.feature_catalog
-            .get_or_init(|| Arc::new(FeatureCatalog::new(RuntimeEnvironment::Tests)))
-            .clone()
+    async fn feature_catalog(&self, task_group: &TaskGroup) -> anyhow::Result<Arc<FeatureCatalog>> {
+        Ok(self
+            .feature_catalog
+            .get_or_try_init(|| async {
+                let global_db = self.global_db().await?;
+                let bridge_db = global_db.with_prefix(vec![BRIDGE_DB_PREFIX]);
+                Ok::<Arc<FeatureCatalog>, anyhow::Error>(Arc::new(
+                    FeatureCatalog::new(task_group, bridge_db, RuntimeEnvironment::Tests).await,
+                ))
+            })
+            .await?
+            .clone())
     }
 
     pub fn event_sink(&self) -> Arc<FakeEventSink> {
@@ -132,13 +154,17 @@ impl TestDevice {
     pub async fn bridge_maybe_onboarding(&self) -> anyhow::Result<&Arc<Bridge>> {
         self.bridge_uncommited
             .get_or_try_init(|| async {
+                let task_group = TaskGroup::new();
+                let global_db = self.global_db().await?;
                 Ok(Arc::new(
                     Bridge::new(
                         self.storage().await?.clone(),
+                        global_db,
                         self.connectors().await.clone(),
                         self.event_sink(),
+                        task_group.clone(),
                         self.fedi_api(),
-                        self.feature_catalog(),
+                        self.feature_catalog(&task_group).await?,
                         self.device_identifier(),
                     )
                     .await?,
@@ -204,6 +230,7 @@ impl TestDevice {
                     .await?;
             }
         }
+        self.global_db.take();
         // also reset the event sink
         self.event_sink.take();
         Ok(())
@@ -220,6 +247,7 @@ impl Drop for TestDevice {
                 runtime.task_group.shutdown();
             }
         }
+        self.global_db.take();
         // also reset the event sink
         self.event_sink.take();
     }

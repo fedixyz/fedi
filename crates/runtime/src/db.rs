@@ -1,7 +1,12 @@
-use fedimint_core::db::{DatabaseKey, DatabaseRecord, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::db::{
+    DatabaseKey, DatabaseRecord, DatabaseValue, DecodingError, IDatabaseTransactionOpsCoreTyped,
+};
 use fedimint_core::encoding::{Decodable, Encodable};
+use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{impl_db_lookup, impl_db_record};
+
+use crate::features::RemoteFeatures;
 
 #[repr(u8)]
 pub enum BridgeDbPrefix {
@@ -20,6 +25,8 @@ pub enum BridgeDbPrefix {
     WasmFileStorage = 0x04,
     // Prefix for SP Transfers db namespace
     SpTransfersPrefix = 0x05,
+    // Remote features last fetched value
+    RemoteFeaturesLastFetched = 0x06,
 }
 
 #[derive(Debug, Decodable, Encodable)]
@@ -39,6 +46,29 @@ impl_db_record!(
 impl_db_lookup!(
     key = FederationPendingRejoinFromScratchKey,
     query_prefix = FederationPendingRejoinFromScratchKeyPrefix,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct RemoteFeaturesLastFetchedKey;
+
+// json encoded value to avoid db migrations
+impl DatabaseValue for RemoteFeatures {
+    fn from_bytes(
+        data: &[u8],
+        _modules: &ModuleDecoderRegistry,
+    ) -> std::result::Result<Self, DecodingError> {
+        serde_json::from_slice(data).map_err(DecodingError::other)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("RemoteFeatures must serialize")
+    }
+}
+
+impl_db_record!(
+    key = RemoteFeaturesLastFetchedKey,
+    value = RemoteFeatures,
+    db_prefix = BridgeDbPrefix::RemoteFeaturesLastFetched,
 );
 
 #[allow(async_fn_in_trait)]
