@@ -50,9 +50,22 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
         useState<boolean>(false)
     const { launchZendesk } = useLaunchZendesk()
 
+    const resetToDefaultTab = () =>
+        navigation.reset({
+            index: 0,
+            routes: [
+                {
+                    name: 'TabsNavigator',
+                    params: { initialRouteName: 'Federations' },
+                },
+            ],
+        })
+
     const handleContinue = async () => {
         try {
             setLoading(true)
+
+            log.info('handleContinue start', { redirectTo })
 
             await fedimint.completeOnboardingNewSeed()
 
@@ -63,7 +76,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
 
             // redirectTo values are deeplinks set in Router.tsx
             // it allows us to get a user through onboarding
-            // before we then redirecet them to their intended screen
+            // before we then redirect them to their intended screen
             if (redirectTo) {
                 // Reset now that we're using it
                 dispatch(setRedirectTo(null))
@@ -71,20 +84,21 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                 const redirectUri =
                     normalizeDeepLink(redirectTo)?.fediUri ?? redirectTo
                 const action = getInternalLinkResetAction(redirectUri)
-                if (!action) return
+                if (action) {
+                    return navigation.dispatch(action)
+                }
 
-                return navigation.dispatch(action)
-            } else {
-                navigation.reset({
-                    index: 0,
-                    routes: [
-                        {
-                            name: 'TabsNavigator',
-                            params: { initialRouteName: 'Federations' },
-                        },
-                    ],
-                })
+                // Falls through to default nav so the user is never stranded
+                // on Splash when the redirect URI does not resolve to a
+                // known screen (e.g. bare 'fedi://' from the deeplink-redirect
+                // error-state fallback).
+                log.warn(
+                    'handleContinue: redirectTo did not resolve to an action, falling back to default nav',
+                    { redirectTo, redirectUri },
+                )
             }
+
+            resetToDefaultTab()
         } catch (err) {
             log.error('handleContinue', err)
             toast.error(t, err, 'errors.unknown-error')
