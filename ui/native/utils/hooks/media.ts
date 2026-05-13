@@ -26,6 +26,7 @@ import {
     isFileUri,
     isHttpUri,
     isMxcUri,
+    getMatrixMediaFileExtension,
     pathJoin,
     prefixFileUri,
 } from '@fedi/common/utils/media'
@@ -255,6 +256,7 @@ export const useDownloadResource = (
         setIsLoading(true)
         try {
             let fileUri: string
+            let filePathToCheck: string
 
             // Attempt to copy the resource to the temporary directory and set `fileUri`
             // TODO: Ask @ironclad about this code. @manmeet believes we can remove the
@@ -263,9 +265,7 @@ export const useDownloadResource = (
                 typeof resource === 'object' &&
                 resource.content.info?.mimetype
             ) {
-                const extension = resource.content.info.mimetype
-                    .split('/')
-                    .pop()
+                const extension = getMatrixMediaFileExtension(resource)
                 const fileName = `${resourceHash}.${extension}`
                 const path = pathJoin(TemporaryDirectoryPath, fileName)
                 const filePath = await fedimint.matrixDownloadFile(
@@ -274,8 +274,10 @@ export const useDownloadResource = (
                 )
 
                 fileUri = prefixFileUri(filePath)
+                filePathToCheck = filePath
             } else if (typeof resource === 'string' && isFileUri(resource)) {
                 fileUri = resource
+                filePathToCheck = resource
             } else if (typeof resource === 'string') {
                 const { path, uri: resolvedUri } = makeRandomTempFilePath(
                     `${resourceHash}.png`,
@@ -294,12 +296,14 @@ export const useDownloadResource = (
                 }).fetch('GET', urlToFetch)
 
                 fileUri = resolvedUri
+                filePathToCheck = path
             } else {
                 // TODO: remove me once we fix the types above
                 fileUri = ''
+                filePathToCheck = ''
             }
 
-            if (await exists(fileUri)) {
+            if (await exists(filePathToCheck)) {
                 // Adds the resource and its associated resource hash to the `tempMediaUriMap` in case it's needed later
                 dispatch(
                     addTempMediaUriEntry({ uri: fileUri, hash: resourceHash }),
