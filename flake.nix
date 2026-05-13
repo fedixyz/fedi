@@ -561,9 +561,9 @@
                 export MACOSX_DEPLOYMENT_TARGET="26.0"
                 export IPHONEOS_DEPLOYMENT_TARGET="26.0"
                 export BINDGEN_EXTRA_CLANG_ARGS="--target=arm64-apple-ios18.0-simulator -isysroot $(xcrun --sdk iphonesimulator --show-sdk-path 2>/dev/null)"
-                # Xcode 26.4's clang bump breaks nix's clang-16 linking when
+                # Clang bump in Xcode 26.4 or later breaks nix's clang-16 linking when
                 # DEVELOPER_DIR is set; unset so xcrun uses xcode-select fallback
-                if [[ "$XCODE_VERSION" == 26.4* ]]; then unset DEVELOPER_DIR; fi
+                if [[ "$XCODE_VERSION" == 26.[45]* ]]; then unset DEVELOPER_DIR; fi
               else
                 # for Xcode <26.0
                 export MACOSX_DEPLOYMENT_TARGET="18.0"
