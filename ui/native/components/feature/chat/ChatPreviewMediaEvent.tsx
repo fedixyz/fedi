@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native'
 import Video, { VideoRef } from 'react-native-video'
 
+import { MAX_CHAT_MEDIA_HEIGHT } from '@fedi/common/constants/matrix'
 import { MatrixEvent } from '@fedi/common/types'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
@@ -34,7 +35,7 @@ const ChatPreviewMediaEvent: React.FC<ChatImageEventProps> = ({
         event.content.info.w,
         event.content.info.h,
         theme.sizes.maxMessageWidth,
-        400,
+        MAX_CHAT_MEDIA_HEIGHT,
     )
 
     const containerBaseStyle = [style.containerBase, dimensions]
@@ -90,7 +91,7 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         containerBase: {
             maxWidth: theme.sizes.maxMessageWidth,
-            maxHeight: 400,
+            maxHeight: MAX_CHAT_MEDIA_HEIGHT,
             backgroundColor: theme.colors.extraLightGrey,
             padding: 16,
             display: 'flex',

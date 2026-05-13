@@ -8,6 +8,7 @@ import {
     StyleSheet,
 } from 'react-native'
 
+import { MAX_CHAT_MEDIA_HEIGHT } from '@fedi/common/constants/matrix'
 import { useMatrixUrlPreview } from '@fedi/common/hooks/matrix'
 import { FileUri, HttpUri } from '@fedi/common/types/media'
 import { scaleAttachment } from '@fedi/common/utils/media'
@@ -68,7 +69,7 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
                         theme.sizes.maxMessageWidth,
                 ),
                 theme.sizes.maxMessageWidth,
-                400,
+                MAX_CHAT_MEDIA_HEIGHT,
             )
         } else {
             return {
@@ -161,7 +162,7 @@ const styles = (theme: Theme) =>
             width: theme.sizes.maxMessageWidth,
         },
         imageLoadingPlaceholder: {
-            maxHeight: 400,
+            maxHeight: MAX_CHAT_MEDIA_HEIGHT,
             backgroundColor: theme.colors.extraLightGrey,
             padding: 16,
         },

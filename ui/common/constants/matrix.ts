@@ -20,6 +20,7 @@ export const ONE_KB = 1024
 export const ONE_MB = 1024 * ONE_KB
 export const MAX_IMAGE_SIZE = 100 * ONE_MB // 100MB for images
 export const MAX_FILE_SIZE = 500 * ONE_MB // 500MB for other files
+export const MAX_CHAT_MEDIA_HEIGHT = 400
 
 //HTML comversion for special characters
 export const HTML_ENTITIES: Record<string, string> = {
