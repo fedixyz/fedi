@@ -33,17 +33,15 @@ fn permissive_log_filter() -> String {
     )
 }
 
+#[expect(dead_code)]
 fn strict_log_filter() -> String {
     format!(
         "info,{LOG_CLIENT}=warn,{LOG_CLIENT_REACTOR}=off,{LOG_CLIENT_MODULE_WALLET}=warn,matrix_sdk_crypto=error,fedimint_ln_client::pay=error,fediffi=info"
     )
 }
 
-fn default_log_filter(app_flavor: RpcAppFlavor) -> String {
-    match app_flavor {
-        RpcAppFlavor::Dev | RpcAppFlavor::Nightly | RpcAppFlavor::Tests => permissive_log_filter(),
-        RpcAppFlavor::Bravo => strict_log_filter(),
-    }
+fn default_log_filter(_app_flavor: RpcAppFlavor) -> String {
+    permissive_log_filter()
 }
 
 pub struct ReactNativeLayer(pub EventSink);
