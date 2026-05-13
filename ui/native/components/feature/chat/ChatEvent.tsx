@@ -72,6 +72,7 @@ const ChatEvent: React.FC<Props> = ({
         event.sender === matrixAuth?.userId && !isMultispendEvent(event)
     const isQueued = false
     const isText = isTextEvent(event)
+    const isMedia = isImageEvent(event) || isVideoEvent(event)
 
     const bubbleContainerStyles: StyleProp<ViewStyle | TextStyle>[] = [
         styles(theme).bubbleContainer,
@@ -102,54 +103,65 @@ const ChatEvent: React.FC<Props> = ({
     const derivedLinks = isText ? deriveUrlsFromText(event.content.body) : null
 
     const style = styles(theme)
+    const eventContent = isText ? (
+        <ChatTextEvent
+            event={event}
+            isWide={hasWidePreview}
+            onReplyTap={onReplyTap}
+            onMentionPress={userId =>
+                requestAnimationFrame(() => setSelectedUserId(userId))
+            }
+        />
+    ) : isEncryptedEvent(event) ? (
+        <ChatEncryptedEvent event={event} />
+    ) : isBolt11PaymentEvent(event) ? (
+        <ChatBolt11PaymentEvent event={event} />
+    ) : isPaymentEvent(event) ? (
+        <ChatPaymentEvent event={event} />
+    ) : isFormEvent(event) ? (
+        <ChatFormEvent event={event} />
+    ) : isImageEvent(event) ? (
+        <ChatImageEvent event={event} />
+    ) : isFileEvent(event) ? (
+        <ChatFileEvent event={event} />
+    ) : isVideoEvent(event) ? (
+        <ChatVideoEvent event={event} />
+    ) : isDeletedEvent(event) ? (
+        <ChatDeletedEvent event={event} />
+    ) : isPreviewMediaEvent(event) ? (
+        <ChatPreviewMediaEvent event={event} />
+    ) : isPollEvent(event) ? (
+        <ChatPollEvent event={event} />
+    ) : isFederationInviteEvent(event) ? (
+        <ChatFederationInviteEvent event={event} />
+    ) : isCommunityInviteEvent(event) ? (
+        <ChatCommunityInviteEvent event={event} />
+    ) : isMultispendEvent(event) ? (
+        <ChatMultispendEvent event={event} />
+    ) : isSpTransferEvent(event) ? (
+        <ChatSpTransferEvent event={event} />
+    ) : null
 
     return (
         <ErrorBoundary fallback={() => <MessageItemError />}>
             <View style={[style.container, isQueued && style.containerQueued]}>
                 <Row>
                     <Column align="start" justify="end" fullWidth={fullWidth}>
-                        <View style={bubbleContainerStyles}>
-                            {isText ? (
-                                <ChatTextEvent
-                                    event={event}
-                                    isWide={hasWidePreview}
-                                    onReplyTap={onReplyTap}
-                                    onMentionPress={userId =>
-                                        requestAnimationFrame(() =>
-                                            setSelectedUserId(userId),
-                                        )
-                                    }
-                                />
-                            ) : isEncryptedEvent(event) ? (
-                                <ChatEncryptedEvent event={event} />
-                            ) : isBolt11PaymentEvent(event) ? (
-                                <ChatBolt11PaymentEvent event={event} />
-                            ) : isPaymentEvent(event) ? (
-                                <ChatPaymentEvent event={event} />
-                            ) : isFormEvent(event) ? (
-                                <ChatFormEvent event={event} />
-                            ) : isImageEvent(event) ? (
-                                <ChatImageEvent event={event} />
-                            ) : isFileEvent(event) ? (
-                                <ChatFileEvent event={event} />
-                            ) : isVideoEvent(event) ? (
-                                <ChatVideoEvent event={event} />
-                            ) : isDeletedEvent(event) ? (
-                                <ChatDeletedEvent event={event} />
-                            ) : isPreviewMediaEvent(event) ? (
-                                <ChatPreviewMediaEvent event={event} />
-                            ) : isPollEvent(event) ? (
-                                <ChatPollEvent event={event} />
-                            ) : isFederationInviteEvent(event) ? (
-                                <ChatFederationInviteEvent event={event} />
-                            ) : isCommunityInviteEvent(event) ? (
-                                <ChatCommunityInviteEvent event={event} />
-                            ) : isMultispendEvent(event) ? (
-                                <ChatMultispendEvent event={event} />
-                            ) : isSpTransferEvent(event) ? (
-                                <ChatSpTransferEvent event={event} />
-                            ) : null}
-                        </View>
+                        {isMedia ? (
+                            <View
+                                style={[
+                                    style.mediaContainer,
+                                    isMe
+                                        ? style.rightAlignedMessage
+                                        : style.leftAlignedMessage,
+                                ]}>
+                                {eventContent}
+                            </View>
+                        ) : (
+                            <View style={bubbleContainerStyles}>
+                                {eventContent}
+                            </View>
+                        )}
 
                         {derivedLinks && isPublic && (
                             <View
@@ -194,6 +206,9 @@ const styles = (theme: Theme) =>
         bubbleContainer: {
             borderRadius: 16,
             overflow: 'hidden',
+            maxWidth: theme.sizes.maxMessageWidth,
+        },
+        mediaContainer: {
             maxWidth: theme.sizes.maxMessageWidth,
         },
         leftAlignedMessage: {

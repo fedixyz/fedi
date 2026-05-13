@@ -159,12 +159,16 @@ const styles = (theme: Theme) =>
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
+            borderRadius: 8,
+            overflow: 'hidden',
         },
         errorCaption: {
             color: theme.colors.darkGrey,
         },
         videoContainer: {
             position: 'relative',
+            borderRadius: 8,
+            overflow: 'hidden',
         },
         overlay: {
             position: 'absolute',

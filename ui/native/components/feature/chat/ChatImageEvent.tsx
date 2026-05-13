@@ -73,6 +73,7 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
             : { width: fallbackImageSize, height: fallbackImageSize }
 
     const imageBaseStyle = [style.imageBase, dimensions]
+    const imageLoadedStyle = [style.imageLoaded, dimensions]
 
     useEffect(() => {
         if (!messageVisibilityStore) {
@@ -102,7 +103,7 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
                 onLongPress={handleLongPress}>
                 <Image
                     source={{ uri: resolvedUri, cache: 'force-cache' }}
-                    style={imageBaseStyle}
+                    style={imageLoadedStyle}
                     onError={() => setIsError(true)}
                 />
             </Pressable>
@@ -137,6 +138,13 @@ const styles = (theme: Theme) =>
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
+            borderRadius: 8,
+            overflow: 'hidden',
+        },
+        imageLoaded: {
+            maxWidth: theme.sizes.maxMessageWidth,
+            maxHeight: 400,
+            borderRadius: 8,
         },
     })
 
