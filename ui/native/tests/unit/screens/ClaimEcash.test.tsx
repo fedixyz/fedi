@@ -6,8 +6,12 @@ import {
 } from '@testing-library/react-native'
 
 import * as PayHooks from '@fedi/common/hooks/pay'
-import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
+import {
+    createMockFederationPreview,
+    mockFederation1,
+} from '@fedi/common/tests/mock-data/federation'
 import { LoadedFederation, MSats } from '@fedi/common/types'
+import i18n from '@fedi/native/localization/i18n'
 
 import ClaimEcash from '../../../screens/ClaimEcash'
 import { mockNavigation } from '../../setup/jest.setup.mocks'
@@ -99,6 +103,53 @@ describe('/screens/ClaimEcash', () => {
                 },
                 '123',
             )
+        })
+    })
+
+    describe('when the issuing federation has new members disabled', () => {
+        beforeEach(() => {
+            jest.spyOn(PayHooks, 'useParseEcash').mockImplementation(() => ({
+                parseEcash: parseEcashSpy,
+                loading: false,
+                parsed: {
+                    amount: 10000 as MSats,
+                    federation_invite: 'invite-code',
+                    federation_type: 'notJoined',
+                },
+                ecashToken: '123',
+                isError: false,
+                federation: createMockFederationPreview({
+                    meta: { new_members_disabled: 'true' },
+                }),
+                newMembersDisabled: true,
+            }))
+        })
+
+        it('should explain that the ecash cannot be claimed', async () => {
+            renderWithProviders(
+                <ClaimEcash
+                    navigation={mockNavigation as any}
+                    route={{ params: { id: '123' } } as any}
+                />,
+            )
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.ecash.claim-ecash-new-members-disabled'),
+                ),
+            ).toBeOnTheScreen()
+        })
+
+        it('should hide the claim ecash button', () => {
+            renderWithProviders(
+                <ClaimEcash
+                    navigation={mockNavigation as any}
+                    route={{ params: { id: '123' } } as any}
+                />,
+            )
+
+            expect(screen.queryByTestId('claim-ecash-button')).toBeNull()
+            expect(screen.getByText(i18n.t('words.cancel'))).toBeOnTheScreen()
         })
     })
 })
