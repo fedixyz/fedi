@@ -1,34 +1,10 @@
 {
-    "instructions": {
-        "add-chat-instructions": "Kora cyangwa wifatanye n'<bold>ikiganiro cy'itsinda cyemera abanyamuryango bashya</bold> muri porogaramu ya Fedi - kugira ngo habeho amatangazo cyangwa ibiganiro bifunguye. Bizagaragara hano kugira ngo ubashe kubyongera mu rubuga rwawe.",
-        "add-instructions": "Ongeraho amatsinda rusange wifuza kwerekana mu rubuga rwawe.",
-        "add-mini-apps-description": "Urutonde rw'imbuga z'interineti zishyizwe ku rupapuro rw'ibanze rw'urubuga rwawe. Reba uburyo bwo kongeramo Porogaramu nto.",
-        "community-deleted-successfully": "Urubuga rwawe rwarasibwe!",
-        "delete-community-overlay-list-item-1": "Uru rubuga ruzasibwa burundu",
-        "delete-community-overlay-list-item-2": "Abanyamuryango bose bazabura uburenganzira bwo kwinjira",
-        "delete-community-overlay-list-item-3": "Ubutumwa n'uburyo bwo kwinjira muri Porogaramu nto bizakurwaho",
-        "fill-community-details": "Uzuza amakuru y'urubuga rwawe",
-        "fill-details-description": "Ibi bisobanuro birambuye bigaragaza uko urubuga rwawe rugaragara ku banyamuryango.",
-        "hide-invite-code-description": "Guhitamo ubu buryo bihisha kode y'ubutumire kuri Profayile y'urubuga rwawe. Kode igumana agaciro iyo isangiwe ku buryo bw'intoki.",
-        "pinned-message-description": "Ubutumwa bushyizwe ku rupapuro rw'ibanze rw'urubuga buzaba bushobora kubonwa n'abanyamuryango igihe cyose.",
-        "publish-side-effects": "Gutangaza bizafungura urubuga rwawe kandi bizaguhe umuyoboro w'ubutumire. Urashobora kuruhindura igihe icyo ari cyo cyose.",
-        "tos-url-description": "Huza amategeko y'urubuga rwawe cyangwa amabwiriza agenga uruhare, niba ahari.",
-        "upload-icon-description": "Shyira dosiye y'ishusho cyangwa ushyireho URL y'ishusho ikwiye kugira ngo ihagararire urubuga rwawe. Koresha ishusho ya kare kugira ngo ubone ibisubizo byiza.",
-        "welcome-message-description": "Indamutsa ngufi cyangwa intangiriro igaragazwa mbere y'uko umuntu yinjira mu rubuga rwawe."
-    },
-    "placeholders": {
-        "bitcoin-appreciators-welcome-message": "Murakaza neza mu rubuga rw'abashima bitcoin aho twishimira bitcoin mu kwishimira bitcoin no kuyishimira."
-    },
     "purposeStrings": {
         "NSCameraUsageDescription": "Fedi ikenera kwinjira kuri kamera kugira ngo isikane kode za QR",
         "NSLocationWhenInUseUsageDescription": "Fedi ntabwo ikoresha aho uherereye",
         "NSMicrophoneUsageDescription": "Fedi ikenera kwinjira kuri mikoro yawe kugira ngo yandike videwo y'ubwiherero rusange",
         "NSPhotoLibraryAddUsageDescription": "Fedi ikenera uburenganzira bwo kubika amafoto mu isomero ry'amafoto yawe",
         "NSPhotoLibraryUsageDescription": "Fedi ikenera kwinjira mu isomero ry'amafoto yawe kugira ngo uhitemo amashusho ya avatar yawe n'umugereka mu biganiro"
-    },
-    "questions": {
-        "hide-community-invite-code": "Hisha kode y'ubutumire?",
-        "publish-your-community": "Tangaza urubuga rwawe?"
     },
     "words": {
         "abort": "Hagarika",
@@ -826,15 +802,15 @@
         },
         "gbot": {
             "guardian-fee-rate": "Igipimo cy'amafaranga y'umurinzi",
-            "guardian-fee-rate-update-proposed": "⏳ Gusaba ko hahindurwa Igipimo cy'amafaranga y'umurinzi ku barinzi bawe...\\n\\nNyamuneka tegereza mu gihe ikigega kigera ku bwumvikane kuri iyi mpinduka.",
+            "guardian-fee-rate-update-proposed": "⏳ Gusaba ko hahindurwa Igipimo cy'amafaranga y'umurinzi ku barinzi bawe...\n\nNyamuneka tegereza mu gihe ikigega kigera ku bwumvikane kuri iyi mpinduka.",
             "guardian-fee-remittance-account": "Konti yo kohereza amafaranga y'umurinzi",
             "guardian-fees": "💸 Amafaranga y'umurinzi",
             "guardian-fees-adjust-rate": "⚙️ Hindura igipimo cy'amafaranga y'umurinzi %",
-            "guardian-fees-ask-custom-rate": "⚙️ Hindura igipimo cy'amafaranga y'umurinzi %\\n\\nShyiramo igipimo cy'amafaranga y'umurinzi cyihariye kiri hagati ya 0% na 10%.\\n\\nIngero: 0.25%, 1%, 2.5%",
+            "guardian-fees-ask-custom-rate": "⚙️ Hindura igipimo cy'amafaranga y'umurinzi %\n\nShyiramo igipimo cy'amafaranga y'umurinzi cyihariye kiri hagati ya 0% na 10%.\n\nIngero: 0.25%, 1%, 2.5%",
             "guardian-fees-ask-rate": "⚙️ Hindura igipimo cy'amafaranga y'umurinzi %",
             "guardian-fees-custom-rate": "Ihariye",
             "guardian-fees-rate-none": "Nta kiguzi (0%)",
-            "guardian-fees-sync-in-progress": "⏳ Guhuza Amafaranga y'Umurinzi...\\n\\nMenyu y'Amafaranga y'Umurinzi izifungura mu buryo bwikora iyo byemejwe.",
+            "guardian-fees-sync-in-progress": "⏳ Guhuza Amafaranga y'Umurinzi...\n\nMenyu y'Amafaranga y'Umurinzi izifungura mu buryo bwikora iyo byemejwe.",
             "guardian-fees-view-dashboard": "📊 Reba ububiko bw'amakuru (dashboard) hanyuma utange amafaranga yo kubikuza amafaranga",
             "invalid-guardian-fee-rate": "Igipimo cy'amafaranga y'umurinzi kitemewe. Hitamo kimwe mu bihari cyangwa wandike ijanisha riri hagati ya 0% na 10%."
         },
@@ -1013,11 +989,11 @@
             "unsupported-unknown": "Hmm, ubu si bwo buryo tuzi. Ihangane!"
         },
         "onboarding": {
-            "agree-terms-privacy": "Mu gukomeza, wemera\\n<termsLink>Amasezerano yo gukoresha</termsLink> & <privacyLink>Politiki y'ibanga</privacyLink>.",
+            "agree-terms-privacy": "Mu gukomeza, wemera\n<termsLink>Amasezerano yo gukoresha</termsLink> & <privacyLink>Politiki y'ibanga</privacyLink>.",
             "agreement-text": "Mu gukomeza, wemera {{tos_url}} & {{privacy_url}}.",
             "are-you-new": "Waba mushya kuri Fedi?",
             "by-clicking-i-accept": "Ukanze 'Ndemeye' wemera amategeko ya serivisi kuri {{tos_url}}",
-            "by-clicking-you-agree-user-agreement": "Mu gukomeza, wemera\\n<anchor>Amasezerano yo gukoresha</anchor> & <anchor>Politiki y'ibanga</anchor>",
+            "by-clicking-you-agree-user-agreement": "Mu gukomeza, wemera\n<anchor>Amasezerano yo gukoresha</anchor> & <anchor>Politiki y'ibanga</anchor>",
             "community-first": "Urubuga rubanza",
             "continue-to-fedi": "Komeza kuri Fedi",
             "create-button-label": "Shiraho Ikigega cyanjye",
@@ -1060,7 +1036,7 @@
             "one-time-modal-option-2": "Injira mu bigega byinshi kandi ushyire amafaranga yawe mu makotomoni atandukanye.",
             "one-time-modal-title": "Wamaze kwinjira! Ni iki gikurikiraho?",
             "simple-and-private": "Byoroshye kandi by'ibanga",
-            "tagline": "Ibiganiro, amafaranga na Porogaramu nto.\\nBifashwe n'urubuga.",
+            "tagline": "Ibiganiro, amafaranga na Porogaramu nto.\nBifashwe n'urubuga.",
             "terms-and-conditions": "Amategeko n'amabwiriza",
             "terms-url": "Ukanze 'Ndemeye' wemera amasezerano ya serivisi kuri <url />",
             "title": "Hitamo Ikigega",
@@ -1192,7 +1168,7 @@
             "create-a-new-wallet-instead": "Ahubwo kora ikotomoni nshya",
             "create-new-wallet": "Kora ikotomoni nshya",
             "create-new-wallet-guidance": "Iyi kotomoni izashobora gukoreshwa gusa kuri iki cyuma, keretse igaruwe maze ukoyimurira ku kindi cyuma",
-            "device-migration-detected": "Telefoni nshya?\\n Reka tukuyitegure!",
+            "device-migration-detected": "Telefoni nshya?\n Reka tukuyitegure!",
             "device-not-found": "Ikotomoni Itazwi",
             "device-not-found-description": "Aya magambo y'igaruza ashobora kuba yaraturutse mu ikotomoni itari iya Fedi.",
             "download-failed": "Kunanirwa gukurura",
@@ -1224,7 +1200,7 @@
             "migrated-device-guidance-3": "2️⃣ Kura Fedi kuri iyi telefoni hanyuma uyishyireho bundi bushya",
             "migrated-device-guidance-4": "⚠️ Banza ubike kugira ngo utabura uburenganzira ku mafaranga yawe!",
             "migrated-device-success-guidance-1": "Byiza cyane! Warinze ikotomoni yawe.",
-            "migrated-device-success-guidance-2": "Noneho, kura Fedi kuri iyi telefoni hanyuma uyongere uyishyireho.\\n\\n Ibuka gukoresha amagambo wabitse kugira ngo ugarure amafaranga, ibiganiro, n'amakuru y'ingenzi.",
+            "migrated-device-success-guidance-2": "Noneho, kura Fedi kuri iyi telefoni hanyuma uyongere uyishyireho.\n\n Ibuka gukoresha amagambo wabitse kugira ngo ugarure amafaranga, ibiganiro, n'amakuru y'ingenzi.",
             "migrated-device-success-guidance-3": "Niba ukeneye ubufasha, <anchor>kanda hano</anchor> kugira ngo uhamagare ikipe yacu y'ubufasha",
             "new-wallet": "Ikotomoni nshya",
             "no-devices-found": "Nta bikoresho byabonetse",
