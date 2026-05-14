@@ -1,4 +1,5 @@
 import { ONE_KB, ONE_MB } from '../constants/matrix'
+import type { MatrixEvent } from '../types/matrix'
 import { FileUri, HttpUri, MxcUri } from '../types/media'
 
 const unfixZero = (n: string) => (n.endsWith('.0') ? n.slice(0, -2) : n)
@@ -16,6 +17,34 @@ export const formatFileSize = (bytes: number) => {
     if (bytes < ONE_KB) return `${bytes} B`
     else if (bytes < ONE_MB) return `${unfixZero(kb)} KB`
     else return `${unfixZero(mb)} MB`
+}
+
+export const getMatrixMediaFileExtension = (
+    resource: MatrixEvent<'m.image' | 'm.video' | 'm.file'>,
+) => {
+    const fileNameExtension = [resource.content.filename, resource.content.body]
+        .filter(Boolean)
+        .map(fileName => fileName?.match(/\.([A-Za-z0-9]+)$/)?.[1])
+        .find(Boolean)
+
+    if (fileNameExtension) return fileNameExtension.toLowerCase()
+
+    switch (resource.content.info?.mimetype) {
+        case 'video/quicktime':
+            return 'mov'
+        case 'video/mp4':
+            return 'mp4'
+        case 'image/jpeg':
+            return 'jpg'
+        case 'image/png':
+            return 'png'
+        case 'image/gif':
+            return 'gif'
+        case 'application/pdf':
+            return 'pdf'
+        default:
+            return resource.content.info?.mimetype?.split('/').pop() || 'bin'
+    }
 }
 
 /**

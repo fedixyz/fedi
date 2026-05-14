@@ -10,6 +10,7 @@ import {
     View,
 } from 'react-native'
 
+import { MAX_CHAT_MEDIA_HEIGHT } from '@fedi/common/constants/matrix'
 import {
     selectPreviewMediaMatchingEventContent,
     setSelectedChatMessage,
@@ -57,14 +58,22 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
 
     const style = styles(theme)
 
-    const dimensions = scaleAttachment(
-        event.content.info?.width || 1, // Should't be falsy, but fallback to 1 to avoid division by zero
-        event.content.info?.height || 1,
+    const fallbackImageSize = Math.min(
         theme.sizes.maxMessageWidth,
-        400,
+        MAX_CHAT_MEDIA_HEIGHT,
     )
+    const dimensions =
+        event.content.info?.width && event.content.info?.height
+            ? scaleAttachment(
+                  event.content.info.width,
+                  event.content.info.height,
+                  theme.sizes.maxMessageWidth,
+                  MAX_CHAT_MEDIA_HEIGHT,
+              )
+            : { width: fallbackImageSize, height: fallbackImageSize }
 
     const imageBaseStyle = [style.imageBase, dimensions]
+    const imageLoadedStyle = [style.imageLoaded, dimensions]
 
     useEffect(() => {
         if (!messageVisibilityStore) {
@@ -94,7 +103,7 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
                 onLongPress={handleLongPress}>
                 <Image
                     source={{ uri: resolvedUri, cache: 'force-cache' }}
-                    style={imageBaseStyle}
+                    style={imageLoadedStyle}
                     onError={() => setIsError(true)}
                 />
             </Pressable>
@@ -123,12 +132,19 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         imageBase: {
             maxWidth: theme.sizes.maxMessageWidth,
-            maxHeight: 400,
+            maxHeight: MAX_CHAT_MEDIA_HEIGHT,
             backgroundColor: theme.colors.extraLightGrey,
             padding: 16,
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
+            borderRadius: 8,
+            overflow: 'hidden',
+        },
+        imageLoaded: {
+            maxWidth: theme.sizes.maxMessageWidth,
+            maxHeight: 400,
+            borderRadius: 8,
         },
     })
 

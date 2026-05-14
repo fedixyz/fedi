@@ -5,10 +5,13 @@ import React from 'react'
 import { DEFAULT_PAGINATION_SIZE } from '@fedi/common/constants/matrix'
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import {
+    addMatrixRoomInfo,
     handleMatrixRoomTimelineStreamUpdates,
+    setIsInternetUnreachable,
     setMatrixRoomMembers,
     setupStore,
 } from '@fedi/common/redux'
+import { MOCK_MATRIX_ROOM } from '@fedi/common/tests/mock-data/matrix'
 import {
     createMockNonPaymentEvent,
     createMockPaymentEvent,
@@ -589,6 +592,56 @@ describe('ChatConversation', () => {
                 exact: false,
             }),
         ).not.toBeOnTheScreen()
+    })
+
+    it('renders cached group conversation while offline even when members have not loaded', () => {
+        const store = storeWithEventsLoaded()
+        store.dispatch(setIsInternetUnreachable(true))
+        store.dispatch(
+            addMatrixRoomInfo({
+                ...MOCK_MATRIX_ROOM,
+                id: ROOM_ID,
+                joinedMemberCount: 2,
+            }),
+        )
+
+        renderChat(store)
+
+        expect(
+            screen.getByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).toBeOnTheScreen()
+    })
+
+    it('keeps rendering cached group conversation after reconnect while members are still loading', () => {
+        const store = storeWithEventsLoaded()
+        store.dispatch(setIsInternetUnreachable(true))
+        store.dispatch(
+            addMatrixRoomInfo({
+                ...MOCK_MATRIX_ROOM,
+                id: ROOM_ID,
+                joinedMemberCount: 2,
+            }),
+        )
+
+        renderChat(store)
+
+        expect(
+            screen.getByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).toBeOnTheScreen()
+
+        act(() => {
+            store.dispatch(setIsInternetUnreachable(false))
+        })
+
+        expect(
+            screen.getByText(i18n.t('feature.chat.no-messages'), {
+                exact: false,
+            }),
+        ).toBeOnTheScreen()
     })
 
     it('shows loading state when members loaded but events have not loaded', () => {

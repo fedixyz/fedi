@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import Video, { VideoRef } from 'react-native-video'
 
+import { MAX_CHAT_MEDIA_HEIGHT } from '@fedi/common/constants/matrix'
 import {
     selectPreviewMediaMatchingEventContent,
     setSelectedChatMessage,
@@ -62,7 +63,7 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
         event.content.info?.width ?? 0,
         event.content.info?.height ?? 0,
         theme.sizes.maxMessageWidth,
-        400,
+        MAX_CHAT_MEDIA_HEIGHT,
     )
 
     const videoBaseStyle = [style.videoBase, dimensions]
@@ -152,18 +153,22 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         videoBase: {
             maxWidth: theme.sizes.maxMessageWidth,
-            maxHeight: 400,
+            maxHeight: MAX_CHAT_MEDIA_HEIGHT,
             backgroundColor: theme.colors.extraLightGrey,
             padding: 16,
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
+            borderRadius: 8,
+            overflow: 'hidden',
         },
         errorCaption: {
             color: theme.colors.darkGrey,
         },
         videoContainer: {
             position: 'relative',
+            borderRadius: 8,
+            overflow: 'hidden',
         },
         overlay: {
             position: 'absolute',

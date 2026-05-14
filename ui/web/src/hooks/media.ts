@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, RefObject } from 'react'
 
+import { MAX_CHAT_MEDIA_HEIGHT } from '@fedi/common/constants/matrix'
 import { MatrixEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 import { scaleAttachment } from '@fedi/common/utils/media'
@@ -122,7 +123,7 @@ export function useScaledDimensions({
             originalWidth,
             originalHeight,
             containerWidth,
-            400,
+            MAX_CHAT_MEDIA_HEIGHT,
         )
 
         const result = { width, height }

@@ -9,6 +9,7 @@ import {
     mockMatrixEventImage,
     mockMatrixEventVideo,
 } from '@fedi/common/tests/mock-data/matrix-event'
+import { MatrixEvent } from '@fedi/common/types'
 import { pathJoin } from '@fedi/common/utils/media'
 
 import { useDownloadResource } from '../../../utils/hooks/media'
@@ -17,6 +18,15 @@ import { renderHookWithProviders } from '../../utils/render'
 const testMxcUrl = 'mxc://m1.8fa.in/id'
 const testHttpUrl = 'https://example.com/test.png'
 const matrixDownloadPath = '/path/to/matrix/file'
+const mockVideoInfo = mockMatrixEventVideo.content.info || {
+    duration: null,
+    height: null,
+    width: null,
+    mimetype: null,
+    size: null,
+    thumbnailInfo: null,
+    thumbnailSource: null,
+}
 
 const mockMatrixDownloadFile = jest
     .fn()
@@ -114,15 +124,16 @@ describe('useDownloadResource', () => {
                 .createHash('md5')
                 .update(identifier)
                 .digest('hex')
-            const imageMime =
-                mockMatrixEventImage.content.info?.mimetype?.split('/').pop() ||
-                'png'
+            const imageExtension =
+                mockMatrixEventImage.content.filename
+                    ?.match(/\.([A-Za-z0-9]+)$/)?.[1]
+                    ?.toLowerCase() || 'png'
 
             await waitFor(() => {
                 expect(mockMatrixDownloadFile).toHaveBeenCalledWith(
                     pathJoin(
                         TemporaryDirectoryPath,
-                        `${identifierHash}.${imageMime}`,
+                        `${identifierHash}.${imageExtension}`,
                     ),
                     mockMatrixEventImage.content.source,
                 )
@@ -159,6 +170,125 @@ describe('useDownloadResource', () => {
                         `${identifierHash}.${videoMime}`,
                     ),
                     mockMatrixEventVideo.content.source,
+                )
+                expect(result.current.uri).toBeTruthy()
+            })
+        })
+
+        it('should prefer filename over body when deriving matrix media extensions', async () => {
+            const videoEvent: MatrixEvent<'m.video'> = {
+                ...mockMatrixEventVideo,
+                content: {
+                    ...mockMatrixEventVideo.content,
+                    body: 'v1.2',
+                    filename: 'video.mp4',
+                },
+            }
+
+            const { result } = renderHookWithProviders(
+                () =>
+                    useDownloadResource(videoEvent, {
+                        loadResourceInitially: false,
+                    }),
+                { store },
+            )
+
+            await act(async () => {
+                await result.current.handleDownload()
+            })
+
+            const identifier = `${videoEvent.id}-${videoEvent.timestamp}`
+            const identifierHash = crypto
+                .createHash('md5')
+                .update(identifier)
+                .digest('hex')
+
+            await waitFor(() => {
+                expect(mockMatrixDownloadFile).toHaveBeenCalledWith(
+                    pathJoin(TemporaryDirectoryPath, `${identifierHash}.mp4`),
+                    videoEvent.content.source,
+                )
+                expect(result.current.uri).toBeTruthy()
+            })
+        })
+
+        it('should use mov extension for quicktime matrix video downloads', async () => {
+            const quicktimeEvent: MatrixEvent<'m.video'> = {
+                ...mockMatrixEventVideo,
+                content: {
+                    ...mockMatrixEventVideo.content,
+                    body: 'clip.mov',
+                    filename: 'clip.mov',
+                    info: {
+                        ...mockVideoInfo,
+                        mimetype: 'video/quicktime',
+                    },
+                },
+            }
+
+            const { result } = renderHookWithProviders(
+                () =>
+                    useDownloadResource(quicktimeEvent, {
+                        loadResourceInitially: false,
+                    }),
+                { store },
+            )
+
+            await act(async () => {
+                await result.current.handleDownload()
+            })
+
+            const identifier = `${quicktimeEvent.id}-${quicktimeEvent.timestamp}`
+            const identifierHash = crypto
+                .createHash('md5')
+                .update(identifier)
+                .digest('hex')
+
+            await waitFor(() => {
+                expect(mockMatrixDownloadFile).toHaveBeenCalledWith(
+                    pathJoin(TemporaryDirectoryPath, `${identifierHash}.mov`),
+                    quicktimeEvent.content.source,
+                )
+                expect(result.current.uri).toBeTruthy()
+            })
+        })
+
+        it('should fall back to mov extension for quicktime videos without a filename extension', async () => {
+            const quicktimeEvent: MatrixEvent<'m.video'> = {
+                ...mockMatrixEventVideo,
+                content: {
+                    ...mockMatrixEventVideo.content,
+                    body: 'clip',
+                    filename: null,
+                    info: {
+                        ...mockVideoInfo,
+                        mimetype: 'video/quicktime',
+                    },
+                },
+            }
+
+            const { result } = renderHookWithProviders(
+                () =>
+                    useDownloadResource(quicktimeEvent, {
+                        loadResourceInitially: false,
+                    }),
+                { store },
+            )
+
+            await act(async () => {
+                await result.current.handleDownload()
+            })
+
+            const identifier = `${quicktimeEvent.id}-${quicktimeEvent.timestamp}`
+            const identifierHash = crypto
+                .createHash('md5')
+                .update(identifier)
+                .digest('hex')
+
+            await waitFor(() => {
+                expect(mockMatrixDownloadFile).toHaveBeenCalledWith(
+                    pathJoin(TemporaryDirectoryPath, `${identifierHash}.mov`),
+                    quicktimeEvent.content.source,
                 )
                 expect(result.current.uri).toBeTruthy()
             })
