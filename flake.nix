@@ -385,7 +385,8 @@
                 pkgs.nodePackages.typescript-language-server
                 pkgs.nodePackages.ts-node
                 # tools for managing native app deployments
-                pkgs.fastlane
+                # fastlane 2.232.2 via nixpkgs-unstable
+                pkgs-unstable.fastlane
                 pkgs.ruby
                 pkgs.rsync
                 pkgs.perl
