@@ -2,12 +2,12 @@
 
 ## Overview
 
-The deep linking system handles navigation from external URLs into specific screens within the app. It supports two link formats:
+The deep linking system routes external URLs to specific screens in the native app. Two link formats:
 
--   **Deep links** — Universal Links hosted on our domain, e.g. `https://app.fedi.xyz/link?screen=chat&roomId=123`. When a user taps a deep link without the native app installed, they are taken to the web's deep link landing page where they can choose to continue in the browser or install the native app. Once the native app is installed, tapping a deep link will open the app directly.
--   **Internal links** — Native protocol links prefixed with `fedi://`, e.g. `fedi://room?roomId=123`. These are what deep links get converted into before being processed, and are also used directly within the app.
+-   **Universal Links** — `https://app.fedi.xyz/link?screen=...`. Users tap these; the web handles them at [`/link`](../web/src/pages/link.tsx).
+-   **Internal links** — `fedi://screen?...`. The native app routes on these directly. Universal links are normalized to this form via [`normalizeDeepLink`](../common/utils/linking.ts).
 
-Onboarding must be completed first for deeplinks to trigger actions and behave as expected. If onboarding is not complete, deeplink actions are saved to Redux via `setRedirectTo` and handled later.
+Onboarding must complete before a deeplink routes. Pending links are stashed in Redux (`redirectTo` in [`environment.ts`](../common/redux/environment.ts)) and replayed by [`Splash.tsx`](../native/screens/Splash.tsx). The universal-link host allowlist lives in [`DEEPLINK_HOSTS`](../common/constants/linking.ts).
 
 ---
 
@@ -26,14 +26,16 @@ flowchart TD
     HAS_APP_2 -->|Yes| ONBOARDED
 
     %% ─── App NOT installed ───────────────────────
-    HAS_APP -->|No| LANDING["<b>Web Landing Page</b>"]
-    LANDING --> WEB_CHOICE{User choice}
-    WEB_CHOICE -->|Install the app| STORE[App Store / Play Store]
-    WEB_CHOICE -->|Continue in browser| WEBAPP(["<b>Web App</b><br/>(handles link in browser)"])
-
+    HAS_APP -->|No| LANDING["<b>/link page</b>"]
+    LANDING --> SCHEME_OK{App opened?}
+    SCHEME_OK -->|Yes| ONBOARDED
+    SCHEME_OK -->|No| STORE[App Store / Play Store]
     STORE --> OPENS[User installs and opens app]
-    OPENS --> FRESH_ONBOARD["<b>Onboarding</b> — create wallet"]
-    FRESH_ONBOARD --> DONE_HOME(["<b>Home Screen</b>"])
+    OPENS --> FRESH_ONBOARD["<b>Onboarding splash</b><br/>shows DeepLinkRedirectLink"]
+    FRESH_ONBOARD --> RESUME["<b>/deeplink-redirect page</b>"]
+    RESUME --> RESUME_OK{Persisted link found?}
+    RESUME_OK -->|Yes| ONBOARDED
+    RESUME_OK -->|No| RESUME_ERR(["<b>Error UI</b><br/>'Back to Fedi' CTA"])
 
     %% ─── App installed ──────────────────────────
     HAS_APP -->|Yes| ONBOARDED
@@ -138,7 +140,7 @@ flowchart TD
 
 ### Link Processing
 
-All deep links pass through the same pipeline regardless of how they arrive (tap, cold start, notification, or in-app call):
+All links go through the same pipeline regardless of entry point:
 
 ```
 Incoming URL
@@ -148,55 +150,51 @@ Incoming URL
      ▼
 getLinking().subscribe()
      │
-     ├─ Onboarding incomplete?  →  save to Redux, replay after onboarding
+     ├─ Onboarding incomplete?  →  stash in Redux, replay after onboarding
      ▼
 getInternalLinkRoute()  →  look up screen in screenMap  →  NavigationState
 ```
 
-**How links arrive:**
+The native pipeline (subscribe, route, `screenMap`, `patchLinkingOpenURL`) lives in [`utils/linking.ts`](../native/utils/linking.ts). Parsing helpers (`isDeepLink`, `normalizeDeepLink`, `stripFediPrefix`, `normalizeCommunityInviteCode`) are in [`common/utils/linking.ts`](../common/utils/linking.ts).
 
--   **Cold start** — `Linking.getInitialURL()` and `notifee.getInitialNotification()` capture the URL on launch. If the navigator isn't mounted yet, the link is queued in `pendingLinks` and flushed in `onReady`.
--   **Foreground** — `Linking.addEventListener` fires with the URL.
--   **Notification** — Notifee's `onForegroundEvent` extracts the `link` field from the notification data payload.
--   **In-app** — `patchLinkingOpenURL` (called once at module load) intercepts all `Linking.openURL` calls so deep links route internally instead of opening a browser.
+**Entry points** — all wired in [`Router.tsx`](../native/Router.tsx):
+
+-   **Cold start** — `Linking.getInitialURL` and `notifee.getInitialNotification`. Links arriving before nav mounts are queued in `pendingLinks` and flushed on `onReady`.
+-   **Foreground** — `Linking.addEventListener`.
+-   **Notification** — Notifee's `onForegroundEvent` pulls the `link` field from the notification data payload.
+-   **In-app** — `patchLinkingOpenURL` intercepts `Linking.openURL` so deep links route internally instead of opening a browser.
 
 ### Deep Link → Internal Link Conversion
 
-`normalizeDeepLink()` converts a universal link to the internal format. The `screen` parameter becomes the path and all other parameters are preserved:
+[`normalizeDeepLink`](../common/utils/linking.ts) converts a universal link to the internal format. The `screen` param becomes the path; everything else passes through:
 
 ```
 https://app.fedi.xyz/link?screen=room&roomId=abc123  →  fedi://room?roomId=abc123
 ```
 
-Both `?` and `#` delimiters are supported (e.g. `link#screen=room&roomId=abc123`).
+Both `?` and `#` delimiters are supported.
 
----
+### Post-install Fallback (Web)
 
-## Key Files
+When a tapped universal link finds no installed app, the web preserves it across the install detour:
 
-| File | Role |
-| ---- | ---- |
-| `Router.tsx` | Wires `getLinking` into `NavigationContainer`, flushes pending links on ready, patches `Linking.openURL` |
-| `utils/linking.ts` (native) | `getLinking`, `getInternalLinkRoute`, `screenMap`, `navigateToUri`, `flushPendingLinks`, `patchLinkingOpenURL` |
-| `common/utils/linking.ts` | `isDeepLink`, `normalizeDeepLink`, `isFediDeeplinkType`, `stripFediPrefix`, `normalizeCommunityInviteCode` |
+-   [`/link`](../web/src/pages/link.tsx) writes the URL to `localStorage` via [`setPendingDeeplink`](../web/src/utils/localstorage.ts) and attempts the `fedi://` scheme.
+-   After install, [`/deeplink-redirect`](../web/src/pages/deeplink-redirect.tsx) reads and clears the entry, then re-fires the scheme.
+-   The native [`DeepLinkRedirectLink`](../native/components/ui/DeepLinkRedirectLink.tsx) — shown on the onboarding splash when the user has no joined federations or non-global communities — opens the system browser to [`getDeeplinkResumeUrl`](../common/constants/api.ts), bridging the user back to `/deeplink-redirect`.
+
+Layout primitives shared by both web pages live in [`DeeplinkPageLayout.tsx`](../web/src/components/DeeplinkPageLayout.tsx).
 
 ---
 
 ## Supported Routes
 
-The canonical list of supported screens lives in the `screenMap` object in [`utils/linking.ts`](../native/utils/linking.ts). Each key is a screen name (e.g. `"room"`, `"join-then-ecash"`) and its function returns the navigation target and any parameter mappings.
+Routes are defined in `screenMap` in [`utils/linking.ts`](../native/utils/linking.ts). Each key is a screen name (e.g. `"room"`, `"join-then-ecash"`) mapping to a navigation target and parameter mapping.
 
-Deep links follow this format:
-
-```
-https://app.fedi.xyz/link#screen=<screen>&param1=value1&param2=value2
-```
-
-Both `?` and `#` delimiters are supported. Community invite codes with a `fedi:` prefix are normalised automatically.
+Universal links use `?` or `#` delimiters. Community invite codes with a `fedi:` prefix are normalised automatically via [`normalizeCommunityInviteCode`](../common/utils/linking.ts).
 
 ---
 
 ## Notes
 
--   Links that arrive before onboarding is complete are saved to Redux (`setRedirectTo`) and replayed after onboarding finishes.
--   Links that arrive before the navigator is ready are queued and flushed once `onReady` fires.
+-   Links arriving before onboarding completes are stashed via `setRedirectTo` ([`environment.ts`](../common/redux/environment.ts)) and replayed in [`Splash.tsx`](../native/screens/Splash.tsx).
+-   Links arriving before nav mounts are queued in [`Router.tsx`](../native/Router.tsx)'s `pendingLinks` and flushed on `onReady`.
