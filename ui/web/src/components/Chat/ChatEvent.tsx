@@ -10,6 +10,7 @@ import {
     isFormEvent,
     isImageEvent,
     isPaymentEvent,
+    isRoomMemberEvent,
     isTextEvent,
     isVideoEvent,
     matrixIdToUsername,
@@ -42,6 +43,8 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
         return members || []
     })
     const isMe = event.sender === matrixAuth?.userId
+
+    if (isRoomMemberEvent(event)) return null
 
     // Images and videos require a different wrapper that has a percentage width
     // rather than a "fit-content" width. This allows the image to be scaled

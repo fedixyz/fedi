@@ -164,6 +164,29 @@ describe('getRoomPreviewText', () => {
         }
     }
 
+    function makeRoomMemberRoom(): MatrixRoom {
+        return {
+            ...MOCK_MATRIX_ROOM,
+            preview: {
+                id: '$room-member-preview',
+                roomId: '!group-room:test',
+                senderId: '@alice:test',
+                timestamp: Date.now(),
+                localEcho: false,
+                sender: '@alice:test',
+                sendState: { kind: 'sent', event_id: 'event123' },
+                inReply: null,
+                mentions: null,
+                content: {
+                    msgtype: 'm.room.member',
+                    userId: '@alice:test',
+                    userDisplayName: 'Alice',
+                    change: 'joined',
+                },
+            } as unknown as NonNullable<MatrixRoom['preview']>,
+        }
+    }
+
     it('should return generic stable balance transfer preview text for group rooms', () => {
         expect(getRoomPreviewText(makeSpTransferRoom(false), t)).toBe(
             'New stable balance transfer activity',
@@ -173,6 +196,12 @@ describe('getRoomPreviewText', () => {
     it('should return generic stable balance transfer preview text for DM rooms', () => {
         expect(getRoomPreviewText(makeSpTransferRoom(true), t)).toBe(
             'New stable balance transfer activity',
+        )
+    })
+
+    it('should ignore membership events for room preview text', () => {
+        expect(getRoomPreviewText(makeRoomMemberRoom(), t)).toBe(
+            'feature.chat.no-messages',
         )
     })
 })

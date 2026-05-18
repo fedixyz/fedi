@@ -92,6 +92,7 @@ fn extract_text_from_item(item: &RpcTimelineItem) -> Option<String> {
             RpcMsgLikeKind::Text(txt_like) => Some(txt_like.body.to_string()),
             RpcMsgLikeKind::Payment(payment) => Some(payment.body.to_string()),
             RpcMsgLikeKind::Unknown => None,
+            RpcMsgLikeKind::RoomMember(_) => None,
             RpcMsgLikeKind::UnableToDecrypt => Some("<unable-to-decrypt>".to_string()),
             other => unimplemented!("implement {other:?}"),
         },

@@ -16,10 +16,12 @@ import {
     isCommunityInviteEvent,
     isFormEvent,
     isImageEvent,
+    isJoinedRoomMemberEvent,
     isMultispendEvent,
     isPaymentEvent,
     isPollEvent,
     isPreviewMediaEvent,
+    isRoomMemberEvent,
     isTextEvent,
     isVideoEvent,
     isSpTransferEvent,
@@ -41,6 +43,7 @@ import ChatImageEvent from './ChatImageEvent'
 import ChatPaymentEvent from './ChatPaymentEvent'
 import ChatPollEvent from './ChatPollEvent'
 import ChatPreviewMediaEvent from './ChatPreviewMediaEvent'
+import ChatRoomMemberEvent from './ChatRoomMemberEvent'
 import ChatTextEvent from './ChatTextEvent'
 import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
 import ChatVideoEvent from './ChatVideoEvent'
@@ -101,6 +104,11 @@ const ChatEvent: React.FC<Props> = ({
     }
 
     const derivedLinks = isText ? deriveUrlsFromText(event.content.body) : null
+
+    if (isRoomMemberEvent(event)) {
+        if (!isJoinedRoomMemberEvent(event)) return null
+        return <ChatRoomMemberEvent event={event} />
+    }
 
     const style = styles(theme)
     const eventContent = isText ? (

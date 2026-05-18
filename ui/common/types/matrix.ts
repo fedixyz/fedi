@@ -110,6 +110,7 @@ export const RpcMatrixEventKinds = [
     'm.file',
     'm.notice',
     'm.emote',
+    'm.room.member',
     'xyz.fedi.payment',
     'xyz.fedi.form',
     'xyz.fedi.multispend',
@@ -310,6 +311,7 @@ export const UnsendableMessageKinds = [
     'unableToDecrypt',
     'failedToParseCustom',
     'xyz.fedi.preview-media',
+    'm.room.member',
     'xyz.fedi.multispend',
     'spTransfer',
 ] as const satisfies MatrixEventKind[]

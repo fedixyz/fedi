@@ -564,6 +564,7 @@
             "leave-group-confirmation": "Are you sure you want to leave the group? All group message history will be lost.",
             "lightning-invoice-chat": "⚡️ Lightning invoice - Amount: {{amountString}}",
             "member-not-found": "Could not find a member with the username '{{username}}'",
+            "member-joined": "{{user}} joined the room",
             "message-could-not-be-displayed": "Message could not be displayed",
             "message-deleted": "This message was deleted",
             "message-private": "This message is private",

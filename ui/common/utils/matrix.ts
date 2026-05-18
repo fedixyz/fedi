@@ -315,11 +315,15 @@ export function makeMatrixEventGroups(
 export function makeChatFromUnjoinedRoomPreview(preview: MatrixGroupPreview) {
     const { info, timeline } = preview
 
-    const chatPreview: MatrixEvent = timeline.reduce((latest, current) => {
-        return (latest?.timestamp || 0) > (current?.timestamp || 0)
-            ? latest
-            : current
-    }, timeline[0])
+    const previewableTimeline = timeline.filter(
+        event => !isRoomMemberEvent(event),
+    )
+    const chatPreview: MatrixEvent | null =
+        previewableTimeline.reduce<MatrixEvent | null>((latest, current) => {
+            return (latest?.timestamp || 0) > (current?.timestamp || 0)
+                ? latest
+                : current
+        }, previewableTimeline[0] ?? null)
     const chat: MatrixRoom = {
         ...info,
         preview: chatPreview,
@@ -670,6 +674,22 @@ export function isPollEvent(
     event: MatrixEvent,
 ): event is MatrixEvent<'m.poll'> {
     return event.content.msgtype === 'm.poll'
+}
+
+export function isRoomMemberEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<'m.room.member'> {
+    return event.content.msgtype === 'm.room.member'
+}
+
+export function isJoinedRoomMemberEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<'m.room.member'> {
+    return (
+        isRoomMemberEvent(event) &&
+        (event.content.change === 'joined' ||
+            event.content.change === 'invitationAccepted')
+    )
 }
 
 export function isFederationInviteEvent(
@@ -1565,6 +1585,7 @@ export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
     const preview = room.preview
 
     if (!preview) return t('feature.chat.no-messages')
+    if (isRoomMemberEvent(preview)) return t('feature.chat.no-messages')
 
     const previewTextKey = getEventPreviewTextKey(preview)
     if (previewTextKey) return t(previewTextKey)

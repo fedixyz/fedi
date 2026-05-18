@@ -27,7 +27,10 @@ import {
     RpcUserPowerLevel,
 } from '@fedi/common/types/bindings'
 import { makeChatConversationRows } from '@fedi/common/utils/chatConversationRows'
-import { matrixIdToUsername } from '@fedi/common/utils/matrix'
+import {
+    isRoomMemberEvent,
+    matrixIdToUsername,
+} from '@fedi/common/utils/matrix'
 
 import {
     useAppDispatch,
@@ -153,9 +156,13 @@ export const ChatConversation: React.FC<Props> = ({
     const showMentionSuggestions =
         mentionEnabled && !isReadOnly && shouldShowSuggestions
 
+    const visibleEvents = useMemo(
+        () => events.filter(event => !isRoomMemberEvent(event)),
+        [events],
+    )
     const chatRows = useMemo(
-        () => makeChatConversationRows(events, type),
-        [events, type],
+        () => makeChatConversationRows(visibleEvents, type),
+        [visibleEvents, type],
     )
 
     // this useEffect is required to handle

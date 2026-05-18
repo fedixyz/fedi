@@ -1078,6 +1078,7 @@ export type RpcMsgLikeKind =
   | ({ msgtype: "xyz.fedi.payment" } & RpcPaymentMessageContent)
   | ({ msgtype: "xyz.fedi.form" } & RpcFormMessageContent)
   | ({ msgtype: "xyz.fedi.multispend" } & MultispendEvent)
+  | ({ msgtype: "m.room.member" } & RpcRoomMemberEventContent)
   | ({ msgtype: "spTransfer" } & SpTransferVirtualEvent)
   | { msgtype: "failedToParseCustom"; msg_type: string; error: string }
   | { msgtype: "unknown" }
@@ -1236,6 +1237,31 @@ export type RpcRoomMember = {
   powerLevel: RpcUserPowerLevel;
   membership: RpcMatrixMembership;
 };
+
+export type RpcRoomMemberEventContent = {
+  userId: RpcUserId;
+  userDisplayName: string | null;
+  change: RpcRoomMembershipChange | null;
+};
+
+export type RpcRoomMembershipChange =
+  | "none"
+  | "error"
+  | "joined"
+  | "left"
+  | "banned"
+  | "unbanned"
+  | "kicked"
+  | "invited"
+  | "kickedAndBanned"
+  | "invitationAccepted"
+  | "invitationRejected"
+  | "invitationRevoked"
+  | "knocked"
+  | "knockAccepted"
+  | "knockRetracted"
+  | "knockDenied"
+  | "notImplemented";
 
 /**
  * Enum representing the push notification modes for a room.

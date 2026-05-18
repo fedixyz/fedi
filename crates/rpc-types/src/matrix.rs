@@ -321,6 +321,11 @@ impl RpcTimelineItemEvent {
                 let in_reply = msg.in_reply_to.as_ref().map(Self::for_reply);
                 (RpcMsgLikeKind::from(&msg.kind), mentions, in_reply)
             }
+            TimelineItemContent::MembershipChange(membership) => (
+                RpcMsgLikeKind::RoomMember(RpcRoomMemberEventContent::from(membership)),
+                None,
+                None,
+            ),
             _ => (RpcMsgLikeKind::Unknown, None, None),
         }
     }
@@ -1287,6 +1292,8 @@ pub enum RpcMsgLikeKind {
     Form(RpcFormMessageContent),
     #[serde(rename = "xyz.fedi.multispend")]
     Multispend(MultispendEvent),
+    #[serde(rename = "m.room.member")]
+    RoomMember(RpcRoomMemberEventContent),
     SpTransfer(SpTransferVirtualEvent),
     FailedToParseCustom {
         msg_type: String,
@@ -1302,6 +1309,74 @@ pub enum RpcMsgLikeKind {
 #[ts(export)]
 pub struct SpTransferVirtualEvent {
     should_render: bool,
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcRoomMemberEventContent {
+    pub user_id: RpcUserId,
+    pub user_display_name: Option<String>,
+    pub change: Option<RpcRoomMembershipChange>,
+}
+
+impl From<&matrix_sdk_ui::timeline::RoomMembershipChange> for RpcRoomMemberEventContent {
+    fn from(value: &matrix_sdk_ui::timeline::RoomMembershipChange) -> Self {
+        Self {
+            user_id: RpcUserId(value.user_id().into()),
+            user_display_name: value.display_name(),
+            change: value.change().map(RpcRoomMembershipChange::from),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcRoomMembershipChange {
+    None,
+    Error,
+    Joined,
+    Left,
+    Banned,
+    Unbanned,
+    Kicked,
+    Invited,
+    KickedAndBanned,
+    InvitationAccepted,
+    InvitationRejected,
+    InvitationRevoked,
+    Knocked,
+    KnockAccepted,
+    KnockRetracted,
+    KnockDenied,
+    NotImplemented,
+}
+
+impl From<matrix_sdk_ui::timeline::MembershipChange> for RpcRoomMembershipChange {
+    fn from(value: matrix_sdk_ui::timeline::MembershipChange) -> Self {
+        use matrix_sdk_ui::timeline::MembershipChange;
+
+        match value {
+            MembershipChange::None => Self::None,
+            MembershipChange::Error => Self::Error,
+            MembershipChange::Joined => Self::Joined,
+            MembershipChange::Left => Self::Left,
+            MembershipChange::Banned => Self::Banned,
+            MembershipChange::Unbanned => Self::Unbanned,
+            MembershipChange::Kicked => Self::Kicked,
+            MembershipChange::Invited => Self::Invited,
+            MembershipChange::KickedAndBanned => Self::KickedAndBanned,
+            MembershipChange::InvitationAccepted => Self::InvitationAccepted,
+            MembershipChange::InvitationRejected => Self::InvitationRejected,
+            MembershipChange::InvitationRevoked => Self::InvitationRevoked,
+            MembershipChange::Knocked => Self::Knocked,
+            MembershipChange::KnockAccepted => Self::KnockAccepted,
+            MembershipChange::KnockRetracted => Self::KnockRetracted,
+            MembershipChange::KnockDenied => Self::KnockDenied,
+            MembershipChange::NotImplemented => Self::NotImplemented,
+        }
+    }
 }
 
 impl From<&RumaMessageType> for RpcMsgLikeKind {

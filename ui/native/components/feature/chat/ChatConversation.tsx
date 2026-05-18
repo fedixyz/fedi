@@ -33,7 +33,12 @@ import {
 } from '@fedi/common/redux'
 import { ChatType } from '@fedi/common/types'
 import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
-import { isImageEvent, isVideoEvent } from '@fedi/common/utils/matrix'
+import {
+    isImageEvent,
+    isJoinedRoomMemberEvent,
+    isRoomMemberEvent,
+    isVideoEvent,
+} from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { RootStackParamList } from '../../../types/navigation'
@@ -171,9 +176,18 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         return previewEvents
     }, [events, id, myId, previewMedia])
 
-    const chatRows = useMemo(
-        () => makeChatConversationRows(chatEvents, type),
+    const visibleChatEvents = useMemo(
+        () =>
+            chatEvents.filter(event => {
+                if (!isRoomMemberEvent(event)) return true
+
+                return type === ChatType.group && isJoinedRoomMemberEvent(event)
+            }),
         [chatEvents, type],
+    )
+    const chatRows = useMemo(
+        () => makeChatConversationRows(visibleChatEvents, type),
+        [visibleChatEvents, type],
     )
     const roomMembersById = useMemo(
         () => new Map(roomMembers.map(member => [member.id, member])),
@@ -282,10 +296,12 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     )
 
     const renderEventRow: ListRenderItem<ChatConversationRow> = useCallback(
-        ({ item }) => (
+        ({ item, index }) => (
             <ChatConversationEventRow
                 roomId={id}
                 row={item}
+                olderRow={chatRows[index + 1]}
+                newerRow={chatRows[index - 1]}
                 roomMember={roomMembersById.get(item.event.sender)}
                 myId={myId}
                 canSwipe={canSwipe}
@@ -297,6 +313,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         ),
         [
             canSwipe,
+            chatRows,
             handleReplyTap,
             highlightedMessageId,
             id,

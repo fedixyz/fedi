@@ -301,6 +301,36 @@ function storeWithLoadedConversation(events: MatrixEvent[]) {
     return store
 }
 
+function createRoomMemberEvent(
+    change: MatrixEvent<'m.room.member'>['content']['change'],
+    options: {
+        id?: string
+        userId?: string
+        userDisplayName?: string
+        timestamp?: number
+    } = {},
+): MatrixEvent<'m.room.member'> {
+    const userId = options.userId ?? '@alice:example.com'
+    const userDisplayName = options.userDisplayName ?? 'Alice'
+
+    return {
+        id: (options.id ?? '$room-member-event') as RpcTimelineEventItemId,
+        roomId: ROOM_ID,
+        timestamp: options.timestamp ?? 1750083034389,
+        localEcho: false,
+        sender: userId,
+        sendState: { kind: 'sent', event_id: 'event123' },
+        inReply: null,
+        mentions: null,
+        content: {
+            msgtype: 'm.room.member',
+            userId,
+            userDisplayName,
+            change,
+        },
+    }
+}
+
 function renderChat(
     store: ReturnType<typeof setupStore>,
     props: Partial<React.ComponentProps<typeof ChatConversation>> = {},
@@ -687,6 +717,69 @@ describe('ChatConversation', () => {
                 exact: false,
             }),
         ).toBeOnTheScreen()
+    })
+
+    it('renders accepted invitation membership events as centered join notices', () => {
+        const store = storeWithLoadedConversation([
+            createRoomMemberEvent('invitationAccepted'),
+        ])
+
+        renderChat(store)
+
+        expect(
+            screen.getByText(
+                i18n.t('feature.chat.member-joined', { user: 'Alice' }),
+            ),
+        ).toBeOnTheScreen()
+        expect(screen.queryByText('Alice')).toBeNull()
+    })
+
+    it('does not render membership join notices in direct chats', () => {
+        const store = storeWithLoadedConversation([
+            createRoomMemberEvent('invitationAccepted'),
+        ])
+
+        renderChat(store, { type: ChatType.direct })
+
+        expect(
+            screen.queryByText(
+                i18n.t('feature.chat.member-joined', { user: 'Alice' }),
+            ),
+        ).toBeNull()
+    })
+
+    it('does not render non-join membership events between join notices', () => {
+        const store = storeWithLoadedConversation([
+            createRoomMemberEvent('joined', {
+                id: '$alice-joined',
+                userDisplayName: 'Alice',
+                timestamp: 1750083034389,
+            }),
+            createRoomMemberEvent('left', {
+                id: '$bob-left',
+                userDisplayName: 'Bob',
+                timestamp: 1750083033389,
+            }),
+            createRoomMemberEvent('joined', {
+                id: '$carol-joined',
+                userDisplayName: 'Carol',
+                timestamp: 1750083032389,
+            }),
+        ])
+
+        renderChat(store)
+
+        expect(
+            screen.getByText(
+                i18n.t('feature.chat.member-joined', { user: 'Alice' }),
+            ),
+        ).toBeOnTheScreen()
+        expect(
+            screen.getByText(
+                i18n.t('feature.chat.member-joined', { user: 'Carol' }),
+            ),
+        ).toBeOnTheScreen()
+        expect(screen.queryByText('Bob')).toBeNull()
     })
 
     it('shows NoMembersNotice when events loaded and member count is 1 (alone)', () => {

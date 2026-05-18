@@ -23,6 +23,29 @@ function makeEvent(
     })
 }
 
+function makeRoomMemberEvent(
+    id: string,
+    sender: string,
+    timestampOffset: number,
+): MatrixEvent<'m.room.member'> {
+    return {
+        id: `$${id}` as RpcTimelineEventItemId,
+        roomId: '!room:example.com',
+        timestamp: BASE_TIMESTAMP + timestampOffset,
+        localEcho: false,
+        sender,
+        sendState: { kind: 'sent', event_id: `event-${id}` },
+        inReply: null,
+        mentions: null,
+        content: {
+            msgtype: 'm.room.member',
+            userId: sender,
+            userDisplayName: sender,
+            change: 'joined',
+        },
+    }
+}
+
 describe('chatConversationRows', () => {
     describe('makeChatConversationRows', () => {
         it('should return empty array for empty input', () => {
@@ -161,6 +184,23 @@ describe('chatConversationRows', () => {
 
             rows.forEach(row => {
                 expect(row.showUsernames).toBe(true)
+            })
+        })
+
+        it('should keep room member events in timestamp order', () => {
+            const events = [
+                makeEvent('1', '@alice:example.com', 0),
+                makeRoomMemberEvent('2', '@bob:example.com', -10_000),
+                makeRoomMemberEvent('3', '@carol:example.com', -20_000),
+                makeEvent('4', '@alice:example.com', -30_000),
+            ]
+            const rows = makeChatConversationRows(events, ChatType.group)
+
+            expect(rows[1]).toMatchObject({
+                event: expect.objectContaining({ id: '$2' }),
+            })
+            expect(rows[2]).toMatchObject({
+                event: expect.objectContaining({ id: '$3' }),
             })
         })
     })

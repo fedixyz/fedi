@@ -6,8 +6,10 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 import {
+    isJoinedRoomMemberEvent,
     isMultispendEvent,
     isPowerLevelGreaterOrEqual,
+    isRoomMemberEvent,
 } from '@fedi/common/utils/matrix'
 
 import { ChatConversationRow } from '../../../utils/chatConversationRows'
@@ -27,9 +29,33 @@ type Props = {
     onSelect: (userId: string) => void
     onReplyTap?: (eventId: string) => void
     highlightedMessageId?: string | null
+    olderRow?: ChatConversationRow
+    newerRow?: ChatConversationRow
 }
 
 const AVATAR_SLOT_WIDTH = 43
+const CHAT_CONVERSATION_ROW_SPACING = {
+    systemNoticeAdjacentJoinNotice: 0,
+    systemNoticeAdjacentTimestamp: 0,
+    systemNoticeAdjacentMessage: 48,
+    systemNoticeListEdge: 16,
+    senderRun: 12,
+    timestampMarginVertical: 12,
+}
+
+const isJoinNoticeRow = (row?: ChatConversationRow): boolean =>
+    !!row && isJoinedRoomMemberEvent(row.event)
+
+const systemNoticeSpacing = (row?: ChatConversationRow) => {
+    if (!row) return CHAT_CONVERSATION_ROW_SPACING.systemNoticeListEdge
+    if (isJoinNoticeRow(row)) {
+        return CHAT_CONVERSATION_ROW_SPACING.systemNoticeAdjacentJoinNotice
+    }
+    if (row.showTimestamp) {
+        return CHAT_CONVERSATION_ROW_SPACING.systemNoticeAdjacentTimestamp
+    }
+    return CHAT_CONVERSATION_ROW_SPACING.systemNoticeAdjacentMessage
+}
 
 const ChatConversationEventRow = memo(
     ({
@@ -42,6 +68,8 @@ const ChatConversationEventRow = memo(
         onSelect,
         onReplyTap,
         highlightedMessageId,
+        olderRow,
+        newerRow,
     }: Props) => {
         const { t } = useTranslation()
         const { theme } = useTheme()
@@ -81,6 +109,38 @@ const ChatConversationEventRow = memo(
         // the flash for recent messages makes successful focus on the newest
         // pinned message look like a no-op when that row is already on screen.
         const isHighlighted = !isPending && highlightedMessageId === event.id
+
+        if (isRoomMemberEvent(event)) {
+            if (!isJoinedRoomMemberEvent(event)) {
+                return null
+            }
+
+            return (
+                <View
+                    style={[
+                        style.container,
+                        style.systemNoticeContainer,
+                        {
+                            paddingTop: systemNoticeSpacing(olderRow),
+                            paddingBottom: systemNoticeSpacing(newerRow),
+                        },
+                    ]}>
+                    {row.showTimestamp && event.timestamp && (
+                        <Column
+                            align="center"
+                            fullWidth
+                            style={style.timestampContainer}>
+                            <Text tiny style={style.timestampText}>
+                                {dateUtils.formatMessageItemTimestamp(
+                                    event.timestamp / 1000,
+                                )}
+                            </Text>
+                        </Column>
+                    )}
+                    <ChatEvent event={event} />
+                </View>
+            )
+        }
 
         const content = (
             <View style={[isHighlighted && style.highlightedMessage]}>
@@ -167,11 +227,15 @@ const ChatConversationEventRow = memo(
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {},
+        systemNoticeContainer: {
+            alignItems: 'center',
+        },
         senderRunSpacing: {
-            marginTop: theme.spacing.md,
+            marginTop: CHAT_CONVERSATION_ROW_SPACING.senderRun,
         },
         timestampContainer: {
-            marginVertical: theme.spacing.md,
+            marginVertical:
+                CHAT_CONVERSATION_ROW_SPACING.timestampMarginVertical,
         },
         timestampText: {
             color: theme.colors.darkGrey,

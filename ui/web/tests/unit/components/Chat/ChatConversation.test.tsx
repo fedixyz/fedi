@@ -2,7 +2,8 @@ import '@testing-library/jest-dom'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import { ChatType } from '@fedi/common/types'
+import { ChatType, MatrixEvent } from '@fedi/common/types'
+import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
 
 import { ChatConversation } from '../../../../src/components/Chat/ChatConversation'
 import { renderWithProviders } from '../../../utils/render'
@@ -29,6 +30,50 @@ const groupChatProps = {
     onSendMessage: onSendMessageSpy,
     onWalletClick: () => null,
     onPaginate: () => Promise.resolve(),
+}
+
+function makeTextEvent(
+    id: string,
+    body: string,
+    timestamp: number,
+): MatrixEvent {
+    return {
+        id: id as RpcTimelineEventItemId,
+        roomId: groupChatProps.id,
+        timestamp,
+        sender: '@alice:example.com',
+        localEcho: false,
+        sendState: { kind: 'sent', event_id: id },
+        inReply: null,
+        mentions: null,
+        content: {
+            msgtype: 'm.text',
+            body,
+            formatted: null,
+        },
+    }
+}
+
+function makeRoomMemberEvent(
+    id: string,
+    timestamp: number,
+): MatrixEvent<'m.room.member'> {
+    return {
+        id: id as RpcTimelineEventItemId,
+        roomId: groupChatProps.id,
+        timestamp,
+        sender: '@alice:example.com',
+        localEcho: false,
+        sendState: { kind: 'sent', event_id: id },
+        inReply: null,
+        mentions: null,
+        content: {
+            msgtype: 'm.room.member',
+            userId: '@alice:example.com',
+            userDisplayName: 'Alice',
+            change: 'joined',
+        },
+    }
 }
 
 describe('/components/Chat/ChatConversation', () => {
@@ -100,6 +145,27 @@ describe('/components/Chat/ChatConversation', () => {
                     ).toBeInTheDocument()
                 })
             })
+        })
+    })
+
+    describe('membership events', () => {
+        it('should not render room member events on web', async () => {
+            const { container } = renderWithProviders(
+                <ChatConversation
+                    {...groupChatProps}
+                    events={[
+                        makeTextEvent('$message', 'visible message', 2),
+                        makeRoomMemberEvent('$room-member', 1),
+                    ]}
+                />,
+            )
+
+            await waitFor(() => {
+                expect(screen.getByText('visible message')).toBeInTheDocument()
+            })
+            expect(
+                container.querySelector('[data-event-id="$room-member"]'),
+            ).not.toBeInTheDocument()
         })
     })
 

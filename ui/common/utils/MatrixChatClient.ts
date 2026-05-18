@@ -54,6 +54,7 @@ import { makeLog } from './log'
 import {
     encodeFediMatrixRoomUri,
     isRpcMatrixEvent,
+    isRoomMemberEvent,
     mxcUrlToHttpUrl,
 } from './matrix'
 import { mapStreamUpdate, getNewStreamIds } from './stream'
@@ -1208,12 +1209,16 @@ export class MatrixChatClient {
             ? mxcUrlToHttpUrl(room.avatarUrl, 200, 200, 'crop')
             : undefined
 
-        const preview = room.preview
+        const previewEvent = room.preview
             ? this.serializeTimelineItem(
                   { value: room.preview, kind: 'event' },
                   room.id,
               )
             : null
+        const preview =
+            previewEvent && !isRoomMemberEvent(previewEvent)
+                ? previewEvent
+                : null
 
         return {
             ...room,

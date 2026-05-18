@@ -35,7 +35,8 @@ const ChatConversationEventRowComponent: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
-    const roomMembers = useAppSelector(s => selectMatrixRoomMembers(s, roomId))
+    const roomMembers =
+        useAppSelector(s => selectMatrixRoomMembers(s, roomId)) || []
 
     const sentBy = event.sender || ''
     const roomMember = roomMembers.find(m => m.id === sentBy)
