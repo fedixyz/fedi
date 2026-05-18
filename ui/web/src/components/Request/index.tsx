@@ -138,8 +138,12 @@ const Request: React.FC = () => {
                         {t('feature.receive.receive-bitcoin')}
                     </Layout.Title>
                 </Layout.Header>
-                <Layout.Content fullWidth>
-                    <Content gap="lg" grow ref={containerRef}>
+                <Layout.Content>
+                    <Column
+                        gap="lg"
+                        grow
+                        ref={containerRef}
+                        style={{ paddingTop: 0 }}>
                         {isOnchainSupported &&
                             !isCompleted &&
                             !showLnurlReceive && (
@@ -178,17 +182,12 @@ const Request: React.FC = () => {
                                 onSaveNotes={onSaveNotes}
                             />
                         )}
-                    </Content>
+                    </Column>
                 </Layout.Content>
             </Layout.Root>
         </ContentBlock>
     )
 }
-
-const Content = styled(Column, {
-    padding: theme.spacing.xl,
-    paddingTop: 0,
-})
 
 export const NoteInput = styled('input', {
     width: '100%',

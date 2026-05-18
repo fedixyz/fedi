@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { theme } from '@fedi/common/constants/theme'
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useMakeLightningRequest } from '@fedi/common/hooks/receive'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -109,6 +108,5 @@ const Container = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
-    paddingBottom: theme.spacing.lg,
     width: '100%',
 })
