@@ -10,6 +10,7 @@ import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
     selectBalanceDisplay,
     selectLoadedFederations,
+    selectLoadedFederationsByRecency,
     selectSelectedFederation,
     setPayFromFederationId,
     setSelectedFederationId,
@@ -47,6 +48,9 @@ function WalletPage() {
     const federation = useAppSelector(selectSelectedFederation)
     const federationId = federation?.id ?? ''
     const loadedFederations = useAppSelector(selectLoadedFederations)
+    const loadedFederationsByRecency = useAppSelector(
+        selectLoadedFederationsByRecency,
+    )
     const { recoveryInProgress, formattedPercent } =
         useRecoveryProgress(federationId)
     const { receiveDisabled, sendDisabled, disabledMessage } = useWalletButtons(
@@ -60,9 +64,9 @@ function WalletPage() {
     const balanceDisplay = useAppSelector(selectBalanceDisplay)
 
     useEffect(() => {
-        if (loadedFederations.length > 0 && !federation)
-            dispatch(setSelectedFederationId(loadedFederations[0].id))
-    }, [federation, loadedFederations, dispatch])
+        if (loadedFederationsByRecency.length > 0 && !federation)
+            dispatch(setSelectedFederationId(loadedFederationsByRecency[0].id))
+    }, [federation, loadedFederationsByRecency, dispatch])
 
     const content = useMemo(() => {
         if (loadedFederations.length === 0) {

@@ -12,6 +12,7 @@ import {
     selectIsInternetUnreachable,
     setSelectedFederationId,
     selectLoadedFederations,
+    selectLoadedFederationsByRecency,
     selectPaymentType,
     selectSelectedFederation,
     setPaymentType,
@@ -47,6 +48,9 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     const federationId = federation?.id ?? ''
     const paymentType = useAppSelector(selectPaymentType)
     const loadedFederations = useAppSelector(selectLoadedFederations)
+    const loadedFederationsByRecency = useAppSelector(
+        selectLoadedFederationsByRecency,
+    )
     const selectedCurrency = useAppSelector(s =>
         selectCurrency(s, federationId),
     )
@@ -86,9 +90,9 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     const style = styles(theme)
 
     useEffect(() => {
-        if (loadedFederations.length > 0 && !federation)
-            dispatch(setSelectedFederationId(loadedFederations[0].id))
-    }, [federation, loadedFederations, dispatch])
+        if (loadedFederationsByRecency.length > 0 && !federation)
+            dispatch(setSelectedFederationId(loadedFederationsByRecency[0].id))
+    }, [federation, loadedFederationsByRecency, dispatch])
 
     // If the current federation doesn't support stability pool, switch to bitcoin
     useEffect(() => {

@@ -282,6 +282,7 @@ export const federationSlice = createSlice({
             state.recentlyUsedFederationIds = Array.from(
                 new Set([action.payload, ...state.recentlyUsedFederationIds]),
             )
+            state.selectedFederationId = action.payload
         },
         setLastSelectedCommunityId(
             state,
@@ -1032,7 +1033,6 @@ export const joinFederation = createAsyncThunk<
         if (!joinedFederation) throw new Error('errors.unknown-error')
 
         dispatch(setLastUsedFederationId(joinedFederation.id))
-        dispatch(setSelectedFederationId(joinedFederation.id))
         return joinedFederation
     },
 )
