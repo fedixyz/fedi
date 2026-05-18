@@ -174,7 +174,7 @@ const FederationPreview: React.FC<Props> = ({
             <Body grow gap="lg">
                 <Content>{content}</Content>
             </Body>
-            {actions && <Column>{actions}</Column>}
+            {actions && <Column gap="md">{actions}</Column>}
         </Column>
     )
 }
