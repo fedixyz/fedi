@@ -1,71 +1,37 @@
 import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { GUARDIANITO_BOT_DISPLAY_NAME } from '@fedi/common/constants/matrix'
-import { useMessageInputState } from '@fedi/common/hooks/chat'
-import { useMentionInput } from '@fedi/common/hooks/matrix'
-import { useToast } from '@fedi/common/hooks/toast'
+import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import {
     selectMatrixRoom,
-    selectMatrixRoomIsReadOnly,
     selectMatrixUser,
-    selectReplyingToMessageEventForRoom,
-    clearChatReplyingToMessage,
-    selectMatrixRoomMembers,
-    selectMatrixAuth,
+    selectMatrixRoomEvents,
 } from '@fedi/common/redux'
-import {
-    ChatType,
-    MatrixEvent,
-    MentionSelect,
-    MatrixRoomMember,
-} from '@fedi/common/types'
-import {
-    RpcMatrixMembership,
-    RpcUserPowerLevel,
-} from '@fedi/common/types/bindings'
+import { ChatType } from '@fedi/common/types'
 import { makeChatConversationRows } from '@fedi/common/utils/chatConversationRows'
-import {
-    isRoomMemberEvent,
-    matrixIdToUsername,
-} from '@fedi/common/utils/matrix'
+import { isRoomMemberEvent } from '@fedi/common/utils/matrix'
 
-import {
-    useAppDispatch,
-    useAppSelector,
-    useAutosizeTextArea,
-    useDeviceQuery,
-    useMessageAttachments,
-} from '../../hooks'
+import { useAppSelector, useDeviceQuery } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { getHashParams } from '../../utils/linking'
 import { Avatar } from '../Avatar'
 import { CircularLoader } from '../CircularLoader'
-import { Icon } from '../Icon'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
-import { ChatAttachmentThumbnail } from './ChatAttachmentThumbnail'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatConversationEventRow } from './ChatConversationEventRow'
-import ChatMentionSuggestions from './ChatMentionSuggestions'
-import GuardianitoHelp from './GuardianitoHelp'
-import MessageInputReplyBar from './MessageInputReplyBar'
+import { MessageInput } from './MessageInput'
 
 const HIGHLIGHT_DURATION = 3000
+const PAGINATION_THRESHOLD_PX = 80
 
 interface Props {
     type: ChatType
     id: string
     name: string
-    events: MatrixEvent[]
-    isPublic?: boolean
-    /* whether this is the first message in the chat */
-    isNewChat?: boolean
     headerActions?: React.ReactElement
     onWalletClick?(): void
-    onPaginate?: () => Promise<void>
     onSendMessage(
         message: string,
         files: File[],
@@ -77,84 +43,34 @@ export const ChatConversation: React.FC<Props> = ({
     type,
     id,
     name,
-    events,
     headerActions,
     onSendMessage,
-    isPublic,
-    isNewChat,
     onWalletClick,
-    onPaginate,
 }) => {
-    const { t } = useTranslation()
-    const toast = useToast()
-    const dispatch = useAppDispatch()
     const router = useRouter()
     const params = getHashParams(router.asPath)
     const scrollToMessageId = params.message
 
     const room = useAppSelector(s => selectMatrixRoom(s, id))
     const user = useAppSelector(s => selectMatrixUser(s, id))
-    const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
-    const roomMembers = useAppSelector(s => selectMatrixRoomMembers(s, id))
-    const auth = useAppSelector(s => selectMatrixAuth(s))
-    const selfUserId = auth?.userId || undefined
-    const isGuardianitoRoom = room?.name === GUARDIANITO_BOT_DISPLAY_NAME
-
-    const { messageText, setMessageText, resetMessageText } =
-        useMessageInputState(id)
-    const attachments = useMessageAttachments()
-    const [isSending, setIsSending] = useState(false)
-    const [hasPaginated, setHasPaginated] = useState(false)
-    const [isPaginating, setIsPaginating] = useState(false)
-    const [cursor, setCursor] = useState(0)
+    const events = useAppSelector(s => selectMatrixRoomEvents(s, id))
     const [height, setHeight] = useState<number>()
-
-    const repliedEvent = useAppSelector(s =>
-        selectReplyingToMessageEventForRoom(s, id),
-    )
     const [highlightedMessageId, setHighlightedMessageId] = useState<
         string | null
     >(null)
+    const {
+        isPaginating,
+        canPaginateFurther,
+        paginationStatus,
+        handlePaginate,
+    } = useObserveMatrixRoom(id)
 
-    const inputRef = useRef<HTMLTextAreaElement>(null)
     const messagesRef = useRef<HTMLDivElement>(null)
     const chatWrapperRef = useRef<HTMLDivElement>(null)
+    const hasPaginatedAtBoundaryRef = useRef(false)
+    const paginationPendingRef = useRef(false)
 
-    useAutosizeTextArea(inputRef.current, messageText)
     const { isIOS } = useDeviceQuery()
-
-    const mentionEnabled = type === ChatType.group && (!!room || !!isPublic)
-    const membersForMentions = useMemo<MatrixRoomMember[]>(() => {
-        if (!mentionEnabled) return []
-        const list = (roomMembers || []) as MatrixRoomMember[]
-        if (!selfUserId) return list
-        if (list.some(m => m.id === selfUserId)) return list
-        const displayName =
-            (auth?.displayName || '').trim() || matrixIdToUsername(selfUserId)
-        const selfAsMember: MatrixRoomMember = {
-            id: selfUserId,
-            displayName,
-            avatarUrl: auth?.avatarUrl,
-            powerLevel: { type: 'int', value: 0 } as RpcUserPowerLevel,
-            roomId: id,
-            membership: 'join' as RpcMatrixMembership,
-            ignored: false,
-        }
-        return [...list, selfAsMember]
-    }, [
-        mentionEnabled,
-        roomMembers,
-        selfUserId,
-        auth?.displayName,
-        auth?.avatarUrl,
-        id,
-    ])
-
-    const { mentionSuggestions, shouldShowSuggestions, insertMention } =
-        useMentionInput(membersForMentions, messageText, cursor)
-
-    const showMentionSuggestions =
-        mentionEnabled && !isReadOnly && shouldShowSuggestions
 
     const visibleEvents = useMemo(
         () => events.filter(event => !isRoomMemberEvent(event)),
@@ -179,19 +95,6 @@ export const ChatConversation: React.FC<Props> = ({
         return () =>
             window.visualViewport?.removeEventListener('resize', update)
     }, [isIOS])
-
-    useEffect(() => {
-        setHasPaginated(false)
-    }, [events.length])
-
-    useEffect(() => {
-        if (!onPaginate) return
-        setIsPaginating(true)
-        setHasPaginated(true)
-        onPaginate()
-            .catch(() => null)
-            .finally(() => setIsPaginating(false))
-    }, [onPaginate])
 
     const scrollToMessage = useCallback((eventId: string) => {
         const messageElement = messagesRef.current?.querySelector(
@@ -223,81 +126,38 @@ export const ChatConversation: React.FC<Props> = ({
     )
 
     const handleMessagesScroll = useCallback(
-        (ev: React.WheelEvent<HTMLDivElement>) => {
-            if (!onPaginate) return
+        (ev: React.UIEvent<HTMLDivElement>) => {
+            if (!paginationStatus || !canPaginateFurther) return
             const { clientHeight, scrollHeight } = ev.currentTarget
             const scrollTop = Math.abs(ev.currentTarget.scrollTop)
-            if (scrollTop + clientHeight + 80 > scrollHeight) {
-                setIsPaginating(true)
-                setHasPaginated(true)
-                onPaginate()
-                    .catch(() => null)
-                    .finally(() => setIsPaginating(false))
+
+            const isAtPaginationBoundary =
+                scrollTop + clientHeight + PAGINATION_THRESHOLD_PX >
+                scrollHeight
+
+            if (!isAtPaginationBoundary) {
+                hasPaginatedAtBoundaryRef.current = false
+                return
             }
+
+            if (
+                isPaginating ||
+                paginationPendingRef.current ||
+                hasPaginatedAtBoundaryRef.current
+            ) {
+                return
+            }
+
+            hasPaginatedAtBoundaryRef.current = true
+            paginationPendingRef.current = true
+            handlePaginate()
+                .catch(() => null)
+                .finally(() => {
+                    paginationPendingRef.current = false
+                })
         },
-        [onPaginate],
+        [canPaginateFurther, handlePaginate, isPaginating, paginationStatus],
     )
-
-    const handleSend = useCallback(
-        async (ev?: React.FormEvent) => {
-            if (ev) {
-                ev.preventDefault()
-            }
-
-            if (!messageText.trim() && !attachments.hasAttachments) return
-
-            try {
-                setIsSending(true)
-                await onSendMessage(
-                    messageText,
-                    attachments.files,
-                    repliedEvent?.id ?? null,
-                )
-                resetMessageText()
-                attachments.clearAll()
-                if (repliedEvent) {
-                    dispatch(clearChatReplyingToMessage())
-                }
-            } catch (err) {
-                toast.error(t, err, 'errors.chat-connection-unhealthy')
-            } finally {
-                setIsSending(false)
-            }
-        },
-        [
-            onSendMessage,
-            messageText,
-            attachments,
-            repliedEvent,
-            dispatch,
-            toast,
-            t,
-            resetMessageText,
-        ],
-    )
-
-    const handleInputKeyDown = useCallback(
-        (ev: React.KeyboardEvent) => {
-            if (ev.key === 'Enter' && (ev.shiftKey || ev.metaKey)) {
-                ev.preventDefault()
-                handleSend()
-            }
-        },
-        [handleSend],
-    )
-
-    const handleSelectMention = (item: MentionSelect) => {
-        const { newText, newCursorPosition } = insertMention(item, messageText)
-        setMessageText(newText)
-        setCursor(newCursorPosition)
-        requestAnimationFrame(() => {
-            if (inputRef.current) {
-                inputRef.current.selectionStart = newCursorPosition
-                inputRef.current.selectionEnd = newCursorPosition
-                inputRef.current.focus()
-            }
-        })
-    }
 
     let avatar: React.ReactNode
     if (room) {
@@ -318,9 +178,10 @@ export const ChatConversation: React.FC<Props> = ({
             </HeaderWrapper>
             <ContentWrapper>
                 <MessagesWrapper
+                    data-testid="chat-messages"
                     ref={messagesRef}
-                    onWheel={
-                        onPaginate && !hasPaginated
+                    onScroll={
+                        paginationStatus && canPaginateFurther
                             ? handleMessagesScroll
                             : undefined
                     }>
@@ -338,103 +199,12 @@ export const ChatConversation: React.FC<Props> = ({
                     </PaginationPlaceholder>
                 </MessagesWrapper>
             </ContentWrapper>
-            {repliedEvent && (
-                <MessageInputReplyBar
-                    repliedEvent={repliedEvent}
-                    roomMembers={roomMembers || []}
-                />
-            )}
-            {isGuardianitoRoom && <GuardianitoHelp />}
-
-            <ActionsWrapper>
-                {attachments.hasAttachments && (
-                    <ThumbnailsRow>
-                        {attachments.files.map((file, idx: number) => (
-                            <ChatAttachmentThumbnail
-                                key={`${file.name}-${idx}`}
-                                file={file}
-                                onRemove={() => attachments.removeFile(idx)}
-                            />
-                        ))}
-                    </ThumbnailsRow>
-                )}
-
-                <InputRow>
-                    <Input
-                        ref={inputRef}
-                        value={messageText}
-                        onSelect={ev =>
-                            setCursor(ev.currentTarget.selectionStart)
-                        }
-                        onChange={ev => setMessageText(ev.currentTarget.value)}
-                        placeholder={t(
-                            isReadOnly
-                                ? 'feature.chat.broadcast-only-notice'
-                                : 'phrases.type-message',
-                        )}
-                        rows={1}
-                        onKeyDown={handleInputKeyDown}
-                        disabled={isReadOnly}
-                    />
-                    {!isReadOnly && (
-                        <input
-                            data-testid="file-upload"
-                            type="file"
-                            ref={attachments.fileInputRef}
-                            hidden
-                            accept="image/*, video/*, .csv, .doc, .docx, .pdf, .ppt, .pptx, .xls, .xlsx, .txt, .zip"
-                            onChange={attachments.handleFileInputChange}
-                            multiple
-                        />
-                    )}
-                </InputRow>
-
-                {showMentionSuggestions && (
-                    <MentionOverlay>
-                        <ChatMentionSuggestions
-                            visible={showMentionSuggestions}
-                            suggestions={mentionSuggestions}
-                            onSelect={handleSelectMention}
-                        />
-                    </MentionOverlay>
-                )}
-
-                {!isReadOnly && (
-                    <ActionsRow>
-                        <InputActions>
-                            {type === ChatType.direct && !isNewChat && (
-                                <Icon
-                                    aria-label="wallet-icon"
-                                    icon="Wallet"
-                                    size={32}
-                                    onClick={onWalletClick}
-                                />
-                            )}
-                            {!isPublic && !isNewChat && (
-                                <Icon
-                                    aria-label="plus-icon"
-                                    icon="Plus"
-                                    size={26}
-                                    onClick={attachments.triggerFilePicker}
-                                />
-                            )}
-                        </InputActions>
-                        <SendButton
-                            aria-label="send-button"
-                            disabled={
-                                (messageText.trim().length === 0 &&
-                                    !attachments.hasAttachments) ||
-                                isSending
-                            }
-                            onClick={handleSend}
-                            onMouseDown={e => {
-                                e.preventDefault() // Prevents focus from shifting (keyboard stays open)
-                            }}>
-                            <Icon icon="SendArrowUpCircle" size={30} />
-                        </SendButton>
-                    </ActionsRow>
-                )}
-            </ActionsWrapper>
+            <MessageInput
+                type={type}
+                id={id}
+                onWalletClick={onWalletClick}
+                onMessageSubmitted={onSendMessage}
+            />
         </ChatWrapper>
     )
 }
@@ -479,84 +249,6 @@ const MessagesWrapper = styled('div', {
     padding: 16,
 })
 
-const ActionsWrapper = styled('div', {
-    borderTop: `1px solid ${theme.colors.extraLightGrey}`,
-    flexShrink: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    padding: 8,
-    position: 'relative',
-
-    '@standalone': {
-        '@sm': {
-            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-        },
-    },
-})
-
-const ActionsRow = styled('div', {
-    alignItems: 'center',
-    display: 'flex',
-    flexDirection: 'row',
-    height: 40,
-    justifyContent: 'space-between',
-    width: '100%',
-})
-
-const ThumbnailsRow = styled('div', {
-    alignItems: 'center',
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 8,
-    padding: 8,
-    width: '100%',
-})
-
-const InputRow = styled('div', {
-    width: '100%',
-    position: 'relative',
-})
-
-const InputActions = styled('div', {
-    alignItems: 'center',
-    display: 'flex',
-    gap: 8,
-})
-
-const Input = styled('textarea', {
-    maxHeight: 120,
-    padding: 4,
-    border: 0,
-    resize: 'none',
-    width: '100%',
-
-    '&:hover, &:focus': {
-        outline: 'none',
-    },
-})
-
-const SendButton = styled('button', {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: theme.colors.blue,
-
-    '&:disabled': {
-        color: theme.colors.darkGrey,
-        pointerEvents: 'none',
-    },
-
-    '&:hover, &:focus': {
-        outline: 'none',
-        filter: 'brightness(1.25)',
-    },
-
-    '& > svg': {
-        width: 32,
-        height: 32,
-    },
-})
-
 const PaginationPlaceholder = styled('div', {
     display: 'flex',
     justifyContent: 'center',
@@ -564,13 +256,4 @@ const PaginationPlaceholder = styled('div', {
     height: 60,
     flexShrink: 0,
     color: theme.colors.grey,
-})
-
-const MentionOverlay = styled('div', {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: '100%',
-    marginBottom: 0,
-    zIndex: 20,
 })

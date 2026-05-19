@@ -3,14 +3,11 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
-import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     getMatrixRoomPreview,
-    paginateMatrixRoomTimeline,
     selectGroupPreview,
     selectMatrixRoom,
-    selectMatrixRoomEvents,
     sendMatrixMessage,
     selectShouldShowJoinOnChatPreview,
 } from '@fedi/common/redux'
@@ -54,15 +51,12 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
 
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
-    const events = useAppSelector(s => selectMatrixRoomEvents(s, roomId))
     const shouldShowJoinButton = useAppSelector(s =>
         selectShouldShowJoinOnChatPreview(s, roomId),
     )
 
     const [isPaymentOpen, setIsPaymentOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-
-    useObserveMatrixRoom(roomId)
 
     const directUserId = room?.directUserId
     const isDirectChat = room?.isDirect
@@ -148,16 +142,6 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
         [dispatch, error, roomId, t],
     )
 
-    const handlePaginate = useCallback(async () => {
-        try {
-            await dispatch(
-                paginateMatrixRoomTimeline({ fedimint, roomId }),
-            ).unwrap()
-        } catch (err) {
-            error(t, 'errors.unknown-error')
-        }
-    }, [dispatch, roomId, error, t])
-
     const handleSearch = useCallback(() => {
         push(`/chat/room/${roomId}/search`)
     }, [push, roomId])
@@ -201,9 +185,7 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
             <ChatConversation
                 type={isDirectChat ? ChatType.direct : ChatType.group}
                 id={room?.id || ''}
-                isPublic={room?.isPublic ?? false}
                 name={room?.name || ''}
-                events={events}
                 onSendMessage={handleSend}
                 onWalletClick={() => setIsPaymentOpen(true)}
                 headerActions={
@@ -218,7 +200,6 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
                         )}
                     </Row>
                 }
-                onPaginate={handlePaginate}
             />
             {directUserId ? (
                 <ChatPaymentDialog

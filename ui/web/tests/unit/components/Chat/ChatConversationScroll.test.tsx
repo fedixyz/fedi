@@ -2,11 +2,14 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 
 import {
+    addMatrixRoomInfo,
+    handleMatrixRoomListStreamUpdates,
     setMatrixAuth,
     setMatrixRoomMembers,
     handleMatrixRoomTimelineStreamUpdates,
     setupStore,
 } from '@fedi/common/redux'
+import { MOCK_MATRIX_ROOM } from '@fedi/common/tests/mock-data/matrix'
 import {
     createMockNonPaymentEvent,
     mockRoomMembers,
@@ -19,6 +22,19 @@ import { ChatConversation } from '../../../../src/components/Chat/ChatConversati
 import { renderWithProviders } from '../../../utils/render'
 
 jest.mock('../../../../src/hooks/dom')
+
+const mockHandlePaginate = jest.fn()
+
+jest.mock('@fedi/common/hooks/matrix', () => ({
+    ...jest.requireActual('@fedi/common/hooks/matrix'),
+    useObserveMatrixRoom: jest.fn(() => ({
+        paginationStatus: 'idle',
+        isPaginating: false,
+        canPaginateFurther: true,
+        handlePaginate: mockHandlePaginate,
+        showLoading: false,
+    })),
+}))
 
 // Stub ChatEvent to a simple component that exposes the onReplyTap handler
 // via a clickable button, simulating what happens when a user taps a reply.
@@ -48,6 +64,17 @@ const SELF_USER_ID = '@self:example.com'
 
 function storeWithConversation(events: MatrixEvent[]) {
     const store = setupStore()
+    store.dispatch(
+        handleMatrixRoomListStreamUpdates([
+            { PushBack: { value: { status: 'ready', id: ROOM_ID } } },
+        ]),
+    )
+    store.dispatch(
+        addMatrixRoomInfo({
+            ...MOCK_MATRIX_ROOM,
+            id: ROOM_ID,
+        }),
+    )
     store.dispatch(
         setMatrixAuth({
             userId: SELF_USER_ID,
@@ -104,6 +131,7 @@ describe('/components/Chat/ChatConversation scroll behavior', () => {
         scrollIntoViewMock = jest.fn()
         Element.prototype.scrollIntoView = scrollIntoViewMock
         mockUseRouter.asPath = ''
+        mockHandlePaginate.mockResolvedValue(undefined)
         jest.clearAllMocks()
     })
 
@@ -120,9 +148,7 @@ describe('/components/Chat/ChatConversation scroll behavior', () => {
                 type={ChatType.group}
                 id={ROOM_ID}
                 name="Test Room"
-                events={events}
                 onSendMessage={jest.fn()}
-                onPaginate={() => Promise.resolve()}
             />,
             { store },
         )
@@ -170,9 +196,7 @@ describe('/components/Chat/ChatConversation scroll behavior', () => {
                 type={ChatType.group}
                 id={ROOM_ID}
                 name="Test Room"
-                events={events}
                 onSendMessage={jest.fn()}
-                onPaginate={() => Promise.resolve()}
             />,
             { store },
         )
@@ -203,9 +227,7 @@ describe('/components/Chat/ChatConversation scroll behavior', () => {
                 type={ChatType.group}
                 id={ROOM_ID}
                 name="Test Room"
-                events={events}
                 onSendMessage={jest.fn()}
-                onPaginate={() => Promise.resolve()}
             />,
             { store },
         )
@@ -223,5 +245,92 @@ describe('/components/Chat/ChatConversation scroll behavior', () => {
         expect(targetEl).toBeInTheDocument()
 
         jest.useRealTimers()
+    })
+
+    it('should paginate when the user scrolls to older messages', async () => {
+        const events = makeBurstEvents(5)
+        const store = storeWithConversation(events)
+
+        renderWithProviders(
+            <ChatConversation
+                type={ChatType.group}
+                id={ROOM_ID}
+                name="Test Room"
+                onSendMessage={jest.fn()}
+            />,
+            { store },
+        )
+
+        const messages = screen.getByTestId('chat-messages')
+        Object.defineProperty(messages, 'clientHeight', {
+            configurable: true,
+            value: 500,
+        })
+        Object.defineProperty(messages, 'scrollHeight', {
+            configurable: true,
+            value: 1000,
+        })
+        Object.defineProperty(messages, 'scrollTop', {
+            configurable: true,
+            value: -450,
+        })
+
+        fireEvent.scroll(messages)
+
+        await waitFor(() => {
+            expect(mockHandlePaginate).toHaveBeenCalledTimes(1)
+        })
+    })
+
+    it('should not paginate repeatedly while the user remains at older messages boundary', async () => {
+        const events = makeBurstEvents(5)
+        const store = storeWithConversation(events)
+
+        renderWithProviders(
+            <ChatConversation
+                type={ChatType.group}
+                id={ROOM_ID}
+                name="Test Room"
+                onSendMessage={jest.fn()}
+            />,
+            { store },
+        )
+
+        const messages = screen.getByTestId('chat-messages')
+        Object.defineProperty(messages, 'clientHeight', {
+            configurable: true,
+            value: 500,
+        })
+        Object.defineProperty(messages, 'scrollHeight', {
+            configurable: true,
+            value: 1000,
+        })
+        Object.defineProperty(messages, 'scrollTop', {
+            configurable: true,
+            value: -450,
+        })
+
+        fireEvent.scroll(messages)
+        fireEvent.scroll(messages)
+
+        await waitFor(() => {
+            expect(mockHandlePaginate).toHaveBeenCalledTimes(1)
+        })
+
+        Object.defineProperty(messages, 'scrollTop', {
+            configurable: true,
+            value: 0,
+        })
+        fireEvent.scroll(messages)
+
+        Object.defineProperty(messages, 'scrollTop', {
+            configurable: true,
+            value: -450,
+        })
+        fireEvent.scroll(messages)
+
+        await waitFor(() => {
+            expect(mockHandlePaginate).toHaveBeenCalledTimes(2)
+        })
     })
 })
