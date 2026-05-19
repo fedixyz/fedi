@@ -34,6 +34,8 @@ export const getDeepLinkPath = (url: string): string => {
                     normalizeCommunityInviteCode(inviteCode),
                 )}`
             }
+            case 'home':
+                return homeRoute
             case 'chat':
                 return chatRoute
             case 'room': {

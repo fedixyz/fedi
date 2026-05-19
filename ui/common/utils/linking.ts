@@ -135,3 +135,166 @@ export const stripFediPrefix = (code: string): string => {
     if (code.toLowerCase().startsWith('fedi:')) return code.slice(5)
     return code
 }
+
+export interface DeepLinkParam {
+    name: string
+    label: string
+}
+
+// Drives DeepLinkConfig.screen and native's screenMap; drift also asserted at test time.
+export const DEEP_LINK_SCREENS = [
+    'wallet',
+    'home',
+    'chat',
+    'mods',
+    'browser',
+    'ecash',
+    'join',
+    'join-then-ecash',
+    'join-then-browse',
+    'room',
+    'user',
+    'share-logs',
+] as const
+
+export type DeepLinkableScreen = (typeof DEEP_LINK_SCREENS)[number]
+
+export interface DeepLinkConfig {
+    key: string
+    label: string
+    description: string
+    screen: DeepLinkableScreen
+    params: DeepLinkParam[]
+}
+
+// User-facing metadata only — handlers live in native `screenMap` and web `getDeepLinkPath`.
+export const DEEP_LINKS = [
+    {
+        key: 'join-federation',
+        label: 'Join Wallet Service',
+        description:
+            'Shows a wallet service preview and prompts the user to join. If they are already a member, an already-joined message appears.',
+        screen: 'join',
+        params: [{ name: 'invite', label: 'Invite Code' }],
+    },
+    {
+        key: 'join-community',
+        label: 'Join Community',
+        description:
+            'Shows a community preview and prompts the user to join. If they are already a member, an already-joined message appears.',
+        screen: 'join',
+        params: [{ name: 'invite', label: 'Invite Code' }],
+    },
+    {
+        key: 'ecash',
+        label: 'Claim Ecash',
+        description:
+            'Opens the Claim Ecash screen. If the issuing wallet service is not yet joined, the user joins it automatically on claim.',
+        screen: 'ecash',
+        params: [{ name: 'id', label: 'Ecash Token' }],
+    },
+    {
+        key: 'join-federation-then-ecash',
+        label: 'Join Wallet Service + Claim Ecash',
+        description:
+            'Joins the wallet service, then takes the user to claim ecash. The join step is skipped if they are already a member.',
+        screen: 'join-then-ecash',
+        params: [
+            { name: 'invite', label: 'Invite Code' },
+            { name: 'ecash', label: 'Ecash Token' },
+        ],
+    },
+    {
+        key: 'join-community-then-ecash',
+        label: 'Join Community + Claim Ecash',
+        description:
+            'Joins the community, then takes the user to claim ecash. The join step is skipped if they are already a member.',
+        screen: 'join-then-ecash',
+        params: [
+            { name: 'invite', label: 'Invite Code' },
+            { name: 'ecash', label: 'Ecash Token' },
+        ],
+    },
+    {
+        key: 'join-federation-then-browse',
+        label: 'Join Wallet Service + Open Mini App',
+        description:
+            'Joins the wallet service, then opens a URL in the Mini Apps browser. The join step is skipped if they are already a member.',
+        screen: 'join-then-browse',
+        params: [
+            { name: 'invite', label: 'Invite Code' },
+            { name: 'url', label: 'URL' },
+        ],
+    },
+    {
+        key: 'join-community-then-browse',
+        label: 'Join Community + Open Mini App',
+        description:
+            'Joins the community, then opens a URL in the Mini Apps browser. The join step is skipped if they are already a member.',
+        screen: 'join-then-browse',
+        params: [
+            { name: 'invite', label: 'Invite Code' },
+            { name: 'url', label: 'URL' },
+        ],
+    },
+    {
+        key: 'browser',
+        label: 'Open Mini App',
+        description: 'Opens a URL in the in-app Mini Apps browser.',
+        screen: 'browser',
+        params: [{ name: 'url', label: 'URL' }],
+    },
+    {
+        key: 'home',
+        label: 'Community Tab',
+        description: 'Opens the Community tab.',
+        screen: 'home',
+        params: [],
+    },
+    {
+        key: 'chat',
+        label: 'Chat Tab',
+        description: 'Opens the Chat tab.',
+        screen: 'chat',
+        params: [],
+    },
+    {
+        key: 'wallet',
+        label: 'Wallet Tab',
+        description: 'Opens the Wallet tab.',
+        screen: 'wallet',
+        params: [],
+    },
+    {
+        key: 'mods',
+        label: 'Mini Apps Tab',
+        description: 'Opens the Mini Apps tab.',
+        screen: 'mods',
+        params: [],
+    },
+    {
+        key: 'room',
+        label: 'Chat Room',
+        description: 'Opens a specific chat room.',
+        screen: 'room',
+        params: [{ name: 'roomId', label: 'Room ID' }],
+    },
+    {
+        key: 'user',
+        label: 'Direct Message',
+        description:
+            'Opens a direct message conversation with a specific user.',
+        screen: 'user',
+        params: [{ name: 'userId', label: 'User ID' }],
+    },
+    {
+        key: 'share-logs',
+        label: 'Share Logs',
+        description:
+            'Opens the Share Logs form, pre-filled with a support ticket number when provided.',
+        screen: 'share-logs',
+        params: [{ name: 'ticketNumber', label: 'Ticket Number' }],
+    },
+] as const satisfies readonly DeepLinkConfig[]
+
+export type DeepLinkKey = (typeof DEEP_LINKS)[number]['key']

@@ -11,6 +11,7 @@ import { Linking } from 'react-native'
 
 import { setRedirectTo } from '@fedi/common/redux'
 import {
+    DeepLinkableScreen,
     getNavigationLink,
     isFediInternalLink,
     normalizeBrowserUrl,
@@ -98,11 +99,12 @@ const deepLinksConfig: NonNullable<
     },
 }
 
-// Mapping used to convert path names to screens
-export const screenMap: Record<
-    string,
-    (params: Record<string, string>) => InternalLinkTarget | undefined
-> = {
+type ScreenMapper = (
+    params: Record<string, string>,
+) => InternalLinkTarget | undefined
+
+// `satisfies` requires every DeepLinkableScreen, while allowing back-compat aliases like `federations`/`miniapps`.
+export const screenMap = {
     wallet: () => ({ kind: 'tab', screen: 'Wallet' }),
     // 'federations' is for backwards compatibility (can be removed at a later date)
     federations: () => ({ kind: 'tab', screen: 'Wallet' }),
@@ -175,7 +177,10 @@ export const screenMap: Record<
             },
         }
     },
-}
+} satisfies { [K in DeepLinkableScreen]: ScreenMapper } & Record<
+    string,
+    ScreenMapper
+>
 
 type ScreenKey = keyof typeof screenMap
 
@@ -348,7 +353,7 @@ function getInternalLinkTarget(path: string): InternalLinkTarget | undefined {
                 })
             }
 
-            const target = mapper(queryParams)
+            const target: InternalLinkTarget | undefined = mapper(queryParams)
             if (target) {
                 return normalizeTarget({
                     ...target,

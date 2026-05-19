@@ -1,4 +1,5 @@
 import {
+    DEEP_LINKS,
     normalizeCommunityInviteCode,
     normalizeDeepLink,
     stripFediPrefix,
@@ -575,6 +576,18 @@ describe('linking', () => {
                 'fedi://join-then-browse?invite=fed1abc123',
             )
             expect(result).toBeUndefined()
+        })
+    })
+
+    describe('DEEP_LINKS schema', () => {
+        it('every screen value in DEEP_LINKS has a handler in screenMap', () => {
+            const screensInSchema = new Set(DEEP_LINKS.map(d => d.screen))
+            const screensInRouter = new Set(Object.keys(linking.screenMap))
+
+            const missing = [...screensInSchema].filter(
+                s => !screensInRouter.has(s),
+            )
+            expect(missing).toEqual([])
         })
     })
 
