@@ -18,6 +18,7 @@ import {
 import { Column } from '../components/Flex'
 import { Text } from '../components/Text'
 import { useDeviceQuery } from '../hooks'
+import i18n, { detectBrowserLanguage } from '../localization/i18n'
 import { styled, theme } from '../styles'
 import { getDeepLinkPath } from '../utils/linking'
 import { setPendingDeeplink } from '../utils/localstorage'
@@ -43,12 +44,24 @@ const LinkingPage: NextPage = () => {
     const { isMobile } = useDeviceQuery()
 
     const [loaded, setLoaded] = useState(false)
+    const [languageLoaded, setLanguageLoaded] = useState(false)
     const [linkActionText, setLinkActionText] = useState(
         t('feature.onboarding.landing-page-cta'),
     )
 
     useEffect(() => {
-        if (typeof window === 'undefined' || isMobile === undefined) return
+        i18n.changeLanguage(detectBrowserLanguage()).finally(() => {
+            setLanguageLoaded(true)
+        })
+    }, [])
+
+    useEffect(() => {
+        if (
+            typeof window === 'undefined' ||
+            isMobile === undefined ||
+            !languageLoaded
+        )
+            return
 
         if (!isMobile) {
             replace(getDeepLinkPath(window.location.href))
@@ -66,7 +79,7 @@ const LinkingPage: NextPage = () => {
         setPendingDeeplink(href)
         setLinkActionText(getLinkActionText(normalized, t))
         setLoaded(true)
-    }, [isMobile, replace, t])
+    }, [isMobile, languageLoaded, replace, t])
 
     // On mobile, attempt to open the app via fedi:// custom scheme.
     // This handles the case where Android App Links auto-verification

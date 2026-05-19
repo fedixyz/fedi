@@ -3,8 +3,10 @@ import { initReactI18next } from 'react-i18next'
 
 import { resources } from '@fedi/common/localization'
 
+const DEFAULT_LANGUAGE = 'en'
+
 i18n.use(initReactI18next).init({
-    fallbackLng: 'en',
+    fallbackLng: DEFAULT_LANGUAGE,
     resources,
     returnNull: false,
 
@@ -15,6 +17,30 @@ i18n.use(initReactI18next).init({
         transSupportBasicHtmlNodes: false,
     },
 })
+
+export function getSupportedBrowserLanguage(languages: readonly string[]) {
+    const resourceKeys = Object.keys(resources)
+
+    for (const language of languages) {
+        if (language in resources) return language
+
+        const baseLanguage = language.split(/[-_]/)[0]
+        if (baseLanguage && resourceKeys.includes(baseLanguage)) {
+            return baseLanguage
+        }
+    }
+
+    return DEFAULT_LANGUAGE
+}
+
+export function detectBrowserLanguage() {
+    if (typeof window === 'undefined') return DEFAULT_LANGUAGE
+
+    return getSupportedBrowserLanguage([
+        ...(window.navigator.languages ?? []),
+        window.navigator.language,
+    ])
+}
 
 /**
  * Attempt to detect the user's language, and then configure i18n to use that.
@@ -27,17 +53,11 @@ export function detectLanguage() {
             const detector = new LanguageDetector(i18n.services)
             const detected = detector.detect()
 
-            let desiredLanguage = 'en'
             if (detected) {
                 const lngs = Array.isArray(detected) ? detected : [detected]
-                for (const lng of lngs) {
-                    if (lng in resources) {
-                        desiredLanguage = lng
-                        break
-                    }
-                }
+                return getSupportedBrowserLanguage(lngs)
             }
-            return desiredLanguage
+            return DEFAULT_LANGUAGE
         },
     )
 }
