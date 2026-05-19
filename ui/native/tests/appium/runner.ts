@@ -4,6 +4,7 @@ import path from 'path'
 
 import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
+import { ChatTimeline } from './common/ChatTimeline.test'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { Settings } from './common/Settings.test'
 import { OnboardingTest } from './common/onboarding.test'
@@ -19,6 +20,7 @@ const availableTests: Record<string, TestClass> = {
     onboarding: OnboardingTest,
     settings: Settings,
     joinLeaveFederations: JoinLeaveFederation,
+    chatTimeline: ChatTimeline,
 }
 type TestName = keyof typeof availableTests
 

@@ -73,6 +73,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
 
                             <View style={style.inputWrapper}>
                                 <Input
+                                    testID="GroupNameInput"
                                     onChangeText={setGroupName}
                                     value={groupName}
                                     maxLength={30}
@@ -96,6 +97,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                     {t('feature.chat.broadcast-only')}
                                 </Text>
                                 <Switch
+                                    testID="BroadcastOnlySwitch"
                                     value={broadcastOnly}
                                     onValueChange={value => {
                                         // for now default groups must be public
@@ -114,6 +116,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                     {t('words.public')}
                                 </Text>
                                 <Switch
+                                    testID="PublicSwitch"
                                     value={isPublic}
                                     onValueChange={value => {
                                         // for now default groups must be public
@@ -142,6 +145,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                             },
                         ]}>
                         <Button
+                            testID="CreateGroupButton"
                             fullWidth
                             title={t('phrases.save-changes')}
                             onPress={handleCreateGroup}

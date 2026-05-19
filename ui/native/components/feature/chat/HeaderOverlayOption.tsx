@@ -19,7 +19,7 @@ export default function HeaderOverlayOption({
     const style = styles(theme)
 
     return (
-        <Pressable onPress={onPress}>
+        <Pressable onPress={onPress} accessibilityLabel={text}>
             <Row align="center" justify="between" style={style.innerContainer}>
                 <Row align="center" gap="md">
                     <GradientView variant="black" style={style.optionIcon}>
