@@ -1,19 +1,27 @@
-import { waitFor } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
 import format from 'date-fns/format'
 import { t } from 'i18next'
 
 import { theme } from '../../../constants/theme'
 import {
+    useFederationPreview,
     useFederationStatus,
     usePopupFederationInfo,
 } from '../../../hooks/federation'
 import {
+    setCommunities,
     setFederations,
     setIsInternetUnreachable,
+    setSelectedFederationId,
     setupStore,
 } from '../../../redux'
 import { LoadedFederation } from '../../../types'
-import { mockFederation1 } from '../../mock-data/federation'
+import {
+    mockCommunity,
+    mockFederation1,
+    mockFederation2,
+} from '../../mock-data/federation'
+import { createMockFedimintBridge } from '../../utils/fedimint'
 import { renderHookWithState } from '../../utils/render'
 
 describe('common/hooks/federation', () => {
@@ -208,6 +216,87 @@ describe('common/hooks/federation', () => {
             expect(result.current.statusIcon).toBe('Online')
             expect(result.current.statusIconColor).toBe(theme.colors.success)
             expect(result.current.statusWord).toBe(t('words.online'))
+        })
+    })
+
+    describe('useFederationPreview', () => {
+        it('should select an already-joined federation and call success with federation type', async () => {
+            store.dispatch(setFederations([mockFederation1, mockFederation2]))
+            store.dispatch(setSelectedFederationId(mockFederation2.id))
+
+            const fedimint = createMockFedimintBridge({
+                federationPreview: jest.fn(() =>
+                    Promise.resolve({
+                        id: mockFederation1.id,
+                        name: mockFederation1.name,
+                        inviteCode: 'fed1test',
+                        meta: {},
+                        returningMemberStatus: {
+                            type: 'newMember',
+                        },
+                    }),
+                ),
+            })
+            const onSuccess = jest.fn()
+
+            const { result } = renderHookWithState(
+                () => useFederationPreview(t, ''),
+                store,
+                fedimint,
+            )
+
+            await act(async () => {
+                await result.current.handleCode('fed1test', onSuccess)
+            })
+
+            expect(store.getState().federation.selectedFederationId).toBe(
+                mockFederation1.id,
+            )
+            expect(onSuccess).toHaveBeenCalledWith('federation')
+            expect(result.current.federationPreview).toBeUndefined()
+        })
+
+        it('should select an already-joined community and call success with community type', async () => {
+            const community = {
+                ...mockCommunity,
+                id: 'fedi:community-test',
+                communityInvite: {
+                    ...mockCommunity.communityInvite,
+                    invite_code_str: 'fedi:community-test',
+                },
+            }
+            store.dispatch(setCommunities([community]))
+
+            const fedimint = createMockFedimintBridge({
+                communityPreview: jest.fn(() =>
+                    Promise.resolve({
+                        communityInvite: community.communityInvite,
+                        name: community.name,
+                        meta: community.meta,
+                        status: community.status,
+                    }),
+                ),
+            })
+            const onSuccess = jest.fn()
+
+            const { result } = renderHookWithState(
+                () => useFederationPreview(t, ''),
+                store,
+                fedimint,
+            )
+
+            await act(async () => {
+                await result.current.handleCode(
+                    'fedi:community-test',
+                    onSuccess,
+                )
+            })
+
+            expect(store.getState().federation.lastSelectedCommunityId).toBe(
+                'fedi:community-test',
+            )
+            expect(onSuccess).toHaveBeenCalledWith('community')
+            expect(result.current.communityPreview).toBeUndefined()
         })
     })
 })

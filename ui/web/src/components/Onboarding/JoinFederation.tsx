@@ -1,13 +1,19 @@
 import { useRouter } from 'next/router'
-import React, { useCallback, useEffect } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useFederationPreview } from '@fedi/common/hooks/federation'
 import { setCurrentUrl } from '@fedi/common/redux/browser'
+import type { InviteCodeType } from '@fedi/common/types'
 import { detectInviteCodeType } from '@fedi/common/utils/FederationUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { ecashRoute, homeRoute, walletRoute } from '../../constants/routes'
+import {
+    ecashRoute,
+    homeRoute,
+    onboardingRoute,
+    walletRoute,
+} from '../../constants/routes'
 import { useAppDispatch } from '../../hooks'
 import { styled } from '../../styles'
 import { getHashParams } from '../../utils/linking'
@@ -23,6 +29,7 @@ export const JoinFederation: React.FC = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const { push, query } = useRouter()
+    const [isRedirecting, setIsRedirecting] = useState(false)
 
     const hashParams =
         typeof window === 'undefined' ? {} : getHashParams(window.location.hash)
@@ -43,20 +50,28 @@ export const JoinFederation: React.FC = () => {
         handleJoin,
     } = useFederationPreview(t, inviteCode)
 
-    const goToNextScreen = useCallback(() => {
-        if (afterJoinEcash) {
-            push(`${ecashRoute}#id=${encodeURIComponent(afterJoinEcash)}`)
-            return
-        }
+    const goToNextScreen = useCallback(
+        (codeType?: InviteCodeType) => {
+            const isFederation = codeType === 'federation' || federationPreview
+            const nextRoute = isFederation ? walletRoute : homeRoute
 
-        if (afterJoinUrl) {
-            dispatch(setCurrentUrl({ url: afterJoinUrl }))
-            push(federationPreview ? walletRoute : homeRoute)
-            return
-        }
+            setIsRedirecting(true)
 
-        push(federationPreview ? walletRoute : homeRoute)
-    }, [afterJoinEcash, afterJoinUrl, dispatch, federationPreview, push])
+            if (afterJoinEcash) {
+                push(`${ecashRoute}#id=${encodeURIComponent(afterJoinEcash)}`)
+                return
+            }
+
+            if (afterJoinUrl) {
+                dispatch(setCurrentUrl({ url: afterJoinUrl }))
+                push(nextRoute)
+                return
+            }
+
+            push(nextRoute)
+        },
+        [afterJoinEcash, afterJoinUrl, dispatch, federationPreview, push],
+    )
 
     // If they came here with invite code in query string then paste the code for them
     useEffect(() => {
@@ -73,12 +88,16 @@ export const JoinFederation: React.FC = () => {
 
     let content: React.ReactNode
 
-    if (isFetchingPreview) {
+    if (isFetchingPreview || isRedirecting) {
         return (
             <LoadingWrapper>
                 <HoloLoader size={'lg'} />
             </LoadingWrapper>
         )
+    }
+
+    if (!inviteCode) {
+        return <Redirect path={onboardingRoute} />
     }
 
     if (federationPreview) {
@@ -119,7 +138,7 @@ export const JoinFederation: React.FC = () => {
     }
 
     if (!federationPreview && !communityPreview) {
-        return <Redirect path="/onboarding" />
+        return <Redirect path={onboardingRoute} />
     }
 
     return (

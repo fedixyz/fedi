@@ -21,6 +21,7 @@ import {
     supportsSafeOnchainDeposit,
     selectCommunityIds,
     setLastSelectedCommunityId,
+    setSelectedFederationId,
     joinCommunity,
     selectFederationClientConfig,
     selectLoadedFederation,
@@ -521,7 +522,7 @@ export function useFederationPreview(t: TFunction, invite: string) {
     )
 
     const handleCode = useCallback(
-        async (code: string, onSuccess?: () => void) => {
+        async (code: string, onSuccess?: (type: InviteCodeType) => void) => {
             try {
                 setIsFetchingPreview(true)
                 const codeType = detectInviteCodeType(code)
@@ -533,11 +534,10 @@ export function useFederationPreview(t: TFunction, invite: string) {
                         fedimint,
                     )
                     if (federationIds.includes(federationPreviewResult.id)) {
-                        toast.show({
-                            content: t('errors.you-have-already-joined'),
-                            status: 'error',
-                        })
-                        onSuccess && onSuccess()
+                        dispatch(
+                            setSelectedFederationId(federationPreviewResult.id),
+                        )
+                        onSuccess && onSuccess('federation')
                     } else {
                         setFederationPreview(federationPreviewResult)
                     }
@@ -553,11 +553,7 @@ export function useFederationPreview(t: TFunction, invite: string) {
                                 communityPreviewResult.id,
                             ),
                         )
-                        toast.show({
-                            content: t('errors.you-have-already-joined'),
-                            status: 'error',
-                        })
-                        onSuccess && onSuccess()
+                        onSuccess && onSuccess('community')
                     } else {
                         setCommunityPreview(communityPreviewResult)
                     }
