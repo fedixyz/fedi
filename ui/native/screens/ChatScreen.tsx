@@ -1,13 +1,12 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
-import { Image, Text, Theme, useTheme } from '@rneui/themed'
+import { Text, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet } from 'react-native'
+import { ActivityIndicator } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { selectIsMatrixChatEmpty, selectMatrixStatus } from '@fedi/common/redux'
+import { selectMatrixStatus } from '@fedi/common/redux'
 
-import { Images } from '../assets/images'
 import ChatsList from '../components/feature/chat/ChatsList'
 import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
@@ -26,11 +25,7 @@ const ChatScreen: React.FC<Props> = () => {
 
     const syncStatus = useAppSelector(selectMatrixStatus)
 
-    const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
-
     useDismissIosNotifications()
-
-    const style = styles(theme)
 
     if (syncStatus === MatrixSyncStatus.initialSync) {
         return (
@@ -43,7 +38,7 @@ const ChatScreen: React.FC<Props> = () => {
     if (syncStatus === MatrixSyncStatus.stopped) {
         return (
             <Column grow center>
-                <Text style={style.errorText} adjustsFontSizeToFit>
+                <Text center adjustsFontSizeToFit>
                     {t('errors.chat-connection-unhealthy')}
                 </Text>
             </Column>
@@ -52,50 +47,16 @@ const ChatScreen: React.FC<Props> = () => {
 
     return (
         <Column grow center>
-            {isChatEmpty ? (
-                <>
-                    <Image
-                        resizeMode="contain"
-                        source={Images.IllustrationChat}
-                        style={style.emptyImage}
-                    />
-                </>
-            ) : (
-                <ErrorBoundary
-                    fallback={() => (
-                        <Column grow center>
-                            <Text style={style.errorText}>
-                                {t('errors.chat-list-render-error')}
-                            </Text>
-                        </Column>
-                    )}>
-                    <ChatsList />
-                </ErrorBoundary>
-            )}
+            <ErrorBoundary
+                fallback={() => (
+                    <Column grow center>
+                        <Text center>{t('errors.chat-list-render-error')}</Text>
+                    </Column>
+                )}>
+                <ChatsList />
+            </ErrorBoundary>
         </Column>
     )
 }
-
-const styles = (theme: Theme) =>
-    StyleSheet.create({
-        emptyImage: {
-            width: 200,
-            height: 200,
-            marginBottom: theme.spacing.xxl,
-        },
-        actionButton: {
-            elevation: 4,
-            shadowRadius: 4,
-            shadowColor: theme.colors.primary,
-        },
-        errorText: { textAlign: 'center' },
-        registration: {
-            maxWidth: 320,
-        },
-        registrationText: {
-            textAlign: 'center',
-            marginBottom: theme.spacing.lg,
-        },
-    })
 
 export default ChatScreen

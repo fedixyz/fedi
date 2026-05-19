@@ -44,6 +44,7 @@ export type AvatarProps = {
         size?: number
         color?: string
     }
+    testID?: string
 }
 
 const Avatar: React.FC<AvatarProps> = ({
@@ -56,6 +57,7 @@ const Avatar: React.FC<AvatarProps> = ({
     maxFontSizeMultiplier,
     isBlocked,
     overrideIconDetails,
+    testID,
 }: AvatarProps) => {
     const { theme } = useTheme()
     const [bgColor, textColor] = getIdentityColors(id)
@@ -93,7 +95,7 @@ const Avatar: React.FC<AvatarProps> = ({
     }, [url])
 
     return (
-        <Column center style={mergedContainerStyle}>
+        <Column center style={mergedContainerStyle} testID={testID}>
             {/*
                 Defaults to the image url if provided.
                 Then falls back to a provided icon.

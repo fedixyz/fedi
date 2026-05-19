@@ -94,6 +94,7 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
             id={id || ''}
             name={name || '?'}
             icon={icon}
+            testID={`Icon${icon}`}
             url={src}
             maxFontSizeMultiplier={maxFontSizeMultiplier}
             isBlocked={isBlocked}

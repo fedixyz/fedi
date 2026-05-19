@@ -1,5 +1,5 @@
 import { useIsFocused, useNavigation } from '@react-navigation/native'
-import { Theme, useTheme } from '@rneui/themed'
+import { Image, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import {
     Dimensions,
@@ -17,14 +17,13 @@ import {
     previewAllDefaultChats,
     refetchMatrixRoomList,
     selectMatrixChatsList,
-    selectMatrixStatus,
 } from '@fedi/common/redux'
-import { ChatType, MatrixRoom, MatrixSyncStatus } from '@fedi/common/types'
+import { ChatType, MatrixRoom } from '@fedi/common/types'
 import { areChatListRoomsEqual } from '@fedi/common/utils/matrix'
 
+import { Images } from '../../../assets/images'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
-import HoloLoader from '../../ui/HoloLoader'
 import { ChatRoomActionsOverlay } from './ChatRoomActionsOverlay'
 import ChatRoomTile from './ChatRoomTile'
 
@@ -38,7 +37,6 @@ const ChatsList: React.FC = () => {
     const fedimint = useFedimint()
 
     const rooms = useAppSelector(selectMatrixChatsList, areChatListRoomsEqual)
-    const syncStatus = useAppSelector(selectMatrixStatus)
     const [isRefetching, setIsRefetching] = useState(false)
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
     const isFocused = useIsFocused()
@@ -99,8 +97,14 @@ const ChatsList: React.FC = () => {
         [updateVisibleRoomIds],
     )
 
-    if (syncStatus === MatrixSyncStatus.initialSync) {
-        return <HoloLoader size={30} />
+    if (rooms.length === 0) {
+        return (
+            <Image
+                resizeMode="contain"
+                source={Images.IllustrationChat}
+                style={styles(theme).emptyImage}
+            />
+        )
     }
 
     return (
@@ -142,6 +146,11 @@ const styles = (theme: Theme) =>
         content: {
             paddingBottom: theme.spacing.sm,
             paddingHorizontal: theme.spacing.sm,
+        },
+        emptyImage: {
+            width: 200,
+            height: 200,
+            marginBottom: theme.spacing.xxl,
         },
     })
 
