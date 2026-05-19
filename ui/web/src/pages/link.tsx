@@ -18,7 +18,7 @@ import {
 import { Column } from '../components/Flex'
 import { Text } from '../components/Text'
 import { useDeviceQuery } from '../hooks'
-import { keyframes, styled, theme } from '../styles'
+import { styled, theme } from '../styles'
 import { getDeepLinkPath } from '../utils/linking'
 import { setPendingDeeplink } from '../utils/localstorage'
 
@@ -43,7 +43,6 @@ const LinkingPage: NextPage = () => {
     const { isMobile } = useDeviceQuery()
 
     const [loaded, setLoaded] = useState(false)
-    const [clickCount, setClickCount] = useState(0)
     const [linkActionText, setLinkActionText] = useState(
         t('feature.onboarding.landing-page-cta'),
     )
@@ -97,14 +96,6 @@ const LinkingPage: NextPage = () => {
         openDeepLinkInFedi(window.location.href)
     }
 
-    const handleStepClick = () => {
-        handleOpenInFedi()
-        setClickCount(c => c + 1)
-    }
-
-    const showDownloadCta = clickCount >= 2
-    const shouldWiggle = clickCount >= 3
-
     if (!loaded) return null
 
     return (
@@ -112,40 +103,18 @@ const LinkingPage: NextPage = () => {
             <PageShell>
                 <DeeplinkHeroLayout
                     stepLabel={linkActionText}
-                    onStepClick={handleStepClick}>
+                    onClick={handleOpenInFedi}>
                     <Column
                         center
                         css={{
                             gap: theme.spacing.md,
                             marginTop: 16,
-                            visibility: showDownloadCta ? 'visible' : 'hidden',
-                        }}
-                        aria-hidden={!showDownloadCta}>
+                        }}>
                         <Text variant="tiny" weight="medium" center>
                             {t('feature.onboarding.landing-page-modal-title')}
                         </Text>
-                        <Button
-                            key={
-                                shouldWiggle ? `wiggle-${clickCount}` : 'static'
-                            }
-                            variant="outline"
-                            onClick={handleDownloadApp}
-                            css={
-                                shouldWiggle
-                                    ? {
-                                          animation: `${wiggle} 0.4s ease-in-out`,
-                                          borderColor: theme.colors.blue,
-                                      }
-                                    : undefined
-                            }>
-                            <Text
-                                variant="caption"
-                                weight="medium"
-                                css={
-                                    shouldWiggle
-                                        ? { color: theme.colors.blue }
-                                        : undefined
-                                }>
+                        <Button variant="outline" onClick={handleDownloadApp}>
+                            <Text variant="caption" weight="medium">
                                 {t(
                                     'feature.onboarding.landing-page-modal-description',
                                 )}
@@ -178,13 +147,6 @@ LinkingPage.noProviders = true
 
 const RedBold = styled('span', {
     fontWeight: 600,
-})
-
-const wiggle = keyframes({
-    '0%, 100%': { transform: 'translateX(0)' },
-    '25%': { transform: 'translateX(-8px)' },
-    '50%': { transform: 'translateX(8px)' },
-    '75%': { transform: 'translateX(-4px)' },
 })
 
 export default LinkingPage

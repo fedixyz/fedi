@@ -106,11 +106,11 @@ const heroGradient =
 
 export function DeeplinkHeroLayout({
     stepLabel,
-    onStepClick,
+    onClick,
     children,
 }: {
     stepLabel: string
-    onStepClick: () => void
+    onClick: () => void
     children?: ReactNode
 }) {
     const { t } = useTranslation()
@@ -137,7 +137,7 @@ export function DeeplinkHeroLayout({
                     css={{ color: theme.colors.black }}>
                     {t('feature.onboarding.landing-page-title')}
                 </Text>
-                <Step onClick={onStepClick} css={{ marginTop: 13 }}>
+                <Step onClick={onClick} css={{ marginTop: 13 }}>
                     <StepNo>
                         <Icon icon="ExternalLink" size="sm" color="white" />
                     </StepNo>

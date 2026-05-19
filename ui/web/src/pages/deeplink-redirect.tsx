@@ -125,7 +125,7 @@ function ResumePage() {
         <PageShell>
             <DeeplinkHeroLayout
                 stepLabel={linkActionText}
-                onStepClick={handleOpenInFedi}
+                onClick={handleOpenInFedi}
             />
         </PageShell>
     )
