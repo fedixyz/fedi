@@ -120,7 +120,7 @@ function DeveloperPage() {
                 await fedimint.getGatewayOverride(federationId)
             setOveriddenGateway(overridePubKey)
         },
-        [federationId],
+        [federationId, fedimint],
     )
 
     return (
