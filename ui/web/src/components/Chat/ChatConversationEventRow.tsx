@@ -5,6 +5,10 @@ import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
+import {
+    isJoinedRoomMemberEvent,
+    isRoomMemberEvent,
+} from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
@@ -53,6 +57,24 @@ const ChatConversationEventRowComponent: React.FC<Props> = ({
     const reserveAvatarSlot = showUsernames && !isMe
     const shouldShowAvatar = reserveAvatarSlot && showAvatar
     const isHighlighted = highlightedMessageId === event.id
+
+    if (isJoinedRoomMemberEvent(event)) {
+        return (
+            <Container data-event-id={event.id}>
+                {showTimestamp && event.timestamp && (
+                    <MessageTimestamp>
+                        {dateUtils.formatMessageItemTimestamp(
+                            event.timestamp / 1000,
+                        )}
+                    </MessageTimestamp>
+                )}
+                <ErrorBoundary fallback={() => <ChatEventError />}>
+                    <ChatEvent event={event} onReplyTap={onReplyTap} />
+                </ErrorBoundary>
+            </Container>
+        )
+    }
+    if (isRoomMemberEvent(event)) return null
 
     return (
         <Container

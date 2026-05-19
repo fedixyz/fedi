@@ -9,6 +9,7 @@ import {
     isFederationInviteEvent,
     isFormEvent,
     isImageEvent,
+    isJoinedRoomMemberEvent,
     isPaymentEvent,
     isRoomMemberEvent,
     isTextEvent,
@@ -25,6 +26,7 @@ import { ChatFormEvent } from './ChatFormEvent'
 import { ChatImageEvent } from './ChatImageEvent'
 import { ChatPaymentEvent } from './ChatPaymentEvent'
 import { ChatRepliedMessage } from './ChatRepliedMessage'
+import { ChatRoomMemberEvent } from './ChatRoomMemberEvent'
 import { ChatSwipeableEventContainer } from './ChatSwipeableEventContainer'
 import { ChatTextEvent } from './ChatTextEvent'
 import { ChatVideoEvent } from './ChatVideoEvent'
@@ -44,6 +46,9 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
     })
     const isMe = event.sender === matrixAuth?.userId
 
+    if (isJoinedRoomMemberEvent(event)) {
+        return <ChatRoomMemberEvent event={event} />
+    }
     if (isRoomMemberEvent(event)) return null
 
     // Images and videos require a different wrapper that has a percentage width

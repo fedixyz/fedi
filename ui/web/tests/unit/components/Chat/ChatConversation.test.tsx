@@ -26,6 +26,14 @@ const groupChatProps = {
     onWalletClick: () => null,
 }
 
+const directChatProps = {
+    type: ChatType.direct,
+    id: ROOM_ID,
+    name: 'name',
+    onSendMessage: jest.fn(),
+    onWalletClick: () => null,
+}
+
 function makeTextEvent(
     id: string,
     body: string,
@@ -51,6 +59,7 @@ function makeTextEvent(
 function makeRoomMemberEvent(
     id: string,
     timestamp: number,
+    change: MatrixEvent<'m.room.member'>['content']['change'] = 'joined',
 ): MatrixEvent<'m.room.member'> {
     return {
         id: id as RpcTimelineEventItemId,
@@ -65,7 +74,7 @@ function makeRoomMemberEvent(
             msgtype: 'm.room.member',
             userId: '@alice:example.com',
             userDisplayName: 'Alice',
-            change: 'joined',
+            change,
         },
     }
 }
@@ -104,7 +113,7 @@ describe('/components/Chat/ChatConversation', () => {
     })
 
     describe('membership events', () => {
-        it('should not render room member events on web', async () => {
+        it('should render joined room member events in group chats', async () => {
             const events = [
                 makeTextEvent('$message', 'visible message', 2),
                 makeRoomMemberEvent('$room-member', 1),
@@ -118,6 +127,53 @@ describe('/components/Chat/ChatConversation', () => {
             await waitFor(() => {
                 expect(screen.getByText('visible message')).toBeInTheDocument()
             })
+            expect(
+                screen.getByText('Alice joined the room'),
+            ).toBeInTheDocument()
+            expect(
+                container.querySelector('[data-event-id="$room-member"]'),
+            ).toBeInTheDocument()
+        })
+
+        it('should not render non-joined room member events in group chats', async () => {
+            const events = [
+                makeTextEvent('$message', 'visible message', 2),
+                makeRoomMemberEvent('$room-member', 1, 'left'),
+            ]
+            const store = storeWithEvents(events)
+            const { container } = renderWithProviders(
+                <ChatConversation {...groupChatProps} />,
+                { store },
+            )
+
+            await waitFor(() => {
+                expect(screen.getByText('visible message')).toBeInTheDocument()
+            })
+            expect(
+                screen.queryByText('Alice joined the room'),
+            ).not.toBeInTheDocument()
+            expect(
+                container.querySelector('[data-event-id="$room-member"]'),
+            ).not.toBeInTheDocument()
+        })
+
+        it('should not render room member events in direct chats', async () => {
+            const events = [
+                makeTextEvent('$message', 'visible message', 2),
+                makeRoomMemberEvent('$room-member', 1),
+            ]
+            const store = storeWithEvents(events)
+            const { container } = renderWithProviders(
+                <ChatConversation {...directChatProps} />,
+                { store },
+            )
+
+            await waitFor(() => {
+                expect(screen.getByText('visible message')).toBeInTheDocument()
+            })
+            expect(
+                screen.queryByText('Alice joined the room'),
+            ).not.toBeInTheDocument()
             expect(
                 container.querySelector('[data-event-id="$room-member"]'),
             ).not.toBeInTheDocument()

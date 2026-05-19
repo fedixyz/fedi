@@ -10,7 +10,10 @@ import {
 } from '@fedi/common/redux'
 import { ChatType } from '@fedi/common/types'
 import { makeChatConversationRows } from '@fedi/common/utils/chatConversationRows'
-import { isRoomMemberEvent } from '@fedi/common/utils/matrix'
+import {
+    isJoinedRoomMemberEvent,
+    isRoomMemberEvent,
+} from '@fedi/common/utils/matrix'
 
 import { useAppSelector, useDeviceQuery } from '../../hooks'
 import { styled, theme } from '../../styles'
@@ -73,8 +76,12 @@ export const ChatConversation: React.FC<Props> = ({
     const { isIOS } = useDeviceQuery()
 
     const visibleEvents = useMemo(
-        () => events.filter(event => !isRoomMemberEvent(event)),
-        [events],
+        () =>
+            events.filter(event => {
+                if (!isRoomMemberEvent(event)) return true
+                return type === ChatType.group && isJoinedRoomMemberEvent(event)
+            }),
+        [events, type],
     )
     const chatRows = useMemo(
         () => makeChatConversationRows(visibleEvents, type),
