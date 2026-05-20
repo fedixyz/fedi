@@ -26,7 +26,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 44,
+        version: 45,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -70,6 +70,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         balanceDisplay: state.currency.balanceDisplay,
         lastUsedTab: state.environment.lastUsedTab,
         rejectedRoomInvites: state.matrix.rejectedRoomInvites,
+        seenRoomInvites: state.matrix.seenRoomInvites,
         paymentType: state.environment.paymentType,
         selectedFederationId: state.federation.selectedFederationId,
     }
@@ -126,6 +127,7 @@ export function hasStorageStateChanged(
         ['federation', 'selectedFederationId'],
         ['matrix', 'drafts'],
         ['matrix', 'rejectedRoomInvites'],
+        ['matrix', 'seenRoomInvites'],
         // TODO: migrate legacy mods to customGlobalMods
         ['federation', 'customFediMods'],
         ['matrix', 'auth'],
@@ -821,6 +823,14 @@ async function migrateStoredState(
             paymentType: 'bitcoin',
             selectedFederationId:
                 migrationState.recentlyUsedFederationIds[0] ?? null,
+        }
+    }
+
+    if (migrationState.version === 44) {
+        migrationState = {
+            ...migrationState,
+            version: 45,
+            seenRoomInvites: [],
         }
     }
 

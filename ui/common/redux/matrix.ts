@@ -169,6 +169,7 @@ const initialState = {
     users: {} as Record<MatrixUser['id'], MatrixUser | undefined>,
     ignoredUsers: [] as MatrixUser['id'][],
     rejectedRoomInvites: [] as MatrixRoom['id'][],
+    seenRoomInvites: [] as MatrixRoom['id'][],
     errors: [] as MatrixError[],
     pushNotificationToken: null as string | null,
     groupPreviews: {} as Record<MatrixRoom['id'], MatrixGroupPreview>,
@@ -240,6 +241,19 @@ export const matrixSlice = createSlice({
         addMatrixRoomInfo(state, action: PayloadAction<MatrixRoom>) {
             // Caused by 'form' event in RpcMsgLikeKind in bindings.ts
             state.roomInfo = upsertRecordEntity(state.roomInfo, action.payload)
+            if (action.payload.roomState !== 'invited') {
+                state.seenRoomInvites = state.seenRoomInvites.filter(
+                    roomId => roomId !== action.payload.id,
+                )
+            }
+        },
+        markMatrixRoomInviteSeen(
+            state,
+            action: PayloadAction<MatrixRoom['id']>,
+        ) {
+            if (!state.seenRoomInvites.includes(action.payload)) {
+                state.seenRoomInvites.push(action.payload)
+            }
         },
         handleMatrixRoomListStreamUpdates(
             state,
@@ -529,6 +543,9 @@ export const matrixSlice = createSlice({
                 ...state.rejectedRoomInvites,
                 action.payload,
             ]
+            state.seenRoomInvites = state.seenRoomInvites.filter(
+                roomId => roomId !== action.payload,
+            )
         },
     },
     extraReducers: builder => {
@@ -622,6 +639,7 @@ export const matrixSlice = createSlice({
             // state.auth = action.payload.matrixAuth
             state.drafts = action.payload.chatDrafts
             state.rejectedRoomInvites = action.payload.rejectedRoomInvites
+            state.seenRoomInvites = action.payload.seenRoomInvites
         })
 
         builder.addCase(
@@ -739,6 +757,7 @@ export const {
     setChatsListSearchQuery,
     setChatTimelineSearchQuery,
     addRejectedMatrixRoom,
+    markMatrixRoomInviteSeen,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
@@ -2403,6 +2422,11 @@ export const selectIsMatrixChatEmpty = (s: CommonState) =>
 export const selectMatrixRoom = (s: CommonState, roomId: MatrixRoom['id']) =>
     selectMatrixRooms(s).find(room => room.id === roomId)
 
+export const selectMatrixRoomInviteIsSeen = (
+    s: CommonState,
+    roomId: MatrixRoom['id'],
+) => s.matrix.seenRoomInvites.includes(roomId)
+
 export const selectGroupPreview = createSelector(
     selectGroupPreviews,
     (_s: CommonState, roomId: RpcRoomId) => roomId,
@@ -2762,6 +2786,20 @@ export const selectMatrixHasNotifications = createSelector(
                 room.notificationCount,
                 room.isMarkedUnread,
             ),
+        ),
+)
+
+export const selectMatrixHasNotificationsIncludingInvites = createSelector(
+    selectMatrixRooms,
+    (s: CommonState) => s.matrix.seenRoomInvites,
+    (rooms, seenRoomInvites) =>
+        rooms.some(room =>
+            room.roomState === 'invited'
+                ? !seenRoomInvites.includes(room.id)
+                : shouldShowUnreadIndicator(
+                      room.notificationCount,
+                      room.isMarkedUnread,
+                  ),
         ),
 )
 

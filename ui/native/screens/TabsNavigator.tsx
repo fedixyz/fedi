@@ -25,7 +25,7 @@ import {
     selectCommunities,
     selectLastUsedTab,
     selectLoadedFederations,
-    selectMatrixHasNotifications,
+    selectMatrixHasNotificationsIncludingInvites,
 } from '@fedi/common/redux'
 import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 import { HomeNavigationTab } from '@fedi/common/types/linking'
@@ -79,7 +79,9 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     const [communitiesOverlayOpen, setCommunitiesOverlayOpen] = useState(false)
     // TODO: Reimplement unseen logic with matrix
     // const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
-    const hasUnreadMessages = useAppSelector(selectMatrixHasNotifications)
+    const hasUnreadMessages = useAppSelector(
+        selectMatrixHasNotificationsIncludingInvites,
+    )
     const communities = useAppSelector(selectCommunities)
     const loadedFederations = useAppSelector(selectLoadedFederations)
     const zendeskMsgCount = useAppSelector(selectZendeskUnreadMessageCount)

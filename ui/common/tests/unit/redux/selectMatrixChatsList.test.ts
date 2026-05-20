@@ -141,6 +141,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'default-group': makeDefaultGroupPreview(
                         'default-group',
@@ -173,6 +174,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'default-group': makeDefaultGroupPreview(
                         'default-group',
@@ -210,6 +212,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'default-group-newer': makeDefaultGroupPreview(
                         'default-group-newer',
@@ -255,6 +258,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'default-group': makeDefaultGroupPreview(
                         'default-group',
@@ -296,6 +300,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'default-group': makeDefaultGroupPreview(
                         'default-group',
@@ -329,6 +334,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'joined-default-group': makeDefaultGroupPreview(
                         'joined-default-group',
@@ -363,6 +369,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'empty-default-group': makeDefaultGroupPreview(
                         'empty-default-group',
@@ -388,6 +395,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'preview-top-1': makeDefaultGroupPreview(
                         'preview-top-1',
@@ -429,6 +437,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'preview-bottom-1': makeDefaultGroupPreview(
                         'preview-bottom-1',
@@ -470,6 +479,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'default-group': makeDefaultGroupPreview(
                         'default-group',
@@ -529,6 +539,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'default-group-a': makeDefaultGroupPreview(
                         'default-group-a',
@@ -562,6 +573,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'default-group-a': makeDefaultGroupPreview(
                         'default-group-a',
@@ -607,6 +619,7 @@ describe('selectMatrixChatsList', () => {
                 roomList: [],
                 roomPowerLevels: {},
                 rejectedRoomInvites: [],
+                seenRoomInvites: [],
                 groupPreviews: {
                     'announcement-room-1': makeDefaultGroupPreview(
                         'announcement-room-1',

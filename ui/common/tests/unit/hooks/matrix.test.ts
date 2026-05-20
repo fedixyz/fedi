@@ -11,6 +11,7 @@ import {
 import {
     addMatrixRoomInfo,
     handleMatrixRoomListStreamUpdates,
+    markMatrixRoomInviteSeen,
     selectToast,
     setChatDraft,
     setFederations,
@@ -69,6 +70,129 @@ describe('useMatrixRoomPreview', () => {
     beforeEach(() => {
         jest.clearAllMocks()
         store = setupStore()
+    })
+
+    it('should show a connection request preview for invited rooms without a latest message', () => {
+        const roomId = '!room:example.com'
+        const t = createMockT()
+
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            roomState: 'invited',
+            preview: null,
+        })
+
+        const { result } = renderHookWithState(
+            () =>
+                useMatrixRoomPreview({
+                    roomId,
+                    t,
+                    showInvitePreview: true,
+                    showInviteUnread: true,
+                }),
+            store,
+        )
+
+        expect(result.current).toEqual({
+            text: 'feature.chat.connection-request-pending',
+            isUnread: true,
+            isNotice: true,
+            isPublicBroadcast: null,
+        })
+    })
+
+    it('should hide the unread state for invited rooms after the invite is seen', () => {
+        const roomId = '!room:example.com'
+        const t = createMockT()
+
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            roomState: 'invited',
+            preview: null,
+        })
+        store.dispatch(markMatrixRoomInviteSeen(roomId))
+
+        const { result } = renderHookWithState(
+            () =>
+                useMatrixRoomPreview({
+                    roomId,
+                    t,
+                    showInvitePreview: true,
+                    showInviteUnread: true,
+                }),
+            store,
+        )
+
+        expect(result.current).toEqual({
+            text: 'feature.chat.connection-request-pending',
+            isUnread: false,
+            isNotice: true,
+            isPublicBroadcast: null,
+        })
+    })
+
+    it('should not show invite state unless invite preview and unread are enabled', () => {
+        const roomId = '!room:example.com'
+        const t = createMockT()
+
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            roomState: 'invited',
+            preview: null,
+        })
+
+        const { result } = renderHookWithState(
+            () => useMatrixRoomPreview({ roomId, t }),
+            store,
+        )
+
+        expect(result.current).toEqual({
+            text: 'feature.chat.no-messages',
+            isUnread: false,
+            isNotice: true,
+            isPublicBroadcast: null,
+        })
+    })
+
+    it('should keep the pending invite preview for invited rooms with a latest message', () => {
+        const roomId = '!room:example.com'
+        const t = createMockT()
+
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            roomState: 'invited',
+            preview: {
+                id: '$event',
+                roomId,
+                senderId: '@user:example.com',
+                timestamp: 1700000000000,
+                localEcho: false,
+                sender: null,
+                sendState: null,
+                inReply: null,
+                mentions: null,
+                content: {
+                    msgtype: 'm.text',
+                    body: 'hello',
+                },
+            } as unknown as NonNullable<MatrixRoom['preview']>,
+        })
+
+        const { result } = renderHookWithState(
+            () => useMatrixRoomPreview({ roomId, t }),
+            store,
+        )
+
+        expect(result.current).toEqual({
+            text: 'feature.chat.connection-request-pending',
+            isUnread: false,
+            isNotice: false,
+            isPublicBroadcast: null,
+        })
     })
 
     it('should ignore unrelated room updates while keeping preview fields current', () => {

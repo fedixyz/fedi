@@ -54,6 +54,8 @@ import {
     selectMatrixRoomSelfPowerLevel,
     selectDefaultMatrixRoom,
     selectFederationIds,
+    selectMatrixRoomInviteIsSeen,
+    markMatrixRoomInviteSeen,
 } from '../redux'
 import {
     MatrixEvent,
@@ -1495,9 +1497,13 @@ export function useMentionInput(
 export function useMatrixRoomPreview({
     roomId,
     t,
+    showInvitePreview = false,
+    showInviteUnread = false,
 }: {
     roomId: string
     t: TFunction
+    showInvitePreview?: boolean
+    showInviteUnread?: boolean
 }) {
     const matrixRoom = useCommonSelector<MatrixRoom | undefined>(
         s => selectMatrixRoom(s, roomId),
@@ -1509,13 +1515,19 @@ export function useMatrixRoomPreview({
     )
     const roomDraft = useCommonSelector(s => selectChatDrafts(s)[roomId])
     const myId = useCommonSelector(s => selectMatrixAuth(s)?.userId)
+    const inviteIsSeen = useCommonSelector(s =>
+        selectMatrixRoomInviteIsSeen(s, roomId),
+    )
 
     const isPublicBroadcast = matrixRoom?.isPublic && matrixRoom.broadcastOnly
 
-    const isUnread = shouldShowUnreadIndicator(
-        matrixRoom?.notificationCount,
-        matrixRoom?.isMarkedUnread,
-    )
+    const isUnread =
+        showInviteUnread && matrixRoom?.roomState === 'invited'
+            ? !inviteIsSeen
+            : shouldShowUnreadIndicator(
+                  matrixRoom?.notificationCount,
+                  matrixRoom?.isMarkedUnread,
+              )
     const isBlocked = Boolean(matrixRoom?.isBlocked)
 
     // Whether to display the room preview as a 'notice'
@@ -1532,14 +1544,18 @@ export function useMatrixRoomPreview({
         // because we properly fetch the previews for them even if you haven't joined
         const preferredPreviewRoom = defaultRoom ?? matrixRoom
 
+        if (
+            !defaultRoom &&
+            preferredPreviewRoom?.roomState === 'invited' &&
+            (showInvitePreview || preferredPreviewRoom.preview)
+        ) {
+            return t('feature.chat.connection-request-pending')
+        }
+
         if (!preferredPreviewRoom?.preview) return t('feature.chat.no-messages')
 
         if (roomDraft)
             return t('feature.chat.draft-text', { text: roomDraft.trim() })
-
-        if (!defaultRoom && preferredPreviewRoom.roomState === 'invited') {
-            return t('feature.chat.connection-request-pending')
-        }
 
         if (
             preferredPreviewRoom.preview.content.msgtype === 'xyz.fedi.payment'
@@ -1565,7 +1581,7 @@ export function useMatrixRoomPreview({
         }
 
         return getRoomPreviewText(preferredPreviewRoom, t)
-    }, [defaultRoom, matrixRoom, t, roomDraft, myId])
+    }, [defaultRoom, matrixRoom, t, roomDraft, myId, showInvitePreview])
 
     return {
         text,
@@ -1669,9 +1685,16 @@ export function useDeleteMessage({
 
 export function useConnectionRequestData(roomId: MatrixRoom['id']) {
     const room = useCommonSelector(s => selectMatrixRoom(s, roomId))
+    const dispatch = useCommonDispatch()
 
     const connectionRequestPending =
         !!room?.isDirect && room.roomState === 'invited'
+
+    useEffect(() => {
+        if (connectionRequestPending) {
+            dispatch(markMatrixRoomInviteSeen(roomId))
+        }
+    }, [connectionRequestPending, dispatch, roomId])
 
     const connectionRequestUsername = useMemo(() => {
         const roomName = room?.name?.trim()

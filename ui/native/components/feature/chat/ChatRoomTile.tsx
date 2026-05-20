@@ -27,6 +27,8 @@ const ChatRoomTile = ({ room, onSelect, onLongPress }: ChatRoomTileProps) => {
     const { text, isUnread, isNotice } = useMatrixRoomPreview({
         roomId: room.id,
         t,
+        showInvitePreview: true,
+        showInviteUnread: true,
     })
 
     const style = styles(theme)
