@@ -1,4 +1,5 @@
 import {
+    RpcRoomMembershipChange,
     RpcSerializedRoomInfo,
     RpcTimelineItemEvent,
     VectorDiff,
@@ -19,6 +20,25 @@ const makePreviewEvent = (): RpcTimelineItemEvent =>
         content: {
             msgtype: 'm.text',
             body: 'Recovered preview',
+        },
+        localEcho: false,
+        timestamp: Date.now(),
+        sender: '@alice:example.com',
+        sendState: null,
+        inReply: null,
+        mentions: null,
+    }) as RpcTimelineItemEvent
+
+const makeRoomMemberPreviewEvent = (
+    change: RpcRoomMembershipChange,
+): RpcTimelineItemEvent =>
+    ({
+        id: '$member-event',
+        content: {
+            msgtype: 'm.room.member',
+            userId: '@alice:example.com',
+            userDisplayName: 'Alice',
+            change,
         },
         localEcho: false,
         timestamp: Date.now(),
@@ -111,6 +131,85 @@ describe('MatrixChatClient', () => {
     const emitPinnedTimelineUpdates = (updates: VectorDiff<any>[]) => {
         pinnedTimelineCallbacks.forEach(callback => callback(updates))
     }
+
+    describe('room preview serialization', () => {
+        it('should preserve invitation accepted membership previews', async () => {
+            const handler = jest.fn()
+            client.on('roomInfo', handler)
+
+            await (
+                client as unknown as {
+                    observeRoomInfo: (roomId: string) => void
+                }
+            ).observeRoomInfo(ROOM_ID)
+
+            roomInfoCallback?.(
+                makeRoomInfo({
+                    preview: makeRoomMemberPreviewEvent('invitationAccepted'),
+                }),
+            )
+            await flushPromises()
+
+            expect(handler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    preview: expect.objectContaining({
+                        content: expect.objectContaining({
+                            msgtype: 'm.room.member',
+                            change: 'invitationAccepted',
+                        }),
+                    }),
+                }),
+            )
+        })
+
+        it('should drop non-previewable membership previews', async () => {
+            const handler = jest.fn()
+            client.on('roomInfo', handler)
+
+            await (
+                client as unknown as {
+                    observeRoomInfo: (roomId: string) => void
+                }
+            ).observeRoomInfo(ROOM_ID)
+
+            roomInfoCallback?.(
+                makeRoomInfo({
+                    preview: makeRoomMemberPreviewEvent('left'),
+                }),
+            )
+            await flushPromises()
+
+            expect(handler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    preview: null,
+                }),
+            )
+        })
+
+        it('should drop plain joined membership previews', async () => {
+            const handler = jest.fn()
+            client.on('roomInfo', handler)
+
+            await (
+                client as unknown as {
+                    observeRoomInfo: (roomId: string) => void
+                }
+            ).observeRoomInfo(ROOM_ID)
+
+            roomInfoCallback?.(
+                makeRoomInfo({
+                    preview: makeRoomMemberPreviewEvent('joined'),
+                }),
+            )
+            await flushPromises()
+
+            expect(handler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    preview: null,
+                }),
+            )
+        })
+    })
 
     describe('preview warmups', () => {
         it('should warm active joined rooms that are missing a preview', async () => {

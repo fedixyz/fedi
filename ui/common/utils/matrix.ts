@@ -692,6 +692,15 @@ export function isJoinedRoomMemberEvent(
     )
 }
 
+export function isPreviewableRoomMemberEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<'m.room.member'> {
+    return (
+        isRoomMemberEvent(event) &&
+        event.content.change === 'invitationAccepted'
+    )
+}
+
 export function isFederationInviteEvent(
     event: MatrixEvent,
 ): event is MatrixEvent<'xyz.fedi.federationInvite'> {
@@ -1585,6 +1594,13 @@ export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
     const preview = room.preview
 
     if (!preview) return t('feature.chat.no-messages')
+    if (isPreviewableRoomMemberEvent(preview)) {
+        return t('feature.chat.member-joined', {
+            user:
+                preview.content.userDisplayName ||
+                matrixIdToUsername(preview.content.userId),
+        })
+    }
     if (isRoomMemberEvent(preview)) return t('feature.chat.no-messages')
 
     const previewTextKey = getEventPreviewTextKey(preview)

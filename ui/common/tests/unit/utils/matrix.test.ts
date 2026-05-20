@@ -136,6 +136,7 @@ describe('isMultispendReannounceEvent', () => {
 
 describe('getRoomPreviewText', () => {
     const t = createMockT({
+        'feature.chat.member-joined': 'Alice joined the room',
         'feature.chat.sp-transfer-preview':
             'New stable balance transfer activity',
     })
@@ -164,7 +165,11 @@ describe('getRoomPreviewText', () => {
         }
     }
 
-    function makeRoomMemberRoom(): MatrixRoom {
+    function makeRoomMemberRoom(
+        change: NonNullable<
+            MatrixEvent<'m.room.member'>['content']['change']
+        > = 'joined',
+    ): MatrixRoom {
         return {
             ...MOCK_MATRIX_ROOM,
             preview: {
@@ -181,7 +186,7 @@ describe('getRoomPreviewText', () => {
                     msgtype: 'm.room.member',
                     userId: '@alice:test',
                     userDisplayName: 'Alice',
-                    change: 'joined',
+                    change,
                 },
             } as unknown as NonNullable<MatrixRoom['preview']>,
         }
@@ -199,8 +204,40 @@ describe('getRoomPreviewText', () => {
         )
     })
 
-    it('should ignore membership events for room preview text', () => {
+    it('should ignore joined membership events for room preview text', () => {
         expect(getRoomPreviewText(makeRoomMemberRoom(), t)).toBe(
+            'feature.chat.no-messages',
+        )
+    })
+
+    it('should render invitation accepted membership events for room preview text', () => {
+        expect(
+            getRoomPreviewText(makeRoomMemberRoom('invitationAccepted'), t),
+        ).toBe('Alice joined the room')
+    })
+
+    it('should use the matrix username for membership previews without display names', () => {
+        const tSpy = jest.fn(() => 'alice joined the room') as any
+        const room = makeRoomMemberRoom('invitationAccepted')
+
+        room.preview = {
+            ...room.preview,
+            content: {
+                ...room.preview?.content,
+                msgtype: 'm.room.member',
+                userId: '@alice:server.com',
+                userDisplayName: null,
+            },
+        } as NonNullable<MatrixRoom['preview']>
+
+        expect(getRoomPreviewText(room, tSpy)).toBe('alice joined the room')
+        expect(tSpy).toHaveBeenCalledWith('feature.chat.member-joined', {
+            user: 'alice',
+        })
+    })
+
+    it('should ignore other membership events for room preview text', () => {
+        expect(getRoomPreviewText(makeRoomMemberRoom('left'), t)).toBe(
             'feature.chat.no-messages',
         )
     })

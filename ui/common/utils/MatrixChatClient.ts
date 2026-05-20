@@ -53,6 +53,7 @@ import { FedimintBridge, UnsubscribeFn } from './fedimint'
 import { makeLog } from './log'
 import {
     encodeFediMatrixRoomUri,
+    isPreviewableRoomMemberEvent,
     isRpcMatrixEvent,
     isRoomMemberEvent,
     mxcUrlToHttpUrl,
@@ -1216,7 +1217,9 @@ export class MatrixChatClient {
               )
             : null
         const preview =
-            previewEvent && !isRoomMemberEvent(previewEvent)
+            previewEvent &&
+            (!isRoomMemberEvent(previewEvent) ||
+                isPreviewableRoomMemberEvent(previewEvent))
                 ? previewEvent
                 : null
 
