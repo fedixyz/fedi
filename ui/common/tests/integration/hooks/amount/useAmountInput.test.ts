@@ -264,6 +264,34 @@ describe('useAmountInput hook', () => {
             expect(result.current.fiatValue).toBe('1,000')
             expect(result.current.satsValue).toBe('1,000,000') // 1K USD = 1,000,000 sats
         })
+
+        it('handleChangeFiat does not produce infinite sats when exchange rate is unavailable', () => {
+            const { store, bridge } = context
+
+            store.dispatch(setAmountInputType('fiat'))
+            store.dispatch(changeOverrideCurrency(SupportedCurrency.USD))
+            store.dispatch({
+                type: fetchCurrencyPrices.fulfilled.type,
+                payload: {
+                    btcUsdRate: 0,
+                    fiatUsdRates: {},
+                },
+            })
+
+            const { result } = renderHookWithBridge(
+                () => useAmountInput(0 as Sats, mockOnChangeAmount),
+                store,
+                bridge.fedimint,
+            )
+
+            act(() => {
+                result.current.handleChangeFiat('1000')
+            })
+
+            expect(mockOnChangeAmount).toHaveBeenCalledWith(0)
+            expect(result.current.fiatValue).toBe('1,000')
+            expect(result.current.satsValue).toBe('0')
+        })
     })
 
     describe('when amount type is in sats', () => {

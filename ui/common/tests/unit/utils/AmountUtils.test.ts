@@ -594,6 +594,7 @@ describe('AmountUtils', () => {
         it('should return 0 for non-numbers', () => {
             // typecast to trick the type checker
             expect(amountUtils.clampSats('0' as unknown as number)).toEqual(0)
+            expect(amountUtils.clampSats(Infinity)).toEqual(0)
         })
         it('should return 0 for negative numbers', () => {
             expect(amountUtils.clampSats(-1 as Sats)).toEqual(0)

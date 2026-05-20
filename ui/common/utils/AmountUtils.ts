@@ -314,7 +314,7 @@ class AmountUtils {
 
     // forces a number to be a valid sats value
     clampSats(value: number): Sats {
-        if (Number.isNaN(value)) return 0 as Sats
+        if (!Number.isFinite(value)) return 0 as Sats
         return Math.round(Math.max(0, value)) as Sats
     }
 

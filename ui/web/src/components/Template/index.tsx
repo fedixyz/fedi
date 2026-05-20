@@ -1,7 +1,8 @@
 import { useRouter } from 'next/router'
-import React from 'react'
+import React, { useEffect } from 'react'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
+import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import {
     closeBrowser,
     selectCurrentUrl,
@@ -27,11 +28,18 @@ export const Template: React.FC<Props> = ({ children }) => {
     const { asPath } = router
     const syncStatus = useAppSelector(selectMatrixStatus)
     const currentUrl = useAppSelector(selectCurrentUrl)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const hideNavigation = shouldHideNavigation(asPath)
 
     const shouldShowChatOffline =
         syncStatus === MatrixSyncStatus.syncing && asPath.startsWith('/chat')
+
+    // Sync currency rates once on mount to ensure
+    // rates are available regardless of how the user enters the app
+    useEffect(() => {
+        syncCurrencyRatesAndCache()
+    }, [syncCurrencyRatesAndCache])
 
     return (
         <AppContainer>

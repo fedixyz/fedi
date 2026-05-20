@@ -78,14 +78,11 @@ const Request: React.FC = () => {
     if (isOnchainSupported)
         switcherOptions.push({ label: t('words.onchain'), value: 'onchain' })
 
-    // Sync currency rates on focus
     useEffect(() => {
-        const onFocus = () => syncCurrencyRatesAndCache()
+        if (!federationId) return
 
-        window.addEventListener('focus', onFocus)
-
-        return () => window.removeEventListener('focus', onFocus)
-    }, [syncCurrencyRatesAndCache])
+        syncCurrencyRatesAndCache(federationId)
+    }, [federationId, syncCurrencyRatesAndCache])
 
     useEffect(() => {
         if (!federationId) return

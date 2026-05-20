@@ -1,9 +1,8 @@
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import {
     selectLastSelectedCommunityChats,
     selectLastSelectedCommunity,
@@ -38,8 +37,6 @@ function HomePage() {
     const { isIOS } = useDeviceQuery()
     const { showInstallBanner, handleOnDismiss } = useShowInstallPromptBanner()
 
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
-
     const handleOnInstall = async () => {
         await deferredPrompt?.prompt()
     }
@@ -55,11 +52,6 @@ function HomePage() {
     const pinnedMessage = getFederationPinnedMessage(
         selectedCommunity?.meta || {},
     )
-
-    // Get rates from cache
-    useEffect(() => {
-        syncCurrencyRatesAndCache()
-    }, [syncCurrencyRatesAndCache])
 
     // TODO: handle if we can't join fedi global community?
     if (!selectedCommunity) return null

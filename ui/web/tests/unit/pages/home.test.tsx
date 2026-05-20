@@ -18,12 +18,6 @@ jest.mock('../../../src/hooks/util.ts', () => ({
     }),
 }))
 
-const ratesSpy = jest.fn()
-jest.mock('@fedi/common/hooks/currency.ts', () => ({
-    ...jest.requireActual('@fedi/common/hooks/currency'),
-    useSyncCurrencyRatesAndCache: () => ratesSpy,
-}))
-
 const mockCommunityChat = {
     ...MOCK_MATRIX_ROOM,
     id: 'chat-id',
@@ -59,10 +53,6 @@ describe('/pages/home', () => {
         it('should render the install banner component', async () => {
             const component = screen.getByLabelText('Install Banner')
             expect(component).toBeInTheDocument()
-        })
-
-        it('should call useSyncCurrencyRatesAndCache', () => {
-            expect(ratesSpy).toHaveBeenCalled()
         })
 
         it('should call display the pinned message', () => {

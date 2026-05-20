@@ -7,7 +7,7 @@ import {
     selectCurrencyLocale,
     setAmountInputType,
 } from '../../redux'
-import { Btc, Federation, Sats } from '../../types'
+import { Federation, Sats } from '../../types'
 import { numpadButtons } from '../../types/amount'
 import amountUtils from '../../utils/AmountUtils'
 import { useCommonDispatch, useCommonSelector } from '../redux'
@@ -117,7 +117,7 @@ export function useAmountInput(
 
             // Convert to sats and clamp
             let sats = amountUtils.clampSats(
-                amountUtils.btcToSat((fiat / btcToFiatRateRef.current) as Btc),
+                amountUtils.fiatToSat(fiat, btcToFiatRateRef.current),
             )
 
             // If the amount is being entered as fiat, the equivalent amount in sats
