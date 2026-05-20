@@ -21,7 +21,7 @@ import {
 } from '@fedi/common/redux'
 
 import { MatrixEvent, MatrixRoom, SendableMatrixEvent } from '../../types'
-import { isTextEvent } from '../../utils/matrix'
+import { isJoinedRoomMemberEvent, isTextEvent } from '../../utils/matrix'
 import { createIntegrationTestBuilder } from '../utils/remote-bridge-setup'
 import { renderHookWithBridge } from '../utils/render'
 import { createMockT } from '../utils/setup'
@@ -265,6 +265,93 @@ describe('group chat interactions between 2 users', () => {
             expect(
                 selectMatrixRoomPinnedEventIds(storeBob.getState(), roomId),
             ).toEqual([])
+        })
+    })
+
+    it("shows bob's room join as a membership event on both users' group timelines", async () => {
+        const { store: storeAlice, bridge: bridgeAlice } = alice
+        await builder1.withChatReady()
+        const { store: storeBob, bridge: bridgeBob } = bob
+        await builder2.withChatReady()
+        const bobAuth = selectMatrixAuth(storeBob.getState())
+
+        const roomId = await builder1.withChatGroupCreated()
+
+        renderHookWithBridge(
+            () => useObserveMatrixRoom(roomId),
+            storeAlice,
+            bridgeAlice.fedimint,
+        )
+
+        await act(() => {
+            storeAlice.dispatch(
+                inviteUserToMatrixRoom({
+                    fedimint: bridgeAlice.fedimint,
+                    roomId,
+                    userId: bobAuth?.userId as string,
+                }),
+            )
+        })
+
+        let bobRoom: MatrixRoom | undefined
+        await waitFor(() => {
+            const chatsListBob = selectMatrixChatsList(storeBob.getState())
+            bobRoom = chatsListBob.find(r => r.id === roomId)
+            expect(bobRoom).toBeDefined()
+        })
+
+        if (bobRoom?.roomState !== 'joined') {
+            await act(async () => {
+                await storeBob
+                    .dispatch(
+                        joinMatrixRoom({
+                            fedimint: bridgeBob.fedimint,
+                            roomId,
+                        }),
+                    )
+                    .unwrap()
+            })
+        }
+
+        await waitFor(() => {
+            const chatsListBob = selectMatrixChatsList(storeBob.getState())
+            expect(
+                chatsListBob.find(
+                    r => r.id === roomId && r.roomState === 'joined',
+                ),
+            ).toBeDefined()
+        })
+
+        renderHookWithBridge(
+            () => useObserveMatrixRoom(roomId),
+            storeBob,
+            bridgeBob.fedimint,
+        )
+
+        await waitFor(() => {
+            const roomEventsAlice = selectMatrixRoomEvents(
+                storeAlice.getState(),
+                roomId,
+            )
+            const roomEventsBob = selectMatrixRoomEvents(
+                storeBob.getState(),
+                roomId,
+            )
+            const bobJoinEventAlice = roomEventsAlice.find(event => {
+                return (
+                    isJoinedRoomMemberEvent(event) &&
+                    event.content.userId === bobAuth?.userId
+                )
+            })
+            const bobJoinEventBob = roomEventsBob.find(event => {
+                return (
+                    isJoinedRoomMemberEvent(event) &&
+                    event.content.userId === bobAuth?.userId
+                )
+            })
+
+            expect(bobJoinEventAlice).toBeDefined()
+            expect(bobJoinEventBob).toBeDefined()
         })
     })
 })
@@ -647,7 +734,9 @@ describe('direct chat interactions between 2 users', () => {
             const eventWithMessageAlice = timelineAlice.find(event => {
                 return (
                     isTextEvent(event) &&
-                    event.content.body === 'hi bob this is alice'
+                    event.content.body === 'hi bob this is alice' &&
+                    !event.localEcho &&
+                    event.sendState === null
                 )
             })
             expect(eventWithMessageAlice).toBeDefined()
@@ -665,14 +754,18 @@ describe('direct chat interactions between 2 users', () => {
             expect(eventWithMessageBob).toBeDefined()
         })
 
-        storeBob.dispatch(
-            sendMatrixDirectMessage({
-                fedimint: bridgeBob.fedimint,
-                userId: aliceAuth?.userId as string,
-                body: 'hi alice this is bob, replying to your message',
-                repliedEventId: eventIdAlice,
-            }),
-        )
+        await act(async () => {
+            await storeBob
+                .dispatch(
+                    sendMatrixDirectMessage({
+                        fedimint: bridgeBob.fedimint,
+                        userId: aliceAuth?.userId as string,
+                        body: 'hi alice this is bob, replying to your message',
+                        repliedEventId: eventIdAlice,
+                    }),
+                )
+                .unwrap()
+        })
 
         await waitFor(() => {
             const timelineAlice = selectMatrixRoomEvents(
