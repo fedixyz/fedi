@@ -97,6 +97,48 @@ function makeReadonlyStore() {
     return store
 }
 
+function makePublicGroupStore(powerLevel: MatrixPowerLevel) {
+    const store = makeStore({
+        isDirect: false,
+        isPublic: true,
+    })
+
+    store.dispatch(
+        setMatrixAuth({
+            userId: SELF_USER_ID,
+        } as MatrixAuth),
+    )
+    store.dispatch(
+        setMatrixRoomMembers({
+            roomId: ROOM_ID,
+            members: [
+                {
+                    id: SELF_USER_ID,
+                    displayName: 'Self',
+                    avatarUrl: undefined,
+                    powerLevel: {
+                        type: 'int',
+                        value: powerLevel,
+                    },
+                    roomId: ROOM_ID,
+                    membership: 'join',
+                    ignored: false,
+                } as MatrixRoomMember,
+            ],
+        }),
+    )
+    store.dispatch(
+        setMatrixRoomPowerLevels({
+            roomId: ROOM_ID,
+            powerLevels: {
+                events_default: MatrixPowerLevel.Member,
+            },
+        }),
+    )
+
+    return store
+}
+
 describe('/components/Chat/MessageInput', () => {
     beforeEach(() => {
         jest.clearAllMocks()
@@ -146,11 +188,27 @@ describe('/components/Chat/MessageInput', () => {
         expect(screen.getByLabelText('send-button')).toBeInTheDocument()
     })
 
-    it('should show send controls for existing public group chats', () => {
-        const store = makeStore({
-            isDirect: false,
-            isPublic: true,
-        })
+    it('should show plus and send controls for public group moderators', () => {
+        const store = makePublicGroupStore(MatrixPowerLevel.Moderator)
+
+        renderWithProviders(
+            <MessageInput
+                type={ChatType.group}
+                id={ROOM_ID}
+                onMessageSubmitted={onMessageSubmitted}
+            />,
+            { store },
+        )
+
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+        expect(screen.queryByLabelText('wallet-icon')).not.toBeInTheDocument()
+        expect(screen.getByLabelText('plus-icon')).toBeInTheDocument()
+        expect(screen.getByTestId('file-upload')).toBeInTheDocument()
+        expect(screen.getByLabelText('send-button')).toBeInTheDocument()
+    })
+
+    it('should hide media controls for public group members', () => {
+        const store = makePublicGroupStore(MatrixPowerLevel.Member)
 
         renderWithProviders(
             <MessageInput
@@ -164,6 +222,7 @@ describe('/components/Chat/MessageInput', () => {
         expect(screen.getByRole('textbox')).toBeInTheDocument()
         expect(screen.queryByLabelText('wallet-icon')).not.toBeInTheDocument()
         expect(screen.queryByLabelText('plus-icon')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('file-upload')).not.toBeInTheDocument()
         expect(screen.getByLabelText('send-button')).toBeInTheDocument()
     })
 
@@ -183,6 +242,7 @@ describe('/components/Chat/MessageInput', () => {
         expect(screen.getByRole('textbox')).toBeInTheDocument()
         expect(screen.queryByLabelText('wallet-icon')).not.toBeInTheDocument()
         expect(screen.queryByLabelText('plus-icon')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('file-upload')).not.toBeInTheDocument()
         expect(screen.getByLabelText('send-button')).toBeInTheDocument()
     })
 

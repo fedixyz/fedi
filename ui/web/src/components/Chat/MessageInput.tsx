@@ -65,12 +65,17 @@ export const MessageInput: React.FC<Props> = ({
         selectReplyingToMessageEventForRoom(s, id),
     )
 
-    const { messageText, setMessageText, resetMessageText } =
-        useMessageInputState(id)
+    const {
+        messageText,
+        setMessageText,
+        resetMessageText,
+        shouldShowMediaButtons,
+    } = useMessageInputState(id)
     const attachments = useMessageAttachments()
     const [isSending, setIsSending] = useState(false)
     const [cursor, setCursor] = useState(0)
     const inputRef = useRef<HTMLTextAreaElement>(null)
+    const canAttachMedia = !!room && shouldShowMediaButtons
 
     useAutosizeTextArea(inputRef.current, messageText)
 
@@ -207,7 +212,7 @@ export const MessageInput: React.FC<Props> = ({
                         onKeyDown={handleInputKeyDown}
                         disabled={isReadOnly}
                     />
-                    {!isReadOnly && (
+                    {canAttachMedia && (
                         <input
                             data-testid="file-upload"
                             type="file"
@@ -241,7 +246,7 @@ export const MessageInput: React.FC<Props> = ({
                                     onClick={onWalletClick}
                                 />
                             )}
-                            {room && !room.isPublic && (
+                            {canAttachMedia && (
                                 <Icon
                                     aria-label="plus-icon"
                                     icon="Plus"
