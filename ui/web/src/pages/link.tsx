@@ -26,9 +26,9 @@ import { setPendingDeeplink } from '../utils/localstorage'
 /*
  * Deeplinking flow for new users (via web)
  * 1. User visits Fedi deeplink e.g. /link?screen=join&id=fed1... (this is a deeplink to join a federation)
- * 2. Page attempts to open the native app via fedi:// custom scheme
- * 3. If the app is not installed, user downloads it from the app store
- * 4. User returns to this page and clicks Open link in Fedi to replay the deeplink
+ * 2. Page stores the deeplink so the native app can return via /deeplink-redirect after install
+ * 3. User taps the Fedi deeplink button to open the app, or downloads it from the app store
+ * 4. User returns via /deeplink-redirect and the stored deeplink is replayed
  */
 
 const openDeepLinkInFedi = (href: string) => {
@@ -80,17 +80,6 @@ const LinkingPage: NextPage = () => {
         setLinkActionText(getLinkActionText(normalized, t))
         setLoaded(true)
     }, [isMobile, languageLoaded, replace, t])
-
-    // On mobile, attempt to open the app via fedi:// custom scheme.
-    // This handles the case where Android App Links auto-verification
-    // failed but the app is installed — the custom scheme doesn't
-    // require domain verification. If the app isn't installed, this
-    // silently fails and the user stays on this page.
-    useEffect(() => {
-        if (!loaded || !isMobile) return
-
-        openDeepLinkInFedi(window.location.href)
-    }, [loaded, isMobile])
 
     const handleDownloadApp = () => {
         const ua = window.navigator.userAgent || ''
