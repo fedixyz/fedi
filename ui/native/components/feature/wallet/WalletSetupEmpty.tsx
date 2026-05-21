@@ -15,7 +15,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 
 import { Images } from '../../../assets/images'
 import type { RootStackParamList } from '../../../types/navigation'
-import { DeepLinkRedirectLink } from '../../ui/DeepLinkRedirectLink'
 import { Column, Row } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
@@ -120,20 +119,14 @@ const WalletSetupEmpty: React.FC<Props> = ({ navigation }) => {
                     {t('feature.wallet.setup-auto-select')}
                 </Button>
 
-                <Text caption style={style.setupOr}>
-                    {t('feature.wallet.setup-or')}
-                </Text>
-
                 <Button
                     day
                     onPress={handleManualSetup}
                     fullWidth
                     containerStyle={style.manualSetupButton}
                     testID="ManualSetupButton">
-                    <Text medium>{t('feature.wallet.setup-manual')}</Text>
+                    {t('feature.wallet.setup-manual')}
                 </Button>
-
-                <DeepLinkRedirectLink />
             </Column>
         </ScrollView>
     )

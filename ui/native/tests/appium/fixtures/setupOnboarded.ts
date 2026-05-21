@@ -7,6 +7,7 @@ export const setupOnboarded: Fixture = {
     async run(t) {
         console.log('Fixture: setupOnboarded')
         await t.clickElementByKey('Get started')
+        await t.clickElementByKey('No')
         await t.clickElementByKey('ManualSetupButton')
         await t.scrollToElement('FediTestnetJoinButton')
         await t.clickElementByKey('FediTestnetJoinButton')

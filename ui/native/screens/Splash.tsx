@@ -11,6 +11,8 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { API_ORIGIN } from '@fedi/common/constants/api'
+import { DEEPLINK_RESUME_PATH } from '@fedi/common/constants/linking'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -22,7 +24,7 @@ import { normalizeDeepLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
-import { DeepLinkRedirectLink } from '../components/ui/DeepLinkRedirectLink'
+import FediLinkOverlay from '../components/feature/onboarding/FediLinkOverlay'
 import { Row, Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
@@ -50,6 +52,8 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
         useState<boolean>(false)
     const { launchZendesk } = useLaunchZendesk()
 
+    const [showFediLinkModal, setShowFediLinkModal] = useState(false)
+
     const resetToDefaultTab = () =>
         navigation.reset({
             index: 0,
@@ -61,44 +65,43 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
             ],
         })
 
+    const completeOnboarding = async () => {
+        await fedimint.completeOnboardingNewSeed()
+
+        const status = await dispatch(
+            refreshOnboardingStatus(fedimint),
+        ).unwrap()
+        log.debug('onboarding status after new seed', status)
+    }
+
     const handleContinue = async () => {
+        if (!redirectTo) {
+            setShowFediLinkModal(true)
+            return
+        }
+
         try {
             setLoading(true)
+            await completeOnboarding()
 
-            log.info('handleContinue start', { redirectTo })
+            // Reset now that we're using it
+            dispatch(setRedirectTo(null))
 
-            await fedimint.completeOnboardingNewSeed()
-
-            const status = await dispatch(
-                refreshOnboardingStatus(fedimint),
-            ).unwrap()
-            log.debug('onboarding status after new seed', status)
-
+            const redirectUri =
+                normalizeDeepLink(redirectTo)?.fediUri ?? redirectTo
+            const action = getInternalLinkResetAction(redirectUri)
             // redirectTo values are deeplinks set in Router.tsx
             // it allows us to get a user through onboarding
-            // before we then redirect them to their intended screen
-            if (redirectTo) {
-                // Reset now that we're using it
-                dispatch(setRedirectTo(null))
-
-                const redirectUri =
-                    normalizeDeepLink(redirectTo)?.fediUri ?? redirectTo
-                const action = getInternalLinkResetAction(redirectUri)
-                if (action) {
-                    return navigation.dispatch(action)
-                }
-
-                // Falls through to default nav so the user is never stranded
-                // on Splash when the redirect URI does not resolve to a
-                // known screen (e.g. bare 'fedi://' from the deeplink-redirect
-                // error-state fallback).
+            // before we then redirecet them to their intended screen
+            if (!action) {
                 log.warn(
                     'handleContinue: redirectTo did not resolve to an action, falling back to default nav',
                     { redirectTo, redirectUri },
                 )
+                return resetToDefaultTab()
             }
 
-            resetToDefaultTab()
+            return navigation.dispatch(action)
         } catch (err) {
             log.error('handleContinue', err)
             toast.error(t, err, 'errors.unknown-error')
@@ -109,6 +112,35 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
 
     const handleReturningUser = async () => {
         navigation.navigate('ChooseRecoveryMethod')
+    }
+
+    const handleFediLink = async () => {
+        try {
+            setShowFediLinkModal(false)
+            setLoading(true)
+            await completeOnboarding()
+            await Linking.openURL(`${API_ORIGIN}${DEEPLINK_RESUME_PATH}`)
+            resetToDefaultTab()
+        } catch (err) {
+            log.error('handleFediLink', err)
+            toast.error(t, err, 'errors.unknown-error')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleNoFediLink = async () => {
+        try {
+            setShowFediLinkModal(false)
+            setLoading(true)
+            await completeOnboarding()
+            resetToDefaultTab()
+        } catch (err) {
+            log.error('handleNoFediLink', err)
+            toast.error(t, err, 'errors.unknown-error')
+        } finally {
+            setLoading(false)
+        }
     }
 
     // PINs are stored in the keychain and persist between app installs
@@ -122,110 +154,118 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
 
     const style = styles(theme, fontScale)
     return (
-        <ImageBackground
-            source={Images.WelcomeBackground}
-            style={style.container}>
-            <SafeAreaView style={style.content}>
-                <Column
-                    grow
-                    shrink
-                    center
-                    gap="sm"
-                    fullWidth
-                    style={style.welcomeContainer}>
-                    <Column center style={style.iconContainer}>
-                        <SvgImage size="lg" name="FediLogoIcon" />
-                    </Column>
-                    <Text style={style.title}>
-                        {t('feature.onboarding.fedi')}
-                    </Text>
-                    <Text style={style.welcomeText}>
-                        {t('feature.onboarding.tagline')}
-                    </Text>
-                </Column>
-
-                <Column
-                    grow={false}
-                    shrink
-                    align="center"
-                    justify="evenly"
-                    gap="md"
-                    fullWidth>
-                    <Text style={style.agreementText} small>
-                        <Trans
-                            i18nKey="feature.onboarding.agree-terms-privacy"
-                            components={{
-                                termsLink: (
-                                    <Text
-                                        small
-                                        style={style.agreementLink}
-                                        onPress={() =>
-                                            navigation.navigate('Eula')
-                                        }
-                                    />
-                                ),
-                                privacyLink: (
-                                    <Text
-                                        small
-                                        style={style.agreementLink}
-                                        onPress={() =>
-                                            Linking.openURL(
-                                                'https://www.fedi.xyz/privacy-policy',
-                                            )
-                                        }
-                                    />
-                                ),
-                            }}
-                        />
-                    </Text>
-                    <Button
+        <>
+            <ImageBackground
+                source={Images.WelcomeBackground}
+                style={style.container}>
+                <SafeAreaView style={style.content}>
+                    <Column
+                        grow
+                        shrink
+                        center
+                        gap="sm"
                         fullWidth
-                        title={t('phrases.get-started')}
-                        onPress={handleContinue}
-                        loading={loading}
-                    />
-                    <Button
-                        fullWidth
-                        onPress={handleReturningUser}
-                        day
-                        title={t('phrases.recover-my-account')}
-                    />
-                    <DeepLinkRedirectLink />
-                    <Row align="center" justify="evenly" gap="xs">
-                        <Text style={style.helpText}>
-                            {t('feature.onboarding.need-help')}
+                        style={style.welcomeContainer}>
+                        <Column center style={style.iconContainer}>
+                            <SvgImage size="lg" name="FediLogoIcon" />
+                        </Column>
+                        <Text style={style.title}>
+                            {t('feature.onboarding.fedi')}
                         </Text>
-                        <Pressable
-                            style={{
-                                flexDirection: 'row',
-                                alignContent: 'center',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                            onPress={() => {
-                                if (hasNavigatedToHelpCentre) {
-                                    launchZendesk()
-                                } else {
-                                    setHasNavigatedToHelpCentre(true)
-                                    navigation.navigate({
-                                        name: 'HelpCentre',
-                                        params: { fromOnboarding: true },
-                                    })
-                                }
-                            }}>
-                            <SvgImage
-                                color={theme.colors.night}
-                                size="xs"
-                                name="SmileMessage"
+                        <Text style={style.welcomeText}>
+                            {t('feature.onboarding.tagline')}
+                        </Text>
+                    </Column>
+
+                    <Column
+                        grow={false}
+                        shrink
+                        align="center"
+                        justify="evenly"
+                        gap="md"
+                        fullWidth>
+                        <Text style={style.agreementText} small>
+                            <Trans
+                                i18nKey="feature.onboarding.agree-terms-privacy"
+                                components={{
+                                    termsLink: (
+                                        <Text
+                                            small
+                                            style={style.agreementLink}
+                                            onPress={() =>
+                                                navigation.navigate('Eula')
+                                            }
+                                        />
+                                    ),
+                                    privacyLink: (
+                                        <Text
+                                            small
+                                            style={style.agreementLink}
+                                            onPress={() =>
+                                                Linking.openURL(
+                                                    'https://www.fedi.xyz/privacy-policy',
+                                                )
+                                            }
+                                        />
+                                    ),
+                                }}
                             />
-                            <Text style={style.askFediText}>
-                                {t('feature.support.title')}
+                        </Text>
+                        <Button
+                            fullWidth
+                            title={t('phrases.get-started')}
+                            onPress={handleContinue}
+                            loading={loading}
+                        />
+                        <Button
+                            fullWidth
+                            onPress={handleReturningUser}
+                            day
+                            title={t('phrases.recover-my-account')}
+                        />
+                        <Row align="center" justify="evenly" gap="xs">
+                            <Text style={style.helpText}>
+                                {t('feature.onboarding.need-help')}
                             </Text>
-                        </Pressable>
-                    </Row>
-                </Column>
-            </SafeAreaView>
-        </ImageBackground>
+                            <Pressable
+                                style={{
+                                    flexDirection: 'row',
+                                    alignContent: 'center',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                                onPress={() => {
+                                    if (hasNavigatedToHelpCentre) {
+                                        launchZendesk()
+                                    } else {
+                                        setHasNavigatedToHelpCentre(true)
+                                        navigation.navigate({
+                                            name: 'HelpCentre',
+                                            params: { fromOnboarding: true },
+                                        })
+                                    }
+                                }}>
+                                <SvgImage
+                                    color={theme.colors.night}
+                                    size="xs"
+                                    name="SmileMessage"
+                                />
+                                <Text style={style.askFediText}>
+                                    {t('feature.support.title')}
+                                </Text>
+                            </Pressable>
+                        </Row>
+                    </Column>
+                </SafeAreaView>
+            </ImageBackground>
+
+            <FediLinkOverlay
+                show={showFediLinkModal}
+                onDismiss={() => setShowFediLinkModal(false)}
+                onConfirm={handleFediLink}
+                onReject={handleNoFediLink}
+            />
+        </>
     )
 }
 
@@ -240,7 +280,6 @@ const styles = (theme: Theme, fontScale: number) =>
             alignItems: 'center',
             justifyContent: 'flex-end',
             padding: theme.spacing.xl,
-            paddingBottom: 0,
         },
         welcomeContainer: {
             flexBasis: 'auto',

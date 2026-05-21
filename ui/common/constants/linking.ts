@@ -24,3 +24,5 @@ export const STABLE_BALANCE_SUPPORT_ARTICLE_URL =
 // TODO: get specialized support article for chat privacy?
 export const CHAT_SUPPORT_ARTICLE_URL =
     'https://support.fedi.xyz/hc/en-us/articles/17509166389906-How-do-I-start-a-chat-with-someone'
+
+export const DEEPLINK_RESUME_PATH = '/deeplink-redirect'
