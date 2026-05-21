@@ -17,6 +17,7 @@ import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import TotalBalance from '../../ui/TotalBalance'
 import HeaderOverlayOption from '../chat/HeaderOverlayOption'
+import HeaderUpdateBanner from '../environment/HeaderUpdateBanner'
 
 const ModsHeader: React.FC = () => {
     const { theme } = useTheme()
@@ -61,6 +62,7 @@ const ModsHeader: React.FC = () => {
                 <TotalBalance />
                 <NightlyBuildBanner />
             </GradientView>
+            <HeaderUpdateBanner />
             <CustomOverlay
                 show={optionsOverlayOpen}
                 onBackdropPress={() => setOptionsOverlayOpen(false)}

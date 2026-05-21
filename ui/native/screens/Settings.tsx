@@ -9,8 +9,10 @@ import {
     selectAlphabeticallySortedWalletFederations,
     selectDeveloperMode,
     selectMatrixAuth,
+    selectShouldPresentAppUpdate,
 } from '@fedi/common/redux'
 
+import AppUpdateWidget from '../components/feature/settings/AppUpdateWidget'
 import CommunityMenu from '../components/feature/settings/CommunityMenu'
 import FederationMenu from '../components/feature/settings/FederationMenu'
 import { GeneralSettings } from '../components/feature/settings/GeneralSettings'
@@ -19,6 +21,7 @@ import { VersionContainer } from '../components/feature/settings/VersionContaine
 import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
+import { useUpdateFlagPlatformSensitive } from '../utils/hooks/release'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>
 
@@ -38,6 +41,8 @@ const Settings: React.FC<Props> = () => {
     const sortedCommunities = useAppSelector(
         selectAlphabeticallySortedCommunities,
     )
+    const shouldPresentAppUpdate = useAppSelector(selectShouldPresentAppUpdate)
+    const updateFlagPlatformSensitive = useUpdateFlagPlatformSensitive()
 
     return (
         <ScrollView
@@ -87,6 +92,9 @@ const Settings: React.FC<Props> = () => {
                             />
                         ))}
                     </Column>
+                )}
+                {shouldPresentAppUpdate && updateFlagPlatformSensitive && (
+                    <AppUpdateWidget />
                 )}
             </Column>
             <VersionContainer

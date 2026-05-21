@@ -13,6 +13,7 @@ import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import TotalBalance from '../../ui/TotalBalance'
+import HeaderUpdateBanner from '../environment/HeaderUpdateBanner'
 
 type Props = {
     onOpenSelectWalletOverlay: () => void
@@ -32,32 +33,35 @@ const WalletHeader: React.FC<Props> = ({ onOpenSelectWalletOverlay }) => {
     }
 
     return (
-        <GradientView variant="sky" style={style.container}>
-            <Header
-                transparent
-                containerStyle={style.headerContainer}
-                headerLeft={
-                    <Text h2 medium>
-                        {t('words.wallet')}
-                    </Text>
-                }
-                headerRight={
-                    <MainHeaderButtons
-                        onAddPress={openJoinCommunity}
-                        onMenuPress={
-                            loadedFederations.length >= 2
-                                ? onOpenSelectWalletOverlay
-                                : undefined
-                        }
-                    />
-                }
-            />
-            <TotalBalance />
+        <>
+            <GradientView variant="sky" style={style.container}>
+                <Header
+                    transparent
+                    containerStyle={style.headerContainer}
+                    headerLeft={
+                        <Text h2 medium>
+                            {t('words.wallet')}
+                        </Text>
+                    }
+                    headerRight={
+                        <MainHeaderButtons
+                            onAddPress={openJoinCommunity}
+                            onMenuPress={
+                                loadedFederations.length >= 2
+                                    ? onOpenSelectWalletOverlay
+                                    : undefined
+                            }
+                        />
+                    }
+                />
+                <TotalBalance />
 
-            {/* TODO: restore this on federations screen */}
-            {/* <NetworkBanner /> */}
-            <NightlyBuildBanner />
-        </GradientView>
+                {/* TODO: restore this on federations screen */}
+                {/* <NetworkBanner /> */}
+                <NightlyBuildBanner />
+            </GradientView>
+            <HeaderUpdateBanner />
+        </>
     )
 }
 

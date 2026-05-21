@@ -16,6 +16,7 @@ import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import TotalBalance from '../../ui/TotalBalance'
+import HeaderUpdateBanner from '../environment/HeaderUpdateBanner'
 import SelectedCommunity from '../federations/SelectedCommunity'
 
 type Props = {
@@ -64,6 +65,7 @@ const HomeHeader: React.FC<Props> = ({ onOpenCommunitiesOverlay }) => {
                 {/* <NetworkBanner /> */}
                 <NightlyBuildBanner />
             </GradientView>
+            <HeaderUpdateBanner />
             {selectedCommunity && (
                 <View style={style.selectedCommunityContainer}>
                     <SelectedCommunity community={selectedCommunity} />

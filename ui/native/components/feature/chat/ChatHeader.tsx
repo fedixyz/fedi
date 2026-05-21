@@ -17,6 +17,7 @@ import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import NightlyBuildBanner from '../../ui/NightlyBuildBanner'
 import { Tooltip } from '../../ui/Tooltip'
 import TotalBalance from '../../ui/TotalBalance'
+import HeaderUpdateBanner from '../environment/HeaderUpdateBanner'
 import { ChatConnectionBadge } from './ChatConnectionBadge'
 import HeaderOverlayOption from './HeaderOverlayOption'
 
@@ -85,6 +86,7 @@ const ChatHeader: React.FC = () => {
                 <TotalBalance />
                 <NightlyBuildBanner />
             </GradientView>
+            <HeaderUpdateBanner />
             <ChatConnectionBadge />
             <Tooltip
                 shouldShow={shouldShowNewChatTooltip}

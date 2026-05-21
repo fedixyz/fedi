@@ -2,8 +2,10 @@ import {
     initializeCommonStore,
     rootReducer,
     setupStore,
+    setVersionTag,
 } from '@fedi/common/redux'
 
+import { version } from '../../package.json'
 import { fedimint } from '../lib/bridge'
 import i18n, { detectLanguage } from '../localization/i18n'
 import { asyncLocalStorage } from '../utils/localstorage'
@@ -15,13 +17,17 @@ export type AppDispatch = typeof store.dispatch
 
 export function initializeWebStore() {
     // Common initialization behavior
-    return initializeCommonStore({
+    const unsubscribe = initializeCommonStore({
         store,
         fedimint,
         storage: asyncLocalStorage,
         i18n,
         detectLanguage,
     })
+
+    store.dispatch(setVersionTag(version))
+
+    return unsubscribe
 }
 
 // Handle hot-reloading reducers.

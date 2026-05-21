@@ -1,10 +1,8 @@
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useEffect } from 'react'
-import { Platform } from 'react-native'
 
 import {
-    selectFeatureFlag,
     selectOnboardingCompleted,
     selectShouldRequestAppUpdate,
 } from '@fedi/common/redux'
@@ -18,6 +16,7 @@ import {
     NavigationHook,
     RootStackParamList,
 } from '../types/navigation'
+import { useUpdateFlagPlatformSensitive } from '../utils/hooks/release'
 import { useIsFeatureUnlocked } from '../utils/hooks/security'
 import {
     consumePendingUnlockNavigationArgs,
@@ -32,9 +31,7 @@ const Initializing: React.FC<Props> = () => {
     const hasStorageLoaded = useAppSelector(selectStorageIsReady || false)
     const isAppUnlocked = useIsFeatureUnlocked('app')
     const shouldMigrateSeed = useAppSelector(s => s.recovery.shouldMigrateSeed)
-    const updateScreenFlag = useAppSelector(s =>
-        selectFeatureFlag(s, 'update_screen'),
-    )
+    const updateFlagPlatformSensitive = useUpdateFlagPlatformSensitive()
     const shouldRequestAppUpdate = useAppSelector(selectShouldRequestAppUpdate)
     const hasLoaded = hasStorageLoaded
 
@@ -54,18 +51,12 @@ const Initializing: React.FC<Props> = () => {
             return navigation.replace(...destination)
         }
 
-        const doesUpdatePlatformMatch =
-            updateScreenFlag?.platform === 'All' ||
-            (updateScreenFlag?.platform === 'IOS' && Platform.OS === 'ios') ||
-            (updateScreenFlag?.platform === 'Android' &&
-                Platform.OS === 'android')
-
         const pendingUnlockDestination = consumePendingUnlockNavigationArgs()
         const destination: NavigationArgs = pendingUnlockDestination ?? [
             'TabsNavigator',
         ]
 
-        if (doesUpdatePlatformMatch && shouldRequestAppUpdate) {
+        if (updateFlagPlatformSensitive && shouldRequestAppUpdate) {
             return navigation.replace('UpdateApp', {
                 routeParams: destination,
             })
@@ -91,7 +82,7 @@ const Initializing: React.FC<Props> = () => {
         navigation,
         isAppUnlocked,
         shouldMigrateSeed,
-        updateScreenFlag,
+        updateFlagPlatformSensitive,
         shouldRequestAppUpdate,
     ])
 

@@ -2,14 +2,10 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, Linking, Platform, StyleSheet } from 'react-native'
+import { Image, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import {
-    ANDROID_APP_STORE_URL,
-    IOS_APP_STORE_URL,
-} from '@fedi/common/constants/release'
 import { selectLanguage, selectLatestAwareReleaseTag } from '@fedi/common/redux'
 import {
     ReleaseNotesJson,
@@ -27,6 +23,7 @@ import { useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import { RootStackParamList } from '../types/navigation'
 import { useIsFeatureUnlocked } from '../utils/hooks/security'
+import { openAppStore } from '../utils/release'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'UpdateApp'>
 
@@ -59,14 +56,6 @@ export default function UpdateApp({ navigation, route }: Props) {
             else navigation.dispatch(reset('TabsNavigator'))
         } else {
             navigation.dispatch(reset('LockScreen', { routeParams }))
-        }
-    }
-
-    const handleUpdate = () => {
-        if (Platform.OS === 'android') {
-            Linking.openURL(ANDROID_APP_STORE_URL)
-        } else if (Platform.OS === 'ios') {
-            Linking.openURL(IOS_APP_STORE_URL)
         }
     }
 
@@ -119,7 +108,7 @@ export default function UpdateApp({ navigation, route }: Props) {
             <Column gap="sm" style={style.buttons}>
                 <Button
                     title={t('phrases.update-now')}
-                    onPress={handleUpdate}
+                    onPress={openAppStore}
                 />
                 <Button
                     title={t('phrases.not-now')}

@@ -11,6 +11,7 @@ import {
     setEventListenersReady,
     CommonState,
     setupStore,
+    setVersionTag,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -20,6 +21,7 @@ import {
     unsubscribeFromBridgeEvents,
 } from '../bridge'
 import i18n from '../localization/i18n'
+import { version } from '../package.json'
 import { getNumberFormatLocale } from '../utils/device-info'
 import { checkIsInternetUnreachable } from '../utils/environment'
 import { storage } from '../utils/storage'
@@ -53,6 +55,7 @@ export function initializeNativeStore() {
 
     // Get the number format locale from the system and store it for later use.
     store.dispatch(setCurrencyLocale(getNumberFormatLocale()))
+    store.dispatch(setVersionTag(version))
 
     // Whenever the app is brought back into the foreground, refresh prices.
     const changeSubscription = RNAppState.addEventListener('change', state => {
