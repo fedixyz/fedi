@@ -27,6 +27,7 @@ import { HomeNavigationTab } from '../types/linking'
 import { I18nLanguage } from '../types/localization'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
+import { hasNewRelease, tryFetchReleaseSchema } from '../utils/release'
 import { loadFromStorage } from './storage'
 
 const log = makeLog('redux/environment')
@@ -60,6 +61,8 @@ const initialState = {
     eventListenersReady: false,
     lastUsedTab: HomeNavigationTab.Wallet,
     paymentType: 'bitcoin' as 'bitcoin' | 'stable-balance',
+    latestAwareReleaseTag: null as string | null,
+    shouldRequestAppUpdate: false,
 }
 
 export type EnvironmentState = typeof initialState
@@ -163,6 +166,12 @@ export const environmentSlice = createSlice({
         ) {
             state.paymentType = action.payload
         },
+        setLatestAwareReleaseTag(state, action: PayloadAction<string | null>) {
+            state.latestAwareReleaseTag = action.payload
+        },
+        setShouldRequestAppUpdate(state, action: PayloadAction<boolean>) {
+            state.shouldRequestAppUpdate = action.payload
+        },
     },
     extraReducers: builder => {
         builder.addCase(changeLanguage.fulfilled, (state, action) => {
@@ -201,6 +210,10 @@ export const environmentSlice = createSlice({
             if (action.payload.paymentType !== undefined) {
                 state.paymentType = action.payload.paymentType
             }
+            if (action.payload.latestAwareReleaseTag !== undefined) {
+                state.latestAwareReleaseTag =
+                    action.payload.latestAwareReleaseTag
+            }
         })
     },
 })
@@ -233,9 +246,37 @@ export const {
     setEventListenersReady,
     setLastUsedTab,
     setPaymentType,
+    setShouldRequestAppUpdate,
+    setLatestAwareReleaseTag,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
+export const refreshAppVersion = createAsyncThunk<
+    void,
+    void,
+    { state: CommonState }
+>('environment/refreshAppVersion', async (_, { getState, dispatch }) => {
+    const updateScreenFlag = selectFeatureFlag(getState(), 'update_screen')
+    const currentReleaseTag = selectLatestAwareReleaseTag(getState())
+
+    if (!updateScreenFlag) return
+
+    try {
+        const release = await tryFetchReleaseSchema()
+
+        dispatch(setLatestAwareReleaseTag(release.tag_name))
+
+        if (
+            currentReleaseTag !== null &&
+            hasNewRelease(currentReleaseTag, release.tag_name)
+        ) {
+            dispatch(setShouldRequestAppUpdate(true))
+        }
+    } catch (err) {
+        log.error('Failed to refresh app version', err)
+    }
+})
+
 export const refreshOnboardingStatus = createAsyncThunk<
     void,
     FedimintBridge,
@@ -270,6 +311,7 @@ export const refreshOnboardingStatus = createAsyncThunk<
         await Promise.all([
             dispatch(refreshFederations(fedimint)).unwrap(),
             dispatch(refreshCommunities(fedimint)).unwrap(),
+            dispatch(refreshAppVersion()).unwrap(),
         ])
 
         // checks already joined federations for any communities to be autojoined
@@ -480,3 +522,8 @@ export const selectEventListenersReady = (s: CommonState) =>
 
 export const selectLastUsedTab = (s: CommonState) => s.environment.lastUsedTab
 export const selectPaymentType = (s: CommonState) => s.environment.paymentType
+
+export const selectLatestAwareReleaseTag = (s: CommonState) =>
+    s.environment.latestAwareReleaseTag
+export const selectShouldRequestAppUpdate = (s: CommonState) =>
+    s.environment.shouldRequestAppUpdate

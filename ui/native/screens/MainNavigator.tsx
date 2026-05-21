@@ -184,6 +184,7 @@ import StartRecoveryAssist from './StartRecoveryAssist'
 import StartSocialBackup from './StartSocialBackup'
 import TabsNavigator from './TabsNavigator'
 import Transactions from './Transactions'
+import UpdateApp from './UpdateApp'
 import UploadAvatarImage from './UploadAvatarImage'
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
@@ -249,6 +250,11 @@ export const MainNavigator = () => {
                         options={{
                             headerShown: false,
                         }}
+                    />
+                    <Stack.Screen
+                        name="UpdateApp"
+                        component={UpdateApp}
+                        options={{ headerShown: false }}
                     />
                     <Stack.Screen
                         name="JoinFederation"

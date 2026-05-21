@@ -212,6 +212,10 @@ export type FeatureCatalog = {
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
+  /**
+   * Config for which platforms to enable the App Update screen for (native only)
+   */
+  update_screen: UpdateScreenConfig | null;
 };
 
 export type FediFeeConfig = {
@@ -1800,6 +1804,10 @@ export type TransactionEvent = {
   federationId: RpcFederationId;
   transaction: RpcTransaction;
 };
+
+export type UpdateScreenConfig = { platform: UpdateScreenPlatform };
+
+export type UpdateScreenPlatform = "Android" | "IOS" | "All";
 
 export type UserProfile = JSONObject;
 

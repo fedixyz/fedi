@@ -43,6 +43,7 @@ import {
     clearSessionCount,
     setSurveyTimestamp,
     resetSurveyCompletions,
+    setLatestAwareReleaseTag,
 } from '@fedi/common/redux'
 import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
@@ -696,6 +697,20 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             </SettingsSection>
 
             <SettingsSection title="Danger zone">
+                <Button
+                    title="Reset tracked release tag to 0.0.0"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(setLatestAwareReleaseTag('0.0.0'))
+                    }}
+                />
+                <Button
+                    title="Unset tracked release tag"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(setLatestAwareReleaseTag(null))
+                    }}
+                />
                 {/*
                     This clears out first party permissions too so we can test 
                     the permissions flow using catalog and community-tool.

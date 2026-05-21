@@ -134,6 +134,23 @@ pub struct FeatureCatalog {
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
+
+    /// Config for which platforms to enable the App Update screen
+    pub update_screen: Option<UpdateScreenConfig>,
+}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub enum UpdateScreenPlatform {
+    Android,
+    IOS,
+    All,
+}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct UpdateScreenConfig {
+    pub platform: UpdateScreenPlatform,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -317,6 +334,9 @@ impl FeatureCatalog {
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
+            update_screen: Some(UpdateScreenConfig {
+                platform: UpdateScreenPlatform::All,
+            }),
         }
     }
 
@@ -367,6 +387,9 @@ impl FeatureCatalog {
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
+            update_screen: Some(UpdateScreenConfig {
+                platform: UpdateScreenPlatform::All,
+            }),
         }
     }
 
@@ -408,6 +431,9 @@ impl FeatureCatalog {
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
+            }),
+            update_screen: Some(UpdateScreenConfig {
+                platform: UpdateScreenPlatform::Android,
             }),
         }
     }
@@ -454,6 +480,7 @@ impl FeatureCatalog {
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
+            update_screen: None,
         }
     }
 }

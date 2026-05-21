@@ -26,7 +26,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 45,
+        version: 46,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -73,6 +73,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         seenRoomInvites: state.matrix.seenRoomInvites,
         paymentType: state.environment.paymentType,
         selectedFederationId: state.federation.selectedFederationId,
+        latestAwareReleaseTag: state.environment.latestAwareReleaseTag,
     }
 
     return transformedState
@@ -114,6 +115,7 @@ export function hasStorageStateChanged(
         ['environment', 'sessionCount'],
         ['environment', 'lastUsedTab'],
         ['environment', 'paymentType'],
+        ['environment', 'latestAwareReleaseTag'],
         ['currency', 'overrideCurrency'],
         ['currency', 'customFederationCurrencies'],
         ['currency', 'prices'],
@@ -831,6 +833,14 @@ async function migrateStoredState(
             ...migrationState,
             version: 45,
             seenRoomInvites: [],
+        }
+    }
+
+    if (migrationState.version === 45) {
+        migrationState = {
+            ...migrationState,
+            version: 46,
+            latestAwareReleaseTag: null,
         }
     }
 

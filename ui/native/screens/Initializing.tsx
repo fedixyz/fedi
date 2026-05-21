@@ -1,8 +1,13 @@
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useEffect } from 'react'
+import { Platform } from 'react-native'
 
-import { selectOnboardingCompleted } from '@fedi/common/redux'
+import {
+    selectFeatureFlag,
+    selectOnboardingCompleted,
+    selectShouldRequestAppUpdate,
+} from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
 
 import { Column } from '../components/ui/Flex'
@@ -27,6 +32,10 @@ const Initializing: React.FC<Props> = () => {
     const hasStorageLoaded = useAppSelector(selectStorageIsReady || false)
     const isAppUnlocked = useIsFeatureUnlocked('app')
     const shouldMigrateSeed = useAppSelector(s => s.recovery.shouldMigrateSeed)
+    const updateScreenFlag = useAppSelector(s =>
+        selectFeatureFlag(s, 'update_screen'),
+    )
+    const shouldRequestAppUpdate = useAppSelector(selectShouldRequestAppUpdate)
     const hasLoaded = hasStorageLoaded
 
     // once everything has loaded, determine where to navigate
@@ -45,10 +54,22 @@ const Initializing: React.FC<Props> = () => {
             return navigation.replace(...destination)
         }
 
+        const doesUpdatePlatformMatch =
+            updateScreenFlag?.platform === 'All' ||
+            (updateScreenFlag?.platform === 'IOS' && Platform.OS === 'ios') ||
+            (updateScreenFlag?.platform === 'Android' &&
+                Platform.OS === 'android')
+
         const pendingUnlockDestination = consumePendingUnlockNavigationArgs()
         const destination: NavigationArgs = pendingUnlockDestination ?? [
             'TabsNavigator',
         ]
+
+        if (doesUpdatePlatformMatch && shouldRequestAppUpdate) {
+            return navigation.replace('UpdateApp', {
+                routeParams: destination,
+            })
+        }
 
         // If PIN-protected, navigate to the Lock Screen
         if (!isAppUnlocked) {
@@ -70,6 +91,8 @@ const Initializing: React.FC<Props> = () => {
         navigation,
         isAppUnlocked,
         shouldMigrateSeed,
+        updateScreenFlag,
+        shouldRequestAppUpdate,
     ])
 
     return (

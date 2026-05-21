@@ -278,6 +278,9 @@ export type RootStackParamList = {
     FeatureLockScreen: undefined
     ResetPinStart: undefined
     ResetPin: undefined
+    UpdateApp: {
+        routeParams: NavigationArgs
+    }
 }
 
 export type NavigationArgs<

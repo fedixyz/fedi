@@ -29,6 +29,7 @@ export const Images: ImagesMap = {
     ProfileSecurityIcon: require('@fedi/common/assets/images/profile-security.png'),
     SocialRecoveryIcon: require('@fedi/common/assets/images/social-recovery.png'),
     SocialRecoveryFileIcon: require('@fedi/common/assets/images/social-recovery-file.png'),
+    AppUpdate: require('@fedi/common/assets/images/new-update.png'),
 }
 
 export const FediModImages: ImagesMap = {
