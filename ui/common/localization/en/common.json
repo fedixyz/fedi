@@ -363,6 +363,7 @@
         "images-may-not-exceed-size": "Images may not exceed {{size}}",
         "insufficient-balance": "Insufficient balance. You only have {{balance}} in your wallet",
         "insufficient-balance-send": "Insufficient balance for spend plus fees. You can send a maximum of {{sats}} sats",
+        "insufficient-balance-wallet": "Insufficient balance. Add funds to your Fedi wallet to proceed.",
         "internet-connecting": "Connecting..",
         "internet-offline": "Network is offline",
         "internet-offline-foreign-ecash": "Failed to redeem ecash. Your network is offline",
