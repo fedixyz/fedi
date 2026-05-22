@@ -507,6 +507,11 @@ impl ServerModule for StabilityPool {
         }
 
         let next_cycle_index = consensus_item.next_cycle_index()?;
+        // zero price votes are rejected.
+        ensure!(
+            consensus_item.price()?.0 > 0,
+            "Cycle change vote price must be non-zero"
+        );
 
         // Bail if vote is not for next cycle
         let mut current_cycle = dbtx.get_value(&CurrentCycleKey).await;
@@ -516,14 +521,25 @@ impl ServerModule for StabilityPool {
             bail!("Vote is not for next cycle");
         }
 
-        // Bail if already received peer's vote for cycle
         let vote_key = CycleChangeVoteKey(next_cycle_index, peer_id);
-        if dbtx.get_value(&vote_key).await.is_some() {
-            bail!("Already received peer's vote for cycle {next_cycle_index}");
+        // Bail if already received peer's vote for cycle
+        match dbtx.get_value(&vote_key).await {
+            // allow replacing zero votes with non zero
+            Some(existing_vote) if existing_vote.price().is_ok_and(|price| price.0 == 0) => {
+                warn!(
+                    %peer_id,
+                    next_cycle_index,
+                    "replacing stale zero-price cycle change vote"
+                );
+                dbtx.insert_entry(&vote_key, &consensus_item).await;
+            }
+            Some(_) => {
+                bail!("Already received peer's vote for cycle {next_cycle_index}");
+            }
+            None => {
+                dbtx.insert_new_entry(&vote_key, &consensus_item).await;
+            }
         }
-
-        // Record peer's vote
-        dbtx.insert_new_entry(&vote_key, &consensus_item).await;
 
         // Return early if threshold not reached yet
         let vote_cycle_index_prefix = CycleChangeVoteIndexPrefix(next_cycle_index);
@@ -531,6 +547,26 @@ impl ServerModule for StabilityPool {
             .find_by_prefix(&vote_cycle_index_prefix)
             .await
             .map(|(_, vote)| vote)
+            // filter out bad votes, should_propose_new_cycle will just repropose after "enough
+            // time" has passed
+            //
+            // already rejected above, but old votes might be in db still.
+            .filter(|vote| {
+                let vote = vote.clone();
+                async move {
+                    match vote.price() {
+                        Ok(price) if price.0 > 0 => true,
+                        Ok(_) => {
+                            warn!("ignoring zero-price cycle change vote");
+                            false
+                        }
+                        Err(e) => {
+                            warn!("ignoring invalid cycle change vote price: {e}");
+                            false
+                        }
+                    }
+                }
+            })
             .collect::<Vec<_>>()
             .await;
         if cycle_change_votes.len() < self.cfg.consensus.consensus_threshold as usize {
@@ -544,6 +580,10 @@ impl ServerModule for StabilityPool {
         let new_time = cycle_change_votes[cycle_change_votes.len() / 2].time()?;
         cycle_change_votes.sort_unstable_by_key(|vote| vote.price().map_err(|e| e.to_string()));
         let new_price = cycle_change_votes[cycle_change_votes.len() / 2].price()?;
+        ensure!(
+            new_price.0 > 0,
+            "Median cycle change vote price must be non-zero"
+        );
 
         // Use value derived from cycle start time as randomness.
         // This will be the same for all the guardians.
