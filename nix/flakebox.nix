@@ -506,6 +506,8 @@ in
             Cmd = [ ]; # entrypoint will handle empty vs non-empty cmd
             Env = [
               "FM_DATA_DIR=/data"
+              "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+              "SSL_CERT_DIR=/etc/ssl/certs"
             ];
             Entrypoint = [
               "${entrypointScript}/bin/entrypoint"
@@ -536,6 +538,10 @@ in
           config = {
             Cmd = [
               "${fedimint-pkgs}/bin/fedimint-cli"
+            ];
+            Env = [
+              "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+              "SSL_CERT_DIR=/etc/ssl/certs"
             ];
           };
         };
