@@ -4,136 +4,79 @@ import { useTranslation } from 'react-i18next'
 import { FEDI_PREFIX } from '@fedi/common/constants/linking'
 import { normalizeDeepLink } from '@fedi/common/utils/linking'
 
-import {
-    CenteredBody,
-    DeeplinkHeroLayout,
-    getLinkActionText,
-    Hero,
-    PageShell,
-} from '../components/DeeplinkPageLayout'
-import { Column } from '../components/Flex'
+import { CenteredBody, PageShell } from '../components/DeeplinkPageLayout'
 import { Icon } from '../components/Icon'
 import { Text } from '../components/Text'
 import { styled, theme } from '../styles'
 import { clearPendingDeeplink, getPendingDeeplink } from '../utils/localstorage'
 
-type PageState = 'loading' | 'not_found'
+type PageState = 'loading' | 'found' | 'not_found'
 
 function ResumePage() {
     const { t } = useTranslation()
+    const [uri, setUri] = useState<string | null>(null)
     const [state, setState] = useState<PageState>('loading')
-    const [fediUri, setFediUri] = useState<string | null>(null)
-    const [redirectAttempted, setRedirectAttempted] = useState(false)
-    const [linkActionText, setLinkActionText] = useState(
-        t('feature.onboarding.landing-page-cta'),
-    )
 
+    const titleTextMap: Record<PageState, string> = {
+        found: t('feature.onboarding.landing-page-activated'),
+        loading: t('feature.onboarding.landing-page-activating'),
+        not_found: t('feature.onboarding.landing-page-error-title'),
+    }
+
+    const buttonLabelMap: Record<PageState, string> = {
+        found: t('feature.onboarding.landing-page-found-cta'),
+        loading: t('feature.onboarding.landing-page-found-cta'),
+        not_found: t('feature.onboarding.landing-page-error-cta'),
+    }
+
+    // Brief delay so fast localStorage reads do not flash "Activating…" before resolved state
     useEffect(() => {
         const pending = getPendingDeeplink()
         const normalized = pending ? normalizeDeepLink(pending) : null
+        const timer = setTimeout(() => {
+            setState(normalized ? 'found' : 'not_found')
+            setUri(normalized?.fediUri || FEDI_PREFIX)
+        }, 1000)
+        return () => clearTimeout(timer)
+    }, [])
 
-        if (!normalized) return setState('not_found')
-
+    const redirectToFediApp = () => {
+        if (!uri) return
         clearPendingDeeplink()
-        setFediUri(normalized.fediUri)
-        setLinkActionText(getLinkActionText(normalized, t))
-    }, [t])
-
-    useEffect(() => {
-        if (fediUri) {
-            window.location.href = fediUri
-            const timer = setTimeout(() => setRedirectAttempted(true), 2500)
-            return () => clearTimeout(timer)
-        }
-    }, [fediUri])
-
-    const handleOpenInFedi = () => {
-        if (fediUri) window.location.href = fediUri
-    }
-
-    const handleGoBackToFedi = () => {
-        window.location.href = FEDI_PREFIX
-    }
-
-    if (state === 'not_found') {
-        return (
-            <PageShell>
-                <Hero
-                    css={{
-                        height: '38dvh',
-                        backgroundSize: 'cover',
-                        backgroundRepeat: 'no-repeat',
-                        background: theme.colors.grey50,
-                        backgroundPosition: 'center center',
-                        border: `1px solid var(--border-border-light, ${theme.colors.white})`,
-                        backgroundImage:
-                            'linear-gradient(to bottom, rgba(229,229,229,0) 0%, rgba(229,229,229,0) 60%, rgba(229,229,229,0.32) 78%, rgba(229,229,229,0.68) 100%), radial-gradient(circle 260px at center 25%, transparent 158px, white 158px, white 208px, transparent 208px)',
-                    }}>
-                    <Icon icon="FediLogo" size={150} />
-                </Hero>
-                <Column
-                    center
-                    css={{
-                        flexGrow: 1,
-                        gap: theme.spacing.md,
-                        justifyContent: 'center',
-                        padding: theme.spacing.xl,
-                    }}>
-                    <ErrorIconBadge>
-                        <Icon icon="Offline" size="md" color="inherit" />
-                    </ErrorIconBadge>
-                    <Text variant="h2" weight="medium" center>
-                        {t('feature.onboarding.landing-page-error-title')}
-                    </Text>
-                    <Text
-                        variant="caption"
-                        center
-                        css={{
-                            color: theme.colors.darkGrey,
-                            marginBottom: theme.spacing.lg,
-                        }}>
-                        {t('feature.onboarding.landing-page-error-description')}
-                    </Text>
-                    <GoBackButton
-                        onClick={handleGoBackToFedi}
-                        css={{ justifyContent: 'center' }}>
-                        <Text
-                            weight="medium"
-                            css={{ color: theme.colors.white }}>
-                            {t('feature.onboarding.landing-page-error-cta')}
-                        </Text>
-                    </GoBackButton>
-                </Column>
-            </PageShell>
-        )
-    }
-
-    if (!redirectAttempted) {
-        return (
-            <PageShell>
-                <CenteredBody>
-                    <Icon icon="FediLogoIcon" size={40} />
-                    <Text weight="medium">
-                        {t('feature.onboarding.landing-page-activating')}
-                    </Text>
-                </CenteredBody>
-            </PageShell>
-        )
+        window.location.href = uri
     }
 
     return (
         <PageShell>
-            <DeeplinkHeroLayout
-                stepLabel={linkActionText}
-                onClick={handleOpenInFedi}
-            />
+            <CenteredBody>
+                <Icon
+                    size={'xl'}
+                    icon="FediLogoDark"
+                    style={{ transform: 'translateY(30px)' }}
+                />
+
+                <Text weight="medium">{titleTextMap[state]}</Text>
+
+                <Button
+                    style={{ margin: 0 }}
+                    onClick={redirectToFediApp}
+                    css={{
+                        justifyContent: 'center',
+                        visibility: state === 'loading' ? 'hidden' : 'visible',
+                        pointerEvents: state === 'loading' ? 'none' : 'auto',
+                    }}>
+                    <Text weight="medium" css={{ color: theme.colors.white }}>
+                        {buttonLabelMap[state]}
+                    </Text>
+                </Button>
+            </CenteredBody>
         </PageShell>
     )
 }
 
 ResumePage.noProviders = true
 
-const GoBackButton = styled('button', {
+const Button = styled('button', {
     width: '100%',
     maxWidth: 340,
     border: 'none',
@@ -147,18 +90,6 @@ const GoBackButton = styled('button', {
     '&:active': {
         opacity: 0.8,
     },
-})
-
-const ErrorIconBadge = styled('div', {
-    width: 64,
-    height: 64,
-    display: 'flex',
-    borderRadius: '50%',
-    alignItems: 'center',
-    background: '#F2F2F2',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.sm,
-    color: theme.colors.darkGrey,
 })
 
 export default ResumePage

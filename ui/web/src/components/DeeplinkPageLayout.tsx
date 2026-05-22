@@ -1,9 +1,6 @@
-import { TFunction } from 'i18next'
 import { Poppins } from 'next/font/google'
 import { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { normalizeDeepLink } from '@fedi/common/utils/linking'
 
 import { styled, theme } from '../styles'
 import { Column } from './Flex'
@@ -30,28 +27,6 @@ export const Container = styled('div', {
     margin: '0 auto',
     maxWidth: 480,
     minHeight: 0,
-})
-
-export const Hero = styled('div', {
-    alignItems: 'center',
-    background: '#F8F8F8',
-    display: 'flex',
-    height: '25dvh',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    position: 'relative',
-
-    '&::after': {
-        backgroundColor: theme.colors.white,
-        borderRadius: '50%',
-        bottom: '-60px',
-        content: '""',
-        height: '80px',
-        left: '50%',
-        position: 'absolute',
-        transform: 'translateX(-50%)',
-        width: '120%',
-    },
 })
 
 export const Step = styled('div', {
@@ -220,38 +195,6 @@ export function DeeplinkHeroLayout({
             </Column>
         </>
     )
-}
-
-type Normalized = NonNullable<ReturnType<typeof normalizeDeepLink>>
-
-export function getLinkActionText(
-    normalized: Normalized,
-    t: TFunction,
-): string {
-    const { screen, params } = normalized
-
-    switch (screen) {
-        case 'join': {
-            const invite = (
-                params.get('invite') ??
-                params.get('id') ??
-                ''
-            ).toLowerCase()
-            const isCommunityInvite =
-                invite.startsWith('community') ||
-                invite.startsWith('fedi:community')
-            return isCommunityInvite
-                ? t('feature.onboarding.landing-page-cta')
-                : `${t('words.join')} ${t('words.wallet')}`
-        }
-        case 'ecash':
-            return t('feature.ecash.claim-ecash')
-        case 'chat':
-        case 'room':
-            return t('feature.chat.open-chat')
-        default:
-            return t('feature.onboarding.landing-page-cta')
-    }
 }
 
 export function CenteredBody({ children }: { children: ReactNode }) {
