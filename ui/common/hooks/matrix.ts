@@ -23,6 +23,7 @@ import {
     selectMatrixAuth,
     selectMatrixPushNotificationToken,
     selectMatrixRoom,
+    selectMatrixRoomIsReadOnly,
     selectMatrixRoomMember,
     selectMatrixRoomPaginationStatus,
     selectMatrixStarted,
@@ -73,6 +74,7 @@ import {
     RpcFederationId,
     RpcFormOption,
     RpcOperationId,
+    RpcPollResultAnswer,
     RpcTimelineEventItemId,
     RpcTransaction,
 } from '../types/bindings'
@@ -1038,6 +1040,108 @@ export function useMatrixFormEvent(
         messageText,
         actionButton,
         options,
+    }
+}
+
+export function useMatrixPollEvent(event: MatrixEvent<'m.poll'>, t: TFunction) {
+    const fedimint = useFedimint()
+    const toast = useToast()
+    const [selections, setSelections] = useState<string[]>([])
+    const [isVoting, setIsVoting] = useState(false)
+    const [hasSubmittedVote, setHasSubmittedVote] = useState(false)
+    const [isEndingPoll, setIsEndingPoll] = useState(false)
+    const isEndingPollRef = useRef(false)
+
+    const matrixAuth = useCommonSelector(selectMatrixAuth)
+    const isReadOnly = useCommonSelector(s =>
+        selectMatrixRoomIsReadOnly(s, event.roomId),
+    )
+
+    const myId = matrixAuth?.userId ?? ''
+    const isMe = event.sender === myId
+
+    const hasVoted = useMemo(() => {
+        return Object.values(event.content.votes).some(vote =>
+            vote?.includes(myId),
+        )
+    }, [event.content.votes, myId])
+
+    const hasPollEnded = useMemo(() => {
+        if (!event.content.endTime) return false
+        return Date.now() > event.content.endTime
+    }, [event.content.endTime])
+
+    const areVotesVisible =
+        (hasVoted && event.content.kind === 'disclosed') || hasPollEnded
+    const isVoteLocked = hasVoted || hasSubmittedVote
+    const isVoteDisabled =
+        selections.length === 0 || isReadOnly || isVoting || isVoteLocked
+
+    const handleSelectAnswer = useCallback(
+        (answer: RpcPollResultAnswer) => {
+            if (isReadOnly || isVoteLocked) return
+
+            setSelections(prev => {
+                if (event.content.maxSelections === 1) return [answer.id]
+                if (prev.includes(answer.id)) {
+                    return prev.filter(id => id !== answer.id)
+                }
+                return [...prev, answer.id]
+            })
+        },
+        [event.content.maxSelections, isReadOnly, isVoteLocked],
+    )
+
+    const handleRespondToPoll = useCallback(async () => {
+        if (!event.id || isVoteDisabled) return
+
+        setIsVoting(true)
+        try {
+            await fedimint.matrixRespondToPoll(
+                event.roomId,
+                event.id,
+                selections,
+            )
+            setHasSubmittedVote(true)
+        } catch (err) {
+            toast.error(t, err, 'errors.unknown-error')
+        } finally {
+            setIsVoting(false)
+        }
+    }, [event.id, event.roomId, fedimint, isVoteDisabled, selections, t, toast])
+
+    const handleEndPoll = useCallback(async () => {
+        if (!event.id || isEndingPollRef.current) return false
+
+        isEndingPollRef.current = true
+        setIsEndingPoll(true)
+        try {
+            await fedimint.matrixEndPoll(event.roomId, event.id)
+            return true
+        } catch (err) {
+            toast.error(t, err, 'errors.unknown-error')
+            return false
+        } finally {
+            isEndingPollRef.current = false
+            setIsEndingPoll(false)
+        }
+    }, [event.id, event.roomId, fedimint, t, toast])
+
+    return {
+        areVotesVisible,
+        handleEndPoll,
+        handleRespondToPoll,
+        handleSelectAnswer,
+        hasPollEnded,
+        hasVoted,
+        isEndingPoll,
+        isMe,
+        isReadOnly,
+        isVoteDisabled,
+        isVoteLocked,
+        isVoting,
+        myId,
+        selections,
     }
 }
 

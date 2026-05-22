@@ -4,6 +4,11 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
+import {
+    POLL_DEFAULT_OPTIONS,
+    POLL_MAX_OPTIONS,
+    POLL_MIN_OPTIONS,
+} from '@fedi/common/constants/matrix'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 
@@ -31,11 +36,12 @@ const CreatePoll: React.FC<Props> = ({
     const { t } = useTranslation()
 
     const [question, setQuestion] = useState('')
-    const [options, setOptions] = useState<Array<PollOption>>([
-        { text: '', id: 0 },
-        { text: '', id: 1 },
-        { text: '', id: 2 },
-    ])
+    const [options, setOptions] = useState<Array<PollOption>>(() =>
+        Array.from({ length: POLL_DEFAULT_OPTIONS }, (_, id) => ({
+            text: '',
+            id,
+        })),
+    )
     const [isMultipleChoice, setIsMultipleChoice] = useState(false)
     const [isDisclosed, setIsDisclosed] = useState(true)
     const [isLoading, setIsLoading] = useState(false)
@@ -44,7 +50,7 @@ const CreatePoll: React.FC<Props> = ({
     const toast = useToast()
 
     const handleAddOption = () => {
-        if (options.length < 6) {
+        if (options.length < POLL_MAX_OPTIONS) {
             setOptions([...options, { text: '', id: Date.now() }])
         }
     }
@@ -54,7 +60,7 @@ const CreatePoll: React.FC<Props> = ({
     }
 
     const handleRemoveOption = (option: PollOption) => {
-        if (options.length > 2) {
+        if (options.length > POLL_MIN_OPTIONS) {
             setOptions(options.filter(o => o.id !== option.id))
         }
     }
@@ -114,7 +120,7 @@ const CreatePoll: React.FC<Props> = ({
                                     handleRemoveOption(option)
                                 }}
                                 containerStyle={style.deleteOptionIcon}
-                                disabled={options.length < 3}
+                                disabled={options.length <= POLL_MIN_OPTIONS}
                             />
                         </Row>
                     ))}

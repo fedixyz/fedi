@@ -11,6 +11,7 @@ import {
     isImageEvent,
     isJoinedRoomMemberEvent,
     isPaymentEvent,
+    isPollEvent,
     isRoomMemberEvent,
     isTextEvent,
     isVideoEvent,
@@ -25,6 +26,7 @@ import { ChatFileEvent } from './ChatFileEvent'
 import { ChatFormEvent } from './ChatFormEvent'
 import { ChatImageEvent } from './ChatImageEvent'
 import { ChatPaymentEvent } from './ChatPaymentEvent'
+import { ChatPollEvent } from './ChatPollEvent'
 import { ChatRepliedMessage } from './ChatRepliedMessage'
 import { ChatRoomMemberEvent } from './ChatRoomMemberEvent'
 import { ChatSwipeableEventContainer } from './ChatSwipeableEventContainer'
@@ -109,6 +111,16 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
         )
     }
 
+    if (isPollEvent(event)) {
+        return (
+            <ChatSwipeableEventContainer event={event} isMe={isMe}>
+                <TextContent isMe={isMe} isPoll>
+                    <ChatPollEvent event={event} isMe={isMe} />
+                </TextContent>
+            </ChatSwipeableEventContainer>
+        )
+    }
+
     if (isFederationInviteEvent(event)) {
         return (
             <TextContent isMe={isMe}>
@@ -176,6 +188,9 @@ const TextContent = styled('div', {
             true: {},
         },
         isPayment: {
+            true: {},
+        },
+        isPoll: {
             true: {},
         },
         showSpeechBubble: {

@@ -64,7 +64,7 @@ export const ConfirmDialog: React.FC<Props> = ({
                                 {title}
                             </Text>
                         </Title>
-                        <Description>
+                        <Description asChild>
                             <Text variant="caption" weight="medium">
                                 {description}
                             </Text>

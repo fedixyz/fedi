@@ -5,11 +5,13 @@ import userEvent from '@testing-library/user-event'
 import {
     addMatrixRoomInfo,
     handleMatrixRoomListStreamUpdates,
+    setFederations,
     setMatrixAuth,
     setMatrixRoomMembers,
     setMatrixRoomPowerLevels,
     setupStore,
 } from '@fedi/common/redux'
+import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { MOCK_MATRIX_ROOM } from '@fedi/common/tests/mock-data/matrix'
 import {
     ChatType,
@@ -20,6 +22,7 @@ import {
 } from '@fedi/common/types'
 
 import { MessageInput } from '../../../../src/components/Chat/MessageInput'
+import i18n from '../../../../src/localization/i18n'
 import { renderWithProviders } from '../../../utils/render'
 
 jest.mock('../../../../src/hooks/dom')
@@ -163,11 +166,12 @@ describe('/components/Chat/MessageInput', () => {
 
         expect(screen.getByRole('textbox')).toBeInTheDocument()
         expect(screen.getByLabelText('wallet-icon')).toBeInTheDocument()
+        expect(screen.queryByLabelText('poll-icon')).not.toBeInTheDocument()
         expect(screen.getByLabelText('plus-icon')).toBeInTheDocument()
         expect(screen.getByLabelText('send-button')).toBeInTheDocument()
     })
 
-    it('should show plus and send controls for existing private group chats', () => {
+    it('should show poll, plus, and send controls for existing private group chats', () => {
         const store = makeStore({
             isDirect: false,
             isPublic: false,
@@ -184,11 +188,12 @@ describe('/components/Chat/MessageInput', () => {
 
         expect(screen.getByRole('textbox')).toBeInTheDocument()
         expect(screen.queryByLabelText('wallet-icon')).not.toBeInTheDocument()
+        expect(screen.getByLabelText('poll-icon')).toBeInTheDocument()
         expect(screen.getByLabelText('plus-icon')).toBeInTheDocument()
         expect(screen.getByLabelText('send-button')).toBeInTheDocument()
     })
 
-    it('should show plus and send controls for public group moderators', () => {
+    it('should show poll, plus, and send controls for public group moderators', () => {
         const store = makePublicGroupStore(MatrixPowerLevel.Moderator)
 
         renderWithProviders(
@@ -202,12 +207,13 @@ describe('/components/Chat/MessageInput', () => {
 
         expect(screen.getByRole('textbox')).toBeInTheDocument()
         expect(screen.queryByLabelText('wallet-icon')).not.toBeInTheDocument()
+        expect(screen.getByLabelText('poll-icon')).toBeInTheDocument()
         expect(screen.getByLabelText('plus-icon')).toBeInTheDocument()
         expect(screen.getByTestId('file-upload')).toBeInTheDocument()
         expect(screen.getByLabelText('send-button')).toBeInTheDocument()
     })
 
-    it('should hide media controls for public group members', () => {
+    it('should show poll controls and hide media controls for public group members', () => {
         const store = makePublicGroupStore(MatrixPowerLevel.Member)
 
         renderWithProviders(
@@ -221,6 +227,7 @@ describe('/components/Chat/MessageInput', () => {
 
         expect(screen.getByRole('textbox')).toBeInTheDocument()
         expect(screen.queryByLabelText('wallet-icon')).not.toBeInTheDocument()
+        expect(screen.getByLabelText('poll-icon')).toBeInTheDocument()
         expect(screen.queryByLabelText('plus-icon')).not.toBeInTheDocument()
         expect(screen.queryByTestId('file-upload')).not.toBeInTheDocument()
         expect(screen.getByLabelText('send-button')).toBeInTheDocument()
@@ -241,6 +248,7 @@ describe('/components/Chat/MessageInput', () => {
 
         expect(screen.getByRole('textbox')).toBeInTheDocument()
         expect(screen.queryByLabelText('wallet-icon')).not.toBeInTheDocument()
+        expect(screen.queryByLabelText('poll-icon')).not.toBeInTheDocument()
         expect(screen.queryByLabelText('plus-icon')).not.toBeInTheDocument()
         expect(screen.queryByTestId('file-upload')).not.toBeInTheDocument()
         expect(screen.getByLabelText('send-button')).toBeInTheDocument()
@@ -260,8 +268,141 @@ describe('/components/Chat/MessageInput', () => {
 
         expect(screen.getByRole('textbox')).toBeDisabled()
         expect(screen.queryByLabelText('wallet-icon')).not.toBeInTheDocument()
+        expect(screen.queryByLabelText('poll-icon')).not.toBeInTheDocument()
         expect(screen.queryByLabelText('plus-icon')).not.toBeInTheDocument()
         expect(screen.queryByLabelText('send-button')).not.toBeInTheDocument()
+    })
+
+    it('should hide poll controls for broadcast-only chats', () => {
+        const store = makeStore({
+            isDirect: false,
+            isPublic: false,
+        })
+        store.dispatch(
+            setMatrixAuth({
+                userId: SELF_USER_ID,
+            } as MatrixAuth),
+        )
+        store.dispatch(
+            setMatrixRoomMembers({
+                roomId: ROOM_ID,
+                members: [
+                    {
+                        id: SELF_USER_ID,
+                        displayName: 'Self',
+                        avatarUrl: undefined,
+                        powerLevel: {
+                            type: 'int',
+                            value: MatrixPowerLevel.Moderator,
+                        },
+                        roomId: ROOM_ID,
+                        membership: 'join',
+                        ignored: false,
+                    } as MatrixRoomMember,
+                ],
+            }),
+        )
+        store.dispatch(
+            setMatrixRoomPowerLevels({
+                roomId: ROOM_ID,
+                powerLevels: {
+                    events: {
+                        'm.room.message': MatrixPowerLevel.Moderator,
+                    },
+                },
+            }),
+        )
+
+        renderWithProviders(
+            <MessageInput
+                type={ChatType.group}
+                id={ROOM_ID}
+                onMessageSubmitted={onMessageSubmitted}
+            />,
+            { store },
+        )
+
+        expect(screen.queryByLabelText('poll-icon')).not.toBeInTheDocument()
+    })
+
+    it('should hide poll controls for default announcement groups', () => {
+        const store = makeStore({
+            isDirect: false,
+            isPublic: true,
+        })
+        store.dispatch(
+            setFederations([
+                {
+                    ...mockFederation1,
+                    meta: {
+                        default_group_chats: JSON.stringify([ROOM_ID]),
+                    },
+                },
+            ]),
+        )
+
+        renderWithProviders(
+            <MessageInput
+                type={ChatType.group}
+                id={ROOM_ID}
+                onMessageSubmitted={onMessageSubmitted}
+            />,
+            { store },
+        )
+
+        expect(screen.queryByLabelText('poll-icon')).not.toBeInTheDocument()
+    })
+
+    it('should open the create poll dialog from the poll control', async () => {
+        const store = makeStore({
+            isDirect: false,
+            isPublic: false,
+        })
+
+        renderWithProviders(
+            <MessageInput
+                type={ChatType.group}
+                id={ROOM_ID}
+                onMessageSubmitted={onMessageSubmitted}
+            />,
+            { store },
+        )
+
+        await userEvent.click(screen.getByLabelText('poll-icon'))
+
+        expect(
+            screen.getAllByText(i18n.t('feature.chat.create-a-poll')).length,
+        ).toBeGreaterThan(0)
+    })
+
+    it('should reopen the create poll dialog cleanly after closing', async () => {
+        const store = makeStore({
+            isDirect: false,
+            isPublic: false,
+        })
+
+        renderWithProviders(
+            <MessageInput
+                type={ChatType.group}
+                id={ROOM_ID}
+                onMessageSubmitted={onMessageSubmitted}
+            />,
+            { store },
+        )
+
+        await userEvent.click(screen.getByLabelText('poll-icon'))
+        expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+        await userEvent.click(screen.getByTestId('dialog-close-button'))
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        })
+
+        await userEvent.click(screen.getByLabelText('poll-icon'))
+        expect(screen.getByRole('dialog')).toBeInTheDocument()
+        expect(
+            screen.getAllByText(i18n.t('feature.chat.create-a-poll')).length,
+        ).toBeGreaterThan(0)
     })
 
     it('should not submit an empty message', async () => {

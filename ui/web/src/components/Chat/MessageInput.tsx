@@ -7,6 +7,7 @@ import { useMentionInput } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     clearChatReplyingToMessage,
+    selectIsDefaultGroup,
     selectMatrixAuth,
     selectMatrixRoom,
     selectMatrixRoomIsReadOnly,
@@ -29,6 +30,7 @@ import {
 import { styled, theme } from '../../styles'
 import { Icon } from '../Icon'
 import { ChatAttachmentThumbnail } from './ChatAttachmentThumbnail'
+import { ChatCreatePollDialog } from './ChatCreatePollDialog'
 import ChatMentionSuggestions from './ChatMentionSuggestions'
 import GuardianitoHelp from './GuardianitoHelp'
 import MessageInputReplyBar from './MessageInputReplyBar'
@@ -56,6 +58,7 @@ export const MessageInput: React.FC<Props> = ({
 
     const room = useAppSelector(s => selectMatrixRoom(s, id))
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
+    const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, id))
     const roomMembers = useAppSelector(s => selectMatrixRoomMembers(s, id))
     const auth = useAppSelector(s => selectMatrixAuth(s))
     const selfUserId = auth?.userId || undefined
@@ -73,6 +76,7 @@ export const MessageInput: React.FC<Props> = ({
     } = useMessageInputState(id)
     const attachments = useMessageAttachments()
     const [isSending, setIsSending] = useState(false)
+    const [isCreatePollOpen, setIsCreatePollOpen] = useState(false)
     const [cursor, setCursor] = useState(0)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const canAttachMedia = !!room && shouldShowMediaButtons
@@ -111,6 +115,13 @@ export const MessageInput: React.FC<Props> = ({
 
     const showMentionSuggestions =
         mentionEnabled && !isReadOnly && shouldShowSuggestions
+    const showPollButton =
+        !!room &&
+        type === ChatType.group &&
+        !room.isDirect &&
+        !room.broadcastOnly &&
+        !isDefaultGroup &&
+        !isReadOnly
 
     const handleSend = useCallback(
         async (ev?: React.FormEvent) => {
@@ -246,6 +257,14 @@ export const MessageInput: React.FC<Props> = ({
                                     onClick={onWalletClick}
                                 />
                             )}
+                            {showPollButton && (
+                                <Icon
+                                    aria-label="poll-icon"
+                                    icon="Poll"
+                                    size={26}
+                                    onClick={() => setIsCreatePollOpen(true)}
+                                />
+                            )}
                             {canAttachMedia && (
                                 <Icon
                                     aria-label="plus-icon"
@@ -271,6 +290,11 @@ export const MessageInput: React.FC<Props> = ({
                     </ActionsRow>
                 )}
             </ActionsWrapper>
+            <ChatCreatePollDialog
+                roomId={id}
+                open={isCreatePollOpen}
+                onOpenChange={setIsCreatePollOpen}
+            />
         </>
     )
 }
