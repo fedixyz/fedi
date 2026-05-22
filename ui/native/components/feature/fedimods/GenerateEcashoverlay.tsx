@@ -13,7 +13,6 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
-import AmountInputDisplay from '../../ui/AmountInputDisplay'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column } from '../../ui/Flex'
 import FederationWalletSelector from '../send/FederationWalletSelector'
@@ -110,24 +109,21 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
                             paddingTop: theme.spacing.xl,
                         }}>
                         <FederationWalletSelector />
-                        {exactAmount ? (
-                            <AmountInputDisplay amount={inputAmount} />
-                        ) : (
-                            <AmountInput
-                                key={amountInputKey}
-                                amount={inputAmount}
-                                isSubmitting={isGeneratingEcash}
-                                submitAttempts={submitAttempts}
-                                minimumAmount={minimumAmount}
-                                maximumAmount={maximumAmount}
-                                verb={t('words.deposit')} // or 'request', 'send', …
-                                onChangeAmount={amt => {
-                                    setSubmitAttempts(0)
-                                    setInputAmount(amt)
-                                }}
-                                error={error}
-                            />
-                        )}
+                        <AmountInput
+                            key={amountInputKey}
+                            amount={exactAmount ?? inputAmount}
+                            isSubmitting={isGeneratingEcash}
+                            submitAttempts={submitAttempts}
+                            minimumAmount={minimumAmount}
+                            maximumAmount={maximumAmount}
+                            readOnly={!!exactAmount}
+                            verb={t('words.deposit')} // or 'request', 'send', …
+                            onChangeAmount={amt => {
+                                setSubmitAttempts(0)
+                                setInputAmount(amt)
+                            }}
+                            error={error}
+                        />
                     </Column>
                 ),
                 buttons: [

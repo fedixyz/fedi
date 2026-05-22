@@ -404,7 +404,7 @@ export function useAmountInput(
                     minimumAmount,
                     btcToFiatRateRef.current,
                 ),
-                onlyShowOnSubmit: true,
+                onlyShowOnSubmit: amount === 0,
             } as const
         }
     }, [amount, btcToFiatRateRef, minimumAmount, maximumAmount])

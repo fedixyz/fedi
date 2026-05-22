@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 
 import { selectFederationBalance, selectPaymentFederation } from '../../redux'
-import { Federation, MSats, Sats } from '../../types'
+import { Federation, Sats } from '../../types'
 import amountUtils from '../../utils/AmountUtils'
 import { useCommonSelector } from '../redux'
 import { useLightningInvoiceAmount } from './useLightningInvoiceAmount'
@@ -39,19 +39,6 @@ export function useMinMaxSendAmount({
         federationIdToUse,
     )
 
-    let minSendable: MSats | undefined
-    let maxSendable: MSats | undefined
-
-    if (lnurlPayment) {
-        minSendable = lnurlPayment.minSendable
-        maxSendable = lnurlPayment.maxSendable
-    }
-
-    if (invoice && exactAmountLightning) {
-        minSendable = invoice.amount
-        maxSendable = exactAmountLightning
-    }
-
     return useMemo(() => {
         if (balance < 1000)
             return {
@@ -68,18 +55,17 @@ export function useMinMaxSendAmount({
 
         if (cashuMeltSummary) {
             minimumAmount = amountUtils.msatToSat(cashuMeltSummary.totalAmount)
-        } else {
-            if (minSendable) {
-                minimumAmount = amountUtils.msatToSat(minSendable)
-            }
-
-            if (maxSendable) {
+        } else if (lnurlPayment) {
+            if (lnurlPayment.minSendable)
+                minimumAmount = amountUtils.msatToSat(lnurlPayment.minSendable)
+            if (lnurlPayment.maxSendable)
                 maximumAmount = Math.min(
-                    amountUtils.msatToSat(maxSendable),
-                    maximumAmount || Infinity,
+                    amountUtils.msatToSat(lnurlPayment.maxSendable),
+                    maximumAmount,
                 ) as Sats
-            }
-
+        } else if (exactAmountLightning) {
+            minimumAmount = amountUtils.msatToSat(exactAmountLightning)
+        } else {
             if (btcAddress && maxAmountOnchain !== null) {
                 maximumAmount = Math.min(
                     maximumAmount,
@@ -96,11 +82,11 @@ export function useMinMaxSendAmount({
         balance,
         cashuMeltSummary,
         invoice,
-        minSendable,
-        maxSendable,
         maxAmountOnchain,
         maxAmountEcash,
         btcAddress,
         ecashRequest,
+        exactAmountLightning,
+        lnurlPayment,
     ])
 }

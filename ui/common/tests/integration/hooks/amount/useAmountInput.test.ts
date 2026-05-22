@@ -138,6 +138,31 @@ describe('useAmountInput hook', () => {
                 i18nKey: 'errors.invalid-amount-min',
                 amount: minimumAmount,
                 fiatValue: 0.5, // 500 sats = 0.50 USD
+                onlyShowOnSubmit: false,
+            })
+        })
+
+        it('should not show validation before submit when the amount is 0', () => {
+            const { store, bridge } = context
+
+            const minimumAmount = 500 as Sats
+            const initialAmount = 0 as Sats // Below minimum
+
+            const { result } = renderHookWithBridge(
+                () =>
+                    useAmountInput(
+                        initialAmount,
+                        mockOnChangeAmount,
+                        minimumAmount,
+                    ),
+                store,
+                bridge.fedimint,
+            )
+
+            expect(result.current.validation).toEqual({
+                i18nKey: 'errors.invalid-amount-min',
+                amount: minimumAmount,
+                fiatValue: 0.5, // 500 sats = 0.50 USD
                 onlyShowOnSubmit: true,
             })
         })

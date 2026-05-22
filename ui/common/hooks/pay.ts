@@ -132,6 +132,7 @@ export function useOmniPaymentState(
         lnurlPayment,
         cashuMeltSummary,
         t,
+        federationId,
     })
 
     useEffect(() => {
@@ -321,6 +322,7 @@ export function useOmniPaymentState(
         setBtcAddress(undefined)
         setBip21Payment(undefined)
         setCashuMeltSummary(undefined)
+        setError(null)
         resetSendForm()
     }, [resetSendForm])
 

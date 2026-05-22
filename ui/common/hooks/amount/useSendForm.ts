@@ -59,7 +59,7 @@ export function useSendForm({
     let description: string | undefined
     let sendTo: string | undefined
     if (invoice) {
-        exactAmount = amountUtils.msatToSat(invoice.amount)
+        exactAmount = minimumAmount
         description = invoice.description
         sendTo = stringUtils.truncateMiddleOfString(invoice.invoice, 8)
     } else if (

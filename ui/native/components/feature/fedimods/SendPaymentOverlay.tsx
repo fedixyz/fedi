@@ -4,14 +4,11 @@ import { Trans, useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
 import { RejectionError } from 'webln'
 
-import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
-import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
-    listGateways,
-    payInvoice,
+    selectFederationBalance,
     selectInvoiceToPay,
     selectLnurlPayment,
     selectPaymentFederation,
@@ -19,14 +16,10 @@ import {
     setSuggestedPaymentFederation,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { formatErrorMessage } from '@fedi/common/utils/format'
-import { lnurlPay } from '@fedi/common/utils/lnurl'
-import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { MSats, ParserDataType } from '../../../types'
+import { ParserDataType } from '../../../types'
 import AmountInput from '../../ui/AmountInput'
-import AmountInputDisplay from '../../ui/AmountInputDisplay'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column } from '../../ui/Flex'
 import LineBreak from '../../ui/LineBreak'
@@ -34,8 +27,6 @@ import SvgImage from '../../ui/SvgImage'
 import FederationWalletSelector from '../send/FederationWalletSelector'
 import FeeOverlay from '../send/FeeOverlay'
 import SendPreviewDetails from '../send/SendPreviewDetails'
-
-const log = makeLog('SendPaymentOverlay')
 
 interface Props {
     onReject: (err: Error) => void
@@ -45,24 +36,25 @@ interface Props {
 export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const toast = useToast()
     const paymentFederation = useAppSelector(selectPaymentFederation)
+    const federationId = paymentFederation?.id ?? ''
     const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(
         t,
-        paymentFederation?.id || '',
+        federationId,
     )
     const lnurlPayment = useAppSelector(selectLnurlPayment)
     const invoice = useAppSelector(selectInvoiceToPay)
+    const balance = useAppSelector(s =>
+        selectFederationBalance(s, federationId),
+    )
     const siteInfo = useAppSelector(selectSiteInfo)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [amountInputKey, setAmountInputKey] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const dispatch = useAppDispatch()
-    const fedimint = useFedimint()
     const {
         inputAmount,
         setInputAmount,
@@ -72,8 +64,11 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         resetOmniPaymentState,
         feeDetails,
         handleOmniInput,
+        handleOmniSend,
         isLoading: isOmniPaymentLoading,
-    } = useOmniPaymentState(paymentFederation?.id, t)
+        error,
+        isReadyToPay,
+    } = useOmniPaymentState(federationId, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails
@@ -84,16 +79,20 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     // Reset form when it appears, requires a key bump to flush state.
     const isShowing = Boolean(invoice || lnurlPayment)
 
-    useEffect(() => {
-        if (isShowing) {
-            // makes sure we auto-select a wallet to pay from if the user doesn't have one selected
-            dispatch(setSuggestedPaymentFederation())
+    const hasInsufficientBalance = amountUtils.msatToSat(balance) < inputAmount
 
-            resetOmniPaymentState()
-            setAmountInputKey(key => key + 1)
-            setError(null)
+    useEffect(() => {
+        if (!isShowing) return
+
+        // makes sure we auto-select a wallet to pay from if the user doesn't have one selected
+        if (!federationId) {
+            dispatch(setSuggestedPaymentFederation())
+            return
         }
-    }, [isShowing, resetOmniPaymentState, dispatch])
+
+        resetOmniPaymentState()
+        setAmountInputKey(key => key + 1)
+    }, [isShowing, resetOmniPaymentState, dispatch, federationId])
 
     useEffect(() => {
         if (!invoice) return
@@ -104,71 +103,17 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         })
     }, [handleOmniInput, invoice])
 
-    useEffect(() => {
-        if (maximumAmount === 0) {
-            setError(t('errors.please-select-balance-federation'))
-        }
-    }, [maximumAmount, t])
-
-    const handleAccept = async () => {
+    const handleAccept = () => {
         setSubmitAttempts(attempts => attempts + 1)
-        if (inputAmount > maximumAmount || inputAmount < minimumAmount) {
-            if (inputAmount > maximumAmount) {
-                toast.error(t, 'errors.please-select-balance-federation')
-            }
-            return
-        }
-
         setIsLoading(true)
-        try {
-            if (!paymentFederation) throw new Error()
-
-            const gateways = await dispatch(
-                listGateways({ fedimint, federationId: paymentFederation.id }),
-            ).unwrap()
-
-            if (!gateways.length) {
-                throw new Error('No available lightning gateways')
-            }
-
-            if (invoice) {
-                if (paymentFederation.balance < invoice.amount) {
-                    throw new Error(
-                        t('errors.insufficient-balance', {
-                            balance: `${amountUtils.msatToSat(
-                                paymentFederation.balance as MSats,
-                            )} SATS`,
-                        }),
-                    )
-                }
-
-                const res = await dispatch(
-                    payInvoice({
-                        fedimint,
-                        federationId: paymentFederation.id,
-                        invoice: invoice.invoice,
-                        // TODO: add notes?
-                        // Maybe include the fedimod by default?
-                    }),
-                ).unwrap()
-                onAcceptRef.current(res)
-            } else if (lnurlPayment) {
-                await lnurlPay(
-                    fedimint,
-                    paymentFederation.id,
-                    lnurlPayment,
-                    amountUtils.satToMsat(inputAmount),
-                ).match(onAcceptRef.current, e => {
-                    // TODO: do not throw
-                    throw e
-                })
-            }
-        } catch (err) {
-            log.error('Failed to pay invoice', invoice, err)
-
-            setError(formatErrorMessage(t, err, 'errors.unknown-error'))
-        }
-        setIsLoading(false)
+        handleOmniSend(inputAmount)
+            .then(res => {
+                onAcceptRef.current(res as { preimage: string })
+            })
+            .catch(() => {
+                /* no-op, handled within `handleOmniSend` already */
+            })
+            .finally(() => setIsLoading(false))
     }
 
     const handleReject = () => {
@@ -202,25 +147,27 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                             <ActivityIndicator />
                         ) : (
                             <>
-                                {exactAmount ? (
-                                    <AmountInputDisplay amount={inputAmount} />
-                                ) : lnurlPayment ? (
-                                    // only show amount input for LNURL-pay, amount-less bolt11 invoices are not supported yet
-                                    <AmountInput
-                                        key={amountInputKey}
-                                        amount={inputAmount}
-                                        isSubmitting={isLoading}
-                                        submitAttempts={submitAttempts}
-                                        minimumAmount={minimumAmount}
-                                        maximumAmount={maximumAmount}
-                                        verb={t('words.send')}
-                                        onChangeAmount={amt => {
-                                            setSubmitAttempts(0)
-                                            setInputAmount(amt)
-                                        }}
-                                        error={error}
-                                    />
-                                ) : null}
+                                <AmountInput
+                                    key={amountInputKey}
+                                    amount={inputAmount}
+                                    isSubmitting={isLoading}
+                                    submitAttempts={submitAttempts}
+                                    minimumAmount={minimumAmount}
+                                    maximumAmount={maximumAmount}
+                                    readOnly={!!exactAmount}
+                                    verb={t('words.send')}
+                                    onChangeAmount={amt => {
+                                        setSubmitAttempts(0)
+                                        setInputAmount(amt)
+                                    }}
+                                    error={
+                                        hasInsufficientBalance
+                                            ? t(
+                                                  'errors.insufficient-balance-wallet',
+                                              )
+                                            : error
+                                    }
+                                />
                                 {formattedTotalFee !== '' && (
                                     <Column fullWidth>
                                         <SendPreviewDetails
@@ -271,7 +218,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                     {
                         primary: true,
                         text: t('words.accept'),
-                        disabled: !!error,
+                        disabled: !isReadyToPay || isLoading,
                         onPress: handleAccept,
                     },
                 ],
