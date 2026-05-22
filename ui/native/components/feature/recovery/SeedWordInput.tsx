@@ -1,6 +1,6 @@
-import { Input, Text, Theme, useTheme } from '@rneui/themed'
+import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { PropsWithChildren, Ref, useState } from 'react'
-import { Pressable, StyleSheet, TextInput } from 'react-native'
+import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { BIP39_WORD_LIST } from '@fedi/common/constants/bip39'
 
@@ -20,41 +20,47 @@ export const SeedWordInput = React.forwardRef<TextInput, SeedWordInputProps>(
         const { theme } = useTheme()
         const [isFocused, setIsFocused] = useState(false)
         const valid = isValidSeedWord(word)
+        const style = styles(theme)
+        const testID = `SeedWordInput${number}`
+        const isAndroid = Platform.OS === 'android'
 
         return (
             <Pressable
-                style={styles(theme).wordContainer}
+                style={style.wordContainer}
                 onPress={() => {
                     if (typeof inputRef !== 'object' || !inputRef?.current)
                         return
-
                     inputRef.current.focus()
                 }}>
-                <Text style={styles(theme).wordNumber}>{`${number}`}</Text>
-                <Input
-                    ref={inputRef as Ref<PropsWithChildren<TextInput>>}
-                    value={word}
-                    onChangeText={onInputUpdated}
-                    autoCorrect={false}
-                    containerStyle={styles(theme).wordInputOuterContainer}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    inputContainerStyle={[
-                        styles(theme).wordInputInnerContainer,
-                        isFocused
-                            ? styles(theme).focusedInputInnerContainer
-                            : {},
-                    ]}
-                    inputStyle={[
-                        styles(theme).wordInput,
-                        isFocused ? styles(theme).focusedInput : {},
-                        !(isFocused || valid) ? styles(theme).invalidWord : {},
-                    ]}
-                    autoCapitalize={'none'}
-                    returnKeyType={'next'}
-                    onSubmitEditing={selectNext}
-                    blurOnSubmit={false}
-                />
+                <Text style={style.wordNumber}>{`${number}`}</Text>
+                <View
+                    testID={isAndroid ? undefined : testID}
+                    style={[
+                        style.inputUnderline,
+                        isFocused && style.inputUnderlineFocused,
+                    ]}>
+                    <TextInput
+                        testID={isAndroid ? testID : undefined}
+                        ref={inputRef as Ref<PropsWithChildren<TextInput>>}
+                        value={word}
+                        onChangeText={onInputUpdated}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => setIsFocused(false)}
+                        onSubmitEditing={selectNext}
+                        autoCorrect={false}
+                        autoCapitalize="none"
+                        returnKeyType="next"
+                        blurOnSubmit={false}
+                        // accessibilityLabel={`Seed word ${number}`}
+                        // accessibilityHint="Enter the next word of your 12-word recovery phrase"
+                        // importantForAccessibility="yes"
+                        // TODO: these will need to be translated accessibility strings when we start working on accessibility specifically
+                        style={[
+                            style.input,
+                            !(isFocused || valid) && style.invalidWord,
+                        ]}
+                    />
+                </View>
             </Pressable>
         )
     },
@@ -74,29 +80,25 @@ const styles = (theme: Theme) =>
             width: '20%',
             textAlign: 'center',
         },
-        wordInputOuterContainer: {
-            width: '75%',
-            height: 24,
-            flexDirection: 'row',
-            alignItems: 'center',
-        },
-        wordInputInnerContainer: {
+        inputUnderline: {
+            flex: 0.9,
+            marginHorizontal: theme.spacing.sm,
+            borderBottomWidth: 1,
             borderBottomColor: theme.colors.extraLightGrey,
-            minHeight: 24,
+            minHeight: 24, // matches input minHeight to keep underline visible when empty
+            justifyContent: 'center',
         },
-        wordInput: {
+        inputUnderlineFocused: {
+            borderBottomColor: theme.colors.primary,
+        },
+        input: {
             fontSize: 16,
             minHeight: 24,
             padding: 0,
-        },
-        focusedInputInnerContainer: {
-            borderBottomColor: theme.colors.primary,
-        },
-        focusedInput: {
-            marginBottom: 0,
+            color: theme.colors.black,
         },
         invalidWord: {
-            color: 'red',
+            color: theme.colors.red,
         },
     })
 
