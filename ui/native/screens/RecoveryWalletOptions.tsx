@@ -33,6 +33,7 @@ const RecoveryWalletOptions: React.FC<Props> = ({ navigation }: Props) => {
             </Column>
             <Column align="center" gap="lg" fullWidth>
                 <Pressable
+                    testID="TransferExistingWalletButton"
                     containerStyle={style.actionCardContainer}
                     onPress={() =>
                         navigation.navigate('RecoveryWalletTransfer')

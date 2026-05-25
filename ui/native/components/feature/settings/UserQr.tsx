@@ -40,6 +40,7 @@ export const UserQr = ({ matrixUser }: UserQrProps) => {
             />
             <Row center gap="xs" fullWidth>
                 <Text
+                    testID="DisplayNameProper"
                     h2
                     medium
                     numberOfLines={1}
@@ -49,6 +50,7 @@ export const UserQr = ({ matrixUser }: UserQrProps) => {
                 </Text>
                 {displayNameSuffix && (
                     <Text
+                        testID="DisplayNameSuffix"
                         numberOfLines={1}
                         medium
                         adjustsFontSizeToFit

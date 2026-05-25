@@ -35,7 +35,11 @@ const SeedWord = ({ number, word }: SeedWordProps) => {
     return (
         <Row justify="between" style={style.wordContainer}>
             <Text style={style.wordNumber}>{`${number}`}</Text>
-            <Text style={style.wordText} numberOfLines={1} adjustsFontSizeToFit>
+            <Text
+                testID={`SeedWord${number}`}
+                style={style.wordText}
+                numberOfLines={1}
+                adjustsFontSizeToFit>
                 {word}
             </Text>
         </Row>

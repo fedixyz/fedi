@@ -20,6 +20,7 @@ on:
                     - settings
                     - joinLeaveFederations
                     - chatTimeline
+                    - backupRestore
                 default: all
             skip_bridge_build:
                 description: 'Skip bridge builds (use cached artifacts from previous run)'

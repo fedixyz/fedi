@@ -14,6 +14,7 @@ while true; do
   echo "s - settings"
   echo "j - JoinLeaveFederation"
   echo "c - chatTimeline"
+  echo "b - backupRestore"
   echo "a - all tests"
   echo "m - manual entry (specify tests manually)"
   echo "q - quit"
@@ -39,6 +40,11 @@ while true; do
     c)
       TESTS_TO_RUN="chatTimeline"
       echo "Selected test: chatTimeline"
+      break
+      ;;
+    b)
+      TESTS_TO_RUN="backupRestore"
+      echo "Selected test: backupRestore"
       break
       ;;
     a)

@@ -85,6 +85,7 @@ const QRCodeContainer = ({
             {showTextWithAction && (
                 <Row align="center" style={style.textWithActionContainer}>
                     <Text
+                        testID="TrueUsername"
                         style={style.textWithActionText}
                         numberOfLines={1}
                         maxFontSizeMultiplier={1.4}>

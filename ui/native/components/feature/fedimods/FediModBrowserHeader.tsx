@@ -317,6 +317,7 @@ const FediModBrowserHeader: React.FC<FediModBrowserHeaderProps> = ({
                     onToggleMenu={() => setShowMenu(!showMenu)}
                 />
                 <PressableIcon
+                    testID="CloseMiniAppButton"
                     svgName="Close"
                     hitSlop={10}
                     onPress={handleClose}

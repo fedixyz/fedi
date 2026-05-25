@@ -7,6 +7,7 @@ import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
 import { ChatTimeline } from './common/ChatTimeline.test'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { Settings } from './common/Settings.test'
+import { BackupRestore } from './common/backupRestore.test'
 import { OnboardingTest } from './common/onboarding.test'
 import { setupOnboarded } from './fixtures/setupOnboarded'
 import { Fixture } from './fixtures/types'
@@ -21,6 +22,7 @@ const availableTests: Record<string, TestClass> = {
     settings: Settings,
     joinLeaveFederations: JoinLeaveFederation,
     chatTimeline: ChatTimeline,
+    backupRestore: BackupRestore,
 }
 type TestName = keyof typeof availableTests
 

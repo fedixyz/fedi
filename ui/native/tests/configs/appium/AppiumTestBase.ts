@@ -920,6 +920,32 @@ export abstract class AppiumTestBase {
         }
     }
 
+    async getTextByKey(key: string): Promise<string> {
+        const element = await this.findElementByKey(key)
+        if (!element) {
+            throw new Error(`getTextByKey: element with key "${key}" not found`)
+        }
+
+        const text = await element.getText()
+        if (text && text.length > 0) return text
+
+        // iOS fallbacks: try `value` then `label` directly. On Android these
+        // attributes don't exist on TextView so the calls return null and we
+        // fall through to the error.
+        for (const attr of ['value', 'label'] as const) {
+            try {
+                const fallback = await element.getAttribute(attr)
+                if (fallback && fallback.length > 0) return fallback
+            } catch {
+                // attribute not supported on this platform — keep going
+            }
+        }
+
+        throw new Error(
+            `getTextByKey: element with key "${key}" was found but has no readable text on getText(), value, or label`,
+        )
+    }
+
     async resetAppToFresh(): Promise<void> {
         console.log('Resetting app to fresh-install state...')
         switch (currentPlatform) {

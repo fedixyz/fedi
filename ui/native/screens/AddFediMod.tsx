@@ -151,6 +151,7 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
                 <View style={style.inputWrapper}>
                     <Column grow gap="xs">
                         <Input
+                            testID="MiniAppUrlInput"
                             value={url}
                             onChangeText={setUrl}
                             placeholder={t('words.url')}

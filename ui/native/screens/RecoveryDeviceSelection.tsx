@@ -66,6 +66,7 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
 
         return (
             <Pressable
+                testID={`DeviceIndex${index}Button`}
                 key={`di-${index}`}
                 style={style.actionCardContainer}
                 disabled={isProcessing}
