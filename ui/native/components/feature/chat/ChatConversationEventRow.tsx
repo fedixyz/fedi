@@ -6,7 +6,6 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 import {
-    isJoinedRoomMemberEvent,
     isMultispendEvent,
     isPowerLevelGreaterOrEqual,
     isRoomMemberEvent,
@@ -34,27 +33,178 @@ type Props = {
 }
 
 const AVATAR_SLOT_WIDTH = 43
-const CHAT_CONVERSATION_ROW_SPACING = {
-    systemNoticeAdjacentJoinNotice: 0,
+export const CHAT_CONVERSATION_ROW_SPACING = {
+    systemNoticeAdjacentSystemNotice: 0,
     systemNoticeAdjacentTimestamp: 0,
-    systemNoticeAdjacentMessage: 48,
+    systemNoticeAdjacentMessage: 8,
     systemNoticeListEdge: 16,
     senderRun: 12,
     timestampMarginVertical: 12,
 }
 
-const isJoinNoticeRow = (row?: ChatConversationRow): boolean =>
-    !!row && isJoinedRoomMemberEvent(row.event)
-
-const systemNoticeSpacing = (row?: ChatConversationRow) => {
+export const getSystemNoticeSpacing = (row?: ChatConversationRow) => {
     if (!row) return CHAT_CONVERSATION_ROW_SPACING.systemNoticeListEdge
-    if (isJoinNoticeRow(row)) {
-        return CHAT_CONVERSATION_ROW_SPACING.systemNoticeAdjacentJoinNotice
+    if (row.layout === 'systemNotice') {
+        return CHAT_CONVERSATION_ROW_SPACING.systemNoticeAdjacentSystemNotice
     }
     if (row.showTimestamp) {
         return CHAT_CONVERSATION_ROW_SPACING.systemNoticeAdjacentTimestamp
     }
     return CHAT_CONVERSATION_ROW_SPACING.systemNoticeAdjacentMessage
+}
+
+type ChatConversationEventRowStyles = ReturnType<typeof styles>
+
+type TimestampProps = {
+    timestamp?: number
+    style: ChatConversationEventRowStyles
+}
+
+const MessageTimestamp: React.FC<TimestampProps> = ({ timestamp, style }) => {
+    if (!timestamp) return null
+
+    return (
+        <Column align="center" fullWidth style={style.timestampContainer}>
+            <Text tiny style={style.timestampText}>
+                {dateUtils.formatMessageItemTimestamp(timestamp / 1000)}
+            </Text>
+        </Column>
+    )
+}
+
+type SystemNoticeRowProps = {
+    row: ChatConversationRow
+    olderRow?: ChatConversationRow
+    newerRow?: ChatConversationRow
+    style: ChatConversationEventRowStyles
+}
+
+const SystemNoticeRow: React.FC<SystemNoticeRowProps> = ({
+    row,
+    olderRow,
+    newerRow,
+    style,
+}) => {
+    const { event } = row
+
+    return (
+        <View
+            testID={`chat-system-notice-row-${event.id}`}
+            style={[
+                style.container,
+                style.systemNoticeContainer,
+                {
+                    paddingTop: getSystemNoticeSpacing(olderRow),
+                    paddingBottom: getSystemNoticeSpacing(newerRow),
+                },
+            ]}>
+            {row.showTimestamp && (
+                <MessageTimestamp timestamp={event.timestamp} style={style} />
+            )}
+            <ChatEvent event={event} />
+        </View>
+    )
+}
+
+type MessageRowProps = {
+    roomId: string
+    row: ChatConversationRow
+    roomMember?: MatrixRoomMember
+    canSwipe: boolean
+    isPublic?: boolean
+    displayName: string
+    isAdmin: boolean | undefined
+    showUsername: boolean
+    reserveAvatarSlot: boolean
+    showAvatar: boolean
+    isHighlighted: boolean
+    onSenderPress: () => void
+    onReplyTap?: (eventId: string) => void
+    highlightedMessageId?: string | null
+    style: ChatConversationEventRowStyles
+}
+
+const MessageRow: React.FC<MessageRowProps> = ({
+    roomId,
+    row,
+    roomMember,
+    canSwipe,
+    isPublic,
+    displayName,
+    isAdmin,
+    showUsername,
+    reserveAvatarSlot,
+    showAvatar,
+    isHighlighted,
+    onSenderPress,
+    onReplyTap,
+    highlightedMessageId,
+    style,
+}) => {
+    const { event } = row
+    const content = (
+        <View style={[isHighlighted && style.highlightedMessage]}>
+            <ChatEvent
+                event={event}
+                last={row.isLastBubbleInRun}
+                isPublic={isPublic}
+                onReplyTap={onReplyTap}
+                highlightedMessageId={highlightedMessageId}
+            />
+        </View>
+    )
+
+    return (
+        <View
+            style={[
+                style.container,
+                showUsername && !row.showTimestamp && style.senderRunSpacing,
+            ]}>
+            {row.showTimestamp && (
+                <MessageTimestamp timestamp={event.timestamp} style={style} />
+            )}
+
+            {showUsername && (
+                <Row align="center" gap="xxs" style={style.senderNameContainer}>
+                    <Text small>{displayName}</Text>
+                    {isAdmin && <SvgImage size={12} name="AdminBadge" />}
+                </Row>
+            )}
+
+            <Row align="end">
+                {reserveAvatarSlot ? (
+                    <View style={style.senderAvatarSlot}>
+                        {showAvatar ? (
+                            <Pressable
+                                style={style.senderAvatar}
+                                hitSlop={30}
+                                pressRetentionOffset={30}
+                                onPress={onSenderPress}
+                                onLongPress={onSenderPress}>
+                                <ChatAvatar
+                                    user={roomMember || { id: event.sender }}
+                                />
+                            </Pressable>
+                        ) : (
+                            <View style={style.senderAvatarSpacer} />
+                        )}
+                    </View>
+                ) : null}
+
+                <View style={style.messageContainer}>
+                    {canSwipe ? (
+                        <ChatSwipeableEventContainer
+                            roomId={roomId}
+                            event={event}>
+                            {content}
+                        </ChatSwipeableEventContainer>
+                    ) : (
+                        content
+                    )}
+                </View>
+            </Row>
+        </View>
+    )
 }
 
 const ChatConversationEventRow = memo(
@@ -110,116 +260,37 @@ const ChatConversationEventRow = memo(
         // pinned message look like a no-op when that row is already on screen.
         const isHighlighted = !isPending && highlightedMessageId === event.id
 
-        if (isRoomMemberEvent(event)) {
-            if (!isJoinedRoomMemberEvent(event)) {
-                return null
-            }
-
+        if (row.layout === 'systemNotice') {
             return (
-                <View
-                    style={[
-                        style.container,
-                        style.systemNoticeContainer,
-                        {
-                            paddingTop: systemNoticeSpacing(olderRow),
-                            paddingBottom: systemNoticeSpacing(newerRow),
-                        },
-                    ]}>
-                    {row.showTimestamp && event.timestamp && (
-                        <Column
-                            align="center"
-                            fullWidth
-                            style={style.timestampContainer}>
-                            <Text tiny style={style.timestampText}>
-                                {dateUtils.formatMessageItemTimestamp(
-                                    event.timestamp / 1000,
-                                )}
-                            </Text>
-                        </Column>
-                    )}
-                    <ChatEvent event={event} />
-                </View>
+                <SystemNoticeRow
+                    row={row}
+                    olderRow={olderRow}
+                    newerRow={newerRow}
+                    style={style}
+                />
             )
         }
 
-        const content = (
-            <View style={[isHighlighted && style.highlightedMessage]}>
-                <ChatEvent
-                    event={event}
-                    last={row.isLastBubbleInRun}
-                    isPublic={isPublic}
-                    onReplyTap={onReplyTap}
-                    highlightedMessageId={highlightedMessageId}
-                />
-            </View>
-        )
+        if (isRoomMemberEvent(event)) return null
 
         return (
-            <View
-                style={[
-                    style.container,
-                    showUsername &&
-                        !row.showTimestamp &&
-                        style.senderRunSpacing,
-                ]}>
-                {row.showTimestamp && event.timestamp && (
-                    <Column
-                        align="center"
-                        fullWidth
-                        style={style.timestampContainer}>
-                        <Text tiny style={style.timestampText}>
-                            {dateUtils.formatMessageItemTimestamp(
-                                event.timestamp / 1000,
-                            )}
-                        </Text>
-                    </Column>
-                )}
-
-                {showUsername && (
-                    <Row
-                        align="center"
-                        gap="xxs"
-                        style={style.senderNameContainer}>
-                        <Text small>{displayName}</Text>
-                        {isAdmin && <SvgImage size={12} name="AdminBadge" />}
-                    </Row>
-                )}
-
-                <Row align="end">
-                    {reserveAvatarSlot ? (
-                        <View style={style.senderAvatarSlot}>
-                            {showAvatar ? (
-                                <Pressable
-                                    style={style.senderAvatar}
-                                    hitSlop={30}
-                                    pressRetentionOffset={30}
-                                    onPress={handlePress}
-                                    onLongPress={handlePress}>
-                                    <ChatAvatar
-                                        user={
-                                            roomMember || { id: event.sender }
-                                        }
-                                    />
-                                </Pressable>
-                            ) : (
-                                <View style={style.senderAvatarSpacer} />
-                            )}
-                        </View>
-                    ) : null}
-
-                    <View style={style.messageContainer}>
-                        {canSwipe ? (
-                            <ChatSwipeableEventContainer
-                                roomId={roomId}
-                                event={event}>
-                                {content}
-                            </ChatSwipeableEventContainer>
-                        ) : (
-                            content
-                        )}
-                    </View>
-                </Row>
-            </View>
+            <MessageRow
+                roomId={roomId}
+                row={row}
+                roomMember={roomMember}
+                canSwipe={canSwipe}
+                isPublic={isPublic}
+                displayName={displayName}
+                isAdmin={isAdmin}
+                showUsername={showUsername}
+                reserveAvatarSlot={reserveAvatarSlot}
+                showAvatar={showAvatar}
+                isHighlighted={isHighlighted}
+                onSenderPress={handlePress}
+                onReplyTap={onReplyTap}
+                highlightedMessageId={highlightedMessageId}
+                style={style}
+            />
         )
     },
 )

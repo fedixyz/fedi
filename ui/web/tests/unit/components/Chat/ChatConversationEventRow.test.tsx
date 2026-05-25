@@ -60,6 +60,7 @@ function makeRow(
             timestamp: 1_750_083_034_389,
             content: { body: 'Hello world', formatted: null },
         }),
+        layout: 'message',
         showTimestamp: false,
         showUsername: false,
         showAvatar: false,

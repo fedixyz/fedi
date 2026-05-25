@@ -1,4 +1,7 @@
-import { createMockNonPaymentEvent } from '@fedi/common/tests/mock-data/matrix-event'
+import {
+    createMockNonPaymentEvent,
+    mockMatrixEventImage,
+} from '@fedi/common/tests/mock-data/matrix-event'
 import { ChatType, MatrixEvent } from '@fedi/common/types'
 import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
 
@@ -46,6 +49,50 @@ function makeRoomMemberEvent(
     }
 }
 
+function makeImageEvent(
+    id: string,
+    sender: string,
+    timestampOffset: number,
+): MatrixEvent<'m.image'> {
+    return {
+        ...mockMatrixEventImage,
+        id: `$${id}` as RpcTimelineEventItemId,
+        sender,
+        timestamp: BASE_TIMESTAMP + timestampOffset,
+        content: {
+            ...mockMatrixEventImage.content,
+            body: `image-${id}`,
+        },
+    }
+}
+
+function makePollEvent(
+    id: string,
+    sender: string,
+    timestampOffset: number,
+): MatrixEvent<'m.poll'> {
+    return {
+        id: `$${id}` as RpcTimelineEventItemId,
+        roomId: '!room:example.com',
+        timestamp: BASE_TIMESTAMP + timestampOffset,
+        localEcho: false,
+        sender,
+        sendState: { kind: 'sent', event_id: `event-${id}` },
+        inReply: null,
+        mentions: null,
+        content: {
+            msgtype: 'm.poll',
+            body: `poll-${id}`,
+            kind: 'disclosed',
+            maxSelections: 1,
+            answers: [{ id: 'answer-1', text: 'Answer 1' }],
+            votes: {},
+            endTime: null,
+            hasBeenEdited: false,
+        },
+    }
+}
+
 describe('chatConversationRows', () => {
     describe('makeChatConversationRows', () => {
         it('should return empty array for empty input', () => {
@@ -61,6 +108,7 @@ describe('chatConversationRows', () => {
             expect(rows).toHaveLength(1)
             expect(rows[0]).toMatchObject({
                 event: events[0],
+                layout: 'message',
                 showTimestamp: true,
                 showUsername: true,
                 showAvatar: true,
@@ -198,9 +246,105 @@ describe('chatConversationRows', () => {
 
             expect(rows[1]).toMatchObject({
                 event: expect.objectContaining({ id: '$2' }),
+                layout: 'systemNotice',
+                showUsername: false,
+                showAvatar: false,
+                showUsernames: false,
+                isLastBubbleInRun: false,
             })
             expect(rows[2]).toMatchObject({
                 event: expect.objectContaining({ id: '$3' }),
+                layout: 'systemNotice',
+                showUsername: false,
+                showAvatar: false,
+                showUsernames: false,
+                isLastBubbleInRun: false,
+            })
+        })
+
+        it('should keep same-sender message rows in one run across a join notice', () => {
+            const events = [
+                makeEvent('1', '@alice:example.com', 0),
+                makeRoomMemberEvent('2', '@bob:example.com', -10_000),
+                makeEvent('3', '@alice:example.com', -20_000),
+            ]
+            const rows = makeChatConversationRows(events, ChatType.group)
+
+            expect(rows).toHaveLength(3)
+            expect(rows[0]).toMatchObject({
+                event: expect.objectContaining({ id: '$1' }),
+                layout: 'message',
+                showUsername: false,
+                showAvatar: true,
+                isLastBubbleInRun: true,
+            })
+            expect(rows[1]).toMatchObject({
+                event: expect.objectContaining({ id: '$2' }),
+                layout: 'systemNotice',
+                showUsername: false,
+                showAvatar: false,
+                isLastBubbleInRun: false,
+            })
+            expect(rows[2]).toMatchObject({
+                event: expect.objectContaining({ id: '$3' }),
+                layout: 'message',
+                showUsername: true,
+                showAvatar: false,
+                isLastBubbleInRun: false,
+            })
+        })
+
+        it('should treat images as message rows around a join notice', () => {
+            const events = [
+                makeImageEvent('1', '@alice:example.com', 0),
+                makeRoomMemberEvent('2', '@bob:example.com', -10_000),
+                makeEvent('3', '@alice:example.com', -20_000),
+            ]
+            const rows = makeChatConversationRows(events, ChatType.group)
+
+            expect(rows[0]).toMatchObject({
+                event: expect.objectContaining({ id: '$1' }),
+                layout: 'message',
+                showAvatar: true,
+                isLastBubbleInRun: true,
+            })
+            expect(rows[1]).toMatchObject({
+                event: expect.objectContaining({ id: '$2' }),
+                layout: 'systemNotice',
+            })
+            expect(rows[2]).toMatchObject({
+                event: expect.objectContaining({ id: '$3' }),
+                layout: 'message',
+                showUsername: true,
+                showAvatar: false,
+            })
+        })
+
+        it('should treat polls as message rows around a join notice', () => {
+            const events = [
+                makePollEvent('1', '@alice:example.com', 0),
+                makeRoomMemberEvent('2', '@bob:example.com', -10_000),
+                makePollEvent('3', '@alice:example.com', -20_000),
+            ]
+            const rows = makeChatConversationRows(events, ChatType.group)
+
+            expect(rows[0]).toMatchObject({
+                event: expect.objectContaining({ id: '$1' }),
+                layout: 'message',
+                showUsername: false,
+                showAvatar: true,
+            })
+            expect(rows[1]).toMatchObject({
+                event: expect.objectContaining({ id: '$2' }),
+                layout: 'systemNotice',
+                showUsername: false,
+                showAvatar: false,
+            })
+            expect(rows[2]).toMatchObject({
+                event: expect.objectContaining({ id: '$3' }),
+                layout: 'message',
+                showUsername: true,
+                showAvatar: false,
             })
         })
     })

@@ -42,6 +42,7 @@ const mockScrollToIndex = jest.fn()
 const mockScrollToOffset = jest.fn()
 const mockHandlePaginate = jest.fn()
 const mockHandleCopyResource = jest.fn()
+const mockSwipeableEventIds: string[] = []
 const mockEventRowRenderCounts = new Map<string, number>()
 let usingFakeTimers = false
 const MOCK_AVERAGE_ITEM_LENGTH = 48
@@ -225,6 +226,7 @@ jest.mock(
 
         return {
             __esModule: true,
+            ...actual,
             default: (props: any) => {
                 const eventId = props.row.event.id as string
 
@@ -234,6 +236,32 @@ jest.mock(
                 )
 
                 return ReactModule.createElement(actual.default, props)
+            },
+        }
+    },
+)
+
+jest.mock(
+    '../../../../../components/feature/chat/ChatSwipeableEventContainer',
+    () => {
+        const ReactModule = jest.requireActual<typeof import('react')>('react')
+
+        return {
+            __esModule: true,
+            default: ({
+                children,
+                event,
+            }: {
+                children: React.ReactNode
+                event: MatrixEvent
+            }) => {
+                mockSwipeableEventIds.push(event.id as string)
+
+                return ReactModule.createElement(
+                    ReactModule.Fragment,
+                    null,
+                    children,
+                )
             },
         }
     },
@@ -585,6 +613,7 @@ describe('ChatConversation', () => {
         mockScrollToIndex.mockReset()
         mockScrollToOffset.mockReset()
         mockHandlePaginate.mockReset()
+        mockSwipeableEventIds.length = 0
         mockEventRowRenderCounts.clear()
         usingFakeTimers = false
         mockScrollToIndexFailureCount = 0
@@ -719,7 +748,7 @@ describe('ChatConversation', () => {
         ).toBeOnTheScreen()
     })
 
-    it('renders accepted invitation membership events as centered join notices', () => {
+    it('renders accepted invitation membership events as centered join notices without message affordances', () => {
         const store = storeWithLoadedConversation([
             createRoomMemberEvent('invitationAccepted'),
         ])
@@ -732,6 +761,8 @@ describe('ChatConversation', () => {
             ),
         ).toBeOnTheScreen()
         expect(screen.queryByText('Alice')).toBeNull()
+        expect(screen.queryByTestId('Iconundefined')).toBeNull()
+        expect(mockSwipeableEventIds).toEqual([])
     })
 
     it('does not render membership join notices in direct chats', () => {
