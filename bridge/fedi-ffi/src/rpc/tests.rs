@@ -1583,6 +1583,7 @@ async fn test_spv2_with_fedi_fees(
     let amount_to_withdraw = Amount::from_msats(200_000);
     let withdraw_fedi_fee =
         Amount::from_msats((amount_to_withdraw.msats * fedi_fees_receive_ppm).div_ceil(MILLION));
+    let withdrawal_events_before = td.event_sink().num_events_of_type("spv2Withdrawal".into());
     spv2Withdraw(
         federation.clone(),
         FiatAmount::from_btc_amount(
@@ -1598,7 +1599,9 @@ async fn test_spv2_with_fedi_fees(
         // Wait until withdrawal operation succeeds
         // Initiated -> UnlockTxAccepted -> WithdrawalInitiated -> WithdrawalTxAccepted
         // -> Success
-        if td.event_sink().num_events_of_type("spv2Withdrawal".into()) == 5 {
+        if td.event_sink().num_events_of_type("spv2Withdrawal".into())
+            >= withdrawal_events_before + 5
+        {
             break;
         }
 
@@ -1664,6 +1667,7 @@ async fn test_spv2_with_fedi_fees(
     assert!(sync_response.pending_unlock.is_none());
 
     // Let's withdraw the remaining amount
+    let withdrawal_events_before = td.event_sink().num_events_of_type("spv2Withdrawal".into());
     federation
         .spv2_withdraw(FiatOrAll::All, FrontendMetadata::default())
         .await?;
@@ -1671,7 +1675,9 @@ async fn test_spv2_with_fedi_fees(
         // Wait until withdrawal operation succeeds
         // Initiated -> UnlockTxAccepted -> WithdrawalInitiated -> WithdrawalTxAccepted
         // -> Success
-        if td.event_sink().num_events_of_type("spv2Withdrawal".into()) == 5 {
+        if td.event_sink().num_events_of_type("spv2Withdrawal".into())
+            >= withdrawal_events_before + 5
+        {
             break;
         }
 

@@ -53,6 +53,8 @@ impl MockOracle {
 }
 
 pub trait RemotePriceSource: Debug + Send + Sync {
+    fn name(&self) -> &'static str;
+
     fn get_url(&self) -> Url;
 
     fn extract_price_from_json_value(&self, json_value: serde_json::Value) -> anyhow::Result<u64>;
@@ -62,6 +64,10 @@ pub trait RemotePriceSource: Debug + Send + Sync {
 struct CexIoAPI;
 
 impl RemotePriceSource for CexIoAPI {
+    fn name(&self) -> &'static str {
+        "cex.io"
+    }
+
     fn get_url(&self) -> Url {
         "https://cex.io/api/ticker/BTC/USD"
             .parse()
@@ -87,6 +93,10 @@ impl RemotePriceSource for CexIoAPI {
 struct YadioIoAPI;
 
 impl RemotePriceSource for YadioIoAPI {
+    fn name(&self) -> &'static str {
+        "yadio.io"
+    }
+
     fn get_url(&self) -> Url {
         "https://api.yadio.io/convert/1/BTC/USD"
             .parse()
@@ -111,6 +121,10 @@ impl RemotePriceSource for YadioIoAPI {
 struct BitstampNetAPI;
 
 impl RemotePriceSource for BitstampNetAPI {
+    fn name(&self) -> &'static str {
+        "bitstamp.net"
+    }
+
     fn get_url(&self) -> Url {
         "https://www.bitstamp.net/api/v2/ticker/btcusd"
             .parse()
@@ -156,7 +170,7 @@ impl AggregateOracle {
 impl Oracle for AggregateOracle {
     async fn get_price(&self) -> anyhow::Result<u64> {
         info!("began fetching prices from oracle sources");
-        let source_prices = join_all(self.sources.iter().map(|source| async {
+        let source_prices = join_all(self.sources.iter().map(|source| async move {
             Ok::<_, anyhow::Error>(
                 self.client
                     .clone()
@@ -173,23 +187,36 @@ impl Oracle for AggregateOracle {
         .enumerate()
         .filter_map(|(i, oracle_result)| match oracle_result {
             Ok(json_value) => match self.sources[i].extract_price_from_json_value(json_value) {
+                Ok(0) => {
+                    warn!(
+                        source = self.sources[i].name(),
+                        "oracle source returned zero price"
+                    );
+                    None
+                }
                 Ok(price) => Some(price),
                 Err(e) => {
-                    warn!("oracle source extract price from json value error: {e}");
+                    warn!(
+                        source = self.sources[i].name(),
+                        "oracle source extract price from json value error: {e}"
+                    );
                     None
                 }
             },
             Err(e) => {
-                warn!("oracle source request error: {e}");
+                warn!(
+                    source = self.sources[i].name(),
+                    "oracle source request error: {e}"
+                );
                 None
             }
         })
         .sorted()
         .collect_vec();
 
-        // Succeed as long as at least one source worked
+        // Succeed as long as at least one source worked and returned a non-zero price.
         if source_prices.is_empty() {
-            bail!("None of the oracle sources worked");
+            bail!("None of the oracle sources returned a non-zero price");
         }
 
         info!("finished successfully fetching prices from sources");

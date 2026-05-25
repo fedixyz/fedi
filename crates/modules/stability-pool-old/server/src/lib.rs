@@ -393,6 +393,14 @@ impl ServerModule for StabilityPool {
         cycle_change_votes.sort_unstable_by_key(|vote| vote.price().map_err(|e| e.to_string()));
         let new_price = cycle_change_votes[cycle_change_votes.len() / 2].price()?;
 
+        let new_price = if new_price == 0 {
+            current_cycle
+                .as_ref()
+                .expect("sorry, please fix your price source")
+                .start_price
+        } else {
+            new_price
+        };
         // Use value derived from cycle start time as randomness.
         // This will be the same for all the guardians.
         // We avoid using a seedable PRNG as its behavior could implicitly
