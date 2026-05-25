@@ -9,6 +9,7 @@ import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { Settings } from './common/Settings.test'
 import { BackupRestore } from './common/backupRestore.test'
 import { OnboardingTest } from './common/onboarding.test'
+import { setupChatTimelineWithGroups } from './fixtures/setupChatTimelineWithGroups'
 import { setupOnboarded } from './fixtures/setupOnboarded'
 import { Fixture } from './fixtures/types'
 
@@ -28,6 +29,7 @@ type TestName = keyof typeof availableTests
 
 const fixtures: Record<string, Fixture> = {
     [setupOnboarded.produces]: setupOnboarded,
+    [setupChatTimelineWithGroups.produces]: setupChatTimelineWithGroups,
 }
 
 // Mutated by ensureState as fixtures run; cleared on test failure (state untrusted).

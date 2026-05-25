@@ -34,7 +34,8 @@ export const Pressable: React.FC<PressableProps> = ({
                 !!props.onPress && pressed && !disabled ? style.pressed : {},
                 containerStyle,
             ]}
-            {...props}>
+            {...props}
+            testID={props.testID}>
             {children}
         </BasePressable>
     )
