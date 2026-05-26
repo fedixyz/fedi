@@ -25,8 +25,7 @@ export const PressableIcon: React.FC<Props> = ({
     return (
         <Pressable
             containerStyle={[style.container, containerStyle]}
-            {...props}
-            testID={props.testID}>
+            {...props}>
             <SvgImage
                 maxFontSizeMultiplier={multiplier}
                 name={svgName}

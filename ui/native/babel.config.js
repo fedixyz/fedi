@@ -1,9 +1,6 @@
 module.exports = function (api) {
     const presets = ['module:@react-native/babel-preset']
     const plugins = [
-        // Dev-only: auto-inject testIDs on JSX elements that don't have one.
-        // No-op in any non-development NODE_ENV.
-        './babel-plugins/babel-plugin-auto-testid',
         // Load the react-native-dotenv plugin first
         [
             'module:react-native-dotenv',
@@ -15,7 +12,12 @@ module.exports = function (api) {
             },
         ],
         // React Native Reanimated plugin
-        ['react-native-reanimated/plugin', { globals: ['__scanCodes'] }],
+        [
+            'react-native-reanimated/plugin',
+            {
+                globals: ['__scanCodes'],
+            },
+        ],
         // Handle module resolution for specific libraries
         [
             'module-resolver',
@@ -36,12 +38,12 @@ module.exports = function (api) {
         // Jest environment: Disable cache to allow functional testing without quick-crypto
         api.cache.never()
     } else {
-        // Bust cache when NODE_ENV is unset, like in case of dev environments
-        api.cache.using(
-            () =>
-                `${process.env.NODE_ENV ?? 'unset'}|${process.env.BABEL_ENV ?? 'unset'}`,
-        )
+        // React Native environment: Enable cache
+        api.cache.forever()
     }
 
-    return { presets, plugins }
+    return {
+        presets,
+        plugins,
+    }
 }

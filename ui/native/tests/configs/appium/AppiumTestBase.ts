@@ -73,11 +73,6 @@ export abstract class AppiumTestBase {
                         priority: 2,
                         description: 'Element ID',
                     },
-                    {
-                        selector: `-ios predicate string:label == "${key}" OR name == "${key}" OR value == "${key}"`,
-                        priority: 3,
-                        description: 'Predicate string',
-                    },
                 ]
             default:
                 throw new Error(
