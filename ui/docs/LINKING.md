@@ -2,51 +2,70 @@
 
 ## Overview
 
-The deep linking system routes external URLs to specific screens in the native app. Two link formats:
+The deep linking system handles navigation from external URLs into specific screens within the app. It supports two link formats:
 
--   **Universal Links** — `https://app.fedi.xyz/link?screen=...`. Users tap these; the web handles them at [`/link`](../web/src/pages/link.tsx).
--   **Internal links** — `fedi://screen?...`. The native app routes on these directly. Universal links are normalized to this form via [`normalizeDeepLink`](../common/utils/linking.ts).
+-   **Deep links** - Universal Links hosted on our domain, e.g. `https://app.fedi.xyz/link?screen=chat&roomId=123`. When a user taps a deep link on a device where the OS does not open the native app directly (e.g. app not installed, or Android App Links auto-verification failed), they land on the web's deep link landing page at [`/link`](../web/src/pages/link.tsx). On desktop the landing page redirects straight to the corresponding screen in the web app; on mobile it shows a 2-step flow that guides the user through installing the app and opening the link in it.
+-   **Internal links** - Native protocol links prefixed with `fedi://`, e.g. `fedi://room?roomId=123` (query form) or `fedi://room/123` (path form). These are what deep links get converted into before being processed, and are also used directly within the app. Both query and path forms are supported; path form is what notification payloads typically use.
 
-Onboarding must complete before a deeplink routes. Pending links are stashed in Redux (`redirectTo` in [`environment.ts`](../common/redux/environment.ts)) and replayed by [`Splash.tsx`](../native/screens/Splash.tsx). The universal-link host allowlist lives in [`DEEPLINK_HOSTS`](../common/constants/linking.ts).
+Both onboarding and the PIN lock must be cleared before any linking action can fire. The same gate applies to non-Fedi payment URIs (`lightning:`, `bitcoin:`, `lnurl:`, …) so URL contents are never parsed pre-auth and the omni overlay never surfaces over the lock screen. Depending on the URL type, the gate stashes:
+
+-   **Fedi navigation links** - if onboarding is incomplete, the original link is saved to Redux via `setRedirectTo` and replayed from the Splash screen after onboarding. If the app is locked, the parsed navigation args are queued as `pendingUnlockNavigationArgs` and replayed after a successful PIN unlock.
+-   **Payment URIs** - if the app is locked, the raw URL is queued as `pendingUnlockExternalUrl` and replayed through the omni parser (via `Router.tsx`) once the unlock gate clears.
 
 ---
 
 ## User Flow Diagram
 
-The diagram below traces every path a user can take when tapping a Fedi deep link — from initial tap through app resolution, routing, and final destination.
+The diagram below traces every path a user can take when tapping a Fedi deep link - from initial tap through app resolution, routing, and final destination.
 
 ```mermaid
 flowchart TD
     START([User taps a Fedi link]) --> FORMAT{Link format?}
 
-    FORMAT -->|"Universal Link<br/>(app.fedi.xyz/link?...)"| HAS_APP{App installed?}
+    FORMAT -->|"Universal Link<br/>(app.fedi.xyz/link?...)"| PLATFORM{Desktop or mobile?}
     FORMAT -->|"fedi:// protocol"| HAS_APP_2{App installed?}
 
     HAS_APP_2 -->|No| DEAD["Link fails<br/>(OS cannot handle scheme)"]
     HAS_APP_2 -->|Yes| ONBOARDED
 
-    %% ─── App NOT installed ───────────────────────
-    HAS_APP -->|No| LANDING["<b>/link page</b>"]
-    LANDING --> SCHEME_OK{App opened?}
-    SCHEME_OK -->|Yes| ONBOARDED
-    SCHEME_OK -->|No| STORE[App Store / Play Store]
-    STORE --> OPENS[User installs and opens app]
-    OPENS --> FRESH_ONBOARD["<b>Onboarding splash</b><br/>shows DeepLinkRedirectLink"]
-    FRESH_ONBOARD --> RESUME["<b>/deeplink-redirect page</b>"]
-    RESUME --> RESUME_OK{Persisted link found?}
-    RESUME_OK -->|Yes| ONBOARDED
-    RESUME_OK -->|No| RESUME_ERR(["<b>Error UI</b><br/>'Back to Fedi' CTA"])
+    %% ─── Desktop ─────────────────────────────────
+    PLATFORM -->|Desktop| WEBAPP(["<b>Web App</b><br/>(landing page redirects<br/>straight to target screen)"])
 
-    %% ─── App installed ──────────────────────────
-    HAS_APP -->|Yes| ONBOARDED
+    %% ─── Mobile Landing Page ─────────────────────
+    PLATFORM -->|Mobile| LANDING["<b>/link page</b><br/>stores link in localStorage,<br/>shows 2 steps"]
+    LANDING --> CHOICE{User taps a step}
 
+    CHOICE -->|"Open in Fedi (step 2)"| SCHEME[fedi:// scheme attempted]
+    SCHEME -->|App installed| ONBOARDED
+    SCHEME -->|App not installed| NOTHING["Nothing opens<br/>(user falls back to step 1)"]
+
+    CHOICE -->|"Download (step 1)"| STORE[App Store / Play Store]
+    STORE --> INSTALL[User installs and opens app]
+    INSTALL --> FRESH_OB["<b>Onboarding (Splash)</b>"]
+    FRESH_OB --> GET_STARTED["User taps 'Get Started'"]
+    GET_STARTED --> OVERLAY{"FediLinkOverlay<br/>'Did you come from<br/>a Fedi link?'"}
+    OVERLAY -->|No| DEFAULT_TAB(["<b>Default tab</b>"])
+    OVERLAY -->|Yes| RESUME["<b>/deeplink-redirect page</b><br/>(opened in system browser)"]
+    RESUME --> RESUME_OK{Persisted link<br/>in localStorage?}
+    RESUME_OK -->|Yes| REPLAY_OPEN["fedi:// re-fired<br/>→ app opens link"]
+    REPLAY_OPEN --> ONBOARDED
+    RESUME_OK -->|No| RESUME_ERR(["<b>Error UI</b><br/>'Back to Fedi' → fedi://"])
+
+    %% ─── Onboarding gate ─────────────────────────
     ONBOARDED{Onboarding<br/>complete?}
-    ONBOARDED -->|No| STASH[Link saved to storage]
+    ONBOARDED -->|No| STASH["Link saved to Redux<br/>(setRedirectTo)"]
     STASH --> FINISH_OB[User completes onboarding]
-    FINISH_OB --> REPLAY[Saved link replayed]
+    FINISH_OB --> REPLAY["Saved link replayed from Splash<br/>(getInternalLinkResetAction)"]
     REPLAY --> ROUTE
 
-    ONBOARDED -->|Yes| ROUTE
+    ONBOARDED -->|Yes| LOCKED
+
+    %% ─── PIN gate ────────────────────────────────
+    LOCKED{App locked<br/>by PIN?}
+    LOCKED -->|Yes| PIN_QUEUE["Args queued as<br/>pendingUnlockNavigationArgs"]
+    PIN_QUEUE --> UNLOCK["User enters PIN<br/>(LockScreen / Initializing)"]
+    UNLOCK --> ROUTE
+    LOCKED -->|No| ROUTE
 
     %% ─── Routing ─────────────────────────────────
     ROUTE{"Screen specified<br/>in link?"}
@@ -60,6 +79,7 @@ flowchart TD
     ROUTE -->|join| J_SCREEN
     ROUTE -->|join-then-ecash| JE_SCREEN
     ROUTE -->|join-then-browse| JB_SCREEN
+    ROUTE -->|"unknown fedi:<br/>path"| END_FALLBACK(["<b>Wallet</b><br/>(fallback)"])
 
     %% ─── Claim Ecash ────────────────────────────
     subgraph ecash_flow ["Claim Ecash"]
@@ -104,7 +124,7 @@ flowchart TD
         JE_SCREEN["<b>Join Federation Screen</b><br/>(ecash token queued)"]
         JE_SCREEN --> JE_MEMBER{Already<br/>a member?}
 
-        JE_MEMBER -->|"Yes — skip join"| JE_EC_SCREEN
+        JE_MEMBER -->|"Yes - skip join"| JE_EC_SCREEN
         JE_MEMBER -->|No| JE_PREVIEW["<b>Federation Preview</b>"]
         JE_PREVIEW --> JE_ACT{User action}
         JE_ACT -->|Confirm join| JE_JOINED[Joined]
@@ -123,7 +143,7 @@ flowchart TD
         JB_SCREEN["<b>Join Federation Screen</b><br/>(URL queued)"]
         JB_SCREEN --> JB_MEMBER{Already<br/>a member?}
 
-        JB_MEMBER -->|"Yes — skip join"| JB_BROWSER
+        JB_MEMBER -->|"Yes - skip join"| JB_BROWSER
         JB_MEMBER -->|No| JB_PREVIEW["<b>Federation Preview</b>"]
         JB_PREVIEW --> JB_ACT{User action}
         JB_ACT -->|Confirm join| JB_JOINED[Joined]
@@ -134,67 +154,135 @@ flowchart TD
     end
 ```
 
+The mobile landing page has **two** ways to land the user back in the native app, because the link is captured at different layers depending on whether the app was already installed:
+
+-   **Open in Fedi (app already installed)** - the `fedi://` scheme fires, the OS hands the link to the native app, and it flows through the onboarding / PIN gates like any internal link. If onboarding is incomplete the link is stashed via `setRedirectTo` and replayed automatically from Splash.
+-   **Download → install → onboard (fresh install)** - the native app never saw the link, so there is no `setRedirectTo` value. Instead, the `/link` page stored the link in the mobile browser's `localStorage`. After onboarding, the `FediLinkOverlay` asks "Did you come from a Fedi link?"; tapping **Yes** opens `/deeplink-redirect` in the system browser, which reads the stored link and re-fires the `fedi://` scheme into the now-installed app.
+
 ---
 
 ## How It Works
 
+### Web Landing Page
+
+The landing page lives at `/link` in the web app (`ui/web/src/pages/link.tsx`) and behaves differently per platform:
+
+-   **Desktop** - immediately redirects to the target screen in the web app via `getDeepLinkPath(url)`.
+-   **Mobile** - stores the link in `localStorage` via `setPendingDeeplink` (so it survives an install detour), then renders a 2-step layout (`DeeplinkHeroLayout`):
+    1. **Download the Fedi App** - opens the App Store or Play Store based on user agent.
+    2. **Open in app** - attempts the `fedi://` custom scheme, which opens the app if it is installed.
+
+The mobile page does **not** auto-attempt the scheme on load, and there is no "continue in browser" path - its only goal is to get the user into the native app.
+
+### Post-install Resume (Web)
+
+The link stored in `localStorage` is replayed after a fresh install via `/deeplink-redirect` (`ui/web/src/pages/deeplink-redirect.tsx`):
+
+-   During onboarding, `Splash` shows the `FediLinkOverlay` ("Did you come from a Fedi link?") whenever there is no natively-captured `redirectTo`. Tapping **Yes** (`handleFediLink`) completes onboarding and opens `${API_ORIGIN}${DEEPLINK_RESUME_PATH}` (`/deeplink-redirect`) in the system browser.
+-   `/deeplink-redirect` reads and clears the stored link via `getPendingDeeplink` / `clearPendingDeeplink`, then re-fires the `fedi://` scheme into the installed app. If no valid link is found it falls back to a `fedi://` "Back to Fedi" CTA.
+
+Layout primitives shared by both web pages live in [`DeeplinkPageLayout.tsx`](../web/src/components/DeeplinkPageLayout.tsx).
+
 ### Link Processing
 
-All links go through the same pipeline regardless of entry point:
+All deep links pass through the same pipeline regardless of how they arrive (tap, cold start, notification, or in-app call):
 
 ```
 Incoming URL
      │
-     ├─ isDeepLink()?  →  Yes → normalizeDeepLink()  →  fedi://screen?params
-     │                     No  → pass through as-is
+     ├─ getNavigationLink()?  →  Universal link → fedi://screen?params
+     │                           fedi: link     → pass through
+     │                           payment URI    → undefined (handled as external)
      ▼
-getLinking().subscribe()
+getNavigationLinkReadiness()
      │
-     ├─ Onboarding incomplete?  →  stash in Redux, replay after onboarding
+     ├─ Fedi link + onboarding incomplete?  →  save to Redux (setRedirectTo)
+     │                                         → { kind: 'handled' }, replay from Splash
+     ├─ Fedi link + app locked?             →  queue pendingUnlockNavigationArgs
+     │                                         → { kind: 'handled' }, replay after PIN
+     ├─ Payment URI + app locked?           →  queue pendingUnlockExternalUrl
+     │                                         → { kind: 'handled' }, replay via omni parser
+     ├─ Fedi link + ready?                  →  { kind: 'ready', navigationLink }
+     └─ Payment URI + ready?                →  { kind: 'external', url }
      ▼
-getInternalLinkRoute()  →  look up screen in screenMap  →  NavigationState
+ready      →  getInternalLinkTarget()  →  canonical { kind: 'tab' | 'root', screen, params }
+                │
+                ├─ getInternalLinkRoute()          →  React Navigation state (for getStateFromPath)
+                ├─ getInternalLinkNavigationArgs() →  imperative nav args  (for Initializing/LockScreen)
+                └─ getInternalLinkResetAction()    →  reset action         (for Splash replay + patched openURL)
+
+external   →  fallback(url)  →  omni parser (OmniLinkHandler)
+handled    →  swallowed; replayed later from the appropriate gate
 ```
 
-The native pipeline (subscribe, route, `screenMap`, `patchLinkingOpenURL`) lives in [`utils/linking.ts`](../native/utils/linking.ts). Parsing helpers (`isDeepLink`, `normalizeDeepLink`, `stripFediPrefix`, `normalizeCommunityInviteCode`) are in [`common/utils/linking.ts`](../common/utils/linking.ts).
+Root-stack destinations always reset with `Wallet` underneath so back-button navigation has a valid fallback history entry. Unknown `fedi:` paths fall back to Wallet instead of failing.
 
-**Entry points** — all wired in [`Router.tsx`](../native/Router.tsx):
+**How links arrive:**
 
--   **Cold start** — `Linking.getInitialURL` and `notifee.getInitialNotification`. Links arriving before nav mounts are queued in `pendingLinks` and flushed on `onReady`.
--   **Foreground** — `Linking.addEventListener`.
--   **Notification** — Notifee's `onForegroundEvent` pulls the `link` field from the notification data payload.
--   **In-app** — `patchLinkingOpenURL` intercepts `Linking.openURL` so deep links route internally instead of opening a browser.
+-   **Cold start** - `Linking.getInitialURL()` and `notifee.getInitialNotification()` capture the URL on launch. Fedi links become React Navigation's initial state; payment URIs are routed straight to the omni parser via the `fallback` option (returning them raw would leave React Navigation with a non-navigable scheme it silently drops).
+-   **Foreground** - `Linking.addEventListener` fires with the URL.
+-   **Notification** - Notifee's `onForegroundEvent` extracts the `link` field from the notification data payload.
+-   **In-app** - `patchLinkingOpenURL` (called once at module load) intercepts all `Linking.openURL` calls so both universal links and raw `fedi:` links route internally via the same reset action instead of opening a browser. Links that arrive before the navigator is ready are queued in `pendingLinks` and flushed in `onReady`.
 
 ### Deep Link → Internal Link Conversion
 
-[`normalizeDeepLink`](../common/utils/linking.ts) converts a universal link to the internal format. The `screen` param becomes the path; everything else passes through:
+`getNavigationLink()` is the single entry point used by every arrival path. It accepts either a universal link or a raw `fedi:` link and returns the normalized internal URL:
 
 ```
 https://app.fedi.xyz/link?screen=room&roomId=abc123  →  fedi://room?roomId=abc123
+fedi://room?roomId=abc123                            →  fedi://room?roomId=abc123  (unchanged)
+fedi://room/abc123                                   →  fedi://room/abc123         (path form, unchanged)
+https://other.example/anything                       →  undefined
 ```
 
-Both `?` and `#` delimiters are supported.
+Internally it delegates to `normalizeDeepLink()` for universal links and `isFediInternalLink()` for raw `fedi:` links. Both `?` and `#` delimiters are supported on universal links (e.g. `link#screen=room&roomId=abc123`).
 
-### Post-install Fallback (Web)
+### Path-based vs Query-based Internal Links
 
-When a tapped universal link finds no installed app, the web preserves it across the install detour:
+Internal links support both `fedi://<screen>?param=value` and `fedi://<screen>/<value>` forms for root-stack screens. The path form is what notification payloads use. Resolution order inside `getInternalLinkTarget`:
 
--   [`/link`](../web/src/pages/link.tsx) writes the URL to `localStorage` via [`setPendingDeeplink`](../web/src/utils/localstorage.ts) and attempts the `fedi://` scheme.
--   After install, [`/deeplink-redirect`](../web/src/pages/deeplink-redirect.tsx) reads and clears the entry, then re-fires the scheme.
--   The native [`DeepLinkRedirectLink`](../native/components/ui/DeepLinkRedirectLink.tsx) — shown on the onboarding splash when the user has no joined federations or non-global communities — opens the system browser to [`getDeeplinkResumeUrl`](../common/constants/api.ts), bridging the user back to `/deeplink-redirect`.
+1. **`getBrowserPathTarget`** - if the path starts with `browser/`, everything after is treated as the URL payload (so `fedi://browser/https://stacker.news` is preserved verbatim).
+2. **`screenMap` lookup** on the leading segment (e.g. `room`, `join`) - handles the query form and any screens that need custom param mapping (like `join-then-ecash`).
+3. **`getConfigPathTarget`** - matches against `rootScreenPaths` (`room/:roomId`, `user/:userId`, `share-logs/:ticketNumber`, `ecash/:id`, `join/:invite`, `browser/:url`). Path params are percent-decoded; values containing further `/` segments are rejected.
+4. **Unknown-but-known-schema fallback** - any unrecognized `fedi:` path falls back to the Wallet tab rather than failing.
 
-Layout primitives shared by both web pages live in [`DeeplinkPageLayout.tsx`](../web/src/components/DeeplinkPageLayout.tsx).
+---
+
+## Key Files
+
+| File                                                | Role                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Router.tsx`                                        | Wires `getLinking` into `NavigationContainer`, flushes pending links on ready, patches `Linking.openURL`, and replays `pendingUnlockExternalUrl` through the omni parser after PIN unlock                                                                            |
+| `utils/linking.ts` (native)                         | `getLinking`, `getInternalLinkRoute`, `getInternalLinkResetAction`, `getInternalLinkNavigationArgs`, `navigationArgsToResetAction`, `consumePendingUnlockNavigationArgs`, `consumePendingUnlockExternalUrl`, `screenMap`, `flushPendingLinks`, `patchLinkingOpenURL` |
+| `screens/Splash.tsx`                                | Replays `redirectTo` after onboarding via `getInternalLinkResetAction`; otherwise shows `FediLinkOverlay` to bridge fresh installs to `/deeplink-redirect`                                                                                                          |
+| `components/feature/onboarding/FediLinkOverlay.tsx` | Onboarding prompt ("Did you come from a Fedi link?"); **Yes** opens `/deeplink-redirect` in the system browser to resume a link captured only in web `localStorage`                                                                                                  |
+| `screens/LockScreen.tsx`                            | Replays `pendingUnlockNavigationArgs` after PIN unlock via `navigationArgsToResetAction`                                                                                                                                                                             |
+| `screens/Initializing.tsx`                          | Consumes `pendingUnlockNavigationArgs` on cold start to route already-unlocked deeplinks into the correct stack                                                                                                                                                      |
+| `common/utils/linking.ts`                           | `getNavigationLink`, `isDeepLink`, `normalizeDeepLink`, `isFediInternalLink`, `isFediDeeplinkType`, `normalizeBrowserUrl`, `stripFediPrefix`, `normalizeCommunityInviteCode`, plus the `DEEP_LINK_SCREENS` / `DEEP_LINKS` drift-prevention schema                    |
+| `web/src/pages/link.tsx`                            | Mobile 2-step landing page (stores link, Download + Open); desktop redirect via `getDeepLinkPath`                                                                                                                                                                    |
+| `web/src/pages/deeplink-redirect.tsx`               | Post-install resume page: reads the stored link from `localStorage` and re-fires the `fedi://` scheme                                                                                                                                                               |
 
 ---
 
 ## Supported Routes
 
-Routes are defined in `screenMap` in [`utils/linking.ts`](../native/utils/linking.ts). Each key is a screen name (e.g. `"room"`, `"join-then-ecash"`) mapping to a navigation target and parameter mapping.
+The canonical list of supported screens lives in the `screenMap` object in [`utils/linking.ts`](../native/utils/linking.ts). Each key is a screen name (e.g. `"room"`, `"join-then-ecash"`) and its function returns an `InternalLinkTarget` describing the navigation target and any parameter mappings. That target is then translated into React Navigation state, imperative nav args, or a reset action depending on which helper calls it. The shared `DEEP_LINK_SCREENS` list in [`common/utils/linking.ts`](../common/utils/linking.ts) is the source of truth for valid screen names: `screenMap` is type-constrained to cover every `DeepLinkableScreen`, and a unit test asserts every screen in `DEEP_LINKS` has a `screenMap` handler.
 
-Universal links use `?` or `#` delimiters. Community invite codes with a `fedi:` prefix are normalised automatically via [`normalizeCommunityInviteCode`](../common/utils/linking.ts).
+Deep links follow this format:
+
+```
+https://app.fedi.xyz/link#screen=<screen>&param1=value1&param2=value2
+```
+
+Both `?` and `#` delimiters are supported. Internal links accept either query form (`fedi://<screen>?param=value`) or path form (`fedi://<screen>/<value>`) for root-stack screens whose pattern is declared in `rootScreenPaths` (`room`, `user`, `share-logs`, `ecash`, `join`, `browser`). Community invite codes with a `fedi:` prefix are normalised automatically. Bare browser URLs get `https://` prepended to match the in-app address bar. Unknown `fedi:` paths fall back to the Wallet tab rather than failing.
 
 ---
 
 ## Notes
 
--   Links arriving before onboarding completes are stashed via `setRedirectTo` ([`environment.ts`](../common/redux/environment.ts)) and replayed in [`Splash.tsx`](../native/screens/Splash.tsx).
--   Links arriving before nav mounts are queued in [`Router.tsx`](../native/Router.tsx)'s `pendingLinks` and flushed on `onReady`.
+-   Links that arrive before onboarding is complete are saved to Redux (`setRedirectTo`) and replayed from `Splash` after onboarding finishes.
+-   Links the native app never sees (fresh installs that only stored the link in the mobile browser's `localStorage`) are resumed via the `FediLinkOverlay` → `/deeplink-redirect` path instead.
+-   Fedi links that arrive while the app is locked are stored as `pendingUnlockNavigationArgs` and replayed after the user enters their PIN (from either `LockScreen` or `Initializing`).
+-   Payment URIs (`lightning:`, `bitcoin:`, `lnurl:`, …) that arrive while the app is locked are stored as `pendingUnlockExternalUrl` and handed to the omni parser from `Router.tsx` once `isAppUnlocked` flips true.
+-   Links that arrive before the navigator is ready are queued in `pendingLinks` and flushed once `onReady` fires.
+-   Root-stack deeplink destinations are reset with `Wallet` underneath so screens with a back button always have somewhere to return to.
