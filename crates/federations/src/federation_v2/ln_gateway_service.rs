@@ -121,6 +121,27 @@ impl LnGatewayService {
         &self,
         client: &Client,
     ) -> anyhow::Result<Option<LightningGateway>> {
+        self.select_gateway_excluding(client, None).await
+    }
+
+    pub async fn refresh_cache_and_select_gateway_excluding(
+        &self,
+        client: &Client,
+        excluded_gateway_id: Option<secp256k1::PublicKey>,
+    ) -> anyhow::Result<Option<LightningGateway>> {
+        let ln = client.ln()?;
+        if let Err(error) = ln.update_gateway_cache().await {
+            warn!(?error, "updating gateway cache failed");
+        }
+        self.select_gateway_excluding(client, excluded_gateway_id)
+            .await
+    }
+
+    async fn select_gateway_excluding(
+        &self,
+        client: &Client,
+        excluded_gateway_id: Option<secp256k1::PublicKey>,
+    ) -> anyhow::Result<Option<LightningGateway>> {
         let ln = client.ln()?;
         let gateway_override = self.get_gateway_override(client).await;
         let mut gws = Self::selectable_gateways(client, ln.list_gateways().await).await;
@@ -131,6 +152,10 @@ impl LnGatewayService {
                 warn!(?error, "updating gateway cache failed");
             }
             gws = Self::selectable_gateways(client, ln.list_gateways().await).await;
+        }
+
+        if let Some(excluded_gateway_id) = excluded_gateway_id {
+            gws.retain(|g| g.info.gateway_id != excluded_gateway_id);
         }
 
         // If override is set, it must be available or we error out

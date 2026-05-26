@@ -44,6 +44,7 @@ use fedimint_client::module::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
 use fedimint_client::secret::RootSecretStrategy;
 use fedimint_client::{Client, ClientBuilder, ClientHandle};
 use fedimint_connectors::ConnectorRegistry;
+use fedimint_connectors::error::ServerError;
 use fedimint_core::config::{ClientConfig, FederationId};
 use fedimint_core::core::{ModuleKind, OperationId};
 use fedimint_core::db::{
@@ -1156,14 +1157,32 @@ impl FederationV2 {
 
     pub async fn select_gateway(&self) -> anyhow::Result<Option<LightningGateway>> {
         let gateway = self.gateway_service()?.select_gateway(&self.client).await?;
+        Ok(self.override_gateway_localhost(gateway))
+    }
+
+    async fn refresh_cache_and_select_gateway_excluding(
+        &self,
+        excluded_gateway_id: Option<secp256k1::PublicKey>,
+    ) -> anyhow::Result<Option<LightningGateway>> {
+        let gateway = self
+            .gateway_service()?
+            .refresh_cache_and_select_gateway_excluding(&self.client, excluded_gateway_id)
+            .await?;
+        Ok(self.override_gateway_localhost(gateway))
+    }
+
+    fn override_gateway_localhost(
+        &self,
+        gateway: Option<LightningGateway>,
+    ) -> Option<LightningGateway> {
         if self.runtime.feature_catalog.override_localhost.is_none() {
-            return Ok(gateway);
+            return gateway;
         }
 
-        Ok(gateway.map(|mut g| {
+        gateway.map(|mut g| {
             g.api = override_localhost(&g.api);
             g
-        }))
+        })
     }
 
     /// Fetch balance
@@ -1660,14 +1679,6 @@ impl FederationV2 {
             ))
         }
 
-        let gateway = self.select_gateway().await?;
-        let gateway_fees = gateway
-            .as_ref()
-            .map(|g| g.fees)
-            .unwrap_or(zero_gateway_fees());
-        let network_fee = gateway_fees.base_msat as u64
-            + (amount.msats * gateway_fees.proportional_millionths as u64).div_ceil(MILLION);
-
         let fee_ppms = self
             .get_fee_ppms_by_stream(fedimint_ln_common::KIND, RpcTransactionDirection::Send)
             .await?;
@@ -1680,19 +1691,27 @@ impl FederationV2 {
             .await?;
         let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
 
+        let gateway = self.select_gateway().await?;
         let spend_guard = self.spend_guard.lock().await;
         let virtual_balance = self.get_balance().await;
-        let est_total_spend = amount.msats + fedi_fee.msats + network_fee;
-        if est_total_spend > virtual_balance.msats {
-            bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(
-                    virtual_balance,
-                    Self::total_fedi_fee_ppm(&fee_ppms),
-                    None,
-                    Some(gateway_fees),
-                )
-            )));
-        }
+        let ensure_spendable = |gateway_fees: RoutingFees| -> Result<u64> {
+            let network_fee = gateway_fees.base_msat as u64
+                + (amount.msats * gateway_fees.proportional_millionths as u64).div_ceil(MILLION);
+            let est_total_spend = amount.msats + fedi_fee.msats + network_fee;
+            if est_total_spend > virtual_balance.msats {
+                bail!(ErrorCode::InsufficientBalance(RpcAmount(
+                    get_max_spendable_amount(
+                        virtual_balance,
+                        Self::total_fedi_fee_ppm(&fee_ppms),
+                        None,
+                        Some(gateway_fees),
+                    )
+                )));
+            }
+            Ok(est_total_spend)
+        };
+        let mut est_total_spend =
+            ensure_spendable(gateway.as_ref().map_or_else(zero_gateway_fees, |g| g.fees))?;
 
         let _federation_id = self.federation_id();
         let extra_meta = LightningSendMetadata {
@@ -1700,22 +1719,44 @@ impl FederationV2 {
             frontend_metadata: Some(frontend_meta),
         };
         let ln = self.client.ln()?;
-        let OutgoingLightningPayment { payment_type, .. } = match ln
-            .pay_bolt11_invoice(gateway, invoice.to_owned(), extra_meta.clone())
-            .await
+        let pay_result = ln
+            .pay_bolt11_invoice(gateway.clone(), invoice.to_owned(), extra_meta.clone())
+            .await;
+        let selected_gateway_id = gateway.as_ref().map(|g| g.gateway_id);
+        let OutgoingLightningPayment { payment_type, .. } = match (pay_result, selected_gateway_id)
         {
-            Ok(v) => v,
-            Err(e) => match e.downcast::<PayBolt11InvoiceError>()? {
-                PayBolt11InvoiceError::PreviousPaymentAttemptStillInProgress { .. }
-                // FundedContractAlreadyExists is also same but with less information.
-                // see https://discord.com/channels/990354215060795454/990354215878688860/1273318556108324904
-                | PayBolt11InvoiceError::FundedContractAlreadyExists { .. } => {
-                    bail!(ErrorCode::PayLnInvoiceAlreadyInProgress)
+            (Ok(v), _) => v,
+            (Err(error), Some(failed_gateway_id)) if is_gateway_availability_error(&error) => {
+                warn!(
+                    ?error,
+                    failed_gateway_id = ?failed_gateway_id,
+                    "selected lightning gateway unavailable, refreshing gateway cache and retrying"
+                );
+                let retry_gateway = self
+                    .refresh_cache_and_select_gateway_excluding(Some(failed_gateway_id))
+                    .await?
+                    .ok_or_else(|| anyhow!(ErrorCode::NoLnGatewayAvailable))?;
+                est_total_spend = ensure_spendable(retry_gateway.fees)?;
+                let retry_gateway_id = retry_gateway.gateway_id;
+
+                match ln
+                    .pay_bolt11_invoice(Some(retry_gateway), invoice.to_owned(), extra_meta.clone())
+                    .await
+                {
+                    Ok(v) => v,
+                    Err(error) if is_gateway_availability_error(&error) => {
+                        warn!(
+                            ?error,
+                            failed_gateway_id = ?failed_gateway_id,
+                            retry_gateway_id = ?retry_gateway_id,
+                            "retry lightning gateway unavailable"
+                        );
+                        bail!(ErrorCode::NoLnGatewayAvailable);
+                    }
+                    Err(error) => handle_pay_bolt11_invoice_error(error)?,
                 }
-                PayBolt11InvoiceError::NoLnGatewayAvailable => {
-                    bail!(ErrorCode::NoLnGatewayAvailable)
-                }
-            },
+            }
+            (Err(error), _) => handle_pay_bolt11_invoice_error(error)?,
         };
         // already paid
         if self
@@ -5459,6 +5500,26 @@ pub fn zero_gateway_fees() -> RoutingFees {
     }
 }
 
+fn is_gateway_availability_error(error: &anyhow::Error) -> bool {
+    error
+        .chain()
+        .any(|cause| cause.downcast_ref::<ServerError>().is_some())
+}
+
+fn handle_pay_bolt11_invoice_error(error: anyhow::Error) -> Result<OutgoingLightningPayment> {
+    match error.downcast::<PayBolt11InvoiceError>()? {
+        PayBolt11InvoiceError::PreviousPaymentAttemptStillInProgress { .. }
+        // FundedContractAlreadyExists is also same but with less information.
+        // see https://discord.com/channels/990354215060795454/990354215878688860/1273318556108324904
+        | PayBolt11InvoiceError::FundedContractAlreadyExists { .. } => {
+            bail!(ErrorCode::PayLnInvoiceAlreadyInProgress)
+        }
+        PayBolt11InvoiceError::NoLnGatewayAvailable => {
+            bail!(ErrorCode::NoLnGatewayAvailable)
+        }
+    }
+}
+
 // root/<key-type=per-federation=0>/<federation-id>/<wallet-number>/
 // <key-type=fedimint-client=0>
 fn get_default_client_secret(
@@ -5638,5 +5699,32 @@ mod tests {
         let json = serde_json::to_string(&state).unwrap();
         let value = serde_json::from_str::<serde_json::Value>(&json).unwrap();
         assert!(internal_pay_is_bad_state(value));
+    }
+
+    #[test]
+    fn test_detects_gateway_availability_errors() {
+        let error = anyhow!(ServerError::Connection(anyhow!("gateway offline")))
+            .context("pay invoice failed");
+
+        assert!(is_gateway_availability_error(&error));
+    }
+
+    #[test]
+    fn test_ignores_non_gateway_availability_payment_errors() {
+        let error = anyhow!(PayBolt11InvoiceError::NoLnGatewayAvailable);
+
+        assert!(!is_gateway_availability_error(&error));
+    }
+
+    #[test]
+    fn test_ignores_federation_peer_server_errors_as_gateway_availability_errors() {
+        let error = anyhow!(fedimint_api_client::api::FederationError::new_one_peer(
+            0_u16.into(),
+            "fetch_consensus_block_count",
+            (),
+            ServerError::Connection(anyhow!("guardian offline")),
+        ));
+
+        assert!(!is_gateway_availability_error(&error));
     }
 }
