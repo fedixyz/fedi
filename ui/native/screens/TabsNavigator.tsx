@@ -209,6 +209,10 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                         ...style.tabBarLabel,
                         ...theme.components.Text.style,
                     },
+                    tabBarIconStyle:
+                        screenRoute.name === 'Scan'
+                            ? undefined
+                            : style.tabBarIcon,
                     tabBarActiveTintColor: theme.colors.primary,
                     tabBarInactiveTintColor: theme.colors.primaryLight,
                     tabBarStyle: style.tabBar,
@@ -339,11 +343,11 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
 const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
     // Tab bar height must be a fixed value due to its internal logic, but the height
     // is affected by fontScale, so we need to calculate it manually.
-    const itemPadding = theme.spacing.lg
+    const itemPadding = theme.spacing.sm
     const iconSize = theme.sizes.sm * getIconSizeMultiplier(fontScale)
-    const iconPadding = theme.spacing.xs
-    const fontSize = fediTheme.fontSizes.caption * fontScale
-    const tabBarHeight = itemPadding * 2 + iconPadding + iconSize + fontSize
+    const iconLabelGap = theme.spacing.sm
+    const fontSize = fediTheme.fontSizes.small * fontScale
+    const tabBarHeight = itemPadding * 2 + iconLabelGap + iconSize + fontSize
 
     return StyleSheet.create({
         tabBar: {
@@ -373,6 +377,11 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
             justifyContent: 'center',
         },
         tabBarIconContainer: {},
+        tabBarIcon: {
+            flex: 0,
+            height: iconSize,
+            marginBottom: theme.spacing.sm,
+        },
         tabBarBadge: {
             backgroundColor: theme.colors.red,
             top: 10,
@@ -387,7 +396,7 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
         tabBarItem: {},
         tabBarLabel: {
             fontSize: fediTheme.fontSizes.small,
-            paddingBottom: theme.spacing.md,
+            paddingBottom: theme.spacing.xxs,
         },
         disabledIcon: {
             opacity: 0.2,

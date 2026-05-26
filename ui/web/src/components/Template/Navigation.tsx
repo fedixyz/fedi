@@ -192,7 +192,7 @@ const NavBar = styled('nav', {
 
     '@standalone': {
         '@sm': {
-            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+            paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
         },
     },
 })
