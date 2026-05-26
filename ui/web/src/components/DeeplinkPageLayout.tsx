@@ -103,12 +103,10 @@ export const LogoHeader = styled('div', {
 })
 
 export function DeeplinkHeroLayout({
-    stepLabel,
     onClick,
     onDownload,
     children,
 }: {
-    stepLabel: string
     onClick: () => void
     onDownload?: () => void
     children?: ReactNode
@@ -182,7 +180,7 @@ export function DeeplinkHeroLayout({
                                 ? theme.colors.black
                                 : theme.colors.white,
                         }}>
-                        {stepLabel}
+                        {t('phrases.open-in-app')}
                     </Text>
                     <Column grow />
                     <Icon

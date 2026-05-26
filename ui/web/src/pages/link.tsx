@@ -37,7 +37,6 @@ const LinkingPage: NextPage = () => {
 
     const [loaded, setLoaded] = useState(false)
     const [languageLoaded, setLanguageLoaded] = useState(false)
-    const linkActionText = t('phrases.open-in-app')
 
     useEffect(() => {
         i18n.changeLanguage(detectBrowserLanguage()).finally(() => {
@@ -92,7 +91,6 @@ const LinkingPage: NextPage = () => {
     return (
         <PageShell>
             <DeeplinkHeroLayout
-                stepLabel={linkActionText}
                 onClick={handleOpenInFedi}
                 onDownload={handleDownloadApp}
             />
