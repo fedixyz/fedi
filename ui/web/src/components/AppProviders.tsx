@@ -9,9 +9,14 @@ import { Template } from '../components/Template'
 import { ToastManager } from '../components/ToastManager'
 import { InstallPromptProvider } from '../context/InstallPromptContext'
 import { RouteStateProvider } from '../context/RouteStateContext'
-import { useInstallPrompt } from '../hooks'
+import { useInstallPrompt, useInternetConnectionStatus } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { initializeWebStore, store } from '../state/store'
+
+function EnvironmentListener() {
+    useInternetConnectionStatus()
+    return null
+}
 
 export default function AppProviders({
     children,
@@ -47,6 +52,7 @@ export default function AppProviders({
     return (
         <>
             <ReduxProvider store={store}>
+                <EnvironmentListener />
                 <RouteStateProvider>
                     <InstallPromptProvider value={deferredPrompt}>
                         <FediBridgeInitializer>

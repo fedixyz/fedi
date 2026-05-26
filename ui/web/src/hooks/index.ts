@@ -1,6 +1,7 @@
 export * from './attachments'
 export * from './browser'
 export * from './dom'
+export * from './environment'
 export * from './store'
 export * from './util'
 export * from './media'
