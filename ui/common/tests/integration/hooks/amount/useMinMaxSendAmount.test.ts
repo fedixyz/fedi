@@ -9,7 +9,6 @@ import {
 import { MSats } from '../../../../types'
 import amountUtils from '../../../../utils/AmountUtils'
 import { FedimintBridge } from '../../../../utils/fedimint'
-import { sumFeeDetails } from '../../../../utils/fees'
 import { createIntegrationTestBuilder } from '../../../utils/remote-bridge-setup'
 import { renderHookWithBridge } from '../../../utils/render'
 
@@ -26,7 +25,7 @@ describe('useMinMaxSendAmount hook', () => {
     })
 
     describe('Lightning Invoice', () => {
-        it('minimumAmount should be the invoice amount + fees, maximumAmount should be the user balance', async () => {
+        it('minimumAmount should be the invoice amount, maximumAmount should be the user balance', async () => {
             await builder.withEcashReceived(100_000_000)
 
             const federationId = selectLastUsedFederationId(store.getState())
@@ -40,10 +39,6 @@ describe('useMinMaxSendAmount hook', () => {
                 federationId,
             )
             const invoice = await fedimint.parseInvoice(invoiceStr)
-            const invoiceFees = await fedimint.estimateLnFees(
-                invoiceStr,
-                federationId,
-            )
             const { result } = renderHookWithBridge(
                 () =>
                     useMinMaxSendAmount({
@@ -54,13 +49,10 @@ describe('useMinMaxSendAmount hook', () => {
                 fedimint,
             )
 
-            const invoiceTotalFees = sumFeeDetails(invoiceFees)
-            const invoiceTotalAmount = (invoice.amount +
-                invoiceTotalFees) as MSats
-            const totalAmountSats = amountUtils.msatToSat(invoiceTotalAmount)
-
             await waitFor(() => {
-                expect(result.current.minimumAmount).toBe(totalAmountSats)
+                expect(result.current.minimumAmount).toBe(
+                    amountUtils.msatToSat(invoice.amount),
+                )
                 expect(result.current.maximumAmount).toBe(
                     amountUtils.msatToSat(balance),
                 )
@@ -92,17 +84,10 @@ describe('useMinMaxSendAmount hook', () => {
                 fedimint,
             )
 
-            const invoiceFees = await fedimint.estimateLnFees(
-                invoiceStr,
-                federationId,
-            )
-            const invoiceTotalFees = sumFeeDetails(invoiceFees)
-            const invoiceTotalAmount = (invoice.amount +
-                invoiceTotalFees) as MSats
-            const totalAmountSats = amountUtils.msatToSat(invoiceTotalAmount)
-
             await waitFor(() => {
-                expect(result.current.minimumAmount).toBe(totalAmountSats)
+                expect(result.current.minimumAmount).toBe(
+                    amountUtils.msatToSat(invoice.amount),
+                )
                 expect(result.current.maximumAmount).toBe(
                     amountUtils.msatToSat(balance),
                 )

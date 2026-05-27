@@ -63,8 +63,8 @@ export function useMinMaxSendAmount({
                     amountUtils.msatToSat(lnurlPayment.maxSendable),
                     maximumAmount,
                 ) as Sats
-        } else if (exactAmountLightning) {
-            minimumAmount = amountUtils.msatToSat(exactAmountLightning)
+        } else if (invoice && exactAmountLightning) {
+            minimumAmount = amountUtils.msatToSat(invoice.amount)
         } else {
             if (btcAddress && maxAmountOnchain !== null) {
                 maximumAmount = Math.min(
