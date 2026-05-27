@@ -38,8 +38,8 @@ on:
                 description: 'Verbose logging: full Appium + WebdriverIO + xcodebuild output, all selector strategies tried, every retry logged. Also dumps each task log inline at the end of the run.'
                 type: boolean
                 default: false
-    schedule: # runs every day at 2 UTC
-        - cron: '0 2 * * *'
+    schedule: # runs 3x a day at 04:00, 12:00, 23:00 UTC
+        - cron: '0 4,12,23 * * *'
 
 permissions:
   contents: read
