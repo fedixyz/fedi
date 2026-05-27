@@ -50,8 +50,12 @@ pub enum RuntimeEnvironment {
 ///
 /// Only a subset of features are controllable with remote features. This subset
 /// should be safe if adversary takes control of fedi server for short time.
+///
+/// New fields must be backwards-compatible with older cached values stored in
+/// the bridge DB.
 pub struct RemoteFeatures {
     pub dummy_feature: bool,
+    #[serde(default)]
     pub show_stable_balance_web: bool,
 }
 
@@ -543,4 +547,18 @@ macro_rules! nightly_panic {
             tracing::error!($($tt)*);
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RemoteFeatures;
+
+    #[test]
+    fn remote_features_decode_cached_value_without_newer_fields() {
+        let remote_features: RemoteFeatures =
+            serde_json::from_str(r#"{"dummyFeature":false}"#).unwrap();
+
+        assert!(!remote_features.dummy_feature);
+        assert!(!remote_features.show_stable_balance_web);
+    }
 }
