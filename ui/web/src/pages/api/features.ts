@@ -7,9 +7,11 @@ import type { RemoteFeatures } from '@fedi/common/types/bindings'
 // latest remote layer.
 const prodRemoteFeatures: RemoteFeatures = {
     dummyFeature: false,
+    showStableBalanceWeb: false,
 }
 const devRemoteFeatures: RemoteFeatures = {
     dummyFeature: true,
+    showStableBalanceWeb: true,
 }
 const isProduction = process.env.VERCEL_ENV === 'production'
 

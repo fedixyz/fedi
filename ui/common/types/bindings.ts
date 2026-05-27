@@ -209,6 +209,10 @@ export type FeatureCatalog = {
    */
   dummy_feature: DummyFeatureFeatureConfig | null;
   /**
+   * Enables stable balance features on web.
+   */
+  show_stable_balance_web: ShowStableBalanceWebFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -408,9 +412,12 @@ export type RearrangeMiniappsFeatureConfig = Record<string, never>;
 
 export type RemoteFeatures = {
   dummyFeature: boolean;
+  showStableBalanceWeb: boolean;
 };
 
 export type RecoveryCompleteEvent = { federationId: RpcFederationId };
+
+export type ShowStableBalanceWebFeatureConfig = Record<string, never>;
 
 /**
  * Progress of the recovery

@@ -52,6 +52,7 @@ pub enum RuntimeEnvironment {
 /// should be safe if adversary takes control of fedi server for short time.
 pub struct RemoteFeatures {
     pub dummy_feature: bool,
+    pub show_stable_balance_web: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -131,6 +132,9 @@ pub struct FeatureCatalog {
 
     /// Remote-controlled dummy feature flag.
     pub dummy_feature: Option<DummyFeatureFeatureConfig>,
+
+    /// Enables stable balance features on web.
+    pub show_stable_balance_web: Option<ShowStableBalanceWebFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -248,6 +252,10 @@ pub struct DummyFeatureFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct ShowStableBalanceWebFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -291,6 +299,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.show_stable_balance_web = if remote_features.show_stable_balance_web {
+            Some(ShowStableBalanceWebFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -331,6 +344,7 @@ impl FeatureCatalog {
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
+            show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -384,6 +398,7 @@ impl FeatureCatalog {
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
+            show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -429,6 +444,7 @@ impl FeatureCatalog {
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
+            show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -477,6 +493,7 @@ impl FeatureCatalog {
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: None,
+            show_stable_balance_web: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
