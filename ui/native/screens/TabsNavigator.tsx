@@ -10,6 +10,7 @@ import {
     AppState,
     AppStateStatus,
     Pressable,
+    Platform,
     StyleProp,
     StyleSheet,
     ViewStyle,
@@ -347,7 +348,14 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
     const iconSize = theme.sizes.sm * getIconSizeMultiplier(fontScale)
     const iconLabelGap = theme.spacing.sm
     const fontSize = fediTheme.fontSizes.small * fontScale
-    const tabBarHeight = itemPadding * 2 + iconLabelGap + iconSize + fontSize
+    const labelBottomPadding =
+        Platform.OS === 'android' ? theme.spacing.sm : theme.spacing.xxs
+    const tabBarHeight =
+        itemPadding * 2 +
+        iconLabelGap +
+        iconSize +
+        fontSize +
+        labelBottomPadding
 
     return StyleSheet.create({
         tabBar: {
@@ -396,7 +404,7 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
         tabBarItem: {},
         tabBarLabel: {
             fontSize: fediTheme.fontSizes.small,
-            paddingBottom: theme.spacing.xxs,
+            paddingBottom: labelBottomPadding,
         },
         disabledIcon: {
             opacity: 0.2,
