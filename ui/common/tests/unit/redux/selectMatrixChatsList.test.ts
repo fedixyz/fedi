@@ -119,18 +119,23 @@ describe('selectMatrixChatsList', () => {
         ])
     })
 
-    it('includes invited rooms but excludes rooms that were left', () => {
+    it('includes invited and knocked rooms but excludes rooms that were left', () => {
         const store = setupStore()
 
         addRoomsToStore(store, [
             makeRoom('room-joined', 100, 'joined'),
             makeRoom('room-invited', 200, 'invited'),
+            makeRoom('room-knocked', 250, 'knocked'),
             makeRoom('room-left', 300, 'left'),
         ])
 
         const result = selectMatrixChatsList(store.getState())
 
-        expect(result.map(r => r.id)).toEqual(['room-joined', 'room-invited'])
+        expect(result.map(r => r.id)).toEqual([
+            'room-joined',
+            'room-invited',
+            'room-knocked',
+        ])
     })
 
     it('merges default group previews into read rooms using preview timestamps', () => {

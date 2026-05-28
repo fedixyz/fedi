@@ -93,6 +93,7 @@ export type RootStackParamList = {
     }
     ChatSettings: { title?: string }
     ChatRoomMembers: { roomId: string; displayMultispendRoles?: boolean }
+    ChatRoomKnockRequests: { roomId: string }
     ChatRoomInvite: { roomId: string }
     ChatUserConversation: { userId: string; displayName?: string }
     ChatVideoViewer: { uri: string }
@@ -127,7 +128,8 @@ export type RootStackParamList = {
     CompleteSocialBackup: undefined
     CompleteSocialRecovery: undefined
     CommunityInvite: { inviteLink: string }
-    ConfirmJoinPublicGroup: { groupId: string }
+    ConfirmJoinPrivateGroup: { roomId: string }
+    RoomLink: { roomId: string }
     ConfirmSendEcash: { amount: Sats; notes?: string }
     ConfirmSendChatPayment: {
         amount: Sats

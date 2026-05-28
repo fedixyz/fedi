@@ -1005,6 +1005,14 @@ export const joinMatrixRoom = createAsyncThunk<
     return client.joinRoom(roomId, isPublic)
 })
 
+export const knockMatrixRoom = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id']; reason?: string }
+>('matrix/knockMatrixRoom', async ({ fedimint, roomId, reason }) => {
+    const client = fedimint.getMatrixClient()
+    return client.knockRoom(roomId, reason)
+})
+
 export const createMatrixRoom = createAsyncThunk<
     { roomId: MatrixRoom['id'] },
     {
@@ -1012,10 +1020,15 @@ export const createMatrixRoom = createAsyncThunk<
         name: MatrixRoom['name']
         broadcastOnly?: boolean
         isPublic?: boolean
-    }
+        allowKnocking?: boolean
+    },
+    { state: CommonState }
 >(
     'matrix/createMatrixRoom',
-    async ({ fedimint, name, broadcastOnly, isPublic }) => {
+    async (
+        { fedimint, name, broadcastOnly, isPublic, allowKnocking },
+        { getState },
+    ) => {
         const client = fedimint.getMatrixClient()
         const roomArgs: MatrixCreateRoomOptions = { name }
         if (broadcastOnly) {
@@ -1039,6 +1052,17 @@ export const createMatrixRoom = createAsyncThunk<
         if (isPublic === true) {
             // for public rooms set the roomId as the topic so it is filterable for room previews
             await client.setRoomTopic(roomId, roomId)
+        }
+        // Re-check the flag here: UI auto-flips can bypass the toggle gate.
+        const knockingEnabled = !!selectFeatureFlag(
+            getState(),
+            'private_room_knocking',
+        )
+        if (!isPublic && allowKnocking === true && knockingEnabled) {
+            await fedimint.matrixRoomSetAllowKnocking({
+                roomId,
+                allow: true,
+            })
         }
         return { roomId }
     },
@@ -1144,6 +1168,17 @@ export const setMatrixRoomBroadcastOnly = createAsyncThunk<
         })
     },
 )
+
+export const setMatrixRoomAllowKnocking = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        allow: boolean
+    }
+>('matrix/setMatrixRoomAllowKnocking', async ({ fedimint, roomId, allow }) => {
+    await fedimint.matrixRoomSetAllowKnocking({ roomId, allow })
+})
 
 export const setMatrixRoomMemberPowerLevel = createAsyncThunk<
     MatrixRoomPowerLevels,
@@ -1900,10 +1935,17 @@ export const fetchMatrixProfile = createAsyncThunk<
 
 export const getMatrixRoomPreview = createAsyncThunk<
     MatrixGroupPreview,
-    { fedimint: FedimintBridge; roomId: string }
->('matrix/getMatrixRoomPreview', async ({ fedimint, roomId }) => {
+    { fedimint: FedimintBridge; roomId: string },
+    { state: CommonState }
+>('matrix/getMatrixRoomPreview', async ({ fedimint, roomId }, { getState }) => {
     const client = fedimint.getMatrixClient()
-    return client.getRoomPreview(roomId)
+    const knockingEnabled = !!selectFeatureFlag(
+        getState(),
+        'private_room_knocking',
+    )
+    return knockingEnabled
+        ? client.getRoomPreview(roomId)
+        : client.getPublicRoomPreview(roomId)
 })
 
 export const refetchMatrixRoomMembers = createAsyncThunk<
@@ -2133,8 +2175,16 @@ export const previewCommunityDefaultChats = createAsyncThunk<
         log.info(
             `Found ${defaultChats.length} default groups for community ${community.name}...`,
         )
+        const knockingEnabled = !!selectFeatureFlag(
+            getState(),
+            'private_room_knocking',
+        )
+        const fetchPreview = (id: string) =>
+            knockingEnabled
+                ? client.getRoomPreview(id)
+                : client.getPublicRoomPreview(id)
         const roomPreviews = await Promise.allSettled(
-            defaultChats.map(client.getRoomPreview),
+            defaultChats.map(fetchPreview),
         )
         return roomPreviews.flatMap(preview => {
             if (preview.status === 'fulfilled') {
@@ -2164,8 +2214,16 @@ export const previewFederationDefaultChats = createAsyncThunk<
         log.info(
             `Found ${defaultChats.length} default groups for federation ${federation.name}...`,
         )
+        const knockingEnabled = !!selectFeatureFlag(
+            getState(),
+            'private_room_knocking',
+        )
+        const fetchPreview = (id: string) =>
+            knockingEnabled
+                ? client.getRoomPreview(id)
+                : client.getPublicRoomPreview(id)
         const roomPreviews = await Promise.allSettled(
-            defaultChats.map(client.getRoomPreview),
+            defaultChats.map(fetchPreview),
         )
         return roomPreviews.flatMap(preview => {
             if (preview.status === 'fulfilled') {
@@ -2379,7 +2437,10 @@ export const selectMatrixChatsList = createSelector(
         // don't include rooms that we have not joined yet this should happen
         // automatically but we filter here anyway in case the join fails for some reason
         const filteredRoomsList = roomsList.filter(
-            r => r.roomState === 'joined' || r.roomState === 'invited',
+            r =>
+                r.roomState === 'joined' ||
+                r.roomState === 'invited' ||
+                r.roomState === 'knocked',
         )
 
         if (defaultGroupsList.length === 0) return filteredRoomsList
@@ -2475,6 +2536,11 @@ export const selectMatrixRoomMembers = createSelector(
 export const selectActiveMatrixRoomMembers = createSelector(
     selectMatrixRoomMembers,
     members => members.filter(m => m.membership === 'join'),
+)
+
+export const selectMatrixRoomKnockingMembers = createSelector(
+    selectMatrixRoomMembers,
+    members => members.filter(m => m.membership === 'knock'),
 )
 
 /**

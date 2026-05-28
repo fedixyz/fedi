@@ -1,5 +1,6 @@
 import {
     RpcRoomMembershipChange,
+    RpcRoomPreview,
     RpcSerializedRoomInfo,
     RpcTimelineItemEvent,
     VectorDiff,
@@ -339,6 +340,167 @@ describe('MatrixChatClient', () => {
             ).unobserveRoomTimeline(ROOM_ID, 'room')
 
             expect(timelineUnsubscribe).toHaveBeenCalledTimes(1)
+        })
+    })
+
+    describe('getRoomPreview', () => {
+        const makePreview = (
+            overrides: Partial<RpcRoomPreview> = {},
+        ): RpcRoomPreview => ({
+            id: ROOM_ID,
+            name: 'Group Name',
+            avatarUrl: null,
+            joinedMemberCount: 5,
+            joinRule: 'knock',
+            ...overrides,
+        })
+
+        beforeEach(() => {
+            ;(
+                client as unknown as {
+                    fedimint: Record<string, jest.Mock>
+                }
+            ).fedimint = {
+                matrixGetRoomPreview: jest.fn(),
+                matrixPublicRoomInfo: jest.fn(),
+                matrixRoomPreviewContent: jest.fn(),
+            }
+        })
+
+        it('serializes a knockable room as private + allowKnocking', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixGetRoomPreview.mockResolvedValue(
+                makePreview({ joinRule: 'knock' }),
+            )
+            fed.matrixRoomPreviewContent.mockRejectedValue(new Error('403'))
+
+            const result = await client.getRoomPreview(ROOM_ID)
+
+            expect(result.info.isPublic).toBe(false)
+            expect(result.info.allowKnocking).toBe(true)
+            expect(result.info.name).toBe('Group Name')
+            // Timeline 403 is tolerated for non-world-readable rooms.
+            expect(result.timeline).toEqual([])
+        })
+
+        it('serializes a public room as public', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixGetRoomPreview.mockResolvedValue(
+                makePreview({ joinRule: 'public' }),
+            )
+            fed.matrixRoomPreviewContent.mockResolvedValue([])
+
+            const result = await client.getRoomPreview(ROOM_ID)
+
+            expect(result.info.isPublic).toBe(true)
+            expect(result.info.allowKnocking).toBe(false)
+        })
+
+        it('serializes an invite-only room with both flags off', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixGetRoomPreview.mockResolvedValue(
+                makePreview({ joinRule: 'invite' }),
+            )
+            fed.matrixRoomPreviewContent.mockRejectedValue(new Error('403'))
+
+            const result = await client.getRoomPreview(ROOM_ID)
+
+            expect(result.info.isPublic).toBe(false)
+            expect(result.info.allowKnocking).toBe(false)
+        })
+
+        it('falls back to public room info when get-preview fails', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixGetRoomPreview.mockRejectedValue(
+                new Error('summary unavailable'),
+            )
+            fed.matrixPublicRoomInfo.mockResolvedValue({
+                id: ROOM_ID,
+                name: 'Public Room',
+                avatarUrl: null,
+                joinedMemberCount: 7,
+            })
+            fed.matrixRoomPreviewContent.mockResolvedValue([])
+
+            const result = await client.getRoomPreview(ROOM_ID)
+
+            expect(result.info.isPublic).toBe(true)
+            expect(result.info.allowKnocking).toBe(false)
+            expect(result.info.name).toBe('Public Room')
+        })
+
+        it('rethrows when both preview paths fail', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixGetRoomPreview.mockRejectedValue(
+                new Error('summary unavailable'),
+            )
+            fed.matrixPublicRoomInfo.mockRejectedValue(new Error('not found'))
+
+            await expect(client.getRoomPreview(ROOM_ID)).rejects.toThrow(
+                'not found',
+            )
+        })
+    })
+
+    describe('getPublicRoomPreview (legacy, flag-off path)', () => {
+        beforeEach(() => {
+            ;(
+                client as unknown as {
+                    fedimint: Record<string, jest.Mock>
+                }
+            ).fedimint = {
+                matrixGetRoomPreview: jest.fn(),
+                matrixPublicRoomInfo: jest.fn(),
+                matrixRoomPreviewContent: jest.fn(),
+            }
+        })
+
+        it('uses only matrixPublicRoomInfo and skips MSC3266', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixPublicRoomInfo.mockResolvedValue({
+                id: ROOM_ID,
+                name: 'Public Room',
+                avatarUrl: null,
+                joinedMemberCount: 7,
+            })
+            fed.matrixRoomPreviewContent.mockResolvedValue([])
+
+            const result = await client.getPublicRoomPreview(ROOM_ID)
+
+            expect(result.info.isPublic).toBe(true)
+            expect(result.info.allowKnocking).toBe(false)
+            expect(fed.matrixGetRoomPreview).not.toHaveBeenCalled()
+        })
+
+        it('propagates timeline failures instead of swallowing them', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixPublicRoomInfo.mockResolvedValue({
+                id: ROOM_ID,
+                name: 'Public Room',
+                avatarUrl: null,
+                joinedMemberCount: 7,
+            })
+            fed.matrixRoomPreviewContent.mockRejectedValue(
+                new Error('timeline boom'),
+            )
+
+            await expect(client.getPublicRoomPreview(ROOM_ID)).rejects.toThrow(
+                'timeline boom',
+            )
         })
     })
 

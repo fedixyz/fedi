@@ -12,7 +12,7 @@ import ChatConversationHeader from '../components/feature/chat/ChatConversationH
 import ChatConversationSearchHeader from '../components/feature/chat/ChatConversationSearchHeader'
 import ChatRoomMembersHeader from '../components/feature/chat/ChatRoomMembersHeader'
 import ChatsListSearchHeader from '../components/feature/chat/ChatsListSearchHeader'
-import ConfirmJoinPublicGroupHeader from '../components/feature/chat/ConfirmJoinPublicGroupHeader'
+import ConfirmJoinPrivateGroupHeader from '../components/feature/chat/ConfirmJoinPrivateGroupHeader'
 import CreatePollHeader from '../components/feature/chat/CreatePollHeader'
 import DefaultChatHeader from '../components/feature/chat/DefaultChatHeader'
 import CommunityDetailsHeader from '../components/feature/federations/CommunityDetailsHeader'
@@ -74,6 +74,7 @@ import ChatConversationSearch from './ChatConversationSearch'
 import ChatImageViewer from './ChatImageViewer'
 import ChatRoomConversation from './ChatRoomConversation'
 import ChatRoomInvite from './ChatRoomInvite'
+import ChatRoomKnockRequests from './ChatRoomKnockRequests'
 import ChatRoomMembers from './ChatRoomMembers'
 import ChatUserConversation from './ChatUserConversation'
 import ChatVideoViewer from './ChatVideoViewer'
@@ -87,7 +88,7 @@ import CommunityInvite from './CommunityInvite'
 import CompleteRecoveryAssist from './CompleteRecoveryAssist'
 import CompleteSocialBackup from './CompleteSocialBackup'
 import CompleteSocialRecovery from './CompleteSocialRecovery'
-import ConfirmJoinPublicGroup from './ConfirmJoinPublicGroup'
+import ConfirmJoinPrivateGroup from './ConfirmJoinPrivateGroup'
 import ConfirmReceiveCashu from './ConfirmReceiveCashu'
 import ConfirmReceiveOffline from './ConfirmReceiveOffline'
 import ConfirmSendChatPayment from './ConfirmSendChatPayment'
@@ -155,6 +156,7 @@ import RecoveryWords from './RecoveryWords'
 import RedeemLnurlWithdraw from './RedeemLnurlWithdraw'
 import ResetPin from './ResetPin'
 import ResetPinStart from './ResetPinStart'
+import RoomLink from './RoomLink'
 import RoomSettings from './RoomSettings'
 import ScanMemberCode from './ScanMemberCode'
 import ScanSocialRecoveryCode from './ScanSocialRecoveryCode'
@@ -493,17 +495,31 @@ export const MainNavigator = () => {
                                     })}
                                 />
                                 <Stack.Screen
+                                    name="ChatRoomKnockRequests"
+                                    component={ChatRoomKnockRequests}
+                                    options={{
+                                        headerTitle: t(
+                                            'feature.chat.knock-requests',
+                                        ),
+                                    }}
+                                />
+                                <Stack.Screen
                                     name="ChatRoomInvite"
                                     component={ChatRoomInvite}
                                 />
                                 <Stack.Screen
-                                    name="ConfirmJoinPublicGroup"
-                                    component={ConfirmJoinPublicGroup}
+                                    name="ConfirmJoinPrivateGroup"
+                                    component={ConfirmJoinPrivateGroup}
                                     options={() => ({
                                         header: () => (
-                                            <ConfirmJoinPublicGroupHeader />
+                                            <ConfirmJoinPrivateGroupHeader />
                                         ),
                                     })}
+                                />
+                                <Stack.Screen
+                                    name="RoomLink"
+                                    component={RoomLink}
+                                    options={{ headerShown: false }}
                                 />
                                 <Stack.Screen
                                     name="ChatUserConversation"

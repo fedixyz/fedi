@@ -38,8 +38,8 @@ const EmbeddedJoinGroupButton: React.FC<Props> = ({ groupId }: Props) => {
             size="sm"
             color={theme.colors.secondary}
             onPress={() =>
-                navigation.navigate('ConfirmJoinPublicGroup', {
-                    groupId,
+                navigation.navigate('RoomLink', {
+                    roomId: groupId,
                 })
             }
             onLongPress={copyToClipboard}

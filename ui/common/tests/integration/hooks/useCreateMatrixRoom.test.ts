@@ -50,7 +50,7 @@ describe('useCreateMatrixRoom', () => {
             fedimint,
         )
 
-        act(() => result.current.setIsPublic(true))
+        act(() => result.current.handlePublicChange(true))
         await act(() => result.current.handleCreateGroup())
 
         await waitFor(() => {

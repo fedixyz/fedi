@@ -18,7 +18,7 @@ describe('SelectPublicChats', () => {
         jest.clearAllMocks()
     })
 
-    it('should display the correct title, description, and list all public chats', async () => {
+    it('should display the correct title, description, and list all eligible chats', async () => {
         await builder.withChatReady()
 
         const {
@@ -28,8 +28,15 @@ describe('SelectPublicChats', () => {
 
         await builder.withChatGroupCreated('public', true, false)
         await builder.withChatGroupCreated('public-broadcast', true, true)
-        await builder.withChatGroupCreated('private', false, false)
-        await builder.withChatGroupCreated('private-broadcast', false, true)
+        // Private rooms only show up in the community-eligible list when
+        // they're knockable (anyone can request to join).
+        await builder.withChatGroupCreated('private', false, false, true)
+        await builder.withChatGroupCreated(
+            'private-broadcast',
+            false,
+            true,
+            true,
+        )
 
         renderWithBridge(
             <SelectPublicChatsOverlay
@@ -51,12 +58,12 @@ describe('SelectPublicChats', () => {
         expect(title).toBeOnTheScreen()
         expect(description).toBeOnTheScreen()
 
-        expect(await screen.getByText('public')).toBeOnTheScreen()
-        expect(await screen.getByText('public-broadcast')).toBeOnTheScreen()
-        expect(await screen.queryByText('private')).not.toBeOnTheScreen()
-        expect(
-            await screen.queryByText('private-broadcast'),
-        ).not.toBeOnTheScreen()
+        await waitFor(() => {
+            expect(screen.getByText('public')).toBeOnTheScreen()
+            expect(screen.getByText('public-broadcast')).toBeOnTheScreen()
+            expect(screen.getByText('private')).toBeOnTheScreen()
+            expect(screen.getByText('private-broadcast')).toBeOnTheScreen()
+        })
     })
 
     it('should complete with the selected public chats', async () => {
@@ -122,7 +129,7 @@ describe('SelectPublicChats', () => {
         expect(emptyDescription).toBeOnTheScreen()
     })
 
-    it('should create a new public group chat', async () => {
+    it('should create a new group chat', async () => {
         await builder.withChatReady()
 
         const {
@@ -150,13 +157,18 @@ describe('SelectPublicChats', () => {
             t('feature.chat.broadcast-only'),
         )
         const publicLabel = await screen.getByText(t('words.public'))
-        const publicNotice = await screen.getByText(
-            t('feature.chat.public-group-warning'),
+        const allowKnockingLabel = await screen.getByText(
+            t('feature.chat.allow-join-requests'),
         )
 
         expect(broadcastOnlyLabel).toBeOnTheScreen()
         expect(publicLabel).toBeOnTheScreen()
-        expect(publicNotice).toBeOnTheScreen()
+        expect(allowKnockingLabel).toBeOnTheScreen()
+        // Default is private+knocking, so the public-not-encrypted warning
+        // is hidden until the user toggles public on.
+        expect(
+            screen.queryByText(t('feature.chat.public-group-warning')),
+        ).not.toBeOnTheScreen()
 
         const groupNameInput = await screen.getByPlaceholderText(
             t('feature.chat.group-name'),

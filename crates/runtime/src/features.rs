@@ -57,6 +57,10 @@ pub struct RemoteFeatures {
     pub dummy_feature: bool,
     #[serde(default)]
     pub show_stable_balance_web: bool,
+    /// `#[serde(default)]` so the new bridge stays deserializable against any
+    /// cached/older payload that omits the field.
+    #[serde(default)]
+    pub private_room_knocking: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -139,6 +143,10 @@ pub struct FeatureCatalog {
 
     /// Enables stable balance features on web.
     pub show_stable_balance_web: Option<ShowStableBalanceWebFeatureConfig>,
+    /// Gates the create-room toggle that lets a user make a private room
+    /// knockable. The knock RPCs themselves are always live, so the gate
+    /// only controls whether new rooms can be opted in to JoinRule::Knock.
+    pub private_room_knocking: Option<PrivateRoomKnockingFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -260,6 +268,10 @@ pub struct ShowStableBalanceWebFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct PrivateRoomKnockingFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -308,6 +320,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.private_room_knocking = if remote_features.private_room_knocking {
+            Some(PrivateRoomKnockingFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -349,6 +366,7 @@ impl FeatureCatalog {
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
+            private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -403,6 +421,7 @@ impl FeatureCatalog {
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
+            private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -449,6 +468,7 @@ impl FeatureCatalog {
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
+            private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -498,6 +518,7 @@ impl FeatureCatalog {
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: None,
             show_stable_balance_web: None,
+            private_room_knocking: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),

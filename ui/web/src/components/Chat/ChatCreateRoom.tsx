@@ -28,7 +28,7 @@ export const ChatCreateRoom: React.FC = () => {
         broadcastOnly,
         setBroadcastOnly,
         isPublic,
-        setIsPublic,
+        handlePublicChange,
     } = useCreateMatrixRoom(t, (roomId: MatrixRoom['id']) => {
         push(chatRoomRoute(roomId))
     })
@@ -76,9 +76,7 @@ export const ChatCreateRoom: React.FC = () => {
                         <Text>{t('words.public')}</Text>
                         <Switch
                             checked={isPublic}
-                            onCheckedChange={value => {
-                                setIsPublic(value)
-                            }}
+                            onCheckedChange={handlePublicChange}
                         />
                     </SwitchContainer>
                     {isPublic && (

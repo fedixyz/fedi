@@ -71,7 +71,7 @@ let pendingUnlockNavigationArgs: NavigationArgs | undefined
 let pendingUnlockExternalUrl: string | undefined
 
 const rootScreenPaths: Partial<Record<RootScreen, string>> = {
-    ChatRoomConversation: 'room/:roomId',
+    RoomLink: 'room/:roomId',
     ChatUserConversation: 'user/:userId',
     ShareLogs: 'share-logs/:ticketNumber',
     ClaimEcash: 'ecash/:id',
@@ -128,7 +128,7 @@ export const screenMap = {
         if (roomId)
             return {
                 kind: 'root',
-                screen: 'ChatRoomConversation',
+                screen: 'RoomLink',
                 params: { roomId },
             }
         return undefined

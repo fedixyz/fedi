@@ -33,6 +33,7 @@ import {
     RpcMatrixUserDirectorySearchResponse,
     RpcMultispendGroupStatus,
     RpcPublicRoomInfo,
+    RpcRoomPreview,
     RpcRoomId,
     RpcRoomMember,
     RpcRoomNotificationMode,
@@ -292,34 +293,78 @@ export class MatrixChatClient {
     // can be undefined for some reason, idk why exactly...
     // TODO: consider whether other functions are also at risk of this.fedimint being undefined?
     getRoomPreview = async (roomId: string) => {
+        // MSC3266 is the right path for all room kinds (including
+        // knockable private rooms); fall back to the public-directory
+        // query so public rooms still resolve on homeservers where
+        // the summary endpoint misbehaves.
         let previewInfo: MatrixRoom
-        let previewTimeline: MatrixEvent[]
         try {
+            const roomPreview = await this.fedimint.matrixGetRoomPreview({
+                roomId,
+            })
+            previewInfo = this.serializeRoomPreview(roomPreview)
+        } catch (previewError) {
+            log.warn('matrixGetRoomPreview failed, trying public room info', {
+                roomId,
+                previewError,
+            })
             const publicRoomInfo = await this.fedimint.matrixPublicRoomInfo({
                 roomId,
             })
             previewInfo = this.serializePublicRoomInfo(publicRoomInfo)
-        } catch (error) {
-            log.error('Failed to get room preview info', roomId, error)
-            throw error
         }
+
+        let previewTimeline: MatrixEvent[] = []
         try {
-            const previewContent = await this.fedimint.matrixRoomPreviewContent(
-                {
-                    roomId,
-                },
-            )
-            previewTimeline = previewContent
-                .map(item => this.serializeTimelineItem(item, roomId, true))
-                .filter(item => item !== null)
+            previewTimeline = await this.fetchPreviewTimeline(roomId)
         } catch (error) {
-            log.error('Failed to get room preview timeline', roomId, error)
-            throw error
+            // Knockable private rooms are previewable but not world-readable
+            // so /messages returns 403 until join, and a transient failure
+            // on a public room shouldn't drop the entry from default-group
+            // previews. Surface the room info with an empty timeline.
+            log.warn('Failed to get room preview timeline', { roomId, error })
         }
         return {
             info: previewInfo,
             timeline: previewTimeline,
         }
+    }
+
+    // Legacy public-directory query. Gated behind `private_room_knocking`,
+    // so prod keeps the pre-knocking behavior of failing loudly on
+    // timeline errors. Delete this method when the flag is removed.
+    getPublicRoomPreview = async (roomId: string) => {
+        let publicRoomInfo
+        try {
+            publicRoomInfo = await this.fedimint.matrixPublicRoomInfo({
+                roomId,
+            })
+        } catch (error) {
+            log.error('Failed to get room preview info', roomId, error)
+            throw error
+        }
+        let timeline
+        try {
+            timeline = await this.fetchPreviewTimeline(roomId)
+        } catch (error) {
+            log.error('Failed to get room preview timeline', roomId, error)
+            throw error
+        }
+        return {
+            info: this.serializePublicRoomInfo(publicRoomInfo),
+            timeline,
+        }
+    }
+
+    private fetchPreviewTimeline = async (
+        roomId: string,
+    ): Promise<MatrixEvent[]> => {
+        const previewContent = await this.fedimint.matrixRoomPreviewContent({
+            roomId,
+        })
+        return previewContent
+            .map(item => this.serializeTimelineItem(item, roomId, true))
+            .filter(item => item !== null)
     }
 
     async joinRoom(roomId: string, isPublic?: boolean) {
@@ -339,6 +384,13 @@ export class MatrixChatClient {
 
     async leaveRoom(roomId: string) {
         await this.fedimint.matrixRoomLeave({ roomId })
+    }
+
+    async knockRoom(roomId: string, reason?: string) {
+        await this.fedimint.matrixRoomKnock({
+            roomId,
+            reason: reason ?? null,
+        })
     }
 
     observeRoom(roomId: string) {
@@ -1181,23 +1233,43 @@ export class MatrixChatClient {
         return { status: MatrixRoomListItemStatus.ready, id: room }
     }
 
-    // TODO: get type for this from bridge?
     private serializePublicRoomInfo(room: RpcPublicRoomInfo): MatrixRoom {
         return {
             ...room,
             name: room.name ?? '',
             isPublic: true,
             allowKnocking: false,
-            // Private rooms don't have previews so these are always true
             isPreview: true,
             inviteCode: encodeFediMatrixRoomUri(room.id),
             directUserId: null,
-            // We need to preview timeline items to determine this, which is a separate call.
-            // For now leave this as zero, and just apply it with a redux selector.
-            // Maybe should delete this from the room type?
             notificationCount: 0,
             isMarkedUnread: false,
-            // TODO: HACK - move this to bridge
+            roomState: 'invited',
+            preview: null,
+            isDirect: false,
+            recencyStamp: null,
+        }
+    }
+
+    private serializeRoomPreview(preview: RpcRoomPreview): MatrixRoom {
+        const isPublic = preview.joinRule === 'public'
+        const allowKnocking =
+            preview.joinRule === 'knock' ||
+            preview.joinRule === 'knockRestricted'
+        return {
+            id: preview.id,
+            name: preview.name ?? '',
+            avatarUrl: preview.avatarUrl,
+            joinedMemberCount: preview.joinedMemberCount,
+            isPublic,
+            allowKnocking,
+            isPreview: true,
+            inviteCode: encodeFediMatrixRoomUri(preview.id),
+            directUserId: null,
+            notificationCount: 0,
+            isMarkedUnread: false,
+            // The previewer is not actually invited; this placeholder state
+            // makes downstream UI treat the room like a peekable invite.
             roomState: 'invited',
             preview: null,
             isDirect: false,
@@ -1230,7 +1302,6 @@ export class MatrixChatClient {
             name: room.directUserId
                 ? this.ensureDisplayName(room.name)
                 : room.name,
-            // this ensures we show a different ChatRoomInvite screen for public rooms
             inviteCode: encodeFediMatrixRoomUri(room.id),
             // Avoid showing a user's avatar for non-DM rooms that currently
             // only have one joined member (often just the creator).

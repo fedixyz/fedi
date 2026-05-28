@@ -309,16 +309,14 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                     },
                 }
             case ParserDataType.FediChatRoom:
-                // TODO: Implement join room by link for matrix (knocking)
-                // TODO: Implement navigating to room if it exists
                 return {
                     contents: {
                         icon: 'Chat',
                         title: t('feature.omni.confirm-fedi-chat-group-invite'),
                     },
                     continueOnPress: () => {
-                        handleNavigate('ConfirmJoinPublicGroup', {
-                            groupId: parsedData.data.id,
+                        handleNavigate('RoomLink', {
+                            roomId: parsedData.data.id,
                         })
                     },
                 }

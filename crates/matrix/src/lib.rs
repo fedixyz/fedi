@@ -668,6 +668,9 @@ impl Matrix {
         mut request: create_room::Request,
     ) -> Result<matrix_sdk::ruma::OwnedRoomId> {
         if request.visibility != Visibility::Public {
+            // Private rooms default to JoinRule::Invite (matrix's own
+            // default). Knocking is opt-in: callers flip the room with
+            // room_set_allow_knocking after creation.
             request.initial_state = vec![
                 InitialStateEvent::new(
                     EmptyStateKey,
@@ -677,11 +680,6 @@ impl Matrix {
                 InitialStateEvent::new(
                     EmptyStateKey,
                     RoomHistoryVisibilityEventContent::new(HistoryVisibility::Invited),
-                )
-                .to_raw_any(),
-                InitialStateEvent::new(
-                    EmptyStateKey,
-                    RoomJoinRulesEventContent::new(JoinRule::Knock),
                 )
                 .to_raw_any(),
             ];

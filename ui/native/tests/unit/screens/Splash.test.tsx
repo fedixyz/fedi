@@ -193,7 +193,7 @@ describe('Splash screen', () => {
                             },
                         },
                         {
-                            name: 'ChatRoomConversation',
+                            name: 'RoomLink',
                             params: {
                                 roomId: '123',
                             },

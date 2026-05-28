@@ -36,8 +36,12 @@ function createStoreWithGroupPreview() {
 function createFedimintWithRoomPreview(getRoomPreview: jest.Mock) {
     const fedimint = createMockFedimintBridge()
 
+    // The thunk picks the legacy or knockable method depending on the
+    // feature flag; default test store has the flag off, so route both
+    // through the same mock so assertions stay simple.
     fedimint.getMatrixClient = jest.fn().mockReturnValue({
         getRoomPreview,
+        getPublicRoomPreview: getRoomPreview,
     })
 
     return fedimint

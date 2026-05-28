@@ -1,13 +1,17 @@
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Input, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useMemo, useState } from 'react'
+import { Input, Switch, Text, Theme, useTheme } from '@rneui/themed'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FlatList, ListRenderItem, StyleSheet } from 'react-native'
+import { FlatList, ListRenderItem, StyleSheet, TextInput } from 'react-native'
 
+import { WEB_APP_URL } from '@fedi/common/constants/api'
 import { DEEPLINK_HOSTS, LINK_PATH } from '@fedi/common/constants/linking'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { useMatrixUserSearch } from '@fedi/common/hooks/matrix'
+import {
+    useMatrixUserSearch,
+    useRoomKnockingAdminToggle,
+} from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     inviteUserToMatrixRoom,
@@ -20,10 +24,11 @@ import { formatErrorMessage } from '@fedi/common/utils/format'
 
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import ChatUserTile from '../components/feature/chat/ChatUserTile'
-import { Column } from '../components/ui/Flex'
+import { Column, Row } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { PressableIcon } from '../components/ui/PressableIcon'
+import QRCodeContainer from '../components/ui/QRCodeContainer'
 import QRScreen from '../components/ui/QRScreen'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -47,10 +52,27 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
         useMatrixUserSearch()
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const userMap = useAppSelector(s => selectMatrixRoomMemberMap(s, roomId))
+    const {
+        shouldShowAllowKnockingToggle,
+        allowKnocking,
+        isToggling: isTogglingAllowKnocking,
+        handleAllowKnockingToggle,
+    } = useRoomKnockingAdminToggle(roomId, t)
     const [invitingUsers, setInvitingUsers] = useState<string[]>([])
     const roomName = useMemo(() => room?.name ?? '', [room])
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const [inputValue, setInputValue] = useState('')
+    const [isFocused, setIsFocused] = useState(false)
+    const inputRef = useRef<TextInput>(null)
+
+    // Hide the QR when knocking is off so we don't advertise an invite
+    // link that lands on the invite-only screen.
+    const showQr =
+        !room?.isPublic &&
+        !!room?.inviteCode &&
+        !!room?.allowKnocking &&
+        !isFocused &&
+        inputValue === ''
 
     const inviteUser = useCallback(
         async (userId: string) => {
@@ -73,6 +95,12 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
         },
         [inviteUser],
     )
+
+    const handleClear = useCallback(() => {
+        setInputValue('')
+        setQuery('')
+        inputRef.current?.blur()
+    }, [setQuery])
 
     const renderEmpty = useCallback(() => {
         const style = styles(theme)
@@ -107,9 +135,6 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
 
     const style = styles(theme)
 
-    // TODO: for now public rooms are reserved for the default groups use case which are auto-joined
-    // so we should not need to invite anyone. When requesting to join a room is implemented we
-    // can use this to display a QR code in addition to (or instead of) inviting users by ID
     if (room.isPublic && room.inviteCode) {
         return (
             <QRScreen
@@ -202,7 +227,19 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
             />
         )
     }
-    const searchContent = (
+
+    const universalLink = `${WEB_APP_URL}/link#screen=room&id=${encodeURIComponent(roomId)}`
+
+    const searchContent = showQr ? (
+        <Column align="center" style={style.qrSection}>
+            <QRCodeContainer
+                copyMessage={t('feature.chat.copied-group-invite-code')}
+                qrValue={room.inviteCode as string}
+                shareValue={universalLink}
+                showTextWithAction="share"
+            />
+        </Column>
+    ) : (
         <FlatList
             data={searchedUsers ?? []}
             renderItem={renderUser}
@@ -225,6 +262,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                         {t('feature.chat.invite-to-group')}
                     </Text>
                     <Input
+                        ref={inputRef}
                         onChangeText={handleQueryChange}
                         value={inputValue}
                         placeholder={`${t('feature.chat.enter-a-username')}`}
@@ -233,18 +271,37 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                         inputContainerStyle={style.textInputInner}
                         autoCapitalize={'none'}
                         autoCorrect={false}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => setIsFocused(false)}
                         rightIcon={
-                            <PressableIcon
-                                svgName="Scan"
-                                onPress={() => {
-                                    navigation.navigate('ScanMemberCode', {
-                                        inviteToRoomId: roomId,
-                                    })
-                                }}
-                            />
+                            inputValue !== '' ? (
+                                <PressableIcon
+                                    svgName="Close"
+                                    onPress={handleClear}
+                                />
+                            ) : (
+                                <PressableIcon
+                                    svgName="Scan"
+                                    onPress={() => {
+                                        navigation.navigate('ScanMemberCode', {
+                                            inviteToRoomId: roomId,
+                                        })
+                                    }}
+                                />
+                            )
                         }
                     />
                 </Column>
+                {shouldShowAllowKnockingToggle && (
+                    <Row align="center" justify="between" style={style.toggle}>
+                        <Text>{t('feature.chat.allow-join-requests')}</Text>
+                        <Switch
+                            value={allowKnocking}
+                            disabled={isTogglingAllowKnocking}
+                            onValueChange={handleAllowKnockingToggle}
+                        />
+                    </Row>
+                )}
                 {searchContent}
             </SafeAreaContainer>
         </KeyboardAwareWrapper>
@@ -280,6 +337,13 @@ const styles = (theme: Theme) =>
         },
         loader: {
             padding: theme.spacing.xl,
+        },
+        qrSection: {
+            paddingTop: theme.spacing.lg,
+        },
+        toggle: {
+            paddingTop: theme.spacing.md,
+            paddingHorizontal: theme.spacing.sm,
         },
         empty: {
             marginTop: theme.spacing.md,

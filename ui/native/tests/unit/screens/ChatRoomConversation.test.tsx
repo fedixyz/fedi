@@ -91,6 +91,8 @@ jest.mock('react-native', () => {
     }
 })
 
+const mockJoinPublicGroup = jest.fn()
+
 jest.mock('@fedi/common/hooks/matrix', () => {
     const actual = jest.requireActual('@fedi/common/hooks/matrix')
 
@@ -102,6 +104,10 @@ jest.mock('@fedi/common/hooks/matrix', () => {
             handlePaginate: jest.fn(),
             canPaginateFurther: true,
             showLoading: false,
+        })),
+        useMatrixChatInvites: jest.fn(() => ({
+            joinPublicGroup: mockJoinPublicGroup,
+            knockGroup: jest.fn(),
         })),
     }
 })
@@ -300,7 +306,7 @@ describe('ChatRoomConversation - default group join', () => {
         cleanup()
     })
 
-    it('renders join button when groupPreview exists but room is not joined', () => {
+    it('renders join button when groupPreview exists but room is not joined', async () => {
         const store = createStoreWithGroupPreview()
 
         // Verify preconditions via selectors
@@ -324,10 +330,9 @@ describe('ChatRoomConversation - default group join', () => {
 
         fireEvent.press(joinButton)
 
-        expect(mockNavigation.navigate).toHaveBeenCalledWith(
-            'ConfirmJoinPublicGroup',
-            { groupId: TEST_ROOM_ID },
-        )
+        await waitFor(() => {
+            expect(mockJoinPublicGroup).toHaveBeenCalledWith(TEST_ROOM_ID)
+        })
     })
 
     it('does not render join button when the room is already joined', () => {
@@ -363,6 +368,40 @@ describe('ChatRoomConversation - default group join', () => {
             { store, fedimint: createMockFedimintBridge() },
         )
 
+        expect(screen.queryByText('Join group')).not.toBeOnTheScreen()
+    })
+
+    it('renders pending knock state when room is knocked', () => {
+        const store = setupStore()
+
+        const knockedRoom: MatrixRoom = {
+            ...MOCK_MATRIX_ROOM,
+            id: TEST_ROOM_ID,
+            name: 'Private Group',
+            roomState: 'knocked',
+        }
+        store.dispatch(addMatrixRoomInfo(knockedRoom))
+        store.dispatch(
+            handleMatrixRoomListStreamUpdates([
+                {
+                    Append: {
+                        values: [
+                            { status: 'ready' as const, id: TEST_ROOM_ID },
+                        ],
+                    },
+                },
+            ]),
+        )
+
+        renderWithProviders(
+            <ChatRoomConversation
+                navigation={mockNavigation as any}
+                route={chatRoomRoute}
+            />,
+            { store, fedimint: createMockFedimintBridge() },
+        )
+
+        expect(screen.getByText('Request pending')).toBeOnTheScreen()
         expect(screen.queryByText('Join group')).not.toBeOnTheScreen()
     })
 

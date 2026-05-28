@@ -213,11 +213,17 @@ export type FeatureCatalog = {
    */
   show_stable_balance_web: ShowStableBalanceWebFeatureConfig | null;
   /**
+   * Gates the create-room toggle that lets a user make a private room
+   * knockable. The knock RPCs themselves are always live, so the gate
+   * only controls whether new rooms can be opted in to JoinRule::Knock.
+   */
+  private_room_knocking: PrivateRoomKnockingFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
   /**
-   * Config for which platforms to enable the App Update screen for (native only)
+   * Config for which platforms to enable the App Update screen
    */
   update_screen: UpdateScreenConfig | null;
 };
@@ -408,12 +414,9 @@ export type OverrideLocalhostFeatureConfig = Record<string, never>;
 
 export type PanicEvent = { message: string };
 
-export type RearrangeMiniappsFeatureConfig = Record<string, never>;
+export type PrivateRoomKnockingFeatureConfig = Record<string, never>;
 
-export type RemoteFeatures = {
-  dummyFeature: boolean;
-  showStableBalanceWeb: boolean;
-};
+export type RearrangeMiniappsFeatureConfig = Record<string, never>;
 
 export type RecoveryCompleteEvent = { federationId: RpcFederationId };
 
@@ -437,6 +440,23 @@ export type RecoveryProgressEvent = {
    * total units of work that are to be completed
    */
   total: number;
+};
+
+/**
+ * A remote feature layer fetched from Fedi's servers and applied on top of
+ * the compiled-in feature catalog.
+ *
+ * Only a subset of features are controllable with remote features. This subset
+ * should be safe if adversary takes control of fedi server for short time.
+ */
+export type RemoteFeatures = {
+  dummyFeature: boolean;
+  showStableBalanceWeb: boolean;
+  /**
+   * `#[serde(default)]` so the new bridge stays deserializable against any
+   * cached/older payload that omits the field.
+   */
+  privateRoomKnocking: boolean;
 };
 
 export type RpcAccountId = string;

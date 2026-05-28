@@ -1662,6 +1662,17 @@ export function areMatrixRoomPreviewInputsEqual(
     return MATRIX_ROOM_PREVIEW_INPUT_FIELDS.every(f => prev[f] === next[f])
 }
 
+// RTK miniSerializeError strips the BridgeError prototype before unwrap()
+// rethrows, so an instanceof check fails. Match the message string the SDK
+// emits; that survives serialization.
+export function isBannedFromRoomError(err: unknown): boolean {
+    const message =
+        err && typeof err === 'object' && 'message' in err
+            ? String((err as { message: unknown }).message)
+            : String(err)
+    return message.includes('Cannot join user who was banned')
+}
+
 export function isPowerLevelGreaterOrEqual(
     powerLevel: RpcUserPowerLevel,
     threshold: RpcUserPowerLevel | number,

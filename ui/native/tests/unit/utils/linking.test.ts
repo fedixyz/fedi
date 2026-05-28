@@ -233,7 +233,7 @@ describe('linking', () => {
                 expect(result).toEqual({
                     routes: [
                         {
-                            name: 'ChatRoomConversation',
+                            name: 'RoomLink',
                             params: {
                                 roomId: '!NWczlYaBOhSghaxCXr:staging.m1.8fa.in',
                             },
@@ -250,7 +250,7 @@ describe('linking', () => {
                 expect(result).toEqual({
                     routes: [
                         {
-                            name: 'ChatRoomConversation',
+                            name: 'RoomLink',
                             params: {
                                 roomId: '!NWczlYaBOhSghaxCXr:staging.m1.8fa.in',
                             },
@@ -267,7 +267,7 @@ describe('linking', () => {
                 expect(result).toEqual({
                     routes: [
                         {
-                            name: 'ChatRoomConversation',
+                            name: 'RoomLink',
                             params: {
                                 roomId: 'abc',
                             },

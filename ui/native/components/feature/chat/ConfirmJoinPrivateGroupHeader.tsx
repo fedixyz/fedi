@@ -4,7 +4,7 @@ import React from 'react'
 import { NavigationHook } from '../../../types/navigation'
 import Header from '../../ui/Header'
 
-const ConfirmJoinPublicGroupHeader: React.FC = () => {
+const ConfirmJoinPrivateGroupHeader: React.FC = () => {
     const navigation = useNavigation<NavigationHook>()
     return (
         <Header
@@ -21,4 +21,4 @@ const ConfirmJoinPublicGroupHeader: React.FC = () => {
     )
 }
 
-export default ConfirmJoinPublicGroupHeader
+export default ConfirmJoinPrivateGroupHeader

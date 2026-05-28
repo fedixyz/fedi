@@ -30,7 +30,10 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
         broadcastOnly,
         setBroadcastOnly,
         isPublic,
-        setIsPublic,
+        handlePublicChange,
+        allowKnocking,
+        handleAllowKnockingChange,
+        shouldShowAllowKnockingToggle,
         errorMessage,
     } = useCreateMatrixRoom(t, (roomId: MatrixRoom['id']) => {
         navigation.replace('ChatRoomConversation', {
@@ -44,9 +47,9 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
     useEffect(() => {
         if (defaultGroup === true) {
             setBroadcastOnly(true)
-            setIsPublic(true)
+            handlePublicChange(true)
         }
-    }, [defaultGroup, setBroadcastOnly, setIsPublic])
+    }, [defaultGroup, setBroadcastOnly, handlePublicChange])
 
     const icon = useMemo(() => {
         return broadcastOnly ? 'SpeakerPhone' : 'SocialPeople'
@@ -107,6 +110,25 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                 />
                             </Row>
 
+                            {shouldShowAllowKnockingToggle && (
+                                <Row
+                                    align="center"
+                                    justify="between"
+                                    fullWidth
+                                    style={style.switchWrapper}>
+                                    <Text style={style.inputLabel}>
+                                        {t('feature.chat.allow-join-requests')}
+                                    </Text>
+                                    <Switch
+                                        value={allowKnocking}
+                                        onValueChange={value => {
+                                            if (defaultGroup === true) return
+                                            handleAllowKnockingChange(value)
+                                        }}
+                                    />
+                                </Row>
+                            )}
+
                             <Row
                                 align="center"
                                 justify="between"
@@ -121,7 +143,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                     onValueChange={value => {
                                         // for now default groups must be public
                                         if (defaultGroup === true) return
-                                        setIsPublic(value)
+                                        handlePublicChange(value)
                                     }}
                                 />
                             </Row>

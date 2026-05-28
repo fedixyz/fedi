@@ -94,6 +94,7 @@ export class IntegrationTestBuilder {
         groupName = 'test group',
         isPublic = false,
         broadcastOnly = false,
+        allowKnocking = false,
     ): Promise<MatrixRoom['id']> {
         const { store, bridge } = this.context
 
@@ -107,6 +108,7 @@ export class IntegrationTestBuilder {
                         name: groupName,
                         broadcastOnly,
                         isPublic,
+                        allowKnocking,
                     }),
                 )
                 .unwrap(),

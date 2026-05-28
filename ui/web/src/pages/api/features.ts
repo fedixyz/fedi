@@ -8,10 +8,12 @@ import type { RemoteFeatures } from '@fedi/common/types/bindings'
 const prodRemoteFeatures: RemoteFeatures = {
     dummyFeature: false,
     showStableBalanceWeb: false,
+    privateRoomKnocking: false,
 }
 const devRemoteFeatures: RemoteFeatures = {
     dummyFeature: true,
     showStableBalanceWeb: true,
+    privateRoomKnocking: true,
 }
 const isProduction = process.env.VERCEL_ENV === 'production'
 

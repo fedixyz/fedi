@@ -5,7 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { useConnectionRequestData } from '@fedi/common/hooks/matrix'
+import {
+    useConnectionRequestData,
+    useMatrixChatInvites,
+} from '@fedi/common/hooks/matrix'
 import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -24,6 +27,7 @@ import ChatConversation from '../components/feature/chat/ChatConversation'
 import ChatEncryptionIndicator from '../components/feature/chat/ChatEncryptionIndicator'
 import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConversation'
 import ConnectionRequestBanner from '../components/feature/chat/ConnectionRequestBanner'
+import KnockPendingView from '../components/feature/chat/KnockPendingView'
 import MessageInput from '../components/feature/chat/MessageInput'
 import PinnedMessageBanner from '../components/feature/chat/PinnedMessageBanner'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
@@ -32,7 +36,7 @@ import { Column } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { resetToChatsScreen } from '../state/navigation'
+import { resetToChatsScreen, resetToGroupChat } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 import {
     useChatKeyboardBehavior,
@@ -99,11 +103,25 @@ const ChatRoomConversation: React.FC<Props> = ({
         }
     }, [dispatch, fedimint, groupPreview, navigation, room, roomId])
 
-    const handleJoinPressed = () => {
-        navigation.navigate('ConfirmJoinPublicGroup', {
-            groupId: roomId,
-        })
-    }
+    const { joinPublicGroup } = useMatrixChatInvites(t)
+    const [isJoining, setIsJoining] = useState(false)
+    const handleJoinPressed = useCallback(async () => {
+        if (isJoining) return
+        // groupPreview here can describe a private knockable room (MSC3266
+        // returns previews for any peekable room); only join publicly when
+        // the preview confirms it.
+        if (!groupPreview?.info?.isPublic) {
+            navigation.replace('ConfirmJoinPrivateGroup', { roomId })
+            return
+        }
+        setIsJoining(true)
+        try {
+            await joinPublicGroup(roomId)
+            navigation.dispatch(resetToGroupChat(roomId))
+        } finally {
+            setIsJoining(false)
+        }
+    }, [isJoining, joinPublicGroup, navigation, roomId, groupPreview])
 
     const handleSend = useCallback(
         async (
@@ -168,6 +186,10 @@ const ChatRoomConversation: React.FC<Props> = ({
 
     const style = styles(theme)
 
+    if (room?.roomState === 'knocked') {
+        return <KnockPendingView roomName={room.name} />
+    }
+
     if (!room) {
         if (groupPreview) {
             return (
@@ -180,6 +202,7 @@ const ChatRoomConversation: React.FC<Props> = ({
                         {shouldShowJoinButton && (
                             <Button
                                 onPress={handleJoinPressed}
+                                loading={isJoining}
                                 containerStyle={style.joinGroupButton}>
                                 {t('feature.chat.join-group')}
                             </Button>

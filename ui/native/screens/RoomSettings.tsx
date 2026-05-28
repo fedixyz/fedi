@@ -13,6 +13,7 @@ import {
     leaveMatrixRoom,
     selectIsDefaultGroup,
     selectMatrixRoom,
+    selectMatrixRoomKnockingMembers,
     selectMatrixRoomMembersCount,
     selectMatrixRoomMultispendStatus,
     selectMatrixRoomSelfPowerLevel,
@@ -70,6 +71,9 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     )
     const shouldShowMultispend = useAppSelector(selectShouldShowMultispend)
     const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, roomId))
+    const knockingMembers = useAppSelector(s =>
+        selectMatrixRoomKnockingMembers(s, roomId),
+    )
     const isGroupChat = !room?.isDirect
     const [isTogglingBroadcastOnly, setIsTogglingBroadcastOnly] =
         useState(false)
@@ -175,6 +179,10 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         navigation.navigate('ChatRoomInvite', { roomId })
     }, [navigation, roomId])
 
+    const handleViewKnockRequests = useCallback(() => {
+        navigation.navigate('ChatRoomKnockRequests', { roomId })
+    }, [navigation, roomId])
+
     const handleToggleBroadcastOnly = useCallback(async () => {
         if (isTogglingBroadcastOnly || !room) return
         if (isDefaultGroup) {
@@ -246,6 +254,14 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                         'words.members',
                     )}`,
                     onPress: handleViewMembers,
+                })
+            }
+
+            if (knockingMembers.length > 0 && (isAdmin || isModerator)) {
+                items.push({
+                    icon: 'SocialPeople',
+                    label: `${t('feature.chat.knock-requests')} (${knockingMembers.length})`,
+                    onPress: handleViewKnockRequests,
                 })
             }
 
@@ -335,6 +351,8 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         handleLeaveChat,
         handleToggleBroadcastOnly,
         handleViewMembers,
+        handleViewKnockRequests,
+        knockingMembers.length,
         launchZendesk,
         isAdmin,
         isModerator,

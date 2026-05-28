@@ -1,14 +1,11 @@
 import { Input, Switch, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 
-import { useCreateMatrixRoom } from '@fedi/common/hooks/matrix'
-import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectMatrixRooms } from '@fedi/common/redux'
+import { useSelectCommunityChats } from '@fedi/common/hooks/matrix'
 
-import { useAppSelector } from '../../../state/hooks'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column, Row } from '../../ui/Flex'
@@ -27,15 +24,6 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
     open,
     onOpenChange,
 }) => {
-    const [selectedChats, setSelectedChats] = useState<Array<string>>([])
-    const [isCreatingNewGroup, setIsCreatingNewGroup] = useState(false)
-
-    const onChatCreated = (roomId: string) => {
-        if (selectedChats.includes(roomId)) return
-        setSelectedChats([...selectedChats, roomId])
-        setIsCreatingNewGroup(false)
-    }
-
     const { t } = useTranslation()
     const { theme } = useTheme()
     const {
@@ -46,42 +34,22 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
         broadcastOnly,
         setBroadcastOnly,
         isPublic,
+        handlePublicChange,
+        allowKnocking,
+        handleAllowKnockingChange,
+        shouldShowAllowKnockingToggle,
         errorMessage,
-        reset: resetCreateMatrixRoom,
-    } = useCreateMatrixRoom(t, onChatCreated, { isPublic: true })
+        selectedChats,
+        isCreatingNewGroup,
+        eligibleChats,
+        toggleSelectedChat,
+        handleAccept,
+        handleClose,
+        startNewGroup,
+        cancelNewGroup,
+    } = useSelectCommunityChats({ onAccept, onOpenChange })
 
-    const chats = useAppSelector(selectMatrixRooms)
-    const onAcceptRef = useUpdatingRef(onAccept)
-
-    const publicChats = chats.filter(c => c.isPublic)
     const style = styles(theme)
-
-    const toggleSelectedChat = useCallback(
-        (chatId: string) => {
-            if (selectedChats.includes(chatId)) {
-                setSelectedChats(selectedChats.filter(c => c !== chatId))
-            } else {
-                setSelectedChats(prev => [...prev, chatId])
-            }
-        },
-        [selectedChats],
-    )
-
-    const reset = () => {
-        setSelectedChats([])
-        setIsCreatingNewGroup(false)
-        onOpenChange(false)
-    }
-
-    const handleAccept = async () => {
-        onAcceptRef.current(selectedChats)
-        reset()
-    }
-
-    const handleClose = () => {
-        onAcceptRef.current([])
-        reset()
-    }
 
     const content = useMemo(() => {
         if (isCreatingNewGroup) {
@@ -113,19 +81,35 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
                         />
                     </Row>
                     <Column gap="sm">
+                        {shouldShowAllowKnockingToggle && (
+                            <Row align="center" justify="between" fullWidth>
+                                <Text>
+                                    {t('feature.chat.allow-join-requests')}
+                                </Text>
+                                <Switch
+                                    value={allowKnocking}
+                                    onValueChange={handleAllowKnockingChange}
+                                />
+                            </Row>
+                        )}
                         <Row align="center" justify="between" fullWidth>
                             <Text>{t('words.public')}</Text>
-                            <Switch value={isPublic} />
+                            <Switch
+                                value={isPublic}
+                                onValueChange={handlePublicChange}
+                            />
                         </Row>
-                        <Text small color={theme.colors.grey}>
-                            {t('feature.chat.public-group-warning')}
-                        </Text>
+                        {isPublic && (
+                            <Text small color={theme.colors.red}>
+                                {t('feature.chat.public-group-warning')}
+                            </Text>
+                        )}
                     </Column>
                 </Column>
             )
         }
 
-        if (publicChats.length === 0) {
+        if (eligibleChats.length === 0) {
             return (
                 <Column
                     gap="md"
@@ -151,7 +135,7 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
                 <Text caption center>
                     {t('feature.chat.community-chat-description')}
                 </Text>
-                {publicChats.map(chat => (
+                {eligibleChats.map(chat => (
                     <Pressable
                         key={`community-chat-${chat.id}`}
                         testID={`community-chat-${chat.id}`}
@@ -181,7 +165,7 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
         isCreatingNewGroup,
         selectedChats,
         broadcastOnly,
-        publicChats,
+        eligibleChats,
         t,
         theme,
         groupName,
@@ -191,6 +175,10 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
         setBroadcastOnly,
         setGroupName,
         isPublic,
+        handlePublicChange,
+        allowKnocking,
+        handleAllowKnockingChange,
+        shouldShowAllowKnockingToggle,
     ])
 
     return (
@@ -210,7 +198,7 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
                     ? [
                           {
                               text: t('words.cancel'),
-                              onPress: () => setIsCreatingNewGroup(false),
+                              onPress: cancelNewGroup,
                           },
                           {
                               text: t('phrases.save-changes'),
@@ -225,10 +213,7 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
                     : [
                           {
                               text: t('feature.chat.new-group'),
-                              onPress: () => {
-                                  resetCreateMatrixRoom()
-                                  setIsCreatingNewGroup(true)
-                              },
+                              onPress: startNewGroup,
                           },
                           {
                               text: t('words.continue'),

@@ -1,5 +1,6 @@
 import type { ResourceKey, TFunction } from 'i18next'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
     DEFAULT_PAGINATION_SIZE,
@@ -10,6 +11,7 @@ import {
     acceptMatrixPaymentRequest,
     cancelMatrixPayment,
     joinMatrixRoom,
+    knockMatrixRoom,
     observeMatrixRoom,
     paginateMatrixRoomTimeline,
     refetchMatrixRoomMembers,
@@ -46,6 +48,7 @@ import {
     selectRoomTextEvents,
     selectMatrixRoomMembers,
     setChatTimelineSearchQuery,
+    setMatrixRoomAllowKnocking,
     selectChatDrafts,
     selectCurrency,
     selectMatrixRoomPowerLevels,
@@ -55,8 +58,10 @@ import {
     selectMatrixRoomSelfPowerLevel,
     selectDefaultMatrixRoom,
     selectFederationIds,
+    selectFeatureFlag,
     selectMatrixRoomInviteIsSeen,
     markMatrixRoomInviteSeen,
+    selectMatrixRooms,
 } from '../redux'
 import {
     MatrixEvent,
@@ -79,12 +84,12 @@ import {
     RpcTransaction,
 } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
-import { formatErrorMessage } from '../utils/format'
 import { makeLog } from '../utils/log'
 import {
     decodeFediMatrixUserUri,
     getEventBodyPreview,
     getReplyData,
+    isBannedFromRoomError,
     isValidMatrixUserId,
     makeMatrixPaymentText,
     matrixIdToUsername,
@@ -1150,33 +1155,85 @@ export function useMatrixChatInvites(t: TFunction) {
     const dispatch = useCommonDispatch()
     const toast = useToast()
 
-    const joinPublicGroup = async (
-        roomId: MatrixRoom['id'],
-    ): Promise<boolean> => {
+    const showInviteError = (err: unknown) => {
+        if (isBannedFromRoomError(err)) {
+            toast.error(t, 'errors.you-have-been-banned')
+        } else {
+            toast.error(t, err)
+        }
+    }
+
+    const joinPublicGroup = async (roomId: MatrixRoom['id']) => {
         try {
-            // For now, only public rooms can be joined by scanning
-            // TODO: Implement knocking to support non-public rooms
             await dispatch(
                 joinMatrixRoom({ fedimint, roomId, isPublic: true }),
             ).unwrap()
-            return true
         } catch (err) {
-            const errorMessage = formatErrorMessage(
-                t,
-                err,
-                'errors.bad-connection',
-            )
-            if (errorMessage.includes('Cannot join user who was banned')) {
-                toast.error(t, 'errors.you-have-been-banned')
-            } else {
-                toast.error(t, err)
-            }
+            showInviteError(err)
             throw err
         }
     }
 
+    const knockGroup = async (roomId: MatrixRoom['id'], reason?: string) => {
+        try {
+            await dispatch(
+                knockMatrixRoom({ fedimint, roomId, reason }),
+            ).unwrap()
+        } catch (err) {
+            showInviteError(err)
+            throw err
+        }
+    }
+
+    return { joinPublicGroup, knockGroup }
+}
+
+export function useRoomKnockingAdminToggle(
+    roomId: MatrixRoom['id'],
+    t: TFunction,
+) {
+    const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
+    const toast = useToast()
+    const room = useCommonSelector(s => selectMatrixRoom(s, roomId))
+    const myPowerLevel = useCommonSelector(s =>
+        selectMatrixRoomSelfPowerLevel(s, roomId),
+    )
+    const isAdmin = !!(
+        myPowerLevel &&
+        isPowerLevelGreaterOrEqual(myPowerLevel, MatrixPowerLevel.Admin)
+    )
+    const isKnockingFeatureEnabled = !!useCommonSelector(s =>
+        selectFeatureFlag(s, 'private_room_knocking'),
+    )
+    const [isToggling, setIsToggling] = useState(false)
+
+    const shouldShowAllowKnockingToggle =
+        !!room && !room.isPublic && isAdmin && isKnockingFeatureEnabled
+    const allowKnocking = !!room?.allowKnocking
+
+    const handleAllowKnockingToggle = useCallback(async () => {
+        if (isToggling || !room) return
+        setIsToggling(true)
+        try {
+            await dispatch(
+                setMatrixRoomAllowKnocking({
+                    fedimint,
+                    roomId: room.id,
+                    allow: !room.allowKnocking,
+                }),
+            ).unwrap()
+        } catch {
+            toast.error(t, 'errors.unknown-error')
+        }
+        setIsToggling(false)
+    }, [isToggling, room, dispatch, fedimint, toast, t])
+
     return {
-        joinPublicGroup,
+        shouldShowAllowKnockingToggle,
+        allowKnocking,
+        isToggling,
+        handleAllowKnockingToggle,
     }
 }
 
@@ -1376,21 +1433,42 @@ export function useMatrixRepliedMessage(event: SendableMatrixEvent) {
     }
 }
 
-/**
- * All functions and state needed for creating a new Matrix room / groupchat
- * Validates group name, exposes error messages / loading, & executes optional success callback
- */
+// `isPublic`/`allowKnocking` setters are mutually exclusive: turning one
+// on forces the other off, since matrix join rules can only be one of
+// public/invite/knock at a time. With `preventInviteOnlyGroups`, the off
+// direction also auto-flips so at least one stays on, which keeps
+// community-added rooms reachable.
 export function useCreateMatrixRoom(
     t: TFunction,
     onGroupCreated?: (roomId: MatrixRoom['id']) => void,
-    defaults: { isPublic?: boolean } = {
-        isPublic: false,
-    },
+    options: {
+        isPublic?: boolean
+        allowKnocking?: boolean
+        preventInviteOnlyGroups?: boolean
+    } = {},
 ) {
+    // The flag controls whether new private rooms default to knockable
+    // and whether the toggle UI is visible. The bridge default itself is
+    // invite-only, so prod (flag off) creates invite-only rooms even
+    // without the toggle.
+    const isKnockingFeatureEnabled = !!useCommonSelector(s =>
+        selectFeatureFlag(s, 'private_room_knocking'),
+    )
+    const preventInviteOnlyGroups = options.preventInviteOnlyGroups ?? false
+    const initialAllowKnocking =
+        options.allowKnocking ?? isKnockingFeatureEnabled
+    // preventInviteOnlyGroups means at least one of public/knock must stay on
+    // so the room is reachable from a community page. If knocking resolves to
+    // false (flag off or caller opted out), force the room public so the
+    // invariant holds at init, not only on user toggles.
+    const initialIsPublic =
+        options.isPublic ?? (preventInviteOnlyGroups && !initialAllowKnocking)
+
     const fedimint = useFedimint()
     const [groupName, setGroupName] = useState(t('feature.chat.new-group'))
     const [broadcastOnly, setBroadcastOnly] = useState(false)
-    const [isPublic, setIsPublic] = useState(defaults.isPublic)
+    const [isPublic, setIsPublic] = useState(initialIsPublic)
+    const [allowKnocking, setAllowKnocking] = useState(initialAllowKnocking)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const [createdRoomId, setCreatedRoomId] = useState<string | null>(null)
     const [isCreatingGroup, setIsCreatingGroup] = useState(false)
@@ -1400,10 +1478,35 @@ export function useCreateMatrixRoom(
     )
     const toast = useToast()
 
+    const handlePublicChange = useCallback(
+        (value: boolean) => {
+            setIsPublic(value)
+            if (value) {
+                setAllowKnocking(false)
+            } else if (preventInviteOnlyGroups) {
+                setAllowKnocking(true)
+            }
+        },
+        [preventInviteOnlyGroups],
+    )
+
+    const handleAllowKnockingChange = useCallback(
+        (value: boolean) => {
+            setAllowKnocking(value)
+            if (value) {
+                setIsPublic(false)
+            } else if (preventInviteOnlyGroups) {
+                setIsPublic(true)
+            }
+        },
+        [preventInviteOnlyGroups],
+    )
+
     const reset = () => {
         setGroupName(t('feature.chat.new-group'))
         setBroadcastOnly(false)
-        setIsPublic(defaults.isPublic)
+        setIsPublic(initialIsPublic)
+        setAllowKnocking(initialAllowKnocking)
         setErrorMessage(null)
         setCreatedRoomId(null)
         setIsCreatingGroup(false)
@@ -1449,6 +1552,7 @@ export function useCreateMatrixRoom(
                     name: newGroupName,
                     broadcastOnly,
                     isPublic,
+                    allowKnocking,
                 }),
             ).unwrap()
             setCreatedRoomId(roomId)
@@ -1460,6 +1564,8 @@ export function useCreateMatrixRoom(
         }
     }
 
+    const shouldShowAllowKnockingToggle = isKnockingFeatureEnabled && !isPublic
+
     return {
         handleCreateGroup,
         isCreatingGroup,
@@ -1468,10 +1574,92 @@ export function useCreateMatrixRoom(
         broadcastOnly,
         setBroadcastOnly,
         isPublic,
-        setIsPublic,
+        handlePublicChange,
+        allowKnocking,
+        handleAllowKnockingChange,
+        shouldShowAllowKnockingToggle,
         errorMessage,
         createdRoomId,
         reset,
+    }
+}
+
+export function useSelectCommunityChats({
+    onAccept,
+    onOpenChange,
+}: {
+    onAccept: (chatIds: string[]) => void
+    onOpenChange: (open: boolean) => void
+}) {
+    const { t } = useTranslation()
+    const [selectedChats, setSelectedChats] = useState<string[]>([])
+    const [isCreatingNewGroup, setIsCreatingNewGroup] = useState(false)
+
+    const onChatCreated = useCallback((roomId: MatrixRoom['id']) => {
+        setSelectedChats(prev =>
+            prev.includes(roomId) ? prev : [...prev, roomId],
+        )
+        setIsCreatingNewGroup(false)
+    }, [])
+
+    const createGroup = useCreateMatrixRoom(t, onChatCreated, {
+        preventInviteOnlyGroups: true,
+    })
+
+    const allChats = useCommonSelector(selectMatrixRooms)
+    // Anyone can either walk in (public) or request to join (knocking);
+    // anything else is unreachable from a community page.
+    const eligibleChats = useMemo(
+        () => allChats.filter(c => c.isPublic || c.allowKnocking),
+        [allChats],
+    )
+
+    const onAcceptRef = useUpdatingRef(onAccept)
+    const onOpenChangeRef = useUpdatingRef(onOpenChange)
+
+    const toggleSelectedChat = useCallback((chatId: string) => {
+        setSelectedChats(prev =>
+            prev.includes(chatId)
+                ? prev.filter(c => c !== chatId)
+                : [...prev, chatId],
+        )
+    }, [])
+
+    const reset = useCallback(() => {
+        setSelectedChats([])
+        setIsCreatingNewGroup(false)
+        onOpenChangeRef.current(false)
+    }, [onOpenChangeRef])
+
+    const handleAccept = useCallback(() => {
+        onAcceptRef.current(selectedChats)
+        reset()
+    }, [onAcceptRef, selectedChats, reset])
+
+    const handleClose = useCallback(() => {
+        onAcceptRef.current([])
+        reset()
+    }, [onAcceptRef, reset])
+
+    const startNewGroup = useCallback(() => {
+        createGroup.reset()
+        setIsCreatingNewGroup(true)
+    }, [createGroup])
+
+    const cancelNewGroup = useCallback(() => {
+        setIsCreatingNewGroup(false)
+    }, [])
+
+    return {
+        ...createGroup,
+        selectedChats,
+        isCreatingNewGroup,
+        eligibleChats,
+        toggleSelectedChat,
+        handleAccept,
+        handleClose,
+        startNewGroup,
+        cancelNewGroup,
     }
 }
 
@@ -1654,6 +1842,10 @@ export function useMatrixRoomPreview({
             (showInvitePreview || preferredPreviewRoom.preview)
         ) {
             return t('feature.chat.connection-request-pending')
+        }
+
+        if (preferredPreviewRoom?.roomState === 'knocked') {
+            return t('feature.chat.request-to-join-pending')
         }
 
         if (!preferredPreviewRoom?.preview) return t('feature.chat.no-messages')

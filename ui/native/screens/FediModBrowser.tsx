@@ -634,7 +634,9 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             ) => {
                 log.info('fedi.fedi_previewMatrixRoom')
                 const room = chats.find(
-                    chat => chat.isPublic && chat.id === chatId,
+                    chat =>
+                        chat.id === chatId &&
+                        (chat.isPublic || chat.allowKnocking),
                 )
                 return room
                     ? {
