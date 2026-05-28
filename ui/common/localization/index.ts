@@ -11,6 +11,7 @@ import commonRN from './rn/common.json'
 import commonRW from './rw/common.json'
 import commonSO from './so/common.json'
 import commonSW from './sw/common.json'
+import commonTH from './th/common.json'
 import commonTL from './tl/common.json'
 import commonUK from './uk/common.json'
 
@@ -45,6 +46,9 @@ export const resources = {
     rw: {
         translation: commonRW,
     },
+    th: {
+        translation: commonTH,
+    },
     so: {
         translation: commonSO,
     },
@@ -74,6 +78,7 @@ export const i18nLanguages: Record<keyof typeof resources, string> = {
     ara: 'Juba Arabic',
     rn: 'Ikirundi',
     rw: 'Ikinyarwanda',
+    th: 'ภาษาไทย',
     so: 'Soomaaliga',
     sw: 'Kiswahili',
     am: 'አማርኛ',
