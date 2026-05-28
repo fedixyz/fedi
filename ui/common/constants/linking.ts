@@ -26,3 +26,5 @@ export const CHAT_SUPPORT_ARTICLE_URL =
     'https://support.fedi.xyz/hc/en-us/articles/17509166389906-How-do-I-start-a-chat-with-someone'
 
 export const DEEPLINK_RESUME_PATH = '/deeplink-redirect'
+
+export const WALLET_SERVICE_URL = 'https://www.fedi.xyz/create-a-wallet-service'

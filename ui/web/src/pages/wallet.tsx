@@ -1,11 +1,16 @@
+import Image from 'next/image'
 import { useRouter } from 'next/router'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import holoWallet from '@fedi/common/assets/images/holo-wallet.png'
 import { HIDDEN_AMOUNT_MASK } from '@fedi/common/constants/currency'
+import { WALLET_SERVICE_URL } from '@fedi/common/constants/linking'
 import { theme } from '@fedi/common/constants/theme'
 import { useBalance } from '@fedi/common/hooks/amount'
+import { useAutoSelectFederations } from '@fedi/common/hooks/federation'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
+import { useToast } from '@fedi/common/hooks/toast'
 import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
     selectBalanceDisplay,
@@ -41,6 +46,7 @@ function WalletPage() {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const router = useRouter()
+    const toast = useToast()
 
     const [open, setOpen] = useState(false)
     const [tooltipOpen, setTooltipOpen] = useState(false)
@@ -68,24 +74,82 @@ function WalletPage() {
             dispatch(setSelectedFederationId(loadedFederationsByRecency[0].id))
     }, [federation, loadedFederationsByRecency, dispatch])
 
+    const { pickRandom } = useAutoSelectFederations()
+
+    const handleAutoSelect = useCallback(() => {
+        const selected = pickRandom()
+        if (!selected?.meta.invite_code) {
+            toast.show({
+                content: t('errors.failed-to-select-wallet-service'),
+                status: 'error',
+            })
+            return
+        }
+        router.push(
+            `${onboardingRoute}?invite=${encodeURIComponent(selected.meta.invite_code)}`,
+        )
+    }, [pickRandom, router, toast, t])
+
     const content = useMemo(() => {
         if (loadedFederations.length === 0) {
             return (
-                <Empty grow center gap="md">
-                    <EmptyContainer align="center" gap="md" fullWidth>
-                        <Text weight="bold">
-                            {t('feature.federations.no-federations')}
+                <SetupContainer gap="md">
+                    <Image src={holoWallet} alt="" width={80} height={80} />
+                    <Row
+                        align="center"
+                        gap="xs"
+                        justify="center"
+                        css={{
+                            marginTop: theme.spacing.sm,
+                            marginBottom: theme.spacing.sm,
+                        }}>
+                        <Text weight="medium" css={{ fontSize: 20 }}>
+                            {t('feature.wallet.setup-title')}
                         </Text>
-                        <Text variant="caption">
-                            {t('feature.wallet.join-federation')}
-                        </Text>
-                    </EmptyContainer>
+                        <TourTip
+                            open={tooltipOpen}
+                            onOpenChange={setTooltipOpen}
+                            side="bottom"
+                            content={
+                                <Text variant="caption">
+                                    {t(
+                                        'feature.wallet.setup-tooltip-before-link',
+                                    )}
+                                    <TooltipLink
+                                        onClick={() =>
+                                            window.open(
+                                                WALLET_SERVICE_URL,
+                                                '_blank',
+                                            )
+                                        }>
+                                        {t('feature.wallet.setup-tooltip-link')}
+                                    </TooltipLink>
+                                    {t(
+                                        'feature.wallet.setup-tooltip-after-link',
+                                    )}
+                                </Text>
+                            }>
+                            <IconButton
+                                icon="Help"
+                                size="md"
+                                style={{ color: theme.colors.darkGrey }}
+                                onClick={() => setTooltipOpen(true)}
+                            />
+                        </TourTip>
+                    </Row>
                     <Button
-                        onClick={() => router.push(onboardingRoute)}
-                        width="full">
-                        {t('phrases.join-a-federation')}
+                        width="full"
+                        variant="primary"
+                        onClick={handleAutoSelect}>
+                        {t('feature.wallet.setup-auto-select')}
                     </Button>
-                </Empty>
+                    <Button
+                        width="full"
+                        variant="outline"
+                        onClick={() => router.push(onboardingRoute)}>
+                        {t('feature.wallet.setup-manual')}
+                    </Button>
+                </SetupContainer>
             )
         }
 
@@ -215,6 +279,7 @@ function WalletPage() {
         federationId,
         balanceDisplay,
         dispatch,
+        handleAutoSelect,
     ])
 
     return (
@@ -261,15 +326,18 @@ const PaymentFederationHeader = styled('button', {
     paddingVertical: 0,
 })
 
-const Empty = styled(Column, {
-    paddingLeft: theme.spacing.lg,
-    paddingRight: theme.spacing.lg,
+const SetupContainer = styled(Column, {
+    minHeight: '100%',
+    width: '100%',
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
 })
 
-const EmptyContainer = styled(Column, {
-    padding: `${theme.spacing.md}px ${theme.spacing.lg}px`,
-    border: `1px dashed ${theme.colors.lightGrey}`,
-    borderRadius: 16,
+const TooltipLink = styled('span', {
+    color: theme.colors.link,
+    textDecoration: 'underline',
+    cursor: 'pointer',
 })
 
 const WalletContainer = styled('div', {

@@ -10,6 +10,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native'
 
+import { WALLET_SERVICE_URL } from '@fedi/common/constants/linking'
 import { useAutoSelectFederations } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 
@@ -17,8 +18,6 @@ import { Images } from '../../../assets/images'
 import type { RootStackParamList } from '../../../types/navigation'
 import { Column, Row } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
-
-const WALLET_SERVICE_URL = 'https://www.fedi.xyz/create-a-wallet-service'
 
 interface Props {
     navigation: {
