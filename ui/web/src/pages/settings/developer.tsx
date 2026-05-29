@@ -113,9 +113,9 @@ function DeveloperPage() {
     )
 
     const handleSelectGateway = useCallback(
-        async (nodePubKey: string) => {
+        async (gatewayId: string) => {
             if (!federationId) return
-            await fedimint.setGatewayOverride(nodePubKey, federationId)
+            await fedimint.setGatewayOverride(gatewayId, federationId)
             const overridePubKey =
                 await fedimint.getGatewayOverride(federationId)
             setOveriddenGateway(overridePubKey)

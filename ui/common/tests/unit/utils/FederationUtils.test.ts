@@ -11,6 +11,7 @@ import {
     shouldShowInviteCode,
     fetchPublicFederations,
     fetchAutoSelectFederations,
+    switchGateway,
 } from '../../../utils/FederationUtils'
 
 const SAMPLE_CHAT_SERVER_DOMAIN = 'chat.dev.fedibtc.com'
@@ -263,6 +264,25 @@ describe('FederationUtils', () => {
             const result = await fetchAutoSelectFederations()
             expect(result).toHaveLength(2)
             expect(result[0].meta.invite_code).toBe('fed11abc')
+        })
+    })
+
+    describe('switchGateway', () => {
+        it('sets the gateway override using the gateway id', async () => {
+            const fedimint = {
+                setGatewayOverride: jest.fn().mockResolvedValue(undefined),
+            }
+
+            await switchGateway(
+                fedimint as unknown as Parameters<typeof switchGateway>[0],
+                'federation-id',
+                'gateway-id',
+            )
+
+            expect(fedimint.setGatewayOverride).toHaveBeenCalledWith(
+                'gateway-id',
+                'federation-id',
+            )
         })
     })
 })

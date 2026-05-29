@@ -312,10 +312,10 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
 
         try {
             await fedimint.setGatewayOverride(
-                gateway.nodePubKey,
+                gateway.gatewayId,
                 paymentFederation.id,
             )
-            setOveriddenGateway(gateway.nodePubKey)
+            setOveriddenGateway(gateway.gatewayId)
         } catch (e) {
             log.error('Failed to switch gateway', e)
             toast.show({
@@ -805,7 +805,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 <SettingsSection title="Change your lightning gateway">
                     {isLoadingGateways && <ActivityIndicator />}
                     {gateways.map((gw: RpcLightningGateway, index: number) => (
-                        <View key={gw.nodePubKey}>
+                        <View key={gw.gatewayId}>
                             <CheckBox
                                 key={index}
                                 checkedIcon={<SvgImage name="RadioSelected" />}
@@ -819,7 +819,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                                         {gw.api}
                                     </Text>
                                 }
-                                checked={overiddenGateway === gw.nodePubKey}
+                                checked={overiddenGateway === gw.gatewayId}
                                 onPress={() => handleSelectGateway(gw)}
                                 containerStyle={style.checkboxContainer}
                             />
