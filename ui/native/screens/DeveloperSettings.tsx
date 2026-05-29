@@ -325,6 +325,21 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         }
     }
 
+    const handleClearGatewayOverride = async () => {
+        if (!paymentFederation?.id) return
+
+        try {
+            await fedimint.setGatewayOverride(null, paymentFederation.id)
+            setOveriddenGateway(null)
+        } catch (e) {
+            log.error('Failed to clear gateway override', e)
+            toast.show({
+                content: t('errors.failed-to-switch-gateways'),
+                status: 'error',
+            })
+        }
+    }
+
     const handleShareStorage = async () => {
         setIsSharingState(true)
         try {
@@ -804,6 +819,22 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 <FederationWalletSelector fullWidth />
                 <SettingsSection title="Change your lightning gateway">
                     {isLoadingGateways && <ActivityIndicator />}
+                    <View>
+                        <CheckBox
+                            checkedIcon={<SvgImage name="RadioSelected" />}
+                            uncheckedIcon={<SvgImage name="RadioUnselected" />}
+                            title={
+                                <Text
+                                    style={style.checkboxText}
+                                    numberOfLines={1}>
+                                    Automatic
+                                </Text>
+                            }
+                            checked={overiddenGateway === null}
+                            onPress={handleClearGatewayOverride}
+                            containerStyle={style.checkboxContainer}
+                        />
+                    </View>
                     {gateways.map((gw: RpcLightningGateway, index: number) => (
                         <View key={gw.gatewayId}>
                             <CheckBox

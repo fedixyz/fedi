@@ -284,5 +284,22 @@ describe('FederationUtils', () => {
                 'federation-id',
             )
         })
+
+        it('clears the gateway override when no gateway id is provided', async () => {
+            const fedimint = {
+                setGatewayOverride: jest.fn().mockResolvedValue(undefined),
+            }
+
+            await switchGateway(
+                fedimint as unknown as Parameters<typeof switchGateway>[0],
+                'federation-id',
+                null,
+            )
+
+            expect(fedimint.setGatewayOverride).toHaveBeenCalledWith(
+                null,
+                'federation-id',
+            )
+        })
     })
 })

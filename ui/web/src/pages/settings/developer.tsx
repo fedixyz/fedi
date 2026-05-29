@@ -28,6 +28,8 @@ import { Text } from '../../components/Text'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled } from '../../styles'
 
+const AUTOMATIC_GATEWAY_VALUE = '__automatic_gateway_override__'
+
 function DeveloperPage() {
     const { t } = useTranslation()
     const paymentFederation = useAppSelector(selectPaymentFederation)
@@ -104,18 +106,26 @@ function DeveloperPage() {
     }, [federationId, dispatch, fedimint])
 
     const gatewayOptions = useMemo(
-        () =>
-            gateways.map(gateway => ({
+        () => [
+            {
+                label: 'Automatic',
+                value: AUTOMATIC_GATEWAY_VALUE,
+            },
+            ...gateways.map(gateway => ({
                 label: gateway.api,
                 value: gateway.gatewayId,
             })),
+        ],
         [gateways],
     )
 
     const handleSelectGateway = useCallback(
         async (gatewayId: string) => {
             if (!federationId) return
-            await fedimint.setGatewayOverride(gatewayId, federationId)
+            const nextGatewayId =
+                gatewayId === AUTOMATIC_GATEWAY_VALUE ? null : gatewayId
+
+            await fedimint.setGatewayOverride(nextGatewayId, federationId)
             const overridePubKey =
                 await fedimint.getGatewayOverride(federationId)
             setOveriddenGateway(overridePubKey)
@@ -136,7 +146,9 @@ function DeveloperPage() {
                             <Text weight="bold">Lightning gateway</Text>
                             <RadioGroup
                                 options={gatewayOptions}
-                                value={overiddenGateway ?? undefined}
+                                value={
+                                    overiddenGateway ?? AUTOMATIC_GATEWAY_VALUE
+                                }
                                 onChange={handleSelectGateway}
                             />
                         </Setting>
