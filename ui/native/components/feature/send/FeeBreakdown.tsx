@@ -47,6 +47,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
                     containerStyle={style.closeIconContainer}
                     svgName="Close"
                     svgProps={{ size: 'md' }}
+                    testID="fee-breakdown-close"
                     onPress={() => onClose()}
                 />
             </View>

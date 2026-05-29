@@ -25,7 +25,7 @@ import { Column } from '../../ui/Flex'
 import LineBreak from '../../ui/LineBreak'
 import SvgImage from '../../ui/SvgImage'
 import FederationWalletSelector from '../send/FederationWalletSelector'
-import FeeOverlay from '../send/FeeOverlay'
+import { FeeBreakdown } from '../send/FeeBreakdown'
 import SendPreviewDetails from '../send/SendPreviewDetails'
 
 interface Props {
@@ -82,7 +82,10 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const hasInsufficientBalance = amountUtils.msatToSat(balance) < inputAmount
 
     useEffect(() => {
-        if (!isShowing) return
+        if (!isShowing) {
+            setShowFeeBreakdown(false)
+            return
+        }
 
         // makes sure we auto-select a wallet to pay from if the user doesn't have one selected
         if (!federationId) {
@@ -123,19 +126,54 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     }
 
     const style = styles(theme)
+    const feeBreakdownDescription = (
+        <Trans
+            t={t}
+            i18nKey="feature.fees.guidance-lightning"
+            components={{
+                br: <LineBreak />,
+            }}
+        />
+    )
 
     return (
         <CustomOverlay
             show={isShowing}
             loading={isLoading}
-            onBackdropPress={() =>
+            onBackdropPress={() => {
+                if (showFeeBreakdown) {
+                    setShowFeeBreakdown(false)
+                    return
+                }
+
                 onReject(new RejectionError(t('errors.webln-canceled')))
-            }
+            }}
             contents={{
-                title: t('feature.fedimods.payment-request', {
-                    fediMod: siteInfo?.title,
-                }),
-                body: (
+                title: showFeeBreakdown
+                    ? undefined
+                    : t('feature.fedimods.payment-request', {
+                          fediMod: siteInfo?.title,
+                      }),
+                body: showFeeBreakdown ? (
+                    <FeeBreakdown
+                        title={feeBreakdownTitle}
+                        icon={
+                            <SvgImage
+                                name="Info"
+                                size={32}
+                                color={theme.colors.orange}
+                            />
+                        }
+                        feeItems={feeItemsBreakdown.map(
+                            ({ label, formattedAmount }) => ({
+                                label,
+                                value: formattedAmount,
+                            }),
+                        )}
+                        onClose={() => setShowFeeBreakdown(false)}
+                        guidanceText={feeBreakdownDescription}
+                    />
+                ) : (
                     <Column
                         grow
                         align="center"
@@ -184,44 +222,24 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                                         />
                                     </Column>
                                 )}
-                                <FeeOverlay
-                                    show={showFeeBreakdown}
-                                    onDismiss={() => setShowFeeBreakdown(false)}
-                                    title={feeBreakdownTitle}
-                                    feeItems={feeItemsBreakdown}
-                                    description={
-                                        <Trans
-                                            t={t}
-                                            i18nKey="feature.fees.guidance-lightning"
-                                            components={{
-                                                br: <LineBreak />,
-                                            }}
-                                        />
-                                    }
-                                    icon={
-                                        <SvgImage
-                                            name="Info"
-                                            size={32}
-                                            color={theme.colors.orange}
-                                        />
-                                    }
-                                />
                             </>
                         )}
                     </Column>
                 ),
-                buttons: [
-                    {
-                        text: t('words.reject'),
-                        onPress: handleReject,
-                    },
-                    {
-                        primary: true,
-                        text: t('words.accept'),
-                        disabled: !isReadyToPay || isLoading,
-                        onPress: handleAccept,
-                    },
-                ],
+                buttons: showFeeBreakdown
+                    ? []
+                    : [
+                          {
+                              text: t('words.reject'),
+                              onPress: handleReject,
+                          },
+                          {
+                              primary: true,
+                              text: t('words.accept'),
+                              disabled: !isReadyToPay || isLoading,
+                              onPress: handleAccept,
+                          },
+                      ],
             }}
         />
     )
