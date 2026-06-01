@@ -604,6 +604,7 @@
             "allow-join-requests": "Allow join requests",
             "knock-requests": "Join requests",
             "no-knock-requests": "No pending join requests",
+            "requested-to-join": "Requested to join",
             "knock-requests-no-permission": "You need moderator permission to view join requests.",
             "accept-knock": "Accept",
             "decline-knock": "Decline",
