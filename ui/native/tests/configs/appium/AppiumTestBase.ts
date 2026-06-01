@@ -1009,6 +1009,25 @@ export class AppiumTestBase {
                     { appId },
                 ])
                 await this.driver.executeScript('mobile: clearApp', [{ appId }])
+                // matrix's first-run POST_NOTIFICATIONS prompt drops over
+                // the tab bar mid-flow and blocks taps; clearApp wipes
+                // runtime grants so the grant has to come after it.
+                try {
+                    await this.driver.executeScript('mobile: shell', [
+                        {
+                            command: 'pm',
+                            args: [
+                                'grant',
+                                appId,
+                                'android.permission.POST_NOTIFICATIONS',
+                            ],
+                        },
+                    ])
+                } catch {
+                    // Appium will reject mobile:shell without
+                    // --allow-insecure=uiautomator2:adb_shell on the server;
+                    // tests that explicitly handle the prompt still pass.
+                }
                 await this.driver.executeScript('mobile: activateApp', [
                     { appId },
                 ])
@@ -1018,5 +1037,27 @@ export class AppiumTestBase {
                 throw new Error('resetAppToFresh is not implemented for PWA')
         }
         console.log('App reset complete')
+    }
+
+    async openDeepLink(url: string, appPackage?: string): Promise<void> {
+        // uiautomator2's mobile:deepLink rejects with "URI argument is
+        // required" in current Appium; startActivity with the VIEW intent
+        // does the same thing reliably. xcuitest has no startActivity, so
+        // use mobile:deepLink there.
+        if (currentPlatform === Platform.ANDROID) {
+            const pkg = appPackage || process.env.APP_PACKAGE || 'com.fedi'
+            await this.driver.executeScript('mobile: startActivity', [
+                {
+                    action: 'android.intent.action.VIEW',
+                    uri: url,
+                    appPackage: pkg,
+                },
+            ])
+        } else {
+            const bundleId = process.env.BUNDLE_ID || 'org.fedi.alpha'
+            await this.driver.executeScript('mobile: deepLink', [
+                { url, bundleId },
+            ])
+        }
     }
 }

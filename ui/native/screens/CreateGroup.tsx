@@ -120,6 +120,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                         {t('feature.chat.allow-join-requests')}
                                     </Text>
                                     <Switch
+                                        testID="AllowKnockingSwitch"
                                         value={allowKnocking}
                                         onValueChange={value => {
                                             if (defaultGroup === true) return

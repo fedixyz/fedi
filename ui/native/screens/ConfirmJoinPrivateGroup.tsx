@@ -120,7 +120,7 @@ const ConfirmJoinPrivateGroup: React.FC<Props> = ({ route, navigation }) => {
     }
 
     return previewGroup === undefined ? null : (
-        <SafeAreaContainer edges="notop">
+        <SafeAreaContainer edges="notop" testID="ConfirmJoinPublicGroupScreen">
             <Column center grow gap="md">
                 <HoloCircle
                     content={<Text style={style.iconText}>👋</Text>}
@@ -138,7 +138,10 @@ const ConfirmJoinPrivateGroup: React.FC<Props> = ({ route, navigation }) => {
                 </Text>
             </Column>
             {canJoin && (
-                <Button onPress={handleJoinGroup} loading={isJoiningGroup}>
+                <Button
+                    testID="ConfirmJoinButton"
+                    onPress={handleJoinGroup}
+                    loading={isJoiningGroup}>
                     {isPublic
                         ? t('words.continue')
                         : t('feature.chat.request-to-join')}

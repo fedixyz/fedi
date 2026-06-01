@@ -1,6 +1,6 @@
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
 import { Platform } from '../configs/appium/types'
-import { ChatTimeline } from './common/ChatTimeline.test'
+import { Chat } from './common/Chat.test'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { Settings } from './common/Settings.test'
 import { BackupRestore } from './common/backupRestore.test'
@@ -21,7 +21,7 @@ export const availableTests: Record<string, TestClass> = {
     onboarding: OnboardingTest,
     settings: Settings,
     joinLeaveFederations: JoinLeaveFederation,
-    chatTimeline: ChatTimeline,
+    chat: Chat,
     backupRestore: BackupRestore,
 }
 

@@ -19,7 +19,7 @@ on:
                     - onboarding
                     - settings
                     - joinLeaveFederations
-                    - chatTimeline
+                    - chat
                     - backupRestore
                 default: all
             skip_bridge_build:

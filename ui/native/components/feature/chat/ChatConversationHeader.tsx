@@ -144,6 +144,7 @@ const ChatConversationHeader: React.FC = () => {
                             />
                         </Pressable>
                         <Pressable
+                            testID="ChatRoomSettingsButton"
                             onPress={() => navigateToRoom()}
                             style={style.headerButton}>
                             <SvgImage

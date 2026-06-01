@@ -102,6 +102,7 @@ const ChatRoomKnockRequests: React.FC<Props> = ({ route }: Props) => {
                 />
                 <View style={style.actionButtons}>
                     <Button
+                        testID="KnockRequestAccept"
                         size="sm"
                         onPress={() => handleResponse('accept', item.id)}
                         loading={isProcessing}
@@ -111,6 +112,7 @@ const ChatRoomKnockRequests: React.FC<Props> = ({ route }: Props) => {
                         {t('feature.chat.accept-knock')}
                     </Button>
                     <Button
+                        testID="KnockRequestDecline"
                         size="sm"
                         type="outline"
                         onPress={() => handleResponse('decline', item.id)}
@@ -138,7 +140,7 @@ const ChatRoomKnockRequests: React.FC<Props> = ({ route }: Props) => {
     if (knockMembers.length === 0) {
         return (
             <Column center grow gap="md">
-                <Text style={style.emptyText}>
+                <Text testID="NoKnockRequestsEmpty" style={style.emptyText}>
                     {t('feature.chat.no-knock-requests')}
                 </Text>
             </Column>
@@ -148,6 +150,7 @@ const ChatRoomKnockRequests: React.FC<Props> = ({ route }: Props) => {
     return (
         <Column grow fullWidth style={style.container}>
             <FlatList
+                testID="KnockRequestsList"
                 data={knockMembers}
                 renderItem={renderKnockRequest}
                 keyExtractor={(item: MatrixRoomMember) => item.id}

@@ -37,6 +37,11 @@ const ChatTile = ({
 
     return (
         <Pressable
+            // testID derived from title so e2e tests can find a tile
+            // unambiguously without depending on the subtitle (which
+            // changes as new events arrive).
+            testID={`ChatTile-${title}`}
+            accessibilityLabel={`${title}. ${subtitle}`}
             style={({ pressed }) => [
                 style.container,
                 pressed && !disabled

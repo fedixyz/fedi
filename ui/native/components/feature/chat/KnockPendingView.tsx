@@ -23,7 +23,7 @@ const KnockPendingView: React.FC<Props> = ({
     const style = styles(theme)
 
     return (
-        <SafeAreaContainer edges={edges}>
+        <SafeAreaContainer edges={edges} testID="KnockPendingView">
             <Column center grow gap="md">
                 <HoloCircle
                     content={<Text style={style.iconText}>⏳</Text>}

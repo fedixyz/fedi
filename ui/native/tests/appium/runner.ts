@@ -5,7 +5,6 @@ import path from 'path'
 import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
 import { currentPlatform } from '../configs/appium/types'
-import { setupChatTimelineWithGroups } from './fixtures/setupChatTimelineWithGroups'
 import { setupOnboarded } from './fixtures/setupOnboarded'
 import { Fixture } from './fixtures/types'
 import {
@@ -17,7 +16,6 @@ import {
 
 const fixtures: Record<string, Fixture> = {
     [setupOnboarded.produces]: setupOnboarded,
-    [setupChatTimelineWithGroups.produces]: setupChatTimelineWithGroups,
 }
 
 // Mutated by ensureState as fixtures run; cleared on test failure (state untrusted).
