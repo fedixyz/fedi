@@ -36,3 +36,4 @@ bridge/fedi-android/plugins/bin/
 !.claude/
 .claude/*
 !.claude/skills
+.github/aw/logs/
