@@ -190,6 +190,49 @@ describe('knocking on private rooms', () => {
         )
     })
 
+    it('rejects a knock on an invite-only room created with allowKnocking off', async () => {
+        await builder2.withChatReady()
+
+        const { store: adminStore } = admin
+        const { store: knockerStore, bridge: knockerBridge } = knocker
+
+        const roomId = await builder1.withChatGroupCreated(
+            'invite-only test group',
+            false,
+            false,
+            false,
+        )
+
+        await waitFor(
+            () => {
+                const room = selectMatrixRoom(adminStore.getState(), roomId)
+                expect(room?.allowKnocking).toBe(false)
+            },
+            { timeout: 15000 },
+        )
+
+        // invite-only rooms have no knock join rule, so the homeserver rejects
+        // the knock and the room never lands in the knocker's chat list
+        await act(async () => {
+            await expect(
+                knockerStore
+                    .dispatch(
+                        knockMatrixRoom({
+                            fedimint: knockerBridge.fedimint,
+                            roomId,
+                        }),
+                    )
+                    .unwrap(),
+            ).rejects.toBeDefined()
+        })
+
+        expect(
+            selectMatrixChatsList(knockerStore.getState()).find(
+                r => r.id === roomId,
+            ),
+        ).toBeUndefined()
+    }, 30000)
+
     it('admin declines knock; knocker can re-knock (kick, not ban)', async () => {
         const {
             roomId,
