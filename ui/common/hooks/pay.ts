@@ -164,6 +164,7 @@ export function useOmniPaymentState(
         async (input: ExpectedInputData) => {
             try {
                 setIsLoading(true)
+                setError(null)
                 // reset fee details since it will change when switching federations
                 setFeeDetails(undefined)
                 if (input.type === ParserDataType.Bolt11 && federationId) {
