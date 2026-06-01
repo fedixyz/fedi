@@ -43,6 +43,7 @@ type OnlyStrings<T> = T extends string ? T : never
 type StringBridgeErrorCodes = OnlyStrings<ErrorCode>
 const bridgeErrorMap: Partial<Record<StringBridgeErrorCodes, ResourceKey>> = {
     payLnInvoiceAlreadyPaid: 'errors.invoice-already-paid',
+    ecashAlreadySpent: 'errors.receive-ecash-failed-claimed',
 }
 
 export const formatBridgeError = (

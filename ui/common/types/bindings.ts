@@ -83,6 +83,7 @@ export type ErrorCode =
   | "invalidInvoice"
   | "invalidMnemonic"
   | "ecashCancelFailed"
+  | "ecashAlreadySpent"
   | "panic"
   | "invalidSocialRecoveryFile"
   | { insufficientBalance: RpcAmount }

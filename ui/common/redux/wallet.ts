@@ -45,6 +45,7 @@ import {
 import { StabilityPoolState } from '../types/wallet'
 import amountUtils from '../utils/AmountUtils'
 import { shouldShowInviteCode } from '../utils/FederationUtils'
+import { BridgeError } from '../utils/errors'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import {
@@ -293,10 +294,17 @@ export const receiveEcash = createAsyncThunk<
     { fedimint: FedimintBridge; federationId: string; ecash: string },
     { state: CommonState }
 >('wallet/receiveEcash', async ({ fedimint, federationId, ecash }) => {
-    const [amount, operationId] = await fedimint.receiveEcash(
-        ecash,
-        federationId,
-    )
+    let received: Awaited<ReturnType<FedimintBridge['receiveEcash']>>
+    try {
+        received = await fedimint.receiveEcash(ecash, federationId)
+    } catch (e) {
+        // repeat claim of spent notes throws here; route to the failed path so the UI keeps the translated message
+        if (e instanceof BridgeError && e.errorCode === 'ecashAlreadySpent') {
+            return { amount: 0 as MSats, status: 'failed', error: e.error }
+        }
+        throw e
+    }
+    const [amount, operationId] = received
 
     return new Promise(resolve => {
         const timeout = setTimeout(() => {

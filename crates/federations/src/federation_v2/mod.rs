@@ -2541,7 +2541,8 @@ impl FederationV2 {
                     frontend_metadata: Some(frontend_meta),
                 },
             )
-            .await?;
+            .await
+            .context(ErrorCode::EcashAlreadySpent)?;
         self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
             .await?;
         let _ = self.record_tx_date_fiat_info(operation_id, amount).await;

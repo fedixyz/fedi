@@ -22,6 +22,8 @@ pub enum ErrorCode {
     InvalidMnemonic,
     #[error("Ecash cancel failed, the e-cash notes have been spent by someone else already")]
     EcashCancelFailed,
+    #[error("Ecash notes are already spent")]
+    EcashAlreadySpent,
     #[error("Bridge panicked")]
     Panic,
     #[error("Invalid social recovery file")]
