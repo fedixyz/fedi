@@ -246,6 +246,7 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
             gap: theme.spacing.md,
             paddingVertical: 0,
+            paddingHorizontal: 0,
         },
         icon: {
             marginLeft: 'auto',

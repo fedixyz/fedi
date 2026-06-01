@@ -30,7 +30,7 @@ const SelectedCommunity: React.FC<Props> = ({ community }) => {
     return (
         <Pressable onPress={goToCommunityDetails}>
             <Row align="center" fullWidth gap="md">
-                <FederationLogo federation={community} size={56} />
+                <FederationLogo federation={community} size={48} />
                 <Column style={style.center}>
                     <Text
                         h2
