@@ -111,6 +111,38 @@ Upload the latest build to internal track (Nightly)
 
 Submit a new internal build (Nightly)
 
+### android build_nova_apk
+
+```sh
+[bundle exec] fastlane android build_nova_apk
+```
+
+Build a new APK to release (Nova)
+
+### android build_nova
+
+```sh
+[bundle exec] fastlane android build_nova
+```
+
+Build a new app bundle to release (Nova)
+
+### android upload_internal_build_nova
+
+```sh
+[bundle exec] fastlane android upload_internal_build_nova
+```
+
+Upload the latest build to internal track (Nova)
+
+### android internal_nova
+
+```sh
+[bundle exec] fastlane android internal_nova
+```
+
+Submit a new internal build (Nova)
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.

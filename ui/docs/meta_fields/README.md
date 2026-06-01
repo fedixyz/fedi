@@ -10,8 +10,8 @@ The following meta fields are interpretable by the Fedi app (note the `fedi:` pr
 * [`fedi:federation_icon_url`](federation_icon_url.md): A URL to a JPG or PNG file used as the federation icon
 * [`fedi:fedi_internal_injection_disabled`](fedi_internal_injection_disabled.md): Boolean value that disables the `fediInternal` injection
 * [`fedi:popup_end_timestamp`](popup_end_timestamp.md): A Unix timestamp after which the app will disable access to the federation
-* [`fedi:popup_countdown_message`](popup_countdown_message.md): A message presented to users before the `popup_end_timestamp` is reached
-* [`fedi:popup_ended_message`](popup_ended_message.md): A message presented to users after the `popup_end_timestamp` has passed
+* [`fedi:popup_countdown_message`](popup_end_timestamp.md): A message presented to users before the `popup_end_timestamp` is reached
+* [`fedi:popup_ended_message`](popup_end_timestamp.md): A message presented to users after the `popup_end_timestamp` has passed
 * [`fedi:invite_codes_disabled`](invite_codes_disabled.md): Boolean value that blocks access to the federation invite code
 * [`fedi:new_members_disabled`](new_members_disabled.md): Boolean value that prevents new members from joining the federation
 * [`fedi:social_recovery_disabled`](social_recovery_disabled.md): Boolean value that disables the social backup & recovery features

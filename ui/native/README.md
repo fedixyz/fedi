@@ -14,7 +14,7 @@ First install your Node modules with
 yarn install
 ```
 
-You will also need to [install Rust](https://www.rust-lang.org/tools/install) because all the actual interaction with the Federation happens via [this rust code](https://github.com/fedibtc/fedi-react-native/tree/master/bridge).
+You will also need to [install Rust](https://www.rust-lang.org/tools/install) because all the actual interaction with the Federation happens via [the bridge](../../bridge).
 
 2. Start Metro
 
@@ -28,7 +28,7 @@ yarn run start
 
 3. Build the bridge
 
-The [Rust bridge](https://github.com/fedibtc/fedi-react-native/tree/master/bridge) gets built automatically by the `npm run android` and `npm run ios` commands, but as a first run try building it independently with `npm run build-bridge-android` and `npm run build-bridge-ios`. You can build these in parallel with separate terminals.
+The [Rust bridge](../../bridge) gets built automatically by the `npm run android` and `npm run ios` commands, but as a first run try building it independently with `npm run build-bridge-android` and `npm run build-bridge-ios`. You can build these in parallel with separate terminals.
 
 ```
 # builds ios
@@ -38,7 +38,7 @@ yarn run build-bridge-ios
 yarn run build-bridge-android
 ```
 
-If you have any trouble, check the [bridge/README](https://github.com/fedibtc/fedi-react-native/blob/master/bridge/README.md) and if your problem isn't covered there, open an issue.
+If you have any trouble, check the [bridge/README](../../bridge/README.md) and if your problem isn't covered there, open an issue.
 
 If there are no changes to the bridge since your last build, this process should be pretty quick as it does not rebuild from scratch.
 
@@ -120,7 +120,7 @@ They use **FCM**, **Notifee**, and the **Zendesk SDK**.
 
 -   **Context & auto-init**
 
-    -   [`NotificationContextProvider`](./native/state/contexts/NotificationContext.tsx)
+    -   [`NotificationContextProvider`](./state/contexts/NotificationContext.tsx)
         Orchestrates setup, requests permissions, and exposes:
 
         -   `isNotificationEnabled`
@@ -133,7 +133,7 @@ They use **FCM**, **Notifee**, and the **Zendesk SDK**.
 -   **Permissions**
 
     -   Requested once the user has ≥1 chat (`requestNotifications`) in
-        [`NotificationContextProvider`](./native/state/contexts/NotificationContext.tsx)
+        [`NotificationContextProvider`](./state/contexts/NotificationContext.tsx)
     -   Falls back to `Linking.openSettings()` if denied.
     -   **Notes**
 
@@ -141,8 +141,8 @@ They use **FCM**, **Notifee**, and the **Zendesk SDK**.
 
 -   **Token publishing**
 
-    -   Manual trigger → [`manuallyPublishNotificationToken`](./native/utils/notifications.ts)
-    -   Matrix (Sygnal) → `configureMatrixPushNotifications` (from [`@fedi/common/redux`](./common/redux/))
+    -   Manual trigger → [`manuallyPublishNotificationToken`](./utils/notifications.ts)
+    -   Matrix (Sygnal) → `configureMatrixPushNotifications` (from [`@fedi/common/redux`](../common/redux/))
     -   Zendesk → `Zendesk.updatePushNotificationToken`
     -   **Notes**
 
@@ -153,13 +153,13 @@ They use **FCM**, **Notifee**, and the **Zendesk SDK**.
 
 ### Native Configuration
 
--   **iOS** — [`AppDelegate.m`](./native/ios/AppDelegate.m)
+-   **iOS** — [`AppDelegate.mm`](./ios/FediReactNative/AppDelegate.mm)
 
     -   APNs + Firebase + Zendesk token flow → `application:didRegisterForRemoteNotificationsWithDeviceToken`
     -   Foreground behavior → `userNotificationCenter:willPresentNotification`
     -   Tap handling (bridged to RN) → `userNotificationCenter:didReceiveNotificationResponse`
     -   Universal Links (incl. foreground) → `application:continueUserActivity`
-    -   Badge reset (on focus) → [`useDismissIosNotifications`](./native/utils/hooks/notifications.ts)
+    -   Badge reset (on focus) → [`useDismissIosNotifications`](./utils/hooks/notifications.ts)
     -   **Notes**
 
         -   **Foreground**: system UI is suppressed (`UNNotificationPresentationOptionNone`); we render announcements via Notifee ourselves.
@@ -168,7 +168,7 @@ They use **FCM**, **Notifee**, and the **Zendesk SDK**.
 
 -   **Android**
 
-    -   Types grouped → `GROUP_IDS` in [`notifications.ts`](./native/utils/notifications.ts)
+    -   Types grouped → `GROUP_IDS` in [`notifications.ts`](./utils/notifications.ts)
     -   Display & group summaries → `dispatchNotification`
     -   Interaction (deep links, Zendesk routing, badge decrement) → `handleBackgroundNotificationUpdate`
     -   **Notes**
@@ -214,7 +214,7 @@ They use **FCM**, **Notifee**, and the **Zendesk SDK**.
 -   **Badges**
 
     -   Increment on display → `dispatchNotification`
-    -   Reset on iOS focus → [`useDismissIosNotifications`](./native/utils/hooks/notifications.ts)
+    -   Reset on iOS focus → [`useDismissIosNotifications`](./utils/hooks/notifications.ts)
     -   **Notes**
 
         -   Badge count is read-modify-write via Notifee; safe no-op when already 0.
@@ -233,8 +233,8 @@ They use **FCM**, **Notifee**, and the **Zendesk SDK**.
 
 -   **Files**
 
-    -   Objective-C implementation → [`native/ios/PushNotificationEmitter.m`](./native/ios/PushNotificationEmitter.m)
-    -   Objective-C header → [`native/ios/PushNotificationEmitter.h`](./native/ios/PushNotificationEmitter.h)
+    -   Objective-C implementation → [`ios/PushNotificationEmitter.m`](./ios/PushNotificationEmitter.m)
+    -   Objective-C header → [`ios/PushNotificationEmitter.h`](./ios/PushNotificationEmitter.h)
 
 -   **What it does**
 
@@ -281,7 +281,7 @@ This section documents the **native wiring** for deep links (Router integration,
 
 ### Entry points
 
--   **Router wiring** → [`Router.tsx`](./native/Router.tsx)
+-   **Router wiring** → [`Router.tsx`](./Router.tsx)
 
     -   Sets navigation ref: `setNavigationRef`
     -   Marks readiness: `setNavigationReady`
@@ -289,14 +289,14 @@ This section documents the **native wiring** for deep links (Router integration,
     -   Supplies React Navigation with `linking` config from `getLinkingConfig(parseUrl)`
     -   **Notes**: Logs route changes, redacts sensitive params, shows loader fallback, mounts `OmniLinkHandler` only when the app is unlocked.
 
--   **Linking shim for in-app universal links** → [`Router.tsx`](./native/Router.tsx)
+-   **Linking shim for in-app universal links** → [`Router.tsx`](./Router.tsx)
 
     -   Overrides `Linking.openURL` at runtime:
         -   Detects universal link → tries `handleInternalDeepLink` first
         -   Falls back to `parseLink` → tries again → else opens browser
     -   **Notes**: Ensures `https://app.fedi.xyz/link` clicked _inside the app_ routes internally instead of bouncing to the browser.
 
--   **Navigation & flow (native wiring)** → see [`utils/linking.ts`](./native/utils/linking.ts):
+-   **Navigation & flow (native wiring)** → see [`utils/linking.ts`](./utils/linking.ts):
     -   `createNavigationAction(parsed)` builds `CommonActions.navigate(...)`
     -   `handleInternalDeepLink(...)` (PIN-aware; queues via Common’s `PinAwareDeepLinkQueue`)
     -   `handleInternalDeepLinkDirect(...)` (parse → build action → dispatch)
@@ -304,7 +304,7 @@ This section documents the **native wiring** for deep links (Router integration,
 
 ### Routing config
 
--   **React Navigation map** → `deepLinksConfig` in [`utils/linking.ts`](./native/utils/linking.ts)
+-   **React Navigation map** → `deepLinksConfig` in [`utils/linking.ts`](./utils/linking.ts)
 
     -   Screens mapped: `Home`, `Chat`, `Wallet`, `Send`, `Transactions`, `ChatRoomConversation (room/:roomId)`, `ChatUserConversation (user/:userId)`, `ShareLogs (share-logs/:ticketNumber)`
 
@@ -323,7 +323,7 @@ See **Common UI → Deep Linking (Common)** for the shared helpers used by nativ
 
 ### React Navigation `linking` config
 
--   **Provider** → `getLinkingConfig(fallback)` in [`utils/linking.ts`](./native/utils/linking.ts)
+-   **Provider** → `getLinkingConfig(fallback)` in [`utils/linking.ts`](./utils/linking.ts)
 
     -   `prefixes`: `fedi://`, `fedi:`, `lightning:`, `lnurl:`, `bitcoin:`, `lnurlw://`, `lnurlp://`, `keyauth://`
     -   `config`: `deepLinksConfig`
@@ -342,7 +342,7 @@ See **Common UI → Deep Linking (Common)** for the shared helpers used by nativ
 
 ### Notification integration
 
--   **Foreground notification taps** → handled in `subscribe` via Notifee’s `onForegroundEvent` in [`utils/linking.ts`](./native/utils/linking.ts)
+-   **Foreground notification taps** → handled in `subscribe` via Notifee’s `onForegroundEvent` in [`utils/linking.ts`](./utils/linking.ts)
 
     -   Detects Zendesk payload → `launchZendeskSupport`
     -   Otherwise, processes `data.link` with the same universal/fedi logic
@@ -350,7 +350,7 @@ See **Common UI → Deep Linking (Common)** for the shared helpers used by nativ
 
 ### iOS native handoff (context)
 
--   **Universal links while foreground** → `application:continueUserActivity` in [`ios/AppDelegate.m`](./native/ios/AppDelegate.m)
+-   **Universal links while foreground** → `application:continueUserActivity` in [`ios/FediReactNative/AppDelegate.mm`](./ios/FediReactNative/AppDelegate.mm)
 
     -   Always forwards to `RCTLinkingManager` so RN handlers receive the URL.
     -   **Notes**: Complements the RN subscribe path; ensures iOS delivers links even when the app is open.
@@ -409,7 +409,7 @@ ZENDESK_SECRET_KEY: ${{ secrets.ZENDESK_SECRET_DEV }}
 
 ### UI Entry Point
 
--   **Permission + launch screen** → [`native/components/feature/support/SupportChat.tsx`](./native/components/feature/support/SupportChat.tsx)
+-   **Permission + launch screen** → [`components/feature/support/SupportChat.tsx`](./components/feature/support/SupportChat.tsx)
 -   **Permission Flow:** `grantSupportPermission()`
 -   **Launch Chat:** `useLaunchZendesk().launchZendesk(true)`
 -   **Links:** `PRIVACY_POLICY_URL`, `HELP_URL`
@@ -420,13 +420,13 @@ ZENDESK_SECRET_KEY: ${{ secrets.ZENDESK_SECRET_DEV }}
 
 #### Mods Screen
 
--   **Mods screen** → [`native/screens/Mods.tsx`](./native/screens/Mods.tsx)
+-   **Mods screen** → [`screens/Mods.tsx`](./screens/Mods.tsx)
 -   "Ask Fedi" shortcut is sorted first
 -   If title includes "ask fedi" → `launchZendesk()`; else routes via deep links (`openURL`, `handleFediModNavigation`)
 
 #### Badge Component
 
--   **Badge** → [`native/components/feature/support/ZendeskBadge.tsx`](./native/components/feature/support/ZendeskBadge.tsx)
+-   **Badge** → [`components/feature/support/ZendeskBadge.tsx`](./components/feature/support/ZendeskBadge.tsx)
 -   Reads unread count from Redux (see Common selectors)
 -   Shown only if `title.toLowerCase() === 'ask fedi'` and count > 0
 -   Small red badge with white text, absolute positioned on the tile
@@ -435,30 +435,30 @@ ZENDESK_SECRET_KEY: ${{ secrets.ZENDESK_SECRET_DEV }}
 
 #### Launch Zendesk
 
--   **Launch Zendesk** → [`native/utils/hooks/support.ts`](./native/utils/hooks/support.ts) → `useLaunchZendesk()`
+-   **Launch Zendesk** → [`utils/hooks/support.ts`](./utils/hooks/support.ts) → `useLaunchZendesk()`
 -   No permission → navigates to `HelpCentre`
 -   Not initialized → `zendeskInitialize(...)`
 -   Opens modal → `zendeskOpenMessagingView({ onError })`
 
 #### Unread Count Polling
 
--   **Unread count polling** → [`native/utils/hooks/support.ts`](./native/utils/hooks/support.ts) → periodic update
+-   **Unread count polling** → [`utils/hooks/support.ts`](./utils/hooks/support.ts) → periodic update
 -   Runs every 8s (skips until permission is granted)
 -   Updates the Redux unread count (see Common for state/selectors)
 
 ### Native Helpers
 
--   **Initialize / login** → [`native/utils/support.ts`](./native/utils/support.ts) → `zendeskInitialize(...)`
+-   **Initialize / login** → [`utils/support.ts`](./utils/support.ts) → `zendeskInitialize(...)`
 
     -   `Zendesk.initialize({ channelKey })` using `CHANNEL_KEY_ANDROID` / `CHANNEL_KEY_IOS`
     -   If user present → JWT via `generateZendeskTokenFromPubkey(...)` → `Zendesk.login(token)`
     -   Sets `zendeskInitialized` in Redux (see Common for state)
 
--   **Open / close / reset** → [`native/utils/support.ts`](./native/utils/support.ts)
+-   **Open / close / reset** → [`utils/support.ts`](./utils/support.ts)
 
     -   `zendeskOpenMessagingView`, `zendeskCloseMessagingView`, `zendeskReset`
 
--   **Launch without hooks** → [`native/utils/support.ts`](./native/utils/support.ts) → `launchZendeskSupport(...)`
+-   **Launch without hooks** → [`utils/support.ts`](./utils/support.ts) → `launchZendeskSupport(...)`
 -   **Push token**
 
     -   Forward to native SDK → `Zendesk.updatePushNotificationToken(token)`
@@ -478,7 +478,7 @@ Keyboard handling covers **chat**, **forms**, and **fixed footers**. It uses **c
 
 #### Chat (list + input)
 
--   [`useChatKeyboardBehavior`](./native/utils/hooks/keyboard.ts) Orchestrates scroll lift and input sizing; exposes:
+-   [`useChatKeyboardBehavior`](./utils/hooks/keyboard.ts) Orchestrates scroll lift and input sizing; exposes:
 
     -   `bottomOffset`
     -   `setMessageInputHeight(height)`
@@ -488,7 +488,7 @@ Keyboard handling covers **chat**, **forms**, and **fixed footers**. It uses **c
 
 #### Fixed footers (SDK 35+)
 
--   [`useImeFooterLift`](./native/utils/hooks/keyboard.ts) Returns a value to **add to footer** `marginBottom` when:
+-   [`useImeFooterLift`](./utils/hooks/keyboard.ts) Returns a value to **add to footer** `marginBottom` when:
 
     -   Android API ≥ 35
     -   Keyboard visible
@@ -499,13 +499,13 @@ Keyboard handling covers **chat**, **forms**, and **fixed footers**. It uses **c
 #### iOS offsets
 
 -   Continue to use `KeyboardAvoidingView` / wrappers.
--   Optional boolean → [`useIosKeyboardOpen`](./native/utils/hooks/keyboard.ts)
+-   Optional boolean → [`useIosKeyboardOpen`](./utils/hooks/keyboard.ts)
 
 > **Notes:** Useful for absolute-positioned footers (e.g., Create Group).
 
 #### Force blur on hide (Android)
 
--   [`useForceBlurOnKeyboardHide`](./native/utils/hooks/keyboard.ts)
+-   [`useForceBlurOnKeyboardHide`](./utils/hooks/keyboard.ts)
 
 > **Notes:** Clears stale `TextInput` focus after IME dismiss.
 
@@ -514,14 +514,14 @@ Keyboard handling covers **chat**, **forms**, and **fixed footers**. It uses **c
 #### iOS
 
 -   No SDK 35 changes required.
--   Combine `KeyboardAvoidingView` + [`useIosKeyboardOpen`](./native/utils/hooks/keyboard.ts) if using absolute-positioned footers.
+-   Combine `KeyboardAvoidingView` + [`useIosKeyboardOpen`](./utils/hooks/keyboard.ts) if using absolute-positioned footers.
 
 > **Notes:** Keep content scrollable; apply extra bottom padding only when needed.
 
 #### Android
 
 -   Edge-to-edge gate → [`isAndroidAPI35Plus`](./utils/layout.ts)
--   Shared keyboard manager → [`native/utils/hooks/keyboard.ts`](./native/utils/hooks/keyboard.ts)
+-   Shared keyboard manager → [`utils/hooks/keyboard.ts`](./utils/hooks/keyboard.ts)
 
 > **Notes:** Fix: previous `isAndroidAPI30Plus` added incorrect padding. Now gated at API 35. Durable animation durations reduce UI jank.
 
@@ -530,41 +530,41 @@ Keyboard handling covers **chat**, **forms**, and **fixed footers**. It uses **c
 #### Visible
 
 -   Chat lists → lifted by `bottomOffset`.
--   Footers → lifted via [`useImeFooterLift(...)`](./native/utils/hooks/keyboard.ts).
+-   Footers → lifted via [`useImeFooterLift(...)`](./utils/hooks/keyboard.ts).
 
 > **Notes:** Safe-area bottom is respected; small screens add `keyboardPadding`.
 
 #### Hidden
 
 -   Offsets reset to `0`.
--   Optional Android: [`useForceBlurOnKeyboardHide(true)`](./native/utils/hooks/keyboard.ts) to clear focus.
+-   Optional Android: [`useForceBlurOnKeyboardHide(true)`](./utils/hooks/keyboard.ts) to clear focus.
 
 > **Notes:** Prevents "phantom" focused inputs after dismiss.
 
 #### Forms / absolute footers
 
--   iOS → optionally add padding when [`useIosKeyboardOpen()`](./native/utils/hooks/keyboard.ts) is `true`.
+-   iOS → optionally add padding when [`useIosKeyboardOpen()`](./utils/hooks/keyboard.ts) is `true`.
 -   Android (API 35+) → add `marginBottom={useImeFooterLift(...)}`.
 
 > **Notes:** Ensures primary buttons remain tappable when IME is shown.
 
 ### Hooks
 
-Defined in [`native/utils/hooks/keyboard.ts`](./native/utils/hooks/keyboard.ts)
+Defined in [`utils/hooks/keyboard.ts`](./utils/hooks/keyboard.ts)
 
--   [`useKeyboard()`](./native/utils/hooks/keyboard.ts) → low-level state:
+-   [`useKeyboard()`](./utils/hooks/keyboard.ts) → low-level state:
 
     -   `isVisible`, `height`, `screenHeight`, `animationDuration`, `insets`
 
--   [`useChatKeyboardBehavior()`](./native/utils/hooks/keyboard.ts) → chat-specific:
+-   [`useChatKeyboardBehavior()`](./utils/hooks/keyboard.ts) → chat-specific:
 
     -   `bottomOffset`, `setMessageInputHeight`, `keyboardPadding`
 
--   [`useImeFooterLift(options)`](./native/utils/hooks/keyboard.ts) → SDK 35 footer lift
--   [`useIosKeyboardOpen(threshold?)`](./native/utils/hooks/keyboard.ts) → iOS boolean
--   [`useForceBlurOnKeyboardHide(enabled?)`](./native/utils/hooks/keyboard.ts) → Android workaround
+-   [`useImeFooterLift(options)`](./utils/hooks/keyboard.ts) → SDK 35 footer lift
+-   [`useIosKeyboardOpen(threshold?)`](./utils/hooks/keyboard.ts) → iOS boolean
+-   [`useForceBlurOnKeyboardHide(enabled?)`](./utils/hooks/keyboard.ts) → Android workaround
 
-> **Notes:** Constants in [`native/utils/constants`](./native/utils/constants):
+> **Notes:** Constants in [`constants.ts`](./constants.ts):
 >
 > -   `CHAT_KEYBOARD_BEHAVIOR` (`ANDROID_OFFSET_PERCENT`, `MAX_BOTTOM_PERCENT`)
 > -   `KEYBOARD_PADDING` (`SMALL_MULTIPLIER`, `SMALL_MAX_PERCENT`, `LARGE_MULTIPLIER`, `LARGE_MAX_PERCENT`)
@@ -573,8 +573,8 @@ Defined in [`native/utils/hooks/keyboard.ts`](./native/utils/hooks/keyboard.ts)
 
 #### Files
 
--   Hooks & manager → [`native/utils/hooks/keyboard.ts`](./native/utils/hooks/keyboard.ts)
--   Platform gate → [`native/utils/layout.ts`](./native/utils/layout.ts)
+-   Hooks & manager → [`utils/hooks/keyboard.ts`](./utils/hooks/keyboard.ts)
+-   Platform gate → [`utils/layout.ts`](./utils/layout.ts)
 
 #### What it does
 
@@ -713,7 +713,7 @@ This section is the **single source of truth** for Zendesk **Redux state**, **ac
 
 #### Redux Slice
 
--   **File** → [`common/redux/support.ts`](./common/redux/support.ts)
+-   **File** → [`common/redux/support.ts`](../common/redux/support.ts)
 
 ##### State (relevant to Zendesk)
 

@@ -6,7 +6,7 @@ Contains code shared between the PWA and React Native apps.
 
 ## Deep Linking (Common)
 
-Our deeplinking logic is explained in detail in the [Deep Linking Guide](./deep-linking.md).
+Our deeplinking logic is explained in detail in the [Deep Linking Guide](../docs/LINKING.md).
 
 ## Zendesk (Common)
 
@@ -14,7 +14,7 @@ This section is the **single source of truth** for Zendesk **Redux state**, **ac
 
 ### Redux Slice
 
--   **File** → [`common/redux/support.ts`](./common/redux/support.ts)
+-   **File** → [`redux/support.ts`](./redux/support.ts)
 
 #### State (relevant to Zendesk)
 
