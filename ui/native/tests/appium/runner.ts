@@ -4,28 +4,16 @@ import path from 'path'
 
 import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
-import { ChatTimeline } from './common/ChatTimeline.test'
-import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
-import { Settings } from './common/Settings.test'
-import { BackupRestore } from './common/backupRestore.test'
-import { OnboardingTest } from './common/onboarding.test'
+import { currentPlatform } from '../configs/appium/types'
 import { setupChatTimelineWithGroups } from './fixtures/setupChatTimelineWithGroups'
 import { setupOnboarded } from './fixtures/setupOnboarded'
 import { Fixture } from './fixtures/types'
-
-type TestClass = (new () => AppiumTestBase) & {
-    prerequisites: readonly string[]
-    produces: readonly string[]
-}
-
-const availableTests: Record<string, TestClass> = {
-    onboarding: OnboardingTest,
-    settings: Settings,
-    joinLeaveFederations: JoinLeaveFederation,
-    chatTimeline: ChatTimeline,
-    backupRestore: BackupRestore,
-}
-type TestName = keyof typeof availableTests
+import {
+    ACTOR_HANDLES,
+    TestName,
+    availableTests,
+    resolveTestNames,
+} from './registry'
 
 const fixtures: Record<string, Fixture> = {
     [setupOnboarded.produces]: setupOnboarded,
@@ -141,10 +129,7 @@ async function waitForMetroBundleComplete(): Promise<void> {
 }
 
 async function runTests(testNames: string[]): Promise<void> {
-    const appiumManager = AppiumManager.getInstance()
     try {
-        await appiumManager.setup()
-
         const validTestNames = testNames.filter(name =>
             Object.keys(availableTests).includes(name),
         ) as TestName[]
@@ -169,13 +154,41 @@ async function runTests(testNames: string[]): Promise<void> {
 
         console.log(`Running the following tests: ${validTestNames.join(', ')}`)
 
-        const results: Record<string, { success: boolean; error?: unknown }> =
-            {}
+        const results: Record<
+            string,
+            { success: boolean; error?: unknown; skipped?: boolean }
+        > = {}
 
         for (const testName of validTestNames) {
             console.log(`\n=== Starting test: ${testName} ===`)
 
             const TestClass = availableTests[testName]
+            const supported = TestClass.supportedPlatforms
+            if (supported && !supported.includes(currentPlatform)) {
+                console.log(
+                    `=== Test ${testName} SKIPPED on ${currentPlatform} (supports: ${supported.join(', ')}) ===\n`,
+                )
+                results[testName] = { success: true, skipped: true }
+                continue
+            }
+
+            const needed = TestClass.actors ?? 1
+            if (needed > ACTOR_HANDLES.length) {
+                throw new Error(
+                    `Test ${testName} declares ${needed} actors but the runner only knows ${ACTOR_HANDLES.length} handles. Add more to ACTOR_HANDLES + AppiumManager.HANDLE_INDEX.`,
+                )
+            }
+            const missingActor = ACTOR_HANDLES.slice(0, needed).find(
+                h => !AppiumManager.actorConfigured(h),
+            )
+            if (missingActor) {
+                console.log(
+                    `=== Test ${testName} SKIPPED: actor "${missingActor}" not configured (needs DEVICE_ID_${missingActor.toUpperCase()} or AVD_${missingActor.toUpperCase()}) ===\n`,
+                )
+                results[testName] = { success: true, skipped: true }
+                continue
+            }
+
             const test = new TestClass()
 
             try {
@@ -197,15 +210,16 @@ async function runTests(testNames: string[]): Promise<void> {
 
                 anyTestFailed = true
 
-                /* take a screenshot and dump the tree on failure */
-                try {
-                    if (appiumManager.driver) {
-                        const screenshot =
-                            await appiumManager.driver.takeScreenshot()
+                // Capture both sides of a multi-device failure.
+                for (const h of AppiumManager.activeHandles()) {
+                    const drv = AppiumManager.getDriver(h)
+                    if (!drv) continue
+                    try {
+                        const screenshot = await drv.takeScreenshot()
                         const screenshotPath = path.join(
                             process.cwd(),
                             'screenshots',
-                            `${testName}-failure-${Date.now()}.png`,
+                            `${testName}-failure-${h}-${Date.now()}.png`,
                         )
 
                         const dir = path.dirname(screenshotPath)
@@ -215,33 +229,59 @@ async function runTests(testNames: string[]): Promise<void> {
 
                         fs.writeFileSync(screenshotPath, screenshot, 'base64')
                         console.log(`Screenshot saved to: ${screenshotPath}`)
-                        console.log('Dumping XML tree')
-                        await appiumManager.driver.getPageSource()
+                        const pageSource = await drv.getPageSource()
+                        const xmlPath = path.join(
+                            process.cwd(),
+                            'screenshots',
+                            `${testName}-failure-${h}-${Date.now()}.xml`,
+                        )
+                        fs.writeFileSync(xmlPath, pageSource)
+                        console.log(`Page source saved to: ${xmlPath}`)
+                    } catch (screenshotError) {
+                        console.error(
+                            `Failed to capture screenshot for actor "${h}":`,
+                            screenshotError,
+                        )
                     }
-                } catch (screenshotError) {
-                    console.error(
-                        'Failed to capture screenshot:',
-                        screenshotError,
-                    )
                 }
 
-                // Device state untrusted after failure — reset so ensureState rebuilds cleanly.
-                try {
-                    await test.resetAppToFresh()
-                } catch (resetError) {
-                    console.error(
-                        'Reset after failure failed — subsequent tests may not run cleanly:',
-                        resetError,
-                    )
+                // Device state untrusted after failure: reset primary,
+                // tear down spawned actors.
+                for (const h of AppiumManager.activeHandles()) {
+                    const drv = AppiumManager.getDriver(h)
+                    if (!drv) continue
+                    try {
+                        if (h === test.handle) {
+                            await test.resetAppToFresh()
+                        } else {
+                            await AppiumManager.teardownSession(h)
+                        }
+                    } catch (resetError) {
+                        console.error(
+                            `Reset/teardown after failure failed for actor "${h}". Subsequent tests may not run cleanly:`,
+                            resetError,
+                        )
+                    }
                 }
                 currentState.clear()
+            }
+
+            for (const h of AppiumManager.activeHandles()) {
+                if (h !== test.handle) {
+                    await AppiumManager.teardownSession(h)
+                }
             }
         }
 
         console.log('\n=== Test Run Summary ===')
         for (const [testName, result] of Object.entries(results)) {
-            console.log(`${testName}: ${result.success ? 'PASSED' : 'FAILED'}`)
-            if (!result.success) {
+            const status = result.skipped
+                ? 'SKIPPED'
+                : result.success
+                  ? 'PASSED'
+                  : 'FAILED'
+            console.log(`${testName}: ${status}`)
+            if (!result.success && !result.skipped) {
                 console.log(`  Error: ${(result.error as Error).message}`)
             }
         }
@@ -260,7 +300,7 @@ async function runTests(testNames: string[]): Promise<void> {
         anyTestFailed = true
     } finally {
         try {
-            await appiumManager.teardown()
+            await AppiumManager.teardownAll()
         } catch (error) {
             console.error('Error during teardown:', error)
         }
@@ -275,11 +315,6 @@ async function runTests(testNames: string[]): Promise<void> {
     }
 }
 
-// Handle the special 'all' case
-function getAllTestNames(): string[] {
-    return Object.keys(availableTests)
-}
-
 // Get test names from command line arguments
 const testNames = process.argv.slice(2)
 
@@ -290,16 +325,14 @@ if (testNames.length === 0) {
     )
     console.log('Usage: ts-node runner.ts [test1] [test2] ...')
     process.exit(1) // Exit with error if no tests specified
-} else if (testNames.includes('all')) {
-    runTests(getAllTestNames())
 } else {
-    runTests(testNames)
+    runTests(resolveTestNames(testNames))
 }
 
 process.on('SIGINT', async () => {
     console.log('\nReceived SIGINT. Shutting down gracefully...')
     try {
-        await AppiumManager.getInstance().teardown()
+        await AppiumManager.teardownAll()
     } catch (error) {
         console.error('Error during teardown after SIGINT:', error)
     }

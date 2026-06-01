@@ -34,26 +34,56 @@ declare -A AVD_CONFIGS
 declare -A SCREEN_WIDTH
 declare -A SCREEN_HEIGHT
 declare -A SCREEN_DENSITY
-AVD_CONFIGS["android-14"]="system-images;android-34;google_apis;${ABI}"
+# Two device sets, one picked per run:
+#   single-actor: android-7.1 + android-14 cross-OS pair (CI) or android-14 alone (local)
+#   multi-actor:  android-14-a + android-14-b clones, matching OS so one test drives both
 AVD_CONFIGS["android-7.1"]="system-images;android-25;google_apis;${ABI}"
-# Screen dimensions per device
-SCREEN_WIDTH["android-14"]=1440
-SCREEN_HEIGHT["android-14"]=3120
-SCREEN_DENSITY["android-14"]=505
+AVD_CONFIGS["android-14"]="system-images;android-34;google_apis;${ABI}"
+AVD_CONFIGS["android-14-a"]="system-images;android-34;google_apis;${ABI}"
+AVD_CONFIGS["android-14-b"]="system-images;android-34;google_apis;${ABI}"
 SCREEN_WIDTH["android-7.1"]=720
 SCREEN_HEIGHT["android-7.1"]=1280
 SCREEN_DENSITY["android-7.1"]=320
+SCREEN_WIDTH["android-14"]=1440
+SCREEN_HEIGHT["android-14"]=3120
+SCREEN_DENSITY["android-14"]=505
+SCREEN_WIDTH["android-14-a"]=1440
+SCREEN_HEIGHT["android-14-a"]=3120
+SCREEN_DENSITY["android-14-a"]=505
+SCREEN_WIDTH["android-14-b"]=1440
+SCREEN_HEIGHT["android-14-b"]=3120
+SCREEN_DENSITY["android-14-b"]=505
 
-# In CI we start all configured AVDs; locally we only start android-14
-if [[ -n "${CI:-}" ]]; then
-  echo "Starting all configured AVDs"
+# Pick which set to boot from the actor count the selected tests require.
+# count >= 2: same-OS clones so one test can drive both as actors a/b.
+# count == 1: master's cross-OS pair in CI for OS coverage; just android-14 locally.
+DEVICE_COUNT="${E2E_DEVICE_COUNT:-1}"
+if ! [[ "$DEVICE_COUNT" =~ ^[0-9]+$ ]] || (( DEVICE_COUNT < 1 )); then
+  echo "ERROR: E2E_DEVICE_COUNT='$DEVICE_COUNT' is not a positive integer"
+  exit 1
+fi
+MAX_CLONES=2
+if (( DEVICE_COUNT > MAX_CLONES )); then
+  echo "ERROR: E2E_DEVICE_COUNT=$DEVICE_COUNT exceeds configured clones ($MAX_CLONES). Add more to AVD_CONFIGS/SCREEN_*."
+  exit 1
+fi
+if (( DEVICE_COUNT >= 2 )); then
+  ANDROID_DEVICES=("emulator-5554" "emulator-5556")
+  AVD_NAMES=("android-14-a" "android-14-b")
+elif [[ -n "${CI:-}" ]]; then
   ANDROID_DEVICES=("emulator-5554" "emulator-5556")
   AVD_NAMES=("android-7.1" "android-14")
-  BOOT_OPTIONS="-no-audio -no-boot-anim -no-window -wipe-data"
 else
-  echo "Starting only android-14 AVD"
   ANDROID_DEVICES=("emulator-5554")
   AVD_NAMES=("android-14")
+fi
+echo "Starting Android emulator(s) for count=$DEVICE_COUNT: ${AVD_NAMES[*]}"
+
+# CI uses headless (-no-window) and wipes data for a clean run; local dev
+# keeps a window and persists state. Orthogonal to device count.
+if [[ -n "${CI:-}" ]]; then
+  BOOT_OPTIONS="-no-audio -no-boot-anim -no-window -wipe-data"
+else
   BOOT_OPTIONS="-no-audio -no-boot-anim"
 fi
 

@@ -14,13 +14,19 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-# Define simulator configurations using IDs from xcrun
+# Two device sets, one picked per run:
+#   single-actor: ios-15 + ios-26 cross-OS pair (CI) or ios-26 alone (local)
+#   multi-actor:  ios-26-a + ios-26-b clones, matching OS so one test drives both
 declare -A DEVICE_TYPES
 declare -A RUNTIMES
 DEVICE_TYPES["ios-15"]="com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation"
 DEVICE_TYPES["ios-26"]="com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
+DEVICE_TYPES["ios-26-a"]="com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
+DEVICE_TYPES["ios-26-b"]="com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
 RUNTIMES["ios-15"]="com.apple.CoreSimulator.SimRuntime.iOS-15-5"
 RUNTIMES["ios-26"]="com.apple.CoreSimulator.SimRuntime.iOS-26-4"
+RUNTIMES["ios-26-a"]="com.apple.CoreSimulator.SimRuntime.iOS-26-4"
+RUNTIMES["ios-26-b"]="com.apple.CoreSimulator.SimRuntime.iOS-26-4"
 
 # Extracts UDID or state from simulator list output `xcrun simctl list devices`
 # Usage: extract_sim_info "search_term" "udid|state"
@@ -48,14 +54,27 @@ extract_sim_info() {
     esac
 }
 
-# In CI we start all configured simulators; locally we only start ios-26
-if [[ -n "${CI:-}" ]]; then
-    echo "Starting all configured iOS simulators for CI"
+# Pick which set to boot from the actor count the selected tests require.
+# count >= 2: same-OS clones so one test can drive both as actors a/b.
+# count == 1: master's cross-OS pair in CI for OS coverage; just ios-26 locally.
+DEVICE_COUNT="${E2E_DEVICE_COUNT:-1}"
+if ! [[ "$DEVICE_COUNT" =~ ^[0-9]+$ ]] || (( DEVICE_COUNT < 1 )); then
+    echo "ERROR: E2E_DEVICE_COUNT='$DEVICE_COUNT' is not a positive integer"
+    exit 1
+fi
+MAX_CLONES=2
+if (( DEVICE_COUNT > MAX_CLONES )); then
+    echo "ERROR: E2E_DEVICE_COUNT=$DEVICE_COUNT exceeds configured clones ($MAX_CLONES). Add more to DEVICE_TYPES/RUNTIMES."
+    exit 1
+fi
+if (( DEVICE_COUNT >= 2 )); then
+    SIM_NAMES=("ios-26-a" "ios-26-b")
+elif [[ -n "${CI:-}" ]]; then
     SIM_NAMES=("ios-15" "ios-26")
 else
-    echo "Starting only ios-26 simulator for development"
     SIM_NAMES=("ios-26")
 fi
+echo "Starting iOS simulator(s) for count=$DEVICE_COUNT: ${SIM_NAMES[*]}"
 
 create_simulator() {
     local sim_name="$1"
@@ -141,7 +160,7 @@ done
 echo "Exporting simulator UUIDs for test scripts..."
 for sim_name in "${SIM_NAMES[@]}"; do
     udid="${SIMULATOR_UDIDS[$sim_name]}"
-    # Convert ios-15 -> IOS_15_UDID, ios-26 -> IOS_26_UDID
+    # Convert ios-26-a -> IOS_26_A_UDID, ios-26-b -> IOS_26_B_UDID
     env_var_name=$(echo "$sim_name" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_UDID
     
     export "$env_var_name"="$udid"

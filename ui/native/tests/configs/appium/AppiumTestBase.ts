@@ -28,22 +28,49 @@ const debugLog = (...args: unknown[]) => {
     if (E2E_DEBUG) console.log(...args)
 }
 
-export abstract class AppiumTestBase {
+export class AppiumTestBase {
     /** States required before execute(); default [] = fresh install. */
     static prerequisites: readonly string[] = []
 
     /** States the device satisfies after a successful execute(). */
     static produces: readonly string[] = []
 
-    protected driver: WebdriverIO.Browser
+    /** Undefined = all platforms. */
+    static supportedPlatforms?: readonly Platform[]
 
-    /*constructor() {
-    this.driver = null;
-  }*/
+    /** Concurrent device sessions this test needs. */
+    static actors: number = 1
+
+    driver: WebdriverIO.Browser
+    readonly handle: string
+
+    constructor(handle: string = 'a') {
+        this.handle = handle
+    }
 
     async initialize(): Promise<void> {
-        const appiumManager = AppiumManager.getInstance()
-        this.driver = await appiumManager.setup()
+        this.driver = await AppiumManager.setupSession(this.handle)
+    }
+
+    async teardown(): Promise<void> {
+        await AppiumManager.teardownSession(this.handle)
+    }
+
+    async spawnActor(handle: string): Promise<AppiumTestBase> {
+        if (handle === this.handle) {
+            throw new Error(
+                `spawnActor("${handle}") collides with the current actor's handle`,
+            )
+        }
+        const actor = new AppiumTestBase(handle)
+        await actor.initialize()
+        return actor
+    }
+
+    async execute(): Promise<void> {
+        throw new Error(
+            `${this.constructor.name}.execute() must be overridden by the test class`,
+        )
     }
 
     getElementLocatorStrategies(key: string): LocatorStrategy[] {
@@ -992,7 +1019,4 @@ export abstract class AppiumTestBase {
         }
         console.log('App reset complete')
     }
-
-    // Method to be implemented by each test class
-    abstract execute(): Promise<void>
 }

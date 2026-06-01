@@ -229,13 +229,36 @@ _finish_pipeline() {
     echo "✨ Done in $(_fmt_dur $(($(_ts) - $3))) (exit $4)"
 }
 
+# How many devices the selected tests need, derived from each test's `actors`
+# in ui/native/tests/appium/registry.ts (chat=2, the rest=1). ts-node resolves
+# the test imports, so this must run after yarn-install (CI checkout wipes
+# node_modules). Prints the count on stdout. Fails loud instead of guessing: a
+# wrong count would silently skip multi-actor tests (false green) or boot idle
+# devices.
+# Usage: _required_actor_count "<tests>"  (e.g. "all" or "onboarding chat")
+_required_actor_count() {
+    local sel="$1"
+    local out
+    if ! out=$(cd "$REPO_ROOT/ui" && ts-node \
+        "$REPO_ROOT/ui/native/tests/appium/required-actors.ts" $sel); then
+        echo "❌ Failed to compute required device count for tests '$sel'" >&2
+        return 1
+    fi
+    if ! [[ "$out" =~ ^[0-9]+$ ]]; then
+        echo "❌ Device-count helper returned non-numeric output: '$out'" >&2
+        return 1
+    fi
+    echo "$out"
+}
+
 # ─────────────────────────────────────────────────────────────────────────
 # Android pipeline DAG
 #
-#   emulators          ── (no deps)
 #   bridge             ── (no deps)
 #   yarn-install       ── (no deps)
 #   wasm               ── (no deps)
+#   emulators          ── after yarn-install (device count derived from the
+#                                            tests' `actors` via ts-node)
 #   appium             ── after yarn-install
 #   build-deps         ── after yarn-install + wasm
 #   metro              ── after build-deps (Metro caches "module not found"
@@ -257,7 +280,6 @@ run_pipeline_android() {
     adb start-server 2>/dev/null || true
 
     echo ""
-    run_async emulators bash "$REPO_ROOT/scripts/ui/start-android-emulators.sh"
     if [ -z "${SKIP_BRIDGE:-}" ]; then
         run_async bridge env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci \
             bash "$REPO_ROOT/scripts/bridge/build-bridge-android.sh"
@@ -265,8 +287,15 @@ run_pipeline_android() {
     run_async yarn-install bash -c "cd '$REPO_ROOT/ui' && yarn install --frozen-lockfile"
     run_async wasm bash "$REPO_ROOT/scripts/ui/install-wasm.sh"
 
-    _gate appium -- yarn-install
+    # emulators gate on yarn-install too: how many to boot comes from the
+    # tests' `actors`, computed by a ts-node helper that needs node_modules.
+    _gate emulators appium -- yarn-install
     wait_for yarn-install
+    local actor_count
+    actor_count=$(_required_actor_count "$tests") || exit 1
+    echo "  📐 tests '$tests' need $actor_count device(s)"
+    run_async emulators env E2E_DEVICE_COUNT="$actor_count" \
+        bash "$REPO_ROOT/scripts/ui/start-android-emulators.sh"
     run_async appium env PLATFORM=android bash "$REPO_ROOT/scripts/ui/setup-and-start-appium.sh"
 
     _gate build-deps -- wasm
@@ -296,30 +325,45 @@ run_pipeline_android() {
 
     local overall_rc=0
     local summary_rows=""
-    local avds=(android-14)
-    local avd
-    for avd in "${avds[@]}"; do
-        echo ""
-        echo "🧪 Running $tests on $avd..."
-        pushd "$REPO_ROOT/ui" >/dev/null
-        local rc=0
-        local t0
-        t0=$(_ts)
-        PLATFORM=android AVD="$avd" BUNDLE_PATH="$apk_path" APPIUM_PORT="$appium_port" \
-            ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
-            || rc=$?
-        popd >/dev/null
-        local dur=$(($(_ts) - t0))
-        if [ "$rc" = "0" ]; then
-            echo "  ✅ $avd passed ($(_fmt_dur "$dur"))"
-            summary_rows+="| $avd | pass |"$'\n'
-        else
-            echo "  ❌ $avd failed (exit $rc, $(_fmt_dur "$dur"))"
-            summary_rows+="| $avd | FAIL |"$'\n'
-            overall_rc=1
-            [ -n "${FAIL_FAST:-}" ] && break
-        fi
-    done
+
+    # Two boot modes from start-android-emulators.sh:
+    #   count == 1: master's android-14 AVD (cross-OS pair booted in CI, tests run on android-14).
+    #   count >= 2: android-14-a + android-14-b clones for multi-actor.
+    local avd_a=""
+    local device_a="emulator-5554"
+    local avd_b=""
+    local device_b=""
+    if (( actor_count >= 2 )); then
+        avd_a="android-14-a"
+        avd_b="android-14-b"
+        device_b="emulator-5556"
+        echo "🧪 Running $tests on $avd_a (a) + $avd_b (b)..."
+    else
+        avd_a="android-14"
+        echo "🧪 Running $tests on $avd_a..."
+    fi
+
+    pushd "$REPO_ROOT/ui" >/dev/null
+    local rc=0
+    local t0
+    t0=$(_ts)
+    PLATFORM=android AVD="$avd_a" DEVICE_ID="$device_a" \
+        AVD_B="$avd_b" DEVICE_ID_B="$device_b" \
+        BUNDLE_PATH="$apk_path" APPIUM_PORT="$appium_port" \
+        ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
+        || rc=$?
+    popd >/dev/null
+    local dur=$(($(_ts) - t0))
+    local label="$avd_a"
+    [ -n "$avd_b" ] && label="$avd_a+$avd_b"
+    if [ "$rc" = "0" ]; then
+        echo "  ✅ $label passed ($(_fmt_dur "$dur"))"
+        summary_rows+="| $label | pass |"$'\n'
+    else
+        echo "  ❌ $label failed (exit $rc, $(_fmt_dur "$dur"))"
+        summary_rows+="| $label | FAIL |"$'\n'
+        overall_rc=1
+    fi
 
     _finish_pipeline "Android" "$summary_rows" "$pipeline_start" "$overall_rc"
     return $overall_rc
@@ -328,10 +372,11 @@ run_pipeline_android() {
 # ─────────────────────────────────────────────────────────────────────────
 # iOS pipeline DAG
 #
-#   simulators         ── (no deps)
 #   bridge             ── (no deps)
 #   yarn-install       ── (no deps)
 #   wasm               ── (no deps)
+#   simulators         ── after yarn-install (device count derived from the
+#                                            tests' `actors` via ts-node)
 #   appium             ── after yarn-install
 #   cocoapods          ── after bridge (pod install links fedi-swift bindings
 #                                       generated by bridge)
@@ -360,8 +405,6 @@ run_pipeline_ios() {
     _pre_cleanup
 
     echo ""
-    run_async simulators \
-        nix develop .#xcode -c bash "$REPO_ROOT/scripts/ui/start-ios-simulators.sh"
     if [ -z "${SKIP_BRIDGE:-}" ]; then
         run_async bridge \
             nix develop -L .#xcode --command env HOME="$HOME" \
@@ -373,8 +416,15 @@ run_pipeline_ios() {
     run_async yarn-install bash -c "cd '$REPO_ROOT/ui' && yarn install --frozen-lockfile"
     run_async wasm bash "$REPO_ROOT/scripts/ui/install-wasm.sh"
 
-    _gate appium -- yarn-install
+    # simulators gate on yarn-install too: how many to boot comes from the
+    # tests' `actors`, computed by a ts-node helper that needs node_modules.
+    _gate simulators appium -- yarn-install
     wait_for yarn-install
+    local actor_count
+    actor_count=$(_required_actor_count "$tests") || exit 1
+    echo "  📐 tests '$tests' need $actor_count device(s)"
+    run_async simulators env E2E_DEVICE_COUNT="$actor_count" \
+        nix develop .#xcode -c bash "$REPO_ROOT/scripts/ui/start-ios-simulators.sh"
     run_async appium env PLATFORM=ios bash "$REPO_ROOT/scripts/ui/setup-and-start-appium.sh"
 
     if [ -z "${SKIP_BRIDGE:-}" ]; then
@@ -411,24 +461,39 @@ run_pipeline_ios() {
     local overall_rc=0
     local summary_rows=""
 
-    if [ -n "${IOS_26_UDID:-}" ]; then
+    # Two boot modes from start-ios-simulators.sh:
+    #   count == 1: master's ios-26 device (cross-OS pair booted in CI, tests run on ios-26).
+    #   count >= 2: ios-26-a + ios-26-b clones for multi-actor.
+    local device_a=""
+    local device_b=""
+    local label=""
+    if (( actor_count >= 2 )); then
+        device_a="${IOS_26_A_UDID:-}"
+        device_b="${IOS_26_B_UDID:-}"
+        label="ios-26-a+ios-26-b"
+    else
+        device_a="${IOS_26_UDID:-}"
+        label="ios-26"
+    fi
+    if [ -n "$device_a" ]; then
         echo ""
-        echo "🧪 Running $tests on ios-26..."
+        echo "🧪 Running $tests on $label..."
         pushd "$REPO_ROOT/ui" >/dev/null
         local ios26_rc=0
         local t0
         t0=$(_ts)
-        PLATFORM=ios DEVICE_ID="$IOS_26_UDID" BUNDLE_PATH="$app_path" APPIUM_PORT="$appium_port" \
+        PLATFORM=ios DEVICE_ID="$device_a" DEVICE_ID_B="$device_b" \
+            BUNDLE_PATH="$app_path" APPIUM_PORT="$appium_port" \
             nix develop .#xcode -c ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
             || ios26_rc=$?
         popd >/dev/null
         local dur=$(($(_ts) - t0))
         if [ "$ios26_rc" = "0" ]; then
-            echo "  ✅ ios-26 passed ($(_fmt_dur "$dur"))"
-            summary_rows+="| ios-26 | pass |"$'\n'
+            echo "  ✅ $label passed ($(_fmt_dur "$dur"))"
+            summary_rows+="| $label | pass |"$'\n'
         else
-            echo "  ❌ ios-26 failed (exit $ios26_rc, $(_fmt_dur "$dur"))"
-            summary_rows+="| ios-26 | FAIL |"$'\n'
+            echo "  ❌ $label failed (exit $ios26_rc, $(_fmt_dur "$dur"))"
+            summary_rows+="| $label | FAIL |"$'\n'
             overall_rc=1
         fi
     fi
