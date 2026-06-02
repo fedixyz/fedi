@@ -13,7 +13,7 @@ import {
     leaveMatrixRoom,
     selectIsDefaultGroup,
     selectMatrixRoom,
-    selectMatrixRoomKnockingMembers,
+    selectShouldShowPendingJoinsIndicator,
     selectMatrixRoomMembersCount,
     selectMatrixRoomMultispendStatus,
     selectMatrixRoomSelfPowerLevel,
@@ -71,8 +71,8 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     )
     const shouldShowMultispend = useAppSelector(selectShouldShowMultispend)
     const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, roomId))
-    const knockingMembers = useAppSelector(s =>
-        selectMatrixRoomKnockingMembers(s, roomId),
+    const shouldShowPendingIndicator = useAppSelector(s =>
+        selectShouldShowPendingJoinsIndicator(s, roomId),
     )
     const isGroupChat = !room?.isDirect
     const [isTogglingBroadcastOnly, setIsTogglingBroadcastOnly] =
@@ -172,15 +172,14 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     }, [dispatch, room?.directUserId, show, t, toast, fedimint])
 
     const handleViewMembers = useCallback(() => {
-        navigation.navigate('ChatRoomMembers', { roomId })
-    }, [navigation, roomId])
+        navigation.navigate('ChatRoomMembers', {
+            roomId,
+            initialTab: shouldShowPendingIndicator ? 'pending' : 'members',
+        })
+    }, [navigation, roomId, shouldShowPendingIndicator])
 
     const handleInviteMember = useCallback(() => {
         navigation.navigate('ChatRoomInvite', { roomId })
-    }, [navigation, roomId])
-
-    const handleViewKnockRequests = useCallback(() => {
-        navigation.navigate('ChatRoomKnockRequests', { roomId })
     }, [navigation, roomId])
 
     const handleToggleBroadcastOnly = useCallback(async () => {
@@ -254,14 +253,8 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                         'words.members',
                     )}`,
                     onPress: handleViewMembers,
-                })
-            }
-
-            if (knockingMembers.length > 0 && (isAdmin || isModerator)) {
-                items.push({
-                    icon: 'SocialPeople',
-                    label: `${t('feature.chat.knock-requests')} (${knockingMembers.length})`,
-                    onPress: handleViewKnockRequests,
+                    testID: 'RoomMembersButton',
+                    showNotificationDot: shouldShowPendingIndicator,
                 })
             }
 
@@ -351,8 +344,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         handleLeaveChat,
         handleToggleBroadcastOnly,
         handleViewMembers,
-        handleViewKnockRequests,
-        knockingMembers.length,
+        shouldShowPendingIndicator,
         launchZendesk,
         isAdmin,
         isModerator,

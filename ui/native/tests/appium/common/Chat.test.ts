@@ -266,37 +266,37 @@ async function respondToOnlyKnock(
     t: AppiumTestBase,
     action: 'accept' | 'decline',
 ): Promise<void> {
-    // RoomSettings only renders the "Join requests (N)" link when
-    // knockingMembers > 0, and that selector lags on iOS until matrix
-    // sync surfaces the knock. The screen's mount effect re-dispatches
-    // refetchMatrixRoomMembers, so re-entering forces a refresh. Use
-    // the labeled count (exact match) to skip the "Allow join
-    // requests" toggle on the Invite screen.
-    const linkText = 'Join requests (1)'
-    let opened = false
-    for (let i = 0; i < 36 && !opened; i++) {
-        await t.clickElementByKey('ChatRoomSettingsButton')
-        if (await t.findElementByText(linkText, 0, true, 3000)) {
-            await t.clickOnText(linkText, 0, true)
-            opened = true
-            break
-        }
-        await t.clickElementByKey('HeaderBackButton')
-    }
-    if (!opened) throw new Error(`"${linkText}" never appeared`)
-    await t.waitForElementDisplayed('KnockRequestsList')
+    // The knocking member lags until matrix sync surfaces it, and
+    // ChatRoomMembers refetches members on mount, so re-enter the screen
+    // until the request appears on the Pending tab. Opening the members
+    // row with an unviewed request lands on Pending; tap the tab
+    // explicitly so the flow does not depend on that timing.
     const button =
         action === 'accept' ? 'KnockRequestAccept' : 'KnockRequestDecline'
-    await t.clickElementByKey(button)
-    // Best-effort wait for the empty-state. Kick (decline) is the slow
-    // path: matrix-rust-sdk only updates the local membership list
-    // after the homeserver confirms the leave. Phase 4 verifies the
-    // actual outcome from B's perspective, so a missing empty-state
-    // here is not fatal.
+    let handled = false
+    for (let i = 0; i < 36 && !handled; i++) {
+        await t.clickElementByKey('ChatRoomSettingsButton')
+        await t.clickElementByKey('RoomMembersButton')
+        await t.clickElementByKey('pendingTab')
+        if (await t.elementIsDisplayed('KnockRequestTile', 3000)) {
+            await t.clickElementByKey('KnockRequestTile')
+            await t.waitForElementDisplayed(button)
+            await t.clickElementByKey(button)
+            handled = true
+            break
+        }
+        await t.clickElementByKey('HeaderBackButton') // members -> settings
+        await t.clickElementByKey('HeaderBackButton') // settings -> conversation
+    }
+    if (!handled) throw new Error('knock request never appeared')
+    // Best-effort wait for the empty-state. Decline (kick) is the slow
+    // path: matrix-rust-sdk only updates the local membership list after
+    // the homeserver confirms the leave. Phase 4 verifies the actual
+    // outcome from B's perspective, so a missing empty-state is not fatal.
     await t.elementIsDisplayed('NoKnockRequestsEmpty', 20000)
     // Pop back to the chat list so the bottom tab bar is visible again
     // (it's hidden on stacked screens).
-    await t.clickElementByKey('HeaderBackButton')
-    await t.clickElementByKey('HeaderBackButton')
-    await t.clickElementByKey('HeaderBackButton')
+    await t.clickElementByKey('HeaderBackButton') // members -> settings
+    await t.clickElementByKey('HeaderBackButton') // settings -> conversation
+    await t.clickElementByKey('HeaderBackButton') // conversation -> chat list
 }

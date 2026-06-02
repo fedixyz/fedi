@@ -62,6 +62,10 @@ import {
     selectMatrixRoomInviteIsSeen,
     markMatrixRoomInviteSeen,
     selectMatrixRooms,
+    selectMatrixRoomKnockingMembers,
+    selectCanRespondToKnockRequests,
+    selectShouldShowPendingJoinsIndicator,
+    markKnockRequestsSeen,
 } from '../redux'
 import {
     MatrixEvent,
@@ -1234,6 +1238,89 @@ export function useRoomKnockingAdminToggle(
         allowKnocking,
         isToggling,
         handleAllowKnockingToggle,
+    }
+}
+
+export function usePendingJoinRequests(roomId: MatrixRoom['id'], t: TFunction) {
+    const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
+    const toast = useToast()
+    const pendingMembers = useCommonSelector(s =>
+        selectMatrixRoomKnockingMembers(s, roomId),
+    )
+    const canRespond = useCommonSelector(s =>
+        selectCanRespondToKnockRequests(s, roomId),
+    )
+    const shouldShowIndicator = useCommonSelector(s =>
+        selectShouldShowPendingJoinsIndicator(s, roomId),
+    )
+    const [processingUserId, setProcessingUserId] = useState<string | null>(
+        null,
+    )
+
+    // membership changes don't arrive via the timeline sub, so refetch
+    useEffect(() => {
+        if (!canRespond) return
+        dispatch(refetchMatrixRoomMembers({ fedimint, roomId })).catch(() => {})
+    }, [dispatch, fedimint, roomId, canRespond])
+
+    const markSeen = useCallback(() => {
+        const userIds = pendingMembers.map(m => m.id)
+        if (userIds.length === 0) return
+        dispatch(markKnockRequestsSeen({ roomId, userIds }))
+    }, [dispatch, roomId, pendingMembers])
+
+    const respond = useCallback(
+        async (action: 'accept' | 'decline', userId: string) => {
+            setProcessingUserId(userId)
+            try {
+                if (action === 'accept') {
+                    await fedimint.matrixRoomInviteUserById({ roomId, userId })
+                } else {
+                    await fedimint.matrixRoomKickUser({
+                        roomId,
+                        userId,
+                        reason: null,
+                    })
+                }
+                toast.show({
+                    content: t(
+                        action === 'accept'
+                            ? 'feature.chat.knock-accepted'
+                            : 'feature.chat.knock-declined',
+                    ),
+                    status: 'success',
+                })
+                dispatch(refetchMatrixRoomMembers({ fedimint, roomId })).catch(
+                    () => {},
+                )
+            } catch {
+                toast.error(t, 'errors.unknown-error')
+            } finally {
+                setProcessingUserId(null)
+            }
+        },
+        [dispatch, fedimint, roomId, t, toast],
+    )
+
+    const accept = useCallback(
+        (userId: string) => respond('accept', userId),
+        [respond],
+    )
+    const decline = useCallback(
+        (userId: string) => respond('decline', userId),
+        [respond],
+    )
+
+    return {
+        canRespond,
+        pendingMembers,
+        pendingCount: pendingMembers.length,
+        shouldShowIndicator,
+        processingUserId,
+        markSeen,
+        accept,
+        decline,
     }
 }
 

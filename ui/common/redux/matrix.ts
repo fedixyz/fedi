@@ -170,6 +170,8 @@ const initialState = {
     ignoredUsers: [] as MatrixUser['id'][],
     rejectedRoomInvites: [] as MatrixRoom['id'][],
     seenRoomInvites: [] as MatrixRoom['id'][],
+    // acknowledged knock-request user ids per room, pruned to current knockers
+    seenKnockRequests: {} as Record<MatrixRoom['id'], MatrixUser['id'][]>,
     errors: [] as MatrixError[],
     pushNotificationToken: null as string | null,
     groupPreviews: {} as Record<MatrixRoom['id'], MatrixGroupPreview>,
@@ -223,6 +225,27 @@ const updateMultispendEvents = (
     return orderBy(transactions, 'counter', 'desc')
 }
 
+// drop acknowledged knock ids for anyone no longer knocking, so the set
+// stays bounded and a later re-knock from the same user still shows
+const pruneSeenKnockRequests = (
+    state: MatrixState,
+    roomId: MatrixRoom['id'],
+) => {
+    const seen = state.seenKnockRequests[roomId]
+    if (!seen) return
+    const knocking = new Set(
+        (state.roomMembers[roomId] ?? [])
+            .filter(m => m.membership === 'knock')
+            .map(m => m.id),
+    )
+    const pruned = seen.filter(id => knocking.has(id))
+    if (pruned.length === 0) {
+        delete state.seenKnockRequests[roomId]
+    } else if (pruned.length !== seen.length) {
+        state.seenKnockRequests[roomId] = pruned
+    }
+}
+
 /*** Slice definition ***/
 
 export const matrixSlice = createSlice({
@@ -255,6 +278,20 @@ export const matrixSlice = createSlice({
                 state.seenRoomInvites.push(action.payload)
             }
         },
+        markKnockRequestsSeen(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                userIds: MatrixUser['id'][]
+            }>,
+        ) {
+            const { roomId, userIds } = action.payload
+            if (userIds.length === 0) return
+            const existing = state.seenKnockRequests[roomId] ?? []
+            state.seenKnockRequests[roomId] = Array.from(
+                new Set([...existing, ...userIds]),
+            )
+        },
         handleMatrixRoomListStreamUpdates(
             state,
             action: PayloadAction<MatrixRoomListStreamUpdates>,
@@ -271,6 +308,7 @@ export const matrixSlice = createSlice({
             if (newRoomMembers !== oldRoomMembers) {
                 state.roomMembers[roomId] = newRoomMembers
             }
+            pruneSeenKnockRequests(state, roomId)
         },
         setMatrixRoomMembers(
             state,
@@ -279,7 +317,9 @@ export const matrixSlice = createSlice({
                 members: MatrixRoomMember[]
             }>,
         ) {
-            state.roomMembers[action.payload.roomId] = action.payload.members
+            const { roomId, members } = action.payload
+            state.roomMembers[roomId] = members
+            pruneSeenKnockRequests(state, roomId)
         },
         setMatrixIgnoredUsers(
             state,
@@ -640,6 +680,7 @@ export const matrixSlice = createSlice({
             state.drafts = action.payload.chatDrafts
             state.rejectedRoomInvites = action.payload.rejectedRoomInvites
             state.seenRoomInvites = action.payload.seenRoomInvites
+            state.seenKnockRequests = action.payload.seenKnockRequests
         })
 
         builder.addCase(
@@ -758,6 +799,7 @@ export const {
     setChatTimelineSearchQuery,
     addRejectedMatrixRoom,
     markMatrixRoomInviteSeen,
+    markKnockRequestsSeen,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
@@ -2778,6 +2820,25 @@ export const selectMatrixRoomSelfPowerLevel = createSelector(
     (members, auth) => {
         const member = members.find(m => m.id === auth?.userId)
         return member?.powerLevel
+    },
+)
+
+export const selectCanRespondToKnockRequests = createSelector(
+    selectMatrixRoomSelfPowerLevel,
+    powerLevel =>
+        !!powerLevel &&
+        isPowerLevelGreaterOrEqual(powerLevel, MatrixPowerLevel.Moderator),
+)
+
+export const selectShouldShowPendingJoinsIndicator = createSelector(
+    selectCanRespondToKnockRequests,
+    selectMatrixRoomKnockingMembers,
+    (s: CommonState, roomId: MatrixRoom['id']) =>
+        s.matrix.seenKnockRequests[roomId],
+    (canRespond, knockingMembers, seen) => {
+        if (!canRespond) return false
+        const seenSet = new Set(seen ?? [])
+        return knockingMembers.some(m => !seenSet.has(m.id))
     },
 )
 

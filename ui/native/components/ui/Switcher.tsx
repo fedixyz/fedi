@@ -1,6 +1,6 @@
 import { useTheme, Theme, Text } from '@rneui/themed'
 import React from 'react'
-import { TouchableOpacity, StyleSheet } from 'react-native'
+import { TouchableOpacity, StyleSheet, View } from 'react-native'
 
 import { Row } from './Flex'
 import HelpTooltip from './HelpTooltip'
@@ -10,6 +10,7 @@ export interface Option<T extends string> {
     value: T
     disabled?: boolean
     disabledMessage?: React.ReactElement | string
+    count?: number
 }
 
 interface Props<T extends string> {
@@ -53,6 +54,13 @@ export function Switcher<T extends string>({
                             ellipsizeMode="tail">
                             {option.label}
                         </Text>
+                        {option.count ? (
+                            <View style={style.badge}>
+                                <Text style={style.badgeText}>
+                                    {option.count}
+                                </Text>
+                            </View>
+                        ) : null}
                         {option.disabledMessage && option.disabled && (
                             <HelpTooltip
                                 svgProps={{
@@ -105,6 +113,21 @@ const styles = (theme: Theme) =>
             fontSize: 14,
             color: theme.colors.night,
             textAlign: 'center',
+        },
+        badge: {
+            marginLeft: theme.spacing.xs,
+            minWidth: 18,
+            height: 18,
+            borderRadius: 9,
+            paddingHorizontal: 5,
+            backgroundColor: theme.colors.orange,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        badgeText: {
+            fontSize: 11,
+            lineHeight: 14,
+            color: theme.colors.white,
         },
         itemTextDisabled: {
             color: theme.colors.grey,

@@ -92,8 +92,11 @@ export type RootStackParamList = {
         scrollToMessageId?: string
     }
     ChatSettings: { title?: string }
-    ChatRoomMembers: { roomId: string; displayMultispendRoles?: boolean }
-    ChatRoomKnockRequests: { roomId: string }
+    ChatRoomMembers: {
+        roomId: string
+        displayMultispendRoles?: boolean
+        initialTab?: 'members' | 'pending'
+    }
     ChatRoomInvite: { roomId: string }
     ChatUserConversation: { userId: string; displayName?: string }
     ChatVideoViewer: { uri: string }

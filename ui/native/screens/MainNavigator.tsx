@@ -74,7 +74,6 @@ import ChatConversationSearch from './ChatConversationSearch'
 import ChatImageViewer from './ChatImageViewer'
 import ChatRoomConversation from './ChatRoomConversation'
 import ChatRoomInvite from './ChatRoomInvite'
-import ChatRoomKnockRequests from './ChatRoomKnockRequests'
 import ChatRoomMembers from './ChatRoomMembers'
 import ChatUserConversation from './ChatUserConversation'
 import ChatVideoViewer from './ChatVideoViewer'
@@ -493,15 +492,6 @@ export const MainNavigator = () => {
                                     options={() => ({
                                         header: () => <ChatRoomMembersHeader />,
                                     })}
-                                />
-                                <Stack.Screen
-                                    name="ChatRoomKnockRequests"
-                                    component={ChatRoomKnockRequests}
-                                    options={{
-                                        headerTitle: t(
-                                            'feature.chat.knock-requests',
-                                        ),
-                                    }}
                                 />
                                 <Stack.Screen
                                     name="ChatRoomInvite"

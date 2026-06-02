@@ -8,6 +8,7 @@ import {
     selectGroupPreview,
     selectMatrixRoom,
     selectMatrixUser,
+    selectShouldShowPendingJoinsIndicator,
 } from '@fedi/common/redux'
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
@@ -17,6 +18,7 @@ import { RootStackParamList } from '../../../types/navigation'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
 import { Row } from '../../ui/Flex'
 import Header from '../../ui/Header'
+import NotificationDot from '../../ui/NotificationDot'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
 import { ChatConnectionBadge } from './ChatConnectionBadge'
@@ -34,6 +36,9 @@ const ChatConversationHeader: React.FC = () => {
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const preview = useAppSelector(s => selectGroupPreview(s, roomId))
     const user = useAppSelector(s => selectMatrixUser(s, userId))
+    const showPendingDot = useAppSelector(s =>
+        selectShouldShowPendingJoinsIndicator(s, roomId),
+    )
     const { t } = useTranslation()
 
     const style = useMemo(() => styles(theme), [theme])
@@ -153,6 +158,9 @@ const ChatConversationHeader: React.FC = () => {
                                     theme.multipliers.headerMaxFontMultiplier
                                 }
                             />
+                            {showPendingDot && (
+                                <NotificationDot style={style.cogDot} />
+                            )}
                         </Pressable>
                     </View>
                 }
@@ -194,6 +202,11 @@ const styles = (theme: Theme) =>
         },
         headerButton: {
             padding: theme.spacing.xs,
+        },
+        cogDot: {
+            position: 'absolute',
+            top: 0,
+            right: 0,
         },
     })
 

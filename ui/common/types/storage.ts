@@ -394,6 +394,11 @@ export interface StoredStateV46 extends Omit<StoredStateV45, 'version'> {
     latestAwareReleaseTag: string | null
 }
 
+export interface StoredStateV47 extends Omit<StoredStateV46, 'version'> {
+    version: 47
+    seenKnockRequests: Record<MatrixRoom['id'], string[]>
+}
+
 /**
  * Consolidated type for older storage versions (0-24).
  * These are grouped together to reduce union type computation that slows down TSC performance.
@@ -456,9 +461,10 @@ export type AnyStoredState =
     | StoredStateV44
     | StoredStateV45
     | StoredStateV46
+    | StoredStateV47
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV46
+export type LatestStoredState = StoredStateV47
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

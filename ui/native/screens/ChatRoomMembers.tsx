@@ -1,10 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FlatList, ListRenderItem, StyleSheet } from 'react-native'
+import { FlatList, ListRenderItem, StyleSheet, View } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { usePendingJoinRequests } from '@fedi/common/hooks/matrix'
 import {
     refetchMatrixRoomMembers,
     selectMatrixAuth,
@@ -18,9 +19,12 @@ import {
     sortMultispendRoomMembers,
 } from '@fedi/common/utils/matrix'
 
+import { ChatKnockRequestActionsOverlay } from '../components/feature/chat/ChatKnockRequestActionsOverlay'
+import ChatPendingRequestTile from '../components/feature/chat/ChatPendingRequestTile'
 import { ChatUserActionsOverlay } from '../components/feature/chat/ChatUserActionsOverlay'
 import ChatUserTile from '../components/feature/chat/ChatUserTile'
 import { Column } from '../components/ui/Flex'
+import { Switcher } from '../components/ui/Switcher'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { type RootStackParamList } from '../types/navigation'
 
@@ -29,22 +33,50 @@ export type ChatRoomMembersProps = NativeStackScreenProps<
     'ChatRoomMembers'
 >
 
+type MembersTab = 'members' | 'pending'
+
 const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
     route,
 }: ChatRoomMembersProps) => {
     const { t } = useTranslation()
-    const { roomId, displayMultispendRoles } = route.params
+    const { roomId, displayMultispendRoles, initialTab } = route.params
     const { theme } = useTheme()
 
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+    const [selectedPendingUserId, setSelectedPendingUserId] = useState<
+        string | null
+    >(null)
+    const [activeTab, setActiveTab] = useState<MembersTab>(
+        initialTab ?? 'members',
+    )
     const myUserId = useAppSelector(selectMatrixAuth)?.userId
     const members = useAppSelector(s => selectMatrixRoomMembersByMe(s, roomId))
     const [isRefetching, setIsRefetching] = useState(false)
     const multispendStatus = useAppSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )
+
+    const {
+        canRespond,
+        pendingMembers,
+        pendingCount,
+        processingUserId,
+        markSeen,
+        accept,
+        decline,
+    } = usePendingJoinRequests(roomId, t)
+
+    // Pending is admin/mod only and irrelevant in the multispend roles view
+    const showTabs = canRespond && !displayMultispendRoles
+    const tab: MembersTab = showTabs ? activeTab : 'members'
+
+    // viewing the pending list acknowledges the current requests
+    useEffect(() => {
+        if (tab === 'pending') markSeen()
+    }, [tab, markSeen])
+
     const handleSelectMember = useCallback((userId: string) => {
         requestAnimationFrame(() => setSelectedUserId(userId))
     }, [])
@@ -121,6 +153,14 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
         )
     }
 
+    const renderPending: ListRenderItem<MatrixRoomMember> = ({ item }) => (
+        <ChatPendingRequestTile
+            member={item}
+            onPress={setSelectedPendingUserId}
+            testID="KnockRequestTile"
+        />
+    )
+
     const style = styles(theme)
 
     const groupMembersList =
@@ -128,17 +168,57 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
             ? sortMultispendRoomMembers(members, multispendStatus)
             : members
 
+    const selectedPendingMember =
+        pendingMembers.find(m => m.id === selectedPendingUserId) ?? null
+
     return (
         <Column grow fullWidth style={style.container}>
-            <FlatList
-                data={groupMembersList}
-                renderItem={renderMember}
-                keyExtractor={(item: MatrixRoomMember) => `${item.id}`}
-                contentContainerStyle={style.membersListContainer}
-                onRefresh={handleRefresh}
-                refreshing={isRefetching}
-                showsVerticalScrollIndicator={false}
-            />
+            {showTabs && (
+                <View style={style.switcher}>
+                    <Switcher<MembersTab>
+                        options={[
+                            { label: t('words.members'), value: 'members' },
+                            {
+                                label: t('words.pending'),
+                                value: 'pending',
+                                count: pendingCount,
+                            },
+                        ]}
+                        selected={tab}
+                        onChange={setActiveTab}
+                    />
+                </View>
+            )}
+            {tab === 'pending' ? (
+                pendingMembers.length === 0 ? (
+                    <Column center grow gap="md">
+                        <Text
+                            testID="NoKnockRequestsEmpty"
+                            style={style.emptyText}>
+                            {t('feature.chat.no-knock-requests')}
+                        </Text>
+                    </Column>
+                ) : (
+                    <FlatList
+                        testID="KnockRequestsList"
+                        data={pendingMembers}
+                        renderItem={renderPending}
+                        keyExtractor={(item: MatrixRoomMember) => `${item.id}`}
+                        contentContainerStyle={style.membersListContainer}
+                        showsVerticalScrollIndicator={false}
+                    />
+                )
+            ) : (
+                <FlatList
+                    data={groupMembersList}
+                    renderItem={renderMember}
+                    keyExtractor={(item: MatrixRoomMember) => `${item.id}`}
+                    contentContainerStyle={style.membersListContainer}
+                    onRefresh={handleRefresh}
+                    refreshing={isRefetching}
+                    showsVerticalScrollIndicator={false}
+                />
+            )}
             <ChatUserActionsOverlay
                 onDismiss={() => {
                     backgroundRefresh()
@@ -146,6 +226,19 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                 }}
                 selectedUserId={selectedUserId}
                 roomId={roomId}
+            />
+            <ChatKnockRequestActionsOverlay
+                member={selectedPendingMember}
+                isProcessing={processingUserId === selectedPendingUserId}
+                onAccept={async userId => {
+                    await accept(userId)
+                    setSelectedPendingUserId(null)
+                }}
+                onDecline={async userId => {
+                    await decline(userId)
+                    setSelectedPendingUserId(null)
+                }}
+                onDismiss={() => setSelectedPendingUserId(null)}
             />
         </Column>
     )
@@ -156,15 +249,13 @@ const styles = (theme: Theme) =>
         container: {
             padding: theme.spacing.lg,
         },
-        titleContainer: {
-            marginBottom: theme.spacing.sm,
-        },
-        instructions: {
-            lineHeight: 20,
+        switcher: {
+            marginBottom: theme.spacing.lg,
         },
         membersListContainer: {},
-        buttonContainer: {
-            marginTop: 'auto',
+        emptyText: {
+            textAlign: 'center',
+            color: theme.colors.darkGrey,
         },
     })
 

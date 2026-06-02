@@ -21,6 +21,7 @@ type ChatUserActionProps = {
     rightIcon?: React.ReactNode
     isLoading?: boolean
     labelColor?: ColorValue
+    testID?: string
 }
 
 const ChatAction = ({
@@ -33,10 +34,12 @@ const ChatAction = ({
     rightIcon,
     isLoading,
     onPress,
+    testID,
 }: ChatUserActionProps) => {
     const { theme } = useTheme()
     return (
         <Pressable
+            testID={testID}
             disabled={disabled}
             disabledStyle={disabledStyle}
             onPress={disabled ? undefined : onPress}>
