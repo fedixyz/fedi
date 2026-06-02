@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
     refreshStabilityPool,
+    selectCurrency,
+    selectCurrencyLocale,
     selectStabilityPoolState,
+    selectStableBalance,
     selectStableBalancePending,
+    selectStableBalanceSats,
     selectStabilityPoolVersion,
     selectShouldShowStablePaymentAddress,
     setStabilityPoolState,
@@ -14,6 +18,7 @@ import {
     StabilityPoolDepositEvent,
     StabilityPoolWithdrawalEvent,
 } from '../types/bindings'
+import amountUtils from '../utils/AmountUtils'
 import { UnsubscribeFn } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { useIsStabilityPoolSupported } from './federation'
@@ -21,6 +26,66 @@ import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
 const log = makeLog('common/hooks/stabilitypool')
+
+export const useStableBalances = (federationId: Federation['id']) => {
+    const stableBalance = useCommonSelector(s =>
+        selectStableBalance(s, federationId),
+    )
+    const stableBalancePending = useCommonSelector(s =>
+        selectStableBalancePending(s, federationId),
+    )
+    const selectedCurrency = useCommonSelector(s =>
+        selectCurrency(s, federationId),
+    )
+    const stableBalanceSats = useCommonSelector(s =>
+        selectStableBalanceSats(s, federationId),
+    )
+    const currencyLocale = useCommonSelector(selectCurrencyLocale)
+
+    const formattedStableBalance = amountUtils.formatFiat(
+        stableBalance,
+        selectedCurrency,
+        { symbolPosition: 'end', locale: currencyLocale },
+    )
+    const formattedStableBalancePending = amountUtils.formatFiat(
+        stableBalancePending,
+        selectedCurrency,
+        { symbolPosition: 'end', locale: currencyLocale },
+    )
+    const formattedStableBalanceSats = amountUtils.formatSats(stableBalanceSats)
+
+    return {
+        formattedStableBalance,
+        formattedStableBalancePending,
+        formattedStableBalanceSats,
+    }
+}
+
+export const useStabilityPool = (federationId: Federation['id']) => {
+    const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
+    const {
+        formattedStableBalance,
+        formattedStableBalanceSats,
+        formattedStableBalancePending,
+    } = useStableBalances(federationId)
+
+    const refreshBalance = useCallback(() => {
+        dispatch(
+            refreshStabilityPool({
+                fedimint,
+                federationId,
+            }),
+        )
+    }, [dispatch, federationId, fedimint])
+
+    return {
+        refreshBalance,
+        formattedStableBalance,
+        formattedStableBalanceSats,
+        formattedStableBalancePending,
+    }
+}
 
 /**
  * Given an instance of the bridge, monitor the stabilitypool to
