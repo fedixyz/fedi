@@ -31,8 +31,8 @@ const FediLinkOverlay: React.FC<Props> = ({
             contents={{
                 body: (
                     <Column gap="lg" fullWidth>
-                        <Column align="center" fullWidth>
-                            <SvgImage name="FediLogoDark" size="xl" />
+                        <Column align="center" fullWidth gap="lg">
+                            <SvgImage name="FediLogoDark" size="lg" />
                             <Text medium h4 center>
                                 {t(
                                     'feature.onboarding.did-you-come-from-fedi-link',
