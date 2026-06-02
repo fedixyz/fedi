@@ -22,17 +22,22 @@ const StabilityHistory: React.FC<Props> = ({ route }: Props) => {
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
 
-    const { stabilityPoolTxns, fetchTransactions } =
+    const { stabilityPoolTxns, fetchStabilityTransactions } =
         useTransactionHistory(federationId)
 
     const refreshStabilityPoolHistory = useCallback(async () => {
-        await fetchTransactions()
+        await fetchStabilityTransactions()
         await dispatch(refreshStabilityPool({ fedimint, federationId }))
-    }, [dispatch, fetchTransactions, federationId, fedimint])
+    }, [dispatch, fetchStabilityTransactions, federationId, fedimint])
 
     useEffect(() => {
         refreshStabilityPoolHistory().finally(() => setIsLoading(false))
     }, [dispatch, refreshStabilityPoolHistory])
+
+    const loadMoreStabilityTransactions = useCallback(
+        () => fetchStabilityTransactions({ more: true }),
+        [fetchStabilityTransactions],
+    )
 
     return (
         <View style={styles.container}>
@@ -40,7 +45,7 @@ const StabilityHistory: React.FC<Props> = ({ route }: Props) => {
                 federationId={federationId}
                 transactions={stabilityPoolTxns}
                 loading={isLoading}
-                loadMoreTransactions={fetchTransactions}
+                loadMoreTransactions={loadMoreStabilityTransactions}
             />
         </View>
     )

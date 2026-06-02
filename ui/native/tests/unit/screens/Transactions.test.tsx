@@ -37,6 +37,10 @@ describe('screens/Transactions', () => {
                 fetchTransactions: jest.fn<Promise<TransactionListEntry[]>, []>(
                     () => Promise.resolve([]),
                 ),
+                fetchStabilityTransactions: jest.fn<
+                    Promise<TransactionListEntry[]>,
+                    []
+                >(() => Promise.resolve([])),
                 stabilityPoolTxns: [],
             })
 
@@ -64,6 +68,10 @@ describe('screens/Transactions', () => {
                 fetchTransactions: jest.fn<Promise<TransactionListEntry[]>, []>(
                     () => Promise.resolve([]),
                 ),
+                fetchStabilityTransactions: jest.fn<
+                    Promise<TransactionListEntry[]>,
+                    []
+                >(() => Promise.resolve([])),
                 stabilityPoolTxns: [],
             })
 
@@ -89,6 +97,10 @@ describe('screens/Transactions', () => {
                 fetchTransactions: jest.fn<Promise<TransactionListEntry[]>, []>(
                     () => Promise.resolve([]),
                 ),
+                fetchStabilityTransactions: jest.fn<
+                    Promise<TransactionListEntry[]>,
+                    []
+                >(() => Promise.resolve([])),
                 stabilityPoolTxns: [],
             })
 

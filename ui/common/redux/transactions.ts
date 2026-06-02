@@ -233,21 +233,25 @@ export const selectTransactions = (
     federationId: Federation['id'],
 ) => getFederationTxsState(s.transactions, federationId).transactions
 
+export const isStabilityTransactionHistoryEntry = (
+    txn: TransactionListEntry,
+) => {
+    if (txn.kind === 'sPV2Withdrawal' && txn.guardian_remittance) {
+        return false
+    }
+
+    return (
+        txn.kind === 'spDeposit' ||
+        txn.kind === 'spWithdraw' ||
+        txn.kind === 'sPV2Deposit' ||
+        txn.kind === 'sPV2Withdrawal' ||
+        txn.kind === 'sPV2TransferOut' ||
+        txn.kind === 'sPV2TransferIn'
+    )
+}
+
 export const selectStabilityTransactionHistory = createSelector(
     selectTransactions,
     transactions =>
-        transactions.filter(txn => {
-            if (txn.kind === 'sPV2Withdrawal' && txn.guardian_remittance) {
-                return false
-            }
-
-            return (
-                txn.kind === 'spDeposit' ||
-                txn.kind === 'spWithdraw' ||
-                txn.kind === 'sPV2Deposit' ||
-                txn.kind === 'sPV2Withdrawal' ||
-                txn.kind === 'sPV2TransferOut' ||
-                txn.kind === 'sPV2TransferIn'
-            )
-        }),
+        transactions.filter(txn => isStabilityTransactionHistoryEntry(txn)),
 )

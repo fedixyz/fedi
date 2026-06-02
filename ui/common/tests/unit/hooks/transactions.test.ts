@@ -172,6 +172,104 @@ describe('common/hooks/transactions', () => {
                 expect(mockDispatch).toHaveBeenCalled()
             })
         })
+
+        describe('When the fetchStabilityTransactions function is called', () => {
+            it('should fetch additional pages until a stable balance transaction is found', async () => {
+                const bitcoinPage = [
+                    makeTestTxnEntry('lnPay', { id: 'bitcoin-payment' }),
+                ]
+                const stablePage = [
+                    makeTestTxnEntry('sPV2Deposit', {
+                        id: 'stable-balance-deposit',
+                    }),
+                ]
+
+                mockDispatch
+                    .mockReturnValueOnce({
+                        unwrap: () => Promise.resolve(bitcoinPage),
+                    })
+                    .mockReturnValueOnce({
+                        unwrap: () => Promise.resolve(stablePage),
+                    })
+
+                const { result } = renderHookWithState(
+                    () => useTransactionHistory('1'),
+                    store,
+                )
+
+                await expect(
+                    result.current.fetchStabilityTransactions(),
+                ).resolves.toEqual(stablePage)
+
+                expect(mockDispatch).toHaveBeenCalledTimes(2)
+            })
+
+            it('should stop fetching when the transaction history is exhausted', async () => {
+                const bitcoinPage = [
+                    makeTestTxnEntry('lnPay', { id: 'bitcoin-payment' }),
+                ]
+
+                mockDispatch
+                    .mockReturnValueOnce({
+                        unwrap: () => Promise.resolve(bitcoinPage),
+                    })
+                    .mockReturnValueOnce({
+                        unwrap: () => Promise.resolve([]),
+                    })
+
+                const { result } = renderHookWithState(
+                    () => useTransactionHistory('1'),
+                    store,
+                )
+
+                await expect(
+                    result.current.fetchStabilityTransactions(),
+                ).resolves.toEqual([])
+
+                expect(mockDispatch).toHaveBeenCalledTimes(2)
+            })
+
+            it('should keep paging on load more even when stable balance transactions are already cached', async () => {
+                const federationId = '1'
+                const existingStableTxn = makeTestTxnEntry('sPV2Deposit', {
+                    id: 'existing-stable-balance-deposit',
+                })
+                const bitcoinPage = [
+                    makeTestTxnEntry('lnPay', { id: 'bitcoin-payment' }),
+                ]
+                const nextStablePage = [
+                    makeTestTxnEntry('sPV2Withdrawal', {
+                        id: 'next-stable-balance-withdrawal',
+                    }),
+                ]
+                const storeWithStableTxn = setupStore({
+                    transactions: {
+                        [federationId]: {
+                            transactions: [existingStableTxn],
+                        },
+                    },
+                })
+
+                mockDispatch
+                    .mockReturnValueOnce({
+                        unwrap: () => Promise.resolve(bitcoinPage),
+                    })
+                    .mockReturnValueOnce({
+                        unwrap: () => Promise.resolve(nextStablePage),
+                    })
+
+                const { result } = renderHookWithState(
+                    () => useTransactionHistory(federationId),
+                    storeWithStableTxn,
+                )
+
+                await expect(
+                    result.current.fetchStabilityTransactions({ more: true }),
+                ).resolves.toEqual(nextStablePage)
+
+                expect(mockDispatch).toHaveBeenCalledTimes(2)
+            })
+        })
     })
 
     describe('useTxnDisplayUtils', () => {

@@ -1,5 +1,5 @@
 import { TFunction } from 'i18next'
-import { useCallback, useContext, useEffect, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 
 import { FedimintContext } from '../components/FedimintProvider'
 import {
@@ -14,6 +14,7 @@ import {
 } from '../redux'
 import {
     fetchTransactions as reduxFetchTransactions,
+    isStabilityTransactionHistoryEntry,
     selectStabilityTransactionHistory,
     selectTransactions,
 } from '../redux/transactions'
@@ -65,6 +66,13 @@ import { useAmountFormatter, useBtcFiatPrice } from './amount'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
+type FetchTransactionsArgs = Pick<
+    Parameters<typeof reduxFetchTransactions>[0],
+    'limit' | 'more' | 'refresh'
+>
+
+const MAX_STABILITY_TRANSACTION_FETCH_PAGES = 10
+
 export function useTransactionHistory(
     federationId: Federation['id'],
     // IMPORTANT: since this hook is used on the error screen, the FedimintContext may not be available
@@ -80,14 +88,14 @@ export function useTransactionHistory(
     const stabilityPoolTxns = useCommonSelector(s =>
         selectStabilityTransactionHistory(s, federationId),
     )
+    const stabilityPoolTxnsLengthRef = useRef(stabilityPoolTxns.length)
+
+    useEffect(() => {
+        stabilityPoolTxnsLengthRef.current = stabilityPoolTxns.length
+    }, [stabilityPoolTxns.length])
 
     const fetchTransactions = useCallback(
-        async (
-            args?: Pick<
-                Parameters<typeof reduxFetchTransactions>[0],
-                'limit' | 'more' | 'refresh'
-            >,
-        ) => {
+        async (args?: FetchTransactionsArgs) => {
             if (!federationId || !fedimint) return []
             return dispatch(
                 reduxFetchTransactions({
@@ -100,10 +108,39 @@ export function useTransactionHistory(
         [dispatch, fedimint, federationId],
     )
 
+    const fetchStabilityTransactions = useCallback(
+        async (args?: FetchTransactionsArgs) => {
+            const hasExistingStableRows =
+                !args?.more &&
+                !args?.refresh &&
+                stabilityPoolTxnsLengthRef.current > 0
+
+            let page = await fetchTransactions(args)
+            let pagesFetched = 1
+
+            while (
+                pagesFetched < MAX_STABILITY_TRANSACTION_FETCH_PAGES &&
+                page.length > 0 &&
+                !hasExistingStableRows &&
+                !page.some(isStabilityTransactionHistoryEntry)
+            ) {
+                page = await fetchTransactions({
+                    limit: args?.limit,
+                    more: true,
+                })
+                pagesFetched += 1
+            }
+
+            return page
+        },
+        [fetchTransactions],
+    )
+
     return {
         transactions,
         stabilityPoolTxns,
         fetchTransactions,
+        fetchStabilityTransactions,
     }
 }
 
