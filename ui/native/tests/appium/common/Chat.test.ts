@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
-import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
+import {
+    AppiumTestBase,
+    MATRIX_TIMEOUT,
+} from '../../configs/appium/AppiumTestBase'
 import { setupOnboarded } from '../fixtures/setupOnboarded'
 
 type Group = {
@@ -105,7 +108,10 @@ export class Chat extends AppiumTestBase {
         // renders, so room is writeable), and B can re-knock the
         // declined room.
         await openRoomByName(bob, PRIVATE_GROUP.name)
-        await bob.waitForElementDisplayed('MessageInput-TextInput')
+        await bob.waitForElementDisplayed(
+            'MessageInput-TextInput',
+            MATRIX_TIMEOUT,
+        )
         await bob.clickElementByKey('HeaderBackButton')
         await knockOnRoom(bob, roomIds[BROADCAST_GROUP.name])
     }
@@ -138,7 +144,7 @@ async function createGroupAndSendMessage(
     } catch {
         /* no-op */
     }
-    await t.waitForElementDisplayed('MessageInput-TextInput')
+    await t.waitForElementDisplayed('MessageInput-TextInput', MATRIX_TIMEOUT)
     await t.typeIntoElementByKey('MessageInput-TextInput', group.message)
     await t.waitForElementDisplayed('MessageInput-SendButton')
     await t.clickElementByKey('MessageInput-SendButton')
@@ -151,10 +157,13 @@ async function captureRoomIdFromCurrentRoom(
     t: AppiumTestBase,
 ): Promise<string> {
     await t.clickElementByKey('ChatRoomSettingsButton')
-    await t.clickOnText('Invite to group', 0, true)
+    await t.clickOnText('Invite to group', 0, true, MATRIX_TIMEOUT)
     // the shared QR component tags its text element "TrueUsername" on every
     // screen it renders, including this invite screen, so that's the link here
-    const linkEl = await t.waitForElementDisplayed('TrueUsername', 15000)
+    const linkEl = await t.waitForElementDisplayed(
+        'TrueUsername',
+        MATRIX_TIMEOUT,
+    )
     // The invite screen renders one of two forms depending on the
     // share method: the universal link (`...?id={id}`) or the
     // `fedi:room:{id}:::` form. iOS getText also sometimes pulls in
@@ -207,7 +216,7 @@ async function openRoomByName(t: AppiumTestBase, name: string): Promise<void> {
     const tileKey = `ChatTile-${name}`
     await t.scrollToElement(tileKey)
     await t.clickElementByKey(tileKey)
-    await t.waitForElementDisplayed('MessageInput-TextInput', 30000)
+    await t.waitForElementDisplayed('MessageInput-TextInput', MATRIX_TIMEOUT)
 }
 
 // NotificationContext triggers requestNotifications when chatList
@@ -254,9 +263,12 @@ async function knockOnRoom(t: AppiumTestBase, roomId: string): Promise<void> {
     const url = `fedi://room/${encodeURIComponent(roomId)}`
     console.log(`[${t.handle}] Knocking via ${url}`)
     await t.openDeepLink(url)
-    await t.waitForElementDisplayed('ConfirmJoinPublicGroupScreen')
+    await t.waitForElementDisplayed(
+        'ConfirmJoinPublicGroupScreen',
+        MATRIX_TIMEOUT,
+    )
     await t.clickElementByKey('ConfirmJoinButton')
-    await t.waitForElementDisplayed('KnockPendingView')
+    await t.waitForElementDisplayed('KnockPendingView', MATRIX_TIMEOUT)
     // KnockPendingView renders a "Go back" Button when invoked via
     // ConfirmJoinPublicGroup, which is the case here.
     await t.clickOnText('Go back', 0, true)

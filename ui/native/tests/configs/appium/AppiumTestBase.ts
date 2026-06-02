@@ -21,6 +21,10 @@ const DEFAULT_SCROLL_OPTIONS: Required<ScrollOptions> = {
 
 export const DEFAULT_TIMEOUT = 20000
 
+// Waits gated on a Matrix op (room create/join, message send/receive, membership
+// and knock sync, invite link). matrix-rust-sdk lags past DEFAULT_TIMEOUT under CI load.
+export const MATRIX_TIMEOUT = 60000
+
 const E2E_DEBUG =
     process.env.DEBUG_MODE === '1' || process.env.DEBUG_MODE === 'true'
 
