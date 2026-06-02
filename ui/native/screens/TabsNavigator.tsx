@@ -13,10 +13,12 @@ import {
     Platform,
     StyleProp,
     StyleSheet,
+    View,
     ViewStyle,
     useWindowDimensions,
 } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
@@ -51,6 +53,7 @@ import Mods from './Mods'
 import Wallet from './Wallet'
 
 const MAX_TABS_FONT_SCALE = 1.2
+const TAB_BAR_FADE_HEIGHT = 72
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'TabsNavigator'>
 
@@ -70,6 +73,31 @@ const TabBarButton: React.FC<TabBarButtonProps> = ({
         testID={props.testID}
         style={({ pressed }) => [style, pressed && pressedStyle]}
     />
+)
+
+const GradientFill: React.FC<{ backgroundColor: string }> = ({
+    backgroundColor,
+}) => (
+    <View pointerEvents="none" style={gradientFillStyles.container}>
+        <Svg style={gradientFillStyles.fade}>
+            <Defs>
+                <LinearGradient id="tabBarFade" x1="0" y1="0" x2="0" y2="1">
+                    <Stop
+                        offset="0"
+                        stopColor={fediTheme.colors.night}
+                        stopOpacity="0"
+                    />
+                    <Stop
+                        offset="1"
+                        stopColor={fediTheme.colors.night}
+                        stopOpacity="0.06"
+                    />
+                </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#tabBarFade)" />
+        </Svg>
+        <View style={[gradientFillStyles.fill, { backgroundColor }]} />
+    </View>
 )
 
 const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
@@ -216,6 +244,11 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                             : style.tabBarIcon,
                     tabBarActiveTintColor: theme.colors.primary,
                     tabBarInactiveTintColor: theme.colors.primaryLight,
+                    tabBarBackground: () => (
+                        <GradientFill
+                            backgroundColor={theme.colors.secondary}
+                        />
+                    ),
                     tabBarStyle: style.tabBar,
                     tabBarItemStyle: style.tabBarItem,
                     headerTitleStyle: theme.components.Text.style,
@@ -359,18 +392,11 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
 
     return StyleSheet.create({
         tabBar: {
-            backgroundColor: theme.colors.secondary,
+            backgroundColor: 'transparent',
             borderTopWidth: 0,
-            elevation: 24,
             height: tabBarHeight + insets.bottom,
+            overflow: 'visible',
             paddingHorizontal: theme.spacing.xs,
-            shadowColor: 'rgba(11, 16, 19, 0.1)',
-            shadowOffset: {
-                width: 0,
-                height: 4,
-            },
-            shadowOpacity: 1,
-            shadowRadius: 24,
         },
         scanButton: {
             borderWidth: 3,
@@ -419,5 +445,22 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
         },
     })
 }
+
+const gradientFillStyles = StyleSheet.create({
+    container: {
+        ...StyleSheet.absoluteFillObject,
+        overflow: 'visible',
+    },
+    fade: {
+        position: 'absolute',
+        top: -TAB_BAR_FADE_HEIGHT,
+        left: 0,
+        right: 0,
+        height: TAB_BAR_FADE_HEIGHT,
+    },
+    fill: {
+        ...StyleSheet.absoluteFillObject,
+    },
+})
 
 export default TabsNavigator
