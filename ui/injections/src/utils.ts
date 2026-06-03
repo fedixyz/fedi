@@ -7,6 +7,7 @@ import {
 
 export async function sendInjectorMessage<T extends InjectionMessageType>(
     message: InjectionRequestMessage<T>,
+    signal?: AbortSignal,
 ): Promise<InjectionResponseMessage<T>['data']> {
     // Send the message
     if ('ReactNativeWebView' in window) {
@@ -28,15 +29,30 @@ export async function sendInjectorMessage<T extends InjectionMessageType>(
             if (!data || data.id !== message.id || data.type !== message.type) {
                 return
             }
+            window.removeEventListener('fedi:message', messageHandler)
+            signal?.removeEventListener('abort', onAbort)
             // Resolve data, reject errors
             if ('error' in data) {
                 reject(new Error(data.error.message))
             } else {
                 resolve(data.data)
             }
+        }
+        // Detach the listener on abort (e.g. timeout) instead of leaking it.
+        const onAbort = () => {
             window.removeEventListener('fedi:message', messageHandler)
+            reject(
+                signal?.reason instanceof Error
+                    ? signal.reason
+                    : new Error('Injector message request aborted'),
+            )
+        }
+        if (signal?.aborted) {
+            onAbort()
+            return
         }
         window.addEventListener('fedi:message', messageHandler)
+        signal?.addEventListener('abort', onAbort, { once: true })
     })
 }
 
