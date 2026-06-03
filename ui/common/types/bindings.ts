@@ -220,6 +220,10 @@ export type FeatureCatalog = {
    */
   private_room_knocking: PrivateRoomKnockingFeatureConfig | null;
   /**
+   * Enables message reaction support.
+   */
+  message_reactions: MessageReactionsFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -314,6 +318,8 @@ export type LnurlReceivesFeatureConfig = {
 export type LogEvent = { log: string };
 
 export type MatrixFeatureConfig = { home_server: string };
+
+export type MessageReactionsFeatureConfig = Record<string, never>;
 
 /**
  * Collected details for a given event id.
@@ -421,8 +427,6 @@ export type RearrangeMiniappsFeatureConfig = Record<string, never>;
 
 export type RecoveryCompleteEvent = { federationId: RpcFederationId };
 
-export type ShowStableBalanceWebFeatureConfig = Record<string, never>;
-
 /**
  * Progress of the recovery
  *
@@ -449,6 +453,9 @@ export type RecoveryProgressEvent = {
  *
  * Only a subset of features are controllable with remote features. This subset
  * should be safe if adversary takes control of fedi server for short time.
+ *
+ * New fields must be backwards-compatible with older cached values stored in
+ * the bridge DB.
  */
 export type RemoteFeatures = {
   dummyFeature: boolean;
@@ -458,6 +465,11 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   privateRoomKnocking: boolean;
+  /**
+   * `#[serde(default)]` so the new bridge stays deserializable against any
+   * cached/older payload that omits the field.
+   */
+  messageReactions: boolean;
 };
 
 export type RpcAccountId = string;
@@ -1752,6 +1764,8 @@ export type SendMessageData = {
   data: JSONObject;
   mentions: RpcMentions | null;
 };
+
+export type ShowStableBalanceWebFeatureConfig = Record<string, never>;
 
 export type SocialRecoveryApproval = {
   guardianName: string;

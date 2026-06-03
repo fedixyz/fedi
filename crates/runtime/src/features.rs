@@ -61,6 +61,10 @@ pub struct RemoteFeatures {
     /// cached/older payload that omits the field.
     #[serde(default)]
     pub private_room_knocking: bool,
+    /// `#[serde(default)]` so the new bridge stays deserializable against any
+    /// cached/older payload that omits the field.
+    #[serde(default)]
+    pub message_reactions: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -147,6 +151,8 @@ pub struct FeatureCatalog {
     /// knockable. The knock RPCs themselves are always live, so the gate
     /// only controls whether new rooms can be opted in to JoinRule::Knock.
     pub private_room_knocking: Option<PrivateRoomKnockingFeatureConfig>,
+    /// Enables message reaction support.
+    pub message_reactions: Option<MessageReactionsFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -272,6 +278,10 @@ pub struct PrivateRoomKnockingFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct MessageReactionsFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -325,6 +335,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.message_reactions = if remote_features.message_reactions {
+            Some(MessageReactionsFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -367,6 +382,7 @@ impl FeatureCatalog {
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
+            message_reactions: Some(MessageReactionsFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -422,6 +438,7 @@ impl FeatureCatalog {
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
+            message_reactions: Some(MessageReactionsFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -469,6 +486,7 @@ impl FeatureCatalog {
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
+            message_reactions: Some(MessageReactionsFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -519,6 +537,7 @@ impl FeatureCatalog {
             dummy_feature: None,
             show_stable_balance_web: None,
             private_room_knocking: None,
+            message_reactions: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -581,5 +600,7 @@ mod tests {
 
         assert!(!remote_features.dummy_feature);
         assert!(!remote_features.show_stable_balance_web);
+        assert!(!remote_features.private_room_knocking);
+        assert!(!remote_features.message_reactions);
     }
 }

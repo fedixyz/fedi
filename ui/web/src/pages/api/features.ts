@@ -9,11 +9,13 @@ const prodRemoteFeatures: RemoteFeatures = {
     dummyFeature: false,
     showStableBalanceWeb: false,
     privateRoomKnocking: false,
+    messageReactions: false,
 }
 const devRemoteFeatures: RemoteFeatures = {
     dummyFeature: true,
     showStableBalanceWeb: true,
     privateRoomKnocking: true,
+    messageReactions: true,
 }
 const isProduction = process.env.VERCEL_ENV === 'production'
 
