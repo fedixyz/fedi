@@ -1,8 +1,15 @@
-import { cleanup, screen } from '@testing-library/react-native'
+import {
+    cleanup,
+    fireEvent,
+    screen,
+    waitFor,
+} from '@testing-library/react-native'
 import React from 'react'
 
+import { MATRIX_QUICK_REACTION_EMOJIS } from '@fedi/common/constants/matrix'
 import {
     handleMatrixRoomTimelineStreamUpdates,
+    setFeatureFlags,
     setMatrixAuth,
     setMatrixRoomMembers,
     setMatrixRoomPowerLevels,
@@ -13,12 +20,14 @@ import {
     createMockNonPaymentEvent,
     mockMatrixEventImage,
 } from '@fedi/common/tests/mock-data/matrix-event'
+import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
     MatrixAuth,
     MatrixEvent,
     MatrixPowerLevel,
     MatrixRoomMember,
 } from '@fedi/common/types'
+import { FeatureCatalog } from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
 
 import SelectedMessageOverlay from '../../../../../components/feature/chat/SelectedMessageOverlay'
@@ -88,6 +97,8 @@ function makePollEvent(): MatrixEvent<'m.poll'> {
         sendState: null,
         inReply: null,
         mentions: null,
+        canReact: true,
+        reactions: [],
         content: {
             msgtype: 'm.poll',
             body: 'Choose an option',
@@ -108,10 +119,12 @@ function seedOverlayState({
     event,
     currentUserId,
     currentUserPowerLevel,
+    messageReactionsEnabled = true,
 }: {
     event: MatrixEvent
     currentUserId: string
     currentUserPowerLevel: MatrixPowerLevel
+    messageReactionsEnabled?: boolean
 }) {
     const store = setupStore()
     const members: MatrixRoomMember[] = [
@@ -144,6 +157,11 @@ function seedOverlayState({
         })
     }
 
+    store.dispatch(
+        setFeatureFlags({
+            message_reactions: messageReactionsEnabled ? {} : null,
+        } as FeatureCatalog),
+    )
     store.dispatch(
         setMatrixAuth({
             userId: currentUserId,
@@ -179,9 +197,14 @@ function renderOverlayScenario(args: {
     event: MatrixEvent
     currentUserId: string
     currentUserPowerLevel: MatrixPowerLevel
+    fedimint?: ReturnType<typeof createMockFedimintBridge>
+    messageReactionsEnabled?: boolean
 }) {
     const store = seedOverlayState(args)
-    renderWithProviders(<SelectedMessageOverlay />, { store })
+    renderWithProviders(<SelectedMessageOverlay />, {
+        store,
+        fedimint: args.fedimint,
+    })
     return store
 }
 
@@ -216,6 +239,152 @@ describe('SelectedMessageOverlay', () => {
             ACTION_LABELS.edit,
             ACTION_LABELS.delete,
         ])
+    })
+
+    it('should show fixed quick reactions without thumbs down', () => {
+        renderOverlayScenario({
+            event: makeTextEvent(),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+        })
+
+        const quickReactions = MATRIX_QUICK_REACTION_EMOJIS.map(emoji =>
+            screen.getByText(emoji),
+        )
+
+        expect(quickReactions).toHaveLength(7)
+        expect(quickReactions.map(node => node.props.children)).toEqual([
+            '👍',
+            '😄',
+            '🎉',
+            '😐',
+            '❤️',
+            '🚀',
+            '👀',
+        ])
+        expect(screen.queryByText('👎')).not.toBeOnTheScreen()
+    })
+
+    it('should hide quick reactions when the feature flag is disabled', () => {
+        renderOverlayScenario({
+            event: makeTextEvent(),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+            messageReactionsEnabled: false,
+        })
+
+        for (const emoji of MATRIX_QUICK_REACTION_EMOJIS) {
+            expect(screen.queryByText(emoji)).not.toBeOnTheScreen()
+        }
+        expect(screen.queryByLabelText('more reactions')).toBeNull()
+    })
+
+    it('should toggle the selected quick reaction through the Matrix client', async () => {
+        const toggleReaction = jest.fn().mockResolvedValue(true)
+        const fedimint = createMockFedimintBridge({
+            getMatrixClient: () => ({ toggleReaction }),
+        } as any)
+
+        renderOverlayScenario({
+            event: makeTextEvent(),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+            fedimint,
+        })
+
+        fireEvent.press(screen.getByLabelText('React 👍'))
+
+        await waitFor(() => {
+            expect(toggleReaction).toHaveBeenCalledWith(
+                ROOM_ID,
+                '$text-event',
+                '👍',
+            )
+        })
+    })
+
+    it('should open the emoji picker from the quick tray more button and select an additional reaction', async () => {
+        const toggleReaction = jest.fn().mockResolvedValue(true)
+        const fedimint = createMockFedimintBridge({
+            getMatrixClient: () => ({ toggleReaction }),
+        } as any)
+
+        renderOverlayScenario({
+            event: makeTextEvent(),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+            fedimint,
+        })
+
+        fireEvent.press(screen.getByLabelText('more reactions'))
+        fireEvent.changeText(screen.getByLabelText('search emoji'), 'sparkles')
+        fireEvent.press(screen.getByLabelText('react with ✨'))
+
+        await waitFor(() => {
+            expect(toggleReaction).toHaveBeenCalledWith(
+                ROOM_ID,
+                '$text-event',
+                '✨',
+            )
+        })
+    })
+
+    it('should hide quick reactions before runtime marks the event reactable', () => {
+        renderOverlayScenario({
+            event: makeTextEvent({ canReact: false }),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+        })
+
+        for (const emoji of MATRIX_QUICK_REACTION_EMOJIS) {
+            expect(screen.queryByText(emoji)).not.toBeOnTheScreen()
+        }
+        expect(screen.queryByLabelText('more reactions')).toBeNull()
+        expectOnlyActions([
+            ACTION_LABELS.reply,
+            ACTION_LABELS.copy,
+            ACTION_LABELS.edit,
+            ACTION_LABELS.delete,
+        ])
+    })
+
+    it('should not show quick reactions for failed messages', () => {
+        const toggleReaction = jest.fn().mockResolvedValue(true)
+        const fedimint = createMockFedimintBridge({
+            getMatrixClient: () => ({ toggleReaction }),
+        } as any)
+
+        renderOverlayScenario({
+            event: makeTextEvent({
+                canReact: false,
+                sendState: {
+                    kind: 'sendingFailed',
+                    error: 'Failed to send',
+                    is_recoverable: true,
+                },
+            }),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+            fedimint,
+        })
+
+        for (const emoji of MATRIX_QUICK_REACTION_EMOJIS) {
+            expect(screen.queryByText(emoji)).not.toBeOnTheScreen()
+        }
+        expect(screen.queryByLabelText('more reactions')).toBeNull()
+        expect(toggleReaction).not.toHaveBeenCalled()
+    })
+
+    it('should not show quick reactions for polls', () => {
+        renderOverlayScenario({
+            event: makePollEvent(),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+        })
+
+        for (const emoji of MATRIX_QUICK_REACTION_EMOJIS) {
+            expect(screen.queryByText(emoji)).not.toBeOnTheScreen()
+        }
     })
 
     it("should show reply and copy for another member's text message", () => {

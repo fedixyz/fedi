@@ -1,6 +1,6 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useMemo } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Keyboard, StyleSheet, View } from 'react-native'
 
 import { useMatrixRepliedMessage } from '@fedi/common/hooks/matrix'
 import {
@@ -46,7 +46,10 @@ const ChatTextEvent: React.FC<Props> = ({
     )
 
     const handleLongPress = () => {
-        dispatch(setSelectedChatMessage(event))
+        Keyboard.dismiss()
+        requestAnimationFrame(() => {
+            dispatch(setSelectedChatMessage(event))
+        })
     }
 
     // remove Matrix "edited" fallback markers at the very start: "* ", "** ", etc.

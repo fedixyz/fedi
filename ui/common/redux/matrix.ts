@@ -22,7 +22,10 @@ import {
     cancelEcash,
     selectFeatureFlag,
 } from '.'
-import { GUARDIANITO_BOT_DISPLAY_NAME } from '../constants/matrix'
+import {
+    GUARDIANITO_BOT_DISPLAY_NAME,
+    MAX_CHAT_REACTION_EMOJIS,
+} from '../constants/matrix'
 import {
     ChatReplyState,
     Federation,
@@ -1452,6 +1455,34 @@ export const sendMatrixMessage = createAsyncThunk<
                 extra,
             }),
         ).unwrap()
+    },
+)
+
+export const toggleMatrixReaction = createAsyncThunk<
+    boolean,
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        eventId: RpcTimelineEventItemId
+        reactionKey: string
+    },
+    { state: CommonState }
+>(
+    'matrix/toggleMatrixReaction',
+    async ({ fedimint, roomId, eventId, reactionKey }, { getState }) => {
+        const event = selectMatrixRoomRawEvents(getState(), roomId).find(
+            roomEvent => roomEvent.id === eventId,
+        )
+        if (
+            event?.canReact &&
+            !event.reactions.some(reaction => reaction.key === reactionKey) &&
+            event.reactions.length >= MAX_CHAT_REACTION_EMOJIS
+        ) {
+            throw new Error('errors.chat-reaction-limit-exceeded')
+        }
+
+        const client = fedimint.getMatrixClient()
+        return client.toggleReaction(roomId, eventId, reactionKey)
     },
 )
 

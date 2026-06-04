@@ -2,6 +2,7 @@ import {
     RpcRoomMembershipChange,
     RpcRoomPreview,
     RpcSerializedRoomInfo,
+    RpcTimelineEventItemId,
     RpcTimelineItemEvent,
     VectorDiff,
 } from '../../../types/bindings'
@@ -17,10 +18,11 @@ const flushPromises = async () => {
 
 const makePreviewEvent = (): RpcTimelineItemEvent =>
     ({
-        id: '$event',
+        id: '$event' as RpcTimelineEventItemId,
         content: {
             msgtype: 'm.text',
             body: 'Recovered preview',
+            formatted: null,
         },
         localEcho: false,
         timestamp: Date.now(),
@@ -28,13 +30,15 @@ const makePreviewEvent = (): RpcTimelineItemEvent =>
         sendState: null,
         inReply: null,
         mentions: null,
+        canReact: false,
+        reactions: [],
     }) as RpcTimelineItemEvent
 
 const makeRoomMemberPreviewEvent = (
     change: RpcRoomMembershipChange,
 ): RpcTimelineItemEvent =>
     ({
-        id: '$member-event',
+        id: '$member-event' as RpcTimelineEventItemId,
         content: {
             msgtype: 'm.room.member',
             userId: '@alice:example.com',
@@ -47,6 +51,8 @@ const makeRoomMemberPreviewEvent = (
         sendState: null,
         inReply: null,
         mentions: null,
+        canReact: false,
+        reactions: [],
     }) as RpcTimelineItemEvent
 
 const makeRoomInfo = (
@@ -85,6 +91,7 @@ describe('MatrixChatClient', () => {
         | 'matrixRoomGetPowerLevels'
         | 'matrixSubscribeMultispendGroup'
         | 'matrixRoomGetNotificationMode'
+        | 'matrixToggleReaction'
     >
 
     beforeEach(() => {
@@ -118,6 +125,7 @@ describe('MatrixChatClient', () => {
             matrixRoomGetPowerLevels: jest.fn().mockResolvedValue({}),
             matrixSubscribeMultispendGroup: jest.fn(() => jest.fn()),
             matrixRoomGetNotificationMode: jest.fn().mockResolvedValue(null),
+            matrixToggleReaction: jest.fn().mockResolvedValue(true),
         }
 
         client = new MatrixChatClient()
@@ -132,6 +140,16 @@ describe('MatrixChatClient', () => {
     const emitPinnedTimelineUpdates = (updates: VectorDiff<any>[]) => {
         pinnedTimelineCallbacks.forEach(callback => callback(updates))
     }
+
+    it('toggles a reaction through the bridge', async () => {
+        await client.toggleReaction(ROOM_ID, '$event' as any, '👍')
+
+        expect(mockFedimint.matrixToggleReaction).toHaveBeenCalledWith({
+            roomId: ROOM_ID,
+            eventId: '$event',
+            reactionKey: '👍',
+        })
+    })
 
     describe('room preview serialization', () => {
         it('should preserve invitation accepted membership previews', async () => {

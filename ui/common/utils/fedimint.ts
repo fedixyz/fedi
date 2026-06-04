@@ -1002,6 +1002,12 @@ export class FedimintBridge {
         return this.rpcTyped('matrixSendMessage', args)
     }
 
+    async matrixToggleReaction(
+        args: bindings.RpcPayload<'matrixToggleReaction'>,
+    ) {
+        return this.rpcTyped('matrixToggleReaction', args)
+    }
+
     async matrixRoomCreate(args: bindings.RpcPayload<'matrixRoomCreate'>) {
         return this.rpcTyped('matrixRoomCreate', args)
     }

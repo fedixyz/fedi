@@ -66,6 +66,8 @@ pub enum ErrorCode {
     CommunityDeleted,
     #[error("Pinned message limit exceeded")]
     PinnedMessageLimitExceeded,
+    #[error("Message reaction limit exceeded")]
+    MatrixReactionLimitExceeded,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, Clone)]

@@ -24,6 +24,16 @@ export const MAX_CHAT_MEDIA_HEIGHT = 400
 export const POLL_MIN_OPTIONS = 2
 export const POLL_DEFAULT_OPTIONS = 3
 export const POLL_MAX_OPTIONS = 6
+export const MAX_CHAT_REACTION_EMOJIS = 7
+export const MATRIX_QUICK_REACTION_EMOJIS = [
+    '👍',
+    '😄',
+    '🎉',
+    '😐',
+    '❤️',
+    '🚀',
+    '👀',
+] as const
 
 //HTML comversion for special characters
 export const HTML_ENTITIES: Record<string, string> = {

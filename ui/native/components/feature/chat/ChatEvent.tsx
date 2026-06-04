@@ -1,9 +1,16 @@
 import { Theme, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { StyleProp, StyleSheet, TextStyle, View, ViewStyle } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { selectMatrixAuth } from '@fedi/common/redux'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useToast } from '@fedi/common/hooks/toast'
+import {
+    selectFeatureFlag,
+    selectMatrixAuth,
+    toggleMatrixReaction,
+} from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import { deriveUrlsFromText } from '@fedi/common/utils/chat'
 import {
@@ -25,9 +32,12 @@ import {
     isTextEvent,
     isVideoEvent,
     isSpTransferEvent,
+    canAddMatrixReaction,
+    makeMatrixReactionChips,
 } from '@fedi/common/utils/matrix'
 
-import { useAppSelector } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import CustomOverlay from '../../ui/CustomOverlay'
 import { Row, Column } from '../../ui/Flex'
 import ChatMultispendEvent from '../multispend/chat-events/ChatMultispendEvent'
 import ChatSpTransferEvent from '../stabilitypool/chat-events/ChatSpTransferEvent'
@@ -43,10 +53,13 @@ import ChatImageEvent from './ChatImageEvent'
 import ChatPaymentEvent from './ChatPaymentEvent'
 import ChatPollEvent from './ChatPollEvent'
 import ChatPreviewMediaEvent from './ChatPreviewMediaEvent'
+import ChatReactionDetailsOverlay from './ChatReactionDetailsOverlay'
+import { ChatReactions } from './ChatReactions'
 import ChatRoomMemberEvent from './ChatRoomMemberEvent'
 import ChatTextEvent from './ChatTextEvent'
 import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
 import ChatVideoEvent from './ChatVideoEvent'
+import { MatrixReactionEmojiPicker } from './MatrixReactionEmojiPicker'
 import { MessageItemError } from './MessageItemError'
 
 type Props = {
@@ -67,15 +80,31 @@ const ChatEvent: React.FC<Props> = ({
     onReplyTap,
 }: Props) => {
     const { theme } = useTheme()
+    const { t } = useTranslation()
+    const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
+    const toast = useToast()
     const [hasWidePreview, setHasWidePreview] = useState(false)
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+    const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
+    const [selectedReactionKey, setSelectedReactionKey] = useState<
+        string | null
+    >(null)
+    const [reactingEmoji, setReactingEmoji] = useState<string | null>(null)
+    const messageReactionsEnabled = !!useAppSelector(s =>
+        selectFeatureFlag(s, 'message_reactions'),
+    )
 
     const isMe =
         event.sender === matrixAuth?.userId && !isMultispendEvent(event)
     const isQueued = false
     const isText = isTextEvent(event)
     const isMedia = isImageEvent(event) || isVideoEvent(event)
+    const reactionChips = makeMatrixReactionChips(
+        event.reactions,
+        matrixAuth?.userId,
+    )
 
     const bubbleContainerStyles: StyleProp<ViewStyle | TextStyle>[] = [
         styles(theme).bubbleContainer,
@@ -104,6 +133,116 @@ const ChatEvent: React.FC<Props> = ({
     }
 
     const derivedLinks = isText ? deriveUrlsFromText(event.content.body) : null
+    const handleReaction = useCallback(
+        async (reactionKey: string) => {
+            if (
+                !messageReactionsEnabled ||
+                !event.roomId ||
+                reactingEmoji ||
+                !canAddMatrixReaction(event, reactionKey)
+            )
+                return false
+
+            setReactingEmoji(reactionKey)
+            try {
+                await dispatch(
+                    toggleMatrixReaction({
+                        fedimint,
+                        roomId: event.roomId,
+                        eventId: event.id,
+                        reactionKey,
+                    }),
+                ).unwrap()
+                setIsEmojiPickerOpen(false)
+                return true
+            } catch (err) {
+                toast.error(t, err, 'errors.unknown-error')
+                return false
+            } finally {
+                setReactingEmoji(null)
+            }
+        },
+        [
+            dispatch,
+            event,
+            fedimint,
+            messageReactionsEnabled,
+            reactingEmoji,
+            t,
+            toast,
+        ],
+    )
+
+    const handleReactionDetailsToggle = useCallback(
+        async (reactionKey: string) => {
+            const reaction = reactionChips.find(
+                chip => chip.key === reactionKey,
+            )
+            const didToggle = await handleReaction(reactionKey)
+            if (!didToggle) return
+
+            if (
+                !reaction ||
+                (reactionChips.length === 1 && reaction.count <= 1)
+            ) {
+                setSelectedReactionKey(null)
+                return
+            }
+
+            if (reaction.count <= 1) {
+                setSelectedReactionKey(
+                    reactionChips.find(chip => chip.key !== reactionKey)?.key ||
+                        null,
+                )
+            }
+        },
+        [handleReaction, reactionChips],
+    )
+
+    const renderReactions = () => {
+        if (!messageReactionsEnabled) return null
+
+        return (
+            <>
+                <ChatReactions
+                    event={event}
+                    isMe={isMe}
+                    myId={matrixAuth?.userId}
+                    onAddReaction={
+                        event.canReact
+                            ? () => setIsEmojiPickerOpen(true)
+                            : undefined
+                    }
+                    onReactionPress={
+                        event.canReact
+                            ? reaction => setSelectedReactionKey(reaction.key)
+                            : undefined
+                    }
+                />
+                <ChatReactionDetailsOverlay
+                    event={event}
+                    reactions={reactionChips}
+                    selectedReactionKey={selectedReactionKey}
+                    onSelectReaction={setSelectedReactionKey}
+                    onToggleReaction={handleReactionDetailsToggle}
+                    onDismiss={() => setSelectedReactionKey(null)}
+                />
+                <CustomOverlay
+                    onBackdropPress={() => setIsEmojiPickerOpen(false)}
+                    show={isEmojiPickerOpen && event.canReact}
+                    contents={{
+                        body: (
+                            <MatrixReactionEmojiPicker
+                                event={event}
+                                pendingReaction={reactingEmoji}
+                                onSelect={handleReaction}
+                            />
+                        ),
+                    }}
+                />
+            </>
+        )
+    }
 
     if (isRoomMemberEvent(event)) {
         if (!isJoinedRoomMemberEvent(event)) return null
@@ -111,6 +250,11 @@ const ChatEvent: React.FC<Props> = ({
     }
 
     const style = styles(theme)
+    const messageContainerStyles = [
+        style.messageContainer,
+        isMedia && style.mediaContainer,
+        isMe ? style.rightAlignedMessage : style.leftAlignedMessage,
+    ]
     const eventContent = isText ? (
         <ChatTextEvent
             event={event}
@@ -156,18 +300,16 @@ const ChatEvent: React.FC<Props> = ({
                 <Row>
                     <Column align="start" justify="end" fullWidth={fullWidth}>
                         {isMedia ? (
-                            <View
-                                style={[
-                                    style.mediaContainer,
-                                    isMe
-                                        ? style.rightAlignedMessage
-                                        : style.leftAlignedMessage,
-                                ]}>
+                            <View style={messageContainerStyles}>
                                 {eventContent}
+                                {renderReactions()}
                             </View>
                         ) : (
-                            <View style={bubbleContainerStyles}>
-                                {eventContent}
+                            <View style={messageContainerStyles}>
+                                <View style={bubbleContainerStyles}>
+                                    {eventContent}
+                                </View>
+                                {renderReactions()}
                             </View>
                         )}
 
@@ -219,6 +361,9 @@ const styles = (theme: Theme) =>
         mediaContainer: {
             maxWidth: theme.sizes.maxMessageWidth,
         },
+        messageContainer: {
+            maxWidth: theme.sizes.maxMessageWidth,
+        },
         leftAlignedMessage: {
             marginRight: 'auto',
         },
@@ -245,6 +390,7 @@ const areEqual = (
         return false
     }
     if (prevEvent.localEcho !== currEvent.localEcho) return false
+    if (prevEvent.reactions !== currEvent.reactions) return false
 
     if (isPaymentEvent(currEvent) && isPaymentEvent(prevEvent)) {
         return (

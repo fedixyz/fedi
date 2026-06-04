@@ -176,6 +176,25 @@ pub struct RpcTimelineItemEvent {
     pub(crate) send_state: Option<RpcTimelineEventSendState>,
     in_reply: Option<Box<RpcTimelineDetails<RpcTimelineItemEvent>>>,
     mentions: Option<RpcMentions>,
+    pub can_react: bool,
+    pub reactions: Vec<RpcTimelineReaction>,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcTimelineReaction {
+    pub key: String,
+    #[ts(type = "number")]
+    pub count: u32,
+    pub user_ids: Vec<RpcUserId>,
+}
+
+struct RpcTimelineItemEventParts {
+    content: RpcMsgLikeKind,
+    mentions: Option<RpcMentions>,
+    in_reply: Option<Box<RpcTimelineDetails<RpcTimelineItemEvent>>>,
+    reactions: Vec<RpcTimelineReaction>,
 }
 
 impl From<&EventSendState> for RpcTimelineEventSendState {
@@ -196,18 +215,21 @@ impl From<&EventSendState> for RpcTimelineEventSendState {
     }
 }
 
-impl From<&EventTimelineItem> for RpcTimelineItemEvent {
-    fn from(e: &EventTimelineItem) -> Self {
-        let (content, mentions, in_reply) = Self::from_item_content(e.content());
+impl RpcTimelineItemEvent {
+    fn from_event(e: &EventTimelineItem) -> Self {
+        let parts = Self::from_item_content(e.content());
         RpcTimelineItemEvent {
             id: e.identifier().into(),
-            content,
+            content: parts.content,
             local_echo: e.is_local_echo(),
             timestamp: e.timestamp(),
             sender: e.sender().into(),
             send_state: e.send_state().map(RpcTimelineEventSendState::from),
-            in_reply,
-            mentions,
+            in_reply: parts.in_reply,
+            mentions: parts.mentions,
+            can_react: e.event_id().is_some()
+                && matches!(e.content(), TimelineItemContent::MsgLike(_)),
+            reactions: parts.reactions,
         }
     }
 }
@@ -223,16 +245,18 @@ impl RpcTimelineItemEvent {
                 content,
                 ..
             } => {
-                let (content, mentions, in_reply) = Self::from_item_content(content);
+                let parts = Self::from_item_content(content);
                 Some(RpcTimelineItemEvent {
                     id: RpcTimelineEventItemId("latest".to_string()),
-                    content,
+                    content: parts.content,
                     local_echo: false,
                     timestamp: *timestamp,
                     sender: sender.clone(),
                     send_state: None,
-                    in_reply,
-                    mentions,
+                    in_reply: parts.in_reply,
+                    mentions: parts.mentions,
+                    can_react: false,
+                    reactions: parts.reactions,
                 })
             }
             LatestEventValue::Local {
@@ -242,7 +266,7 @@ impl RpcTimelineItemEvent {
                 state,
                 ..
             } => {
-                let (content, mentions, in_reply) = Self::from_item_content(content);
+                let parts = Self::from_item_content(content);
                 let send_state = match state {
                     LatestEventValueLocalState::IsSending => {
                         Some(RpcTimelineEventSendState::NotSentYet)
@@ -261,13 +285,15 @@ impl RpcTimelineItemEvent {
                 };
                 Some(RpcTimelineItemEvent {
                     id: RpcTimelineEventItemId("latest".to_string()),
-                    content,
+                    content: parts.content,
                     local_echo: true,
                     timestamp: *timestamp,
                     sender: sender.clone(),
                     send_state,
-                    in_reply,
-                    mentions,
+                    in_reply: parts.in_reply,
+                    mentions: parts.mentions,
+                    can_react: false,
+                    reactions: parts.reactions,
                 })
             }
         }
@@ -305,13 +331,21 @@ impl<T> RpcTimelineDetails<T> {
 }
 
 impl RpcTimelineItemEvent {
-    fn from_item_content(
-        item: &TimelineItemContent,
-    ) -> (
-        RpcMsgLikeKind,
-        Option<RpcMentions>,
-        Option<Box<RpcTimelineDetails<RpcTimelineItemEvent>>>,
-    ) {
+    fn from_item_content(item: &TimelineItemContent) -> RpcTimelineItemEventParts {
+        let reactions = item
+            .reactions()
+            .map(|reactions| {
+                reactions
+                    .iter()
+                    .map(|(key, senders)| RpcTimelineReaction {
+                        key: key.clone(),
+                        count: senders.len().try_into().unwrap_or(u32::MAX),
+                        user_ids: senders.keys().cloned().map(RpcUserId::from).collect(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         match item {
             TimelineItemContent::MsgLike(msg) => {
                 let mentions = match &msg.kind {
@@ -319,29 +353,42 @@ impl RpcTimelineItemEvent {
                     _ => None,
                 };
                 let in_reply = msg.in_reply_to.as_ref().map(Self::for_reply);
-                (RpcMsgLikeKind::from(&msg.kind), mentions, in_reply)
+                RpcTimelineItemEventParts {
+                    content: RpcMsgLikeKind::from(&msg.kind),
+                    mentions,
+                    in_reply,
+                    reactions,
+                }
             }
-            TimelineItemContent::MembershipChange(membership) => (
-                RpcMsgLikeKind::RoomMember(RpcRoomMemberEventContent::from(membership)),
-                None,
-                None,
-            ),
-            _ => (RpcMsgLikeKind::Unknown, None, None),
+            TimelineItemContent::MembershipChange(membership) => RpcTimelineItemEventParts {
+                content: RpcMsgLikeKind::RoomMember(RpcRoomMemberEventContent::from(membership)),
+                mentions: None,
+                in_reply: None,
+                reactions,
+            },
+            _ => RpcTimelineItemEventParts {
+                content: RpcMsgLikeKind::Unknown,
+                mentions: None,
+                in_reply: None,
+                reactions,
+            },
         }
     }
 
     fn for_reply(value: &InReplyToDetails) -> Box<RpcTimelineDetails<RpcTimelineItemEvent>> {
         Box::new(RpcTimelineDetails::mapped(&value.event, |value| {
-            let (content, mentions, in_reply) = Self::from_item_content(&value.content);
+            let parts = Self::from_item_content(&value.content);
             RpcTimelineItemEvent {
                 id: value.identifier.clone().into(),
-                content,
+                content: parts.content,
                 local_echo: false,
                 timestamp: value.timestamp,
                 sender: value.sender.clone(),
                 send_state: None,
-                mentions,
-                in_reply,
+                mentions: parts.mentions,
+                in_reply: parts.in_reply,
+                can_react: false,
+                reactions: parts.reactions,
             }
         }))
     }
@@ -485,7 +532,7 @@ impl From<PaginationStatus> for RpcBackPaginationStatus {
 impl From<Arc<TimelineItem>> for RpcTimelineItem {
     fn from(item: Arc<TimelineItem>) -> Self {
         match **item {
-            TimelineItemKind::Event(ref e) => Self::Event(RpcTimelineItemEvent::from(e)),
+            TimelineItemKind::Event(ref e) => Self::Event(RpcTimelineItemEvent::from_event(e)),
             TimelineItemKind::Virtual(ref v) => match v {
                 VirtualTimelineItem::DateDivider(t) => Self::DateDivider(*t),
                 VirtualTimelineItem::ReadMarker => Self::ReadMarker,
@@ -518,6 +565,8 @@ impl RpcTimelineItem {
                     send_state: None, // This is for local echos, not relevant here
                     in_reply: None,
                     mentions: None,
+                    can_react: false,
+                    reactions: Vec::new(),
                 };
 
                 Some(RpcTimelineItem::Event(event))

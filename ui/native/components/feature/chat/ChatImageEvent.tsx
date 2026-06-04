@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
     Image,
+    Keyboard,
     Pressable,
     StyleSheet,
     View,
@@ -53,7 +54,10 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
     const resolvedUri = matchingPreviewImage?.media.uri ?? uri ?? ''
 
     const handleLongPress = () => {
-        dispatch(setSelectedChatMessage(event))
+        Keyboard.dismiss()
+        requestAnimationFrame(() => {
+            dispatch(setSelectedChatMessage(event))
+        })
     }
 
     const style = styles(theme)

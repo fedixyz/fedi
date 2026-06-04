@@ -51,6 +51,8 @@ function makePinnedTimelineItem(
             sendState: null,
             inReply: null,
             mentions: null,
+            canReact: true,
+            reactions: [],
         },
     }
 }
@@ -345,6 +347,8 @@ describe('PinnedMessageBanner', () => {
             sendState: null,
             inReply: null,
             mentions: null,
+            canReact: false,
+            reactions: [],
             content: {
                 msgtype: 'spTransfer' as const,
                 shouldRender: false,

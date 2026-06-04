@@ -51,6 +51,7 @@ export function useMessageActionState({
     const canDownload =
         !!message &&
         (isImageEvent(message) || isVideoEvent(message) || isFileEvent(message))
+    const canReact = canReply && !!message?.canReact
 
     const hasAnyAction =
         canReply ||
@@ -66,6 +67,7 @@ export function useMessageActionState({
         canCopy,
         canEdit,
         canDownload,
+        canReact,
         hasAnyAction,
         ...deleteMessage,
         ...pinMessage,

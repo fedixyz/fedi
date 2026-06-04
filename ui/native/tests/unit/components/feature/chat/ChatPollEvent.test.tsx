@@ -1,6 +1,11 @@
-import { cleanup, fireEvent, screen } from '@testing-library/react-native'
+import {
+    cleanup,
+    fireEvent,
+    screen,
+    waitFor,
+} from '@testing-library/react-native'
 import React from 'react'
-import { Pressable } from 'react-native'
+import { Keyboard, Pressable } from 'react-native'
 
 import {
     handleMatrixRoomTimelineStreamUpdates,
@@ -33,6 +38,8 @@ function makePollEvent(): MatrixEvent<'m.poll'> {
         sendState: null,
         inReply: null,
         mentions: null,
+        canReact: true,
+        reactions: [],
         content: {
             msgtype: 'm.poll',
             body: 'Where should we meet?',
@@ -120,10 +127,11 @@ describe('ChatPollEvent', () => {
         jest.clearAllMocks()
     })
 
-    it("should show the pin message option when an admin long presses someone else's poll", () => {
+    it("should show the pin message option when an admin long presses someone else's poll", async () => {
         const store = setupStore()
         const event = makePollEvent()
         seedRoomState(store, event, ROOM_ADMIN_ID, MatrixPowerLevel.Admin)
+        const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss')
 
         const { UNSAFE_getByType } = renderWithProviders(
             <>
@@ -137,7 +145,10 @@ describe('ChatPollEvent', () => {
 
         fireEvent(UNSAFE_getByType(Pressable), 'onLongPress')
 
-        expect(selectSelectedChatMessage(store.getState())).toEqual(event)
+        expect(dismissKeyboard).toHaveBeenCalled()
+        await waitFor(() => {
+            expect(selectSelectedChatMessage(store.getState())).toEqual(event)
+        })
         expect(
             screen.getByText(i18n.t('feature.chat.pin-message')),
         ).toBeOnTheScreen()

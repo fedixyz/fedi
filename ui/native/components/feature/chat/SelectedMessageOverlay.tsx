@@ -1,17 +1,26 @@
 import Clipboard from '@react-native-clipboard/clipboard'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { useCallback } from 'react'
+import type { ResourceKey } from 'i18next'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
+import {
+    MATRIX_QUICK_REACTION_EMOJIS,
+    MAX_CHAT_REACTION_EMOJIS,
+} from '@fedi/common/constants/matrix'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectSelectedChatMessage,
     setMessageToEdit,
     setSelectedChatMessage,
     setChatReplyingToMessage,
+    selectFeatureFlag,
+    toggleMatrixReaction,
 } from '@fedi/common/redux'
 import {
+    canAddMatrixReaction,
     isFileEvent,
     isImageEvent,
     isTextEvent,
@@ -25,6 +34,7 @@ import { Row, Column } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 import ChatEvent from './ChatEvent'
+import { MatrixReactionEmojiPicker } from './MatrixReactionEmojiPicker'
 import { useMessageActionState } from './useMessageActionState'
 
 const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
@@ -36,6 +46,12 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
+    const fedimint = useFedimint()
+    const messageReactionsEnabled = !!useAppSelector(s =>
+        selectFeatureFlag(s, 'message_reactions'),
+    )
+    const [reactingEmoji, setReactingEmoji] = useState<string | null>(null)
+    const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
 
     const downloadResource =
         selectedMessage &&
@@ -51,6 +67,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         })
 
     const closeOverlay = useCallback(() => {
+        setIsEmojiPickerOpen(false)
         dispatch(setSelectedChatMessage(null))
     }, [dispatch])
 
@@ -59,7 +76,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         canCopy,
         canEdit,
         canDownload,
-        hasAnyAction,
+        canReact,
         canDelete,
         isDeleting,
         showDeleteConfirm,
@@ -124,12 +141,73 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         closeOverlay()
     }, [dispatch, closeOverlay, selectedMessage])
 
+    const handleReaction = useCallback(
+        async (reactionKey: string) => {
+            if (
+                !messageReactionsEnabled ||
+                !selectedMessage ||
+                reactingEmoji ||
+                !canAddMatrixReaction(selectedMessage, reactionKey)
+            )
+                return
+
+            setReactingEmoji(reactionKey)
+            try {
+                await dispatch(
+                    toggleMatrixReaction({
+                        fedimint,
+                        roomId: selectedMessage.roomId,
+                        eventId: selectedMessage.id,
+                        reactionKey,
+                    }),
+                ).unwrap()
+                closeOverlay()
+            } catch (e) {
+                toast.error(t, e, 'errors.unknown-error')
+            } finally {
+                setReactingEmoji(null)
+            }
+        },
+        [
+            closeOverlay,
+            dispatch,
+            fedimint,
+            messageReactionsEnabled,
+            reactingEmoji,
+            selectedMessage,
+            t,
+            toast,
+        ],
+    )
+
     const style = styles(theme)
+    const reactLabel = t('words.react' as ResourceKey)
+    const canShowReactions = messageReactionsEnabled && canReact
+    const hasAnyVisibleAction =
+        canShowReactions ||
+        canReply ||
+        canCopy ||
+        canPin ||
+        canDownload ||
+        canDelete
+    const canSelectReaction = useCallback(
+        (reactionKey: string) => {
+            if (!selectedMessage) return false
+
+            const reactions = selectedMessage.reactions ?? []
+
+            return (
+                reactions.some(reaction => reaction.key === reactionKey) ||
+                reactions.length < MAX_CHAT_REACTION_EMOJIS
+            )
+        },
+        [selectedMessage],
+    )
 
     return (
         <CustomOverlay
             onBackdropPress={closeOverlay}
-            show={!!selectedMessage && hasAnyAction}
+            show={!!selectedMessage && hasAnyVisibleAction}
             contents={{
                 body:
                     showDeleteConfirm && selectedMessage ? (
@@ -154,8 +232,79 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                 {t('feature.chat.confirm-delete-message')}
                             </Text>
                         </Column>
+                    ) : messageReactionsEnabled &&
+                      isEmojiPickerOpen &&
+                      selectedMessage ? (
+                        <MatrixReactionEmojiPicker
+                            event={selectedMessage}
+                            pendingReaction={reactingEmoji}
+                            onSelect={handleReaction}
+                        />
                     ) : (
                         <Column fullWidth>
+                            {canShowReactions && selectedMessage && (
+                                <Column
+                                    gap="sm"
+                                    fullWidth
+                                    style={style.quickReactionsContainer}>
+                                    <Text bold>{reactLabel}</Text>
+                                    <Row gap="sm" fullWidth>
+                                        {MATRIX_QUICK_REACTION_EMOJIS.map(
+                                            reactionKey => {
+                                                const disabled =
+                                                    !!reactingEmoji ||
+                                                    !canSelectReaction(
+                                                        reactionKey,
+                                                    )
+
+                                                return (
+                                                    <Pressable
+                                                        key={reactionKey}
+                                                        accessibilityRole="button"
+                                                        accessibilityLabel={`${reactLabel} ${reactionKey}`}
+                                                        disabled={disabled}
+                                                        onPress={() =>
+                                                            handleReaction(
+                                                                reactionKey,
+                                                            )
+                                                        }
+                                                        containerStyle={
+                                                            style.quickReaction
+                                                        }>
+                                                        {reactingEmoji ===
+                                                        reactionKey ? (
+                                                            <ActivityIndicator size="small" />
+                                                        ) : (
+                                                            <Text
+                                                                style={
+                                                                    style.quickReactionEmoji
+                                                                }>
+                                                                {reactionKey}
+                                                            </Text>
+                                                        )}
+                                                    </Pressable>
+                                                )
+                                            },
+                                        )}
+                                        <Pressable
+                                            accessibilityRole="button"
+                                            accessibilityLabel="more reactions"
+                                            disabled={!!reactingEmoji}
+                                            onPress={() =>
+                                                setIsEmojiPickerOpen(true)
+                                            }
+                                            containerStyle={
+                                                style.quickReaction
+                                            }>
+                                            <SvgImage
+                                                name="Plus"
+                                                size={16}
+                                                color={theme.colors.darkGrey}
+                                            />
+                                        </Pressable>
+                                    </Row>
+                                </Column>
+                            )}
                             {canReply && (
                                 <Pressable
                                     onPress={handleReply}
@@ -256,6 +405,22 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         action: {
             gap: theme.spacing.lg,
+        },
+        quickReactionsContainer: {
+            paddingHorizontal: theme.spacing.sm,
+            paddingBottom: theme.spacing.md,
+        },
+        quickReaction: {
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 32,
+            width: 'auto',
+            paddingHorizontal: theme.spacing.xxs,
+            paddingVertical: theme.spacing.xs,
+        },
+        quickReactionEmoji: {
+            fontSize: 24,
+            lineHeight: 32,
         },
         messageBubble: {
             padding: 10,

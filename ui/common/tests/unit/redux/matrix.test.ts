@@ -1,3 +1,4 @@
+import { MAX_CHAT_REACTION_EMOJIS } from '@fedi/common/constants/matrix'
 import {
     addRejectedMatrixRoom,
     addMatrixRoomInfo,
@@ -11,8 +12,10 @@ import {
     selectMatrixRoomRawEvents,
     selectMatrixRoomSelectableEventIds,
     setupStore,
+    toggleMatrixReaction,
 } from '@fedi/common/redux'
 import { MatrixRoom } from '@fedi/common/types'
+import { canAddMatrixReaction } from '@fedi/common/utils/matrix'
 
 import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
 import { createMockNonPaymentEvent } from '../../mock-data/matrix-event'
@@ -100,6 +103,112 @@ describe('matrix room timeline selectors', () => {
                 selectedRoomId,
             ),
         ).toBe(selectableEventIds)
+    })
+})
+
+describe('toggleMatrixReaction', () => {
+    it('passes reaction toggles to the Matrix client', async () => {
+        const store = setupStore()
+        const roomId = 'room-a' as MatrixRoom['id']
+        const event = createMockNonPaymentEvent({ roomId })
+        const toggleReaction = jest.fn().mockResolvedValue(true)
+        const fedimint = {
+            getMatrixClient: () => ({ toggleReaction }),
+        } as any
+
+        store.dispatch(
+            handleMatrixRoomTimelineStreamUpdates({
+                roomId,
+                updates: [{ Append: { values: [event] } }],
+            }),
+        )
+
+        await store
+            .dispatch(
+                toggleMatrixReaction({
+                    fedimint,
+                    roomId,
+                    eventId: event.id,
+                    reactionKey: '👍',
+                }),
+            )
+            .unwrap()
+
+        expect(toggleReaction).toHaveBeenCalledWith(roomId, event.id, '👍')
+    })
+
+    it('rejects new reaction keys once the distinct emoji limit is reached', async () => {
+        const store = setupStore()
+        const roomId = 'room-a' as MatrixRoom['id']
+        const event = createMockNonPaymentEvent({
+            roomId,
+            reactions: ['👍', '😄', '🎉', '😐', '❤️', '🚀', '👀'].map(key => ({
+                key,
+                count: 1,
+                userIds: ['@user:example.com'],
+            })),
+        })
+        const toggleReaction = jest.fn().mockResolvedValue(true)
+        const fedimint = {
+            getMatrixClient: () => ({ toggleReaction }),
+        } as any
+
+        store.dispatch(
+            handleMatrixRoomTimelineStreamUpdates({
+                roomId,
+                updates: [{ Append: { values: [event] } }],
+            }),
+        )
+        const rawEvent = selectMatrixRoomRawEvents(store.getState(), roomId)[0]
+        expect(rawEvent.reactions).toHaveLength(MAX_CHAT_REACTION_EMOJIS)
+        expect(rawEvent.canReact).toBe(true)
+        expect(canAddMatrixReaction(rawEvent, 'new-reaction')).toBe(false)
+
+        const result = await store.dispatch(
+            toggleMatrixReaction({
+                fedimint,
+                roomId,
+                eventId: event.id,
+                reactionKey: 'new-reaction',
+            }),
+        )
+
+        expect(toggleMatrixReaction.rejected.match(result)).toBe(true)
+        if (!toggleMatrixReaction.rejected.match(result)) {
+            throw new Error('expected rejected toggleMatrixReaction action')
+        }
+        expect(result.error.message).toBe('errors.chat-reaction-limit-exceeded')
+        expect(toggleReaction).not.toHaveBeenCalled()
+    })
+
+    it('lets the bridge handle non-reactable events', async () => {
+        const store = setupStore()
+        const roomId = 'room-a' as MatrixRoom['id']
+        const event = createMockNonPaymentEvent({ roomId, canReact: false })
+        const toggleReaction = jest.fn().mockResolvedValue(true)
+        const fedimint = {
+            getMatrixClient: () => ({ toggleReaction }),
+        } as any
+
+        store.dispatch(
+            handleMatrixRoomTimelineStreamUpdates({
+                roomId,
+                updates: [{ Append: { values: [event] } }],
+            }),
+        )
+
+        await store
+            .dispatch(
+                toggleMatrixReaction({
+                    fedimint,
+                    roomId,
+                    eventId: event.id,
+                    reactionKey: '👍',
+                }),
+            )
+            .unwrap()
+
+        expect(toggleReaction).toHaveBeenCalledWith(roomId, event.id, '👍')
     })
 })
 

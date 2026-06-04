@@ -350,6 +350,8 @@ function createRoomMemberEvent(
         sendState: { kind: 'sent', event_id: 'event123' },
         inReply: null,
         mentions: null,
+        canReact: false,
+        reactions: [],
         content: {
             msgtype: 'm.room.member',
             userId,

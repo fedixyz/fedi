@@ -1634,6 +1634,19 @@ async fn matrixSendMessage(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn matrixToggleReaction(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+    event_id: RpcTimelineEventItemId,
+    reaction_key: String,
+) -> anyhow::Result<bool> {
+    let matrix = bg_matrix.wait().await;
+    matrix
+        .toggle_reaction(&room_id.into_typed()?, &event_id.into(), reaction_key)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn matrixSendReply(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
@@ -2711,6 +2724,7 @@ rpc_methods!(RpcMethods {
     matrixRoomTimelineItemsPaginateBackwards,
     matrixRoomSubscribeTimelineItemsPaginateBackwardsStatus,
     matrixSendMessage,
+    matrixToggleReaction,
     matrixSendAttachment,
     matrixRoomCreate,
     matrixRoomCreateOrGetDm,

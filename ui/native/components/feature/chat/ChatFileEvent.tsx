@@ -1,5 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
+import {
+    ActivityIndicator,
+    Keyboard,
+    Pressable,
+    StyleSheet,
+    View,
+} from 'react-native'
 
 import { setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
@@ -22,7 +28,10 @@ const ChatFileEvent: React.FC<ChatImageEventProps> = ({
     const dispatch = useAppDispatch()
 
     const handleLongPress = () => {
-        dispatch(setSelectedChatMessage(event))
+        Keyboard.dismiss()
+        requestAnimationFrame(() => {
+            dispatch(setSelectedChatMessage(event))
+        })
     }
 
     const style = styles(theme)

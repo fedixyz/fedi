@@ -51,6 +51,8 @@ function makeTimelineItem(eventId: string): RpcTimelineItem {
             sendState: null,
             inReply: null,
             mentions: null,
+            canReact: true,
+            reactions: [],
         },
     }
 }
@@ -69,6 +71,8 @@ function makeUnknownTimelineItem(eventId: string): RpcTimelineItem {
             sendState: null,
             inReply: null,
             mentions: null,
+            canReact: false,
+            reactions: [],
         },
     }
 }
@@ -359,6 +363,8 @@ describe('usePinMessage', () => {
             sendState: null,
             inReply: null,
             mentions: null,
+            canReact: false,
+            reactions: [],
             content: {
                 msgtype: 'spTransfer' as const,
                 shouldRender: false,
@@ -550,6 +556,8 @@ describe('usePinMessage', () => {
                 sendState: null,
                 inReply: null,
                 mentions: null,
+                canReact: false,
+                reactions: [],
                 content: {
                     msgtype: 'spTransfer' as const,
                     shouldRender: false,

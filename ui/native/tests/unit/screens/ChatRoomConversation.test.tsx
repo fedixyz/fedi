@@ -265,6 +265,8 @@ function createStoreWithJoinedConversation() {
                                     sendState: null,
                                     inReply: null,
                                     mentions: null,
+                                    canReact: true,
+                                    reactions: [],
                                 },
                             },
                         ],

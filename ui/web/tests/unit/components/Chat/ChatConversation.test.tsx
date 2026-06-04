@@ -48,6 +48,8 @@ function makeTextEvent(
         sendState: { kind: 'sent', event_id: id },
         inReply: null,
         mentions: null,
+        canReact: false,
+        reactions: [],
         content: {
             msgtype: 'm.text',
             body,
@@ -70,6 +72,8 @@ function makeRoomMemberEvent(
         sendState: { kind: 'sent', event_id: id },
         inReply: null,
         mentions: null,
+        canReact: false,
+        reactions: [],
         content: {
             msgtype: 'm.room.member',
             userId: '@alice:example.com',

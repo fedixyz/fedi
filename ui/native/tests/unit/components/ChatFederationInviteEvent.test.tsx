@@ -1,7 +1,13 @@
-import { cleanup, screen } from '@testing-library/react-native'
+import {
+    cleanup,
+    fireEvent,
+    screen,
+    waitFor,
+} from '@testing-library/react-native'
 import React from 'react'
+import { Keyboard, Pressable } from 'react-native'
 
-import { setupStore } from '@fedi/common/redux'
+import { selectSelectedChatMessage, setupStore } from '@fedi/common/redux'
 import { createMockFederationInviteEvent } from '@fedi/common/tests/mock-data/matrix-event'
 import { RpcFederationPreview } from '@fedi/common/types/bindings'
 import { MSats } from '@fedi/common/types/units'
@@ -167,5 +173,28 @@ describe('ChatFederationInviteEvent', () => {
 
         expect(joinText.length).toBeGreaterThan(0)
         expect(joinedText.length).toBe(0)
+    })
+
+    it('should dismiss the keyboard before selecting the federation invite on long press', async () => {
+        mockIsMember = false
+        const store = setupStore()
+        const event = createMockFederationInviteEvent({
+            content: {
+                body: INVITE_CODE,
+            },
+        })
+        const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss')
+
+        const { UNSAFE_getByType } = renderWithProviders(
+            <ChatFederationInviteEvent event={event} />,
+            { store },
+        )
+
+        fireEvent(UNSAFE_getByType(Pressable), 'onLongPress')
+
+        expect(dismissKeyboard).toHaveBeenCalled()
+        await waitFor(() => {
+            expect(selectSelectedChatMessage(store.getState())).toEqual(event)
+        })
     })
 })

@@ -104,7 +104,8 @@ export type ErrorCode =
   | "unknownFederation"
   | "offlineExactEcashFailed"
   | "communityDeleted"
-  | "pinnedMessageLimitExceeded";
+  | "pinnedMessageLimitExceeded"
+  | "matrixReactionLimitExceeded";
 
 export type Event =
   | { transaction: TransactionEvent }
@@ -989,6 +990,7 @@ export type RpcMethods = {
     null,
   ];
   matrixSendMessage: [matrixSendMessage, null];
+  matrixToggleReaction: [matrixToggleReaction, boolean];
   matrixSendAttachment: [matrixSendAttachment, null];
   matrixRoomCreate: [matrixRoomCreate, RpcRoomId];
   matrixRoomCreateOrGetDm: [matrixRoomCreateOrGetDm, RpcRoomId];
@@ -1548,6 +1550,14 @@ export type RpcTimelineItemEvent = {
   sendState: RpcTimelineEventSendState | null;
   inReply: RpcTimelineDetails<RpcTimelineItemEvent> | null;
   mentions: RpcMentions | null;
+  canReact: boolean;
+  reactions: Array<RpcTimelineReaction>;
+};
+
+export type RpcTimelineReaction = {
+  key: string;
+  count: number;
+  userIds: Array<RpcUserId>;
 };
 
 export type RpcTransaction = {
@@ -2372,6 +2382,12 @@ export type matrixSubscribeRoomTimelineItems = {
 
 export type matrixSubscribeSyncIndicator = {
   streamId: RpcStreamId<RpcSyncIndicator>;
+};
+
+export type matrixToggleReaction = {
+  roomId: RpcRoomId;
+  eventId: RpcTimelineEventItemId;
+  reactionKey: string;
 };
 
 export type matrixUnignoreUser = { userId: RpcUserId };

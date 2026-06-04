@@ -2,7 +2,7 @@ import Clipboard from '@react-native-clipboard/clipboard'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet } from 'react-native'
+import { Keyboard, StyleSheet } from 'react-native'
 
 import { useCommunityInviteCode } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -59,7 +59,10 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
     }
 
     const handleLongPress = () => {
-        dispatch(setSelectedChatMessage(event))
+        Keyboard.dismiss()
+        requestAnimationFrame(() => {
+            dispatch(setSelectedChatMessage(event))
+        })
     }
 
     const style = styles(theme)

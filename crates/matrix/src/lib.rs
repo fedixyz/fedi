@@ -70,6 +70,8 @@ pub use types::SendMessageData;
 
 mod types;
 
+const MAX_REACTION_KEYS_PER_MESSAGE: usize = 7;
+
 pub struct Matrix {
     /// matrix client
     pub client: Client,
@@ -630,6 +632,37 @@ impl Matrix {
             )
             .await?;
         Ok(())
+    }
+
+    pub async fn toggle_reaction(
+        &self,
+        room_id: &RoomId,
+        item_id: &TimelineEventItemId,
+        reaction_key: String,
+    ) -> anyhow::Result<bool> {
+        let timeline = self.timeline(room_id).await?;
+        if Self::would_exceed_reaction_key_limit(&timeline, item_id, &reaction_key).await {
+            anyhow::bail!(ErrorCode::MatrixReactionLimitExceeded);
+        }
+        Ok(timeline.toggle_reaction(item_id, &reaction_key).await?)
+    }
+
+    async fn would_exceed_reaction_key_limit(
+        timeline: &Timeline,
+        item_id: &TimelineEventItemId,
+        reaction_key: &str,
+    ) -> bool {
+        timeline
+            .items()
+            .await
+            .iter()
+            .filter_map(|item| item.as_event())
+            .find(|event| event.identifier() == *item_id)
+            .and_then(|event| event.content().reactions())
+            .is_some_and(|reactions| {
+                !reactions.contains_key(reaction_key)
+                    && reactions.len() >= MAX_REACTION_KEYS_PER_MESSAGE
+            })
     }
 
     /// Send a reply to a specific message in a room

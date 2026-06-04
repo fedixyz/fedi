@@ -40,6 +40,7 @@ import {
     RpcSerializedRoomInfo,
     RpcSPv2SyncResponse,
     RpcSpTransferState,
+    RpcTimelineEventItemId,
     RpcTimelineItem,
     VectorDiff,
 } from '../types/bindings'
@@ -546,6 +547,18 @@ export class MatrixChatClient {
                 // TODO: add mentions
                 mentions: null,
             },
+        })
+    }
+
+    async toggleReaction(
+        roomId: string,
+        eventId: RpcTimelineEventItemId,
+        reactionKey: string,
+    ) {
+        return this.fedimint.matrixToggleReaction({
+            roomId,
+            eventId,
+            reactionKey,
         })
     }
 

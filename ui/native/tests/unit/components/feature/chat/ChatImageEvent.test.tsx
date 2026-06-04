@@ -1,8 +1,9 @@
-import { cleanup } from '@testing-library/react-native'
+import { cleanup, fireEvent, waitFor } from '@testing-library/react-native'
 import React from 'react'
-import { Image, StyleSheet } from 'react-native'
+import { Image, Keyboard, Pressable, StyleSheet } from 'react-native'
 
 import { MAX_CHAT_MEDIA_HEIGHT } from '@fedi/common/constants/matrix'
+import { selectSelectedChatMessage, setupStore } from '@fedi/common/redux'
 import { mockMatrixEventImage } from '@fedi/common/tests/mock-data/matrix-event'
 import { MatrixEvent } from '@fedi/common/types'
 
@@ -61,5 +62,24 @@ describe('ChatImageEvent', () => {
         expect(imageStyle.height).toBe(fallbackSize)
         expect(imageStyle.width).toBeGreaterThan(1)
         expect(imageStyle.height).toBeGreaterThan(1)
+    })
+
+    it('should dismiss the keyboard before selecting the image message on long press', async () => {
+        const store = setupStore()
+        const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss')
+
+        const { UNSAFE_getByType } = renderWithProviders(
+            <ChatImageEvent event={mockMatrixEventImage} />,
+            { store },
+        )
+
+        fireEvent(UNSAFE_getByType(Pressable), 'onLongPress')
+
+        expect(dismissKeyboard).toHaveBeenCalled()
+        await waitFor(() => {
+            expect(selectSelectedChatMessage(store.getState())).toEqual(
+                mockMatrixEventImage,
+            )
+        })
     })
 })

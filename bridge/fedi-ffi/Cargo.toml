@@ -103,6 +103,7 @@ mockito = "1.4.0"
 clap = { workspace = true }
 federations = { workspace = true, features = ["test-support"] }
 devi = { workspace = true }
+matrix-sdk-ui = { workspace = true, default-features = false }
 
 # FIXME: just put these above? or dev-dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

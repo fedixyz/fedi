@@ -21,6 +21,8 @@ import {
     isReply,
     stripReplyFromBody,
     getRoomPreviewText,
+    canAddMatrixReaction,
+    makeMatrixReactionChips,
 } from '../../../utils/matrix'
 import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
 import { createMockNonPaymentEvent } from '../../mock-data/matrix-event'
@@ -78,6 +80,8 @@ const mockGroupAnnounceEvent: MatrixMultispendEvent<'groupReannounce'> = {
     sendState: { kind: 'sent', event_id: 'event123' },
     inReply: null,
     mentions: null,
+    canReact: true,
+    reactions: [],
     content: {
         msgtype: 'xyz.fedi.multispend',
         kind: 'groupReannounce',
@@ -112,6 +116,8 @@ const mockChatEvent: MatrixEvent<'m.text'> = {
     localEcho: false,
     inReply: null,
     mentions: null,
+    canReact: true,
+    reactions: [],
 }
 
 const mockMatrixEvents: MatrixEvent[] = [mockGroupAnnounceEvent, mockChatEvent]
@@ -432,7 +438,74 @@ const mockRepliedEvent: MatrixEvent<'m.text'> = {
         kind: 'ready',
         ...mockChatEvent,
     },
+    canReact: true,
+    reactions: [],
 }
+
+describe('canAddMatrixReaction', () => {
+    it('allows reactable message events with no existing reactions', () => {
+        const event = createMockNonPaymentEvent({
+            canReact: true,
+            reactions: [],
+        })
+
+        expect(canAddMatrixReaction(event, '👍')).toBe(true)
+    })
+
+    it('allows existing reaction keys at the distinct emoji limit', () => {
+        const event = createMockNonPaymentEvent({
+            reactions: ['👍', '😄', '🎉', '😐', '❤️', '🚀', '👀'].map(key => ({
+                key,
+                count: 1,
+                userIds: ['@user:example.com'],
+            })),
+        })
+
+        expect(canAddMatrixReaction(event, '👍')).toBe(true)
+    })
+
+    it('blocks new reaction keys once the distinct emoji limit is reached', () => {
+        const event = createMockNonPaymentEvent({
+            reactions: ['👍', '😄', '🎉', '😐', '❤️', '🚀', '👀'].map(key => ({
+                key,
+                count: 1,
+                userIds: ['@user:example.com'],
+            })),
+        })
+
+        expect(canAddMatrixReaction(event, '✨')).toBe(false)
+    })
+
+    it('blocks reactions on events that the bridge marks non-reactable', () => {
+        const event = createMockNonPaymentEvent({ canReact: false })
+
+        expect(canAddMatrixReaction(event, '👍')).toBe(false)
+    })
+})
+
+describe('makeMatrixReactionChips', () => {
+    it('preserves reacting user ids for reaction detail views', () => {
+        expect(
+            makeMatrixReactionChips(
+                [
+                    {
+                        key: '👍',
+                        count: 2,
+                        userIds: ['@self:test', '@alice:test'],
+                    },
+                ],
+                '@self:test',
+            ),
+        ).toEqual([
+            {
+                key: '👍',
+                count: 2,
+                reactedByMe: true,
+                userIds: ['@self:test', '@alice:test'],
+            },
+        ])
+    })
+})
 
 describe('Reply utility functions', () => {
     describe('isReply', () => {

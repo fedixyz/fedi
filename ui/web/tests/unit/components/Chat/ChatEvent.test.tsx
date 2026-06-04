@@ -26,6 +26,8 @@ function makePollEvent(): MatrixEvent<'m.poll'> {
         sendState: null,
         inReply: null,
         mentions: null,
+        canReact: false,
+        reactions: [],
         content: {
             msgtype: 'm.poll',
             body: 'Where should we meet?',

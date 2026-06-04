@@ -34,6 +34,8 @@ const MOCK_EVENT = {
     sendState: { kind: 'sent', event_id: 'event123' },
     inReply: null,
     mentions: null,
+    canReact: true,
+    reactions: [],
 } satisfies Omit<MatrixEvent<'m.text'>, 'content'>
 
 // Mock event factories

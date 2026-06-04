@@ -349,6 +349,8 @@ describe.skip('skip mentions', () => {
             localEcho: false,
             inReply: null,
             mentions: null,
+            canReact: true,
+            reactions: [],
         } satisfies Partial<MatrixEvent>
 
         it('extracts userId from matrix.to anchor', () => {

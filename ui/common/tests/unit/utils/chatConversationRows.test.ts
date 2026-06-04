@@ -40,6 +40,8 @@ function makeRoomMemberEvent(
         sendState: { kind: 'sent', event_id: `event-${id}` },
         inReply: null,
         mentions: null,
+        canReact: false,
+        reactions: [],
         content: {
             msgtype: 'm.room.member',
             userId: sender,
@@ -80,6 +82,8 @@ function makePollEvent(
         sendState: { kind: 'sent', event_id: `event-${id}` },
         inReply: null,
         mentions: null,
+        canReact: true,
+        reactions: [],
         content: {
             msgtype: 'm.poll',
             body: `poll-${id}`,

@@ -1,6 +1,7 @@
 import { ResourceKey, TFunction } from 'i18next'
 import { Err } from 'neverthrow'
 
+import { MAX_CHAT_REACTION_EMOJIS } from '../constants/matrix'
 import { SelectableCurrency } from '../types'
 import { ErrorCode } from '../types/bindings'
 import { BridgeError } from '../utils/errors'
@@ -20,7 +21,8 @@ export function formatErrorMessage<T extends TFunction>(
     if (err instanceof BridgeError) return formatBridgeError(err, t)
     if (err instanceof Err) err = err.error
 
-    if (typeof err === 'string') return t(err as ResourceKey)
+    if (typeof err === 'string')
+        return translateErrorMessage(t, err as ResourceKey)
 
     if (err && typeof err === 'object') {
         let msg = defaultMessage
@@ -28,7 +30,7 @@ export function formatErrorMessage<T extends TFunction>(
         if ('message' in err && typeof err.message === 'string')
             msg = err.message
 
-        const translatedMsg = t(msg)
+        const translatedMsg = translateErrorMessage(t, msg)
 
         if ('_tag' in err && typeof err._tag === 'string')
             return `${err._tag}: ${translatedMsg}`
@@ -39,9 +41,18 @@ export function formatErrorMessage<T extends TFunction>(
     return t(defaultMessage)
 }
 
+function translateErrorMessage(t: TFunction, message: ResourceKey): string {
+    if (message === 'errors.chat-reaction-limit-exceeded') {
+        return t(message, { limit: MAX_CHAT_REACTION_EMOJIS })
+    }
+
+    return t(message)
+}
+
 type OnlyStrings<T> = T extends string ? T : never
 type StringBridgeErrorCodes = OnlyStrings<ErrorCode>
 const bridgeErrorMap: Partial<Record<StringBridgeErrorCodes, ResourceKey>> = {
+    matrixReactionLimitExceeded: 'errors.chat-reaction-limit-exceeded',
     payLnInvoiceAlreadyPaid: 'errors.invoice-already-paid',
     ecashAlreadySpent: 'errors.receive-ecash-failed-claimed',
 }
@@ -52,7 +63,8 @@ export const formatBridgeError = (
 ): string => {
     // Handle bridge errors that are just strings
     if (typeof errorCode === 'string' && errorCode in bridgeErrorMap) {
-        return t(bridgeErrorMap[errorCode])
+        const message = bridgeErrorMap[errorCode]
+        if (message) return translateErrorMessage(t, message)
     }
 
     // Handle bridge errors that include an errorCode object

@@ -9,6 +9,7 @@ import {
     HTML_ENTITIES,
     HTML_TAG_REGEX,
     MX_REPLY_REGEX,
+    MAX_CHAT_REACTION_EMOJIS,
     QUOTE_USER_REGEX,
     MATRIX_URL_BASE,
     ROOM_MENTION,
@@ -52,6 +53,7 @@ import {
     RpcMentions,
     JSONObject,
     RpcTimelineItemEvent,
+    RpcTimelineReaction,
     RpcUserPowerLevel,
 } from '../types/bindings'
 import { makeLog } from './log'
@@ -237,10 +239,43 @@ export type MatrixUrlMetadata = z.infer<typeof matrixUrlMetadataSchema>
 
 export type MatrixEventContent = MatrixEvent['content']
 
+export type MatrixReactionChip = Pick<
+    RpcTimelineReaction,
+    'key' | 'count' | 'userIds'
+> & {
+    reactedByMe: boolean
+}
+
+export const makeMatrixReactionChips = (
+    reactions?: RpcTimelineReaction[],
+    myId?: string | null,
+): MatrixReactionChip[] =>
+    (reactions || [])
+        .filter(reaction => reaction.count > 0)
+        .slice(0, MAX_CHAT_REACTION_EMOJIS)
+        .map(({ key, count, userIds }) => ({
+            key,
+            count,
+            reactedByMe: !!myId && userIds.includes(myId),
+            userIds,
+        }))
+
 export const isRpcMatrixEvent = (
     item: RpcTimelineItemEvent & { roomId: string },
 ): item is MatrixEvent<RpcMatrixEventKind> => {
     return RpcMatrixEventKinds.includes(item.content.msgtype)
+}
+
+export const canAddMatrixReaction = (
+    event: MatrixEvent,
+    reactionKey: string,
+) => {
+    if (!event.canReact) return false
+
+    return (
+        event.reactions.some(reaction => reaction.key === reactionKey) ||
+        event.reactions.length < MAX_CHAT_REACTION_EMOJIS
+    )
 }
 
 export type RepliableMatrixEventContent = MatrixEventContent & {

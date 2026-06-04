@@ -10,10 +10,13 @@ use futures::{Stream, StreamExt};
 use imbl::Vector;
 use matrix_sdk::ruma::events::room::message::MessageType;
 use matrix_sdk::timeout::timeout;
+use matrix_sdk_ui::timeline::TimelineEventItemId;
 use rand::rngs::SmallRng;
 use rand::{RngCore as _, SeedableRng as _};
 use rpc_types::error::ErrorCode;
-use rpc_types::matrix::RpcRoomId;
+use rpc_types::matrix::{
+    RpcRoomId, RpcTimelineEventItemId, RpcTimelineItemEvent, RpcTimelineReaction,
+};
 use rpc_types::{RpcEventId, RpcMediaUploadParams};
 use tracing::warn;
 
@@ -102,6 +105,54 @@ fn extract_text_from_item(item: &RpcTimelineItem) -> Option<String> {
 
 fn timeline_as_text(items: &Vector<RpcTimelineItem>) -> Vec<Option<String>> {
     items.iter().map(extract_text_from_item).collect()
+}
+
+fn extract_reactions_from_item(
+    item: &RpcTimelineItem,
+    body: &str,
+) -> Option<Vec<RpcTimelineReaction>> {
+    match item {
+        RpcTimelineItem::Event(event) if extract_text_from_item(item).as_deref() == Some(body) => {
+            Some(event.reactions.clone())
+        }
+        _ => None,
+    }
+}
+
+fn timeline_reactions_for_body(
+    items: &Vector<RpcTimelineItem>,
+    body: &str,
+) -> Option<Vec<RpcTimelineReaction>> {
+    items
+        .iter()
+        .rev()
+        .find_map(|item| extract_reactions_from_item(item, body))
+}
+
+fn timeline_event_for_body<'a>(
+    items: &'a Vector<RpcTimelineItem>,
+    body: &str,
+) -> Option<&'a RpcTimelineItemEvent> {
+    items.iter().rev().find_map(|item| match item {
+        RpcTimelineItem::Event(event) if extract_text_from_item(item).as_deref() == Some(body) => {
+            Some(event)
+        }
+        _ => None,
+    })
+}
+
+fn timeline_member_events(items: &Vector<RpcTimelineItem>) -> Vec<&RpcTimelineItemEvent> {
+    items
+        .iter()
+        .filter_map(|item| match item {
+            RpcTimelineItem::Event(event)
+                if matches!(&event.content, RpcMsgLikeKind::RoomMember(_)) =>
+            {
+                Some(event)
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
@@ -284,6 +335,209 @@ pub async fn test_matrix_create_room(_dev_fed: DevFed) -> anyhow::Result<()> {
         warn!("## WAITING");
         fedimint_core::runtime::sleep(Duration::from_millis(100)).await;
     }
+    Ok(())
+}
+
+pub async fn test_matrix_message_reactions(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
+    let bridge2 = td2.bridge_full().await?;
+    let m1 = td1.matrix().await?;
+    let m2 = td2.matrix().await?;
+    let user1 = m1.client.user_id().unwrap().to_string();
+    let user2 = m2.client.user_id().unwrap().to_owned();
+    let user2_id = user2.to_string();
+    let room_id = m1.create_or_get_dm(&user2).await?;
+
+    m2.wait_for_room_id(&room_id).await?;
+    m2.room_join(&room_id).await?;
+
+    let body = "reaction-target";
+    m1.send_message(&room_id, SendMessageData::text(body.to_owned()))
+        .await?;
+
+    let sdk_timeline = m2.timeline(&room_id).await?;
+    let (initial, mut sdk_stream) = sdk_timeline.subscribe().await;
+    let mut sdk_items = initial;
+    apply_diffs_until(&mut sdk_items, &mut sdk_stream, |items| {
+        items.iter().any(|item| {
+            item.as_event()
+                .and_then(|event| event.content().as_message())
+                .is_some_and(|message| message.body() == body)
+        })
+    })
+    .await;
+
+    let event_id = sdk_items
+        .iter()
+        .find_map(|item| {
+            let event = item.as_event()?;
+            let message = event.content().as_message()?;
+            if message.body() == body {
+                event.event_id().map(ToOwned::to_owned)
+            } else {
+                None
+            }
+        })
+        .context("expected reaction target event id")?;
+    let rpc_event_id: RpcTimelineEventItemId = TimelineEventItemId::EventId(event_id).into();
+    let rpc_room_id = || RpcRoomId(room_id.to_string());
+
+    let mut rpc_stream = pin!(m2.room_timeline_items(&room_id).await?);
+    let mut rpc_timeline = imbl::Vector::new();
+    apply_diffs_until(&mut rpc_timeline, &mut rpc_stream, |items| {
+        timeline_as_text(items)
+            .iter()
+            .any(|text| text.as_deref() == Some(body))
+    })
+    .await;
+    let reaction_target = timeline_event_for_body(&rpc_timeline, body)
+        .context("expected reaction target in RPC timeline")?;
+    assert!(
+        reaction_target.can_react,
+        "message-like timeline events should be marked reactable"
+    );
+    let member_events = timeline_member_events(&rpc_timeline);
+    assert!(
+        !member_events.is_empty(),
+        "expected membership timeline events in reaction test timeline"
+    );
+    assert!(
+        member_events.iter().all(|event| !event.can_react),
+        "membership timeline events should not be marked reactable"
+    );
+
+    m1.toggle_reaction(&room_id, &rpc_event_id.clone().into(), "👍".to_owned())
+        .await?;
+    apply_diffs_until(&mut rpc_timeline, &mut rpc_stream, |items| {
+        timeline_reactions_for_body(items, body).is_some_and(|reactions| {
+            reactions.len() == 1
+                && reactions[0].key == "👍"
+                && reactions[0].count == 1
+                && reactions[0].count as usize == reactions[0].user_ids.len()
+                && reactions[0]
+                    .user_ids
+                    .iter()
+                    .map(|user_id| user_id.0.as_str())
+                    .collect::<Vec<_>>()
+                    == vec![user1.as_str()]
+        })
+    })
+    .await;
+
+    assert!(
+        matrixToggleReaction(
+            &bridge2.matrix,
+            rpc_room_id(),
+            rpc_event_id.clone(),
+            "👍".to_owned(),
+        )
+        .await?
+    );
+    apply_diffs_until(&mut rpc_timeline, &mut rpc_stream, |items| {
+        timeline_reactions_for_body(items, body).is_some_and(|reactions| {
+            reactions.iter().any(|reaction| {
+                reaction.key == "👍"
+                    && reaction.count == 2
+                    && reaction.count as usize == reaction.user_ids.len()
+                    && reaction
+                        .user_ids
+                        .iter()
+                        .map(|user_id| user_id.0.as_str())
+                        .collect::<Vec<_>>()
+                        == vec![user1.as_str(), user2_id.as_str()]
+            })
+        })
+    })
+    .await;
+
+    m2.toggle_reaction(&room_id, &rpc_event_id.clone().into(), "🎉".to_owned())
+        .await?;
+    apply_diffs_until(&mut rpc_timeline, &mut rpc_stream, |items| {
+        timeline_reactions_for_body(items, body).is_some_and(|reactions| {
+            reactions
+                .iter()
+                .map(|reaction| reaction.key.as_str())
+                .collect::<Vec<_>>()
+                == vec!["👍", "🎉"]
+                && reactions.iter().any(|reaction| {
+                    reaction.key == "🎉"
+                        && reaction.count as usize == reaction.user_ids.len()
+                        && reaction
+                            .user_ids
+                            .iter()
+                            .map(|user_id| user_id.0.as_str())
+                            .collect::<Vec<_>>()
+                            == vec![user2_id.as_str()]
+                })
+        })
+    })
+    .await;
+
+    assert!(
+        !matrixToggleReaction(
+            &bridge2.matrix,
+            rpc_room_id(),
+            rpc_event_id.clone(),
+            "👍".to_owned(),
+        )
+        .await?
+    );
+    apply_diffs_until(&mut rpc_timeline, &mut rpc_stream, |items| {
+        timeline_reactions_for_body(items, body).is_some_and(|reactions| {
+            reactions.iter().any(|reaction| {
+                reaction.key == "👍"
+                    && reaction.count == 1
+                    && reaction.count as usize == reaction.user_ids.len()
+                    && reaction
+                        .user_ids
+                        .iter()
+                        .map(|user_id| user_id.0.as_str())
+                        .collect::<Vec<_>>()
+                        == vec![user1.as_str()]
+            })
+        })
+    })
+    .await;
+
+    for reaction_key in ["😄", "😐", "❤️", "🚀", "👀"] {
+        m2.toggle_reaction(
+            &room_id,
+            &rpc_event_id.clone().into(),
+            reaction_key.to_owned(),
+        )
+        .await?;
+    }
+    apply_diffs_until(&mut rpc_timeline, &mut rpc_stream, |items| {
+        timeline_reactions_for_body(items, body).is_some_and(|reactions| reactions.len() == 7)
+    })
+    .await;
+
+    let mut reopened_rpc_stream = pin!(m2.room_timeline_items(&room_id).await?);
+    let mut reopened_rpc_timeline = imbl::Vector::new();
+    apply_diffs_until(
+        &mut reopened_rpc_timeline,
+        &mut reopened_rpc_stream,
+        |items| {
+            timeline_reactions_for_body(items, body).is_some_and(|reactions| reactions.len() == 7)
+        },
+    )
+    .await;
+
+    let err = matrixToggleReaction(
+        &bridge2.matrix,
+        rpc_room_id(),
+        rpc_event_id,
+        "✨".to_owned(),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        err.downcast_ref::<ErrorCode>(),
+        Some(&ErrorCode::MatrixReactionLimitExceeded),
+        "Expected MatrixReactionLimitExceeded, got: {err:?}"
+    );
+
     Ok(())
 }
 

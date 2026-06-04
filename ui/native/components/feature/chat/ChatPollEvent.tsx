@@ -1,7 +1,7 @@
 import { CheckBox, Theme, useTheme, Text, Button } from '@rneui/themed'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Pressable, StyleSheet, View } from 'react-native'
+import { Alert, Keyboard, Pressable, StyleSheet, View } from 'react-native'
 
 import { useMatrixPollEvent } from '@fedi/common/hooks/matrix'
 import { setSelectedChatMessage } from '@fedi/common/redux'
@@ -46,7 +46,10 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
     })
 
     const handleLongPress = useCallback(() => {
-        dispatch(setSelectedChatMessage(event))
+        Keyboard.dismiss()
+        requestAnimationFrame(() => {
+            dispatch(setSelectedChatMessage(event))
+        })
     }, [dispatch, event])
 
     const handleEndPoll = useCallback(async () => {
