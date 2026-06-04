@@ -91,7 +91,7 @@ export const NostrSignOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                                     i18nKey="feature.nostr.log-in-to-mod"
                                     values={{
                                         fediMod: siteInfo?.title,
-                                        method: t('words.nostr'),
+                                        method: t('words.fedi'),
                                     }}
                                     components={{ bold: <Text caption bold /> }}
                                 />
