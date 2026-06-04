@@ -20,6 +20,8 @@ interface Props {
     extraInput?: React.ReactNode
     content?: React.ReactNode
     onChangeAmount?: (amount: Sats) => void
+    lockToFiat?: boolean
+    switcherEnabled?: boolean
     error?: string
 }
 
@@ -34,6 +36,8 @@ export const AmountInput: React.FC<Props> = ({
     extraInput,
     content,
     onChangeAmount,
+    lockToFiat = false,
+    switcherEnabled = true,
     error: customError,
 }) => {
     const { t } = useTranslation()
@@ -57,6 +61,10 @@ export const AmountInput: React.FC<Props> = ({
 
     const errorElRef = useRef<HTMLDivElement | null>(null)
     const amountInputContainerElRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+        if (lockToFiat) setIsFiat(true)
+    }, [lockToFiat, setIsFiat])
 
     // Wiggle the error on subsequent submit attempts.
     useEffect(() => {
@@ -158,6 +166,7 @@ export const AmountInput: React.FC<Props> = ({
                 {content}
                 <AmountInputContainer
                     ref={amountInputContainerElRef}
+                    compact={!switcherEnabled}
                     css={{
                         '--error-height-offset': error
                             ? '0px'
@@ -165,13 +174,17 @@ export const AmountInput: React.FC<Props> = ({
                     }}>
                     <FieldWrap
                         {...(isFiat ? inactiveWrapProps : activeWrapProps)}>
-                        <SnugInput>
-                            <div>
-                                {satsValue}{' '}
-                                <Currency>{t('words.sats')}</Currency>
-                            </div>
-                        </SnugInput>
-                        {!readOnly && isFiat && <Icon icon="Switch" />}
+                        {switcherEnabled && (
+                            <>
+                                <SnugInput>
+                                    <div>
+                                        {satsValue}{' '}
+                                        <Currency>{t('words.sats')}</Currency>
+                                    </div>
+                                </SnugInput>
+                                {!readOnly && isFiat && <Icon icon="Switch" />}
+                            </>
+                        )}
                     </FieldWrap>
                     <FieldWrap
                         {...(isFiat ? activeWrapProps : inactiveWrapProps)}>
@@ -215,6 +228,8 @@ export const AmountInput: React.FC<Props> = ({
 }
 
 const fieldsHeight = 88
+const singleFieldHeight = 48
+const compactErrorGap = 8
 const errorHeight = 28
 
 const Container = styled('div', {
@@ -242,6 +257,14 @@ const AmountInputContainer = styled('div', {
     width: '100%',
     position: 'relative',
     height: fieldsHeight + errorHeight,
+
+    variants: {
+        compact: {
+            true: {
+                height: singleFieldHeight + compactErrorGap + errorHeight,
+            },
+        },
+    },
 })
 
 const errorFade = keyframes({
@@ -356,6 +379,8 @@ const FieldWrap = styled('div', {
 
 const SnugInput = styled('div', {
     height: 48,
+    maxWidth: '100%',
+    overflow: 'hidden',
     position: 'relative',
     textTransform: 'uppercase',
 
@@ -363,6 +388,9 @@ const SnugInput = styled('div', {
         fontSize: 32,
         lineHeight: '48px',
         fontWeight: theme.fontWeights.medium,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
     },
 })
 

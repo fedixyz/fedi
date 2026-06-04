@@ -17,11 +17,11 @@ import {
     selectFeatureFlag,
     selectLoadedFederations,
     selectLoadedFederationsByRecency,
-    selectSelectedFederation,
     selectPaymentType,
+    selectSelectedFederation,
     setPayFromFederationId,
-    setSelectedFederationId,
     setPaymentType,
+    setSelectedFederationId,
 } from '@fedi/common/redux'
 import { getCurrencyCode } from '@fedi/common/utils/currency'
 
@@ -42,6 +42,7 @@ import {
     onboardingRoute,
     requestRoute,
     sendRoute,
+    stabilityDepositRoute,
 } from '../constants/routes'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { styled } from '../styles'
@@ -107,6 +108,17 @@ function WalletPage() {
             dispatch(setPaymentType('bitcoin'))
         }
     }, [dispatch, shouldShowStableBalanceSwitcher])
+
+    const handleOnReceive = useCallback(() => {
+        dispatch(setPayFromFederationId(federationId))
+
+        if (paymentType === 'stable-balance') {
+            router.push(stabilityDepositRoute(federationId))
+            return
+        }
+
+        router.push(requestRoute)
+    }, [dispatch, federationId, paymentType, router])
 
     const content =
         loadedFederations.length === 0 ? (
@@ -227,10 +239,7 @@ function WalletPage() {
                         icon="ArrowDown"
                         width="full"
                         disabled={receiveDisabled}
-                        onClick={() => {
-                            dispatch(setPayFromFederationId(federationId))
-                            router.push(requestRoute)
-                        }}>
+                        onClick={handleOnReceive}>
                         {t('words.receive')}
                     </Button>
                     <Button
