@@ -26,7 +26,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 47,
+        version: 48,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -851,6 +851,17 @@ async function migrateStoredState(
             ...migrationState,
             version: 47,
             seenKnockRequests: {},
+        }
+    }
+
+    if (migrationState.version === 47) {
+        migrationState = {
+            ...migrationState,
+            version: 48,
+            protectedFeatures: {
+                ...migrationState.protectedFeatures,
+                personalBackup: true,
+            },
         }
     }
 

@@ -23,6 +23,7 @@ const protectedFeatureToi18nKey: Record<keyof ProtectedFeatures, ResourceKey> =
         app: 'feature.pin.unlocking-fedi-app',
         changePin: 'feature.pin.change-pin',
         nostrSettings: 'feature.nostr.nostr-settings',
+        personalBackup: 'feature.backup.personal-backup',
     } as const
 
 const PinAccess: React.FC<Props> = ({ navigation }) => {

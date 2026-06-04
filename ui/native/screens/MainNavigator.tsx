@@ -28,6 +28,7 @@ import NewMemberHeader from '../components/feature/onboarding/NewMemberHeader'
 import ChangePinLockScreenHeader from '../components/feature/pin/ChangePinLockScreenHeader'
 import CreatePinInstructionsHeader from '../components/feature/pin/CreatePinInstructionsHeader'
 import NostrSettingsLockScreen from '../components/feature/pin/NostrSettingsLockScreen'
+import PersonalBackupLockScreen from '../components/feature/pin/PersonalBackupLockScreen'
 import PinAccessHeader from '../components/feature/pin/PinAccessHeader'
 import ResetPinHeader from '../components/feature/pin/ResetPinHeader'
 import ResetPinStartHeader from '../components/feature/pin/ResetPinStartHeader'
@@ -195,6 +196,7 @@ export const MainNavigator = () => {
     const isAppUnlocked = useIsFeatureUnlocked('app')
     const isChangePinUnlocked = useIsFeatureUnlocked('changePin')
     const isNostrSettingsUnlocked = useIsFeatureUnlocked('nostrSettings')
+    const isPersonalBackupUnlocked = useIsFeatureUnlocked('personalBackup')
     const socialRecoveryState = useAppSelector(selectSocialRecoveryState)
     const deviceIndexRequired = useAppSelector(
         s => s.recovery.deviceIndexRequired,
@@ -371,6 +373,31 @@ export const MainNavigator = () => {
                             ),
                         })}
                     />
+                    {/* Personal Backup */}
+                    {isPersonalBackupUnlocked ? (
+                        <Stack.Screen
+                            name="RecoveryWords"
+                            component={RecoveryWords}
+                            options={() => ({
+                                header: () => (
+                                    <CenteredHeader
+                                        backButton
+                                        title={t(
+                                            'feature.backup.personal-backup',
+                                        )}
+                                    />
+                                ),
+                            })}
+                        />
+                    ) : (
+                        <Stack.Screen
+                            name="RecoveryWords"
+                            component={PersonalBackupLockScreen}
+                            options={() => ({
+                                header: () => <ChangePinLockScreenHeader />,
+                            })}
+                        />
+                    )}
                 </Stack.Group>
                 {isAppUnlocked ? (
                     <Stack.Group>
@@ -988,21 +1015,6 @@ export const MainNavigator = () => {
                                 name="RecoveryAssistConfirmation"
                                 component={RecoveryAssistConfirmation}
                                 options={{ headerShown: false }}
-                            />
-                            {/* Personal Backup */}
-                            <Stack.Screen
-                                name="RecoveryWords"
-                                component={RecoveryWords}
-                                options={() => ({
-                                    header: () => (
-                                        <CenteredHeader
-                                            backButton
-                                            title={t(
-                                                'feature.backup.personal-backup',
-                                            )}
-                                        />
-                                    ),
-                                })}
                             />
                             {/* Personal Recovery */}
                             <Stack.Screen
