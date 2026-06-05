@@ -47,6 +47,8 @@ export class AppiumTestBase {
 
     driver: WebdriverIO.Browser
     readonly handle: string
+    // Cleared by resetAppToFresh, whose reinstall resets the OS grant.
+    private iosNotificationPromptHandled = false
 
     constructor(handle: string = 'a') {
         this.handle = handle
@@ -982,8 +984,53 @@ export class AppiumTestBase {
         )
     }
 
+    // NotificationContext fires the iOS notification prompt once chatList is
+    // non-empty. It's a Springboard alert that overlays the app (invisible to
+    // element finders) and blocks the next tap in the chat (invite capture)
+    // and backup/restore (group create, recovery) flows. Poll for it and
+    // accept: accepting grants the permission, so it won't fire again until
+    // resetAppToFresh reinstalls. No-op on Android (auto-granted), once
+    // handled, or while no prompt is up.
+    async acceptIosNotificationPromptIfPresent(
+        maxWaitMs = 10000,
+    ): Promise<void> {
+        if (
+            currentPlatform !== Platform.IOS ||
+            this.iosNotificationPromptHandled
+        ) {
+            return
+        }
+        const deadline = Date.now() + maxWaitMs
+        while (Date.now() < deadline) {
+            let buttons: string[] | null = null
+            try {
+                buttons = (await this.driver.executeScript('mobile: alert', [
+                    { action: 'getButtons' },
+                ])) as string[]
+            } catch {
+                /* no prompt up yet; poll again shortly */
+            }
+            if (Array.isArray(buttons) && buttons.length > 0) {
+                // Anchor to the start so "Don't Allow" is never matched.
+                const allow = buttons.find(b => /^(allow|ok)/i.test(b))
+                if (allow) {
+                    await this.driver.executeScript('mobile: alert', [
+                        { action: 'accept', buttonLabel: allow },
+                    ])
+                    this.iosNotificationPromptHandled = true
+                    // Settle the dismiss animation before the next query.
+                    await new Promise(r => setTimeout(r, 1500))
+                    console.log('Accepted the iOS notification prompt')
+                }
+                return
+            }
+            await new Promise(r => setTimeout(r, 500))
+        }
+    }
+
     async resetAppToFresh(): Promise<void> {
         console.log('Resetting app to fresh-install state...')
+        this.iosNotificationPromptHandled = false
         switch (currentPlatform) {
             case Platform.IOS: {
                 const bundleId = process.env.BUNDLE_ID || 'org.fedi.alpha'
