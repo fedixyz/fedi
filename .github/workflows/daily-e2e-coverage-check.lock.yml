@@ -199,7 +199,7 @@ jobs:
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
           cat << 'GH_AW_PROMPT_acd162fadd1a9fe2_EOF'
           <safe-output-tools>
-          Tools: create_issue, missing_tool, missing_data, noop
+          Tools: create_issue, missing_tool, missing_data, noop, report_incomplete
           </safe-output-tools>
           GH_AW_PROMPT_acd162fadd1a9fe2_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
@@ -791,6 +791,19 @@ jobs:
         id: pre_agent_audit
         continue-on-error: true
         run: bash "${RUNNER_TEMP}/gh-aw/actions/audit_pre_agent_workspace.sh"
+      - name: Build deterministic E2E audit context
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_WORKFLOW_FILE: ".github/workflows/daily-e2e-coverage-check.lock.yml"
+        run: node scripts/ci/build-e2e-audit-context.mjs --output-dir /tmp/gh-aw
+      - name: Append deterministic E2E audit context to prompt
+        run: |
+          {
+            echo
+            echo '<deterministic-e2e-audit-context>'
+            cat /tmp/gh-aw/e2e-audit-context.md
+            echo '</deterministic-e2e-audit-context>'
+          } >> /tmp/gh-aw/aw-prompts/prompt.txt
       - name: Execute Codex CLI
         id: agentic_execution
         run: |
@@ -887,6 +900,9 @@ jobs:
             setupGlobals(core, github, context, exec, io, getOctokit);
             const { main } = require('${{ runner.temp }}/gh-aw/actions/collect_ndjson_output.cjs');
             await main();
+      - name: Validate E2E audit output evidence
+        if: always()
+        run: node scripts/ci/validate-e2e-audit-output.mjs --agent-output /tmp/gh-aw/agent_output.json --context /tmp/gh-aw/e2e-audit-context.json
       - name: Parse agent logs for step summary
         if: always()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -979,6 +995,8 @@ jobs:
             /tmp/gh-aw/github_rate_limits.jsonl
             /tmp/gh-aw/safeoutputs.jsonl
             /tmp/gh-aw/agent_output.json
+            /tmp/gh-aw/e2e-audit-context.json
+            /tmp/gh-aw/e2e-audit-context.md
             /tmp/gh-aw/aw-*.patch
             /tmp/gh-aw/aw-*.bundle
             /tmp/gh-aw/awf-config.json
@@ -1547,4 +1565,3 @@ jobs:
         with:
           key: memory-none-nopolicy-${{ env.GH_AW_WORKFLOW_ID_SANITIZED }}-${{ github.run_id }}
           path: /tmp/gh-aw/cache-memory
-
