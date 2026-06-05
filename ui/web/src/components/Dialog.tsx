@@ -84,8 +84,8 @@ export const Dialog: React.FC<Props> = ({
                         onInteractOutside={handleCloseTrigger}
                         isTray={type === 'tray'}>
                         <VisuallyHidden>
-                            <div>{title || ''}</div>
-                            <div>{description || ''}</div>
+                            {!title && <RadixDialog.Title />}
+                            {!description && <RadixDialog.Description />}
                         </VisuallyHidden>
                         {renderContents()}
                     </Content>

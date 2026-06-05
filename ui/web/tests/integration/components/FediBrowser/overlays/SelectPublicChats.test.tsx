@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from 'i18next'
 
@@ -39,9 +39,8 @@ describe('SelectPublicChats', () => {
             t('feature.chat.community-chat-description'),
         )
 
-        // Dialog titles and descriptions appear twice in the document for accessibility
-        expect(title).toHaveLength(2)
-        expect(description).toHaveLength(2)
+        expect(title).toHaveLength(1)
+        expect(description).toHaveLength(1)
 
         expect(screen.getByText('public')).toBeInTheDocument()
         expect(screen.getByText('public-broadcast')).toBeInTheDocument()
