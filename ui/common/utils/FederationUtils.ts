@@ -35,6 +35,7 @@ import { makeLog } from './log'
 const log = makeLog('common/utils/FederationUtils')
 
 type ExternalMetaJson = Record<string, Community['meta'] | undefined>
+const AUTOSELECT_MIN_EXPIRY_SECONDS = 30 * 24 * 60 * 60
 
 /**
  * Given a URL, attempt to fetch external metadata. Returns a promise
@@ -140,18 +141,22 @@ export const fetchPublicCommunities = async (): Promise<PublicCommunity[]> => {
 
 const parseFederationsFromMeta = (
     externalMetaJson: ExternalMetaJson,
+    minExpirySeconds = 0,
 ): PublicFederation[] => {
     const nowSeconds = Math.floor(Date.now() / 1000)
+    const minExpiryTimestamp = nowSeconds + minExpirySeconds
     const federations: PublicFederation[] = []
     Object.entries<Federation['meta'] | undefined>(externalMetaJson).forEach(
         ([key, value]) => {
             if (!value) return
 
-            const expiryStr =
-                value.federation_expiry_timestamp || value.popup_end_timestamp
+            const expiryStr = getMetaField(
+                SupportedMetaFields.popup_end_timestamp,
+                value,
+            )
             if (expiryStr) {
                 const expiry = parseInt(expiryStr, 10)
-                if (!isNaN(expiry) && expiry < nowSeconds) return
+                if (!isNaN(expiry) && expiry < minExpiryTimestamp) return
             }
 
             if (value.public === 'true' && value.invite_code) {
@@ -189,7 +194,7 @@ export const fetchAutoSelectFederations = async (): Promise<
             AUTOSELECT_FEDERATIONS_API_URL,
         )
         if (!metaJson) throw new Error('No auto-select meta JSON to read from')
-        return parseFederationsFromMeta(metaJson)
+        return parseFederationsFromMeta(metaJson, AUTOSELECT_MIN_EXPIRY_SECONDS)
     } catch (error) {
         log.error('Failed to fetch auto-select federations', error)
         return []

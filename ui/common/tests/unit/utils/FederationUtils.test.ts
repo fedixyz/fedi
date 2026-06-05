@@ -142,10 +142,32 @@ const mockExpiredFedMeta = {
     },
 }
 
+const mockPrefixedExpiredFedMeta = {
+    'fed-id-prefixed-expired': {
+        public: 'true',
+        invite_code: 'fed11prefixedexpired',
+        federation_name: 'Prefixed Expired Federation',
+        'fedi:popup_end_timestamp': '1000000000',
+    },
+}
+
+const mockSoonExpiringFedMeta = {
+    'fed-id-soon-expiring': {
+        public: 'true',
+        invite_code: 'fed11soonexpiring',
+        federation_name: 'Soon Expiring Federation',
+        federation_expiry_timestamp: (
+            Math.floor(Date.now() / 1000) +
+            29 * 24 * 60 * 60
+        ).toString(),
+    },
+}
+
 const mockMixedMeta = {
     ...mockPublicFedMeta,
     ...mockPrivateFedMeta,
     ...mockExpiredFedMeta,
+    ...mockPrefixedExpiredFedMeta,
     'fed-id-incomplete': {
         public: 'true',
         // missing invite_code
@@ -249,6 +271,7 @@ describe('FederationUtils', () => {
             expect(names).not.toContain('Private Federation')
             expect(names).not.toContain('Incomplete Federation')
             expect(names).not.toContain('Expired Federation')
+            expect(names).not.toContain('Prefixed Expired Federation')
         })
 
         it('should return empty array on network failure', async () => {
@@ -264,6 +287,18 @@ describe('FederationUtils', () => {
             const result = await fetchAutoSelectFederations()
             expect(result).toHaveLength(2)
             expect(result[0].meta.invite_code).toBe('fed11abc')
+        })
+
+        it('should filter auto-select federations expiring within 30 days', async () => {
+            mockFetch({
+                ...mockPublicFedMeta,
+                ...mockSoonExpiringFedMeta,
+            })
+            const result = await fetchAutoSelectFederations()
+
+            expect(result).toHaveLength(2)
+            const names = result.map(f => f.name)
+            expect(names).not.toContain('Soon Expiring Federation')
         })
     })
 
