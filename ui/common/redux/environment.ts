@@ -27,7 +27,11 @@ import { HomeNavigationTab } from '../types/linking'
 import { I18nLanguage } from '../types/localization'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
-import { hasNewRelease, tryFetchReleaseSchema } from '../utils/release'
+import {
+    hasNewRelease,
+    fetchGithubRelease,
+    lookupIosAppMetadata,
+} from '../utils/release'
 import { loadFromStorage } from './storage'
 
 const log = makeLog('redux/environment')
@@ -64,6 +68,7 @@ const initialState = {
     latestAwareReleaseTag: null as string | null,
     versionTag: null as string | null,
     shouldRequestAppUpdate: false,
+    platform: undefined as 'android' | 'ios' | undefined,
 }
 
 export type EnvironmentState = typeof initialState
@@ -176,6 +181,9 @@ export const environmentSlice = createSlice({
         setShouldRequestAppUpdate(state, action: PayloadAction<boolean>) {
             state.shouldRequestAppUpdate = action.payload
         },
+        setPlatform(state, action: PayloadAction<'android' | 'ios'>) {
+            state.platform = action.payload
+        },
     },
     extraReducers: builder => {
         builder.addCase(changeLanguage.fulfilled, (state, action) => {
@@ -253,6 +261,7 @@ export const {
     setShouldRequestAppUpdate,
     setLatestAwareReleaseTag,
     setVersionTag,
+    setPlatform,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -267,13 +276,18 @@ export const refreshAppVersion = createAsyncThunk<
     if (!updateScreenFlag) return
 
     try {
-        const release = await tryFetchReleaseSchema()
+        // The app store version is the source of truth for what an ios
+        // user can install; github releases lead the store during review
+        const releaseTag =
+            selectPlatform(getState()) === 'ios'
+                ? (await lookupIosAppMetadata()).version
+                : (await fetchGithubRelease()).tag_name
 
-        dispatch(setLatestAwareReleaseTag(release.tag_name))
+        dispatch(setLatestAwareReleaseTag(releaseTag))
 
         if (
             currentReleaseTag !== null &&
-            hasNewRelease(currentReleaseTag, release.tag_name)
+            hasNewRelease(currentReleaseTag, releaseTag)
         ) {
             dispatch(setShouldRequestAppUpdate(true))
         }
@@ -532,6 +546,7 @@ export const selectLatestAwareReleaseTag = (s: CommonState) =>
     s.environment.latestAwareReleaseTag
 export const selectShouldRequestAppUpdate = (s: CommonState) =>
     s.environment.shouldRequestAppUpdate
+export const selectPlatform = (s: CommonState) => s.environment.platform
 export const selectShouldPresentAppUpdate = (s: CommonState) =>
     !!s.environment.versionTag &&
     !!s.environment.latestAwareReleaseTag &&

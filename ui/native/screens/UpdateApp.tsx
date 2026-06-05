@@ -2,15 +2,16 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, StyleSheet } from 'react-native'
+import { Image, Platform, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { selectLanguage, selectLatestAwareReleaseTag } from '@fedi/common/redux'
 import {
     ReleaseNotesJson,
-    tryFetchReleaseNotes,
-    tryFetchReleaseSchema,
+    fetchGithubReleaseNotes,
+    fetchGithubRelease,
+    lookupIosAppMetadata,
 } from '@fedi/common/utils/release'
 
 import { Images } from '../assets/images'
@@ -40,12 +41,16 @@ export default function UpdateApp({ navigation, route }: Props) {
     const language = useAppSelector(selectLanguage)
 
     useEffect(() => {
-        tryFetchReleaseSchema()
-            .then(tryFetchReleaseNotes)
-            .then(setReleaseNotesJson)
-            .catch(() => {
-                /* no-op */
-            })
+        const notes =
+            Platform.OS === 'ios'
+                ? lookupIosAppMetadata().then(meta =>
+                      meta.releaseNotes ? { en: meta.releaseNotes } : undefined,
+                  )
+                : fetchGithubRelease().then(fetchGithubReleaseNotes)
+
+        notes.then(setReleaseNotesJson).catch(() => {
+            /* no-op */
+        })
     }, [])
 
     const handleClose = () => {

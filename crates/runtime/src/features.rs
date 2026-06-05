@@ -491,7 +491,7 @@ impl FeatureCatalog {
                 bg_service_polling_delay_secs: 30,
             }),
             update_screen: Some(UpdateScreenConfig {
-                platform: UpdateScreenPlatform::Android,
+                platform: UpdateScreenPlatform::All,
             }),
         }
     }

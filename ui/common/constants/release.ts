@@ -1,5 +1,7 @@
 export const GITHUB_RELEASES_API_URL =
     'https://api.github.com/repos/fedixyz/fedi/releases/latest'
+export const IOS_LOOKUP_API_URL =
+    'https://itunes.apple.com/lookup?id=6448916281'
 export const ANDROID_APP_STORE_URL =
     'https://play.google.com/store/apps/details?id=com.fedi'
 export const IOS_APP_STORE_URL =

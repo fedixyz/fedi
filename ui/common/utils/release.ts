@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-import { GITHUB_RELEASES_API_URL } from '../constants/release'
+import {
+    GITHUB_RELEASES_API_URL,
+    IOS_LOOKUP_API_URL,
+} from '../constants/release'
 import { isDevOrExperimental } from './environment'
 import { makeLog } from './log'
 
@@ -47,7 +50,7 @@ export type ReleaseNotesJson = z.infer<typeof releaseNotesJsonSchema>
 /**
  * Attempts to fetch the latest release of the Fedi public GitHub repo
  */
-export async function tryFetchReleaseSchema(): Promise<ReleaseJson> {
+export async function fetchGithubRelease(): Promise<ReleaseJson> {
     log.info('(Start) [fetch latest public release from GitHub]')
 
     try {
@@ -70,7 +73,7 @@ export async function tryFetchReleaseSchema(): Promise<ReleaseJson> {
  * Given an object matching the releaseJsonSchema, attempts to find and fetch the
  * contents of the release-notes.json asset included with the release
  */
-export async function tryFetchReleaseNotes(
+export async function fetchGithubReleaseNotes(
     release: ReleaseJson,
 ): Promise<ReleaseNotesJson> {
     const releaseNotesUrl = release.assets.find(
@@ -98,6 +101,51 @@ export async function tryFetchReleaseNotes(
         throw err
     } finally {
         log.info('(Finish) [Fetching release notes from GitHub]')
+    }
+}
+
+/**
+ * Zod schema defining the fields of an item of the iTunes lookup response
+ * that we care about
+ *
+ * .passthrough() ignores the other fields
+ */
+export const iosAppEntrySchema = z
+    .object({
+        version: z.string(),
+        // Absent when a version ships with empty "What's New" text. The
+        // version check must survive that, so don't require it
+        releaseNotes: z.string().optional(),
+    })
+    .passthrough()
+
+const iosLookupResponseSchema = z.object({
+    results: z.array(iosAppEntrySchema),
+})
+
+export type IosAppEntry = z.infer<typeof iosAppEntrySchema>
+
+/**
+ * Attempts to lookup the metadata of the latest release of the Fedi iOS app
+ */
+export async function lookupIosAppMetadata(): Promise<IosAppEntry> {
+    log.info('(Start) [lookup ios app metadata]')
+
+    try {
+        const res = await fetch(IOS_LOOKUP_API_URL)
+
+        if (!res.ok) throw new Error('HTTP response was not OK')
+
+        const json = JSON.parse(await res.text())
+        const [entry] = iosLookupResponseSchema.parse(json).results
+
+        if (!entry) throw new Error('App not found in iTunes lookup response')
+
+        log.info('(Finish) [lookup ios app metadata]')
+        return entry
+    } catch (err) {
+        log.error('(Error) [lookup ios app metadata]', err)
+        throw err
     }
 }
 

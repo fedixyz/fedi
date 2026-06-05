@@ -11,6 +11,7 @@ import {
     refreshOnboardingStatus,
     selectEventListenersReady,
     setAppFlavor,
+    setPlatform,
     setShouldLockDevice,
 } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
@@ -60,6 +61,9 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 log.info('initializing bridge with deviceId', deviceId)
                 const appFlavor = getAppFlavor()
                 dispatchRef.current(setAppFlavor(appFlavor))
+                dispatchRef.current(
+                    setPlatform(Platform.OS === 'ios' ? 'ios' : 'android'),
+                )
                 await initializeBridge(deviceId, appFlavor)
 
                 const stop = Date.now()

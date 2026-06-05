@@ -1,12 +1,17 @@
 import { rest } from 'msw'
 import { setupServer } from 'msw/node'
 
-import { GITHUB_RELEASES_API_URL } from '../../../constants/release'
 import {
+    GITHUB_RELEASES_API_URL,
+    IOS_LOOKUP_API_URL,
+} from '../../../constants/release'
+import {
+    IosAppEntry,
     ReleaseAsset,
     ReleaseJson,
-    tryFetchReleaseNotes,
-    tryFetchReleaseSchema,
+    fetchGithubReleaseNotes,
+    fetchGithubRelease,
+    lookupIosAppMetadata,
 } from '../../../utils/release'
 
 const validAssetJson: ReleaseAsset = {
@@ -41,7 +46,7 @@ const invalidReleaseJson = {
     tag: 3,
 }
 
-describe('tryFetchReleaseSchema', () => {
+describe('fetchGithubRelease', () => {
     const server = setupServer(
         rest.get(GITHUB_RELEASES_API_URL, (_req, res, ctx) => {
             return res(
@@ -57,7 +62,7 @@ describe('tryFetchReleaseSchema', () => {
     afterAll(() => server.close())
 
     it('should return a release schema', async () => {
-        const result = await tryFetchReleaseSchema()
+        const result = await fetchGithubRelease()
 
         expect(result).toEqual(validReleaseJson)
     })
@@ -69,9 +74,9 @@ describe('tryFetchReleaseSchema', () => {
             }),
         )
 
-        const result = tryFetchReleaseSchema()
+        const result = fetchGithubRelease()
 
-        expect(result).rejects.toThrow()
+        await expect(result).rejects.toThrow()
     })
 
     it('should throw if a non-JSON response is received', async () => {
@@ -85,9 +90,9 @@ describe('tryFetchReleaseSchema', () => {
             }),
         )
 
-        const result = tryFetchReleaseSchema()
+        const result = fetchGithubRelease()
 
-        expect(result).rejects.toThrow()
+        await expect(result).rejects.toThrow()
     })
 
     it('should throw if the response does not match the schema', async () => {
@@ -101,13 +106,13 @@ describe('tryFetchReleaseSchema', () => {
             }),
         )
 
-        const result = tryFetchReleaseSchema()
+        const result = fetchGithubRelease()
 
-        expect(result).rejects.toThrow()
+        await expect(result).rejects.toThrow()
     })
 })
 
-describe('tryFetchReleaseNotes', () => {
+describe('fetchGithubReleaseNotes', () => {
     const server = setupServer(
         rest.get(GITHUB_RELEASES_API_URL, (_req, res, ctx) => {
             return res(
@@ -130,7 +135,7 @@ describe('tryFetchReleaseNotes', () => {
     afterAll(() => server.close())
 
     it('should fetch and return the release notes', async () => {
-        const result = await tryFetchReleaseNotes(validReleaseJson)
+        const result = await fetchGithubReleaseNotes(validReleaseJson)
 
         expect(result).toEqual(validReleaseNotesJson)
     })
@@ -142,9 +147,9 @@ describe('tryFetchReleaseNotes', () => {
             }),
         )
 
-        const result = tryFetchReleaseNotes(validReleaseJson)
+        const result = fetchGithubReleaseNotes(validReleaseJson)
 
-        expect(result).rejects.toThrow()
+        await expect(result).rejects.toThrow()
     })
 
     it('should throw if a non-JSON response is received', async () => {
@@ -158,9 +163,9 @@ describe('tryFetchReleaseNotes', () => {
             }),
         )
 
-        const result = tryFetchReleaseNotes(validReleaseJson)
+        const result = fetchGithubReleaseNotes(validReleaseJson)
 
-        expect(result).rejects.toThrow()
+        await expect(result).rejects.toThrow()
     })
 
     it('should throw if the response does not match the schema', async () => {
@@ -174,18 +179,18 @@ describe('tryFetchReleaseNotes', () => {
             }),
         )
 
-        const result = tryFetchReleaseNotes(validReleaseJson)
+        const result = fetchGithubReleaseNotes(validReleaseJson)
 
-        expect(result).rejects.toThrow()
+        await expect(result).rejects.toThrow()
     })
 
     it('should throw if the release notes asset is not found', async () => {
-        const result = tryFetchReleaseNotes({
+        const result = fetchGithubReleaseNotes({
             ...validReleaseJson,
             assets: [notNotesAssetJson],
         })
 
-        expect(result).rejects.toThrow()
+        await expect(result).rejects.toThrow()
     })
 })
 
@@ -260,5 +265,144 @@ describe('hasNewRelease', () => {
             expect(hasNewRelease('26.9.1', '26.0.0')).toBe(false)
             expect(hasNewRelease('25.9.1', '25.9.0')).toBe(false)
         })
+    })
+})
+
+const validIosAppEntry: IosAppEntry = {
+    version: '26.1.1',
+    releaseNotes: 'release notes',
+}
+
+const invalidIosAppEntry = {
+    version: 15,
+    releaseNotes: { type: 'test' },
+}
+
+describe('lookupIosAppMetadata', () => {
+    const server = setupServer(
+        rest.get(IOS_LOOKUP_API_URL, (_req, res, ctx) => {
+            return res(
+                ctx.status(200),
+                ctx.set('Content-Type', 'text/plain'),
+                ctx.body(
+                    JSON.stringify({
+                        resultCount: 1,
+                        results: [validIosAppEntry],
+                    }),
+                ),
+            )
+        }),
+    )
+
+    beforeEach(() => server.listen())
+    afterEach(() => server.resetHandlers())
+    afterAll(() => server.close())
+
+    it('should parse a valid iOS app entry', async () => {
+        const result = await lookupIosAppMetadata()
+
+        expect(result).toEqual(validIosAppEntry)
+    })
+
+    it('should throw if the fetch fails', async () => {
+        server.use(
+            rest.get(IOS_LOOKUP_API_URL, (_req, res) => {
+                return res.networkError('getaddrinfo ENOTFOUND')
+            }),
+        )
+
+        const result = lookupIosAppMetadata()
+
+        await expect(result).rejects.toThrow()
+    })
+
+    it('should throw if the response cannot be parsed as JSON', async () => {
+        server.use(
+            rest.get(IOS_LOOKUP_API_URL, (_req, res, ctx) => {
+                return res(
+                    ctx.status(200),
+                    ctx.set('Content-Type', 'text/plain'),
+                    ctx.body('non json response'),
+                )
+            }),
+        )
+
+        const result = lookupIosAppMetadata()
+
+        await expect(result).rejects.toThrow()
+    })
+
+    it('should throw if the app entry does not match the schema', async () => {
+        server.use(
+            rest.get(IOS_LOOKUP_API_URL, (_req, res, ctx) => {
+                return res(
+                    ctx.status(200),
+                    ctx.set('Content-Type', 'text/plain'),
+                    ctx.body(
+                        JSON.stringify({
+                            resultCount: 1,
+                            results: [invalidIosAppEntry],
+                        }),
+                    ),
+                )
+            }),
+        )
+
+        const result = lookupIosAppMetadata()
+
+        await expect(result).rejects.toThrow()
+    })
+
+    it('should throw if the response does not match the schema', async () => {
+        server.use(
+            rest.get(IOS_LOOKUP_API_URL, (_req, res, ctx) => {
+                return res(
+                    ctx.status(200),
+                    ctx.set('Content-Type', 'text/plain'),
+                    ctx.body(JSON.stringify({ test: 'lol' })),
+                )
+            }),
+        )
+
+        const result = lookupIosAppMetadata()
+
+        await expect(result).rejects.toThrow()
+    })
+
+    it('should throw if no results are returned', async () => {
+        server.use(
+            rest.get(IOS_LOOKUP_API_URL, (_req, res, ctx) => {
+                return res(
+                    ctx.status(200),
+                    ctx.set('Content-Type', 'text/plain'),
+                    ctx.body(JSON.stringify({ resultCount: 0, results: [] })),
+                )
+            }),
+        )
+
+        const result = lookupIosAppMetadata()
+
+        await expect(result).rejects.toThrow()
+    })
+
+    it('should parse an entry without release notes', async () => {
+        server.use(
+            rest.get(IOS_LOOKUP_API_URL, (_req, res, ctx) => {
+                return res(
+                    ctx.status(200),
+                    ctx.set('Content-Type', 'text/plain'),
+                    ctx.body(
+                        JSON.stringify({
+                            resultCount: 1,
+                            results: [{ version: '26.1.1' }],
+                        }),
+                    ),
+                )
+            }),
+        )
+
+        const result = await lookupIosAppMetadata()
+
+        expect(result).toEqual({ version: '26.1.1' })
     })
 })
