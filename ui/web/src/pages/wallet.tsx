@@ -43,6 +43,7 @@ import {
     requestRoute,
     sendRoute,
     stabilityDepositRoute,
+    stabilityWithdrawRoute,
 } from '../constants/routes'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { styled } from '../styles'
@@ -120,6 +121,16 @@ function WalletPage() {
         router.push(requestRoute)
     }, [dispatch, federationId, paymentType, router])
 
+    const handleOnSend = useCallback(() => {
+        dispatch(setPayFromFederationId(federationId))
+
+        if (paymentType === 'stable-balance') {
+            router.push(stabilityWithdrawRoute(federationId))
+            return
+        }
+
+        router.push(sendRoute)
+    }, [dispatch, federationId, paymentType, router])
     const content =
         loadedFederations.length === 0 ? (
             <SetupContainer gap="md">
@@ -246,10 +257,7 @@ function WalletPage() {
                         icon="ArrowUp"
                         width="full"
                         disabled={sendDisabled}
-                        onClick={() => {
-                            dispatch(setPayFromFederationId(federationId))
-                            router.push(sendRoute)
-                        }}>
+                        onClick={handleOnSend}>
                         {t('words.send')}
                     </Button>
                 </Row>

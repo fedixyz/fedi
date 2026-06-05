@@ -38,7 +38,7 @@ export const shouldHideNavigation = (pathname: string) => {
     if (path === routes.requestRoute) return true
 
     if (path.includes('/stability/deposit/')) return true
-
+    if (path.includes('/stability/withdraw/')) return true
     return false
 }
 

@@ -51,6 +51,7 @@ export const AmountInput: React.FC<Props> = ({
         numpadButtons,
         handleNumpadPress,
         validation,
+        currencyLocale,
     } = useAmountInput(
         amount,
         onChangeAmount,
@@ -136,9 +137,18 @@ export const AmountInput: React.FC<Props> = ({
                 }}
                 values={{
                     verb: verb?.toLowerCase() || t('words.send'),
-                    amount: `${amountUtils.formatSats(validation.amount)} ${t(
-                        'words.sats',
-                    )}`,
+                    amount: lockToFiat
+                        ? amountUtils.formatFiat(
+                              validation.fiatValue,
+                              currency,
+                              {
+                                  symbolPosition: 'end',
+                                  locale: currencyLocale,
+                              },
+                          )
+                        : `${amountUtils.formatSats(
+                              validation.amount,
+                          )} ${t('words.sats')}`,
                 }}
             />
         )

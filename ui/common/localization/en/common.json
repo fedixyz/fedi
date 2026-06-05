@@ -1477,6 +1477,7 @@
             "transfer-money": "Transfer Money",
             "usd-amount": "USD amount",
             "what-is-stable-balance": "What is Stable Balance?",
+            "withdrawn": "Withdrawn",
             "will-be-deposited": "{{amount}} will be deposited in {{expectedWait}}",
             "will-be-withdrawn": "{{amount}} will be withdrawn in {{expectedWait}}",
             "withdraw-to": "Withdraw to",
@@ -1488,6 +1489,7 @@
             "withdrawal-time": "Withdrawal time",
             "withdrawal-to-self": "Withdraw to My Bitcoin Wallet",
             "withdrawal-value": "Withdrawal value",
+            "withdrawal-success-description": "will reach your Bitcoin wallet in 10 minutes or less.",
             "you-deposited": "You deposited",
             "you-withdrew": "You withdrew"
         },

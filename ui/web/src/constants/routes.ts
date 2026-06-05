@@ -18,6 +18,8 @@ export const guardianFeesSuccessRoute = '/guardian-fees/success'
 export const sendRoute = '/send'
 export const requestRoute = '/request'
 export const stabilityDepositRoute = (id: string) => `/stability/deposit/${id}`
+export const stabilityWithdrawRoute = (id: string) =>
+    `/stability/withdraw/${id}`
 export const ecashRoute = '/ecash'
 export const onboardingRoute = '/onboarding'
 export const onboardingCommunitiesRoute = `${onboardingRoute}/communities`
