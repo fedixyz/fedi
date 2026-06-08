@@ -106,10 +106,10 @@ export function useNotificationsPermission() {
         })
     }, [])
 
-    const requestNotificationsPermission = useCallback(() => {
-        requestNotifications(['alert', 'sound', 'badge']).then(res => {
-            setNotificationsPermission(res.status)
-        })
+    const requestNotificationsPermission = useCallback(async () => {
+        const res = await requestNotifications(['alert', 'sound', 'badge'])
+        setNotificationsPermission(res.status)
+        return res.status
     }, [])
 
     return { notificationsPermission, requestNotificationsPermission }

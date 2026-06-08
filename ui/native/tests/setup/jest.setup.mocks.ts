@@ -195,6 +195,9 @@ jest.mock('@fedi/common/utils/log', () => ({
 // add more here as needed
 jest.mock('react-native', () => ({
     ActivityIndicator: jest.requireActual('react-native').ActivityIndicator,
+    Alert: {
+        alert: jest.fn(),
+    },
     Animated: jest.requireActual('react-native').Animated,
     Button: jest.requireActual('react-native').Button,
     Dimensions: jest.requireActual('react-native').Dimensions,
@@ -342,6 +345,12 @@ jest.mock('react-native-permissions', () => ({
     request: jest.fn(() => Promise.resolve('granted')),
     requestMultiple: jest.fn(() => Promise.resolve({})),
     checkMultiple: jest.fn(() => Promise.resolve({})),
+    checkNotifications: jest.fn(() =>
+        Promise.resolve({ status: 'granted', settings: {} }),
+    ),
+    requestNotifications: jest.fn(() =>
+        Promise.resolve({ status: 'granted', settings: {} }),
+    ),
     openSettings: jest.fn(() => Promise.resolve()),
 }))
 

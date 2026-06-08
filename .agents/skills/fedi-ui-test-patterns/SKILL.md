@@ -107,6 +107,8 @@ ui/native/tests/
 │   ├── hooks/           # Native-specific hook tests
 │   ├── screens/         # Screen rendering tests
 │   ├── components/      # Component rendering tests
+│   ├── state/
+│   │   └── contexts/    # Context provider tests
 │   └── utils/           # Native utility tests
 ├── integration/
 │   ├── screens/         # Screen integration tests

@@ -1112,6 +1112,8 @@
             "manage-installed-mini-apps-description": "Manage your installed mini apps",
             "navigation-display-name": "Fedi App Navigation",
             "navigation-description": "Navigate Fedi on your behalf",
+            "notifications-off-description": "Enable them anytime in Settings to get notified about new chat messages, payments, and announcements",
+            "notifications-off-title": "Notifications are off",
             "view-federations-display-name": "View your wallet services",
             "view-federations-description": "Allow this mini app to see which wallet services you have joined, including their invite codes.",
             "remember-permission-choice": "Remember my choice",

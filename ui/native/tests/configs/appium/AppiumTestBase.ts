@@ -1075,9 +1075,8 @@ export class AppiumTestBase {
                         },
                     ])
                 } catch {
-                    // Appium will reject mobile:shell without
-                    // --allow-insecure=uiautomator2:adb_shell on the server;
-                    // tests that explicitly handle the prompt still pass.
+                    // The server enables adb_shell so this grant normally
+                    // lands; swallow defensively in case a runner lacks it.
                 }
                 await this.driver.executeScript('mobile: activateApp', [
                     { appId },

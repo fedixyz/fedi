@@ -4,9 +4,10 @@ import React, {
     useContext,
     useMemo,
     useEffect,
+    useRef,
 } from 'react'
-import { Linking } from 'react-native'
-import { requestNotifications } from 'react-native-permissions'
+import { useTranslation } from 'react-i18next'
+import { Alert, Linking } from 'react-native'
 import { useSelector } from 'react-redux'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
@@ -31,12 +32,15 @@ const NotificationContext = createContext<NotificationContextState | null>(null)
 export const NotificationContextProvider: React.FC<{
     children: React.ReactNode
 }> = ({ children }) => {
-    const { notificationsPermission } = useNotificationsPermission()
+    const { t } = useTranslation()
+    const { notificationsPermission, requestNotificationsPermission } =
+        useNotificationsPermission()
     const supportPermissionGranted = useSelector(selectSupportPermissionGranted)
     const chatList = useSelector(
         selectMatrixChatsWithoutDefaultGroupPreviewsList,
     )
     const fedimint = useFedimint()
+    const isRequestingPermission = useRef(false)
 
     log.debug(`Current notifications permission: ${notificationsPermission}`)
 
@@ -65,22 +69,50 @@ export const NotificationContextProvider: React.FC<{
         [notificationsPermission, triggerPushNotificationSetup],
     )
 
-    // Prompt for permissions once the user has at least one chats
+    // 'denied' only means the OS prompt is unanswered (iOS notDetermined,
+    // Android still requestable); an actual decline settles to 'blocked'.
+    // The ref keeps chat-sync re-fires from stacking OS requests while a
+    // prompt is open and unanswered.
     useEffect(() => {
-        if (chatList.length >= 1 && notificationsPermission !== 'granted') {
-            requestNotifications(['alert', 'sound', 'badge']).then(
-                ({ status }) => {
-                    if (status === 'blocked') return
-
-                    if (status !== 'granted') {
-                        Linking.openSettings()
-                    }
-
-                    triggerPushNotificationSetup()
-                },
-            )
+        if (
+            chatList.length === 0 ||
+            notificationsPermission !== 'denied' ||
+            isRequestingPermission.current
+        ) {
+            return
         }
-    }, [chatList.length, notificationsPermission, triggerPushNotificationSetup])
+        isRequestingPermission.current = true
+        requestNotificationsPermission()
+            .then(status => {
+                if (status === 'granted' || status === 'limited') {
+                    triggerPushNotificationSetup()
+                } else if (status === 'blocked') {
+                    Alert.alert(
+                        t('feature.permissions.notifications-off-title'),
+                        t('feature.permissions.notifications-off-description'),
+                        [
+                            { text: t('phrases.not-now'), style: 'cancel' },
+                            {
+                                text: t('phrases.open-settings'),
+                                onPress: () => Linking.openSettings(),
+                            },
+                        ],
+                    )
+                }
+            })
+            .catch(err =>
+                log.error('notifications permission request failed', err),
+            )
+            .finally(() => {
+                isRequestingPermission.current = false
+            })
+    }, [
+        chatList.length,
+        notificationsPermission,
+        requestNotificationsPermission,
+        triggerPushNotificationSetup,
+        t,
+    ])
 
     return (
         <NotificationContext.Provider value={value}>

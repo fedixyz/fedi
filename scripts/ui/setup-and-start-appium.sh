@@ -223,8 +223,12 @@ for attempt in 1 2 3; do
   else
     APPIUM_LOG_LEVEL="info"
   fi
+  # uiautomator2 rejects the `pm grant POST_NOTIFICATIONS` that resetAppToFresh
+  # runs after clearApp unless adb_shell is allowed; without it the permission
+  # dialog overlays the app mid-recovery. Driver-scoped, so inert on iOS.
   nohup env -u MACOSX_DEPLOYMENT_TARGET appium --port "$APPIUM_PORT" \
     --log-level "$APPIUM_LOG_LEVEL" \
+    --allow-insecure=uiautomator2:adb_shell \
     >"$ATTEMPT_LOG" 2>&1 </dev/null &
   APP_PID=$!
   echo "$APP_PID" >"$PID_FILE"
