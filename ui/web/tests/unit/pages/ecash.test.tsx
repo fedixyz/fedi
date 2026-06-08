@@ -40,6 +40,7 @@ jest.mock('@fedi/common/hooks/pay', () => ({
         claimEcash: claimEcashSpy,
         loading: false,
         claimed: false,
+        error: null,
         isError: false,
     }),
 }))

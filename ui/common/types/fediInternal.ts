@@ -13,7 +13,32 @@ import {
 import { isDev, isExperimental } from '../utils/environment'
 import { FediMod } from './fedimint'
 
-export type EcashRequest = Omit<RequestInvoiceArgs, 'defaultMemo'>
+export type EcashRequest = Omit<RequestInvoiceArgs, 'defaultMemo'> & {
+    /**
+     * Optional list of federation IDs the miniapp will accept ecash from.
+     * The picker is filtered to the intersection with the user's joined
+     * wallet federations; if there's no overlap the request is rejected.
+     */
+    federationIds?: string[]
+    /**
+     * Whether to embed the issuing federation's invite code in the ecash
+     * token so that receivers who haven't joined can be onboarded. Defaults
+     * to true.
+     */
+    includeInvite?: boolean
+}
+
+export type JoinedFederationSummary = {
+    id: string
+    name: string
+    /**
+     * Omitted when the federation has disabled sharing its invite code
+     * (invite_codes_disabled in its metadata). Granting the viewFederations
+     * permission does not override that federation-level opt-out.
+     */
+    inviteCode?: string
+    iconUrl?: string
+}
 
 export type FediInternalVersion = 3
 
@@ -62,6 +87,7 @@ export const miniAppPermissionTypes = [
     'manageCommunities',
     'manageInstalledMiniApps',
     'navigation',
+    'viewFederations',
 ] as const
 export type MiniAppPermissionType = (typeof miniAppPermissionTypes)[number]
 
@@ -73,13 +99,15 @@ export type MiniAppPermissionsByUrlOrigin = {
     [urlOrigin: string]: RememberedPermissionsMap
 }
 
+export type MiniAppPermissionInfo = {
+    displayNameTranslationKey: ParseKeys
+    descriptionTranslationKey: ParseKeys
+    iconName: string
+}
+
 export const MiniAppPermissionInfoLookup: Record<
     MiniAppPermissionType,
-    {
-        displayNameTranslationKey: ParseKeys
-        descriptionTranslationKey: ParseKeys
-        iconName: string
-    }
+    MiniAppPermissionInfo
 > = {
     manageCommunities: {
         descriptionTranslationKey:
@@ -100,6 +128,13 @@ export const MiniAppPermissionInfoLookup: Record<
         displayNameTranslationKey:
             'feature.permissions.navigation-display-name',
         iconName: 'Globe',
+    },
+    viewFederations: {
+        descriptionTranslationKey:
+            'feature.permissions.view-federations-description',
+        displayNameTranslationKey:
+            'feature.permissions.view-federations-display-name',
+        iconName: 'Federation',
     },
 }
 
@@ -168,4 +203,5 @@ export const INJECTION_HANDLERS_PERMISSIONS_MAP: Partial<{
     [InjectionMessageType.fedi_installMiniApp]: ['manageInstalledMiniApps'],
     [InjectionMessageType.fedi_navigateHome]: ['navigation'],
     [InjectionMessageType.fedi_previewMatrixRoom]: ['manageCommunities'],
+    [InjectionMessageType.fedi_getJoinedFederations]: ['viewFederations'],
 }

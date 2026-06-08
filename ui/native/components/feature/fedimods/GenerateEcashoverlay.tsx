@@ -4,10 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { RejectionError } from 'webln'
 
 import { useMinMaxSendAmount, useRequestForm } from '@fedi/common/hooks/amount'
+import { useWalletFederationSelection } from '@fedi/common/hooks/federation'
 import { useSendEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectEcashRequest, selectPaymentFederation } from '@fedi/common/redux'
+import { selectEcashRequest } from '@fedi/common/redux'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -32,25 +33,34 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
     const { theme } = useTheme()
     const toast = useToast()
     const ecashRequest = useAppSelector(selectEcashRequest)
-    const paymentFederation = useAppSelector(selectPaymentFederation)
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [amountInputKey, setAmountInputKey] = useState(0)
     const [error, setError] = useState<string | null>(null)
+
+    const allowedFederationIds = ecashRequest?.federationIds
+    // Use the picker's selection (which may be restricted) for generation and
+    // amount bounds, not the global wallet.
+    const { selectedFederation } =
+        useWalletFederationSelection(allowedFederationIds)
+
     const { inputAmount, setInputAmount, minimumAmount, exactAmount, reset } =
         useRequestForm({ ecashRequest })
     // Ecash notes are generated from your current balance
     // Instead of an almost-unbound balance from useRequestForm, set the upper bound to the active user's balance
     const { maximumAmount } = useMinMaxSendAmount({
-        federationId: paymentFederation?.id,
+        federationId: selectedFederation?.id,
     })
 
     const {
         generateEcash,
         isGeneratingEcash,
         reset: resetGenerateEcash,
-    } = useSendEcash(paymentFederation?.id || '')
+    } = useSendEcash(selectedFederation?.id || '')
+
+    // Default and invite_codes_disabled override are applied in useSendEcash.
+    const includeInvite = ecashRequest?.includeInvite
 
     // Reset form when it appears
     const isShowing = Boolean(ecashRequest)
@@ -73,7 +83,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
         }
 
         try {
-            const res = await generateEcash(inputAmount)
+            const res = await generateEcash(inputAmount, '', { includeInvite })
 
             if (res) {
                 onAcceptRef.current(res.ecash)
@@ -108,7 +118,9 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
                         style={{
                             paddingTop: theme.spacing.xl,
                         }}>
-                        <FederationWalletSelector />
+                        <FederationWalletSelector
+                            allowedFederationIds={allowedFederationIds}
+                        />
                         <AmountInput
                             key={amountInputKey}
                             amount={exactAmount ?? inputAmount}

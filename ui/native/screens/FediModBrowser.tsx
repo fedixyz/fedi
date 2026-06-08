@@ -31,6 +31,7 @@ import {
     selectLoadedFederations,
     resetBrowserOverlayState,
     setEcashRequest,
+    setReceiveEcashRequest,
     setInvoiceToPay,
     setLnurlAuthRequest,
     setLnurlPayment,
@@ -58,9 +59,15 @@ import {
     AnyParsedData,
     InstallMiniAppRequest,
     Invoice,
+    JoinedFederationSummary,
     MSats,
     ParserDataType,
+    SupportedMetaFields,
 } from '@fedi/common/types'
+import {
+    getMetaField,
+    shouldShowInviteCode,
+} from '@fedi/common/utils/FederationUtils'
 import { getCurrencyCode } from '@fedi/common/utils/currency'
 import { prepareCreateCommunityPayload } from '@fedi/common/utils/fedimods'
 import { makeLog } from '@fedi/common/utils/log'
@@ -79,6 +86,7 @@ import FediModBrowserHeader from '../components/feature/fedimods/FediModBrowserH
 import { GenerateEcashOverlay } from '../components/feature/fedimods/GenerateEcashoverlay'
 import { MakeInvoiceOverlay } from '../components/feature/fedimods/MakeInvoiceOverlay'
 import { NostrSignOverlay } from '../components/feature/fedimods/NostrSignOverlay'
+import { ReceiveEcashOverlay } from '../components/feature/fedimods/ReceiveEcashOverlay'
 import { SelectPublicChatsOverlay } from '../components/feature/fedimods/SelectPublicChats'
 import { SendPaymentOverlay } from '../components/feature/fedimods/SendPaymentOverlay'
 import { RecoveryInProgressOverlay } from '../components/feature/recovery/RecoveryInProgressOverlay'
@@ -118,6 +126,7 @@ type FediModResponse =
     | RequestInvoiceResponse
     | SendPaymentResponse
     | SignedNostrEvent
+    | { msats: MSats }
     | string
     | Array<string>
     | boolean
@@ -420,6 +429,23 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                         )
                     }
 
+                    const allowedFederationIds =
+                        ecashRequestArgs.federationIds &&
+                        ecashRequestArgs.federationIds.length > 0
+                            ? ecashRequestArgs.federationIds
+                            : undefined
+
+                    if (allowedFederationIds) {
+                        const overlap = walletFederations.some(f =>
+                            allowedFederationIds.includes(f.id),
+                        )
+                        if (!overlap) {
+                            throw new Error(
+                                'User has not joined any of the federations this miniapp accepts ecash from',
+                            )
+                        }
+                    }
+
                     // Wait for user to interact with alert
                     return new Promise((resolve, reject) => {
                         // Save these refs so we can resolve / reject elsewhere
@@ -427,25 +453,50 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                         overlayResolveRef.current =
                             resolve as unknown as FediModResolver<FediModResponse>
 
-                        dispatch(setEcashRequest(ecashRequestArgs))
+                        // Store the normalized list so downstream consumers
+                        // (the wallet picker) never see an empty array.
+                        dispatch(
+                            setEcashRequest({
+                                ...ecashRequestArgs,
+                                federationIds: allowedFederationIds,
+                            }),
+                        )
                     })
                 },
             [InjectionMessageType.fedi_receiveEcash]: async ecash => {
                 log.info('fedi.receiveEcash')
-                if (paymentFederation?.id === undefined) {
-                    log.error('fedi.receiveEcash', 'No active federation')
-                    throw new Error('No active federation')
+                if (!ecash) {
+                    throw new Error('Missing ecash token')
                 }
-                try {
-                    const res = await fedimint.receiveEcash(
-                        ecash,
-                        paymentFederation.id,
-                    )
-                    return { msats: res[0] }
-                } catch (err) {
-                    log.warn('fedi.receiveEcash', err)
-                    throw new Error(t('errors.receive-ecash-failed'))
+                if (walletFederations.length === 0) {
+                    throw new Error(t('errors.please-join-wallet-federation'))
                 }
+                return new Promise((resolve, reject) => {
+                    overlayRejectRef.current = reject
+                    overlayResolveRef.current =
+                        resolve as unknown as FediModResolver<FediModResponse>
+
+                    dispatch(setReceiveEcashRequest(ecash))
+                })
+            },
+            [InjectionMessageType.fedi_getJoinedFederations]: async () => {
+                log.info('fedi.getJoinedFederations')
+                const federations: JoinedFederationSummary[] =
+                    walletFederations.map(f => ({
+                        id: f.id,
+                        name: f.name,
+                        // Respect the federation's invite_codes_disabled
+                        // opt-out even when viewFederations is granted.
+                        inviteCode: shouldShowInviteCode(f.meta)
+                            ? f.inviteCode
+                            : undefined,
+                        iconUrl:
+                            getMetaField(
+                                SupportedMetaFields.federation_icon_url,
+                                f.meta,
+                            ) ?? undefined,
+                    }))
+                return { federations }
             },
             [InjectionMessageType.fedi_getAuthenticatedMember]: async () => {
                 log.info('fedi.getAuthenticatedMember')
@@ -818,6 +869,10 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 label={t('feature.recovery.recovery-in-progress-payments')}
             />
             <GenerateEcashOverlay
+                onReject={overlayProps.onReject}
+                onAccept={overlayProps.onAccept}
+            />
+            <ReceiveEcashOverlay
                 onReject={overlayProps.onReject}
                 onAccept={overlayProps.onAccept}
             />

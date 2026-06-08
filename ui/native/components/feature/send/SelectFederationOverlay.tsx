@@ -20,17 +20,23 @@ const SelectFederationOverlay: React.FC<{
     onSelect: (federation: LoadedFederation) => void
     selectedFederation: LoadedFederation['id'] | undefined
     showStableBalance?: boolean
+    allowedFederationIds?: string[]
 }> = ({
     opened,
     onDismiss,
     onSelect,
     selectedFederation,
     showStableBalance = false,
+    allowedFederationIds,
 }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const style = styles(theme)
     const federations = useAppSelector(selectLoadedFederations)
+
+    const visibleFederations = allowedFederationIds
+        ? federations.filter(f => allowedFederationIds.includes(f.id))
+        : federations
 
     return (
         <CustomOverlay
@@ -43,7 +49,7 @@ const SelectFederationOverlay: React.FC<{
                         style={style.federationsListContainer}
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={style.federationsList}>
-                        {federations.map(f => (
+                        {visibleFederations.map(f => (
                             <SelectFederationListItem
                                 key={`federation-option-${f.id}`}
                                 federation={f}

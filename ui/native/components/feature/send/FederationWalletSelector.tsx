@@ -1,17 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
-import {
-    selectPaymentFederation,
-    selectLoadedFederations,
-    setPayFromFederationId,
-} from '@fedi/common/redux'
+import { useWalletFederationSelection } from '@fedi/common/hooks/federation'
 
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { LoadedFederation } from '../../../types'
 import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -21,25 +15,35 @@ const FederationWalletSelector: React.FC<{
     readonly?: boolean
     fullWidth?: boolean
     showBalance?: boolean
-}> = ({ readonly = false, fullWidth = false, showBalance = true }) => {
+    allowedFederationIds?: string[]
+}> = ({
+    readonly = false,
+    fullWidth = false,
+    showBalance = true,
+    allowedFederationIds,
+}) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const dispatch = useAppDispatch()
     const [opened, setOpened] = useState<boolean>(false)
     const style = styles(theme)
-    const paymentFederation = useAppSelector(selectPaymentFederation)
-    const federations = useAppSelector(selectLoadedFederations)
 
-    const { formattedBalance } = useBalance(t, paymentFederation?.id || '')
+    const {
+        federations,
+        visibleFederations,
+        selectedFederation,
+        selectFederation,
+    } = useWalletFederationSelection(allowedFederationIds)
 
-    const handleFederationSelected = useCallback(
-        (fed: LoadedFederation) => {
-            dispatch(setPayFromFederationId(fed.id))
-        },
-        [dispatch],
-    )
+    const { formattedBalance } = useBalance(t, selectedFederation?.id || '')
 
     if (federations.length === 0) return null
+    // No allowed federation overlap — let the caller handle the empty case
+    // (the miniapp handler rejects before opening the overlay, so this is
+    // really just a safety net).
+    if (visibleFederations.length === 0) return null
+
+    const lockedToSingle = visibleFederations.length === 1
+    const isReadonly = readonly || lockedToSingle
 
     return (
         <Column align="center" fullWidth testID="federation-wallet-selector">
@@ -49,11 +53,11 @@ const FederationWalletSelector: React.FC<{
                     fullWidth ? { width: '100%' } : {},
                 ]}
                 onPress={() => setOpened(true)}
-                disabled={readonly}>
-                <FederationLogo federation={paymentFederation} size={32} />
+                disabled={isReadonly}>
+                <FederationLogo federation={selectedFederation} size={32} />
                 <Column gap="xs" style={style.tileTextContainer}>
                     <Text caption bold numberOfLines={1}>
-                        {paymentFederation?.name || ''}
+                        {selectedFederation?.name || ''}
                     </Text>
                     {showBalance && (
                         <Text
@@ -65,7 +69,7 @@ const FederationWalletSelector: React.FC<{
                         </Text>
                     )}
                 </Column>
-                {readonly ? null : (
+                {isReadonly ? null : (
                     <SvgImage
                         name="ChevronRight"
                         size="sm"
@@ -79,8 +83,9 @@ const FederationWalletSelector: React.FC<{
             <SelectFederationOverlay
                 opened={opened}
                 onDismiss={() => setOpened(false)}
-                onSelect={handleFederationSelected}
-                selectedFederation={paymentFederation?.id}
+                onSelect={fed => selectFederation(fed.id)}
+                selectedFederation={selectedFederation?.id}
+                allowedFederationIds={allowedFederationIds}
             />
         </Column>
     )

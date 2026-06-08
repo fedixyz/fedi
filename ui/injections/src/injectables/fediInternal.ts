@@ -5,6 +5,7 @@ import {
     EditCommunityRequest,
     FediInternalVersion,
     InstallMiniAppRequest,
+    JoinedFederationSummary,
     MSats,
     SupportedCurrency,
 } from '@fedi/common/types'
@@ -160,6 +161,15 @@ class InjectionFediProvider {
         return this.sendMessage(
             InjectionMessageType.fedi_previewMatrixRoom,
             chatId,
+        )
+    }
+
+    async getJoinedFederations(): Promise<{
+        federations: JoinedFederationSummary[]
+    }> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_getJoinedFederations,
+            undefined,
         )
     }
 

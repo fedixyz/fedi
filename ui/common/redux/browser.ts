@@ -35,6 +35,7 @@ const initialState = {
     lnurlAuthRequest: null as ParsedLnurlAuth['data'] | null,
     nostrUnsignedEvent: null as UnsignedNostrEvent | null,
     ecashRequest: null as EcashRequest | null,
+    receiveEcashRequest: null as string | null,
     addressOverlayOpen: false,
     requestedPermission: null as MiniAppPermissionType | null,
     currentUrl: null as string | null,
@@ -262,6 +263,9 @@ export const browserSlice = createSlice({
         setEcashRequest(state, action) {
             state.ecashRequest = action.payload
         },
+        setReceiveEcashRequest(state, action: PayloadAction<string | null>) {
+            state.receiveEcashRequest = action.payload
+        },
         setRequestedPermission(state, action) {
             state.requestedPermission = action.payload
         },
@@ -273,6 +277,7 @@ export const browserSlice = createSlice({
             state.lnurlAuthRequest = null
             state.nostrUnsignedEvent = null
             state.ecashRequest = null
+            state.receiveEcashRequest = null
             state.requestedPermission = null
         },
     },
@@ -297,6 +302,7 @@ export const {
     setLnurlAuthRequest,
     setNostrUnsignedEvent,
     setEcashRequest,
+    setReceiveEcashRequest,
     setRequestedPermission,
     resetBrowserOverlayState,
     setAddressOverlayOpen,
@@ -329,6 +335,8 @@ export const selectLnurlAuthRequest = (s: CommonState) =>
 export const selectNostrUnsignedEvent = (s: CommonState) =>
     s.browser.nostrUnsignedEvent
 export const selectEcashRequest = (s: CommonState) => s.browser.ecashRequest
+export const selectReceiveEcashRequest = (s: CommonState) =>
+    s.browser.receiveEcashRequest
 export const selectAddressOverlayOpen = (s: CommonState) =>
     s.browser.addressOverlayOpen
 export const selectRequestedPermission = (s: CommonState) =>

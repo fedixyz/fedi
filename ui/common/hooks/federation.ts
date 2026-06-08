@@ -25,6 +25,9 @@ import {
     joinCommunity,
     selectFederationClientConfig,
     selectLoadedFederation,
+    selectLoadedFederations,
+    selectPaymentFederation,
+    setPayFromFederationId,
     refreshCommunities,
     checkFederationForAutojoinCommunities,
     refreshFederations,
@@ -901,5 +904,53 @@ export function useGuardianito(t: TFunction) {
         myGuardianitoBot,
         showGoToChatButton:
             isStillLoading || myGuardianitoBot?.bot_room_id === '',
+    }
+}
+
+/**
+ * Drives the native and web FederationWalletSelector. `allowedFederationIds`
+ * restricts the picker to a subset of joined wallet federations.
+ *
+ * `selectedFederation` is *derived* (not dispatched): when the global payment
+ * federation isn't in the allowed subset it falls back to the first allowed
+ * one, so opening or cancelling a restricted picker never mutates the global
+ * wallet. Only an explicit `selectFederation` writes to global state.
+ */
+export function useWalletFederationSelection(allowedFederationIds?: string[]) {
+    const dispatch = useCommonDispatch()
+    const paymentFederation = useCommonSelector(selectPaymentFederation)
+    const federations = useCommonSelector(selectLoadedFederations)
+
+    const visibleFederations = useMemo(
+        () =>
+            allowedFederationIds
+                ? federations.filter(f => allowedFederationIds.includes(f.id))
+                : federations,
+        [federations, allowedFederationIds],
+    )
+
+    const selectedFederation = useMemo<LoadedFederation | undefined>(() => {
+        if (
+            paymentFederation &&
+            (!allowedFederationIds ||
+                allowedFederationIds.includes(paymentFederation.id))
+        ) {
+            return paymentFederation
+        }
+        return visibleFederations[0]
+    }, [paymentFederation, allowedFederationIds, visibleFederations])
+
+    const selectFederation = useCallback(
+        (id: LoadedFederation['id']) => {
+            dispatch(setPayFromFederationId(id))
+        },
+        [dispatch],
+    )
+
+    return {
+        federations,
+        visibleFederations,
+        selectedFederation,
+        selectFederation,
     }
 }

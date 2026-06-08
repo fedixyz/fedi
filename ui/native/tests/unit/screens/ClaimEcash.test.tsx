@@ -46,6 +46,7 @@ describe('/screens/ClaimEcash', () => {
             claimEcash: claimEcashSpy,
             loading: false,
             claimed: false,
+            error: null,
             isError: false,
         }))
     })

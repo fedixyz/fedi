@@ -367,14 +367,23 @@ export function useSendEcash(federationId: string) {
     }, [])
 
     const generateEcash = useCallback(
-        async (amount: Sats, memo: string = '') => {
+        async (
+            amount: Sats,
+            memo: string = '',
+            options: { includeInvite?: boolean } = {},
+        ) => {
             if (!federation?.meta) return
 
             setIsGeneratingEcash(true)
 
             try {
                 const msats = amountUtils.satToMsat(amount)
-                const includeInvite = shouldShowInviteCode(federation.meta)
+                // invite_codes_disabled is a hard override: never embed an
+                // invite if the federation opted out, whatever the caller asked
+                // for. Otherwise honor the caller's choice, defaulting to true.
+                const includeInvite =
+                    shouldShowInviteCode(federation.meta) &&
+                    (options.includeInvite ?? true)
                 const res = await fedimint.generateEcash(
                     msats,
                     federation.id,
@@ -482,7 +491,7 @@ export function useClaimEcash() {
 
     const [loading, setLoading] = useState(false)
     const [claimed, setEcashClaimed] = useState(false)
-    const [isError, setIsError] = useState(false)
+    const [error, setError] = useState<Error | null>(null)
 
     const claimEcash = useCallback(
         async (parsedEcash: RpcEcashInfo, ecashToken: string) => {
@@ -490,7 +499,7 @@ export function useClaimEcash() {
             let joinedFederation: Federation | null = null
 
             try {
-                setIsError(false)
+                setError(null)
                 setLoading(true)
 
                 // User isn't part of federation that ecash was sent from
@@ -514,8 +523,7 @@ export function useClaimEcash() {
                         : joinedFederation?.id
 
                 if (!federationId) {
-                    log.error('No federation ID found')
-                    throw new Error()
+                    throw new Error('No federation ID found for this ecash')
                 }
 
                 const result = await dispatch(
@@ -527,13 +535,20 @@ export function useClaimEcash() {
                 ).unwrap()
 
                 if (result.status === 'failed') {
-                    log.error('ReceiveEcash failed')
-                    throw new Error()
+                    throw new Error(
+                        result.error ?? 'ReceiveEcash transaction failed',
+                    )
                 }
 
                 setEcashClaimed(true)
             } catch (e) {
-                setIsError(true)
+                const wrapped =
+                    e instanceof Error
+                        ? e
+                        : new Error(
+                              typeof e === 'string' ? e : JSON.stringify(e),
+                          )
+                setError(wrapped)
                 log.error('Ecash could not be claimed', e)
             } finally {
                 setLoading(false)
@@ -546,6 +561,7 @@ export function useClaimEcash() {
         claimEcash,
         loading,
         claimed,
-        isError,
+        error,
+        isError: error !== null,
     }
 }

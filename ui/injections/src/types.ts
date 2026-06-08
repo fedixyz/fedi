@@ -13,6 +13,7 @@ import {
     EcashRequest,
     EditCommunityRequest,
     InstallMiniAppRequest,
+    JoinedFederationSummary,
     MSats,
     SupportedCurrency,
 } from '@fedi/common/types'
@@ -51,6 +52,7 @@ export enum InjectionMessageType {
     fedi_getInstalledMiniApps = 'fedi_getInstalledMiniApps',
     fedi_installMiniApp = 'fedi_installMiniApp',
     fedi_previewMatrixRoom = 'fedi_previewMatrixRoom',
+    fedi_getJoinedFederations = 'fedi_getJoinedFederations',
 }
 
 export type InjectionMessageResponseMap = {
@@ -127,6 +129,8 @@ export type InjectionMessageResponseMap = {
     }
     [InjectionMessageType.fedi_receiveEcash]: {
         message: string
+        // Resolves with the claimed amount, or rejects on cancellation / a
+        // bridge error so the miniapp can fall back to another rail.
         response: { msats: MSats }
     }
     [InjectionMessageType.fedi_getAuthenticatedMember]: {
@@ -198,6 +202,10 @@ export type InjectionMessageResponseMap = {
     [InjectionMessageType.fedi_previewMatrixRoom]: {
         message: string
         response: { name: string; avatarUrl: string | null } | null
+    }
+    [InjectionMessageType.fedi_getJoinedFederations]: {
+        message: void
+        response: { federations: JoinedFederationSummary[] }
     }
 }
 

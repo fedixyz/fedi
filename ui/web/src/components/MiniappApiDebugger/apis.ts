@@ -52,6 +52,11 @@ const toInt = (value: string | undefined, fallback: number): number => {
     const n = parseInt(value ?? '', 10)
     return Number.isFinite(n) ? n : fallback
 }
+const toList = (value: string | undefined): string[] =>
+    (value ?? '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
 
 export const apis: ApiDef[] = [
     defineApi(T.webln_enable, {
@@ -279,13 +284,46 @@ export const apis: ApiDef[] = [
     defineApi(T.fedi_generateEcash, {
         inputs: [
             { key: 'ecash_amt', label: 'Amount (sats)', placeholder: '500' },
+            {
+                key: 'ecash_feds',
+                label: 'Federation IDs (comma-separated)',
+                placeholder: 'fed1,fed2',
+            },
+            { key: 'ecash_min', label: 'Min amount (sats)', placeholder: '1' },
+            {
+                key: 'ecash_max',
+                label: 'Max amount (sats)',
+                placeholder: '500',
+            },
         ],
         variants: [
             { label: '1k', data: { amount: 1000 } },
             { label: '10k', data: { amount: 10000 } },
+            { label: '500', data: { amount: 500 } },
             {
-                label: 'Custom',
-                data: c => ({ amount: toInt(c.ecash_amt, 500) }),
+                label: 'Locked to federations',
+                data: c => ({
+                    amount: toInt(c.ecash_amt, 1000),
+                    federationIds: toList(c.ecash_feds),
+                }),
+            },
+            {
+                label: 'Unknown fed (rejects)',
+                data: {
+                    amount: 1000,
+                    federationIds: ['nonexistent-federation-id'],
+                },
+            },
+            {
+                label: 'No invite embedded',
+                data: { amount: 1000, includeInvite: false },
+            },
+            {
+                label: 'Custom range',
+                data: c => ({
+                    minimumAmount: toInt(c.ecash_min, 1),
+                    maximumAmount: toInt(c.ecash_max, 500),
+                }),
             },
         ],
     }),
@@ -299,6 +337,9 @@ export const apis: ApiDef[] = [
             },
         ],
         variants: [{ label: 'Receive', data: c => c.ecash_notes || '' }],
+    }),
+    defineApi(T.fedi_getJoinedFederations, {
+        variants: [{ label: 'List', data: undefined }],
     }),
     defineApi(T.fedi_listCreatedCommunities, {
         variants: [{ label: 'Call', data: undefined }],
