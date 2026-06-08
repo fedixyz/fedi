@@ -83,6 +83,7 @@ impl DevFed {
             async {
                 let gw_ldk = dev_fed.gw_ldk_connected().await?.clone();
                 let address = gw_ldk
+                    .client()
                     .get_pegin_addr(&dev_fed.fed().await?.calculate_federation_id())
                     .await?;
                 debug!(
@@ -101,6 +102,7 @@ impl DevFed {
                 let pegin_addr = dev_fed
                     .gw_lnd_registered()
                     .await?
+                    .client()
                     .get_pegin_addr(&dev_fed.fed().await?.calculate_federation_id())
                     .await?;
                 dev_fed
@@ -185,7 +187,7 @@ impl DevFed {
         let logs_dir: PathBuf = test_dir.join("logs");
         mkdir(logs_dir.clone()).await?;
 
-        let globals = vars::Global::new(&test_dir, 1, fed_size, 0, None).await?;
+        let globals = vars::Global::new(&test_dir, 1, fed_size, 0, None, None).await?;
 
         info!(target: LOG_DEVIMINT, path=%globals.FM_DATA_DIR.display() , "Devimint data dir");
 

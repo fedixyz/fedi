@@ -90,5 +90,5 @@ async fn main() -> anyhow::Result<()> {
         modules
     }
 
-    fedimintd::run(fedi_modules(), env!("FEDIMINT_BUILD_CODE_VERSION"), None).await
+    match fedimintd::run(fedi_modules(), env!("FEDIMINT_BUILD_CODE_VERSION"), None).await? {}
 }

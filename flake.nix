@@ -9,7 +9,7 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.10.0-fedi6";
+      url = "github:fedibtc/fedimint?ref=v0.11.0-fedi0";
     };
 
     fenix = {
@@ -95,6 +95,8 @@
               esplora-electrs = pkgs-fedimint.esplora-electrs;
               # remove after upgrading pkgs-fedimint
               bitcoind = pkgs-fedimint.bitcoind;
+              # Match Fedimint's devimint test environment.
+              lnd = pkgs-fedimint.lnd;
 
               binaryen = pkgs-unstable.binaryen;
               wasm-bindgen-cli = pkgs-unstable.wasm-bindgen-cli_0_2_114;

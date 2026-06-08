@@ -1440,11 +1440,13 @@ impl FederationV2 {
                 RpcTransactionDirection::Receive,
             )
             .await?;
-        let (operation_id, address, _) = self
+        let deposit_address = self
             .client
             .wallet()?
             .allocate_deposit_address_expert_only(BaseMetadata::from(frontend_meta))
             .await?;
+        let operation_id = deposit_address.operation_id;
+        let address = deposit_address.address;
         self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
             .await?;
 

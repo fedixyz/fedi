@@ -423,7 +423,7 @@ impl SocialVerification {
             .api
             .request_single_peer(
                 "get_verification".to_owned(),
-                ApiRequestErased::new(id).with_auth(ApiAuth(guardian_password)),
+                ApiRequestErased::new(id).with_auth(ApiAuth::new(guardian_password)),
                 self.peer_id,
             )
             .await?;
@@ -442,7 +442,7 @@ impl SocialVerification {
             .api
             .request_single_peer(
                 "approve_recovery".to_owned(),
-                ApiRequestErased::new(id).with_auth(ApiAuth(guardian_password)),
+                ApiRequestErased::new(id).with_auth(ApiAuth::new(guardian_password)),
                 self.peer_id,
             )
             .await?;

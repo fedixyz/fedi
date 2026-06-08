@@ -60,6 +60,7 @@ in
         build_arch_underscores =
           lib.strings.replaceStrings [ "-" ] [ "_" ]
             pkgs.stdenv.buildPlatform.config;
+        build_arch_upper = lib.toUpper build_arch_underscores;
       in
       {
         # for cargo-deluxe
@@ -80,6 +81,11 @@ in
         "ROCKSDB_${build_arch_underscores}_LIB_DIR" = "${
           pkgs.rocksdb_8_11.override { enableLiburing = false; }
         }/lib/";
+
+        # librocksdb-sys 0.17+ no longer reliably propagates C++ stdlib
+        # linkage from RocksDB, which leaves final binaries with undefined
+        # std::* symbols during Nix builds.
+        "CARGO_TARGET_${build_arch_upper}_RUSTFLAGS" = "-C link-arg=-lstdc++";
 
         # does not produce static lib in most versions
         "SNAPPY_${build_arch_underscores}_STATIC" = "true";

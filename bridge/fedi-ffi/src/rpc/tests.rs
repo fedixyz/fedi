@@ -487,6 +487,7 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 
     dev_fed
         .gw_ldk
+        .client()
         .pay_invoice(Bolt11Invoice::from_str(&invoice_string).expect("Invoice must be valid"))
         .await?;
 
@@ -523,7 +524,11 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 
     // get invoice
     let send_amount = Amount::from_sats(50);
-    let invoice = dev_fed.gw_ldk.create_invoice(send_amount.msats).await?;
+    let invoice = dev_fed
+        .gw_ldk
+        .client()
+        .create_invoice(send_amount.msats)
+        .await?;
 
     // check balance
     payInvoice(
@@ -535,6 +540,7 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 
     dev_fed
         .gw_ldk
+        .client()
         .wait_bolt11_invoice(invoice.payment_hash().consensus_encode_to_vec())
         .await?;
 
@@ -559,7 +565,7 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
                 fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
 
             // Pay invoice using gateway's node
-            dev_fed.gw_ldk.pay_invoice(invoice).await?;
+            dev_fed.gw_ldk.client().pay_invoice(invoice).await?;
 
             // check for event of type transaction that has ln_state
             'check: loop {
@@ -612,7 +618,7 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
                 fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
 
             // Pay invoice using gateway's node
-            dev_fed.gw_ldk.pay_invoice(invoice).await?;
+            dev_fed.gw_ldk.client().pay_invoice(invoice).await?;
 
             // check for event of type transaction that has ln_state
             'check: loop {
@@ -1327,6 +1333,13 @@ async fn test_social_backup_and_recovery(_dev_fed: DevFed) -> anyhow::Result<()>
     }
     let recovery_federation = recovery_bridge.federations.get_federation(&id.0)?;
     // Currently, accrued fedi fee is merged back into balance upon recovery
+    // wait atmost 10s
+    for _ in 0..100 {
+        if ecash_balance_before + expected_fedi_fee == recovery_federation.get_balance().await {
+            break;
+        }
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+    }
     assert_eq!(
         ecash_balance_before + expected_fedi_fee,
         recovery_federation.get_balance().await
@@ -1493,7 +1506,9 @@ async fn test_spv2(_dev_fed: DevFed) -> anyhow::Result<()> {
     // Vec of tuple of (send_ppm, receive_ppm)
     let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
     for (send_ppm, receive_ppm) in fee_ppm_values {
-        test_spv2_with_fedi_fees(send_ppm, receive_ppm).await?;
+        test_spv2_with_fedi_fees(send_ppm, receive_ppm)
+            .await
+            .with_context(|| format!("spv2 fees send_ppm={send_ppm} receive_ppm={receive_ppm}"))?;
     }
 
     Ok(())
@@ -1514,9 +1529,28 @@ async fn test_spv2_with_fedi_fees(
     )
     .await?;
 
-    // Test default account info state
-    let RpcSPv2CachedSyncResponse { sync_response, .. } =
-        spv2AccountInfo(federation.clone()).await?;
+    // Test default account info state. SPv2 sync is initialized asynchronously
+    // after joining, so wait until the first cache entry exists before reading it.
+    let RpcSPv2CachedSyncResponse { sync_response, .. } = retry(
+        "wait initial spv2 account info",
+        aggressive_backoff(),
+        || {
+            let federation = federation.clone();
+            async move {
+                federation
+                    .spv2_sync_service
+                    .get()
+                    .context("spv2 sync service must be initialized")?
+                    .update_once()
+                    .await
+                    .context("initial spv2 sync")?;
+                spv2AccountInfo(federation.clone())
+                    .await
+                    .context("initial spv2 account info")
+            }
+        },
+    )
+    .await?;
     assert_eq!(sync_response.idle_balance.0, Amount::ZERO);
     assert_eq!(sync_response.staged.btc.0, Amount::ZERO);
     assert_eq!(sync_response.locked.btc.0, Amount::ZERO);
@@ -1544,6 +1578,7 @@ async fn test_spv2_with_fedi_fees(
         RpcAmount(Amount::ZERO),
         estimated_deposit_fees.fedi_guardian_fee
     );
+    let deposit_events_before = td.event_sink().num_events_of_type("spv2Deposit".into());
     spv2DepositToSeek(
         federation.clone(),
         RpcAmount(amount_to_deposit),
@@ -1553,7 +1588,7 @@ async fn test_spv2_with_fedi_fees(
     loop {
         // Wait until deposit operation succeeds
         // Initiated -> TxAccepted -> Success
-        if td.event_sink().num_events_of_type("spv2Deposit".into()) == 3 {
+        if td.event_sink().num_events_of_type("spv2Deposit".into()) >= deposit_events_before + 3 {
             break;
         }
 
@@ -1610,9 +1645,33 @@ async fn test_spv2_with_fedi_fees(
     }
 
     // At this point, we will have two SP transactions: one pending deposit, and one
-    // completed withdrawal. listTransactions returns transactions in reverse
-    // chronological order
-    let transactions = listTransactions(federation.clone(), None, None).await?;
+    // completed withdrawal. The withdrawal event can arrive before the SPv2
+    // account-history cache has observed the completed withdrawal state, so wait
+    // for listTransactions to reflect it. listTransactions returns transactions
+    // in reverse chronological order.
+    let mut transactions = Vec::new();
+    for _ in 0..100 {
+        spv2_force_sync(federation).await;
+        transactions = listTransactions(federation.clone(), None, None).await?;
+        let last_tx = transactions.first().expect("must exist");
+        if matches!(
+            last_tx,
+            Ok(RpcTransactionListEntry {
+                transaction: RpcTransaction {
+                    kind: RpcTransactionKind::SPV2Withdrawal {
+                        state: rpc_types::RpcSPV2WithdrawalState::CompletedWithdrawal { .. },
+                        ..
+                    },
+                    ..
+                },
+                ..
+            })
+        ) {
+            break;
+        }
+
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+    }
     let last_tx = transactions.first().expect("must exist");
     assert_matches!(
         last_tx,
@@ -1979,6 +2038,13 @@ async fn test_transfer_device_registration_post_recovery(_dev_fed: DevFed) -> an
     }
     let recovery_federation = recovery_bridge.federations.get_federation(&id.0)?;
     // Currently, accrued fedi fee is merged back into balance upon recovery
+    // wait atmost 10s
+    for _ in 0..100 {
+        if ecash_balance_before + expected_fedi_fee == recovery_federation.get_balance().await {
+            break;
+        }
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+    }
     assert_eq!(
         ecash_balance_before + expected_fedi_fee,
         recovery_federation.get_balance().await
@@ -2523,17 +2589,19 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
     // Mock fee remittance endpoint
     // On restart, gateway cache may be empty so we use the full outstanding fee
     // amount (no gateway fees subtracted)
-    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(105_000).await?;
+    let fedi_fee_invoice = dev_fed.gw_ldk.client().create_invoice(105_000).await?;
     let mut mock_fedi_api = MockFediApi::default();
     mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
     td.with_fedi_api(mock_fedi_api.into());
     let new_bridge = td.bridge_full().await?;
 
     // Wait for fedi fee to be remitted
+    let gw_ldk_client = dev_fed.gw_ldk.client();
+    let payment_hash = fedi_fee_invoice.payment_hash().consensus_encode_to_vec();
     retry("fedi fee remitting", aggressive_backoff(), || {
-        dev_fed
-            .gw_ldk
-            .wait_bolt11_invoice(fedi_fee_invoice.payment_hash().consensus_encode_to_vec())
+        let gw_ldk_client = gw_ldk_client.clone();
+        let payment_hash = payment_hash.clone();
+        async move { gw_ldk_client.wait_bolt11_invoice(payment_hash).await }
     })
     .await?;
 
@@ -2563,7 +2631,7 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
     // Mock fee remittance endpoint
     // Gateway cache may be empty so we use the full outstanding fee amount
     // (no gateway fees subtracted)
-    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(105_000).await?;
+    let fedi_fee_invoice = dev_fed.gw_ldk.client().create_invoice(105_000).await?;
     let mut mock_fedi_api = MockFediApi::default();
     mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
     let mut td = TestDevice::new().await?;
@@ -2628,10 +2696,12 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
     }
 
     // Wait for fedi fee to be remitted
+    let gw_ldk_client = dev_fed.gw_ldk.client();
+    let payment_hash = fedi_fee_invoice.payment_hash().consensus_encode_to_vec();
     retry("fedi fee remitting", aggressive_backoff(), || {
-        dev_fed
-            .gw_ldk
-            .wait_bolt11_invoice(fedi_fee_invoice.payment_hash().consensus_encode_to_vec())
+        let gw_ldk_client = gw_ldk_client.clone();
+        let payment_hash = payment_hash.clone();
+        async move { gw_ldk_client.wait_bolt11_invoice(payment_hash).await }
     })
     .await?;
     // Ensure outstanding fee has been cleared
