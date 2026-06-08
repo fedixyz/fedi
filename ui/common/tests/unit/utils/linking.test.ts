@@ -118,6 +118,50 @@ describe('common/utils/linking', () => {
         })
     })
 
+    describe('isFediDeeplinkType', () => {
+        it('should return true for telegram links', () => {
+            const url = 'https://t.me/fedibtc'
+
+            expect(linking.isFediDeeplinkType(url)).toBe(true)
+        })
+
+        it('should return true for whatsapp links', () => {
+            const url = 'https://wa.me/123456789'
+
+            expect(linking.isFediDeeplinkType(url)).toBe(true)
+        })
+
+        it('should return true for universal deeplinks', () => {
+            const url = 'https://app.fedi.xyz/link?screen=chat'
+
+            expect(linking.isFediDeeplinkType(url)).toBe(true)
+        })
+
+        it('should return true for universal deeplinks with a # delimiter', () => {
+            const url = 'https://app.fedi.xyz/link#screen=chat'
+
+            expect(linking.isFediDeeplinkType(url)).toBe(true)
+        })
+
+        it('should return false for fedi-hosted web app pages', () => {
+            const url = 'https://app.fedi.xyz/internal/deeplink-builder'
+
+            expect(linking.isFediDeeplinkType(url)).toBe(false)
+        })
+
+        it('should return false for deeplinks without a screen', () => {
+            const url = 'https://app.fedi.xyz/link'
+
+            expect(linking.isFediDeeplinkType(url)).toBe(false)
+        })
+
+        it('should return false for external links', () => {
+            const url = 'https://example.com/app'
+
+            expect(linking.isFediDeeplinkType(url)).toBe(false)
+        })
+    })
+
     describe('getNavigationLink', () => {
         it('should normalize a Fedi web deeplink to an internal navigation link', () => {
             const url = 'https://app.fedi.xyz/link?screen=chat'

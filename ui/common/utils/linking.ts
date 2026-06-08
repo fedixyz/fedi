@@ -81,14 +81,13 @@ export function isDeepLink(url: string): boolean {
 }
 
 /**
- * Check if a URL is a FediMod deep link type that should be handled specially.
+ * Check if a FediMod URL should be handled by the linking system
+ * (telegram/whatsapp or a universal deeplink) instead of the mini apps browser.
  */
 export const isFediDeeplinkType = (url: string): boolean =>
     url.includes(TELEGRAM_BASE_URL) ||
     url.includes(WHATSAPP_BASE_URL) ||
-    DEEPLINK_HOSTS.some(
-        h => url.includes(`https://${h}`) || url.includes(`https://www.${h}`),
-    )
+    isDeepLink(url)
 
 /**
  * Check if a URL is a Fedi internal link type e.g. fedi://chat
