@@ -1,19 +1,21 @@
 import React from 'react'
 
-import { TransactionStatusBadge } from '@fedi/common/types'
+import type { TransactionStatusBadge } from '@fedi/common/types'
 
-import { CSSProp, styled, theme } from '../../styles'
-import { Icon, SvgIconName } from '../Icon'
+import { styled, theme, type CSSProp } from '../../styles'
+import { Icon, type SvgIconName } from '../Icon'
 
 export interface HistoryIconProps {
     children: React.ReactNode
     badge?: TransactionStatusBadge
+    badgeColor?: CSSProp['color']
     color?: CSSProp['color']
 }
 
 export const HistoryIcon: React.FC<HistoryIconProps> = ({
     children,
     badge,
+    badgeColor: badgeColorOverride,
     color,
 }) => {
     let badgeIcon: SvgIconName | undefined
@@ -39,7 +41,7 @@ export const HistoryIcon: React.FC<HistoryIconProps> = ({
         <Container css={{ color }}>
             {children}
             {badgeIcon && (
-                <IconWrap css={{ color: badgeColor }}>
+                <IconWrap css={{ color: badgeColorOverride ?? badgeColor }}>
                     <Icon icon={badgeIcon} size={20} />
                 </IconWrap>
             )}

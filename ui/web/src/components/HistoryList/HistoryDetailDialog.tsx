@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
+import type { FeeItem } from '@fedi/common/hooks/transactions'
 import {
     selectTransactionDisplayType,
     setTransactionDisplayType,
 } from '@fedi/common/redux'
-import { TransactionListEntry } from '@fedi/common/types'
+import type { TransactionListEntry } from '@fedi/common/types'
 
 import {
     useAppDispatch,
@@ -26,6 +27,7 @@ export interface HistoryDetailDialogProps {
     amount: string
     secondaryAmount?: string
     items: HistoryDetailItemProps[]
+    feeItems?: FeeItem[]
     notes?: string
     onSaveNotes?: (notes: string) => void
     onClose: () => void
@@ -38,6 +40,7 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
     amount,
     secondaryAmount,
     items,
+    feeItems,
     notes: propsNotes,
     onSaveNotes,
     onClose,
@@ -46,12 +49,14 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
     const [notes, setNotes] = useState(propsNotes || '')
     const [inputEl, setInputEl] = useState<HTMLTextAreaElement | null>(null)
     const { t } = useTranslation()
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromTxn } = useAmountFormatter()
+    const totalFeeItem = feeItems?.find(
+        item => item.label === t('phrases.total-fees'),
+    )
     const formattedSecondaryAmount =
         secondaryAmount ??
         (txn
-            ? makeFormattedAmountsFromMSats(txn.amount, 'end')
-                  .formattedSecondaryAmount
+            ? makeFormattedAmountsFromTxn(txn, 'end').formattedSecondaryAmount
             : undefined)
 
     const dispatch = useAppDispatch()
@@ -112,6 +117,12 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
                     {items.map((item, idx) => (
                         <HistoryDetailItem key={idx} {...item} />
                     ))}
+                    {totalFeeItem && (
+                        <HistoryDetailItem
+                            label={t('words.fees')}
+                            value={totalFeeItem.formattedAmount}
+                        />
+                    )}
                     {onSaveNotes && (
                         <HistoryDetailItem
                             label={`${t('phrases.add-note')} +`}

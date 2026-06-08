@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
@@ -14,6 +14,8 @@ import {
 import { HistoryRow, HistoryRowProps } from './HistoryRow'
 import { HistoryRowError } from './HistoryRowError'
 
+const PAGINATION_THRESHOLD_PX = 0
+
 interface Props<T extends { id: string }> {
     rows: T[]
     loading?: boolean
@@ -22,7 +24,7 @@ interface Props<T extends { id: string }> {
         item: T,
     ) => Omit<HistoryDetailDialogProps, 'icon' | 'onClose'>
     makeIcon: (item: T) => React.ReactNode
-    onEndReached?: () => void
+    onEndReached?: () => Promise<unknown> | void
 }
 
 export function HistoryList<T extends { id: string }>({
@@ -31,9 +33,45 @@ export function HistoryList<T extends { id: string }>({
     makeRowProps,
     makeDetailProps,
     makeIcon,
+    onEndReached,
 }: Props<T>): React.ReactElement {
     const { t } = useTranslation()
     const [selectedItem, setSelectedItem] = useState<T | null>(null)
+    const paginationPendingRef = useRef(false)
+    const hasPaginatedAtBoundaryRef = useRef(false)
+
+    const handleScroll = useCallback(
+        (ev: React.UIEvent<HTMLDivElement>) => {
+            if (!onEndReached) return
+
+            const { clientHeight, scrollHeight } = ev.currentTarget
+            const scrollTop = Math.abs(ev.currentTarget.scrollTop)
+            const isAtPaginationBoundary =
+                scrollTop + clientHeight + PAGINATION_THRESHOLD_PX >=
+                scrollHeight
+
+            if (!isAtPaginationBoundary) {
+                hasPaginatedAtBoundaryRef.current = false
+                return
+            }
+
+            if (
+                paginationPendingRef.current ||
+                hasPaginatedAtBoundaryRef.current
+            ) {
+                return
+            }
+
+            hasPaginatedAtBoundaryRef.current = true
+            paginationPendingRef.current = true
+            Promise.resolve(onEndReached())
+                .catch(() => null)
+                .finally(() => {
+                    paginationPendingRef.current = false
+                })
+        },
+        [onEndReached],
+    )
 
     if (loading) {
         return (
@@ -52,7 +90,7 @@ export function HistoryList<T extends { id: string }>({
     }
 
     return (
-        <Container>
+        <Container onScroll={onEndReached ? handleScroll : undefined}>
             {rows.map(item => (
                 <ErrorBoundary
                     key={item.id}

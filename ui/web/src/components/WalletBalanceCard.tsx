@@ -62,12 +62,18 @@ export const WalletBalanceCard: React.FC<Props> = ({ federationId }) => {
                 : null
     }
 
+    const handleOnTransactionsClick = () => {
+        if (paymentType === 'stable-balance') {
+            router.push(`${transactionsRoute}#id=${federationId}&type=stable`)
+            return
+        }
+
+        router.push(`${transactionsRoute}#id=${federationId}`)
+    }
+
     return (
         <BalanceCard>
-            <BalanceHeader
-                onClick={() =>
-                    router.push(`${transactionsRoute}#id=${federationId}`)
-                }>
+            <BalanceHeader onClick={handleOnTransactionsClick}>
                 <Row gap="sm" align="center">
                     <Icon icon={iconName} color={iconColor} />
                     <Text weight="bold">{walletLabel}</Text>

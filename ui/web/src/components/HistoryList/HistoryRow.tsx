@@ -6,7 +6,7 @@ import {
     selectCurrency,
     selectTransactionDisplayType,
 } from '@fedi/common/redux'
-import { MSats } from '@fedi/common/types'
+import type { MSats } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 
 import { useAppSelector } from '../../hooks'
@@ -18,6 +18,7 @@ export interface HistoryRowProps {
     status: React.ReactNode
     notes: React.ReactNode
     amount: MSats | string
+    currencyText?: string
     timestamp: number | undefined | null
     direction?: 'incoming' | 'outgoing'
     onSelect: () => void
@@ -28,6 +29,7 @@ export const HistoryRow: React.FC<HistoryRowProps> = ({
     status,
     notes,
     amount,
+    currencyText,
     timestamp,
     direction,
     onSelect,
@@ -73,6 +75,11 @@ export const HistoryRow: React.FC<HistoryRowProps> = ({
                     {sign}
                     {amount}
                 </Text>
+                {currencyText && (
+                    <Text variant="tiny" weight="medium">
+                        {currencyText}
+                    </Text>
+                )}
             </Amount>
         )
     }

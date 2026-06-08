@@ -1,22 +1,27 @@
 import React from 'react'
 
-import { TransactionListEntry } from '@fedi/common/types'
-import { makeTxnStatusBadge } from '@fedi/common/utils/transaction'
+import type { TransactionStatusBadge } from '@fedi/common/types'
 
-import { theme } from '../../styles'
+import type { CSSProp } from '../../styles'
 import { HistoryIcon } from '../HistoryList/HistoryIcon'
-import { Icon } from '../Icon'
+import { Icon, SvgIconName } from '../Icon'
 
 interface Props {
-    txn: TransactionListEntry
+    badge?: TransactionStatusBadge
+    badgeColor?: CSSProp['color']
+    color: CSSProp['color']
+    icon: SvgIconName
 }
 
-export const TransactionIcon: React.FC<Props> = ({ txn }) => {
-    const badge = makeTxnStatusBadge(txn)
-
+export const TransactionIcon: React.FC<Props> = ({
+    badge,
+    badgeColor,
+    color,
+    icon,
+}) => {
     return (
-        <HistoryIcon badge={badge} color={theme.colors.orange}>
-            <Icon icon="BitcoinCircle" size={38} />
+        <HistoryIcon badge={badge} badgeColor={badgeColor} color={color}>
+            <Icon icon={icon} size={38} />
         </HistoryIcon>
     )
 }
