@@ -2479,7 +2479,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "957bb73a3a9c0bbcac67e129b81954661b3cfcb9e28873d8441f91b54852e77a"
 dependencies = [
  "derive-deftly-macros",
- "heck 0.4.1",
+ "heck 0.5.0",
 ]
 
 [[package]]
@@ -2488,14 +2488,14 @@ version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea41269bd490d251b9eca50ccb43117e641cc68b129849757c15ece88fe0574"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "indexmap 2.14.0",
  "itertools 0.14.0",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
  "sha3",
- "strum 0.27.2",
+ "strum 0.26.3",
  "syn 2.0.117",
  "void",
 ]
@@ -3339,7 +3339,7 @@ dependencies = [
  "sp-transfer",
  "stability-pool-client",
  "stability-pool-client-old",
- "strum 0.27.2",
+ "strum 0.28.0",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -3389,7 +3389,7 @@ dependencies = [
  "impl-tools",
  "secp256k1",
  "serde",
- "strum 0.27.2",
+ "strum 0.28.0",
  "strum_macros 0.27.2",
  "thiserror 2.0.18",
  "tracing-subscriber",
@@ -3409,7 +3409,7 @@ dependencies = [
  "futures",
  "rand 0.8.5",
  "secp256k1",
- "strum 0.27.2",
+ "strum 0.28.0",
  "subtle",
  "tracing",
  "tracing-subscriber",
@@ -9586,7 +9586,7 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.14.0",
  "log",
  "multimap",
@@ -10276,7 +10276,7 @@ dependencies = [
  "serde_with",
  "stability-pool-client",
  "stability-pool-client-old",
- "strum 0.27.2",
+ "strum 0.28.0",
  "strum_macros 0.27.2",
  "thiserror 2.0.18",
  "tracing",
@@ -11612,6 +11612,12 @@ checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
 dependencies = [
  "strum_macros 0.27.2",
 ]
+
+[[package]]
+name = "strum"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
 
 [[package]]
 name = "strum_macros"
