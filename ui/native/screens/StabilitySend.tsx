@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keyboard, ScrollView } from 'react-native'
 
-import { useWithdrawForm } from '@fedi/common/hooks/amount'
+import { useStabilityWithdrawForm } from '@fedi/common/hooks/amount'
 import {
     selectFeatureFlag,
     selectPaymentFederation,
@@ -32,7 +32,6 @@ const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
 
     const [tab, setTab] = useState<Tab>(recipient ? 'user' : 'wallet')
     const [receiver, setReceiver] = useState<ReceiverType | null>(null)
-    const [submitAttempts, setSubmitAttempts] = useState(0)
 
     const spTransferFlag = useAppSelector(s =>
         selectFeatureFlag(s, 'sp_transfer_ui'),
@@ -52,12 +51,10 @@ const StabilitySend: React.FC<Props> = ({ route, navigation }: Props) => {
         minimumAmount,
         maximumAmount,
         inputAmountCents,
-    } = useWithdrawForm(federationId)
-
-    const isValidAmount =
-        (minimumAmount === 0
-            ? amount > minimumAmount
-            : amount >= minimumAmount) && amount <= maximumAmount
+        submitAttempts,
+        setSubmitAttempts,
+        isValidAmount,
+    } = useStabilityWithdrawForm(federationId)
 
     const handleContinueUser = () => {
         if (!receiver && !recipient) return

@@ -16,7 +16,7 @@ import { renderWithProviders } from '@fedi/web/tests/utils/render'
 
 import { mockUseRouter } from '../../../../jest.setup'
 
-const mockUseDepositForm = jest.fn()
+const mockUseStabilityDepositForm = jest.fn()
 const mockUseMonitorStabilityPool = jest.fn()
 const stableFederation: LoadedFederation = {
     ...mockFederationWithSPV2,
@@ -36,7 +36,8 @@ const stableFederation: LoadedFederation = {
 
 jest.mock('@fedi/common/hooks/amount', () => ({
     ...jest.requireActual('@fedi/common/hooks/amount'),
-    useDepositForm: (federationId: string) => mockUseDepositForm(federationId),
+    useStabilityDepositForm: (federationId: string) =>
+        mockUseStabilityDepositForm(federationId),
 }))
 
 jest.mock('@fedi/common/hooks/stabilitypool', () => ({
@@ -75,11 +76,14 @@ describe('/components/Stability/Deposit', () => {
         jest.clearAllMocks()
         mockUseRouter.query = { id: stableFederation.id }
         mockUseRouter.push.mockClear()
-        mockUseDepositForm.mockReturnValue({
+        mockUseStabilityDepositForm.mockReturnValue({
             inputAmount: 2000 as Sats,
             setInputAmount: jest.fn(),
             minimumAmount: 1,
             maximumAmount: 2000,
+            submitAttempts: 0,
+            setSubmitAttempts: jest.fn(),
+            isValidAmount: true,
         })
         fedimint = createMockFedimintBridge({
             estimateSPv2DepositFees: new Promise(() => undefined),

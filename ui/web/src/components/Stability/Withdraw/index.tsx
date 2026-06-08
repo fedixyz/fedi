@@ -2,7 +2,7 @@ import { useRouter } from 'next/router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useWithdrawForm } from '@fedi/common/hooks/amount'
+import { useStabilityWithdrawForm } from '@fedi/common/hooks/amount'
 import { selectLoadedFederation } from '@fedi/common/redux'
 
 import { walletRoute } from '../../../constants/routes'
@@ -25,7 +25,6 @@ export function StabilityWithdraw() {
     const federation = useAppSelector(s =>
         selectLoadedFederation(s, federationId),
     )
-    const [submitAttempts, setSubmitAttempts] = useState(0)
     const [showConfirmWithdraw, setShowConfirmWithdraw] = useState(false)
     const [successFormattedAmount, setSuccessFormattedAmount] = useState<
         string | null
@@ -37,12 +36,10 @@ export function StabilityWithdraw() {
         minimumAmount,
         maximumAmount,
         inputAmountCents,
-    } = useWithdrawForm(federationId)
-
-    const isValidAmount =
-        (minimumAmount === 0
-            ? amount > minimumAmount
-            : amount >= minimumAmount) && amount <= maximumAmount
+        submitAttempts,
+        setSubmitAttempts,
+        isValidAmount,
+    } = useStabilityWithdrawForm(federationId)
 
     const handleOnWithdraw = () => {
         setSubmitAttempts(attempts => attempts + 1)

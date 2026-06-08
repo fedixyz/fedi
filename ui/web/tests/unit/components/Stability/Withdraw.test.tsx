@@ -21,7 +21,7 @@ import { renderWithProviders } from '@fedi/web/tests/utils/render'
 
 import { mockUseRouter } from '../../../../jest.setup'
 
-const mockUseWithdrawForm = jest.fn()
+const mockUseStabilityWithdrawForm = jest.fn()
 const stableFederation: LoadedFederation = {
     ...mockFederationWithSPV2,
     clientConfig: {
@@ -40,8 +40,8 @@ const stableFederation: LoadedFederation = {
 
 jest.mock('@fedi/common/hooks/amount', () => ({
     ...jest.requireActual('@fedi/common/hooks/amount'),
-    useWithdrawForm: (federationId: string) =>
-        mockUseWithdrawForm(federationId),
+    useStabilityWithdrawForm: (federationId: string) =>
+        mockUseStabilityWithdrawForm(federationId),
 }))
 
 jest.mock('@fedi/web/src/components/AmountInput', () => ({
@@ -74,12 +74,15 @@ describe('/components/Stability/Withdraw', () => {
         jest.clearAllMocks()
         mockUseRouter.query = { id: stableFederation.id }
         mockUseRouter.push.mockClear()
-        mockUseWithdrawForm.mockReturnValue({
+        mockUseStabilityWithdrawForm.mockReturnValue({
             inputAmount: 2000 as Sats,
             setInputAmount: jest.fn(),
             minimumAmount: 1,
             maximumAmount: 2000,
             inputAmountCents: 200 as UsdCents,
+            submitAttempts: 0,
+            setSubmitAttempts: jest.fn(),
+            isValidAmount: true,
         })
         fedimint = createMockFedimintBridge()
     })

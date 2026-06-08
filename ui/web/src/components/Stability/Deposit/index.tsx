@@ -2,7 +2,10 @@ import { useRouter } from 'next/router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAmountFormatter, useDepositForm } from '@fedi/common/hooks/amount'
+import {
+    useAmountFormatter,
+    useStabilityDepositForm,
+} from '@fedi/common/hooks/amount'
 import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
 import { selectLoadedFederation } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
@@ -29,7 +32,6 @@ export function StabilityDeposit() {
     )
     useMonitorStabilityPool(federationId)
 
-    const [submitAttempts, setSubmitAttempts] = useState(0)
     const [showConfirmDeposit, setShowConfirmDeposit] = useState(false)
     const [success, setSuccess] = useState(false)
     const {
@@ -37,16 +39,14 @@ export function StabilityDeposit() {
         setInputAmount: setAmount,
         minimumAmount,
         maximumAmount,
-    } = useDepositForm(federationId)
+        submitAttempts,
+        setSubmitAttempts,
+        isValidAmount,
+    } = useStabilityDepositForm(federationId)
     const { makeFormattedAmountsFromSats } = useAmountFormatter({
         federationId,
     })
     const { formattedUsd } = makeFormattedAmountsFromSats(amount, 'end')
-
-    const isValidAmount =
-        (minimumAmount === 0
-            ? amount > minimumAmount
-            : amount >= minimumAmount) && amount <= maximumAmount
 
     const handleOnDeposit = () => {
         setSubmitAttempts(attempts => attempts + 1)

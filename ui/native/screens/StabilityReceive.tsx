@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keyboard, ScrollView, StyleSheet } from 'react-native'
 
-import { useDepositForm } from '@fedi/common/hooks/amount'
+import { useStabilityDepositForm } from '@fedi/common/hooks/amount'
 import { useSpv2OurPaymentAddress } from '@fedi/common/hooks/stabilitypool'
 import {
     selectLoadedFederation,
@@ -33,7 +33,6 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
     const { federationId } = route.params
 
     const [tab, setTab] = useState<Tab>('wallet')
-    const [submitAttempts, setSubmitAttempts] = useState(0)
 
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -50,7 +49,10 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
         setInputAmount: setAmount,
         minimumAmount,
         maximumAmount,
-    } = useDepositForm(federationId)
+        submitAttempts,
+        setSubmitAttempts,
+        isValidAmount,
+    } = useStabilityDepositForm(federationId)
 
     const handleDeposit = () => {
         setSubmitAttempts(attempts => attempts + 1)
@@ -67,11 +69,6 @@ const StabilityReceive: React.FC<Props> = ({ route, navigation }: Props) => {
         setSubmitAttempts(0)
         setAmount(newAmount)
     }
-
-    const isValidAmount =
-        (minimumAmount === 0
-            ? amount > minimumAmount
-            : amount >= minimumAmount) && amount <= maximumAmount
 
     const style = styles(theme)
 
