@@ -32,6 +32,14 @@ jest.mock('@fedi/common/hooks/currency.ts', () => ({
     useSyncCurrencyRatesAndCache: () => ratesSpy,
 }))
 
+jest.mock('../../../src/hooks', () => ({
+    ...jest.requireActual('../../../src/hooks'),
+    useShowInstallPromptBanner: () => ({
+        showInstallBanner: true,
+        handleOnDismiss: jest.fn(),
+    }),
+}))
+
 const featureFlags = {
     show_stable_balance_web: {},
 } as FeatureCatalog
@@ -71,6 +79,11 @@ describe('/pages/wallet', () => {
         it('should display the featured federation name', async () => {
             const name = await screen.findByText('test-federation')
             expect(name).toBeInTheDocument()
+        })
+
+        it('should render the install banner component', async () => {
+            const component = screen.getByLabelText('Install Banner')
+            expect(component).toBeInTheDocument()
         })
     })
 

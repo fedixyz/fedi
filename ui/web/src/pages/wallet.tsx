@@ -31,6 +31,7 @@ import FederationStatusAvatar from '../components/FederationStatusAvatar'
 import { Column, Row } from '../components/Flex'
 import { Icon } from '../components/Icon'
 import { IconButton } from '../components/IconButton'
+import { InstallBanner } from '../components/InstallBanner'
 import * as Layout from '../components/Layout'
 import SelectWalletOverlay from '../components/SelectWalletOverlay'
 import { Switcher } from '../components/Switcher'
@@ -45,7 +46,13 @@ import {
     stabilityDepositRoute,
     stabilityWithdrawRoute,
 } from '../constants/routes'
-import { useAppDispatch, useAppSelector } from '../hooks'
+import {
+    useAppDispatch,
+    useAppSelector,
+    useDeviceQuery,
+    useInstallPromptContext,
+    useShowInstallPromptBanner,
+} from '../hooks'
 import { styled } from '../styles'
 
 function WalletPage() {
@@ -53,6 +60,10 @@ function WalletPage() {
     const dispatch = useAppDispatch()
     const router = useRouter()
     const toast = useToast()
+
+    const deferredPrompt = useInstallPromptContext()
+    const { isIOS } = useDeviceQuery()
+    const { showInstallBanner, handleOnDismiss } = useShowInstallPromptBanner()
 
     const paymentType = useAppSelector(selectPaymentType)
     const federation = useAppSelector(selectSelectedFederation)
@@ -276,21 +287,44 @@ function WalletPage() {
         ) : null
 
     return (
-        <ContentBlock>
-            <Layout.Root>
-                <Layout.PageHeader
-                    title={t('words.wallet')}
-                    onAddPress={() => router.push('/onboarding')}
-                    onMenuPress={
-                        loadedFederations.length >= 2
-                            ? () => setOpen(true)
-                            : undefined
+        <>
+            <ContentBlock>
+                <Layout.Root>
+                    <Layout.PageHeader
+                        title={t('words.wallet')}
+                        onAddPress={() => router.push('/onboarding')}
+                        onMenuPress={
+                            loadedFederations.length >= 2
+                                ? () => setOpen(true)
+                                : undefined
+                        }
+                    />
+                    <Layout.Content fullWidth>{content}</Layout.Content>
+                </Layout.Root>
+                <SelectWalletOverlay open={open} onOpenChange={setOpen} />
+            </ContentBlock>
+            {showInstallBanner && (
+                <InstallBanner
+                    title={t('feature.home.pwa-install-banner-title')}
+                    description={t(
+                        'feature.home.pwa-install-banner-description',
+                    )}
+                    buttonLabel={t(
+                        'feature.home.pwa-install-banner-button-label',
+                    )}
+                    onInstall={
+                        isIOS
+                            ? () =>
+                                  window.open(
+                                      'https://support.fedi.xyz/hc/en-us/articles/27283843087634',
+                                      '_blank',
+                                  )
+                            : async () => deferredPrompt?.prompt()
                     }
+                    onClose={handleOnDismiss}
                 />
-                <Layout.Content fullWidth>{content}</Layout.Content>
-            </Layout.Root>
-            <SelectWalletOverlay open={open} onOpenChange={setOpen} />
-        </ContentBlock>
+            )}
+        </>
     )
 }
 

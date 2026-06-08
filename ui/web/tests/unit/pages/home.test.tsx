@@ -10,14 +10,6 @@ import HomePage from '../../../src/pages/home'
 import { AppState } from '../../../src/state/store'
 import { renderWithProviders } from '../../utils/render'
 
-jest.mock('../../../src/hooks/util.ts', () => ({
-    ...jest.requireActual('../../../src/hooks/util'),
-    useShowInstallPromptBanner: () => ({
-        showInstallBanner: true,
-        handleOnDismiss: jest.fn(),
-    }),
-}))
-
 const mockCommunityChat = {
     ...MOCK_MATRIX_ROOM,
     id: 'chat-id',
@@ -48,11 +40,6 @@ describe('/pages/home', () => {
                     },
                 },
             })
-        })
-
-        it('should render the install banner component', async () => {
-            const component = screen.getByLabelText('Install Banner')
-            expect(component).toBeInTheDocument()
         })
 
         it('should call display the pinned message', () => {

@@ -17,29 +17,16 @@ import CommunitiesOverlay from '../components/CommunitiesOverlay'
 import { ContentBlock } from '../components/ContentBlock'
 import { FediModTiles } from '../components/FediModTiles'
 import PinnedMessage from '../components/Home/PinnedMessage'
-import { InstallBanner } from '../components/InstallBanner'
 import * as Layout from '../components/Layout'
 import SurveyModal from '../components/SurveyModal'
 import { Text } from '../components/Text'
 import { onboardingCommunitiesRoute } from '../constants/routes'
-import {
-    useAppSelector,
-    useDeviceQuery,
-    useInstallPromptContext,
-    useShowInstallPromptBanner,
-} from '../hooks'
+import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
 
 function HomePage() {
     const { t } = useTranslation()
     const { push } = useRouter()
-    const deferredPrompt = useInstallPromptContext()
-    const { isIOS } = useDeviceQuery()
-    const { showInstallBanner, handleOnDismiss } = useShowInstallPromptBanner()
-
-    const handleOnInstall = async () => {
-        await deferredPrompt?.prompt()
-    }
 
     const [showCommunities, setShowCommunities] = useState(false)
 
@@ -119,28 +106,6 @@ function HomePage() {
                         </Content>
                     )}
                 </Layout.Content>
-
-                {showInstallBanner && (
-                    <InstallBanner
-                        title={t('feature.home.pwa-install-banner-title')}
-                        description={t(
-                            'feature.home.pwa-install-banner-description',
-                        )}
-                        buttonLabel={t(
-                            'feature.home.pwa-install-banner-button-label',
-                        )}
-                        onInstall={
-                            isIOS
-                                ? () =>
-                                      window.open(
-                                          'https://support.fedi.xyz/hc/en-us/articles/27283843087634',
-                                          '_blank',
-                                      )
-                                : handleOnInstall
-                        }
-                        onClose={handleOnDismiss}
-                    />
-                )}
             </Layout.Root>
 
             <SurveyModal />
