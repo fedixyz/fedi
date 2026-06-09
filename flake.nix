@@ -412,6 +412,9 @@
                 andy.packages.${system}.default
                 pkgs.agent-browser
               ]
+              ++ lib.optionals stdenv.isLinux [
+                pkgs-unstable.playwright-driver
+              ]
               ++ lib.optionals pkgs.stdenv.isDarwin [
                 # add some darwin pkgs if on macos
                 pkgs.darwin.text_cmds
@@ -456,6 +459,14 @@
               export PATH="$PATH:''${REPO_ROOT}/scripts/ui"
               # ensure appium binary installed via npm is available in path
               export PATH="$PATH:''${REPO_ROOT}/ui/node_modules/.bin"
+
+              ${lib.optionalString stdenv.isLinux ''
+                # Playwright's downloaded browsers don't run on NixOS, so use
+                # nix-built browsers from the matching nixpkgs package.
+                export PLAYWRIGHT_BROWSERS_PATH=${pkgs-unstable.playwright-driver.browsers}
+                export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
+              ''}
+
               # give appium a working directory (see ui/package.json to set the appium version)
               export APPIUM_HOME="''${REPO_ROOT}/ui/.appium"
               mkdir -p "$APPIUM_HOME"

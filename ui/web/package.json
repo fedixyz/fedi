@@ -14,7 +14,10 @@
         "format:check": "prettier --check .",
         "test": "yarn test:unit && yarn test:integration",
         "test:unit": "jest --config='./tests/configs/jest.unit.config.js'",
-        "test:integration": "jest --config='./tests/configs/jest.integration.config.js' --runInBand"
+        "test:integration": "jest --config='./tests/configs/jest.integration.config.js' --runInBand",
+        "test:e2e": "playwright test",
+        "test:e2e:headed": "playwright test --headed",
+        "test:e2e:debug": "PWDEBUG=1 playwright test"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.451.0",
@@ -49,6 +52,7 @@
     },
     "devDependencies": {
         "@next/bundle-analyzer": "15.5.7",
+        "@playwright/test": "1.59.1",
         "@svgr/webpack": "^7.0.0",
         "@testing-library/dom": "^10.4.0",
         "@testing-library/jest-dom": "^6.6.3",

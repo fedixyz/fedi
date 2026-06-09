@@ -2,7 +2,10 @@ import { isDevOrExperimental, isLocal } from '../utils/environment'
 
 export const WEB_APP_URL = 'https://app.fedi.xyz'
 export const WEB_APP_URL_STAGING = 'https://fedi-ashen.vercel.app'
-export const WEB_APP_URL_LOCAL = 'http://localhost:3000'
+// Local web can serve from a non-default port (e.g. isolated e2e runs).
+export const WEB_APP_URL_LOCAL =
+    (typeof window !== 'undefined' && window.location?.origin) ||
+    'http://localhost:3000'
 
 // Checking isLocal allows web to hit localhost endpoints and avoid CORS issues
 export const API_ORIGIN = isLocal()

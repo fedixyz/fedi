@@ -14,6 +14,9 @@
             "outputs": [".next/**", "!.next/cache/**"]
         },
         "test": {},
+        "@fedi/web#test:e2e": {
+            "cache": false
+        },
         "test:unit": {},
         "test:integration": {},
         "lint": {},

@@ -10,6 +10,7 @@ on:
                     - all
                     - android
                     - ios
+                    - web
                 default: all
             tests:
                 description: 'Which tests to run'
@@ -47,7 +48,7 @@ permissions:
 jobs:
     android-e2e:
         name: 'Android e2e tests'
-        if: ${{ (inputs.platforms || 'all') != 'ios' }}
+        if: ${{ contains(fromJSON('["all", "android"]'), inputs.platforms || 'all') }}
         runs-on: [self-hosted, macos, arm64, macstadium, gui]
         timeout-minutes: 120
         steps:
@@ -82,9 +83,37 @@ jobs:
                       ./metro.log
                       ./**/screenshots/*.png
 
+    web-e2e:
+        name: 'Web e2e tests'
+        if: ${{ contains(fromJSON('["all", "web"]'), inputs.platforms || 'all') }}
+        runs-on: [self-hosted, linux]
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+              continue-on-error: true
+
+            - name: Web e2e pipeline
+              run: nix develop -c ./scripts/ui/run-e2e-web.sh
+
+            - name: Upload test results
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              if: ${{ always() }}
+              with:
+                  name: web-e2e-results
+                  include-hidden-files: true
+                  path: ./ui/web/test-results/
+                  if-no-files-found: ignore
+
     ios-e2e:
         name: 'iOS e2e tests'
-        if: ${{ (inputs.platforms || 'all') != 'android' }}
+        if: ${{ contains(fromJSON('["all", "ios"]'), inputs.platforms || 'all') }}
         runs-on: [self-hosted, macos, arm64, macstadium, gui]
         timeout-minutes: 120
         steps:

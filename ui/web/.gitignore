@@ -7,3 +7,7 @@ out/
 **/public/workbox*
 **/public/worker*
 **/public/sw*
+
+# Playwright
+test-results/
+playwright-report/

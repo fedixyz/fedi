@@ -30,6 +30,7 @@
         "test:injections": "turbo run test --filter=injections",
         "test:native": "turbo run test --filter=native",
         "test:web": "turbo run test --filter=web",
+        "test:web:e2e": "turbo run test:e2e --filter=web",
         "postinstall": "patch-package"
     },
     "devDependencies": {
