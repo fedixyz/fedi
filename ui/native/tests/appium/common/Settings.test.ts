@@ -35,16 +35,13 @@ export class Settings extends AppiumTestBase {
         await this.clickElementByKey('HeaderBackButton')
         await this.waitForElementDisplayed('UserQrContainer')
 
-        // Back nav collapses the accordion; re-open if the inner items aren't visible.
-        await this.scrollToElement('FediTestnetFedAccordionButton', {
-            scrollDirection: 'up',
-        })
-        if (
-            (await this.elementIsDisplayed('Federation Settings', 2000)) ===
-            false
-        ) {
+        // Visiting the Currency sub-screen leaves Settings mounted, so the
+        // accordion is still expanded on return. Scroll its inner items into view
+        // rather than re-toggling, since a blind tap here collapses it instead.
+        if (!(await this.scrollToElement('Federation Settings'))) {
+            await this.scrollToElement('FediTestnetFedAccordionButton')
             await this.clickElementByKey('FediTestnetFedAccordionButton')
-            await this.waitForElementDisplayed('Federation Settings')
+            await this.scrollToElement('Federation Settings')
         }
         await this.clickElementByKey('Federation Settings')
         if ((await this.isTextPresent('Repair Wallet')) === false) {
