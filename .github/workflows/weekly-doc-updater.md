@@ -25,10 +25,14 @@ safe-outputs:
     labels: [documentation, automation]
     draft: false
     auto-merge: false
-    protected-files: allowed
+    protected-files:
+      policy: allowed
+      exclude:
+        - .agents/
     allowed-files:
       - "*.md"
       - "**/*.md"
+      - ".agents/**/*.md"
   noop:
     report-as-issue: false
 
