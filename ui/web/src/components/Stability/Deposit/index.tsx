@@ -6,7 +6,6 @@ import {
     useAmountFormatter,
     useStabilityDepositForm,
 } from '@fedi/common/hooks/amount'
-import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
 import { selectLoadedFederation } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 
@@ -30,7 +29,6 @@ export function StabilityDeposit() {
     const federation = useAppSelector(s =>
         selectLoadedFederation(s, federationId),
     )
-    useMonitorStabilityPool(federationId)
 
     const [showConfirmDeposit, setShowConfirmDeposit] = useState(false)
     const [success, setSuccess] = useState(false)

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react'
 import { Provider as ReduxProvider } from 'react-redux'
 
+import StabilityPoolMonitorManager from '@fedi/common/components/StabilityPoolMonitorManager'
 import { setEventListenersReady } from '@fedi/common/redux'
 import { makeLog, saveLogsToStorage } from '@fedi/common/utils/log'
 
@@ -56,6 +57,7 @@ export default function AppProviders({
                 <RouteStateProvider>
                     <InstallPromptProvider value={deferredPrompt}>
                         <FediBridgeInitializer>
+                            <StabilityPoolMonitorManager />
                             <Template>{children}</Template>
                             <ToastManager />
                         </FediBridgeInitializer>

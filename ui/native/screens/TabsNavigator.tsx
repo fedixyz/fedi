@@ -20,6 +20,7 @@ import {
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 
+import StabilityPoolMonitorManager from '@fedi/common/components/StabilityPoolMonitorManager'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
@@ -33,7 +34,6 @@ import {
 import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 import { HomeNavigationTab } from '@fedi/common/types/linking'
 
-import StabilityPoolMonitorManager from '../components/StabilityPoolMonitorManager'
 import ChatHeader from '../components/feature/chat/ChatHeader'
 import CommunitiesOverlay from '../components/feature/federations/CommunitiesOverlay'
 import WalletHeader from '../components/feature/federations/WalletHeader'

@@ -1,15 +1,12 @@
-import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
-import { selectLoadedFederations } from '@fedi/common/redux'
-
-import { useAppSelector } from '../state/hooks'
+import { useCommonSelector } from '../hooks/redux'
+import { useMonitorStabilityPool } from '../hooks/stabilitypool'
+import { selectLoadedFederationIds } from '../redux'
 
 /**
- * Monitors the stability pool for all federations.
+ * Monitors the stability pool for all loaded federations.
  */
 export default function StabilityPoolMonitorManager() {
-    const federationIds = useAppSelector(state =>
-        selectLoadedFederations(state).map(federation => federation.id),
-    )
+    const federationIds = useCommonSelector(selectLoadedFederationIds)
 
     return (
         <>

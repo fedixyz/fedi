@@ -1186,6 +1186,11 @@ export const selectLoadedFederations = createSelector(
         }, []),
 )
 
+export const selectLoadedFederationIds = createSelector(
+    selectLoadedFederations,
+    federations => federations.map(federation => federation.id),
+)
+
 export const selectRecentlyUsedFederationIds = (s: CommonState) =>
     s.federation.recentlyUsedFederationIds
 
