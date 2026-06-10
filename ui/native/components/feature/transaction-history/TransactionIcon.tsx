@@ -2,13 +2,13 @@ import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 
 import {
-    isGuardianRemittanceWithdrawal,
-    isMultispendTransfer,
+    makeTxnIconDisplay,
     makeTxnStatusBadge,
+    type TxnIconColor,
 } from '@fedi/common/utils/transaction'
 
 import { TransactionListEntry, TransactionStatusBadge } from '../../../types'
-import SvgImage, { SvgImageName } from '../../ui/SvgImage'
+import SvgImage from '../../ui/SvgImage'
 import { HistoryIcon } from './HistoryIcon'
 
 interface Props {
@@ -16,46 +16,23 @@ interface Props {
     customBadge?: TransactionStatusBadge
 }
 
+const getTxnIconColor = (color: TxnIconColor, theme: Theme): string => {
+    return color === 'stable' ? theme.colors.moneyGreen : theme.colors.orange
+}
+
 export const getTxnIcon = (
     txn: TransactionListEntry,
     theme: Theme,
 ): React.ReactNode => {
-    let icon: SvgImageName = 'BitcoinCircle'
-    let color: string = theme.colors.orange
+    const iconDisplay = makeTxnIconDisplay(txn)
 
-    if (txn.kind === 'onchainDeposit' || txn.kind === 'onchainWithdraw')
-        icon = 'OnChainCircle'
-    else if (isMultispendTransfer(txn)) {
-        icon = 'MultispendGroupCircle'
-        color = theme.colors.moneyGreen
-    } else if (isGuardianRemittanceWithdrawal(txn)) {
-        icon = 'BitcoinCircle'
-        color = theme.colors.orange
-    } else if (
-        txn.kind === 'spDeposit' ||
-        txn.kind === 'spWithdraw' ||
-        txn.kind === 'sPV2Deposit' ||
-        txn.kind === 'sPV2Withdrawal' ||
-        // only non-multispend txns... multispend is handled above
-        txn.kind === 'sPV2TransferIn' ||
-        txn.kind === 'sPV2TransferOut'
-    ) {
-        icon = 'DollarCircle'
-        color = theme.colors.moneyGreen
-    } else if (txn.kind === 'oobSend' || txn.kind === 'oobReceive')
-        icon = 'ChatPaymentCircle'
-    else if (
-        txn.kind === 'lnPay' ||
-        txn.kind === 'lnReceive' ||
-        txn.kind === 'lnRecurringdReceive'
+    return (
+        <SvgImage
+            name={iconDisplay.icon}
+            color={getTxnIconColor(iconDisplay.color, theme)}
+            size={theme.sizes.historyIcon}
+        />
     )
-        icon = 'LightningCircle'
-    else {
-        icon = 'BitcoinCircle'
-        color = theme.colors.orange
-    }
-
-    return <SvgImage name={icon} color={color} size={theme.sizes.historyIcon} />
 }
 
 export const TransactionIcon: React.FC<Props> = ({ txn, customBadge }) => {

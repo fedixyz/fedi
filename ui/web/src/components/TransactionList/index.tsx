@@ -3,15 +3,14 @@ import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { useTxnDisplayUtils } from '@fedi/common/hooks/transactions'
-import {
-    isStabilityTransactionHistoryEntry,
-    updateTransactionNotes,
-} from '@fedi/common/redux/transactions'
+import { updateTransactionNotes } from '@fedi/common/redux/transactions'
 import type { Federation, TransactionListEntry } from '@fedi/common/types'
 import {
     makeTxnDetailTitleText,
+    makeTxnIconDisplay,
     makeTxnStatusBadge,
     makeTxnStatusText,
+    type TxnIconColor,
 } from '@fedi/common/utils/transaction'
 
 import { useAppDispatch } from '../../hooks'
@@ -26,6 +25,10 @@ type TransactionsListProps = {
     loadMoreTransactions?: () => Promise<unknown> | void
     federationId: Federation['id']
     isStabilityPool?: boolean
+}
+
+const getTxnIconColor = (color: TxnIconColor) => {
+    return color === 'stable' ? theme.colors.moneyGreen : theme.colors.orange
 }
 
 const TransactionsList: React.FC<TransactionsListProps> = ({
@@ -46,6 +49,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
         makeTxnAmountText,
         makeTxnDetailItems,
         makeTxnNotesText,
+        makeTxnTypeText,
     } = useTxnDisplayUtils(t, federationId, isStabilityPool)
 
     return (
@@ -54,30 +58,14 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
             loading={loading}
             onEndReached={loadMoreTransactions}
             makeIcon={txn => {
-                const isStabilityTransaction =
-                    isStabilityTransactionHistoryEntry(txn)
                 const badge = makeTxnStatusBadge(txn)
-                const isArrowBadge =
-                    badge === 'incoming' || badge === 'outgoing'
+                const iconDisplay = makeTxnIconDisplay(txn)
 
                 return (
                     <TransactionIcon
                         badge={badge}
-                        badgeColor={
-                            isStabilityTransaction && isArrowBadge
-                                ? theme.colors.moneyGreen
-                                : undefined
-                        }
-                        color={
-                            isStabilityTransaction
-                                ? theme.colors.moneyGreen
-                                : theme.colors.orange
-                        }
-                        icon={
-                            isStabilityTransaction
-                                ? 'UsdCircleFilled'
-                                : 'BitcoinCircle'
-                        }
+                        color={getTxnIconColor(iconDisplay.color)}
+                        icon={iconDisplay.icon}
                     />
                 )
             }}
@@ -87,6 +75,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                 currencyText: getCurrencyText(txn),
                 timestamp: txn.createdAt,
                 notes: makeTxnNotesText(txn),
+                type: makeTxnTypeText(txn),
             })}
             makeDetailProps={txn => ({
                 txn,

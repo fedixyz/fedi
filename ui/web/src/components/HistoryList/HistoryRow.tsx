@@ -16,6 +16,7 @@ import { Text } from '../Text'
 export interface HistoryRowProps {
     icon: React.ReactNode
     status: React.ReactNode
+    type?: React.ReactNode
     notes: React.ReactNode
     amount: MSats | string
     currencyText?: string
@@ -27,6 +28,7 @@ export interface HistoryRowProps {
 export const HistoryRow: React.FC<HistoryRowProps> = ({
     icon,
     status,
+    type,
     notes,
     amount,
     currencyText,
@@ -91,6 +93,14 @@ export const HistoryRow: React.FC<HistoryRowProps> = ({
                 <Text variant="caption" weight="medium">
                     {status}
                 </Text>
+                {type && (
+                    <Text
+                        variant="small"
+                        css={{ color: theme.colors.darkGrey }}
+                        ellipsize>
+                        {type}
+                    </Text>
+                )}
                 {notes && (
                     <Text
                         variant="small"

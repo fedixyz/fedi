@@ -37,6 +37,21 @@ export interface DetailItem {
     copiedMessage?: string
 }
 
+export type TxnIconName =
+    | 'BitcoinCircle'
+    | 'OnChainCircle'
+    | 'MultispendGroupCircle'
+    | 'DollarCircle'
+    | 'ChatPaymentCircle'
+    | 'LightningCircle'
+
+export type TxnIconColor = 'bitcoin' | 'stable'
+
+export interface TxnIconDisplay {
+    icon: TxnIconName
+    color: TxnIconColor
+}
+
 export const getTxnDirection = (
     txn: TransactionListEntry,
 ): TransactionDirection => {
@@ -66,6 +81,47 @@ export const getTxnDirection = (
 export const isGuardianRemittanceWithdrawal = (
     txn: TransactionListEntry,
 ): boolean => txn.kind === 'sPV2Withdrawal' && txn.guardian_remittance
+
+export const makeTxnIconDisplay = (
+    txn: TransactionListEntry,
+): TxnIconDisplay => {
+    if (txn.kind === 'onchainDeposit' || txn.kind === 'onchainWithdraw') {
+        return { icon: 'OnChainCircle', color: 'bitcoin' }
+    }
+
+    if (isMultispendTransfer(txn)) {
+        return { icon: 'MultispendGroupCircle', color: 'stable' }
+    }
+
+    if (isGuardianRemittanceWithdrawal(txn)) {
+        return { icon: 'BitcoinCircle', color: 'bitcoin' }
+    }
+
+    if (
+        txn.kind === 'spDeposit' ||
+        txn.kind === 'spWithdraw' ||
+        txn.kind === 'sPV2Deposit' ||
+        txn.kind === 'sPV2Withdrawal' ||
+        txn.kind === 'sPV2TransferIn' ||
+        txn.kind === 'sPV2TransferOut'
+    ) {
+        return { icon: 'DollarCircle', color: 'stable' }
+    }
+
+    if (txn.kind === 'oobSend' || txn.kind === 'oobReceive') {
+        return { icon: 'ChatPaymentCircle', color: 'bitcoin' }
+    }
+
+    if (
+        txn.kind === 'lnPay' ||
+        txn.kind === 'lnReceive' ||
+        txn.kind === 'lnRecurringdReceive'
+    ) {
+        return { icon: 'LightningCircle', color: 'bitcoin' }
+    }
+
+    return { icon: 'BitcoinCircle', color: 'bitcoin' }
+}
 
 export const makeTxnTypeText = (
     txn: TransactionListEntry,

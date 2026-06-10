@@ -25,14 +25,11 @@ export const HistoryIcon: React.FC<HistoryIconProps> = ({
         badgeColor = theme.colors.green
     } else if (badge === 'outgoing') {
         badgeIcon = 'ArrowUpBadge'
-        badgeColor = theme.colors.black
+        badgeColor = theme.colors.green
     } else if (badge === 'pending') {
         badgeIcon = 'PendingBadge'
-        badgeColor = theme.colors.fuschia
-    } else if (badge === 'expired') {
-        badgeIcon = 'ExpiredBadgeIcon'
-        badgeColor = theme.colors.red
-    } else if (badge === 'failed') {
+        badgeColor = theme.colors.lightOrange
+    } else if (badge === 'expired' || badge === 'failed') {
         badgeIcon = 'FailedBadge'
         badgeColor = theme.colors.red
     }

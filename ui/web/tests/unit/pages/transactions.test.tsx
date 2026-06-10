@@ -43,6 +43,8 @@ describe('/pages/transactions', () => {
 
         expect(await screen.findByText('test')).toBeInTheDocument()
         expect(screen.getByText('stable transaction')).toBeInTheDocument()
+        expect(screen.getByText('Lightning')).toBeInTheDocument()
+        expect(screen.getByText('Stable Balance')).toBeInTheDocument()
     })
 
     it('should render stable transactions when the stable transaction type is selected', async () => {
