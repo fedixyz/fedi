@@ -50,18 +50,17 @@ const CommunityChats = () => {
 
     // If we have fewer default chats than expected,
     // Assume we're loading and fill the gaps with undefined
-    const chats = useMemo(
-        () =>
-            hasTimedOut || defaultChats.length === expectedNumberOfDefaultChats
-                ? defaultChats
-                : [
-                      ...defaultChats,
-                      ...new Array(
-                          expectedNumberOfDefaultChats - defaultChats.length,
-                      ).fill(undefined),
-                  ],
-        [defaultChats, expectedNumberOfDefaultChats, hasTimedOut],
-    )
+    const chats = useMemo(() => {
+        const missingDefaultChats =
+            expectedNumberOfDefaultChats - defaultChats.length
+
+        return hasTimedOut || missingDefaultChats <= 0
+            ? defaultChats
+            : [
+                  ...defaultChats,
+                  ...new Array(missingDefaultChats).fill(undefined),
+              ]
+    }, [defaultChats, expectedNumberOfDefaultChats, hasTimedOut])
 
     if (!selectedCommunity) return null
 
