@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router'
 import { useCallback, useEffect, useState } from 'react'
+import type { RequestInvoiceArgs } from 'webln'
 
 import { hasPermission } from '@fedi/common/hooks/browser'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
@@ -18,7 +19,9 @@ import {
     CreateCommunityRequest,
     DeleteCommunityRequest,
     EditCommunityRequest,
+    Sats,
 } from '@fedi/common/types/'
+import amountUtils from '@fedi/common/utils/AmountUtils'
 import { prepareCreateCommunityPayload } from '@fedi/common/utils/fedimods'
 import { isDeepLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
@@ -37,6 +40,7 @@ type RequestPayload =
     | string
     | { url: string; target?: string; features?: string }
     | UnsignedNostrEvent
+    | RequestInvoiceArgs
     | CreateCommunityRequest
     | EditCommunityRequest // use type from injections if possible
 type ResponsePayload =
@@ -172,6 +176,49 @@ export function useIFrameListener(
                 }
 
                 /* window.webln */
+                case InjectionMessageType.webln_makeInvoice: {
+                    try {
+                        if (!paymentFederation?.id) {
+                            throw new Error()
+                        }
+
+                        const { amount, defaultAmount, defaultMemo } =
+                            payload as RequestInvoiceArgs
+                        // TODO: Add a web confirmation flow for defaultAmount,
+                        // minimumAmount, and maximumAmount. Native handles these
+                        // through MakeInvoiceOverlay; web currently generates
+                        // immediately from amount/defaultAmount.
+                        const invoiceAmount = amount ?? defaultAmount
+
+                        if (!invoiceAmount) {
+                            throw new Error()
+                        }
+
+                        const sats = Number(invoiceAmount) as Sats
+
+                        if (
+                            !Number.isFinite(sats) ||
+                            !Number.isInteger(sats) ||
+                            sats <= 0
+                        ) {
+                            throw new Error()
+                        }
+
+                        const invoice = await fedimint.generateInvoice(
+                            amountUtils.satToMsat(sats),
+                            defaultMemo || '',
+                            paymentFederation.id,
+                        )
+
+                        sendSuccess(event, { paymentRequest: invoice })
+                    } catch {
+                        log.error('Failed to generate invoice')
+                        sendError(event, 'MakeInvoice error')
+                    }
+
+                    break
+                }
+
                 case InjectionMessageType.webln_sendPayment: {
                     try {
                         const invoice = await fedimint.parseInvoice(

@@ -2,15 +2,19 @@ import '@testing-library/jest-dom'
 import { waitFor } from '@testing-library/react'
 
 import { setupStore } from '@fedi/common/redux'
+import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { InjectionMessageType } from '@fedi/injections/src/types'
 
 import { useIFrameListener } from '../../../src/hooks/browser'
 import { AppState } from '../../../src/state/store'
 import { renderHookWithProviders } from '../../utils/render'
 
+const mockGenerateInvoice = jest.fn()
+
 jest.mock('@fedi/common/hooks/fedimint', () => ({
     ...jest.requireActual('@fedi/common/hooks/fedimint'),
     useFedimint: () => ({
+        generateInvoice: mockGenerateInvoice,
         parseInvoice: () => ({
             paymentHash: 'hash',
             amount: 100000,
@@ -50,6 +54,7 @@ describe('/hooks/browser', () => {
 
     beforeEach(() => {
         jest.clearAllMocks()
+        mockGenerateInvoice.mockResolvedValue('lnbc2500')
     })
 
     describe('When a nostr_getPublicKey message event occurs', () => {
@@ -133,6 +138,84 @@ describe('/hooks/browser', () => {
                             id: '7efcd603504ee6bc9aa3d5b8d3a0fd6bbe8cf4e3550fe40ac91851de7e6196ac',
                             sig: 'mock-sig',
                         },
+                    },
+                    '*',
+                )
+            })
+        })
+    })
+
+    describe('When a webln_makeInvoice message event occurs', () => {
+        it('should generate an invoice and send the payment request', async () => {
+            renderHookWithProviders(() => useIFrameListener(iframeRef), {
+                preloadedState: {
+                    federation: {
+                        ...state.federation,
+                        federations: [mockFederation1],
+                    },
+                },
+            })
+
+            window.dispatchEvent(
+                new MessageEvent('message', {
+                    data: {
+                        event: InjectionMessageType.webln_makeInvoice,
+                        payload: {
+                            amount: 2500,
+                            defaultMemo: 'Web invoice',
+                        },
+                    },
+                }),
+            )
+
+            await waitFor(() => {
+                expect(mockGenerateInvoice).toHaveBeenCalledWith(
+                    2500000,
+                    'Web invoice',
+                    mockFederation1.id,
+                )
+                expect(
+                    iframeRef?.current?.contentWindow?.postMessage,
+                ).toHaveBeenCalledWith(
+                    {
+                        event: InjectionMessageType.webln_makeInvoice,
+                        payload: { paymentRequest: 'lnbc2500' },
+                    },
+                    '*',
+                )
+            })
+        })
+
+        it('should reject non-integer amounts', async () => {
+            renderHookWithProviders(() => useIFrameListener(iframeRef), {
+                preloadedState: {
+                    federation: {
+                        ...state.federation,
+                        federations: [mockFederation1],
+                    },
+                },
+            })
+
+            window.dispatchEvent(
+                new MessageEvent('message', {
+                    data: {
+                        event: InjectionMessageType.webln_makeInvoice,
+                        payload: {
+                            amount: 2500.9,
+                            defaultMemo: 'Web invoice',
+                        },
+                    },
+                }),
+            )
+
+            await waitFor(() => {
+                expect(mockGenerateInvoice).not.toHaveBeenCalled()
+                expect(
+                    iframeRef?.current?.contentWindow?.postMessage,
+                ).toHaveBeenCalledWith(
+                    {
+                        event: InjectionMessageType.webln_makeInvoice,
+                        error: 'MakeInvoice error',
                     },
                     '*',
                 )
