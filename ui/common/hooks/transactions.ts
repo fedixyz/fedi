@@ -144,6 +144,78 @@ export function useTransactionHistory(
     }
 }
 
+export function useTransactionHistoryList({
+    federationId,
+    type,
+    limit,
+    initialLoading = true,
+    onError,
+    onLoadMoreError,
+}: {
+    federationId: Federation['id']
+    type: 'transactions' | 'stable'
+    limit?: FetchTransactionsArgs['limit']
+    initialLoading?: boolean
+    onError?: (err: unknown) => void
+    onLoadMoreError?: (err: unknown) => void
+}) {
+    const [isLoading, setIsLoading] = useState(initialLoading)
+    const {
+        fetchTransactions,
+        fetchStabilityTransactions,
+        stabilityPoolTxns,
+        transactions,
+    } = useTransactionHistory(federationId)
+
+    const isStabilityPool = type === 'stable'
+    const displayedTransactions = isStabilityPool
+        ? stabilityPoolTxns
+        : transactions
+    const fetchDisplayedTransactions = isStabilityPool
+        ? fetchStabilityTransactions
+        : fetchTransactions
+
+    const refreshTransactions = useCallback(async () => {
+        try {
+            setIsLoading(true)
+            const page = await fetchDisplayedTransactions({
+                limit,
+                more: false,
+            })
+            return page
+        } catch (err) {
+            if (onError) onError(err)
+            return []
+        } finally {
+            setIsLoading(false)
+        }
+    }, [fetchDisplayedTransactions, limit, onError])
+
+    const loadMoreTransactions = useCallback(async () => {
+        try {
+            return await fetchDisplayedTransactions({
+                limit,
+                more: true,
+            })
+        } catch (err) {
+            if (onLoadMoreError) onLoadMoreError(err)
+            return []
+        }
+    }, [fetchDisplayedTransactions, limit, onLoadMoreError])
+
+    useEffect(() => {
+        refreshTransactions()
+    }, [refreshTransactions])
+
+    return {
+        transactions: displayedTransactions,
+        isLoading,
+        loading: displayedTransactions.length === 0 && isLoading,
+        refreshTransactions,
+        loadMoreTransactions,
+    }
+}
+
 export function useTxnDisplayUtils(
     t: TFunction,
     federationId?: Federation['id'],

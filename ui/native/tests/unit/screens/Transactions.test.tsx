@@ -2,7 +2,6 @@ import { cleanup, screen, userEvent } from '@testing-library/react-native'
 
 import * as transactionsModule from '@fedi/common/hooks/transactions'
 import { createMockTransactionListEntry } from '@fedi/common/tests/mock-data/transactions'
-import { TransactionListEntry } from '@fedi/common/types'
 import i18n from '@fedi/native/localization/i18n'
 
 import Transactions from '../../../screens/Transactions'
@@ -15,6 +14,19 @@ const txn2 = createMockTransactionListEntry({
     amount: 5000000,
 })
 const transactions = [txn, txn2]
+const mockUseTransactionHistoryList = (
+    transactionsList: typeof transactions,
+) => {
+    jest.spyOn(transactionsModule, 'useTransactionHistoryList').mockReturnValue(
+        {
+            transactions: transactionsList,
+            isLoading: false,
+            loading: false,
+            refreshTransactions: jest.fn(),
+            loadMoreTransactions: jest.fn(),
+        },
+    )
+}
 
 describe('screens/Transactions', () => {
     const user = userEvent.setup()
@@ -29,20 +41,7 @@ describe('screens/Transactions', () => {
 
     describe('When there are no transactions', () => {
         it('should render "no transactions" text', async () => {
-            jest.spyOn(
-                transactionsModule,
-                'useTransactionHistory',
-            ).mockReturnValue({
-                transactions: [],
-                fetchTransactions: jest.fn<Promise<TransactionListEntry[]>, []>(
-                    () => Promise.resolve([]),
-                ),
-                fetchStabilityTransactions: jest.fn<
-                    Promise<TransactionListEntry[]>,
-                    []
-                >(() => Promise.resolve([])),
-                stabilityPoolTxns: [],
-            })
+            mockUseTransactionHistoryList([])
 
             renderWithProviders(
                 <Transactions
@@ -60,20 +59,7 @@ describe('screens/Transactions', () => {
 
     describe('When there are transactions', () => {
         it('should render the list of transactions', async () => {
-            jest.spyOn(
-                transactionsModule,
-                'useTransactionHistory',
-            ).mockReturnValue({
-                transactions,
-                fetchTransactions: jest.fn<Promise<TransactionListEntry[]>, []>(
-                    () => Promise.resolve([]),
-                ),
-                fetchStabilityTransactions: jest.fn<
-                    Promise<TransactionListEntry[]>,
-                    []
-                >(() => Promise.resolve([])),
-                stabilityPoolTxns: [],
-            })
+            mockUseTransactionHistoryList(transactions)
 
             renderWithProviders(
                 <Transactions
@@ -89,20 +75,7 @@ describe('screens/Transactions', () => {
 
     describe('When a transaction is clicked on', () => {
         it('should show the transaction overlay', async () => {
-            jest.spyOn(
-                transactionsModule,
-                'useTransactionHistory',
-            ).mockReturnValue({
-                transactions,
-                fetchTransactions: jest.fn<Promise<TransactionListEntry[]>, []>(
-                    () => Promise.resolve([]),
-                ),
-                fetchStabilityTransactions: jest.fn<
-                    Promise<TransactionListEntry[]>,
-                    []
-                >(() => Promise.resolve([])),
-                stabilityPoolTxns: [],
-            })
+            mockUseTransactionHistoryList(transactions)
 
             renderWithProviders(
                 <Transactions

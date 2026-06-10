@@ -1,6 +1,9 @@
+import { waitFor } from '@testing-library/react'
+
 import {
     useMultispendTxnDisplayUtils,
     useTransactionHistory,
+    useTransactionHistoryList,
     useTxnDisplayUtils,
 } from '@fedi/common/hooks/transactions'
 import { setupStore, setFederations } from '@fedi/common/redux'
@@ -269,6 +272,136 @@ describe('common/hooks/transactions', () => {
 
                 expect(mockDispatch).toHaveBeenCalledTimes(2)
             })
+        })
+    })
+
+    describe('useTransactionHistoryList', () => {
+        it('should fetch transactions on mount', async () => {
+            mockDispatch.mockReturnValue({
+                unwrap: () => Promise.resolve([]),
+            })
+
+            renderHookWithState(
+                () =>
+                    useTransactionHistoryList({
+                        federationId: '1',
+                        type: 'transactions',
+                    }),
+                store,
+            )
+
+            await waitFor(() => {
+                expect(mockDispatch).toHaveBeenCalledTimes(1)
+            })
+        })
+
+        it('should fetch more transactions when loadMoreTransactions is called', async () => {
+            mockDispatch.mockReturnValue({
+                unwrap: () => Promise.resolve([]),
+            })
+
+            const { result } = renderHookWithState(
+                () =>
+                    useTransactionHistoryList({
+                        federationId: '1',
+                        type: 'transactions',
+                    }),
+                store,
+            )
+
+            await waitFor(() => {
+                expect(mockDispatch).toHaveBeenCalledTimes(1)
+            })
+
+            await result.current.loadMoreTransactions()
+
+            expect(mockDispatch).toHaveBeenCalledTimes(2)
+        })
+
+        it('should call onError when fetching transactions fails', async () => {
+            const onError = jest.fn()
+            const error = new Error('failed to fetch transactions')
+            mockDispatch.mockReturnValue({
+                unwrap: () => Promise.reject(error),
+            })
+
+            renderHookWithState(
+                () =>
+                    useTransactionHistoryList({
+                        federationId: '1',
+                        type: 'transactions',
+                        onError,
+                    }),
+                store,
+            )
+
+            await waitFor(() => {
+                expect(onError).toHaveBeenCalledWith(error)
+            })
+        })
+
+        it('should not call onError when loading more transactions fails', async () => {
+            const onError = jest.fn()
+            const error = new Error('failed to load more transactions')
+            mockDispatch
+                .mockReturnValueOnce({
+                    unwrap: () => Promise.resolve([]),
+                })
+                .mockReturnValueOnce({
+                    unwrap: () => Promise.reject(error),
+                })
+
+            const { result } = renderHookWithState(
+                () =>
+                    useTransactionHistoryList({
+                        federationId: '1',
+                        type: 'transactions',
+                        onError,
+                    }),
+                store,
+            )
+
+            await waitFor(() => {
+                expect(mockDispatch).toHaveBeenCalledTimes(1)
+            })
+
+            await expect(
+                result.current.loadMoreTransactions(),
+            ).resolves.toEqual([])
+
+            expect(onError).not.toHaveBeenCalled()
+        })
+
+        it('should call onLoadMoreError when loading more transactions fails', async () => {
+            const onLoadMoreError = jest.fn()
+            const error = new Error('failed to load more transactions')
+            mockDispatch
+                .mockReturnValueOnce({
+                    unwrap: () => Promise.resolve([]),
+                })
+                .mockReturnValueOnce({
+                    unwrap: () => Promise.reject(error),
+                })
+
+            const { result } = renderHookWithState(
+                () =>
+                    useTransactionHistoryList({
+                        federationId: '1',
+                        type: 'transactions',
+                        onLoadMoreError,
+                    }),
+                store,
+            )
+
+            await waitFor(() => {
+                expect(mockDispatch).toHaveBeenCalledTimes(1)
+            })
+
+            await expect(
+                result.current.loadMoreTransactions(),
+            ).resolves.toEqual([])
+
+            expect(onLoadMoreError).toHaveBeenCalledWith(error)
         })
     })
 

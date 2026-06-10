@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom'
 import { screen } from '@testing-library/react'
 
-import { useTransactionHistory } from '@fedi/common/hooks/transactions'
+import { useTransactionHistoryList } from '@fedi/common/hooks/transactions'
 import { createMockTransactionListEntry } from '@fedi/common/tests/mock-data/transactions'
 import { makeTestTxnEntry } from '@fedi/common/tests/utils/transaction'
 
@@ -11,12 +11,12 @@ import { renderWithProviders } from '../../utils/render'
 
 jest.mock('@fedi/common/hooks/transactions', () => ({
     ...jest.requireActual('@fedi/common/hooks/transactions'),
-    useTransactionHistory: jest.fn(),
+    useTransactionHistoryList: jest.fn(),
 }))
 
 describe('/pages/transactions', () => {
     const fetchTransactions = jest.fn()
-    const fetchStabilityTransactions = jest.fn()
+    const loadMoreTransactions = jest.fn()
     const standardTransaction = createMockTransactionListEntry()
     const stableTransaction = makeTestTxnEntry('sPV2Deposit', {
         txnNotes: 'stable transaction',
@@ -27,13 +27,14 @@ describe('/pages/transactions', () => {
         mockUseRouter.asPath = ''
 
         fetchTransactions.mockResolvedValue([])
-        fetchStabilityTransactions.mockResolvedValue([])
+        loadMoreTransactions.mockResolvedValue([])
 
-        jest.mocked(useTransactionHistory).mockReturnValue({
+        jest.mocked(useTransactionHistoryList).mockReturnValue({
             transactions: [standardTransaction, stableTransaction],
-            stabilityPoolTxns: [],
-            fetchTransactions,
-            fetchStabilityTransactions,
+            isLoading: false,
+            loading: false,
+            refreshTransactions: fetchTransactions,
+            loadMoreTransactions,
         })
     })
 
@@ -46,11 +47,12 @@ describe('/pages/transactions', () => {
 
     it('should render stable transactions when the stable transaction type is selected', async () => {
         mockUseRouter.asPath = '/transactions#type=stable'
-        jest.mocked(useTransactionHistory).mockReturnValue({
-            transactions: [standardTransaction],
-            stabilityPoolTxns: [stableTransaction],
-            fetchTransactions,
-            fetchStabilityTransactions,
+        jest.mocked(useTransactionHistoryList).mockReturnValue({
+            transactions: [stableTransaction],
+            isLoading: false,
+            loading: false,
+            refreshTransactions: fetchTransactions,
+            loadMoreTransactions,
         })
 
         renderWithProviders(<TransactionsPage />)

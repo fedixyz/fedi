@@ -1,9 +1,9 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { useTransactionHistory } from '@fedi/common/hooks/transactions'
+import { useTransactionHistoryList } from '@fedi/common/hooks/transactions'
 import { makeLog } from '@fedi/common/utils/log'
 
 import TransactionsList from '../components/feature/transaction-history/TransactionsList'
@@ -18,26 +18,27 @@ const Transactions: React.FC<Props> = ({ route }: Props) => {
     const { federationId } = route.params
     const { t } = useTranslation()
     const toast = useToast()
-    const [isLoading, setIsLoading] = useState(false)
-    const { transactions, fetchTransactions } =
-        useTransactionHistory(federationId)
-
-    useEffect(() => {
-        setIsLoading(true)
-        fetchTransactions()
-            .catch(err => {
-                log.error('Error refreshing transactions', err)
-                toast.error(t, err)
-            })
-            .finally(() => setIsLoading(false))
-    }, [fetchTransactions, t, toast])
+    const handleFetchError = useCallback(
+        (err: unknown) => {
+            log.error('Error refreshing transactions', err)
+            toast.error(t, err)
+        },
+        [t, toast],
+    )
+    const { transactions, loading, loadMoreTransactions } =
+        useTransactionHistoryList({
+            federationId,
+            type: 'transactions',
+            initialLoading: false,
+            onError: handleFetchError,
+        })
 
     return (
         <Column grow>
             <TransactionsList
                 transactions={transactions}
-                loading={transactions.length === 0 && isLoading}
-                loadMoreTransactions={() => fetchTransactions({ more: true })}
+                loading={loading}
+                loadMoreTransactions={loadMoreTransactions}
                 federationId={federationId}
             />
         </Column>
