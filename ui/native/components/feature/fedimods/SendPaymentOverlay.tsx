@@ -236,7 +236,10 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                           {
                               primary: true,
                               text: t('words.accept'),
-                              disabled: !isReadyToPay || isLoading,
+                              disabled:
+                                  !isReadyToPay ||
+                                  isLoading ||
+                                  hasInsufficientBalance,
                               onPress: handleAccept,
                           },
                       ],
