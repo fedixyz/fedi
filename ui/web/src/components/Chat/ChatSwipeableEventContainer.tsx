@@ -7,6 +7,8 @@ import { makeLog } from '@fedi/common/utils/log'
 import { useAppDispatch } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Icon, SvgIconName } from '../Icon'
+import { ChatMessageActionsDrawer } from './ChatMessageActionsDrawer'
+import { useChatMessageActions } from './useChatMessageActions'
 
 const log = makeLog('ChatSwipeableEventContainer')
 
@@ -61,6 +63,14 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
             setRenderKey(prev => prev + 1)
         }, [dispatch, roomId, event])
 
+        const {
+            isActionsOpen,
+            setIsActionsOpen,
+            clearLongPressTimeout,
+            resetLongPressActivated,
+            wasLongPressActivated,
+        } = useChatMessageActions(containerRef, event)
+
         const handleTouchStart = useCallback((e: TouchEvent) => {
             startX.current = e.touches[0].clientX
             startY.current = e.touches[0].clientY
@@ -88,9 +98,11 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                         return
                     if (verticalDistance * 2 > absDistance) {
                         gestureDecision.current = 'scroll'
+                        clearLongPressTimeout()
                         return
                     }
                     gestureDecision.current = 'swipe'
+                    clearLongPressTimeout()
                 }
 
                 e.preventDefault()
@@ -102,10 +114,20 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                 )
                 setSwipeDirection(distance > 0 ? 'right' : 'left')
             },
-            [isDragging],
+            [clearLongPressTimeout, isDragging],
         )
 
         const handleTouchEnd = useCallback(() => {
+            clearLongPressTimeout()
+            if (wasLongPressActivated()) {
+                resetLongPressActivated()
+                setSwipeDistance(0)
+                setSwipeDirection(null)
+                setIsDragging(false)
+                gestureDecision.current = null
+                return
+            }
+
             if (gestureDecision.current !== 'swipe') {
                 setSwipeDistance(0)
                 setSwipeDirection(null)
@@ -143,16 +165,27 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
 
                 animate()
             }
-        }, [dragThreshold, handleReply, swipeDirection])
+        }, [
+            clearLongPressTimeout,
+            dragThreshold,
+            handleReply,
+            resetLongPressActivated,
+            swipeDirection,
+            wasLongPressActivated,
+        ])
 
-        const handleMouseDown = useCallback((e: MouseEvent) => {
-            if (e.button !== 0) return
-            startX.current = e.clientX
-            startY.current = e.clientY
-            currentX.current = e.clientX
-            gestureDecision.current = null
-            setIsDragging(true)
-        }, [])
+        const handleMouseDown = useCallback(
+            (e: MouseEvent) => {
+                if (e.button !== 0) return
+                resetLongPressActivated()
+                startX.current = e.clientX
+                startY.current = e.clientY
+                currentX.current = e.clientX
+                gestureDecision.current = null
+                setIsDragging(true)
+            },
+            [resetLongPressActivated],
+        )
 
         const handleMouseMove = useCallback(
             (e: MouseEvent) => {
@@ -204,6 +237,7 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                 passive: false,
             })
             container.addEventListener('touchend', handleTouchEnd)
+            container.addEventListener('touchcancel', handleTouchEnd)
 
             container.addEventListener('mousedown', handleMouseDown)
             document.addEventListener('mousemove', handleMouseMove)
@@ -213,11 +247,13 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                 container.removeEventListener('touchstart', handleTouchStart)
                 container.removeEventListener('touchmove', handleTouchMove)
                 container.removeEventListener('touchend', handleTouchEnd)
+                container.removeEventListener('touchcancel', handleTouchEnd)
 
                 container.removeEventListener('mousedown', handleMouseDown)
                 document.removeEventListener('mousemove', handleMouseMove)
                 document.removeEventListener('mouseup', handleMouseUp)
 
+                clearLongPressTimeout()
                 if (animationId.current !== null) {
                     cancelAnimationFrame(animationId.current)
                     animationId.current = null
@@ -230,6 +266,7 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
             handleMouseDown,
             handleMouseMove,
             handleMouseUp,
+            clearLongPressTimeout,
         ])
 
         useEffect(() => {
@@ -297,6 +334,11 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                 {swipeDirection === 'left' &&
                     swipeDistance > GESTURE_DECISION_THRESHOLD &&
                     renderAction('right')}
+                <ChatMessageActionsDrawer
+                    event={event}
+                    open={isActionsOpen}
+                    onOpenChange={setIsActionsOpen}
+                />
             </Container>
         )
     })

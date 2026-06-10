@@ -1,5 +1,5 @@
 import Router from 'next/router'
-import { useEffect } from 'react'
+import { RefObject, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useUpdatingRef } from '@fedi/common/hooks/util'
@@ -61,4 +61,122 @@ export const useWarnBeforeUnload = (
             Router.events.off('routeChangeStart', beforeRouteHandler)
         }
     }, [shouldWarn, messageRef])
+}
+
+type LongPressEvent = PointerEvent | MouseEvent
+
+type LongPressOptions = {
+    delayMs?: number
+    moveTolerance?: number
+    enableContextMenu?: boolean
+    enabled?: boolean
+}
+
+export function useLongPress<T extends HTMLElement>(
+    ref: RefObject<T | null>,
+    onLongPress: (event: LongPressEvent) => void,
+    {
+        delayMs = 500,
+        moveTolerance = 36,
+        enableContextMenu = false,
+        enabled = true,
+    }: LongPressOptions = {},
+) {
+    const onLongPressRef = useUpdatingRef(onLongPress)
+    const startX = useRef(0)
+    const startY = useRef(0)
+    const timeoutId = useRef<number | null>(null)
+    const activated = useRef(false)
+
+    const clearLongPressTimeout = useCallback(() => {
+        if (timeoutId.current === null) return
+
+        window.clearTimeout(timeoutId.current)
+        timeoutId.current = null
+    }, [])
+
+    const resetLongPressActivated = useCallback(() => {
+        activated.current = false
+    }, [])
+
+    const wasLongPressActivated = useCallback(() => {
+        return activated.current
+    }, [])
+
+    useEffect(() => {
+        const element = ref.current
+        if (!element) return
+
+        const handlePointerDown = (e: PointerEvent) => {
+            if (!enabled) return
+            if (!e.isPrimary) return
+            if (e.pointerType === 'mouse') return
+
+            startX.current = e.clientX
+            startY.current = e.clientY
+            clearLongPressTimeout()
+            activated.current = false
+            timeoutId.current = window.setTimeout(() => {
+                timeoutId.current = null
+                activated.current = true
+                onLongPressRef.current(e)
+            }, delayMs)
+        }
+
+        const handlePointerMove = (e: PointerEvent) => {
+            if (!e.isPrimary) return
+            if (timeoutId.current === null) return
+
+            const horizontalDistance = Math.abs(e.clientX - startX.current)
+            const verticalDistance = Math.abs(e.clientY - startY.current)
+            if (
+                Math.max(horizontalDistance, verticalDistance) >= moveTolerance
+            ) {
+                clearLongPressTimeout()
+            }
+        }
+
+        const handlePointerUp = () => {
+            clearLongPressTimeout()
+        }
+
+        const handleContextMenu = (e: MouseEvent) => {
+            if (!enableContextMenu) return
+            if (!enabled) return
+
+            e.preventDefault()
+            clearLongPressTimeout()
+            activated.current = true
+            onLongPressRef.current(e)
+        }
+
+        element.addEventListener('pointerdown', handlePointerDown)
+        element.addEventListener('pointermove', handlePointerMove)
+        element.addEventListener('pointerup', handlePointerUp)
+        element.addEventListener('pointercancel', handlePointerUp)
+        element.addEventListener('contextmenu', handleContextMenu)
+
+        return () => {
+            element.removeEventListener('pointerdown', handlePointerDown)
+            element.removeEventListener('pointermove', handlePointerMove)
+            element.removeEventListener('pointerup', handlePointerUp)
+            element.removeEventListener('pointercancel', handlePointerUp)
+            element.removeEventListener('contextmenu', handleContextMenu)
+            clearLongPressTimeout()
+        }
+    }, [
+        clearLongPressTimeout,
+        delayMs,
+        enabled,
+        enableContextMenu,
+        moveTolerance,
+        onLongPressRef,
+        ref,
+    ])
+
+    return {
+        clearLongPressTimeout,
+        resetLongPressActivated,
+        wasLongPressActivated,
+    }
 }

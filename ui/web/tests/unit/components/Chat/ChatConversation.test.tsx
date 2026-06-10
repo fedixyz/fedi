@@ -14,7 +14,9 @@ import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
 import { ChatConversation } from '../../../../src/components/Chat/ChatConversation'
 import { renderWithProviders } from '../../../utils/render'
 
-jest.mock('../../../../src/hooks/dom')
+jest.mock('../../../../src/hooks/dom', () => ({
+    ...jest.requireActual('../../../../src/hooks/dom'),
+}))
 
 const ROOM_ID = '2'
 
