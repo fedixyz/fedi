@@ -88,7 +88,7 @@ const NightlyBadge = styled('div', {
 
 const SelectedCommunityWrapper = styled('div', {
     borderBottom: `1px solid ${theme.colors.extraLightGrey}`,
-    padding: '10px 20px',
+    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
 })
 
 type HeaderProps = {
@@ -239,7 +239,7 @@ export const Content = styled(ShadowScroller, {
             true: {},
             false: {
                 '& > *:first-child': {
-                    padding: 20,
+                    padding: theme.spacing.lg,
                 },
             },
         },

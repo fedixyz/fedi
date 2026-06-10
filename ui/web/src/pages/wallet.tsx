@@ -208,7 +208,7 @@ function WalletPage() {
                             router.push(federationRoute(federationId))
                         }
                     }}>
-                    <FederationStatusAvatar federation={federation} />
+                    <FederationStatusAvatar federation={federation} size="md" />
                     <Text
                         variant="h2"
                         weight="bold"
@@ -333,7 +333,6 @@ const PaymentFederationHeader = styled('div', {
     display: 'inline-flex',
     alignItems: 'center',
     gap: theme.spacing.md,
-    paddingVertical: 0,
 })
 
 const SetupContainer = styled(Column, {
@@ -351,12 +350,12 @@ const TooltipLink = styled('span', {
 })
 
 const WalletContainer = styled('div', {
-    width: '100%',
     display: 'flex',
     flexDirection: 'column',
     flex: 1,
     gap: theme.spacing.lg,
     padding: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
 })
 
