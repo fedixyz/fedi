@@ -634,14 +634,14 @@ export const coerceCommunityPreview = (
     }
 }
 
-export const detectInviteCodeType = (code: string): InviteCodeType => {
+export const detectInviteCodeType = (code: string): InviteCodeType | null => {
     // TODO: Implement better validation
     if (code.toLowerCase().startsWith('fed1')) {
         return 'federation'
     } else if (code.toLowerCase().startsWith('fedi:community')) {
         return 'community'
     } else {
-        throw new Error('Invalid invite code')
+        return null
     }
 }
 
