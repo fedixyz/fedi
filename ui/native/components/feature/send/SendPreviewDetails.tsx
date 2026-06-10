@@ -27,6 +27,7 @@ const DetailItem = ({
     thin = false,
     bottomBorder = false,
     bold = false,
+    testID,
 }: {
     title: string
     value: string | React.ReactNode
@@ -34,6 +35,7 @@ const DetailItem = ({
     bottomBorder?: boolean
     bold?: boolean
     thin?: boolean
+    testID?: string
 }) => {
     const { theme } = useTheme()
     const style = styles(theme)
@@ -47,6 +49,7 @@ const DetailItem = ({
                 thin ? style.detailBlockRow : style.detailItem,
                 bottomBorder && style.bottomBorder,
             ]}
+            testID={testID}
             onPress={onPress}>
             <Text
                 caption
@@ -125,6 +128,7 @@ const SendPreviewDetails: React.FC<Props> = ({
                                 </>
                             }
                             thin
+                            testID="fee-info-button"
                             onPress={onPressFees}
                         />
                         <DetailItem
@@ -151,6 +155,7 @@ const SendPreviewDetails: React.FC<Props> = ({
                             </>
                         }
                         bottomBorder={true}
+                        testID="fee-info-button"
                         onPress={onPressFees}
                     />
                 )}

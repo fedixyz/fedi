@@ -41,44 +41,6 @@ jest.mock('@fedi/common/hooks/transactions', () => ({
     }),
 }))
 
-jest.mock('../../../../../components/ui/AmountInput', () => {
-    const React = jest.requireActual('react')
-    const { Text } = jest.requireActual('react-native')
-
-    return {
-        __esModule: true,
-        default: () => React.createElement(Text, null, 'amount input'),
-    }
-})
-
-jest.mock(
-    '../../../../../components/feature/send/FederationWalletSelector',
-    () => {
-        const React = jest.requireActual('react')
-        const { Text } = jest.requireActual('react-native')
-
-        return {
-            __esModule: true,
-            default: () => React.createElement(Text, null, 'wallet selector'),
-        }
-    },
-)
-
-jest.mock('../../../../../components/feature/send/SendPreviewDetails', () => {
-    const React = jest.requireActual('react')
-    const { Pressable, Text } = jest.requireActual('react-native')
-
-    return {
-        __esModule: true,
-        default: ({ onPressFees }: { onPressFees: () => void }) =>
-            React.createElement(
-                Pressable,
-                { testID: 'fee-info-button', onPress: onPressFees },
-                React.createElement(Text, null, 'fee info'),
-            ),
-    }
-})
-
 describe('components/feature/fedimods/SendPaymentOverlay', () => {
     const user = userEvent.setup()
     const mockUseOmniPaymentState = useOmniPaymentState as jest.MockedFunction<
@@ -242,5 +204,39 @@ describe('components/feature/fedimods/SendPaymentOverlay', () => {
         expect(screen.getByText(paymentRequestTitle)).toBeOnTheScreen()
         expect(screen.getByText(i18n.t('words.reject'))).toBeOnTheScreen()
         expect(screen.getByText(i18n.t('words.accept'))).toBeOnTheScreen()
+    })
+
+    it('alerts you if you have an insufficient balance and disables the accept button', () => {
+        const { store } = renderOverlay()
+
+        act(() =>
+            store.dispatch(
+                setFederations([
+                    { ...mockFederation1, balance: 1000 as MSats },
+                ]),
+            ),
+        )
+
+        expect(
+            screen.getByText(i18n.t('errors.insufficient-balance-wallet')),
+        ).toBeOnTheScreen()
+        expect(screen.getByText(i18n.t('words.accept'))).toBeDisabled()
+    })
+
+    it('does not disable the accept button if you have a sufficient balance', () => {
+        const { store } = renderOverlay()
+
+        act(() =>
+            store.dispatch(
+                setFederations([
+                    { ...mockFederation1, balance: 100_000 as MSats },
+                ]),
+            ),
+        )
+
+        expect(
+            screen.queryByText(i18n.t('errors.insufficient-balance-wallet')),
+        ).not.toBeOnTheScreen()
+        expect(screen.queryByText(i18n.t('words.accept'))).not.toBeDisabled()
     })
 })
