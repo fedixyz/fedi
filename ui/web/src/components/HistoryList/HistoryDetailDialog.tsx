@@ -18,7 +18,11 @@ import { styled, theme } from '../../styles'
 import { Dialog } from '../Dialog'
 import { Icon } from '../Icon'
 import { Text } from '../Text'
+import { TourTip } from '../TourTip'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
+
+const FEE_TOOLTIP_WIDTH = 260
+const FEE_TOOLTIP_MAX_WIDTH = 300
 
 export interface HistoryDetailDialogProps {
     txn?: TransactionListEntry
@@ -48,6 +52,7 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
 }) => {
     const [notes, setNotes] = useState(propsNotes || '')
     const [inputEl, setInputEl] = useState<HTMLTextAreaElement | null>(null)
+    const [feeTooltipOpen, setFeeTooltipOpen] = useState(false)
     const { t } = useTranslation()
     const { makeFormattedAmountsFromTxn } = useAmountFormatter()
     const totalFeeItem = feeItems?.find(
@@ -120,7 +125,20 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
                     {totalFeeItem && (
                         <HistoryDetailItem
                             label={t('words.fees')}
-                            value={totalFeeItem.formattedAmount}
+                            center
+                            value={
+                                <FeeValue>
+                                    <FeeDetailsTourTip
+                                        feeItems={feeItems ?? []}
+                                        open={feeTooltipOpen}
+                                        onOpenChange={setFeeTooltipOpen}
+                                        title={t('phrases.fee-details')}
+                                    />
+                                    <Text variant="caption">
+                                        {totalFeeItem.formattedAmount}
+                                    </Text>
+                                </FeeValue>
+                            }
                         />
                     )}
                     {onSaveNotes && (
@@ -145,6 +163,60 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
                 </Details>
             </Container>
         </Dialog>
+    )
+}
+
+interface FeeDetailsTourTipProps {
+    feeItems: FeeItem[]
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    title: string
+}
+
+const FeeDetailsTourTip: React.FC<FeeDetailsTourTipProps> = ({
+    feeItems,
+    open,
+    onOpenChange,
+    title,
+}) => {
+    return (
+        <TourTip
+            open={open}
+            onOpenChange={onOpenChange}
+            side="bottom"
+            align="center"
+            maxWidth={FEE_TOOLTIP_MAX_WIDTH}
+            content={
+                <FeeTooltipContent>
+                    <Text variant="caption" weight="medium">
+                        {title}
+                    </Text>
+                    <FeeTooltipRows>
+                        {feeItems.map(({ label, formattedAmount }, idx) => (
+                            <FeeTooltipRow key={idx}>
+                                <FeeTooltipLabel>
+                                    <Text variant="caption">{label}</Text>
+                                </FeeTooltipLabel>
+                                <FeeTooltipAmount>
+                                    <Text variant="caption" weight="medium">
+                                        {formattedAmount}
+                                    </Text>
+                                </FeeTooltipAmount>
+                            </FeeTooltipRow>
+                        ))}
+                    </FeeTooltipRows>
+                </FeeTooltipContent>
+            }>
+            <FeeInfoButton
+                type="button"
+                aria-label={title}
+                onClick={ev => {
+                    ev.stopPropagation()
+                    onOpenChange(true)
+                }}>
+                <Icon icon="Info" size="xs" />
+            </FeeInfoButton>
+        </TourTip>
     )
 }
 
@@ -190,4 +262,62 @@ const CurrencySwitch = styled('button', {
     display: 'flex',
     alignItems: 'center',
     gap: theme.spacing.xs,
+})
+
+const FeeValue = styled('div', {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: theme.spacing.xxs,
+    width: '100%',
+})
+
+const FeeInfoButton = styled('button', {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    border: 0,
+    background: 'transparent',
+    color: theme.colors.black,
+    cursor: 'pointer',
+    lineHeight: 0,
+})
+
+const FeeTooltipContent = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing.sm,
+    boxSizing: 'border-box',
+    maxWidth: '100%',
+    width: FEE_TOOLTIP_WIDTH,
+})
+
+const FeeTooltipRows = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+})
+
+const FeeTooltipRow = styled('div', {
+    display: 'grid',
+    gridTemplateColumns: '40% minmax(0, 1fr)',
+    columnGap: theme.spacing.md,
+    padding: `${theme.spacing.xs} 0`,
+    textAlign: 'left',
+    minWidth: 0,
+
+    '&:not(:last-child)': {
+        borderBottom: `1px solid ${theme.colors.blue100}`,
+    },
+})
+
+const FeeTooltipLabel = styled('div', {
+    minWidth: 0,
+    overflowWrap: 'anywhere',
+})
+
+const FeeTooltipAmount = styled('div', {
+    minWidth: 0,
+    overflowWrap: 'anywhere',
+    textAlign: 'right',
 })

@@ -48,6 +48,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
         makeStabilityTxnFeeDetailItems,
         makeTxnAmountText,
         makeTxnDetailItems,
+        makeTxnFeeDetailItems,
         makeTxnNotesText,
         makeTxnTypeText,
     } = useTxnDisplayUtils(t, federationId, isStabilityPool)
@@ -85,7 +86,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                     : makeTxnDetailItems(txn),
                 feeItems: isStabilityPool
                     ? makeStabilityTxnFeeDetailItems(txn)
-                    : undefined,
+                    : makeTxnFeeDetailItems(txn),
                 amount: makeTxnAmountText(txn, true),
                 notes: makeTxnNotesText(txn),
                 onSaveNotes: async (notes: string) => {

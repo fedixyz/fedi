@@ -11,6 +11,7 @@ import { Text } from '../Text'
 interface BaseProps {
     label: React.ReactNode
     onClick?: () => void
+    center?: boolean
 }
 
 interface StringProps extends BaseProps {
@@ -68,7 +69,8 @@ export const HistoryDetailItem: React.FC<HistoryDetailItemProps> = props => {
     return (
         <Container
             as={props.onClick ? 'button' : undefined}
-            onClick={props.onClick}>
+            onClick={props.onClick}
+            center={props.center}>
             <Text variant="caption" weight="medium">
                 {props.label}
             </Text>
@@ -109,6 +111,11 @@ const Container = styled('div', {
                     whiteSpace: 'nowrap',
                     textOverflow: 'ellipsis',
                 },
+            },
+        },
+        center: {
+            true: {
+                alignItems: 'center',
             },
         },
     },

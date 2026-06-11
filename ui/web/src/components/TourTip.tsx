@@ -10,6 +10,7 @@ interface Props {
     sideOffset?: number
     align?: 'start' | 'center' | 'end'
     alignOffset?: number
+    maxWidth?: number
     open?: boolean
     onOpenChange?: (open: boolean) => void
 }
@@ -19,13 +20,17 @@ export const TourTip: React.FC<Props> = ({
     content,
     open,
     onOpenChange,
+    maxWidth,
     ...contentProps
 }) => {
     return (
         <RadixPopover.Root open={open} onOpenChange={onOpenChange} modal>
             <RadixPopover.Anchor>{children}</RadixPopover.Anchor>
             <RadixPopover.Portal>
-                <Content {...contentProps} arrowPadding={12}>
+                <Content
+                    {...contentProps}
+                    arrowPadding={12}
+                    css={maxWidth ? { maxWidth } : undefined}>
                     {content}
                     <Arrow />
                 </Content>
