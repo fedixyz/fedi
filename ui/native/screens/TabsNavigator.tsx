@@ -208,17 +208,35 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                                 )
                             case 'Chat':
                                 return (
-                                    <SvgImage
-                                        name={focused ? 'ChatFilled' : 'Chat'}
-                                        {...svgImageProps}
-                                    />
+                                    <View style={style.tabIconBadgeContainer}>
+                                        <SvgImage
+                                            name={
+                                                focused ? 'ChatFilled' : 'Chat'
+                                            }
+                                            {...svgImageProps}
+                                        />
+                                        {hasUnreadMessages && (
+                                            <View
+                                                style={style.tabUnreadIndicator}
+                                            />
+                                        )}
+                                    </View>
                                 )
                             case 'Mods':
                                 return (
-                                    <SvgImage
-                                        name={focused ? 'AppsFilled' : 'Apps'}
-                                        {...svgImageProps}
-                                    />
+                                    <View style={style.tabIconBadgeContainer}>
+                                        <SvgImage
+                                            name={
+                                                focused ? 'AppsFilled' : 'Apps'
+                                            }
+                                            {...svgImageProps}
+                                        />
+                                        {zendeskMsgCount > 0 && (
+                                            <View
+                                                style={style.tabUnreadIndicator}
+                                            />
+                                        )}
+                                    </View>
                                 )
                             case 'Wallet':
                                 return (
@@ -252,7 +270,6 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     tabBarStyle: style.tabBar,
                     tabBarItemStyle: style.tabBarItem,
                     headerTitleStyle: theme.components.Text.style,
-                    tabBarBadgeStyle: style.tabBarBadge,
                 })}>
                 <Tab.Screen
                     name="Wallet"
@@ -289,7 +306,6 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                         tabBarTestID: 'ChatTabButton',
                         title: t('words.chat'),
                         header: () => <ChatHeader />,
-                        tabBarBadge: hasUnreadMessages ? '' : undefined,
                     })}
                 />
                 <Tab.Screen
@@ -329,7 +345,6 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                         tabBarTestID: 'ModsTabButton',
                         title: t('words.mods'),
                         headerShown: false, // this allows us to draw over the header with tooltips
-                        tabBarBadge: zendeskMsgCount > 0 ? '' : undefined,
                     })}
                 />
                 <Tab.Screen
@@ -411,21 +426,26 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
             justifyContent: 'center',
         },
         tabBarIconContainer: {},
-        tabBarIcon: {
-            flex: 0,
+        tabIconBadgeContainer: {
+            position: 'relative',
+            width: iconSize,
             height: iconSize,
-            marginBottom: theme.spacing.sm,
         },
-        tabBarBadge: {
+        tabUnreadIndicator: {
+            position: 'absolute',
+            top: -3,
+            right: -3,
             backgroundColor: theme.colors.red,
-            top: 10,
-            left: 4,
             borderWidth: 2,
             borderColor: theme.colors.secondary,
             width: 12,
             height: 12,
-            minWidth: 0,
             borderRadius: 6,
+        },
+        tabBarIcon: {
+            flex: 0,
+            height: iconSize,
+            marginBottom: theme.spacing.sm,
         },
         tabBarItem: {},
         tabBarLabel: {
