@@ -5,12 +5,14 @@ import {
     handleMatrixRoomListStreamUpdates,
     handleMatrixRoomTimelineStreamUpdates,
     markMatrixRoomInviteSeen,
+    selectChatDrafts,
     selectMatrixHasNotifications,
     selectMatrixHasNotificationsIncludingInvites,
     selectMatrixRoomEvents,
     selectMatrixRoomInviteIsSeen,
     selectMatrixRoomRawEvents,
     selectMatrixRoomSelectableEventIds,
+    setChatDraft,
     setupStore,
     toggleMatrixReaction,
 } from '@fedi/common/redux'
@@ -353,5 +355,33 @@ describe('selectMatrixHasNotificationsIncludingInvites', () => {
         expect(
             selectMatrixHasNotificationsIncludingInvites(store.getState()),
         ).toBe(false)
+    })
+})
+
+describe('matrix chat drafts', () => {
+    it('removes a draft instead of storing an empty string', () => {
+        const store = setupStore()
+        const roomId = 'room-a' as MatrixRoom['id']
+
+        store.dispatch(setChatDraft({ roomId, text: 'hello' }))
+        expect(selectChatDrafts(store.getState())).toEqual({
+            [roomId]: 'hello',
+        })
+
+        store.dispatch(setChatDraft({ roomId, text: '' }))
+
+        expect(selectChatDrafts(store.getState())).toEqual({})
+    })
+
+    it('does not replace draft state when the draft text is unchanged', () => {
+        const store = setupStore()
+        const roomId = 'room-a' as MatrixRoom['id']
+
+        store.dispatch(setChatDraft({ roomId, text: 'hello' }))
+        const drafts = selectChatDrafts(store.getState())
+
+        store.dispatch(setChatDraft({ roomId, text: 'hello' }))
+
+        expect(selectChatDrafts(store.getState())).toBe(drafts)
     })
 })

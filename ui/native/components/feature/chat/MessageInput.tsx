@@ -219,7 +219,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 attachments.matrixAttachments,
                 repliedEvent?.id,
             )
-            resetMessageText()
+            resetMessageText({ clearDraft: true })
             attachments.clearAll()
 
             if (repliedEvent) {

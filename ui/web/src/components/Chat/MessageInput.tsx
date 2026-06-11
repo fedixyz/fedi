@@ -138,7 +138,7 @@ export const MessageInput: React.FC<Props> = ({
                     attachments.files,
                     repliedEvent?.id ?? null,
                 )
-                resetMessageText()
+                resetMessageText({ clearDraft: true })
                 attachments.clearAll()
                 if (repliedEvent) {
                     dispatch(clearChatReplyingToMessage())

@@ -426,9 +426,15 @@ export function useMessageInputState(roomId: string) {
         500,
     )
 
-    const resetMessageText = useCallback(() => {
-        setMessageText('')
-    }, [])
+    const resetMessageText = useCallback(
+        (opts?: { clearDraft?: boolean }) => {
+            setMessageText('')
+            if (opts?.clearDraft) {
+                dispatch(setChatDraft({ roomId, text: '' }))
+            }
+        },
+        [dispatch, roomId],
+    )
 
     return {
         messageText,

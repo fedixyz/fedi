@@ -506,7 +506,12 @@ export const matrixSlice = createSlice({
             const { roomId, text } = action.payload
             const id = roomId as keyof MatrixState['drafts']
 
-            if (text.length === 0 && state.drafts[id]) delete state.drafts[id]
+            if (text.length === 0) {
+                delete state.drafts[id]
+                return
+            }
+
+            if (state.drafts[id] === text) return
 
             state.drafts[id] = text
         },
