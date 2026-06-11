@@ -19,7 +19,9 @@ Two cases:
 
 The workflow is `.github/workflows/e2e-tests.yml`. Read the `workflow_dispatch.inputs` block there for the canonical list of inputs and their descriptions. Single-platform runs (`platforms=ios` or `platforms=android`) are noticeably faster than `all`.
 
-**Gotcha not in the YAML:** `skip_bridge_build` reuses cached artifacts from a prior run on the same host. Do NOT enable it on the first dispatch from a branch — stale artifacts can break the build (notably iOS xcodebuild) before tests run. Only enable after a clean run on the same branch has primed the cache.
+**Gotcha not in the YAML:** `skip_bridge_build` reuses cached artifacts from a prior run on the same host. Do NOT enable it on the first dispatch from a branch, stale artifacts can break the build (notably iOS xcodebuild) before tests run. Only enable after a clean run on the same branch has primed the cache.
+
+**iOS 15 is not supported:** never point tests at the `ios-15` simulator profile. WebDriverAgent does not start on iOS 15.5, so the session just hangs then dies.
 
 ```bash
 git push origin <branch>
