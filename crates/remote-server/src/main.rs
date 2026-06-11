@@ -117,6 +117,7 @@ async fn main() -> Result<()> {
         .route("/:device_id/reset", post(handle_reset))
         .route("/invite_code", get(handle_invite_code))
         .route("/generate_ecash/:amount", get(handle_generate_ecash))
+        .route("/ports", get(handle_ports))
         .layer(cors)
         .with_state(state);
     let mut listenfd = ListenFd::from_env();
@@ -370,6 +371,31 @@ async fn handle_invite_code(
     Ok(Json(serde_json::json!({
         "invite_code": invite_code
     })))
+}
+
+// The TCP ports a client must reach to use the dev fed: every guardian's API
+// plus the registered lightning gateways. Lets a harness map them into an
+// android emulator with `adb reverse` (the fed binds to the host's loopback,
+// which an emulator cannot see).
+async fn handle_ports(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, RemoteRpcError> {
+    let dev_fed = state
+        .dev_fed
+        .as_ref()
+        .context("Dev federation not available - server must be started with --with-devfed")?;
+
+    let mut ports: Vec<u16> = Vec::new();
+    for peer_vars in dev_fed.fed.vars.values() {
+        let url = fedimint_core::util::SafeUrl::parse(&peer_vars.FM_API_URL)
+            .context("invalid guardian api url")?;
+        ports.push(url.port().context("guardian api url has no port")?);
+    }
+    ports.push(dev_fed.gw_lnd.gw_port);
+    ports.push(dev_fed.gw_ldk.gw_port);
+    ports.push(dev_fed.gw_ldk_second.gw_port);
+
+    Ok(Json(serde_json::json!({ "ports": ports })))
 }
 
 async fn handle_generate_ecash(

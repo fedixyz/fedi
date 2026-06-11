@@ -1,6 +1,5 @@
 pub mod client;
 pub mod db;
-mod dev;
 mod guardian_remittance;
 mod lnurl_receives_service;
 mod meta;
@@ -147,9 +146,6 @@ use self::db::{
     LastStabilityPoolDepositCycleKey, OperationFediFeeStatusKey, OperationFediFeeStatusKeyPrefix,
     OutstandingFediFeesPerTXTypeKeyPrefix, PendingFediFeesPerTXTypeKeyPrefix,
     TransactionDateFiatInfoKey,
-};
-use self::dev::{
-    override_localhost, override_localhost_client_config, override_localhost_invite_code,
 };
 use self::ln_gateway_service::LnGatewayService;
 use self::stability_pool_sweeper_service::StabilityPoolSweeperService;
@@ -1157,7 +1153,7 @@ impl FederationV2 {
 
     pub async fn select_gateway(&self) -> anyhow::Result<Option<LightningGateway>> {
         let gateway = self.gateway_service()?.select_gateway(&self.client).await?;
-        Ok(self.override_gateway_localhost(gateway))
+        Ok(gateway)
     }
 
     async fn refresh_cache_and_select_gateway_excluding(
@@ -1168,21 +1164,7 @@ impl FederationV2 {
             .gateway_service()?
             .refresh_cache_and_select_gateway_excluding(&self.client, excluded_gateway_id)
             .await?;
-        Ok(self.override_gateway_localhost(gateway))
-    }
-
-    fn override_gateway_localhost(
-        &self,
-        gateway: Option<LightningGateway>,
-    ) -> Option<LightningGateway> {
-        if self.runtime.feature_catalog.override_localhost.is_none() {
-            return gateway;
-        }
-
-        gateway.map(|mut g| {
-            g.api = override_localhost(&g.api);
-            g
-        })
+        Ok(gateway)
     }
 
     /// Fetch balance
@@ -5642,13 +5624,9 @@ impl FederationPrefetchedInfo {
         invite_code: &str,
         root_mnemonic: &bip39::Mnemonic,
         device_index: u8,
-        should_override_localhost: bool,
     ) -> anyhow::Result<Self> {
         let invite_code = invite_code.to_lowercase();
-        let mut invite_code = InviteCode::from_str(&invite_code)?;
-        if should_override_localhost {
-            override_localhost_invite_code(&mut invite_code);
-        }
+        let invite_code = InviteCode::from_str(&invite_code)?;
         let api_single_guardian = DynGlobalApi::new(
             connectors.clone(),
             invite_code.peers(),
@@ -5673,7 +5651,7 @@ impl FederationPrefetchedInfo {
         //     .await?;
 
         let decoders = ModuleDecoderRegistry::default().with_fallback();
-        let ((mut client_config, _api), backup) = tokio::try_join!(
+        let ((client_config, _api), backup) = tokio::try_join!(
             fedimint_api_client::download_from_invite_code(&connectors, &invite_code),
             Client::download_backup_from_federation_static(
                 &api_single_guardian,
@@ -5681,9 +5659,6 @@ impl FederationPrefetchedInfo {
                 &decoders,
             )
         )?;
-        if should_override_localhost {
-            override_localhost_client_config(&mut client_config);
-        }
         Ok(Self {
             federation_id,
             client_config,

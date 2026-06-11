@@ -95,12 +95,6 @@ pub struct FeatureCatalog {
     /// seed. Furthermore, we use e2e encryption.
     pub encrypted_sync: Option<EncryptedSyncFeatureConfig>,
 
-    // "Override localhost" feature determines whether or not the IP address 127.0.0.1 should be
-    // overridden to a different IP address or hostname depending on the build target
-    // (Android/iOS/web). This is typically a dev-only feature needed for testing on Android and
-    // iOS emulators.
-    pub override_localhost: Option<OverrideLocalhostFeatureConfig>,
-
     /// Enable Nostr client for Rate federation feature.
     ///
     /// This allows relays to be configured using a remote feature flag service
@@ -201,10 +195,6 @@ pub struct SpTransferUiFeatureConfig {
 pub struct EncryptedSyncFeatureConfig {
     pub server_url: String,
 }
-
-#[derive(Debug, Clone, TS, Serialize)]
-#[ts(export)]
-pub struct OverrideLocalhostFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
@@ -348,7 +338,6 @@ impl FeatureCatalog {
             encrypted_sync: Some(EncryptedSyncFeatureConfig {
                 server_url: "https://prod-kv-store.dev.fedibtc.com/".to_string(),
             }),
-            override_localhost: Some(OverrideLocalhostFeatureConfig {}),
             nostr_client: Some(NostrClientFeatureCatalog {
                 relays: vec![Url::parse("wss://nostr-rs-relay-staging.dev.fedibtc.com").unwrap()],
             }),
@@ -398,7 +387,6 @@ impl FeatureCatalog {
             encrypted_sync: Some(EncryptedSyncFeatureConfig {
                 server_url: "https://prod-kv-store.dev.fedibtc.com/".to_string(),
             }),
-            override_localhost: Some(OverrideLocalhostFeatureConfig {}),
             nostr_client: Some(NostrClientFeatureCatalog {
                 relays: vec![
                     env::var("DEVI_NOSTR_RELAY")
@@ -452,7 +440,6 @@ impl FeatureCatalog {
         Self {
             runtime_env: RuntimeEnvironment::Staging,
             encrypted_sync: None,
-            override_localhost: None,
             nostr_client: Some(NostrClientFeatureCatalog {
                 relays: vec![Url::parse("wss://nostr-rs-relay-staging.dev.fedibtc.com").unwrap()],
             }),
@@ -500,7 +487,6 @@ impl FeatureCatalog {
         Self {
             runtime_env: RuntimeEnvironment::Prod,
             encrypted_sync: None,
-            override_localhost: None,
             nostr_client: Some(NostrClientFeatureCatalog {
                 relays: vec![
                     Url::parse("wss://nostr-rs-relay.dev.fedibtc.com").unwrap(),

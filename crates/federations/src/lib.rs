@@ -146,7 +146,6 @@ impl Federations {
             invite_code,
             &root_mnemonic,
             device_index,
-            self.runtime.feature_catalog.override_localhost.is_some(),
         )
         .await?;
         let preview =
@@ -185,7 +184,6 @@ impl Federations {
                 &invite_code_string,
                 &self.runtime.app_state.root_mnemonic().await,
                 self.runtime.app_state.device_index().await,
-                self.runtime.feature_catalog.override_localhost.is_some(),
             )
             .await?
         };

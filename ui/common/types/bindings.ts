@@ -154,7 +154,6 @@ export type FeatureCatalog = {
    * seed. Furthermore, we use e2e encryption.
    */
   encrypted_sync: EncryptedSyncFeatureConfig | null;
-  override_localhost: OverrideLocalhostFeatureConfig | null;
   /**
    * Enable Nostr client for Rate federation feature.
    *
@@ -417,8 +416,6 @@ export type NostrClientFeatureCatalog = { relays: Array<string> };
  * Tracks how a user completed their onboarding process
  */
 export type OnboardingMethod = "new_seed" | "restored";
-
-export type OverrideLocalhostFeatureConfig = Record<string, never>;
 
 export type PanicEvent = { message: string };
 
