@@ -26,7 +26,7 @@ const InfoRow = ({ icon, title, subtitle, right }: RowProps) => {
     const { theme } = useTheme()
     const style = styles(theme)
     return (
-        <Row align="center" gap="xs">
+        <Row align="center" gap="xs" fullWidth>
             <SvgImage
                 name={icon}
                 color={theme.colors.black}
@@ -99,7 +99,7 @@ const OnchainDepositInfo: React.FC<Props> = ({ federationId }) => {
 
     return (
         <HoloAlert containerStyle={style.gradient}>
-            <Column gap="md" style={style.content}>
+            <Column gap="md" fullWidth style={style.content}>
                 {rows.map((row, idx) => (
                     <InfoRow key={`info-row-onchain-${idx}`} {...row} />
                 ))}
