@@ -1,10 +1,11 @@
 /* eslint-disable no-console */
+import { execFileSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
 import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
-import { currentPlatform } from '../configs/appium/types'
+import { Platform, currentPlatform } from '../configs/appium/types'
 import { setupOnboarded } from './fixtures/setupOnboarded'
 import { Fixture } from './fixtures/types'
 import {
@@ -16,6 +17,53 @@ import {
 
 const fixtures: Record<string, Fixture> = {
     [setupOnboarded.produces]: setupOnboarded,
+}
+
+// The bridge logs tracing JSON to files/fedi.log.<unixday> inside the app
+// sandbox (not logcat), and resetAppToFresh wipes it, so pull the logs
+// before the post-failure reset runs.
+function captureAndroidAppLogs(testName: string) {
+    if (currentPlatform !== Platform.ANDROID) return
+    const appId = process.env.APP_PACKAGE || 'com.fedi'
+    const outDir = path.join(process.cwd(), '.appium')
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
+    for (const h of AppiumManager.activeHandles()) {
+        const udid = AppiumManager.deviceId(h)
+        if (!udid) continue
+        const logs = [
+            ['bridge', 'files/fedi.log.*'],
+            ['ui', 'files/fedi-ui.*.log'],
+        ]
+        for (const [label, glob] of logs) {
+            const outPath = path.join(
+                outDir,
+                `${testName}-failure-${label}-${h}.log`,
+            )
+            try {
+                const out = execFileSync(
+                    'adb',
+                    [
+                        '-s',
+                        udid,
+                        'exec-out',
+                        'run-as',
+                        appId,
+                        'sh',
+                        '-c',
+                        `cat ${glob}`,
+                    ],
+                    { maxBuffer: 64 * 1024 * 1024 },
+                )
+                fs.writeFileSync(outPath, out)
+                console.log(`Device ${label} log saved to: ${outPath}`)
+            } catch (logError) {
+                console.error(
+                    `Failed to capture ${label} log for actor "${h}":`,
+                    logError,
+                )
+            }
+        }
+    }
 }
 
 // Mutated by ensureState as fixtures run; cleared on test failure (state untrusted).
@@ -242,6 +290,8 @@ async function runTests(testNames: string[]): Promise<void> {
                         )
                     }
                 }
+
+                captureAndroidAppLogs(testName)
 
                 // Device state untrusted after failure: reset primary,
                 // tear down spawned actors.

@@ -104,7 +104,9 @@ export default function WalletBalanceCard({
                                 : primaryAmount}
                         </Text>
                         {secondaryAmount && (
-                            <Text color={theme.colors.grey}>
+                            <Text
+                                testID="WalletBalanceSats"
+                                color={theme.colors.grey}>
                                 {balanceDisplay === 'hidden'
                                     ? HIDDEN_AMOUNT_MASK
                                     : secondaryAmount}

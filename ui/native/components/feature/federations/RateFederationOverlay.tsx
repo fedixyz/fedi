@@ -75,6 +75,7 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
                                 />
                             </View>
                             <Pressable
+                                testID="RateFederationCloseButton"
                                 style={style.closeButton}
                                 onPress={handleDismiss}
                                 hitSlop={10}>

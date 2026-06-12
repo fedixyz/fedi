@@ -197,6 +197,7 @@ const SendPreviewDetails: React.FC<Props> = ({
             />
             {typeof onSend === 'function' && (
                 <Button
+                    testID="SendConfirmButton"
                     fullWidth
                     containerStyle={[style.button]}
                     onPress={onSend}

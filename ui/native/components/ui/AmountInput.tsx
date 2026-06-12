@@ -203,6 +203,7 @@ const AmountInput: React.FC<Props> = ({
                 </Animated.View>
                 {switcherEnabled && (
                     <Pressable
+                        testID="AmountUnitSwitcher"
                         style={style.symbolSwitcher}
                         disabled={readOnly || isSubmitting}
                         onPress={() => setIsFiat(!isFiat)}>

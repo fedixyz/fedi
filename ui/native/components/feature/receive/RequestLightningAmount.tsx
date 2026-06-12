@@ -104,6 +104,7 @@ export default function RequestLightningAmount({
                 preHeader={<PaymentType type="lightning" />}
                 buttons={[
                     {
+                        testID: 'ReceiveRequestButton',
                         title: `${t('words.request')}${
                             amount ? ` ${amountUtils.formatSats(amount)} ` : ' '
                         }${t('words.sats').toUpperCase()}`,

@@ -5,6 +5,7 @@ import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { Settings } from './common/Settings.test'
 import { BackupRestore } from './common/backupRestore.test'
 import { OnboardingTest } from './common/onboarding.test'
+import { Payments } from './common/payments.test'
 
 export type TestClass = (new () => AppiumTestBase) & {
     prerequisites: readonly string[]
@@ -22,6 +23,7 @@ export const availableTests: Record<string, TestClass> = {
     settings: Settings,
     joinLeaveFederations: JoinLeaveFederation,
     chat: Chat,
+    payments: Payments,
     backupRestore: BackupRestore,
 }
 

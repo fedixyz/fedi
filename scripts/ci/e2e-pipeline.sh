@@ -217,6 +217,16 @@ _pre_cleanup() {
     # stop-all-e2e-services.sh doesn't always reach these.
     lsof -ti:4723 2>/dev/null | xargs kill -9 2>/dev/null || true
     lsof -ti:8081 2>/dev/null | xargs kill -9 2>/dev/null || true
+    # A previous aborted payments run can leave a devimint fed holding ports;
+    # run-remote.sh tears it down on clean exit, this covers crashes. CI-only:
+    # pkill -f substring-matches whole command lines, so on a dev machine it
+    # could kill an unrelated bitcoind/lnd or any process whose path mentions
+    # one of these names. The CI runner is single-purpose.
+    if [ -n "${CI:-}" ]; then
+        for p in remote-server fedimintd gatewayd lnd lightningd bitcoind esplora electrs recurringd; do
+            pkill -f "$p" 2>/dev/null || true
+        done
+    fi
     if [ -n "${CLEAN_UI_FILES:-}" ]; then
         NON_INTERACTIVE=1 bash "$REPO_ROOT/scripts/ui/clean-ui.sh"
     fi
@@ -249,6 +259,34 @@ _required_actor_count() {
         return 1
     fi
     echo "$out"
+}
+
+# The payments test funds wallets from a hermetic devimint federation launched on
+# the runner (scripts/bridge/run-remote.sh --with-devfed). Only wrap the runner in
+# it when payments is in the selection, so other runs pay no fed cost.
+# Usage: _tests_need_devfed "<tests>"  (e.g. "all" or "onboarding payments")
+_tests_need_devfed() {
+    case " $1 " in
+        *" all "* | *" payments "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# The bridge logs tracing JSON to files/fedi.log.<unixday> inside the app
+# sandbox, not to logcat, so pull those (plus the JS logs and a logcat dump)
+# into ui/.appium/ where the workflow's artifact glob picks them up.
+# Usage: _capture_android_logs <device_id> <suffix>
+_capture_android_logs() {
+    local device="$1" suffix="$2"
+    local app_id="${APP_PACKAGE:-com.fedi}"
+    local out_dir="$REPO_ROOT/ui/.appium"
+    mkdir -p "$out_dir"
+    adb -s "$device" logcat -d \
+        > "$out_dir/logcat-$suffix.log" 2>/dev/null || true
+    adb -s "$device" exec-out run-as "$app_id" sh -c 'cat files/fedi.log.*' \
+        > "$out_dir/bridge-$suffix.log" 2>/dev/null || true
+    adb -s "$device" exec-out run-as "$app_id" sh -c 'cat files/fedi-ui.*.log' \
+        > "$out_dir/ui-$suffix.log" 2>/dev/null || true
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -347,12 +385,26 @@ run_pipeline_android() {
     local rc=0
     local t0
     t0=$(_ts)
-    PLATFORM=android AVD="$avd_a" DEVICE_ID="$device_a" \
-        AVD_B="$avd_b" DEVICE_ID_B="$device_b" \
-        BUNDLE_PATH="$apk_path" APPIUM_PORT="$appium_port" \
-        ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
-        || rc=$?
+    if _tests_need_devfed "$tests"; then
+        echo "🔐 Funding from a hermetic devimint fed (run-remote.sh --with-devfed)"
+        PLATFORM=android AVD="$avd_a" DEVICE_ID="$device_a" \
+            AVD_B="$avd_b" DEVICE_ID_B="$device_b" \
+            BUNDLE_PATH="$apk_path" APPIUM_PORT="$appium_port" \
+            "$REPO_ROOT/scripts/bridge/run-remote.sh" --with-devfed --port 0 \
+            ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
+            || rc=$?
+    else
+        PLATFORM=android AVD="$avd_a" DEVICE_ID="$device_a" \
+            AVD_B="$avd_b" DEVICE_ID_B="$device_b" \
+            BUNDLE_PATH="$apk_path" APPIUM_PORT="$appium_port" \
+            ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
+            || rc=$?
+    fi
     popd >/dev/null
+    _capture_android_logs "$device_a" "a"
+    if [ -n "$device_b" ]; then
+        _capture_android_logs "$device_b" "b"
+    fi
     local dur=$(($(_ts) - t0))
     local label="$avd_a"
     [ -n "$avd_b" ] && label="$avd_a+$avd_b"
@@ -482,10 +534,24 @@ run_pipeline_ios() {
         local ios26_rc=0
         local t0
         t0=$(_ts)
-        PLATFORM=ios DEVICE_ID="$device_a" DEVICE_ID_B="$device_b" \
-            BUNDLE_PATH="$app_path" APPIUM_PORT="$appium_port" \
-            nix develop .#xcode -c ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
-            || ios26_rc=$?
+        if _tests_need_devfed "$tests"; then
+            # The host workspace does not build under .#xcode (aws-lc-sys needs
+            # Go), so build/boot the fed under the default shell and keep the test
+            # under .#xcode as the trailing command. REMOTE_BRIDGE_PORT is set by
+            # remote-server and inherited across the nested .#xcode shell, so HTTP
+            # funding works through the boundary.
+            echo "🔐 Funding from a hermetic devimint fed (fed under default shell, test under .#xcode)"
+            PLATFORM=ios DEVICE_ID="$device_a" DEVICE_ID_B="$device_b" \
+                BUNDLE_PATH="$app_path" APPIUM_PORT="$appium_port" \
+                nix develop -c "$REPO_ROOT/scripts/bridge/run-remote.sh" --with-devfed --port 0 \
+                nix develop .#xcode -c ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
+                || ios26_rc=$?
+        else
+            PLATFORM=ios DEVICE_ID="$device_a" DEVICE_ID_B="$device_b" \
+                BUNDLE_PATH="$app_path" APPIUM_PORT="$appium_port" \
+                nix develop .#xcode -c ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
+                || ios26_rc=$?
+        fi
         popd >/dev/null
         local dur=$(($(_ts) - t0))
         if [ "$ios26_rc" = "0" ]; then

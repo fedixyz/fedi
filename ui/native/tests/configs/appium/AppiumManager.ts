@@ -207,6 +207,10 @@ export default class AppiumManager {
         return Array.from(AppiumManager.sessions.keys())
     }
 
+    static deviceId(handle: string): string | undefined {
+        return envForHandle('DEVICE_ID', handle)
+    }
+
     static actorConfigured(handle: string): boolean {
         if (currentPlatform === Platform.IOS) {
             return Boolean(envForHandle('DEVICE_ID', handle))

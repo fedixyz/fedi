@@ -35,6 +35,7 @@ export const NumpadButton: React.FC<Props> = ({ btn, disabled, onPress }) => {
     return (
         <Animated.View style={[style.container, { backgroundColor }]}>
             <Pressable
+                testID={`NumpadButton-${btn}`}
                 style={style.pressable}
                 onPress={onPress}
                 onPressIn={() =>

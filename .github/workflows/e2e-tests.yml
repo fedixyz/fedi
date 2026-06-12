@@ -21,6 +21,7 @@ on:
                     - settings
                     - joinLeaveFederations
                     - chat
+                    - payments
                     - backupRestore
                 default: all
             skip_bridge_build:
