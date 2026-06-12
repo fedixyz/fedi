@@ -82,7 +82,7 @@ jobs:
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+            - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -115,7 +115,7 @@ jobs:
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+            - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -151,7 +151,7 @@ jobs:
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+            - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -199,7 +199,7 @@ jobs:
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+            - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -226,7 +226,7 @@ jobs:
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
-            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+            - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -268,7 +268,7 @@ jobs:
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
 
-            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+            - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
               if: github.ref == 'refs/heads/master' || matrix.build-in-pr
               with:
                   name: fedibtc
@@ -301,7 +301,7 @@ jobs:
             extra_nix_config: |
               connect-timeout = 15
               stalled-download-timeout = 15
-        - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+        - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
           with:
             name: fedibtc
             authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
