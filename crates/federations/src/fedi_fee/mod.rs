@@ -56,6 +56,22 @@ pub enum FediFeeHelperError {
     UnknownModule(ModuleKind),
 }
 
+/// Maps a v2 module kind to the v1 module whose fee schedule it should reuse.
+/// The remote Fedi fee API only publishes v1 modules, so v2 ops are charged
+/// their v1 counterpart's fee (walletv2->wallet, mintv2->mint, lnv2->ln).
+/// Returns `None` for modules with no v1 equivalent.
+fn v1_equivalent_module(module: &ModuleKind) -> Option<ModuleKind> {
+    if *module == fedimint_walletv2_client::common::KIND {
+        Some(fedimint_wallet_client::KIND)
+    } else if *module == fedimint_mintv2_client::common::KIND {
+        Some(fedimint_mint_client::KIND)
+    } else if *module == fedimint_lnv2_client::common::KIND {
+        Some(fedimint_ln_common::KIND)
+    } else {
+        None
+    }
+}
+
 // maximum fedi fee ppm that bridge would pay. it is 20x our current fee in
 // prod.
 const FEDI_FEE_MAX_PPM: u64 = 2100 * 20;
@@ -150,24 +166,35 @@ impl FediFeeHelper {
                     .joined_federations
                     .get(&federation_id_str)
                     .ok_or(FediFeeHelperError::UnknownFederation(federation_id_str))
-                    .and_then(|fed_info| match stream {
-                        FediFeeStream::App => fed_info
-                            .fedi_fee_schedule
-                            .modules
-                            .get(&module)
-                            .ok_or(FediFeeHelperError::UnknownModule(module))
-                            .map(|module_schedule| match direction {
-                                RpcTransactionDirection::Receive => module_schedule.receive_ppm,
-                                RpcTransactionDirection::Send => module_schedule.send_ppm,
-                            }),
-                        FediFeeStream::Guardian => Ok(fed_info
+                    .map(|fed_info| match stream {
+                        // The remote Fedi fee API (FeesV0) only carries the v1
+                        // mint/ln/wallet + stability_pool modules, so the v2
+                        // modules (walletv2/mintv2/lnv2) are absent from the
+                        // fetched schedule on real devices. They're the same
+                        // products, so charge them their v1 counterpart's fee
+                        // (walletv2->wallet, mintv2->mint, lnv2->ln). Prefer an
+                        // explicit v2 entry if one ever exists; fall back to 0
+                        // only if neither the v2 nor the v1 module is present.
+                        FediFeeStream::App => {
+                            let modules = &fed_info.fedi_fee_schedule.modules;
+                            let module_schedule = modules.get(&module).or_else(|| {
+                                v1_equivalent_module(&module).and_then(|v1| modules.get(&v1))
+                            });
+                            module_schedule
+                                .map(|module_schedule| match direction {
+                                    RpcTransactionDirection::Receive => module_schedule.receive_ppm,
+                                    RpcTransactionDirection::Send => module_schedule.send_ppm,
+                                })
+                                .unwrap_or(0)
+                        }
+                        FediFeeStream::Guardian => fed_info
                             .guardian_fee_config
                             .as_ref()
                             .map(|config| match direction {
                                 RpcTransactionDirection::Send => config.send_ppm,
                                 RpcTransactionDirection::Receive => 0,
                             })
-                            .unwrap_or(0)),
+                            .unwrap_or(0),
                     })
             })
             .await?;

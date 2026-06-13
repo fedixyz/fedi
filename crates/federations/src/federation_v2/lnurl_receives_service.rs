@@ -41,7 +41,7 @@ impl LnurlReceivesService {
                 fedimint_core::task::sleep(sleep_duration).await;
 
                 // Only proceed if lnurl has already been generated
-                let Some(recurringd_api) = fed.get_recurringd_api().await else {
+                let Some(recurringd_api) = fed.get_recurringd_api_v1().await else {
                     continue;
                 };
                 let recurring_payment_codes = ln.list_recurring_payment_codes().await;

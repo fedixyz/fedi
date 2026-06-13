@@ -72,6 +72,13 @@ use fedimint_ln_client::{
 };
 use fedimint_ln_common::LightningGateway;
 use fedimint_ln_common::config::FeeToAmount;
+use fedimint_lnv2_client::{
+    FinalReceiveOperationState as LnV2FinalReceiveOperationState,
+    FinalSendOperationState as LnV2FinalSendOperationState,
+    LightningOperationMeta as LnV2OperationMeta, ReceiveOperationMeta as LnV2ReceiveOperationMeta,
+    ReceiveOperationState as LnV2ReceiveOperationState, SendOperationMeta as LnV2SendOperationMeta,
+    SendOperationState as LnV2SendOperationState,
+};
 use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
 use fedimint_mint_client::api::MintFederationApi;
 use fedimint_mint_client::config::MintClientConfig;
@@ -80,9 +87,18 @@ use fedimint_mint_client::{
     ReissueExternalNotesState, SelectNotesWithAtleastAmount, SelectNotesWithExactAmount,
     SpendOOBState, spendable_notes_to_operation_id,
 };
+use fedimint_mintv2_client::{
+    ECash as MintV2ECash, FinalReceiveOperationState as MintV2FinalReceiveOperationState,
+    MintOperationMeta as MintV2OperationMeta,
+};
 use fedimint_wallet_client::{
     DepositStateV2, PegOutFees, WalletClientInit, WalletOperationMeta, WalletOperationMetaVariant,
     WithdrawState,
+};
+use fedimint_walletv2_client::{
+    FinalReceiveOperationState as WalletV2FinalReceiveOperationState, FinalSendOperationState,
+    ReceiveMeta as WalletV2ReceiveMeta, SendMeta as WalletV2SendMeta,
+    WalletOperationMeta as WalletV2OperationMeta,
 };
 use futures::{FutureExt, Stream, StreamExt};
 use guardian_remittance::GuardianRemittanceAccount;
@@ -99,8 +115,9 @@ use rpc_types::{
     LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
     RpcGenerateEcashResponse, RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard,
-    RpcJsonClientConfig, RpcLightningGateway, RpcOperationFediFeeStatus, RpcOperationId,
-    RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
+    RpcJsonClientConfig, RpcLightningGateway, RpcOnchainDepositState,
+    RpcOnchainDepositTransactionData, RpcOnchainWithdrawState, RpcOperationFediFeeStatus,
+    RpcOperationId, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
     RpcReturningMemberStatus, RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState,
     RpcSPV2TransferOutState, RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcSPv2CachedSyncResponse,
     RpcTransaction, RpcTransactionDirection, RpcTransactionKind, RpcTransactionListEntry,
@@ -110,9 +127,10 @@ use rpc_types::{
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
     ECASH_AUTO_CANCEL_DURATION_MAINNET, ECASH_AUTO_CANCEL_DURATION_MUTINYNET,
-    LIGHTNING_OPERATION_TYPE, MILLION, MINT_OPERATION_TYPE, RECURRINGD_API_META,
-    REISSUE_ECASH_TIMEOUT, STABILITY_POOL_OPERATION_TYPE, STABILITY_POOL_V2_OPERATION_TYPE,
-    WALLET_OPERATION_TYPE,
+    LIGHTNING_OPERATION_TYPE, LIGHTNINGV2_OPERATION_TYPE, MILLION, MINT_OPERATION_TYPE,
+    MINTV2_OPERATION_TYPE, RECURRINGD_API_META, REISSUE_ECASH_TIMEOUT,
+    STABILITY_POOL_OPERATION_TYPE, STABILITY_POOL_V2_OPERATION_TYPE, WALLET_OPERATION_TYPE,
+    WALLETV2_OPERATION_TYPE,
 };
 use runtime::db::FederationPendingRejoinFromScratchKey;
 use runtime::nightly_panic;
@@ -425,8 +443,11 @@ impl FederationV2 {
             LegacyMetaSourceWithExternalUrl::default(),
         )));
         client_builder.with_module(MintClientInit);
+        client_builder.with_module(fedimint_mintv2_client::MintClientInit);
         client_builder.with_module(LightningClientInit::default());
+        client_builder.with_module(fedimint_lnv2_client::LightningClientInit::default());
         client_builder.with_module(WalletClientInit(None));
+        client_builder.with_module(fedimint_walletv2_client::WalletClientInit);
         client_builder.with_module(FediSocialClientInit);
         client_builder.with_module(StabilityPoolClientInit);
         client_builder.with_module(stability_pool_client_old::StabilityPoolClientInit);
@@ -957,10 +978,12 @@ impl FederationV2 {
     // Fetch which network we're using
     pub fn get_network(&self) -> Option<Network> {
         if self.recovering() {
-            None
-        } else {
-            self.client.wallet().map(|module| module.get_network()).ok()
+            return None;
         }
+        if let Ok(walletv2) = self.client.walletv2() {
+            return Some(walletv2.get_network());
+        }
+        self.client.wallet().map(|module| module.get_network()).ok()
     }
 
     /// Return federation name from meta, or take first 8 characters of
@@ -1172,14 +1195,22 @@ impl FederationV2 {
         if self.recovering() {
             return Amount::ZERO;
         }
-        let Ok(mint_client) = self.client.mint() else {
+        let raw_fedimint_balance = if let Ok(mintv2) = self.client.mintv2() {
+            mintv2
+                .get_count_by_denomination()
+                .await
+                .into_iter()
+                .map(|(denom, count)| Amount::from_msats(denom.amount().msats * count))
+                .fold(Amount::ZERO, |acc, a| acc + a)
+        } else if let Ok(mint_client) = self.client.mint() {
+            let mut dbtx = mint_client.db.begin_transaction_nc().await;
+            mint_client
+                .get_note_counts_by_denomination(&mut dbtx)
+                .await
+                .total_amount()
+        } else {
             return Amount::ZERO;
         };
-        let mut dbtx = mint_client.db.begin_transaction_nc().await;
-        let raw_fedimint_balance = mint_client
-            .get_note_counts_by_denomination(&mut dbtx)
-            .await
-            .total_amount();
         let fedi_fee_sum = [FediFeeStream::App, FediFeeStream::Guardian]
             .into_iter()
             .map(|stream| async move {
@@ -1415,6 +1446,12 @@ impl FederationV2 {
 
     /// Generate bitcoin address
     pub async fn generate_address(&self, frontend_meta: FrontendMetadata) -> Result<String> {
+        if let Ok(walletv2) = self.client.walletv2() {
+            // v2 wallet has no per-address operation lifecycle — receive() just
+            // returns the next unused address. funds appear in balance when claimed.
+            let _ = frontend_meta;
+            return Ok(walletv2.receive().await.to_string());
+        }
         // FIXME: add fedi fees once fedimint await primary module outputs
         let fee_ppms = self
             .get_fee_ppms_by_stream(
@@ -1448,6 +1485,45 @@ impl FederationV2 {
         // some apps have issues paying invoices that are in msats
         // so round up amount to nearest sat
         let amount = Amount::from_sats(amount.0.msats.div_ceil(1000));
+        if let Ok(lnv2) = self.client.lnv2() {
+            let fee_ppms = self
+                .get_fee_ppms_by_stream(
+                    fedimint_lnv2_client::common::KIND,
+                    RpcTransactionDirection::Receive,
+                )
+                .await?;
+            let expiry_secs = expiry_time.unwrap_or(86_400) as u32;
+            let custom_meta = serde_json::to_value(BaseMetadata::from(frontend_meta.clone()))?;
+            match lnv2
+                .receive(
+                    amount,
+                    expiry_secs,
+                    fedimint_lnv2_client::common::Bolt11InvoiceDescription::Direct(
+                        description.clone(),
+                    ),
+                    None,
+                    custom_meta,
+                )
+                .await
+            {
+                Ok((invoice, operation_id)) => {
+                    self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
+                        .await?;
+                    let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
+                    self.subscribe_lnv2_receive(operation_id, amount);
+                    return Ok(invoice);
+                }
+                Err(e) => {
+                    // No funds at risk on the receive path; if v1 lightning
+                    // is also present, fall back to it.
+                    if self.client.ln().is_err() {
+                        return Err(e.into());
+                    }
+                    warn!("lnv2.receive failed, falling back to v1 lightning: {e}");
+                    // fall through to v1 below
+                }
+            }
+        }
         let fee_ppms = self
             .get_fee_ppms_by_stream(fedimint_ln_common::KIND, RpcTransactionDirection::Receive)
             .await?;
@@ -1528,6 +1604,11 @@ impl FederationV2 {
     }
 
     pub async fn recheck_pegin_address(&self, operation_id: OperationId) -> Result<()> {
+        // walletv2's background scanner detects deposits on its own;
+        // there is no manual recheck path, so this is a no-op.
+        if self.client.walletv2().is_ok() {
+            return Ok(());
+        }
         self.client
             .wallet()?
             .recheck_pegin_address_by_op_id(operation_id)
@@ -1587,6 +1668,69 @@ impl FederationV2 {
                 .amount_milli_satoshis()
                 .ok_or(anyhow!("Invoice missing amount"))?,
         );
+
+        if let Ok(lnv2) = self.client.lnv2() {
+            // Quote the real gateway fee the same way lnv2.send does: select
+            // the gateway for this invoice, read its RoutingInfo, and derive
+            // the send fee (base + ppm). This is the fee that gets added to
+            // the outgoing contract at pay time, so the estimate matches the
+            // actual debit.
+            match lnv2.select_gateway(Some(invoice.clone())).await {
+                Ok((_, routing_info)) => {
+                    let fees_by_stream = self
+                        .get_fee_amounts_by_stream(
+                            fedimint_lnv2_client::common::KIND,
+                            RpcTransactionDirection::Send,
+                            amount,
+                        )
+                        .await?;
+                    let (send_fee, _) = routing_info.send_parameters(invoice);
+                    return Ok(RpcFeeDetails {
+                        fedi_app_fee: RpcAmount(Self::fedi_fee_amount_for_stream(
+                            &fees_by_stream,
+                            FediFeeStream::App,
+                        )),
+                        fedi_guardian_fee: RpcAmount(Self::fedi_fee_amount_for_stream(
+                            &fees_by_stream,
+                            FediFeeStream::Guardian,
+                        )),
+                        network_fee: RpcAmount(send_fee.fee(amount.msats)),
+                        federation_fee: RpcAmount(Amount::ZERO),
+                    });
+                }
+                // No v2 gateway to quote. If v1 lightning is also loaded, the
+                // pay path falls back to v1 and charges the v1 gateway fee, so
+                // fall through to the v1 estimate below to keep quote == debit.
+                // Otherwise there's no v1 to fall back to: best-effort v2
+                // estimate with a zero network fee.
+                Err(e) if self.client.ln().is_ok() => {
+                    warn!("lnv2 has no gateway for fee estimate, falling back to v1: {e}");
+                    // fall through to the v1 estimate path below
+                }
+                Err(e) => {
+                    warn!("lnv2 select_gateway for fee estimate failed, no v1 fallback: {e}");
+                    let fees_by_stream = self
+                        .get_fee_amounts_by_stream(
+                            fedimint_lnv2_client::common::KIND,
+                            RpcTransactionDirection::Send,
+                            amount,
+                        )
+                        .await?;
+                    return Ok(RpcFeeDetails {
+                        fedi_app_fee: RpcAmount(Self::fedi_fee_amount_for_stream(
+                            &fees_by_stream,
+                            FediFeeStream::App,
+                        )),
+                        fedi_guardian_fee: RpcAmount(Self::fedi_fee_amount_for_stream(
+                            &fees_by_stream,
+                            FediFeeStream::Guardian,
+                        )),
+                        network_fee: RpcAmount(Amount::ZERO),
+                        federation_fee: RpcAmount(Amount::ZERO),
+                    });
+                }
+            }
+        }
 
         // Fedi app fee applies regardless of internal/external payment
         let fees_by_stream = self
@@ -1661,6 +1805,87 @@ impl FederationV2 {
                 federation_network,
                 display_currency(invoice.currency())
             ))
+        }
+
+        if let Ok(lnv2) = self.client.lnv2() {
+            let fees_by_stream = self
+                .get_fee_amounts_by_stream(
+                    fedimint_lnv2_client::common::KIND,
+                    RpcTransactionDirection::Send,
+                    amount,
+                )
+                .await?;
+            let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
+            let spend_guard = self.spend_guard.lock().await;
+            let virtual_balance = self.get_balance().await;
+            if amount + fedi_fee > virtual_balance {
+                bail!(ErrorCode::InsufficientBalance(RpcAmount(
+                    get_max_spendable_amount(
+                        virtual_balance,
+                        Self::total_fedi_fee_ppm(
+                            &self
+                                .get_fee_ppms_by_stream(
+                                    fedimint_lnv2_client::common::KIND,
+                                    RpcTransactionDirection::Send,
+                                )
+                                .await?,
+                        ),
+                        None,
+                        None,
+                    )
+                )));
+            }
+            let extra_meta = LightningSendMetadata {
+                is_fedi_fee_remittance: false,
+                frontend_metadata: Some(frontend_meta.clone()),
+            };
+            let custom_meta = serde_json::to_value(&extra_meta)?;
+            match lnv2.send(invoice.clone(), None, custom_meta).await {
+                Ok(operation_id) => {
+                    self.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
+                        .await?;
+                    drop(spend_guard);
+                    let _ = self
+                        .record_tx_date_fiat_info(operation_id, amount + fedi_fee)
+                        .await;
+                    let final_state = lnv2.await_final_send_operation_state(operation_id).await?;
+                    match final_state {
+                        LnV2FinalSendOperationState::Success(preimage) => {
+                            let _ = self.write_success_send_fedi_fees(operation_id).await;
+                            self.send_transaction_event(operation_id).await;
+                            return Ok(RpcPayInvoiceResponse {
+                                preimage: hex::encode(preimage),
+                            });
+                        }
+                        LnV2FinalSendOperationState::Refunded => {
+                            let _ = self.write_failed_send_fedi_fees(operation_id).await;
+                            self.send_transaction_event(operation_id).await;
+                            bail!("Lightning payment failed, got refund");
+                        }
+                        LnV2FinalSendOperationState::Failure => {
+                            let _ = self.write_failed_send_fedi_fees(operation_id).await;
+                            self.send_transaction_event(operation_id).await;
+                            bail!("Lightning payment failed");
+                        }
+                    }
+                }
+                // v2 already has (or had) a payment for this invoice — falling
+                // back to v1 would risk double-paying. Surface the failure.
+                Err(e @ fedimint_lnv2_client::SendPaymentError::PaymentInProgress(_))
+                | Err(e @ fedimint_lnv2_client::SendPaymentError::InvoiceAlreadyPaid(_)) => {
+                    bail!(e.to_string());
+                }
+                // v2 setup failed pre-submit; no funds at risk. Fall back
+                // to v1 if it's also present on this federation.
+                Err(e) => {
+                    drop(spend_guard);
+                    if self.client.ln().is_err() {
+                        bail!(e.to_string());
+                    }
+                    warn!("lnv2.send failed, falling back to v1 lightning: {e}");
+                    // fall through to the v1 path below
+                }
+            }
         }
 
         let fee_ppms = self
@@ -1772,6 +1997,12 @@ impl FederationV2 {
         &self,
         invoice: &Bolt11Invoice,
     ) -> Result<RpcPrevPayInvoiceResult> {
+        if self.client.lnv2().is_ok() {
+            // lnv2 has no cached prev-payment-result; assume not completed.
+            // The duplicate-payment guard inside lnv2 send() (via
+            // get_next_operation_id) handles re-submission safely.
+            return Ok(RpcPrevPayInvoiceResult { completed: false });
+        }
         let ln = &self.client.ln()?;
         let payment_result = ln
             .get_prev_payment_result(
@@ -1790,6 +2021,48 @@ impl FederationV2 {
         address: Address<NetworkUnchecked>,
         amount: bitcoin::Amount,
     ) -> Result<RpcFeeDetails> {
+        if let Ok(walletv2) = self.client.walletv2() {
+            let _ = address;
+            let fee_ppms = self
+                .get_fee_ppms_by_stream(
+                    fedimint_walletv2_client::common::KIND,
+                    RpcTransactionDirection::Send,
+                )
+                .await?;
+            let amount_msat = amount.to_sat() * 1000;
+            let fees_by_stream = self
+                .get_fee_amounts_by_stream(
+                    fedimint_walletv2_client::common::KIND,
+                    RpcTransactionDirection::Send,
+                    Amount::from_msats(amount_msat),
+                )
+                .await?;
+            let network_fee = walletv2.send_fee().await?;
+            let network_fee_msat = network_fee.to_sat() * 1000;
+            let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
+            let fedi_app_fee =
+                Self::fedi_fee_amount_for_stream(&fees_by_stream, FediFeeStream::App);
+            let fedi_guardian_fee =
+                Self::fedi_fee_amount_for_stream(&fees_by_stream, FediFeeStream::Guardian);
+            let est_total_spend = amount_msat + fedi_fee.msats + network_fee_msat;
+            let virtual_balance = self.get_balance().await;
+            if est_total_spend > virtual_balance.msats {
+                bail!(ErrorCode::InsufficientBalance(RpcAmount(
+                    get_max_spendable_amount(
+                        virtual_balance,
+                        Self::total_fedi_fee_ppm(&fee_ppms),
+                        None,
+                        None,
+                    )
+                )));
+            }
+            return Ok(RpcFeeDetails {
+                fedi_app_fee: RpcAmount(fedi_app_fee),
+                fedi_guardian_fee: RpcAmount(fedi_guardian_fee),
+                network_fee: RpcAmount(Amount::from_msats(network_fee_msat)),
+                federation_fee: RpcAmount(Amount::ZERO),
+            });
+        }
         let fee_ppms = self
             .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
             .await?;
@@ -1843,6 +2116,50 @@ impl FederationV2 {
         amount: bitcoin::Amount,
         frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
+        if let Ok(walletv2) = self.client.walletv2() {
+            let _ = frontend_meta;
+            let fee_ppms = self
+                .get_fee_ppms_by_stream(
+                    fedimint_walletv2_client::common::KIND,
+                    RpcTransactionDirection::Send,
+                )
+                .await?;
+            let amount_msat = amount.to_sat() * 1000;
+            let fees_by_stream = self
+                .get_fee_amounts_by_stream(
+                    fedimint_walletv2_client::common::KIND,
+                    RpcTransactionDirection::Send,
+                    Amount::from_msats(amount_msat),
+                )
+                .await?;
+            let network_fee = walletv2.send_fee().await?;
+            let network_fee_msat = network_fee.to_sat() * 1000;
+            let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
+            let est_total_spend = amount_msat + fedi_fee.msats + network_fee_msat;
+
+            let spend_guard = self.spend_guard.lock().await;
+            let virtual_balance = self.get_balance().await;
+            if est_total_spend > virtual_balance.msats {
+                bail!(ErrorCode::InsufficientBalance(RpcAmount(
+                    get_max_spendable_amount(
+                        virtual_balance,
+                        Self::total_fedi_fee_ppm(&fee_ppms),
+                        None,
+                        None,
+                    )
+                )));
+            }
+
+            let operation_id = walletv2.send(address, amount, None).await?;
+            self.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
+                .await?;
+            drop(spend_guard);
+            let _ = self
+                .record_tx_date_fiat_info(operation_id, Amount::from_msats(est_total_spend))
+                .await;
+            self.subscribe_walletv2_send(operation_id);
+            return Ok(operation_id);
+        }
         let wallet = self.client.wallet()?;
         let fee_ppms = self
             .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
@@ -2037,6 +2354,57 @@ impl FederationV2 {
                     }
                 }
             }
+            WALLETV2_OPERATION_TYPE => {
+                let meta = operation.meta::<WalletV2OperationMeta>();
+                match meta {
+                    WalletV2OperationMeta::Send(_) => {
+                        self.subscribe_walletv2_send(operation_id);
+                    }
+                    WalletV2OperationMeta::Receive(meta) => {
+                        let amount = Amount::from_msats(
+                            meta.value.to_sat().saturating_sub(meta.fee.to_sat()) * 1000,
+                        );
+                        self.subscribe_walletv2_receive(operation_id, amount);
+                    }
+                }
+            }
+            MINTV2_OPERATION_TYPE => {
+                let meta = operation.meta::<MintV2OperationMeta>();
+                match meta {
+                    MintV2OperationMeta::Receive { ecash, .. } => {
+                        if let Ok(decoded) = fedimint_core::base32::decode_prefixed::<MintV2ECash>(
+                            fedimint_core::base32::FEDIMINT_PREFIX,
+                            &ecash,
+                        ) {
+                            self.subscribe_mintv2_receive(operation_id, decoded.amount());
+                        }
+                    }
+                    // Send is terminal at creation time — notes are already
+                    // gone from the local db and the ECash blob is in the
+                    // user's hands. No state machine to subscribe to.
+                    MintV2OperationMeta::Send { .. } => {}
+                    // Reissue is the internal change-making path of Send;
+                    // it has no user-facing terminal state we expose today.
+                    MintV2OperationMeta::Reissue { .. } => {}
+                }
+            }
+            LIGHTNINGV2_OPERATION_TYPE => {
+                let meta = operation.meta::<LnV2OperationMeta>();
+                match meta {
+                    LnV2OperationMeta::Send(_) => self.subscribe_lnv2_send(operation_id),
+                    LnV2OperationMeta::Receive(LnV2ReceiveOperationMeta { invoice, .. }) => {
+                        let amount = match invoice {
+                            fedimint_lnv2_client::common::LightningInvoice::Bolt11(inv) => {
+                                Amount::from_msats(inv.amount_milli_satoshis().unwrap_or(0))
+                            }
+                        };
+                        self.subscribe_lnv2_receive(operation_id, amount);
+                    }
+                    // LNURL receive flows are driven by recurringd; no
+                    // per-op subscription wired in this prototype.
+                    LnV2OperationMeta::LnurlReceive(_) => {}
+                }
+            }
             STABILITY_POOL_OPERATION_TYPE => {
                 match operation.meta::<stability_pool_client_old::StabilityPoolMeta>() {
                     stability_pool_client_old::StabilityPoolMeta::Deposit { .. } => {
@@ -2132,6 +2500,160 @@ impl FederationV2 {
         for tweak_data in tweak_idxes.into_values() {
             self.subscribe_deposit(tweak_data.operation_id);
         }
+    }
+
+    fn subscribe_walletv2_send(&self, operation_id: OperationId) {
+        self.spawn_cancellable("subscribe walletv2 send", move |fed| async move {
+            let Ok(walletv2) = fed.client.walletv2() else {
+                error!("walletv2 module not present");
+                return;
+            };
+            let final_state = match walletv2
+                .await_final_send_operation_state(operation_id)
+                .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("walletv2 await_final_send failed: {e:?}");
+                    return;
+                }
+            };
+            match final_state {
+                FinalSendOperationState::Success(_) => {
+                    let _ = fed.write_success_send_fedi_fees(operation_id).await;
+                }
+                FinalSendOperationState::Aborted | FinalSendOperationState::Failure => {
+                    let _ = fed.write_failed_send_fedi_fees(operation_id).await;
+                }
+            }
+            // Outcome is now persisted to the operation log by
+            // outcome_or_updates inside await_final_send_operation_state,
+            // so the in-memory state stash is no longer required.
+            fed.send_transaction_event(operation_id).await;
+        });
+    }
+
+    fn subscribe_walletv2_receive(&self, operation_id: OperationId, amount: Amount) {
+        self.spawn_cancellable("subscribe walletv2 receive", move |fed| async move {
+            let Ok(walletv2) = fed.client.walletv2() else {
+                error!("walletv2 module not present");
+                return;
+            };
+            let final_state = match walletv2
+                .await_final_receive_operation_state(operation_id)
+                .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("walletv2 await_final_receive failed: {e:?}");
+                    return;
+                }
+            };
+            match final_state {
+                WalletV2FinalReceiveOperationState::Success => {
+                    // Scanner-created receives never wrote a pending fee
+                    // entry (no creation hook on our side), so this is a
+                    // no-op for fees today — kept for symmetry with the
+                    // other receive subscribers and for when a pending
+                    // entry exists.
+                    let _ = fed
+                        .write_success_receive_fedi_fees(operation_id, amount)
+                        .await;
+                }
+                WalletV2FinalReceiveOperationState::Aborted => {
+                    let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
+                }
+            }
+            fed.send_transaction_event(operation_id).await;
+        });
+    }
+
+    fn subscribe_lnv2_send(&self, operation_id: OperationId) {
+        self.spawn_cancellable("subscribe lnv2 send", move |fed| async move {
+            let Ok(lnv2) = fed.client.lnv2() else {
+                error!("lnv2 module not present");
+                return;
+            };
+            let final_state = match lnv2.await_final_send_operation_state(operation_id).await {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("lnv2 await_final_send failed: {e:?}");
+                    return;
+                }
+            };
+            match final_state {
+                LnV2FinalSendOperationState::Success(_) => {
+                    let _ = fed.write_success_send_fedi_fees(operation_id).await;
+                }
+                LnV2FinalSendOperationState::Refunded | LnV2FinalSendOperationState::Failure => {
+                    let _ = fed.write_failed_send_fedi_fees(operation_id).await;
+                }
+            }
+            fed.update_operation_state(operation_id, final_state).await;
+            fed.send_transaction_event(operation_id).await;
+        });
+    }
+
+    fn subscribe_lnv2_receive(&self, operation_id: OperationId, amount: Amount) {
+        self.spawn_cancellable("subscribe lnv2 receive", move |fed| async move {
+            let Ok(lnv2) = fed.client.lnv2() else {
+                error!("lnv2 module not present");
+                return;
+            };
+            let final_state = match lnv2.await_final_receive_operation_state(operation_id).await {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("lnv2 await_final_receive failed: {e:?}");
+                    return;
+                }
+            };
+            match final_state {
+                LnV2FinalReceiveOperationState::Claimed => {
+                    let _ = fed
+                        .write_success_receive_fedi_fees(operation_id, amount)
+                        .await;
+                }
+                LnV2FinalReceiveOperationState::Expired
+                | LnV2FinalReceiveOperationState::Failure => {
+                    let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
+                }
+            }
+            fed.update_operation_state(operation_id, final_state).await;
+            fed.send_transaction_event(operation_id).await;
+        });
+    }
+
+    fn subscribe_mintv2_receive(&self, operation_id: OperationId, amount: Amount) {
+        self.spawn_cancellable("subscribe mintv2 receive", move |fed| async move {
+            let Ok(mintv2) = fed.client.mintv2() else {
+                error!("mintv2 module not present");
+                return;
+            };
+            let final_state = match mintv2
+                .await_final_receive_operation_state(operation_id)
+                .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("mintv2 await_final_receive failed: {e:?}");
+                    return;
+                }
+            };
+            match final_state {
+                MintV2FinalReceiveOperationState::Success => {
+                    let _ = fed
+                        .write_success_receive_fedi_fees(operation_id, amount)
+                        .await;
+                }
+                MintV2FinalReceiveOperationState::Rejected => {
+                    let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
+                }
+            }
+            // Outcome is now persisted to the operation log by
+            // outcome_or_updates inside await_final_receive_operation_state,
+            // so we don't need to also stash it in the in-memory map.
+            fed.send_transaction_event(operation_id).await;
+        });
     }
 
     pub async fn subscribe_pay_address(&self, op_id: OperationId) -> Result<()> {
@@ -2303,9 +2825,12 @@ impl FederationV2 {
         assert!(!self.recovering());
 
         let client_config = self.client.config().await;
-        let (mint_instance, cfg) = client_config
-            .get_first_module_by_kind::<MintClientConfig>(fedimint_mint_client::KIND)
-            .expect("mint module must be present in config");
+        let Ok((mint_instance, cfg)) =
+            client_config.get_first_module_by_kind::<MintClientConfig>(fedimint_mint_client::KIND)
+        else {
+            // mintv2-only federations: no blind-nonce reuse concept, skip.
+            return true;
+        };
 
         let mut dbtx = self.client.db().begin_transaction().await;
         let Some(version_set) = dbtx.get_value(&CachedApiVersionSetKey).await else {
@@ -2473,18 +2998,42 @@ impl FederationV2 {
         self.gateway_service.get().context(ErrorCode::Recovery)
     }
 
-    /// List all lightning gateways registered with the federation
+    /// List all lightning gateways registered with the federation.
+    ///
+    /// Returns the union of v2 + v1 gateways when both modules are
+    /// present — the frontend uses this as a "can we do lightning at
+    /// all" guard before payInvoice, and on federations that have lnv2
+    /// loaded but only v1 gateways registered we still need to surface
+    /// the v1 set so the actual payment dispatch (which falls back to
+    /// v1) gets to run.
     pub async fn list_gateways(&self) -> anyhow::Result<Vec<RpcLightningGateway>> {
-        let gateways = self.client.ln()?.list_gateways().await;
-        let bridge_gateways: Vec<RpcLightningGateway> = gateways
-            .into_iter()
-            .map(|gw| RpcLightningGateway {
+        let mut out: Vec<RpcLightningGateway> = Vec::new();
+        if let Ok(lnv2) = self.client.lnv2() {
+            // lnv2 exposes gateways as bare SafeUrls; no public keys until
+            // we call routing_info per gateway. Frontend's existing
+            // RpcLightningGateway expects pubkeys — return URL-only
+            // entries with zeroed pubkeys for now (rough edge).
+            let urls = lnv2.list_gateways(None).await.unwrap_or_default();
+            let zero_pk = PublicKey::from_slice(&[
+                0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 1,
+            ])
+            .expect("valid compressed point");
+            out.extend(urls.into_iter().map(|url| RpcLightningGateway {
+                api: url.to_string(),
+                node_pub_key: RpcPublicKey(zero_pk),
+                gateway_id: RpcPublicKey(zero_pk),
+            }));
+        }
+        if let Ok(ln) = self.client.ln() {
+            let gateways = ln.list_gateways().await;
+            out.extend(gateways.into_iter().map(|gw| RpcLightningGateway {
                 api: gw.info.api.to_string(),
                 node_pub_key: RpcPublicKey(gw.info.node_pub_key),
                 gateway_id: RpcPublicKey(gw.info.gateway_id),
-            })
-            .collect();
-        Ok(bridge_gateways)
+            }));
+        }
+        Ok(out)
     }
 
     /// Set gateway override for this federation. Pass None to clear the
@@ -2510,6 +3059,29 @@ impl FederationV2 {
         ecash: String,
         frontend_meta: FrontendMetadata,
     ) -> Result<(Amount, OperationId)> {
+        if let Ok(mintv2) = self.client.mintv2() {
+            let ecash: MintV2ECash = fedimint_core::base32::decode_prefixed(
+                fedimint_core::base32::FEDIMINT_PREFIX,
+                &ecash,
+            )?;
+            let amount = ecash.amount();
+            let fee_ppms = self
+                .get_fee_ppms_by_stream(
+                    fedimint_mintv2_client::common::KIND,
+                    RpcTransactionDirection::Receive,
+                )
+                .await?;
+            let custom_meta = serde_json::to_value(EcashReceiveMetadata {
+                internal: false,
+                frontend_metadata: Some(frontend_meta),
+            })?;
+            let operation_id = mintv2.receive(ecash, custom_meta).await?;
+            self.write_pending_receive_fedi_fee_ppms(operation_id, &fee_ppms)
+                .await?;
+            let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
+            self.subscribe_to_operation(operation_id).await?;
+            return Ok((amount, operation_id));
+        }
         let ecash = OOBNotes::from_str(&ecash)?;
         let fee_ppms = self
             .get_fee_ppms_by_stream(fedimint_mint_client::KIND, RpcTransactionDirection::Receive)
@@ -2633,6 +3205,56 @@ impl FederationV2 {
         frontend_meta: FrontendMetadata,
     ) -> Result<RpcGenerateEcashResponse> {
         let _guard = self.generate_ecash_lock.lock().await;
+        if let Ok(mintv2) = self.client.mintv2() {
+            // v2 ecash has no invite-code embedding and no operation-log cancel
+            // semantics. We hand back the resulting ECash string immediately;
+            // the synthetic op_id/cancel_at are placeholders.
+            let _ = include_invite;
+            let fees_by_stream = self
+                .get_fee_amounts_by_stream(
+                    fedimint_mintv2_client::common::KIND,
+                    RpcTransactionDirection::Send,
+                    amount,
+                )
+                .await?;
+            let total_fedi_fee_ppm = Self::total_fedi_fee_ppm(
+                &self
+                    .get_fee_ppms_by_stream(
+                        fedimint_mintv2_client::common::KIND,
+                        RpcTransactionDirection::Send,
+                    )
+                    .await?,
+            );
+            let virtual_balance = self.get_balance().await;
+            let fedi_fee = Self::total_fedi_fee_amount(&fees_by_stream);
+            if amount + fedi_fee > virtual_balance {
+                bail!(ErrorCode::InsufficientBalance(RpcAmount(
+                    get_max_spendable_amount(virtual_balance, total_fedi_fee_ppm, None, None)
+                )));
+            }
+            let custom_meta = serde_json::to_value(EcashSendMetadata {
+                internal: false,
+                frontend_metadata: Some(frontend_meta),
+            })?;
+            let ecash = mintv2.send(amount, custom_meta).await?;
+            // v2 has no cancellable spend operation; we still allocate an op_id
+            // so callers have a stable handle, but it's not tied to any op log
+            // entry on the happy path.
+            let synthetic_op_id = OperationId::new_random();
+            let ecash_auto_cancel_duration = match self.get_network() {
+                Some(Network::Bitcoin) | None => ECASH_AUTO_CANCEL_DURATION_MAINNET,
+                _ => ECASH_AUTO_CANCEL_DURATION_MUTINYNET,
+            };
+            let cancel_time = fedimint_core::time::now() + ecash_auto_cancel_duration;
+            return Ok(RpcGenerateEcashResponse {
+                ecash: fedimint_core::base32::encode_prefixed(
+                    fedimint_core::base32::FEDIMINT_PREFIX,
+                    &ecash,
+                ),
+                cancel_at: to_unix_time(cancel_time)?,
+                operation_id: RpcOperationId(synthetic_op_id),
+            });
+        }
         let fees_by_stream = self
             .get_fee_amounts_by_stream(
                 fedimint_mint_client::KIND,
@@ -2748,6 +3370,11 @@ impl FederationV2 {
     }
 
     pub async fn cancel_ecash(&self, ecash: OOBNotes) -> Result<()> {
+        if self.client.mintv2().is_ok() {
+            // v2 ecash cannot be cancelled — once handed out, it's either
+            // redeemed by the recipient or permanently lost.
+            return Ok(());
+        }
         let op_id = spendable_notes_to_operation_id(ecash.notes());
         // NOTE: try_cancel_spend_notes itself is not presisted across restarts.
         // it uses inmemory channel.
@@ -2804,6 +3431,10 @@ impl FederationV2 {
     }
 
     pub async fn repair_wallet(&self) -> Result<()> {
+        if self.client.mintv2().is_ok() {
+            // v2 mint has no repair concept; nothing to do.
+            return Ok(());
+        }
         let mint = self.client.mint()?;
         mint.try_repair_wallet(100).await?;
         Ok(())
@@ -3745,6 +4376,320 @@ impl FederationV2 {
                                 )
                                 .await?
                                 .map(SpendOOBState::into),
+                            // v1 ecash has its own cancel flow; no need to
+                            // surface the notes string for manual reclaim.
+                            oob_notes: None,
+                        };
+                    }
+                }
+            }
+            LIGHTNINGV2_OPERATION_TYPE => {
+                let lnv2_meta: LnV2OperationMeta = entry.try_meta()?;
+                match lnv2_meta {
+                    LnV2OperationMeta::Send(LnV2SendOperationMeta {
+                        invoice,
+                        contract,
+                        custom_meta,
+                        ..
+                    }) => {
+                        let extra_meta = serde_json::from_value::<LightningSendMetadata>(
+                            custom_meta,
+                        )
+                        .unwrap_or(LightningSendMetadata {
+                            is_fedi_fee_remittance: false,
+                            frontend_metadata: None,
+                        });
+                        if extra_meta.is_fedi_fee_remittance {
+                            return Ok(None);
+                        }
+                        frontend_metadata = extra_meta.frontend_metadata;
+                        let invoice_amount = match &invoice {
+                            fedimint_lnv2_client::common::LightningInvoice::Bolt11(inv) => {
+                                Amount::from_msats(inv.amount_milli_satoshis().unwrap_or(0))
+                            }
+                        };
+                        let gateway_fee = contract.amount.saturating_sub(invoice_amount);
+                        transaction_amount = RpcAmount(Amount {
+                            msats: invoice_amount.msats + fedi_fee_msats + gateway_fee.msats,
+                        });
+                        let invoice_str = match &invoice {
+                            fedimint_lnv2_client::common::LightningInvoice::Bolt11(inv) => {
+                                inv.to_string()
+                            }
+                        };
+                        // outcome_or_updates caches the last yielded
+                        // SendOperationState (which carries a preimage in
+                        // Success). FinalSendOperationState is just a
+                        // convenience projection; the on-disk shape is
+                        // SendOperationState.
+                        let state = entry
+                            .try_outcome::<LnV2SendOperationState>()
+                            .ok()
+                            .flatten()
+                            .map(|s| match s {
+                                LnV2SendOperationState::Success(preimage) => LnPayState::Success {
+                                    preimage: hex::encode(preimage),
+                                },
+                                LnV2SendOperationState::Refunded => LnPayState::Refunded {
+                                    gateway_error:
+                                        fedimint_ln_client::pay::GatewayPayError::GatewayInternalError {
+                                            error_code: None,
+                                            error_message: "refunded".into(),
+                                        },
+                                },
+                                LnV2SendOperationState::Failure => LnPayState::UnexpectedError {
+                                    error_message: "lnv2 payment failed".into(),
+                                },
+                                LnV2SendOperationState::Funding => LnPayState::Created,
+                                LnV2SendOperationState::Funded => LnPayState::Funded {
+                                    block_height: 0,
+                                },
+                                LnV2SendOperationState::Refunding => LnPayState::WaitingForRefund {
+                                    error_reason: "refunding".into(),
+                                },
+                            });
+                        transaction_kind = RpcTransactionKind::LnPay {
+                            ln_invoice: invoice_str,
+                            lightning_fees: RpcAmount(gateway_fee),
+                            state: state.map(Into::into),
+                        };
+                    }
+                    LnV2OperationMeta::Receive(LnV2ReceiveOperationMeta {
+                        invoice,
+                        custom_meta,
+                        ..
+                    }) => {
+                        frontend_metadata = serde_json::from_value::<BaseMetadata>(custom_meta)
+                            .unwrap_or_default()
+                            .into();
+                        let (invoice_str, amount_msats) = match &invoice {
+                            fedimint_lnv2_client::common::LightningInvoice::Bolt11(inv) => {
+                                (inv.to_string(), inv.amount_milli_satoshis().unwrap_or(0))
+                            }
+                        };
+                        transaction_amount = RpcAmount(Amount {
+                            msats: amount_msats,
+                        });
+                        let state = entry
+                            .try_outcome::<LnV2ReceiveOperationState>()
+                            .ok()
+                            .flatten()
+                            .map(|s| match s {
+                                LnV2ReceiveOperationState::Claimed => LnReceiveState::Claimed,
+                                LnV2ReceiveOperationState::Expired => LnReceiveState::Canceled {
+                                    reason:
+                                        fedimint_ln_client::receive::LightningReceiveError::Timeout,
+                                },
+                                LnV2ReceiveOperationState::Failure => {
+                                    LnReceiveState::Canceled {
+                                        reason:
+                                            fedimint_ln_client::receive::LightningReceiveError::ClaimRejected,
+                                    }
+                                }
+                                LnV2ReceiveOperationState::Pending => LnReceiveState::Created,
+                                LnV2ReceiveOperationState::Claiming => LnReceiveState::Funded,
+                            });
+                        transaction_kind = RpcTransactionKind::LnReceive {
+                            ln_invoice: invoice_str,
+                            state: state.map(Into::into),
+                        };
+                    }
+                    LnV2OperationMeta::LnurlReceive(_) => return Ok(None),
+                }
+            }
+            MINTV2_OPERATION_TYPE => {
+                let mintv2_meta: MintV2OperationMeta = entry.meta();
+                match mintv2_meta {
+                    MintV2OperationMeta::Send {
+                        ecash, custom_meta, ..
+                    } => {
+                        let extra_meta = serde_json::from_value::<EcashSendMetadata>(custom_meta)
+                            .unwrap_or(EcashSendMetadata {
+                                internal: false,
+                                frontend_metadata: None,
+                            });
+                        if extra_meta.internal {
+                            return Ok(None);
+                        }
+                        frontend_metadata = extra_meta.frontend_metadata;
+                        let amount = fedimint_core::base32::decode_prefixed::<MintV2ECash>(
+                            fedimint_core::base32::FEDIMINT_PREFIX,
+                            &ecash,
+                        )
+                        .map(|e| e.amount())
+                        .unwrap_or(Amount::ZERO);
+                        transaction_amount = RpcAmount(amount + Amount::from_msats(fedi_fee_msats));
+                        // v2 Send is atomic — no operation-log outcome to
+                        // map onto Spend states. Report as final-Success so
+                        // the tx list shows a completed entry. Surface the
+                        // ecash string so the user can copy it from the tx
+                        // detail and manually reclaim/re-share it (v2 ecash
+                        // has no programmatic cancel).
+                        transaction_kind = RpcTransactionKind::OobSend {
+                            state: Some(rpc_types::RpcOOBSpendState::Success),
+                            oob_notes: Some(ecash),
+                        };
+                    }
+                    MintV2OperationMeta::Receive {
+                        ecash, custom_meta, ..
+                    } => {
+                        let extra_meta = serde_json::from_value::<EcashReceiveMetadata>(
+                            custom_meta,
+                        )
+                        .unwrap_or(EcashReceiveMetadata {
+                            internal: false,
+                            frontend_metadata: None,
+                        });
+                        if extra_meta.internal {
+                            return Ok(None);
+                        }
+                        frontend_metadata = extra_meta.frontend_metadata;
+                        let amount = fedimint_core::base32::decode_prefixed::<MintV2ECash>(
+                            fedimint_core::base32::FEDIMINT_PREFIX,
+                            &ecash,
+                        )
+                        .map(|e| e.amount())
+                        .unwrap_or(Amount::ZERO);
+                        transaction_amount = RpcAmount(amount);
+                        let state = entry
+                            .try_outcome::<MintV2FinalReceiveOperationState>()
+                            .ok()
+                            .flatten()
+                            .map(|s| match s {
+                                MintV2FinalReceiveOperationState::Success => {
+                                    rpc_types::RpcOOBReissueState::Done
+                                }
+                                MintV2FinalReceiveOperationState::Rejected => {
+                                    rpc_types::RpcOOBReissueState::Failed {
+                                        error: "rejected by federation".into(),
+                                    }
+                                }
+                            });
+                        transaction_kind = RpcTransactionKind::OobReceive { state };
+                    }
+                    // Internal change-making op — hide from the tx list.
+                    MintV2OperationMeta::Reissue { .. } => return Ok(None),
+                }
+            }
+            WALLETV2_OPERATION_TYPE => {
+                let walletv2_meta: WalletV2OperationMeta = entry.meta();
+                frontend_metadata = None;
+                match walletv2_meta {
+                    WalletV2OperationMeta::Send(WalletV2SendMeta {
+                        address,
+                        value,
+                        fee,
+                        ..
+                    }) => {
+                        // On-chain send debits value + network fee from the
+                        // balance, so display the gross spend (receives below
+                        // show value - fee, the net credited).
+                        transaction_amount =
+                            RpcAmount(Amount::from_msats((value.to_sat() + fee.to_sat()) * 1000));
+                        // Upstream walletv2-client now persists the terminal
+                        // FinalSendOperationState via outcome_or_updates. Read
+                        // it back so we can surface the bitcoin txid on
+                        // Success and a proper error state on Aborted/Failure.
+                        // try_outcome to avoid panicking on a shape mismatch.
+                        let state = entry
+                            .try_outcome::<FinalSendOperationState>()
+                            .ok()
+                            .flatten()
+                            .map(|s| match s {
+                                FinalSendOperationState::Success(txid) => {
+                                    RpcOnchainWithdrawState::Succeeded {
+                                        txid: txid.to_string(),
+                                    }
+                                }
+                                FinalSendOperationState::Aborted => {
+                                    RpcOnchainWithdrawState::Failed {
+                                        error: "aborted by federation".into(),
+                                    }
+                                }
+                                FinalSendOperationState::Failure => {
+                                    RpcOnchainWithdrawState::Failed {
+                                        error: "internal failure".into(),
+                                    }
+                                }
+                            });
+                        // walletv2 only stores the absolute fee in SendMeta;
+                        // derive the sats/kvB rate from the federation's
+                        // configured peg-out tx vbytes (a consensus constant
+                        // for this federation, public on WalletClientConfig).
+                        // Matches v1's `fee.fee_rate.sats_per_kvb` unit. The
+                        // op log entry is walletv2's so the module is
+                        // guaranteed present.
+                        let send_tx_vbytes = self
+                            .client
+                            .config()
+                            .await
+                            .get_first_module_by_kind::<
+                                fedimint_walletv2_client::common::config::WalletClientConfig,
+                            >(fedimint_walletv2_client::common::KIND)
+                            .map(|(_, cfg)| cfg.send_tx_vbytes)
+                            .unwrap_or(0);
+                        let fee_rate_sats_per_kvb = if send_tx_vbytes > 0 {
+                            fee.to_sat().saturating_mul(1000) / send_tx_vbytes
+                        } else {
+                            0
+                        };
+                        transaction_kind = RpcTransactionKind::OnchainWithdraw {
+                            onchain_address: address.assume_checked().to_string(),
+                            onchain_fees: RpcAmount(Amount::from_sats(fee.to_sat())),
+                            onchain_fee_rate: fee_rate_sats_per_kvb,
+                            state,
+                        };
+                    }
+                    WalletV2OperationMeta::Receive(WalletV2ReceiveMeta {
+                        value,
+                        fee,
+                        address,
+                        outpoint,
+                        ..
+                    }) => {
+                        let net_sats = value.to_sat().saturating_sub(fee.to_sat());
+                        transaction_amount = RpcAmount(Amount::from_msats(net_sats * 1000));
+                        // v2 receive op-log entries are created by the
+                        // output-scanner once funds are spotted on-chain;
+                        // the terminal state is persisted to the op log by
+                        // await_final_receive_operation_state. No outcome
+                        // yet means the claim is still in flight ==
+                        // Confirmed. address/outpoint are None on entries
+                        // persisted before fedimint#8646.
+                        let tx_data = RpcOnchainDepositTransactionData::new(
+                            &outpoint.unwrap_or(bitcoin::OutPoint::null()),
+                        );
+                        let state = match entry
+                            .try_outcome::<WalletV2FinalReceiveOperationState>()
+                            .ok()
+                            .flatten()
+                        {
+                            Some(WalletV2FinalReceiveOperationState::Success) => {
+                                RpcOnchainDepositState::Claimed(tx_data)
+                            }
+                            Some(WalletV2FinalReceiveOperationState::Aborted) => {
+                                RpcOnchainDepositState::Failed
+                            }
+                            None => {
+                                // Scanner-created ops that completed without
+                                // a live subscriber (mid-session detection)
+                                // have no persisted outcome yet. Subscribe
+                                // lazily: completed ops resolve immediately
+                                // and persist their outcome for the next
+                                // listing.
+                                self.subscribe_walletv2_receive(
+                                    operation_id,
+                                    Amount::from_msats(net_sats * 1000),
+                                );
+                                RpcOnchainDepositState::Confirmed(tx_data)
+                            }
+                        };
+                        transaction_kind = RpcTransactionKind::OnchainDeposit {
+                            onchain_address: address
+                                .map(|address| address.assume_checked().to_string())
+                                .unwrap_or_default(),
+                            peg_in_fees: RpcAmount(Amount::from_sats(fee.to_sat())),
+                            state: Some(state),
                         };
                     }
                 }
@@ -4729,6 +5674,13 @@ impl FederationV2 {
     pub async fn generate_reused_ecash_proofs(
         &self,
     ) -> anyhow::Result<SerializedReusedEcashProofs> {
+        if self.client.mintv2().is_ok() {
+            // v2 mint has no reused-note concept.
+            return Ok(SerializedReusedEcashProofs {
+                total_amount_msats: Amount::ZERO,
+                reused_ecash_proofs: Vec::new(),
+            });
+        }
         reused_ecash_proofs::generate(&*self.client.mint()?).await
     }
 
@@ -5414,7 +6366,11 @@ impl FederationV2 {
         Ok(spv2.api.account_sync(account_id).await?)
     }
 
-    pub async fn get_recurringd_api(&self) -> Option<SafeUrl> {
+    /// v1 lightning's recurringd URL — only used when the federation has
+    /// explicitly configured one (env var or meta field). v1 has no
+    /// safe default; if none is configured, lnurl is not available on
+    /// the v1 path.
+    pub async fn get_recurringd_api_v1(&self) -> Option<SafeUrl> {
         if let Ok(url) = std::env::var("TEST_BRIDGE_RECURRINGD_API")
             && let Ok(url) = SafeUrl::from_str(&url)
         {
@@ -5428,9 +6384,52 @@ impl FederationV2 {
             .and_then(|x| x.value)
     }
 
+    /// v2 lightning's recurringd URL — always the Fedi-operated v2
+    /// service. Federation meta/env overrides do not apply on the v2
+    /// path because they point at v1-protocol recurringd instances.
+    pub fn get_recurringd_api_v2() -> SafeUrl {
+        SafeUrl::from_str("https://lnurl.fedimint.org/")
+            .expect("hardcoded recurringd v2 URL is valid")
+    }
+
+    /// True if either lightning module can produce an lnurl right now:
+    /// v2 is always able to (uses the hardcoded default); v1 only when
+    /// the federation has configured a recurringd URL.
+    pub async fn supports_recurringd_lnurl(&self) -> bool {
+        if self.client.lnv2().is_ok() {
+            return true;
+        }
+        self.get_recurringd_api_v1().await.is_some()
+    }
+
     /// Either register or get the lnurl.
-    pub async fn get_recurringd_lnurl(&self, recurringd_api: SafeUrl) -> anyhow::Result<String> {
+    /// Either register or get the lnurl. Picks the v2 path (with the
+    /// hardcoded v2 recurringd URL) when lnv2 is present, falling back
+    /// to v1 only when the federation has explicitly configured a v1
+    /// recurringd URL via meta/env.
+    pub async fn get_recurringd_lnurl(&self) -> anyhow::Result<String> {
+        if let Ok(lnv2) = self.client.lnv2() {
+            match lnv2
+                .generate_lnurl(Self::get_recurringd_api_v2(), None)
+                .await
+            {
+                Ok(lnurl) => return Ok(lnurl),
+                Err(e) => {
+                    // Fall back to v1 only if v1 has a real recurringd
+                    // URL configured — the v2 default is v1-incompatible.
+                    if self.client.ln().is_err() || self.get_recurringd_api_v1().await.is_none() {
+                        return Err(e.into());
+                    }
+                    warn!("lnv2.generate_lnurl failed, falling back to v1 lightning: {e}");
+                    // fall through to v1 below
+                }
+            }
+        }
         let ln = self.client.ln()?;
+        let recurringd_api = self
+            .get_recurringd_api_v1()
+            .await
+            .context(ErrorCode::RecurringdMetaNotFound)?;
         if let Some(payment_code) = ln
             .list_recurring_payment_codes()
             .await

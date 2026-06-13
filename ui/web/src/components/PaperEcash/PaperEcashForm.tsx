@@ -86,8 +86,12 @@ export const PaperEcashForm: React.FC<Props> = ({ onChangeEcashPapers }) => {
                     paymentFederation.id,
                     includeInvite,
                 )
+                // v2 mintv2 ecash is base32-prefixed ("fedimint…"), not base64.
+                const isV2 = ecash.toLowerCase().startsWith('fedimint')
                 const frames = dataToFrames(
-                    isOptimizedQr ? Buffer.from(ecash, 'base64') : ecash,
+                    !isV2 && isOptimizedQr
+                        ? Buffer.from(ecash, 'base64')
+                        : ecash,
                 )
                 ecashPapers.push({ ecash, frames, amount })
             }

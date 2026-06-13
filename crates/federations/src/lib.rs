@@ -267,16 +267,40 @@ impl Federations {
     }
 
     pub async fn validate_ecash(&self, ecash: String) -> anyhow::Result<RpcEcashInfo> {
-        let oob = OOBNotes::from_str(&ecash)?;
-        let id = self.find_federation_id_for_prefix(oob.federation_id_prefix());
+        if let Ok(oob) = OOBNotes::from_str(&ecash) {
+            let id = self.find_federation_id_for_prefix(oob.federation_id_prefix());
+            return match id {
+                Some(id) => Ok(RpcEcashInfo::Joined {
+                    federation_id: RpcFederationId(id),
+                    amount: RpcAmount(oob.total_amount()),
+                }),
+                None => Ok(RpcEcashInfo::NotJoined {
+                    federation_invite: oob.federation_invite().map(|invite| invite.to_string()),
+                    amount: RpcAmount(oob.total_amount()),
+                }),
+            };
+        }
+        // Try mintv2 ECash (base32-prefixed, no embedded invite code).
+        let v2 = fedimint_core::base32::decode_prefixed::<fedimint_mintv2_client::ECash>(
+            fedimint_core::base32::FEDIMINT_PREFIX,
+            &ecash,
+        )?;
+        let amount = RpcAmount(v2.amount());
+        let id = v2.mint().and_then(|fid| {
+            self.get_federations_map()
+                .keys()
+                .find(|k| **k == fid.to_string())
+                .cloned()
+        });
         match id {
             Some(id) => Ok(RpcEcashInfo::Joined {
                 federation_id: RpcFederationId(id),
-                amount: RpcAmount(oob.total_amount()),
+                amount,
             }),
             None => Ok(RpcEcashInfo::NotJoined {
-                federation_invite: oob.federation_invite().map(|invite| invite.to_string()),
-                amount: RpcAmount(oob.total_amount()),
+                // v2 ECash format carries no invite code (see rough edge #8).
+                federation_invite: None,
+                amount,
             }),
         }
     }

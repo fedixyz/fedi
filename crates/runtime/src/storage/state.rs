@@ -593,6 +593,9 @@ impl Default for FediFeeSchedule {
                 receive_ppm: 0,
             },
         );
+        // v2 modules (walletv2/mintv2/lnv2) are intentionally not seeded here:
+        // get_fee_ppm maps them to their v1 counterpart's fee, so they need no
+        // entry of their own.
         Self {
             remittance_threshold_msat: 100_000,
             modules,
