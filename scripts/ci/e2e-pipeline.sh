@@ -460,7 +460,7 @@ run_pipeline_ios() {
     if [ -z "${SKIP_BRIDGE:-}" ]; then
         run_async bridge \
             nix develop -L .#xcode --command env HOME="$HOME" \
-                BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci \
+                BRIDGE_TARGETS_TO_BUILD=aarch64-apple-ios-sim CARGO_PROFILE=ci \
                 bash "$REPO_ROOT/scripts/ci/run-in-fs-dir-cache.sh" \
                 build-bridge-ios \
                 "$REPO_ROOT/scripts/bridge/build-bridge-ios.sh"

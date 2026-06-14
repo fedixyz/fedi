@@ -24,6 +24,8 @@ cd $BRIDGE_ROOT
 TARGETS=("aarch64-apple-ios-sim" "x86_64-apple-ios")
 if [ "${BUILD_ALL_BRIDGE_TARGETS:-}" == "1" ]; then
   TARGETS=("aarch64-apple-ios-sim" "aarch64-apple-ios" "x86_64-apple-ios")
+elif [ -n "${BRIDGE_TARGETS_TO_BUILD:-}" ]; then
+  read -ra TARGETS <<< "${BRIDGE_TARGETS_TO_BUILD}"
 fi
 echo "Building iOS bridge for targets: ${TARGETS[*]} with profile: ${CARGO_PROFILE}"
 
