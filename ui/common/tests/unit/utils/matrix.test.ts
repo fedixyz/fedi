@@ -22,10 +22,18 @@ import {
     stripReplyFromBody,
     getRoomPreviewText,
     canAddMatrixReaction,
+    canReplyToMatrixEvent,
     makeMatrixReactionChips,
+    makeMatrixReactionUsers,
 } from '../../../utils/matrix'
 import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
-import { createMockNonPaymentEvent } from '../../mock-data/matrix-event'
+import {
+    createMockNonPaymentEvent,
+    createMockPaymentEvent,
+    mockMatrixEventFile,
+    mockMatrixEventImage,
+    mockMatrixEventVideo,
+} from '../../mock-data/matrix-event'
 import { createMockT } from '../../utils/setup'
 
 describe('encodeFediMatrixUserUri', () => {
@@ -483,6 +491,38 @@ describe('canAddMatrixReaction', () => {
     })
 })
 
+describe('canReplyToMatrixEvent', () => {
+    it('allows text, notice, and emote events', () => {
+        const makeTextLikeEvent = (
+            msgtype: 'm.text' | 'm.notice' | 'm.emote',
+        ) => {
+            const event = createMockNonPaymentEvent()
+
+            return {
+                ...event,
+                content: {
+                    ...event.content,
+                    msgtype,
+                },
+            } as MatrixEvent
+        }
+
+        expect(canReplyToMatrixEvent(makeTextLikeEvent('m.text'))).toBe(true)
+        expect(canReplyToMatrixEvent(makeTextLikeEvent('m.notice'))).toBe(true)
+        expect(canReplyToMatrixEvent(makeTextLikeEvent('m.emote'))).toBe(true)
+    })
+
+    it('allows media events', () => {
+        expect(canReplyToMatrixEvent(mockMatrixEventImage)).toBe(true)
+        expect(canReplyToMatrixEvent(mockMatrixEventVideo)).toBe(true)
+        expect(canReplyToMatrixEvent(mockMatrixEventFile)).toBe(true)
+    })
+
+    it('blocks unsupported event types', () => {
+        expect(canReplyToMatrixEvent(createMockPaymentEvent())).toBe(false)
+    })
+})
+
 describe('makeMatrixReactionChips', () => {
     it('preserves reacting user ids for reaction detail views', () => {
         expect(
@@ -502,6 +542,48 @@ describe('makeMatrixReactionChips', () => {
                 count: 2,
                 reactedByMe: true,
                 userIds: ['@self:test', '@alice:test'],
+            },
+        ])
+    })
+})
+
+describe('makeMatrixReactionUsers', () => {
+    it('resolves members and sorts the current user first', () => {
+        expect(
+            makeMatrixReactionUsers({
+                reaction: {
+                    userIds: ['@alice:test', '@self:test', '@unknown:test'],
+                },
+                memberMap: {
+                    '@alice:test': {
+                        id: '@alice:test',
+                        displayName: 'Alice',
+                        avatarUrl: undefined,
+                    },
+                    '@self:test': {
+                        id: '@self:test',
+                        displayName: 'Self',
+                        avatarUrl: undefined,
+                    },
+                },
+                myId: '@self:test',
+            }),
+        ).toEqual([
+            {
+                id: '@self:test',
+                displayName: 'Self',
+                avatarUrl: undefined,
+            },
+            {
+                id: '@alice:test',
+                displayName: 'Alice',
+                avatarUrl: undefined,
+            },
+            {
+                id: '@unknown:test',
+                displayName: 'unknown',
+                avatarUrl: undefined,
+                membership: 'join',
             },
         ])
     })

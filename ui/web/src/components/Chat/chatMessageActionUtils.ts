@@ -1,19 +1,13 @@
 import { MatrixEvent } from '@fedi/common/types'
-import {
-    isFileEvent,
-    isImageEvent,
-    isVideoEvent,
-} from '@fedi/common/utils/matrix'
-
-export function canReplyToEvent(event: MatrixEvent) {
-    return (
-        ['m.text', 'm.notice', 'm.emote'].includes(event.content.msgtype) ||
-        isImageEvent(event) ||
-        isVideoEvent(event) ||
-        isFileEvent(event)
-    )
-}
+import { canReplyToMatrixEvent } from '@fedi/common/utils/matrix'
 
 export function hasMessageActions(event: MatrixEvent) {
-    return canReplyToEvent(event)
+    return canReplyToMatrixEvent(event)
+}
+
+export function hasReactionActions(
+    event: MatrixEvent,
+    reactionsEnabled: boolean,
+) {
+    return reactionsEnabled && canReplyToMatrixEvent(event) && event.canReact
 }

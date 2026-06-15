@@ -1,7 +1,11 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
+import {
+    selectMatrixAuth,
+    selectMatrixRoomMembers,
+    selectMessageReactionsEnabled,
+} from '@fedi/common/redux'
 import { MatrixEvent, ReplyMessageData } from '@fedi/common/types'
 import {
     isCommunityInviteEvent,
@@ -15,11 +19,13 @@ import {
     isRoomMemberEvent,
     isTextEvent,
     isVideoEvent,
+    makeMatrixReactionChips,
     matrixIdToUsername,
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
+import { Column } from '../Flex'
 import { ChatCommunityInviteEvent } from './ChatCommunityInviteEvent'
 import { ChatFederationInviteEvent } from './ChatFederationInviteEvent'
 import { ChatFileEvent } from './ChatFileEvent'
@@ -27,6 +33,7 @@ import { ChatFormEvent } from './ChatFormEvent'
 import { ChatImageEvent } from './ChatImageEvent'
 import { ChatPaymentEvent } from './ChatPaymentEvent'
 import { ChatPollEvent } from './ChatPollEvent'
+import { ChatReactions } from './ChatReactions'
 import { ChatRepliedMessage } from './ChatRepliedMessage'
 import { ChatRoomMemberEvent } from './ChatRoomMemberEvent'
 import { ChatSwipeableEventContainer } from './ChatSwipeableEventContainer'
@@ -36,17 +43,52 @@ import { ChatVideoEvent } from './ChatVideoEvent'
 interface Props {
     event: MatrixEvent
     onReplyTap?: (eventId: string) => void
+    onAddReaction?: (event: MatrixEvent) => void
+    onReactionPress?: (event: MatrixEvent, reactionKey: string) => void
 }
 
-export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
+export const ChatEvent: React.FC<Props> = ({
+    event,
+    onReplyTap,
+    onAddReaction,
+    onReactionPress,
+}) => {
     const { t } = useTranslation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
+    const messageReactionsEnabled = useAppSelector(
+        selectMessageReactionsEnabled,
+    )
     const roomMembers = useAppSelector(s => {
         if (!event.roomId) return []
         const members = selectMatrixRoomMembers(s, event.roomId)
         return members || []
     })
     const isMe = event.sender === matrixAuth?.userId
+    const reactionChips = makeMatrixReactionChips(
+        event.reactions,
+        matrixAuth?.userId,
+    )
+
+    const renderReactions = () => {
+        if (!messageReactionsEnabled) return null
+
+        return (
+            <ChatReactions
+                isMe={isMe}
+                reactions={reactionChips}
+                onAddReaction={
+                    event.canReact && onAddReaction
+                        ? () => onAddReaction(event)
+                        : undefined
+                }
+                onReactionPress={
+                    event.canReact && onReactionPress
+                        ? reaction => onReactionPress(event, reaction.key)
+                        : undefined
+                }
+            />
+        )
+    }
 
     if (isJoinedRoomMemberEvent(event)) {
         return <ChatRoomMemberEvent event={event} />
@@ -59,9 +101,12 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
     if (isImageEvent(event)) {
         return (
             <ChatSwipeableEventContainer event={event} isMe={isMe}>
-                <AttachmentContent isMe={isMe}>
-                    <ChatImageEvent event={event} />
-                </AttachmentContent>
+                <AttachmentStack isMe={isMe}>
+                    <AttachmentContent isMe={isMe}>
+                        <ChatImageEvent event={event} />
+                    </AttachmentContent>
+                    {renderReactions()}
+                </AttachmentStack>
             </ChatSwipeableEventContainer>
         )
     }
@@ -69,9 +114,12 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
     if (isVideoEvent(event)) {
         return (
             <ChatSwipeableEventContainer event={event} isMe={isMe}>
-                <AttachmentContent isMe={isMe}>
-                    <ChatVideoEvent event={event} />
-                </AttachmentContent>
+                <AttachmentStack isMe={isMe}>
+                    <AttachmentContent isMe={isMe}>
+                        <ChatVideoEvent event={event} />
+                    </AttachmentContent>
+                    {renderReactions()}
+                </AttachmentStack>
             </ChatSwipeableEventContainer>
         )
     }
@@ -79,9 +127,12 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
     if (isFileEvent(event)) {
         return (
             <ChatSwipeableEventContainer event={event} isMe={isMe}>
-                <AttachmentContent isMe={isMe}>
-                    <ChatFileEvent event={event} />
-                </AttachmentContent>
+                <AttachmentStack isMe={isMe}>
+                    <AttachmentContent isMe={isMe}>
+                        <ChatFileEvent event={event} />
+                    </AttachmentContent>
+                    {renderReactions()}
+                </AttachmentStack>
             </ChatSwipeableEventContainer>
         )
     }
@@ -96,17 +147,20 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
 
         return (
             <ChatSwipeableEventContainer event={event} isMe={isMe}>
-                <TextContent isMe={isMe} showSpeechBubble>
-                    {!!replyData && (
-                        <ChatRepliedMessage
-                            data={replyData}
-                            isMe={isMe}
-                            senderName={senderName}
-                            onReplyTap={onReplyTap}
-                        />
-                    )}
-                    <ChatTextEvent event={event} />
-                </TextContent>
+                <Column fullWidth align={isMe ? 'end' : 'start'}>
+                    <TextContent isMe={isMe} showSpeechBubble>
+                        {!!replyData && (
+                            <ChatRepliedMessage
+                                data={replyData}
+                                isMe={isMe}
+                                senderName={senderName}
+                                onReplyTap={onReplyTap}
+                            />
+                        )}
+                        <ChatTextEvent event={event} />
+                    </TextContent>
+                    {renderReactions()}
+                </Column>
             </ChatSwipeableEventContainer>
         )
     }
@@ -114,26 +168,35 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
     if (isPollEvent(event)) {
         return (
             <ChatSwipeableEventContainer event={event} isMe={isMe}>
-                <TextContent isMe={isMe} isPoll>
-                    <ChatPollEvent event={event} isMe={isMe} />
-                </TextContent>
+                <Column fullWidth align={isMe ? 'end' : 'start'}>
+                    <TextContent isMe={isMe} isPoll>
+                        <ChatPollEvent event={event} isMe={isMe} />
+                    </TextContent>
+                    {renderReactions()}
+                </Column>
             </ChatSwipeableEventContainer>
         )
     }
 
     if (isFederationInviteEvent(event)) {
         return (
-            <TextContent isMe={isMe}>
-                <ChatFederationInviteEvent event={event} isMe={isMe} />
-            </TextContent>
+            <Column fullWidth align={isMe ? 'end' : 'start'}>
+                <TextContent isMe={isMe}>
+                    <ChatFederationInviteEvent event={event} isMe={isMe} />
+                </TextContent>
+                {renderReactions()}
+            </Column>
         )
     }
 
     if (isCommunityInviteEvent(event)) {
         return (
-            <TextContent isMe={isMe}>
-                <ChatCommunityInviteEvent event={event} isMe={isMe} />
-            </TextContent>
+            <Column fullWidth align={isMe ? 'end' : 'start'}>
+                <TextContent isMe={isMe}>
+                    <ChatCommunityInviteEvent event={event} isMe={isMe} />
+                </TextContent>
+                {renderReactions()}
+            </Column>
         )
     }
 
@@ -146,19 +209,39 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
     )
 
     return (
-        <TextContent
-            isMe={isMe}
-            isPayment={isPaymentEvent(event)}
-            isForm={isFormEvent(event)}>
-            {content}
-        </TextContent>
+        <Column fullWidth align={isMe ? 'end' : 'start'}>
+            <TextContent
+                isMe={isMe}
+                isPayment={isPaymentEvent(event)}
+                isForm={isFormEvent(event)}>
+                {content}
+            </TextContent>
+            {renderReactions()}
+        </Column>
     )
 }
+
+const AttachmentStack = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    width: '90%',
+
+    variants: {
+        isMe: {
+            true: {
+                alignItems: 'flex-end',
+            },
+            false: {
+                alignItems: 'flex-start',
+            },
+        },
+    },
+})
 
 const AttachmentContent = styled('div', {
     display: 'flex',
     flexDirection: 'row-reverse',
-    width: '90%',
+    width: '100%',
 
     variants: {
         isMe: {

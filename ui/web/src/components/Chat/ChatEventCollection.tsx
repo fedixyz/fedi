@@ -17,6 +17,8 @@ interface Props {
     collection: MatrixEvent[][]
     showUsernames?: boolean
     onReplyTap?: (eventId: string) => void
+    onAddReaction?: (event: MatrixEvent) => void
+    onReactionPress?: (event: MatrixEvent, reactionKey: string) => void
 }
 
 export const ChatEventCollection: React.FC<Props> = ({
@@ -24,6 +26,8 @@ export const ChatEventCollection: React.FC<Props> = ({
     collection,
     showUsernames,
     onReplyTap,
+    onAddReaction,
+    onReactionPress,
 }) => {
     const { t } = useTranslation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
@@ -70,6 +74,10 @@ export const ChatEventCollection: React.FC<Props> = ({
                                             <ChatEvent
                                                 event={event}
                                                 onReplyTap={onReplyTap}
+                                                onAddReaction={onAddReaction}
+                                                onReactionPress={
+                                                    onReactionPress
+                                                }
                                             />
                                         </ErrorBoundary>
                                     ))}

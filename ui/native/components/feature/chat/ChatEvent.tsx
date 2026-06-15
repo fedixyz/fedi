@@ -7,7 +7,7 @@ import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    selectFeatureFlag,
+    selectMessageReactionsEnabled,
     selectMatrixAuth,
     toggleMatrixReaction,
 } from '@fedi/common/redux'
@@ -92,8 +92,8 @@ const ChatEvent: React.FC<Props> = ({
         string | null
     >(null)
     const [reactingEmoji, setReactingEmoji] = useState<string | null>(null)
-    const messageReactionsEnabled = !!useAppSelector(s =>
-        selectFeatureFlag(s, 'message_reactions'),
+    const messageReactionsEnabled = useAppSelector(
+        selectMessageReactionsEnabled,
     )
 
     const isMe =

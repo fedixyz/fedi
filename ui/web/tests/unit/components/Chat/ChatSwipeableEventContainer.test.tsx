@@ -8,10 +8,12 @@ import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
 import { ChatSwipeableEventContainer } from '../../../../src/components/Chat/ChatSwipeableEventContainer'
 
 const mockDispatch = jest.fn().mockReturnValue(undefined)
+const mockUseAppSelector = jest.fn().mockReturnValue(undefined)
 jest.mock('../../../../src/hooks', () => ({
     ...jest.requireActual('../../../../src/hooks'),
     useAppDispatch: () => mockDispatch,
-    useAppSelector: jest.fn().mockReturnValue(undefined),
+    useAppSelector: (selector: (state: unknown) => unknown) =>
+        mockUseAppSelector(selector),
 }))
 jest.mock('../../../../src/components/Chat/ChatMessageActionsDrawer', () => ({
     ChatMessageActionsDrawer: ({ open }: { open: boolean }) =>
@@ -46,6 +48,18 @@ const mockPollEvent: MatrixEvent<'m.poll'> = {
         votes: {},
         endTime: null,
         hasBeenEdited: false,
+    },
+}
+const mockReactablePollEvent: MatrixEvent<'m.poll'> = {
+    ...mockPollEvent,
+    canReact: true,
+}
+
+const stateWithMessageReactions = {
+    environment: {
+        featureFlags: {
+            message_reactions: {},
+        },
     },
 }
 
@@ -161,6 +175,9 @@ async function simulateTouchGesture(
 describe('ChatSwipeableEventContainer', () => {
     beforeEach(() => {
         jest.clearAllMocks()
+        mockUseAppSelector.mockImplementation(selector =>
+            selector({ environment: { featureFlags: undefined } }),
+        )
         jest.useFakeTimers()
         jest.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
             cb(0)
@@ -376,6 +393,73 @@ describe('ChatSwipeableEventContainer', () => {
         expect(getByText('message actions drawer')).toBeInTheDocument()
     })
 
+    it('should preserve the native context menu on media elements', async () => {
+        const { container, queryByText } = render(
+            <ChatSwipeableEventContainer event={mockEvent} dragThreshold={60}>
+                <img alt="Test attachment" src="/attachment.png" />
+            </ChatSwipeableEventContainer>,
+        )
+
+        const media = container.querySelector('img') as HTMLImageElement
+        const contextMenuEvent = new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+        })
+
+        await act(async () => {
+            media.dispatchEvent(contextMenuEvent)
+        })
+
+        expect(contextMenuEvent.defaultPrevented).toBe(false)
+        expect(queryByText('message actions drawer')).not.toBeInTheDocument()
+    })
+
+    it('should not open message actions after a touch long press on media elements', async () => {
+        const { container, queryByText } = render(
+            <ChatSwipeableEventContainer event={mockEvent} dragThreshold={60}>
+                <img alt="Test attachment" src="/attachment.png" />
+            </ChatSwipeableEventContainer>,
+        )
+
+        const media = container.querySelector('img') as HTMLImageElement
+
+        await act(async () => {
+            media.dispatchEvent(
+                createPointerEvent('pointerdown', {
+                    clientX: 200,
+                    clientY: 300,
+                    pointerType: 'touch',
+                }),
+            )
+            jest.advanceTimersByTime(500)
+        })
+
+        expect(queryByText('message actions drawer')).not.toBeInTheDocument()
+    })
+
+    it('should open message actions after a mouse long press on media elements', async () => {
+        const { container, getByText } = render(
+            <ChatSwipeableEventContainer event={mockEvent} dragThreshold={60}>
+                <img alt="Test attachment" src="/attachment.png" />
+            </ChatSwipeableEventContainer>,
+        )
+
+        const media = container.querySelector('img') as HTMLImageElement
+
+        await act(async () => {
+            media.dispatchEvent(
+                createPointerEvent('pointerdown', {
+                    clientX: 200,
+                    clientY: 300,
+                    pointerType: 'mouse',
+                }),
+            )
+            jest.advanceTimersByTime(500)
+        })
+
+        expect(getByText('message actions drawer')).toBeInTheDocument()
+    })
+
     it('should not open message actions or suppress context menu when no actions are available', async () => {
         const { container, queryByText } = render(
             <ChatSwipeableEventContainer
@@ -421,6 +505,32 @@ describe('ChatSwipeableEventContainer', () => {
             jest.advanceTimersByTime(500)
         })
 
+        expect(queryByText('message actions drawer')).not.toBeInTheDocument()
+    })
+
+    it('should not open reaction actions for polls even when reactions are enabled', async () => {
+        mockUseAppSelector.mockImplementation(selector =>
+            selector(stateWithMessageReactions),
+        )
+        const { container, queryByText } = render(
+            <ChatSwipeableEventContainer
+                event={mockReactablePollEvent}
+                dragThreshold={60}>
+                <span>Poll message</span>
+            </ChatSwipeableEventContainer>,
+        )
+
+        const swipeContainer = container.firstElementChild as HTMLElement
+        const contextMenuEvent = new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+        })
+
+        await act(async () => {
+            swipeContainer.dispatchEvent(contextMenuEvent)
+        })
+
+        expect(contextMenuEvent.defaultPrevented).toBe(false)
         expect(queryByText('message actions drawer')).not.toBeInTheDocument()
     })
 

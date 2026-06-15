@@ -16,7 +16,7 @@ import {
     setMessageToEdit,
     setSelectedChatMessage,
     setChatReplyingToMessage,
-    selectFeatureFlag,
+    selectMessageReactionsEnabled,
     toggleMatrixReaction,
 } from '@fedi/common/redux'
 import {
@@ -47,8 +47,8 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     const { theme } = useTheme()
     const toast = useToast()
     const fedimint = useFedimint()
-    const messageReactionsEnabled = !!useAppSelector(s =>
-        selectFeatureFlag(s, 'message_reactions'),
+    const messageReactionsEnabled = useAppSelector(
+        selectMessageReactionsEnabled,
     )
     const [reactingEmoji, setReactingEmoji] = useState<string | null>(null)
     const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)

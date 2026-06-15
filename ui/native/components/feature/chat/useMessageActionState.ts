@@ -3,6 +3,7 @@ import { TFunction } from 'i18next'
 import { useDeleteMessage, usePinMessage } from '@fedi/common/hooks/matrix'
 import { selectMatrixAuth } from '@fedi/common/redux'
 import {
+    canReplyToMatrixEvent,
     isFileEvent,
     isImageEvent,
     isTextEvent,
@@ -39,12 +40,7 @@ export function useMessageActionState({
         onSuccess,
     })
 
-    const canReply =
-        !!message &&
-        (['m.text', 'm.notice', 'm.emote'].includes(message.content.msgtype) ||
-            isImageEvent(message) ||
-            isVideoEvent(message) ||
-            isFileEvent(message))
+    const canReply = !!message && canReplyToMatrixEvent(message)
 
     const canCopy = message?.content.msgtype === 'm.text'
     const canEdit = !!message && isMe && isTextEvent(message)

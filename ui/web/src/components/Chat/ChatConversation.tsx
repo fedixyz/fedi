@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import {
+    selectMatrixAuth,
     selectMatrixRoom,
     selectMatrixUser,
     selectMatrixRoomEvents,
@@ -13,6 +14,7 @@ import { makeChatConversationRows } from '@fedi/common/utils/chatConversationRow
 import {
     isJoinedRoomMemberEvent,
     isRoomMemberEvent,
+    makeMatrixReactionChips,
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector, useDeviceQuery } from '../../hooks'
@@ -24,7 +26,10 @@ import * as Layout from '../Layout'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatConversationEventRow } from './ChatConversationEventRow'
+import { ChatReactionDetailsDrawer } from './ChatReactionDetailsDrawer'
+import { MatrixReactionEmojiPickerDrawer } from './MatrixReactionEmojiPickerDrawer'
 import { MessageInput } from './MessageInput'
+import { useMatrixReactionHandler } from './useMatrixReactionHandler'
 
 const HIGHLIGHT_DURATION = 3000
 const PAGINATION_THRESHOLD_PX = 80
@@ -57,10 +62,18 @@ export const ChatConversation: React.FC<Props> = ({
     const room = useAppSelector(s => selectMatrixRoom(s, id))
     const user = useAppSelector(s => selectMatrixUser(s, id))
     const events = useAppSelector(s => selectMatrixRoomEvents(s, id))
+    const matrixAuth = useAppSelector(selectMatrixAuth)
     const [height, setHeight] = useState<number>()
     const [highlightedMessageId, setHighlightedMessageId] = useState<
         string | null
     >(null)
+    const [emojiPickerEventId, setEmojiPickerEventId] = useState<string | null>(
+        null,
+    )
+    const [selectedReaction, setSelectedReaction] = useState<{
+        eventId: string
+        reactionKey: string
+    } | null>(null)
     const {
         isPaginating,
         canPaginateFurther,
@@ -74,6 +87,7 @@ export const ChatConversation: React.FC<Props> = ({
     const paginationPendingRef = useRef(false)
 
     const { isIOS } = useDeviceQuery()
+    const { handleReaction, reactingEmoji } = useMatrixReactionHandler()
 
     const visibleEvents = useMemo(
         () =>
@@ -86,6 +100,50 @@ export const ChatConversation: React.FC<Props> = ({
     const chatRows = useMemo(
         () => makeChatConversationRows(visibleEvents, type),
         [visibleEvents, type],
+    )
+    const emojiPickerEvent =
+        events.find(event => event.id === emojiPickerEventId) || null
+    const selectedReactionEvent =
+        events.find(event => event.id === selectedReaction?.eventId) || null
+    const selectedReactionChips = makeMatrixReactionChips(
+        selectedReactionEvent?.reactions,
+        matrixAuth?.userId,
+    )
+
+    const handleReactionDetailsToggle = useCallback(
+        async (reactionKey: string) => {
+            if (!selectedReactionEvent) return
+
+            const reaction = selectedReactionChips.find(
+                chip => chip.key === reactionKey,
+            )
+            const didToggle = await handleReaction({
+                event: selectedReactionEvent,
+                reactionKey,
+                onSuccess: () => setEmojiPickerEventId(null),
+            })
+            if (!didToggle) return
+
+            if (
+                !reaction ||
+                (selectedReactionChips.length === 1 && reaction.count <= 1)
+            ) {
+                setSelectedReaction(null)
+                return
+            }
+
+            if (reaction.count <= 1) {
+                const nextReactionKey = selectedReactionChips.find(
+                    chip => chip.key !== reactionKey,
+                )?.key
+
+                setSelectedReaction({
+                    eventId: selectedReactionEvent.id,
+                    reactionKey: nextReactionKey || reactionKey,
+                })
+            }
+        },
+        [handleReaction, selectedReactionChips, selectedReactionEvent],
     )
 
     // this useEffect is required to handle
@@ -199,6 +257,15 @@ export const ChatConversation: React.FC<Props> = ({
                             {...row}
                             highlightedMessageId={highlightedMessageId}
                             onReplyTap={scrollToMessage}
+                            onAddReaction={event =>
+                                setEmojiPickerEventId(event.id)
+                            }
+                            onReactionPress={(event, reactionKey) =>
+                                setSelectedReaction({
+                                    eventId: event.id,
+                                    reactionKey,
+                                })
+                            }
                         />
                     ))}
                     <PaginationPlaceholder>
@@ -212,6 +279,38 @@ export const ChatConversation: React.FC<Props> = ({
                 onWalletClick={onWalletClick}
                 onMessageSubmitted={onSendMessage}
             />
+            {selectedReactionEvent && (
+                <ChatReactionDetailsDrawer
+                    event={selectedReactionEvent}
+                    reactions={selectedReactionChips}
+                    selectedReactionKey={selectedReaction?.reactionKey || null}
+                    onSelectReaction={reactionKey =>
+                        setSelectedReaction({
+                            eventId: selectedReactionEvent.id,
+                            reactionKey,
+                        })
+                    }
+                    onToggleReaction={handleReactionDetailsToggle}
+                    onDismiss={() => setSelectedReaction(null)}
+                />
+            )}
+            {emojiPickerEvent && (
+                <MatrixReactionEmojiPickerDrawer
+                    event={emojiPickerEvent}
+                    open={emojiPickerEvent.canReact}
+                    pendingReaction={reactingEmoji}
+                    onOpenChange={open => {
+                        if (!open) setEmojiPickerEventId(null)
+                    }}
+                    onSelect={reactionKey =>
+                        handleReaction({
+                            event: emojiPickerEvent,
+                            reactionKey,
+                            onSuccess: () => setEmojiPickerEventId(null),
+                        })
+                    }
+                />
+            )}
         </ChatWrapper>
     )
 }

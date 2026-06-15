@@ -8,7 +8,7 @@ import { selectMatrixAuth, selectMatrixRoomMemberMap } from '@fedi/common/redux'
 import { MatrixEvent, MatrixUser } from '@fedi/common/types'
 import {
     MatrixReactionChip,
-    matrixIdToUsername,
+    makeMatrixReactionUsers,
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
@@ -57,28 +57,11 @@ const ChatReactionDetailsOverlay: React.FC<Props> = ({
     const users = useMemo(() => {
         if (!selectedReaction) return []
 
-        const reactionUsers = selectedReaction.userIds.map(userId => {
-            const member = memberMap[userId]
-            return (
-                member || {
-                    id: userId,
-                    displayName: matrixIdToUsername(userId),
-                    avatarUrl: undefined,
-                    membership: 'join',
-                }
-            )
+        return makeMatrixReactionUsers({
+            reaction: selectedReaction,
+            memberMap,
+            myId: matrixAuth?.userId,
         })
-
-        const selfIndex = reactionUsers.findIndex(
-            user => user.id === matrixAuth?.userId,
-        )
-        if (selfIndex === -1) return reactionUsers
-
-        return [
-            reactionUsers[selfIndex],
-            ...reactionUsers.slice(0, selfIndex),
-            ...reactionUsers.slice(selfIndex + 1),
-        ]
     }, [memberMap, matrixAuth?.userId, selectedReaction])
 
     const renderUser = (user: MatrixUser) => {

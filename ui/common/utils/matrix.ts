@@ -246,6 +246,13 @@ export type MatrixReactionChip = Pick<
     reactedByMe: boolean
 }
 
+export type MatrixReactionUser = Pick<
+    MatrixUser,
+    'id' | 'displayName' | 'avatarUrl'
+> & {
+    membership?: MatrixRoomMember['membership']
+}
+
 export const makeMatrixReactionChips = (
     reactions?: RpcTimelineReaction[],
     myId?: string | null,
@@ -259,6 +266,39 @@ export const makeMatrixReactionChips = (
             reactedByMe: !!myId && userIds.includes(myId),
             userIds,
         }))
+
+export const makeMatrixReactionUsers = ({
+    reaction,
+    memberMap,
+    myId,
+}: {
+    reaction?: Pick<MatrixReactionChip, 'userIds'> | null
+    memberMap: Record<string, MatrixReactionUser | undefined>
+    myId?: string | null
+}): MatrixReactionUser[] => {
+    if (!reaction) return []
+
+    const reactionUsers = reaction.userIds.map(userId => {
+        const member = memberMap[userId]
+        return (
+            member || {
+                id: userId,
+                displayName: matrixIdToUsername(userId),
+                avatarUrl: undefined,
+                membership: 'join' as const,
+            }
+        )
+    })
+
+    const selfIndex = reactionUsers.findIndex(user => user.id === myId)
+    if (selfIndex === -1) return reactionUsers
+
+    return [
+        reactionUsers[selfIndex],
+        ...reactionUsers.slice(0, selfIndex),
+        ...reactionUsers.slice(selfIndex + 1),
+    ]
+}
 
 export const isRpcMatrixEvent = (
     item: RpcTimelineItemEvent & { roomId: string },
@@ -697,6 +737,15 @@ export function isVideoEvent(
     event: MatrixEvent,
 ): event is MatrixEvent<'m.video'> {
     return event.content.msgtype === 'm.video'
+}
+
+export function canReplyToMatrixEvent(event: MatrixEvent) {
+    return (
+        ['m.text', 'm.notice', 'm.emote'].includes(event.content.msgtype) ||
+        isImageEvent(event) ||
+        isVideoEvent(event) ||
+        isFileEvent(event)
+    )
 }
 
 export function isEncryptedEvent(

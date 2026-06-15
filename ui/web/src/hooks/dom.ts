@@ -69,7 +69,10 @@ type LongPressOptions = {
     delayMs?: number
     moveTolerance?: number
     enableContextMenu?: boolean
+    enableMouseLongPress?: boolean
     enabled?: boolean
+    shouldHandleContextMenu?: (event: MouseEvent) => boolean
+    shouldStartLongPress?: (event: PointerEvent) => boolean
 }
 
 export function useLongPress<T extends HTMLElement>(
@@ -79,7 +82,10 @@ export function useLongPress<T extends HTMLElement>(
         delayMs = 500,
         moveTolerance = 36,
         enableContextMenu = false,
+        enableMouseLongPress = false,
         enabled = true,
+        shouldHandleContextMenu,
+        shouldStartLongPress,
     }: LongPressOptions = {},
 ) {
     const onLongPressRef = useUpdatingRef(onLongPress)
@@ -110,7 +116,8 @@ export function useLongPress<T extends HTMLElement>(
         const handlePointerDown = (e: PointerEvent) => {
             if (!enabled) return
             if (!e.isPrimary) return
-            if (e.pointerType === 'mouse') return
+            if (e.pointerType === 'mouse' && !enableMouseLongPress) return
+            if (shouldStartLongPress && !shouldStartLongPress(e)) return
 
             startX.current = e.clientX
             startY.current = e.clientY
@@ -143,6 +150,7 @@ export function useLongPress<T extends HTMLElement>(
         const handleContextMenu = (e: MouseEvent) => {
             if (!enableContextMenu) return
             if (!enabled) return
+            if (shouldHandleContextMenu && !shouldHandleContextMenu(e)) return
 
             e.preventDefault()
             clearLongPressTimeout()
@@ -167,11 +175,14 @@ export function useLongPress<T extends HTMLElement>(
     }, [
         clearLongPressTimeout,
         delayMs,
+        enableMouseLongPress,
         enabled,
         enableContextMenu,
         moveTolerance,
         onLongPressRef,
         ref,
+        shouldHandleContextMenu,
+        shouldStartLongPress,
     ])
 
     return {

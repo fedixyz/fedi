@@ -25,6 +25,8 @@ interface Props {
     showUsernames: boolean
     highlightedMessageId?: string | null
     onReplyTap?: (eventId: string) => void
+    onAddReaction?: (event: MatrixEvent) => void
+    onReactionPress?: (event: MatrixEvent, reactionKey: string) => void
 }
 
 const ChatConversationEventRowComponent: React.FC<Props> = ({
@@ -36,6 +38,8 @@ const ChatConversationEventRowComponent: React.FC<Props> = ({
     showUsernames,
     highlightedMessageId,
     onReplyTap,
+    onAddReaction,
+    onReactionPress,
 }) => {
     const { t } = useTranslation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
@@ -69,7 +73,12 @@ const ChatConversationEventRowComponent: React.FC<Props> = ({
                     </MessageTimestamp>
                 )}
                 <ErrorBoundary fallback={() => <ChatEventError />}>
-                    <ChatEvent event={event} onReplyTap={onReplyTap} />
+                    <ChatEvent
+                        event={event}
+                        onReplyTap={onReplyTap}
+                        onAddReaction={onAddReaction}
+                        onReactionPress={onReactionPress}
+                    />
                 </ErrorBoundary>
             </Container>
         )
@@ -100,7 +109,12 @@ const ChatConversationEventRowComponent: React.FC<Props> = ({
                 )}
                 <MessageContent isMe={isMe}>
                     <ErrorBoundary fallback={() => <ChatEventError />}>
-                        <ChatEvent event={event} onReplyTap={onReplyTap} />
+                        <ChatEvent
+                            event={event}
+                            onReplyTap={onReplyTap}
+                            onAddReaction={onAddReaction}
+                            onReactionPress={onReactionPress}
+                        />
                     </ErrorBoundary>
                 </MessageContent>
             </MessageRow>

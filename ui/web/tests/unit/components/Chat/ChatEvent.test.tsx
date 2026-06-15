@@ -2,12 +2,17 @@ import '@testing-library/jest-dom'
 import { screen } from '@testing-library/react'
 
 import {
+    setFeatureFlags,
     setMatrixAuth,
     setMatrixRoomMembers,
     setupStore,
 } from '@fedi/common/redux'
+import { createMockNonPaymentEvent } from '@fedi/common/tests/mock-data/matrix-event'
 import { MatrixAuth, MatrixEvent, MatrixRoomMember } from '@fedi/common/types'
-import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
+import {
+    FeatureCatalog,
+    RpcTimelineEventItemId,
+} from '@fedi/common/types/bindings'
 
 import { ChatEvent } from '../../../../src/components/Chat/ChatEvent'
 import i18n from '../../../../src/localization/i18n'
@@ -15,6 +20,8 @@ import { renderWithProviders } from '../../../utils/render'
 
 const ROOM_ID = '!poll-room:example.com'
 const SELF_ID = '@self:example.com'
+const ALICE_ID = '@alice:example.com'
+const BOB_ID = '@bob:example.com'
 
 function makePollEvent(): MatrixEvent<'m.poll'> {
     return {
@@ -65,10 +72,36 @@ function makeStore() {
                     membership: 'join',
                     ignored: false,
                 } as MatrixRoomMember,
+                {
+                    id: ALICE_ID,
+                    displayName: 'Alice',
+                    avatarUrl: undefined,
+                    powerLevel: { type: 'int', value: 0 },
+                    roomId: ROOM_ID,
+                    membership: 'join',
+                    ignored: false,
+                } as MatrixRoomMember,
+                {
+                    id: BOB_ID,
+                    displayName: 'Bob',
+                    avatarUrl: undefined,
+                    powerLevel: { type: 'int', value: 0 },
+                    roomId: ROOM_ID,
+                    membership: 'join',
+                    ignored: false,
+                } as MatrixRoomMember,
             ],
         }),
     )
     return store
+}
+
+function enableMessageReactions(store: ReturnType<typeof setupStore>) {
+    store.dispatch(
+        setFeatureFlags({
+            message_reactions: {},
+        } as FeatureCatalog),
+    )
 }
 
 describe('/components/Chat/ChatEvent', () => {
@@ -88,5 +121,28 @@ describe('/components/Chat/ChatEvent', () => {
                 i18n.t('feature.chat.message-could-not-be-displayed'),
             ),
         ).not.toBeInTheDocument()
+    })
+
+    it('should render reaction chips when message reactions are enabled', () => {
+        const store = makeStore()
+        enableMessageReactions(store)
+        const event = createMockNonPaymentEvent({
+            roomId: ROOM_ID,
+            sender: ALICE_ID,
+            reactions: [
+                {
+                    key: '👍',
+                    count: 2,
+                    userIds: [SELF_ID, ALICE_ID],
+                },
+            ],
+        }) as MatrixEvent
+
+        renderWithProviders(<ChatEvent event={event} />, { store })
+
+        expect(screen.getByLabelText('message reactions')).toBeInTheDocument()
+        expect(
+            screen.getByLabelText('👍 reaction, 2, reacted by you'),
+        ).toBeInTheDocument()
     })
 })
