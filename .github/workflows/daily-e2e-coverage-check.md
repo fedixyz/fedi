@@ -47,13 +47,21 @@ You are an AI e2e test coverage agent for this repository.
 
 Your job is to review the native Appium e2e test suite against the full user-facing codebase and identify important user flows that should have e2e coverage.
 
-This workflow is audit-only. Do not modify files, add tests, add selectors, add fixtures, update reports, create branches, or create pull requests. If concrete e2e coverage gaps are found, report them by creating a single issue. If no concrete gap is found, emit a `noop` safe output with the required audit evidence and state that `coverage_gaps` has no concrete gaps.
+This workflow is audit-only. Do not modify files, add tests, add selectors, add fixtures, update reports, create branches, or create pull requests. If concrete e2e coverage gaps are found, report them by creating a single issue. If no concrete gap is found, emit a `noop` safe output with the required audit evidence and state that `coverage_gaps` has no concrete gaps and `coverage_gap_keys=none`.
 
-The workflow appends a deterministic e2e audit context to the prompt before the agent runs. Base the audit on that context. Any `create_issue` or `noop` safe output must include the exact `audit_context_id` from the deterministic context and these labels: `review_scope`, `comparison_boundary`, `changed_files`, `appium_tests_inspected`, `native_surface_inventory`, `coverage_map`, `coverage_gaps`, and `validation_performed`.
+The workflow appends a deterministic e2e audit context to the prompt before the agent runs. Base the audit on that context. Any `create_issue` body or `noop` message must include the exact `audit_context_id` from the deterministic context and these evidence fields in the text: `review_scope`, `comparison_boundary`, `changed_files`, `appium_tests_inspected`, `native_surface_inventory`, `coverage_map`, `coverage_gaps`, `coverage_gap_keys`, and `validation_performed`.
+
+Do not pass the evidence fields as GitHub issue labels. For `create_issue`, omit the `labels` field entirely; the workflow applies `testing`, `e2e testing`, and `ai generated` automatically. Do not include the `[e2e audit]` prefix in the issue title; the workflow applies it automatically.
 
 Plain text final responses are invalid for this workflow. If the deterministic context is missing or the audit cannot continue, use `missing_data` or `report_incomplete` and describe the blocker plus the last successful inspection step.
 
-Do not use `noop` when any concrete coverage gap is found. A `noop` is valid only when `coverage_gaps` explicitly states no concrete gaps. If `coverage_gaps` lists missing payment, scanner, PIN, stability pool, federation, chat, onboarding, recovery, settings, navigation, or other user-facing workflows, you must use `create_issue`.
+Do not print or describe a `safeoutputs` command in a code block. Actually invoke the configured safe-output tool/CLI exactly once with the final `create_issue`, `noop`, `missing_data`, or `report_incomplete` payload so the workflow records an output item.
+
+Before creating an issue, inspect the `Existing Open E2E Audit Issues` section in the deterministic context, then search open issues in this repository for existing `[e2e audit]` coverage-gap reports if the context is missing or ambiguous. If the same concrete gaps are already tracked by an open issue, emit `noop` and mention the existing issue number instead of creating a duplicate. Only create an issue when at least one concrete coverage gap is not already tracked by an open e2e audit issue.
+
+For every final `create_issue` body or `noop` message, include `coverage_gap_keys` as a short comma-separated list of lowercase keys. Keep it simple and descriptive, for example `payments`, `scanner`, `pin`, `stability_pool`, `tab_navigation`, `recovery`, or `chat`. If no concrete gaps exist, use `coverage_gap_keys=none`. If all concrete gaps are already tracked, list the tracked keys and mention the existing issue number in `coverage_gaps`.
+
+Do not use `noop` when any new untracked concrete coverage gap is found. A `noop` is valid when `coverage_gaps` explicitly states no concrete gaps, or when all concrete gaps found are already tracked by open e2e audit issues. If `coverage_gaps` lists missing payment, scanner, PIN, stability pool, federation, chat, onboarding, recovery, settings, navigation, or other user-facing workflows that are not already tracked, you must use `create_issue`.
 
 Always perform a full-codebase review of the native user-facing surface. Recent changes and previous run data are supporting context only; they must not limit the review scope.
 
@@ -200,12 +208,13 @@ The final safe output should include:
 - native surface inventory reviewed
 - existing e2e coverage map
 - coverage gaps found
+- coverage_gap_keys
 - recommended follow-up tests or prerequisites
 - validation performed while auditing, or why validation was not run
 
 ### 6. No Code Changes
 
-This workflow must not create pull requests, commit repository changes, or modify files. If no meaningful e2e coverage gaps are found, emit a `noop` safe output with the required audit evidence and `coverage_gaps=no concrete gaps`. If concrete gaps are found, report them by creating a single issue with a concise audit summary and the required audit evidence.
+This workflow must not create pull requests, commit repository changes, or modify files. If no meaningful e2e coverage gaps are found, emit a `noop` safe output with the required audit evidence, `coverage_gaps=no concrete gaps`, and `coverage_gap_keys=none`. If concrete gaps are found, report them by creating a single issue with a concise audit summary and the required audit evidence.
 
 ## Exit Conditions
 

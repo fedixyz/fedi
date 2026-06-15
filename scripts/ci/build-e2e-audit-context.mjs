@@ -32,6 +32,7 @@ const previousRun = await findPreviousSuccessfulRun()
 const comparison = await buildComparison(previousRun)
 const inventory = buildAppiumInventory()
 const nativeSurfaceInventory = buildNativeSurfaceInventory()
+const openE2EAuditIssues = await findOpenE2EAuditIssues()
 const auditContext = {
     schema: 'e2e_audit_context_v1',
     audit_context_id: `e2e_audit_context_v1:${runId || 'local'}:${currentSha.slice(0, 12)}`,
@@ -52,6 +53,7 @@ const auditContext = {
     changed_files: comparison.changed_files,
     changed_commits: comparison.changed_commits,
     merged_pull_requests: comparison.merged_pull_requests,
+    open_e2e_audit_issues: openE2EAuditIssues,
     appium_inventory: inventory,
     native_surface_inventory: nativeSurfaceInventory,
 }
@@ -66,6 +68,7 @@ console.log(`Wrote ${markdownPath}`)
 console.log(`audit_context_id=${auditContext.audit_context_id}`)
 console.log(`review_scope=${auditContext.review_scope.mode}`)
 console.log(`changed_files=${auditContext.changed_files.length}`)
+console.log(`open_e2e_audit_issues=${auditContext.open_e2e_audit_issues.length}`)
 console.log(`appium_tests=${auditContext.appium_inventory.test_files.length}`)
 console.log(`native_surface_groups=${auditContext.native_surface_inventory.length}`)
 
@@ -204,6 +207,160 @@ async function findMergedPullRequests(since) {
             },
         ]
     }
+}
+
+async function findOpenE2EAuditIssues() {
+    if (!token) return []
+
+    const query = encodeURIComponent(
+        `repo:${repo} is:issue is:open "[e2e audit]" in:title`,
+    )
+    try {
+        const data = await github(
+            `/search/issues?q=${query}&sort=updated&order=desc&per_page=20`,
+        )
+        const items = (data?.items || []).filter(item =>
+            /^\[e2e audit\]/i.test(item.title || ''),
+        )
+
+        return Promise.all(items.map(summarizeOpenE2EAuditIssue))
+    } catch (error) {
+        return [
+            {
+                lookup_error:
+                    error instanceof Error ? error.message : String(error),
+            },
+        ]
+    }
+}
+
+async function summarizeOpenE2EAuditIssue(item) {
+    let issue = item
+    let detailLookupError
+    try {
+        issue = (await github(
+            `/repos/${owner}/${repoName}/issues/${item.number}`,
+        )) || item
+    } catch (error) {
+        detailLookupError = error instanceof Error ? error.message : String(error)
+    }
+
+    const body = String(issue.body || item.body || '')
+    const title = String(item.title || issue.title || '')
+    const coverageGapsSummary = extractCoverageGapsSummary(body)
+
+    return {
+        number: item.number,
+        title,
+        url: item.html_url || issue.html_url || '',
+        created_at: item.created_at || issue.created_at || '',
+        updated_at: item.updated_at || issue.updated_at || '',
+        labels: (issue.labels || item.labels || []).map(label => label.name),
+        coverage_gap_keys: extractCoverageGapKeys(
+            `${title}\n${coverageGapsSummary}`,
+            body,
+        ),
+        coverage_gaps_summary: coverageGapsSummary,
+        body_excerpt: extractBodyExcerpt(body),
+        detail_lookup_error: detailLookupError,
+    }
+}
+
+function extractCoverageGapKeys(text, explicitText = text) {
+    const explicit = getFieldValue(explicitText, 'coverage_gap_keys')
+    if (explicit) {
+        const keys = normalizeGapKeys(explicit)
+        if (keys.length) return keys
+    }
+
+    const keyPatterns = [
+        {
+            key: 'payments',
+            pattern:
+                /\b(payments?|send\/receive|send receive|send and receive|lightning|on-?chain|ecash|cashu)\b/i,
+        },
+        {
+            key: 'scanner',
+            pattern: /\b(scanner|omni|qr|deeplink|deep link)\b/i,
+        },
+        {
+            key: 'pin',
+            pattern: /\b(pin|lock screen|lockscreen|unlock|reset pin)\b/i,
+        },
+        {
+            key: 'stability_pool',
+            pattern:
+                /\b(stability pool|stabilityreceive|stabilitysend|stabilityconfirm|deposit|withdraw)\b/i,
+        },
+        {
+            key: 'tab_navigation',
+            pattern:
+                /\b(tab navigation|tab-shell|tabsnavigator|bottom-tab|bottom tab|app shell|navigation regression|tabs? switching)\b/i,
+        },
+    ]
+
+    return keyPatterns
+        .filter(({ pattern }) => pattern.test(text))
+        .map(({ key }) => key)
+}
+
+function normalizeGapKeys(value) {
+    return [
+        ...new Set(
+            String(value)
+                .replace(/\s*\([^)]*\)\s*$/, '')
+                .split(/[,;|/]+|\s+and\s+|\s+/i)
+                .map(key =>
+                    key
+                        .trim()
+                        .toLowerCase()
+                        .replace(/[^a-z0-9_-]+/g, '_')
+                        .replace(/^_+|_+$/g, ''),
+                )
+                .filter(
+                    key =>
+                        key &&
+                        !['none', 'n_a', 'na', 'no', 'new', 'untracked'].includes(
+                            key,
+                        ),
+                ),
+        ),
+    ].slice(0, 20)
+}
+
+function extractCoverageGapsSummary(body) {
+    const match = String(body).match(
+        /\bcoverage_gaps\b\s*[:=-]\s*([\s\S]*?)(?:\n\s*\b(?:coverage_gap_keys|validation_performed|review_date)\b\s*[:=-]|\n\s*<!--|$)/i,
+    )
+    return oneLine(match?.[1] || '').slice(0, 700)
+}
+
+function extractBodyExcerpt(body) {
+    return (
+        String(body)
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .find(line => line && !line.startsWith('<!--')) || ''
+    ).slice(0, 240)
+}
+
+function getFieldValue(text, field) {
+    const match = String(text)
+        .match(
+            new RegExp(
+                `^\\s*(?:[-*]\\s*)?[\\s_*\`]*${escapeRegExp(field)}[\\s_*\`]*\\s*[:=\\-]\\s*(.*?)\\s*$`,
+                'im',
+            ),
+        )
+    return match?.[1]?.trim()
+}
+
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function oneLine(value) {
+    return String(value).replace(/\s+/g, ' ').trim()
 }
 
 function buildAppiumInventory() {
@@ -382,6 +539,7 @@ function renderMarkdown(context) {
     const changedFiles = context.changed_files.slice(0, 150)
     const changedCommits = context.changed_commits.slice(0, 50)
     const mergedPrs = context.merged_pull_requests.slice(0, 30)
+    const openE2EAuditIssues = context.open_e2e_audit_issues.slice(0, 20)
     return `# Deterministic E2E Audit Context
 
 audit_context_id: ${context.audit_context_id}
@@ -413,6 +571,12 @@ ${renderList(changedCommits.map(commit => `${commit.sha.slice(0, 12)} ${commit.m
 ## Merged Pull Requests
 
 ${renderList(mergedPrs.map(pr => (pr.lookup_error ? `lookup_error: ${pr.lookup_error}` : `#${pr.number} ${pr.title} ${pr.url}`)))}
+
+## Existing Open E2E Audit Issues
+
+Use these open issues as the primary dedupe context before creating a new e2e audit issue. If a candidate gap maps to one of these issue numbers, summaries, or coverage_gap_keys, treat it as already tracked and emit noop unless you find a genuinely new untracked gap.
+
+${renderList(openE2EAuditIssues.map(renderOpenE2EAuditIssue))}
 
 ## Appium Tests Inspected
 
@@ -449,6 +613,7 @@ Any final safe output for this workflow must include the exact audit_context_id 
 - native_surface_inventory
 - coverage_map
 - coverage_gaps
+- coverage_gap_keys
 - validation_performed
 
 If the audit cannot continue from this context, use report_incomplete or missing_data with the blocker and the last successful inspection step.
@@ -464,6 +629,21 @@ function renderObject(value) {
 function renderList(items) {
     if (!items.length) return '- none'
     return items.map(item => `- ${item}`).join('\n')
+}
+
+function renderOpenE2EAuditIssue(issue) {
+    if (issue.lookup_error) return `lookup_error: ${issue.lookup_error}`
+
+    const keys = issue.coverage_gap_keys?.length
+        ? issue.coverage_gap_keys.join(',')
+        : 'unknown'
+    const summary =
+        issue.coverage_gaps_summary || issue.body_excerpt || 'no body summary captured'
+    const detailLookup = issue.detail_lookup_error
+        ? `; detail_lookup_error=${issue.detail_lookup_error}`
+        : ''
+
+    return `#${issue.number} ${issue.title} ${issue.url}; coverage_gap_keys=${keys}; coverage_gaps_summary=${summary}${detailLookup}`
 }
 
 function renderNativeSurfaceGroup(group) {
