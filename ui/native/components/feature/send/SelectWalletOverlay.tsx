@@ -116,7 +116,7 @@ function WalletListItem({
                 onPress={handleSelectBitcoin}
                 containerStyle={style.walletHeader}>
                 <FederationStatusAvatar federation={federation} size={40} />
-                <Column style={{ flexGrow: 1, flexShrink: 1 }}>
+                <Column style={style.label}>
                     <Text numberOfLines={2} bold>
                         {federation.name}
                     </Text>
@@ -166,7 +166,10 @@ function BalanceItem({
         selectCurrency(s, federation.id),
     )
     const { formattedStableBalance } = useStabilityPool(federation.id)
-    const { formattedBalance } = useBalance(t, federation.id)
+    const { formattedBalanceFiat, formattedBalanceSats } = useBalance(
+        t,
+        federation.id,
+    )
 
     const currencyCode = getCurrencyCode(selectedCurrency)
     const style = styles(theme)
@@ -181,8 +184,12 @@ function BalanceItem({
                     name="UsdCircleFilled"
                     color={theme.colors.moneyGreen}
                 />
-                <Text style={{ flexGrow: 1 }}>{currencyCode}</Text>
-                <Text>{formattedStableBalance}</Text>
+                <Text style={style.label} numberOfLines={1}>
+                    {currencyCode}
+                </Text>
+                <Text style={style.balanceText} numberOfLines={1}>
+                    {formattedStableBalance}
+                </Text>
                 <SvgImage
                     name="ChevronRight"
                     color={theme.colors.darkGrey}
@@ -198,8 +205,15 @@ function BalanceItem({
             onPress={onPress}
             testID={`BitcoinButton-${federation.id}`}>
             <SvgImage name="BitcoinCircle" color={theme.colors.orange} />
-            <Text style={{ flexGrow: 1 }}>{t('words.bitcoin')}</Text>
-            <Text>{formattedBalance}</Text>
+            <Text style={style.label} numberOfLines={1}>
+                {t('words.bitcoin')}
+            </Text>
+            <Column style={style.balanceColumn}>
+                <Text numberOfLines={1}>{formattedBalanceFiat}</Text>
+                <Text numberOfLines={1} caption color={theme.colors.darkGrey}>
+                    {formattedBalanceSats}
+                </Text>
+            </Column>
             <SvgImage
                 name="ChevronRight"
                 color={theme.colors.darkGrey}
@@ -230,5 +244,16 @@ const styles = (theme: Theme) =>
         },
         body: {
             padding: theme.spacing.sm,
+        },
+        label: {
+            flexGrow: 1,
+            flexShrink: 1,
+        },
+        balanceText: {
+            flexShrink: 1,
+        },
+        balanceColumn: {
+            flexShrink: 1,
+            alignItems: 'flex-end',
         },
     })
