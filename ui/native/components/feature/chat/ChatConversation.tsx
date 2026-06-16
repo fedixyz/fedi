@@ -404,6 +404,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                         initialNumToRender={10}
                         onViewableItemsChanged={handleViewableItemsChanged}
                         viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
+                        keyboardShouldPersistTaps="handled"
                     />
                 </ConversationMessageVisibilityContext.Provider>
             ) : (

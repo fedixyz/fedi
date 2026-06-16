@@ -7,6 +7,7 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 import React from 'react'
+import { Keyboard } from 'react-native'
 
 import { DEFAULT_PAGINATION_SIZE } from '@fedi/common/constants/matrix'
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
@@ -30,6 +31,7 @@ import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
 
 import ChatConversation from '../../../../../components/feature/chat/ChatConversation'
+import SelectedMessageOverlay from '../../../../../components/feature/chat/SelectedMessageOverlay'
 import {
     CHAT_CONVERSATION_SCROLL_OPTIONS,
     getChatConversationRowIndex,
@@ -388,6 +390,28 @@ function renderChat(
     )
 }
 
+function renderChatWithSelectedMessageOverlay({
+    store,
+    props = {},
+}: {
+    store: ReturnType<typeof setupStore>
+    props?: Partial<React.ComponentProps<typeof ChatConversation>>
+}) {
+    return renderWithProviders(
+        <>
+            <ChatConversation
+                type={ChatType.group}
+                id={ROOM_ID}
+                newMessageBottomOffset={90}
+                listRefOverride={makeListRef() as any}
+                {...props}
+            />
+            <SelectedMessageOverlay />
+        </>,
+        { store },
+    )
+}
+
 function setRouteParams(params: Record<string, unknown> = {}) {
     jest.mocked(useRoute).mockReturnValue({
         key: 'ChatRoomConversation',
@@ -624,6 +648,7 @@ describe('ChatConversation', () => {
 
     afterEach(() => {
         cleanup()
+        jest.restoreAllMocks()
         clearScheduledTimeouts()
         mockScrollToIndexFailureCount = 0
         mockSuppressScrollToIndexViewability = false
@@ -748,6 +773,31 @@ describe('ChatConversation', () => {
                 exact: false,
             }),
         ).toBeOnTheScreen()
+    })
+
+    it('dismisses the keyboard and opens message actions from a long press', async () => {
+        const event = createMockNonPaymentEvent({
+            id: '$message-action-menu' as any,
+            roomId: ROOM_ID,
+            sender: '@alice:example.com',
+            timestamp: 1_750_083_034_389,
+            content: {
+                body: 'Message with actions',
+                formatted: null,
+            },
+        })
+        const store = storeWithLoadedConversation([event])
+        const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss')
+
+        renderChatWithSelectedMessageOverlay({ store })
+
+        fireEvent(screen.getByText('Message with actions'), 'onLongPress')
+
+        expect(dismissKeyboard).toHaveBeenCalled()
+        await waitFor(() => {
+            expect(screen.getByText(i18n.t('words.reply'))).toBeOnTheScreen()
+        })
+        expect(screen.getByText(i18n.t('phrases.copy-text'))).toBeOnTheScreen()
     })
 
     it('renders accepted invitation membership events as centered join notices without message affordances', () => {
