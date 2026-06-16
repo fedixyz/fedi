@@ -1,4 +1,3 @@
-import { Poppins } from 'next/font/google'
 import { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,101 +5,6 @@ import { styled, theme } from '../styles'
 import { Column } from './Flex'
 import { Icon } from './Icon'
 import { Text } from './Text'
-
-export const poppins = Poppins({
-    subsets: ['latin'],
-    weight: ['400', '500', '600', '700'],
-    variable: '--font-poppins',
-    display: 'swap',
-})
-
-export const Page = styled('div', {
-    overflow: 'hidden',
-    width: '100%',
-})
-
-export const Container = styled('div', {
-    background: theme.colors.white,
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100dvh',
-    margin: '0 auto',
-    maxWidth: 480,
-    minHeight: 0,
-})
-
-export const Step = styled('div', {
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    border: `1px solid ${theme.colors.dividerGrey}`,
-    borderRadius: 20,
-    cursor: 'pointer',
-    display: 'flex',
-    gap: theme.spacing.sm,
-    padding: theme.spacing.sm,
-    width: '100%',
-    height: 65,
-
-    variants: {
-        variant: {
-            primary: {
-                background: `linear-gradient(180deg, ${theme.colors.white20} -30.21%, transparent 100%), ${theme.colors.night}`,
-                color: theme.colors.white,
-            },
-            secondary: {
-                background: theme.colors.white,
-                color: theme.colors.black,
-            },
-        },
-    },
-    defaultVariants: {
-        variant: 'primary',
-    },
-})
-
-export const StepNo = styled('span', {
-    alignItems: 'center',
-    background: theme.colors.black,
-    borderRadius: '50%',
-    color: theme.colors.white,
-    display: 'flex',
-    flexShrink: 0,
-    height: 32,
-    justifyContent: 'center',
-    width: 32,
-
-    variants: {
-        invert: {
-            true: {
-                background: theme.colors.lightGrey,
-                color: theme.colors.darkGrey,
-            },
-        },
-    },
-})
-
-export function PageShell({
-    children,
-    className = poppins.variable,
-}: {
-    children: ReactNode
-    className?: string
-}) {
-    return (
-        <Page className={className}>
-            <Container>{children}</Container>
-        </Page>
-    )
-}
-
-export const LogoHeader = styled('div', {
-    alignItems: 'center',
-    display: 'flex',
-    justifyContent: 'center',
-    paddingTop: theme.spacing.xl,
-    paddingBottom: theme.spacing.md,
-    width: '100%',
-})
 
 export function DeeplinkHeroLayout({
     onClick,
@@ -113,7 +17,7 @@ export function DeeplinkHeroLayout({
 }) {
     const { t } = useTranslation()
     return (
-        <>
+        <Column style={{ height: '100dvh' }}>
             <LogoHeader>
                 <Icon
                     icon="FediLogoHorizontalBlack"
@@ -191,21 +95,61 @@ export function DeeplinkHeroLayout({
                 </Step>
                 {children}
             </Column>
-        </>
-    )
-}
-
-export function CenteredBody({ children }: { children: ReactNode }) {
-    return (
-        <Column
-            center
-            css={{
-                flex: 1,
-                gap: theme.spacing.xl,
-                justifyContent: 'center',
-                padding: theme.spacing.lg,
-            }}>
-            {children}
         </Column>
     )
 }
+
+export const LogoHeader = styled('div', {
+    display: 'flex',
+    justifyContent: 'center',
+})
+
+export const Step = styled('div', {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    border: `1px solid ${theme.colors.dividerGrey}`,
+    borderRadius: 20,
+    cursor: 'pointer',
+    display: 'flex',
+    gap: theme.spacing.sm,
+    padding: theme.spacing.sm,
+    width: '100%',
+    height: 65,
+
+    variants: {
+        variant: {
+            primary: {
+                background: `linear-gradient(180deg, ${theme.colors.white20} -30.21%, transparent 100%), ${theme.colors.night}`,
+                color: theme.colors.white,
+            },
+            secondary: {
+                background: theme.colors.white,
+                color: theme.colors.black,
+            },
+        },
+    },
+    defaultVariants: {
+        variant: 'primary',
+    },
+})
+
+export const StepNo = styled('span', {
+    alignItems: 'center',
+    background: theme.colors.black,
+    borderRadius: '50%',
+    color: theme.colors.white,
+    display: 'flex',
+    flexShrink: 0,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+
+    variants: {
+        invert: {
+            true: {
+                background: theme.colors.lightGrey,
+                color: theme.colors.darkGrey,
+            },
+        },
+    },
+})

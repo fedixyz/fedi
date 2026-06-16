@@ -9,7 +9,7 @@ import {
 } from '@fedi/common/constants/linking'
 import { normalizeDeepLink } from '@fedi/common/utils/linking'
 
-import { DeeplinkHeroLayout, PageShell } from '../components/DeeplinkPageLayout'
+import { DeeplinkHeroLayout } from '../components/DeeplinkPageLayout'
 import { useDeviceQuery } from '../hooks'
 import i18n, { detectBrowserLanguage } from '../localization/i18n'
 import { getDeepLinkPath } from '../utils/linking'
@@ -82,19 +82,13 @@ const LinkingPage: NextPage = () => {
         }
     }
 
-    const handleOpenInFedi = () => {
-        openDeepLinkInFedi(window.location.href)
-    }
-
     if (!loaded) return null
 
     return (
-        <PageShell>
-            <DeeplinkHeroLayout
-                onClick={handleOpenInFedi}
-                onDownload={handleDownloadApp}
-            />
-        </PageShell>
+        <DeeplinkHeroLayout
+            onClick={() => openDeepLinkInFedi(window.location.href)}
+            onDownload={handleDownloadApp}
+        />
     )
 }
 

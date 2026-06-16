@@ -4,10 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { FEDI_PREFIX } from '@fedi/common/constants/linking'
 import { normalizeDeepLink } from '@fedi/common/utils/linking'
 
-import { CenteredBody, PageShell } from '../components/DeeplinkPageLayout'
+import { Button } from '../components/Button'
+import { Column } from '../components/Flex'
 import { Icon } from '../components/Icon'
 import { Text } from '../components/Text'
-import { styled, theme } from '../styles'
+import { theme } from '../styles'
 import { clearPendingDeeplink, getPendingDeeplink } from '../utils/localstorage'
 
 type PageState = 'loading' | 'found' | 'not_found'
@@ -46,50 +47,33 @@ function ResumePage() {
         window.location.href = uri
     }
 
+    const isLoading = state === 'loading'
+
     return (
-        <PageShell>
-            <CenteredBody>
-                <Icon
-                    size={'xl'}
-                    icon="FediLogoDark"
-                    style={{ transform: 'translateY(30px)' }}
-                />
+        <Column style={{ height: '100dvh' }}>
+            <Column center grow gap="md">
+                <Icon size={'lg'} icon="FediLogoDark" />
 
                 <Text weight="medium">{titleTextMap[state]}</Text>
 
                 <Button
-                    style={{ margin: 0 }}
+                    width="full"
                     onClick={redirectToFediApp}
                     css={{
-                        justifyContent: 'center',
-                        visibility: state === 'loading' ? 'hidden' : 'visible',
-                        pointerEvents: state === 'loading' ? 'none' : 'auto',
+                        maxWidth: 340,
+                        background: theme.colors.night,
+                        fontSize: 16,
+                        fontWeight: 500,
+                        visibility: isLoading ? 'hidden' : 'visible',
+                        pointerEvents: isLoading ? 'none' : 'auto',
                     }}>
-                    <Text weight="medium" css={{ color: theme.colors.white }}>
-                        {buttonLabelMap[state]}
-                    </Text>
+                    {buttonLabelMap[state]}
                 </Button>
-            </CenteredBody>
-        </PageShell>
+            </Column>
+        </Column>
     )
 }
 
 ResumePage.noProviders = true
-
-const Button = styled('button', {
-    width: '100%',
-    maxWidth: 340,
-    border: 'none',
-    display: 'flex',
-    borderRadius: 30,
-    cursor: 'pointer',
-    alignItems: 'center',
-    background: '#1E1E1E',
-    transition: 'opacity 0.2s',
-    padding: '12px 20px 12px 12px',
-    '&:active': {
-        opacity: 0.8,
-    },
-})
 
 export default ResumePage
