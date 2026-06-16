@@ -10,7 +10,11 @@ import init, {
     fedimint_write_file,
 } from '@fedi/common/wasm/'
 
-import { getBridgeLogFile, openBridgeLogFile } from './log'
+import {
+    getBridgeLogFile,
+    getBridgeStorageRoot,
+    openBridgeLogFile,
+} from './log'
 
 const log = makeLog('web/lib/bridge/wasm.worker')
 
@@ -40,7 +44,10 @@ configureLogging({
 })
 
 async function workerInit() {
-    await init(new URL('@fedi/common/wasm/fedi_wasm_bg.wasm', import.meta.url))
+    const [root] = await Promise.all([
+        getBridgeStorageRoot(),
+        init(new URL('@fedi/common/wasm/fedi_wasm_bg.wasm', import.meta.url)),
+    ])
     const { deviceId, flavor } = await initializeOptionsPromise
 
     const options: RpcInitOpts = {
@@ -54,7 +61,6 @@ async function workerInit() {
     const initOptsJson = JSON.stringify(options)
 
     // Open database file
-    const root = await navigator.storage.getDirectory()
     const dbFileHandle = await root.getFileHandle('bridge.db', {
         create: true,
     })
