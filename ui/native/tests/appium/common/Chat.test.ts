@@ -3,6 +3,7 @@ import {
     AppiumTestBase,
     MATRIX_TIMEOUT,
 } from '../../configs/appium/AppiumTestBase'
+import { Platform, currentPlatform } from '../../configs/appium/types'
 import { setupOnboarded } from '../fixtures/setupOnboarded'
 import {
     ALL_GROUPS,
@@ -11,6 +12,7 @@ import {
     Group,
     KNOCKABLE_GROUPS,
     PRIVATE_GROUP,
+    PUBLIC_GROUP,
     switchToChatTab,
 } from './chatGroups'
 
@@ -52,6 +54,15 @@ export class Chat extends AppiumTestBase {
         await switchToChatTab(alice)
         for (const group of ALL_GROUPS) {
             await verifyGroupInChatList(alice, group)
+        }
+
+        // Phase 1b guards the keyboard-up long press (see helper). Android
+        // only: on iOS, Appium can't synthesize a long press that RN's
+        // Pressable recognizes, so iOS stays manual QA; the fix is an RN list
+        // prop the Android assertion guards. PUBLIC_GROUP is safe to dirty
+        // here: later knock phases never reopen it.
+        if (currentPlatform === Platform.ANDROID) {
+            await assertLongPressOpensActionsWithKeyboardUp(alice, PUBLIC_GROUP)
         }
 
         // Phase 2: bob knocks both private rooms.
@@ -144,6 +155,28 @@ async function verifyGroupInChatList(
             `Failed - Message preview for "${group.name}" not found. Expected: "${group.message}"`,
         )
     }
+}
+
+// With the composer focused (keyboard up / input focused), a long press on a
+// message must still open its action menu. The conversation list sets
+// keyboardShouldPersistTaps="handled" so the row receives the gesture; with the
+// default 'never' the list swallows the first tap to dismiss the keyboard and
+// the menu never appears.
+async function assertLongPressOpensActionsWithKeyboardUp(
+    t: AppiumTestBase,
+    group: Group,
+): Promise<void> {
+    await openRoomByName(t, group.name)
+    // Focus the composer so the keyboard-dismiss-on-tap path is active.
+    await t.clickElementByKey('MessageInput-TextInput')
+    await t.typeIntoElementByKey('MessageInput-TextInput', 'a')
+    // Long-press the message sent on group creation.
+    await t.longPressByText(group.message, 0, false)
+    // The reply action only renders once the long press opens the menu.
+    await t.waitForElementDisplayed('SelectedMessageOverlayReply')
+    // Tapping reply closes the overlay; pop back to the chat list.
+    await t.clickElementByKey('SelectedMessageOverlayReply')
+    await t.clickElementByKey('HeaderBackButton')
 }
 
 async function openRoomByName(t: AppiumTestBase, name: string): Promise<void> {

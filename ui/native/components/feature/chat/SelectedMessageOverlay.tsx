@@ -307,6 +307,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                             )}
                             {canReply && (
                                 <Pressable
+                                    testID="SelectedMessageOverlayReply"
                                     onPress={handleReply}
                                     containerStyle={style.action}>
                                     <SvgImage name="ArrowCornerUpLeftDouble" />

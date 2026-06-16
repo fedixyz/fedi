@@ -721,6 +721,48 @@ export class AppiumTestBase {
         )
     }
 
+    // Long-press the center of an element found by visible text, holding past
+    // RN's long-press threshold (~500ms) with a W3C touch (same pointer shape
+    // as scroll()). Android only: on iOS a synthesized long press (W3C or
+    // touchAndHold) doesn't reliably fire RN's onLongPress, so callers gate it.
+    async longPressByText(
+        text: string,
+        instanceNum = 0,
+        exactMatch = false,
+        holdDuration = 1000,
+        timeout = DEFAULT_TIMEOUT,
+    ): Promise<void> {
+        const element = await this.waitForText(
+            text,
+            instanceNum,
+            exactMatch,
+            timeout,
+        )
+        const { x, y } = await element.getLocation()
+        const { width, height } = await element.getSize()
+        const centerX = Math.round(x + width / 2)
+        const centerY = Math.round(y + height / 2)
+        await this.driver.performActions([
+            {
+                type: 'pointer',
+                id: 'finger1',
+                parameters: { pointerType: 'touch' },
+                actions: [
+                    {
+                        type: 'pointerMove',
+                        duration: 0,
+                        x: centerX,
+                        y: centerY,
+                    },
+                    { type: 'pointerDown', button: 0 },
+                    { type: 'pause', duration: holdDuration },
+                    { type: 'pointerUp', button: 0 },
+                ],
+            },
+        ])
+        await this.driver.releaseActions()
+    }
+
     async dismissKeyboard(): Promise<void> {
         try {
             await this.driver.executeScript('mobile: isKeyboardShown', [])
