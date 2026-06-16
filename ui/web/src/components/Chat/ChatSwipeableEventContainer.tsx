@@ -6,7 +6,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppDispatch } from '../../hooks'
 import { styled, theme } from '../../styles'
-import { Icon, SvgIconName } from '../Icon'
+import { Icon } from '../Icon'
 import { ChatMessageActionsDrawer } from './ChatMessageActionsDrawer'
 import { useChatMessageActions } from './useChatMessageActions'
 
@@ -281,20 +281,6 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
         }, [swipeDistance, isAnimating])
 
         const renderAction = (actionSide: 'left' | 'right') => {
-            const isLeftSide = actionSide === 'left'
-
-            let iconComponent: SvgIconName
-            if (currentSwipeDirection) {
-                iconComponent =
-                    currentSwipeDirection === 'left'
-                        ? 'ArrowCornerUpLeftDouble'
-                        : 'ArrowCornerUpRightDouble'
-            } else {
-                iconComponent = isLeftSide
-                    ? 'ArrowCornerUpRightDouble'
-                    : 'ArrowCornerUpLeftDouble'
-            }
-
             return (
                 <ActionContainer
                     key={`${actionSide}-${renderKey}-${currentSwipeDirection || 'fallback'}`}
@@ -304,7 +290,7 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                         isAnimating={isAnimating}>
                         <Icon
                             key={`icon-${renderKey}-${currentSwipeDirection || 'fallback'}`}
-                            icon={iconComponent}
+                            icon="ArrowCornerUpLeftDouble"
                         />
                     </ActionButton>
                 </ActionContainer>

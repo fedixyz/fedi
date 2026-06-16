@@ -19,6 +19,11 @@ jest.mock('../../../../src/components/Chat/ChatMessageActionsDrawer', () => ({
     ChatMessageActionsDrawer: ({ open }: { open: boolean }) =>
         open ? <div>message actions drawer</div> : null,
 }))
+jest.mock('../../../../src/components/Icon', () => ({
+    Icon: ({ icon }: { icon: string }) => (
+        <span data-testid="reply-swipe-icon">{icon}</span>
+    ),
+}))
 
 const mockEvent = createMockNonPaymentEvent({
     content: {
@@ -218,6 +223,42 @@ describe('ChatSwipeableEventContainer', () => {
         })
 
         expect(mockDispatch).toHaveBeenCalled()
+    })
+
+    it('should render the standard reply icon when swiping right or left', async () => {
+        const assertSwipeIcon = async (startX: number, endX: number) => {
+            const { container, getByTestId, unmount } = render(
+                <ChatSwipeableEventContainer
+                    event={mockEvent}
+                    dragThreshold={60}>
+                    <span>Test message</span>
+                </ChatSwipeableEventContainer>,
+            )
+
+            const swipeContainer = container.firstElementChild as HTMLElement
+
+            await act(async () => {
+                swipeContainer.dispatchEvent(
+                    createTouchEvent('touchstart', startX, 300),
+                )
+            })
+
+            await act(async () => {
+                swipeContainer.dispatchEvent(
+                    createTouchEvent('touchmove', endX, 300),
+                )
+            })
+
+            expect(getByTestId('reply-swipe-icon')).toHaveTextContent(
+                'ArrowCornerUpLeftDouble',
+            )
+            expect(container).not.toHaveTextContent('ArrowCornerUpRightDouble')
+
+            unmount()
+        }
+
+        await assertSwipeIcon(200, 280)
+        await assertSwipeIcon(280, 200)
     })
 
     it('should NOT trigger reply during vertical scroll with slight horizontal drift', async () => {

@@ -95,21 +95,7 @@ const ChatSwipeableEventContainer: React.FC<SwipeableEventContainerProps> =
 
         const renderAction = (actionSide: 'left' | 'right') => {
             const isLeftSide = actionSide === 'left'
-
-            // Fallback: If currentSwipeDirection is null, use the actionSide to determine icon
-            let iconToUse: SvgImageName
-            if (currentSwipeDirection) {
-                // Use the detected swipe direction
-                iconToUse =
-                    currentSwipeDirection === 'left'
-                        ? 'ArrowCornerUpLeftDouble'
-                        : 'ArrowCornerUpRightDouble'
-            } else {
-                // Fallback: left action shows when swiping right, right action shows when swiping left
-                iconToUse = isLeftSide
-                    ? 'ArrowCornerUpRightDouble'
-                    : 'ArrowCornerUpLeftDouble'
-            }
+            const iconToUse: SvgImageName = 'ArrowCornerUpLeftDouble'
 
             return (
                 <View

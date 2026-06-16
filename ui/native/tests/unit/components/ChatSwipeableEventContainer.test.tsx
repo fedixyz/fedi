@@ -10,6 +10,8 @@ import { renderWithProviders } from '../../utils/render'
 
 let mockSwipeableProps: {
     children: React.ReactNode
+    renderLeftActions?: () => React.ReactNode
+    renderRightActions?: () => React.ReactNode
     onSwipeableOpen?: (direction: 'left' | 'right') => void
     onSwipeableClose?: () => void
 }
@@ -29,7 +31,9 @@ jest.mock('react-native-gesture-handler', () => {
             return ReactActual.createElement(
                 View,
                 { testID: 'mock-swipeable' },
+                props.renderLeftActions?.(),
                 props.children,
+                props.renderRightActions?.(),
             )
         }),
     }
@@ -107,5 +111,16 @@ describe('ChatSwipeableEventContainer', () => {
             roomId: event.roomId,
             event,
         })
+    })
+
+    it('should render the standard reply icon for both swipe directions', () => {
+        const { getAllByText, queryByText } = renderWithProviders(
+            <ChatSwipeableEventContainer roomId={event.roomId} event={event}>
+                <Text>message</Text>
+            </ChatSwipeableEventContainer>,
+        )
+
+        expect(getAllByText('ArrowCornerUpLeftDouble')).toHaveLength(2)
+        expect(queryByText('ArrowCornerUpRightDouble')).toBeNull()
     })
 })
