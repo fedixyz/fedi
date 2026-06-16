@@ -17,6 +17,8 @@ export default defineConfig({
     reporter: process.env.CI ? 'list' : 'html',
     use: {
         baseURL,
+        // The community tool reads the minted invite code off the clipboard.
+        permissions: ['clipboard-read', 'clipboard-write'],
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
         video: 'on-first-retry',
@@ -28,11 +30,19 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: `yarn dev --port ${webE2ePort}`,
+        // The bridge only runs in nightly flavor under a production build:
+        // getAppFlavor returns 'dev' whenever NODE_ENV=development (i.e. `next
+        // dev`). Nightly is what lets the suite create communities and reach
+        // Fedi Testnet, matching the deployed Fedi Ashen environment.
+        command: `yarn build && yarn start --port ${webE2ePort}`,
         url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: 300_000,
         stdout: 'pipe',
         stderr: 'pipe',
+        env: {
+            FEDI_ENV: 'nightly',
+            NEXT_PUBLIC_FEDI_ENV: 'nightly',
+        },
     },
 })

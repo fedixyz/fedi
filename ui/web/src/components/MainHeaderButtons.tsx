@@ -38,7 +38,9 @@ const MainHeaderButtons: React.FC<Props> = ({
                 </IconButton>
             )}
             {onAddPress && (
-                <IconButton onClick={onAddPress}>
+                <IconButton
+                    onClick={onAddPress}
+                    data-testid="MainHeaderButtons__AddIcon">
                     <Icon icon="Plus" size="sm" />
                 </IconButton>
             )}
