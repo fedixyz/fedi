@@ -1,11 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useCreateMatrixRoom } from '@fedi/common/hooks/matrix'
-import { selectMatrixRooms } from '@fedi/common/redux'
+import { useSelectCommunityChats } from '@fedi/common/hooks/matrix'
 import { InjectionMessageResponseMap } from '@fedi/injections/src/types'
 
-import { useAppSelector } from '../../../hooks'
 import { styled, theme } from '../../../styles'
 import { Avatar } from '../../Avatar'
 import { Button } from '../../Button'
@@ -25,15 +23,6 @@ interface Props {
 }
 
 export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
-    const [selectedChats, setSelectedChats] = useState<Array<string>>([])
-    const [isCreatingNewGroup, setIsCreatingNewGroup] = useState(false)
-
-    const onChatCreated = (roomId: string) => {
-        if (selectedChats.includes(roomId)) return
-        setSelectedChats([...selectedChats, roomId])
-        setIsCreatingNewGroup(false)
-    }
-
     const { t } = useTranslation()
     const {
         handleCreateGroup,
@@ -43,44 +32,25 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
         broadcastOnly,
         setBroadcastOnly,
         isPublic,
+        handlePublicChange,
+        allowKnocking,
+        handleAllowKnockingChange,
+        shouldShowAllowKnockingToggle,
         errorMessage,
-        reset: resetCreateMatrixRoom,
-    } = useCreateMatrixRoom(t, onChatCreated, { isPublic: true })
-
-    const chats = useAppSelector(selectMatrixRooms)
-
-    const publicChats = chats.filter(c => c.isPublic)
-
-    const toggleSelectedChat = useCallback(
-        (chatId: string) => {
-            if (selectedChats.includes(chatId)) {
-                setSelectedChats(selectedChats.filter(c => c !== chatId))
-            } else {
-                setSelectedChats(prev => [...prev, chatId])
-            }
-        },
-        [selectedChats],
-    )
-
-    const reset = () => {
-        setSelectedChats([])
-        setIsCreatingNewGroup(false)
-    }
-
-    const handleAccept = () => {
-        onConfirm(selectedChats)
-        reset()
-    }
-
-    const handleClose = () => {
-        onConfirm([])
-        reset()
-    }
-
-    const handleNewGroup = useCallback(() => {
-        resetCreateMatrixRoom()
-        setIsCreatingNewGroup(true)
-    }, [resetCreateMatrixRoom])
+        selectedChats,
+        isCreatingNewGroup,
+        eligibleChats,
+        toggleSelectedChat,
+        handleAccept,
+        handleClose,
+        startNewGroup,
+        cancelNewGroup,
+    } = useSelectCommunityChats({
+        onAccept: onConfirm,
+        // Web reports both accept and close through the same onConfirm
+        // callback (empty array signals close), so onOpenChange is unused.
+        onOpenChange: () => {},
+    })
 
     const content = useMemo(() => {
         if (isCreatingNewGroup) {
@@ -119,24 +89,40 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
                         />
                     </Row>
                     <Column gap="sm">
+                        {shouldShowAllowKnockingToggle && (
+                            <Row align="center" justify="between" fullWidth>
+                                <Text>
+                                    {t('feature.chat.allow-join-requests')}
+                                </Text>
+                                <Switch
+                                    checked={allowKnocking}
+                                    onCheckedChange={handleAllowKnockingChange}
+                                />
+                            </Row>
+                        )}
                         <Row align="center" justify="between" fullWidth>
                             <Text>{t('words.public')}</Text>
-                            <Switch checked={isPublic} disabled />
+                            <Switch
+                                checked={isPublic}
+                                onCheckedChange={handlePublicChange}
+                            />
                         </Row>
-                        <Text
-                            variant="small"
-                            css={{
-                                color: theme.colors.grey,
-                                textAlign: 'left',
-                            }}>
-                            {t('feature.chat.public-group-warning')}
-                        </Text>
+                        {isPublic && (
+                            <Text
+                                variant="small"
+                                css={{
+                                    color: theme.colors.red,
+                                    textAlign: 'left',
+                                }}>
+                                {t('feature.chat.public-group-warning')}
+                            </Text>
+                        )}
                     </Column>
                 </>
             )
         }
 
-        if (publicChats.length === 0) {
+        if (eligibleChats.length === 0) {
             return (
                 <>
                     <Icon icon="SearchNoResult" size="lg" />
@@ -154,7 +140,7 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
 
         return (
             <>
-                {publicChats.map(chat => (
+                {eligibleChats.map(chat => (
                     <ChatRow
                         key={chat.id}
                         align="center"
@@ -182,12 +168,18 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
         isCreatingNewGroup,
         selectedChats,
         broadcastOnly,
-        publicChats,
+        eligibleChats,
         t,
         groupName,
         toggleSelectedChat,
         errorMessage,
         isPublic,
+        handlePublicChange,
+        allowKnocking,
+        handleAllowKnockingChange,
+        shouldShowAllowKnockingToggle,
+        setBroadcastOnly,
+        setGroupName,
     ])
 
     return (
@@ -206,7 +198,7 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
                             <Button
                                 width="full"
                                 variant="outline"
-                                onClick={() => setIsCreatingNewGroup(false)}>
+                                onClick={cancelNewGroup}>
                                 {t('words.cancel')}
                             </Button>
                             <Button
@@ -225,7 +217,7 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
                             <Button
                                 width="full"
                                 variant="outline"
-                                onClick={handleNewGroup}>
+                                onClick={startNewGroup}>
                                 {t('feature.chat.new-group')}
                             </Button>
                             <Button onClick={handleAccept} width="full">

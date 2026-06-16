@@ -124,12 +124,19 @@ describe('SelectPublicChats', () => {
             t('feature.chat.broadcast-only'),
         )
         const publicLabel = screen.getByText(t('words.public'))
-        const publicNotice = screen.getByText(
-            t('feature.chat.public-group-warning'),
-        )
 
         expect(broadcastOnlyLabel).toBeInTheDocument()
         expect(publicLabel).toBeInTheDocument()
+
+        // new groups default to knockable-private, so the public warning
+        // only appears once public is switched on (broadcast-only,
+        // allow-join-requests, public)
+        const [, , publicSwitch] = screen.getAllByRole('switch')
+        await user.click(publicSwitch)
+
+        const publicNotice = await screen.findByText(
+            t('feature.chat.public-group-warning'),
+        )
         expect(publicNotice).toBeInTheDocument()
 
         const groupNameInput = screen.getByPlaceholderText(

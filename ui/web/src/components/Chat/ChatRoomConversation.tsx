@@ -10,6 +10,7 @@ import {
     selectMatrixRoom,
     sendMatrixMessage,
     selectShouldShowJoinOnChatPreview,
+    selectShouldShowPendingJoinsIndicator,
 } from '@fedi/common/redux'
 import { ChatType } from '@fedi/common/types'
 import { RpcMediaUploadParams } from '@fedi/common/types/bindings'
@@ -27,11 +28,13 @@ import { Button } from '../Button'
 import { Column, Row } from '../Flex'
 import { HoloLoader } from '../HoloLoader'
 import { Icon } from '../Icon'
+import { NotificationDot } from '../NotificationDot'
 import { ChatConversation } from './ChatConversation'
 import { ChatPaymentDialog } from './ChatPaymentDialog'
 import { ChatPreviewConversation } from './ChatPreviewConversation'
 import { ChatRoomSearch } from './ChatRoomSearch'
 import { ChatRoomSettingsDialog } from './ChatRoomSettingsDialog'
+import { KnockPendingView } from './KnockPendingView'
 
 const log = makeLog('ChatRoomConversation')
 
@@ -54,6 +57,9 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     const shouldShowJoinButton = useAppSelector(s =>
         selectShouldShowJoinOnChatPreview(s, roomId),
     )
+    const showPendingDot = useAppSelector(s =>
+        selectShouldShowPendingJoinsIndicator(s, roomId),
+    )
 
     const [isPaymentOpen, setIsPaymentOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -72,8 +78,10 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
         previewRequest.unwrap().catch(err => {
             if (isCancelled) return
 
+            // A knockable room often has no fetchable preview, so route to the
+            // join screen (which offers request-to-join) rather than bailing.
             log.warn('Failed to fetch room preview', err)
-            replace(chatRoute)
+            replace(chatConfirmJoinPublicRoomRoute(roomId))
         })
 
         return () => {
@@ -180,6 +188,15 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
         )
     }
 
+    if (room.roomState === 'knocked') {
+        return (
+            <KnockPendingView
+                roomName={room.name}
+                onGoBack={() => push(chatRoute)}
+            />
+        )
+    }
+
     return (
         <>
             <ChatConversation
@@ -192,11 +209,13 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
                     <Row gap="sm" align="center">
                         <Icon icon="Search" size={26} onClick={handleSearch} />
                         {directUserId ? undefined : (
-                            <Icon
-                                icon="Cog"
-                                size={26}
-                                onClick={() => setIsSettingsOpen(true)}
-                            />
+                            <NotificationDot visible={showPendingDot} size={10}>
+                                <Icon
+                                    icon="Cog"
+                                    size={26}
+                                    onClick={() => setIsSettingsOpen(true)}
+                                />
+                            </NotificationDot>
                         )}
                     </Row>
                 }

@@ -2,7 +2,6 @@ import { useRouter } from 'next/router'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMatrixChatInvites } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectCommunities,
@@ -17,6 +16,7 @@ import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import { BLOCKED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parser'
 
 import {
+    chatConfirmJoinPublicRoomRoute,
     ecashRoute,
     homeRoute,
     settingsStartRecoveryAssistRoute,
@@ -48,7 +48,6 @@ export const OmniConfirmation: React.FC<Props> = ({
     const lastUsedFederationId = useAppSelector(selectLastUsedFederationId)
     const loadedFederations = useAppSelector(selectLoadedFederations)
     const communities = useAppSelector(selectCommunities)
-    const { joinPublicGroup } = useMatrixChatInvites(t)
     const router = useRouter()
 
     const handleAuth = () => {
@@ -60,24 +59,6 @@ export const OmniConfirmation: React.FC<Props> = ({
                 e => toast.error(t, e),
             )
             .finally(() => setIsLoading(false))
-    }
-
-    const handleJoinRoom = async () => {
-        if (parsedData.type !== ParserDataType.FediChatRoom) return
-        setIsLoading(true)
-        if (parsedData.data?.id) {
-            const roomId = parsedData.data.id
-            joinPublicGroup(roomId)
-                .then(() => {
-                    router.push('/chat/room/' + roomId)
-                })
-                .catch(() => {
-                    onGoBack()
-                })
-                .finally(() => {
-                    setIsLoading(false)
-                })
-        }
     }
 
     const {
@@ -208,8 +189,11 @@ export const OmniConfirmation: React.FC<Props> = ({
             case ParserDataType.FediChatRoom:
                 return {
                     icon: 'Chat',
-                    text: t('feature.omni.unsupported-chat-invite'),
-                    continueOnClick: handleJoinRoom,
+                    text: t('feature.omni.confirm-fedi-chat-group-invite'),
+                    continueOnClick: () =>
+                        router.push(
+                            chatConfirmJoinPublicRoomRoute(parsedData.data.id),
+                        ),
                 }
             case ParserDataType.LegacyFediChatGroup:
             case ParserDataType.LegacyFediChatMember:

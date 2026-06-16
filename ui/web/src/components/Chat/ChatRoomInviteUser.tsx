@@ -1,10 +1,15 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMatrixUserSearch } from '@fedi/common/hooks/matrix'
+import { WEB_APP_URL } from '@fedi/common/constants/api'
+import {
+    useMatrixUserSearch,
+    useRoomKnockingAdminToggle,
+} from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     inviteUserToMatrixRoom,
+    selectMatrixRoom,
     selectMatrixRoomMemberMap,
 } from '@fedi/common/redux'
 import { MatrixRoom } from '@fedi/common/types'
@@ -14,10 +19,14 @@ import { getUserSuffix } from '@fedi/common/utils/matrix'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
+import { Button } from '../Button'
 import { CircularLoader } from '../CircularLoader'
 import { EmptyState } from '../EmptyState'
+import { Row } from '../Flex'
 import { Input } from '../Input'
+import { QRCode } from '../QRCode'
 import { ShadowScroller } from '../ShadowScroller'
+import { Switch } from '../Switch'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
 
@@ -28,11 +37,26 @@ interface Props {
 export const ChatRoomInviteUser: React.FC<Props> = ({ roomId }) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
-    const { error } = useToast()
+    const { error, show } = useToast()
     const { query, setQuery, searchedUsers, isSearching, searchError } =
         useMatrixUserSearch()
     const [invitingUsers, setInvitingUsers] = useState<string[]>([])
+    const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const memberMap = useAppSelector(s => selectMatrixRoomMemberMap(s, roomId))
+    const {
+        shouldShowAllowKnockingToggle,
+        allowKnocking,
+        isToggling: isTogglingAllowKnocking,
+        handleAllowKnockingToggle,
+    } = useRoomKnockingAdminToggle(roomId, t)
+
+    const inviteCode = room?.inviteCode
+    const universalLink = `${WEB_APP_URL}/link#screen=room&id=${encodeURIComponent(roomId)}`
+
+    // Hide the QR when knocking is off so we don't advertise an invite link
+    // that lands on the invite-only screen.
+    const showInviteCode =
+        !!inviteCode && !query && (!!room?.isPublic || !!room?.allowKnocking)
 
     const inviteUser = async (userId: string) => {
         setInvitingUsers(users => [...users, userId])
@@ -44,6 +68,35 @@ export const ChatRoomInviteUser: React.FC<Props> = ({ roomId }) => {
             error(t, 'errors.unknown-error')
         }
         setInvitingUsers(users => users.filter(id => id !== userId))
+    }
+
+    const handleCopyInviteCode = async () => {
+        if (!inviteCode) return
+        try {
+            await navigator.clipboard.writeText(inviteCode)
+            show({
+                content: t('feature.chat.copied-group-invite-code'),
+                status: 'success',
+            })
+        } catch (err) {
+            error(t, 'errors.unknown-error')
+        }
+    }
+
+    const handleShareInviteLink = async () => {
+        try {
+            if (typeof navigator.share === 'function') {
+                await navigator.share({ text: universalLink })
+                return
+            }
+            await navigator.clipboard.writeText(universalLink)
+            show({
+                content: t('phrases.copied-to-clipboard'),
+                status: 'success',
+            })
+        } catch (err) {
+            // no-op when the user dismisses the share sheet
+        }
     }
 
     let searchContent: React.ReactNode
@@ -121,9 +174,43 @@ export const ChatRoomInviteUser: React.FC<Props> = ({ roomId }) => {
                     onChange={ev => setQuery(ev.currentTarget.value)}
                 />
             </SearchHeader>
-            <ShadowScroller>
-                <SearchResults>{searchContent}</SearchResults>
-            </ShadowScroller>
+            {shouldShowAllowKnockingToggle && (
+                <ToggleRow>
+                    <Text variant="caption" weight="bold">
+                        {t('feature.chat.allow-join-requests')}
+                    </Text>
+                    <Switch
+                        checked={allowKnocking}
+                        disabled={isTogglingAllowKnocking}
+                        onCheckedChange={handleAllowKnockingToggle}
+                    />
+                </ToggleRow>
+            )}
+            {showInviteCode ? (
+                <InviteCodeSection>
+                    <QRCode data={inviteCode} />
+                    <Row gap="md" fullWidth>
+                        <Button
+                            width="full"
+                            variant="secondary"
+                            icon="Copy"
+                            onClick={handleCopyInviteCode}>
+                            {t('words.copy')}
+                        </Button>
+                        <Button
+                            width="full"
+                            variant="secondary"
+                            icon="Share"
+                            onClick={handleShareInviteLink}>
+                            {t('words.share')}
+                        </Button>
+                    </Row>
+                </InviteCodeSection>
+            ) : (
+                <ShadowScroller>
+                    <SearchResults>{searchContent}</SearchResults>
+                </ShadowScroller>
+            )}
         </Container>
     )
 }
@@ -141,6 +228,23 @@ const SearchHeader = styled('div', {
     display: 'flex',
     alignItems: 'center',
     padding: '8px 0 12px',
+})
+
+const ToggleRow = styled('div', {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '8px 4px 16px',
+})
+
+const InviteCodeSection = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 16,
+    minHeight,
+    padding: '8px 0',
 })
 
 const SearchResults = styled('div', {

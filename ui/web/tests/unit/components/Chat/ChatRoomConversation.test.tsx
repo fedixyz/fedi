@@ -9,10 +9,7 @@ import {
 import { createMockGroupPreview } from '@fedi/common/tests/mock-data/matrix'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import { ChatRoomConversation } from '@fedi/web/src/components/Chat/ChatRoomConversation'
-import {
-    chatConfirmJoinPublicRoomRoute,
-    chatRoute,
-} from '@fedi/web/src/constants/routes'
+import { chatConfirmJoinPublicRoomRoute } from '@fedi/web/src/constants/routes'
 import i18n from '@fedi/web/src/localization/i18n'
 
 import { mockUseRouter } from '../../../../jest.setup'
@@ -79,7 +76,7 @@ describe('/components/Chat/ChatRoomConversation', () => {
         )
     })
 
-    it('should not render the join group button when a group preview does not exist', async () => {
+    it('should route to the join screen when the room preview is unavailable', async () => {
         renderWithProviders(<ChatRoomConversation roomId={TEST_ROOM_ID} />, {
             fedimint: createMockFedimintBridge(),
         })
@@ -89,7 +86,9 @@ describe('/components/Chat/ChatRoomConversation', () => {
         ).not.toBeInTheDocument()
 
         await waitFor(() => {
-            expect(mockUseRouter.replace).toHaveBeenCalledWith(chatRoute)
+            expect(mockUseRouter.replace).toHaveBeenCalledWith(
+                chatConfirmJoinPublicRoomRoute(TEST_ROOM_ID),
+            )
         })
     })
 })

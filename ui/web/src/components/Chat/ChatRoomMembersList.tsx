@@ -1,11 +1,12 @@
 import { t } from 'i18next'
 import Link from 'next/link'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 
+import { usePendingJoinRequests } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
+    selectActiveMatrixRoomMembers,
     selectMatrixAuth,
-    selectMatrixRoomMembers,
     selectMatrixRoomSelfPowerLevel,
     setMatrixRoomMemberPowerLevel,
 } from '@fedi/common/redux'
@@ -24,22 +25,54 @@ import {
     DropdownSheetMenuLabel,
 } from '../DropdownSheet'
 import { EmptyState } from '../EmptyState'
+import { Column } from '../Flex'
 import { Icon, SvgIconName } from '../Icon'
+import { Switcher } from '../Switcher'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
+import { ChatKnockRequestActionsDialog } from './ChatKnockRequestActionsDialog'
+import { ChatPendingRequestTile } from './ChatPendingRequestTile'
 
 interface Props {
     roomId: string
 }
 
+type MembersTab = 'members' | 'pending'
+
 export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
     const dispatch = useAppDispatch()
     const myUserId = useAppSelector(selectMatrixAuth)?.userId
-    const members = useAppSelector(s => selectMatrixRoomMembers(s, roomId))
+    const members = useAppSelector(s =>
+        selectActiveMatrixRoomMembers(s, roomId),
+    )
     const myPowerLevel = useAppSelector(s =>
         selectMatrixRoomSelfPowerLevel(s, roomId),
     )
     const { error } = useToast()
+
+    const {
+        canRespond,
+        pendingMembers,
+        pendingCount,
+        processingUserId,
+        markSeen,
+        accept,
+        decline,
+    } = usePendingJoinRequests(roomId, t)
+
+    const [activeTab, setActiveTab] = useState<MembersTab>('members')
+    const [selectedPendingUserId, setSelectedPendingUserId] = useState<
+        string | null
+    >(null)
+
+    const tab: MembersTab = canRespond ? activeTab : 'members'
+
+    useEffect(() => {
+        if (tab === 'pending') markSeen()
+    }, [tab, markSeen])
+
+    const selectedPendingMember =
+        pendingMembers.find(m => m.id === selectedPendingUserId) ?? null
 
     const handleChangePowerLevel = async (
         userId: string,
@@ -59,7 +92,7 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
         }
     }
 
-    const renderMemberContent = (member: (typeof members)[0]) => {
+    const renderMemberContent = (member: MatrixRoomMember) => {
         const suffix = getUserSuffix(member.id)
         return (
             <>
@@ -119,7 +152,7 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
         },
     ]
 
-    return (
+    const membersList = (
         <Container>
             {members.map(member => {
                 const menu = (
@@ -200,6 +233,56 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
                 </EmptyState>
             )}
         </Container>
+    )
+
+    const pendingList = (
+        <Container>
+            {pendingMembers.length === 0 ? (
+                <EmptyState>{t('feature.chat.no-knock-requests')}</EmptyState>
+            ) : (
+                pendingMembers.map(member => (
+                    <ChatPendingRequestTile
+                        key={member.id}
+                        member={member}
+                        onClick={setSelectedPendingUserId}
+                    />
+                ))
+            )}
+        </Container>
+    )
+
+    if (!canRespond) return membersList
+
+    return (
+        <Column gap="md" grow basis={false}>
+            <Switcher<MembersTab>
+                selected={tab}
+                onChange={setActiveTab}
+                options={[
+                    { label: t('words.members'), value: 'members' },
+                    {
+                        label: pendingCount
+                            ? `${t('words.pending')} (${pendingCount})`
+                            : t('words.pending'),
+                        value: 'pending',
+                    },
+                ]}
+            />
+            {tab === 'pending' ? pendingList : membersList}
+            <ChatKnockRequestActionsDialog
+                member={selectedPendingMember}
+                isProcessing={processingUserId === selectedPendingUserId}
+                onAccept={async userId => {
+                    await accept(userId)
+                    setSelectedPendingUserId(null)
+                }}
+                onDecline={async userId => {
+                    await decline(userId)
+                    setSelectedPendingUserId(null)
+                }}
+                onClose={() => setSelectedPendingUserId(null)}
+            />
+        </Column>
     )
 }
 

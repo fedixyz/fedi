@@ -7,6 +7,7 @@ import {
     leaveMatrixRoom,
     selectIsDefaultGroup,
     selectMatrixRoomSelfPowerLevel,
+    selectShouldShowPendingJoinsIndicator,
     setMatrixRoomBroadcastOnly,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel, MatrixRoom } from '@fedi/common/types'
@@ -56,6 +57,9 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
         isPowerLevelGreaterOrEqual(myPowerLevel, MatrixPowerLevel.Moderator)
     const isDefaultGroup = useAppSelector(s =>
         selectIsDefaultGroup(s, room?.id || ''),
+    )
+    const showPendingDot = useAppSelector(s =>
+        selectShouldShowPendingJoinsIndicator(s, room.id),
     )
 
     useEffect(() => {
@@ -113,6 +117,7 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
                         icon: 'SocialPeople',
                         onClick: () => setPage('members'),
                         hidden: isDefaultGroup,
+                        showNotificationDot: showPendingDot,
                     },
                     {
                         label: t('feature.chat.invite-to-group'),

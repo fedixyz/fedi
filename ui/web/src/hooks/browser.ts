@@ -415,7 +415,9 @@ export function useIFrameListener(
                     }
 
                     const room = chats.find(
-                        chat => chat.isPublic && chat.id === payload,
+                        chat =>
+                            chat.id === payload &&
+                            (chat.isPublic || chat.allowKnocking),
                     )
                     sendSuccess(
                         event,

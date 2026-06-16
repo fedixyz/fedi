@@ -3,12 +3,14 @@ import React from 'react'
 
 import { styled, theme } from '../styles'
 import { Icon, IconProps } from './Icon'
+import { NotificationDot } from './NotificationDot'
 import { Text } from './Text'
 
 interface MenuItem {
     icon: IconProps['icon']
     label: string
     action?: React.ReactNode
+    showNotificationDot?: boolean
     disabled?: boolean
     hidden?: boolean
     href?: string
@@ -57,7 +59,16 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ menu }) => {
                                         item.disabled ? undefined : item.onClick
                                     }>
                                     <>
-                                        <Icon icon={item.icon} />
+                                        {item.showNotificationDot ? (
+                                            <NotificationDot
+                                                visible
+                                                size={10}
+                                                offset={-2}>
+                                                <Icon icon={item.icon} />
+                                            </NotificationDot>
+                                        ) : (
+                                            <Icon icon={item.icon} />
+                                        )}
                                         <Text>{item.label}</Text>
                                         {item.action || (
                                             <Icon icon="ChevronRight" />

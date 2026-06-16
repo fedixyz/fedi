@@ -29,6 +29,9 @@ export const ChatCreateRoom: React.FC = () => {
         setBroadcastOnly,
         isPublic,
         handlePublicChange,
+        allowKnocking,
+        handleAllowKnockingChange,
+        shouldShowAllowKnockingToggle,
     } = useCreateMatrixRoom(t, (roomId: MatrixRoom['id']) => {
         push(chatRoomRoute(roomId))
     })
@@ -72,6 +75,15 @@ export const ChatCreateRoom: React.FC = () => {
                             onCheckedChange={setBroadcastOnly}
                         />
                     </SwitchContainer>
+                    {shouldShowAllowKnockingToggle && (
+                        <SwitchContainer>
+                            <Text>{t('feature.chat.allow-join-requests')}</Text>
+                            <Switch
+                                checked={allowKnocking}
+                                onCheckedChange={handleAllowKnockingChange}
+                            />
+                        </SwitchContainer>
+                    )}
                     <SwitchContainer>
                         <Text>{t('words.public')}</Text>
                         <Switch
