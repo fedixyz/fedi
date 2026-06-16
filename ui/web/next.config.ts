@@ -35,6 +35,7 @@ const nextConfig: NextConfig = {
 const withPwa = nextPwa({
     dest: 'public',
     customWorkerDir: 'src/worker',
+    disable: process.env.NODE_ENV === 'development',
 })
 
 const withBundleAnalyzer = bundleAnalyzer({

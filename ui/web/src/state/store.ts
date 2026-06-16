@@ -2,10 +2,8 @@ import {
     initializeCommonStore,
     rootReducer,
     setupStore,
-    setVersionTag,
 } from '@fedi/common/redux'
 
-import { version } from '../../package.json'
 import { fedimint } from '../lib/bridge'
 import i18n, { detectLanguage } from '../localization/i18n'
 import { asyncLocalStorage } from '../utils/localstorage'
@@ -24,8 +22,6 @@ export function initializeWebStore() {
         i18n,
         detectLanguage,
     })
-
-    store.dispatch(setVersionTag(version))
 
     return unsubscribe
 }
