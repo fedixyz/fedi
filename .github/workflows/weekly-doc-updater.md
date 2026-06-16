@@ -10,7 +10,9 @@ permissions:
   pull-requests: read
 
 tracker-id: weekly-doc-updater
-engine: codex
+engine:
+  id: codex
+  model: gpt-5-codex
 strict: true
 
 network:
@@ -107,7 +109,8 @@ If the changed files clearly do not affect a tracked Markdown file, do not revie
 Fallback rules:
 
 - If there is no previous successful run, perform a full review of all tracked Markdown files.
-- If run-history lookup fails or the changed-file mapping is too ambiguous, expand the review conservatively across the tracked Markdown inventory instead of blindly reviewing everything.
+- If run-history lookup fails, perform a full review of all tracked Markdown files. Do not stop or report missing data just because the previous successful run cannot be found.
+- If the changed-file mapping is too ambiguous, expand the review conservatively across the tracked Markdown inventory instead of blindly reviewing everything.
 - If a single foundational file implies broad documentation drift, it is acceptable to expand beyond the minimal subset.
 
 ## Requirements
@@ -208,5 +211,8 @@ The PR description should include:
 
 ## Exit Conditions
 
-- If no documentation changes are needed, exit without creating a PR.
-- If you find uncertain or high-risk areas that cannot be validated from the repo, mention them in the updated audit report if you changed other docs. Otherwise exit without changes.
+- Plain text final responses are invalid for this workflow. Before finishing, always invoke exactly one final safe-output tool.
+- If documentation changes are needed, commit the changes and call the safe-outputs `create_pull_request` tool.
+- If no documentation changes are needed, call the safe-outputs `noop` tool with a concise message that includes the review scope and why no PR was needed.
+- If you cannot complete the review because required repository data or tooling is unavailable, call `missing_data`, `missing_tool`, or `report_incomplete` as appropriate. Do not describe the intended safe-output call in text without invoking it.
+- If you find uncertain or high-risk areas that cannot be validated from the repo, mention them in the updated audit report if you changed other docs. If no docs changed, include the uncertainty in the `noop` message.
