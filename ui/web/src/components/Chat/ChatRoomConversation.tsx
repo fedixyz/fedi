@@ -211,6 +211,7 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
                         {directUserId ? undefined : (
                             <NotificationDot visible={showPendingDot} size={10}>
                                 <Icon
+                                    data-testid="ChatRoomSettingsButton"
                                     icon="Cog"
                                     size={26}
                                     onClick={() => setIsSettingsOpen(true)}

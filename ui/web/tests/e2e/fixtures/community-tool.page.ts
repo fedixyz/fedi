@@ -8,15 +8,15 @@ import { BasePage } from './base.page'
 // site is normally avoided; it is intentional here, the in-app browser is the
 // surface under test and backs every mini app.
 export class CommunityToolPage extends BasePage {
-    // Publishes a minimal community (name + welcome message only) and returns
-    // its invite code, read from the clipboard via the tool's "Copy Invite"
-    // (clipboard permission is granted globally in playwright.config.ts).
-    // Call on the post-onboarding wallet.
-    async createSpace(name: string): Promise<string> {
-        await this.page
-            .getByRole('link', { name: 'Spaces', exact: true })
-            .click()
-        await this.page.waitForURL('**/home', { timeout: 30_000 })
+    // Publishes a minimal community (name + welcome message, plus any of the
+    // user's chats given by name) and returns its invite code, read from the
+    // clipboard via the tool's "Copy Invite".
+    // Call on the post-onboarding wallet; grant clipboard-read/write first.
+    async createSpace(name: string, chatNames: string[] = []): Promise<string> {
+        // Navigate directly: the Spaces nav link only exists on screens with
+        // the tab bar, and callers may start from one without it (e.g. a chat
+        // conversation).
+        await this.goto('/home')
         await this.page.getByTestId('MainHeaderButtons__AddIcon').click()
         await this.page.waitForURL('**/onboarding/communities**', {
             timeout: 30_000,
@@ -39,7 +39,7 @@ export class CommunityToolPage extends BasePage {
         await tool.locator('#name').fill(name)
         await tool.locator('#welcome').fill(`Welcome to ${name}`)
 
-        // Skip the optional Mini Apps and Group Chat steps, then publish.
+        // Skip the optional Mini Apps step.
         await this.next(tool)
         await expect(
             tool.getByRole('button', { name: 'Add Mini App', exact: true }),
@@ -50,6 +50,7 @@ export class CommunityToolPage extends BasePage {
             exact: true,
         })
         await expect(publish).toBeVisible()
+        if (chatNames.length > 0) await this.addGroupChats(tool, chatNames)
         await publish.click()
         await tool.getByRole('button', { name: 'Confirm', exact: true }).click()
 
@@ -64,5 +65,36 @@ export class CommunityToolPage extends BasePage {
 
     private async next(tool: Frame) {
         await tool.getByRole('button', { name: 'Next', exact: true }).click()
+    }
+
+    // On the wizard's Group Chat step, attach existing chats. The tool's
+    // "Add Group Chat" button hands off to the app's chat picker dialog
+    // (rendered in the outer page, not the iframe); confirming there sends
+    // the room ids back into the tool, which lists them by name.
+    private async addGroupChats(tool: Frame, chatNames: string[]) {
+        await tool
+            .getByRole('button', { name: 'Add Group Chat', exact: true })
+            .click()
+
+        const dialog = this.page.getByRole('dialog')
+        await expect(dialog.getByText('Add Chat Room')).toBeVisible({
+            timeout: 30_000,
+        })
+        for (const name of chatNames) {
+            await dialog.getByText(name, { exact: true }).click()
+        }
+        await dialog
+            .getByRole('button', { name: 'Continue', exact: true })
+            .click()
+
+        // The picker hands every selected id to the tool in one batch, so one
+        // materialized row proves the round-trip; the joiner's home tiles
+        // assert each chat downstream. Don't check the other rows' names
+        // here: the web injection responses carry no request id, so the
+        // tool's concurrent name lookups can cross-wire and every row may
+        // display the first response's name.
+        await expect(
+            tool.getByText(chatNames[0], { exact: true }).first(),
+        ).toBeVisible({ timeout: 30_000 })
     }
 }

@@ -117,6 +117,8 @@ ui/native/tests/
     └── common/          # Appium E2E test classes
 
 ui/web/tests/
+├── e2e/                 # Playwright e2e specs (onboarding, deep links, chat)
+│   └── fixtures/        # Page objects, shared fixtures, chat group constants
 ├── unit/
 │   ├── components/      # Web component tests
 │   ├── pages/           # Next.js page tests

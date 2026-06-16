@@ -71,6 +71,7 @@ export const ChatCreateRoom: React.FC = () => {
                     <SwitchContainer>
                         <Text>{t('feature.chat.broadcast-only')}</Text>
                         <Switch
+                            data-testid="BroadcastOnlySwitch"
                             checked={broadcastOnly}
                             onCheckedChange={setBroadcastOnly}
                         />
@@ -87,6 +88,7 @@ export const ChatCreateRoom: React.FC = () => {
                     <SwitchContainer>
                         <Text>{t('words.public')}</Text>
                         <Switch
+                            data-testid="PublicSwitch"
                             checked={isPublic}
                             onCheckedChange={handlePublicChange}
                         />
