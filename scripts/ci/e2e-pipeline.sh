@@ -48,6 +48,7 @@ declare -A _TASK_EMOJI=(
     [appium]="🕹️"
     [metro]="🚇"
     [tests]="🧪"
+    [devfed]="🔐"
 )
 declare -A _TASK_LABEL=(
     [emulators]="Android emulators"
@@ -61,6 +62,7 @@ declare -A _TASK_LABEL=(
     [build-ios]="iOS build"
     [appium]="Appium server"
     [metro]="Metro bundler server"
+    [devfed]="dev-fed workspace build"
 )
 _ts() { date +%s; }
 
@@ -295,6 +297,7 @@ _capture_android_logs() {
 #   bridge             ── (no deps)
 #   yarn-install       ── (no deps)
 #   wasm               ── (no deps)
+#   devfed             ── (no deps, only when payments tests run)
 #   emulators          ── after yarn-install (device count derived from the
 #                                            tests' `actors` via ts-node)
 #   appium             ── after yarn-install
@@ -303,7 +306,7 @@ _capture_android_logs() {
 #                                          for @fedi/common if started before
 #                                          build-deps writes dist/)
 #   debug-bundle       ── after bridge + build-deps
-#   tests (per AVD)    ── after emulators + appium + debug-bundle
+#   tests (per AVD)    ── after emulators + appium + debug-bundle + devfed
 # ─────────────────────────────────────────────────────────────────────────
 run_pipeline_android() {
     local tests="${TESTS_TO_RUN:-all}"
@@ -324,6 +327,10 @@ run_pipeline_android() {
     fi
     run_async yarn-install bash -c "cd '$REPO_ROOT/ui' && yarn install --frozen-lockfile"
     run_async wasm bash "$REPO_ROOT/scripts/ui/install-wasm.sh"
+    # Build the fed in parallel with the app build, ahead of the funding step.
+    if _tests_need_devfed "$tests"; then
+        run_async devfed "$REPO_ROOT/scripts/bridge/build-remote.sh"
+    fi
 
     # emulators gate on yarn-install too: how many to boot comes from the
     # tests' `actors`, computed by a ts-node helper that needs node_modules.
@@ -386,11 +393,12 @@ run_pipeline_android() {
     local t0
     t0=$(_ts)
     if _tests_need_devfed "$tests"; then
-        echo "🔐 Funding from a hermetic devimint fed (run-remote.sh --with-devfed)"
+        wait_for devfed
+        echo "🔐 Funding from a hermetic devimint fed (launch-remote.sh --with-devfed)"
         PLATFORM=android AVD="$avd_a" DEVICE_ID="$device_a" \
             AVD_B="$avd_b" DEVICE_ID_B="$device_b" \
             BUNDLE_PATH="$apk_path" APPIUM_PORT="$appium_port" \
-            "$REPO_ROOT/scripts/bridge/run-remote.sh" --with-devfed --port 0 \
+            "$REPO_ROOT/scripts/bridge/launch-remote.sh" --with-devfed --port 0 \
             ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
             || rc=$?
     else
@@ -427,6 +435,7 @@ run_pipeline_android() {
 #   bridge             ── (no deps)
 #   yarn-install       ── (no deps)
 #   wasm               ── (no deps)
+#   devfed             ── (no deps, only when payments tests run)
 #   simulators         ── after yarn-install (device count derived from the
 #                                            tests' `actors` via ts-node)
 #   appium             ── after yarn-install
@@ -436,7 +445,7 @@ run_pipeline_android() {
 #   metro              ── after build-deps (avoids stale "module not found"
 #                                          cache for @fedi/common)
 #   build-ios          ── after cocoapods + build-deps
-#   tests (per UDID)   ── after simulators + appium + build-ios
+#   tests (per UDID)   ── after simulators + appium + build-ios + devfed
 #
 # ─────────────────────────────────────────────────────────────────────────
 run_pipeline_ios() {
@@ -467,6 +476,12 @@ run_pipeline_ios() {
     fi
     run_async yarn-install bash -c "cd '$REPO_ROOT/ui' && yarn install --frozen-lockfile"
     run_async wasm bash "$REPO_ROOT/scripts/ui/install-wasm.sh"
+    # Build the fed in parallel with the app build, ahead of the funding step.
+    # Default shell because the host workspace does not build under .#xcode
+    # (aws-lc-sys needs Go).
+    if _tests_need_devfed "$tests"; then
+        run_async devfed nix develop -c "$REPO_ROOT/scripts/bridge/build-remote.sh"
+    fi
 
     # simulators gate on yarn-install too: how many to boot comes from the
     # tests' `actors`, computed by a ts-node helper that needs node_modules.
@@ -535,15 +550,14 @@ run_pipeline_ios() {
         local t0
         t0=$(_ts)
         if _tests_need_devfed "$tests"; then
-            # The host workspace does not build under .#xcode (aws-lc-sys needs
-            # Go), so build/boot the fed under the default shell and keep the test
-            # under .#xcode as the trailing command. REMOTE_BRIDGE_PORT is set by
-            # remote-server and inherited across the nested .#xcode shell, so HTTP
-            # funding works through the boundary.
+            wait_for devfed
+            # Boot the fed under the default shell, with the test under .#xcode as
+            # the trailing command. REMOTE_BRIDGE_PORT is set by remote-server and
+            # inherited across the nested .#xcode shell, so HTTP funding works.
             echo "🔐 Funding from a hermetic devimint fed (fed under default shell, test under .#xcode)"
             PLATFORM=ios DEVICE_ID="$device_a" DEVICE_ID_B="$device_b" \
                 BUNDLE_PATH="$app_path" APPIUM_PORT="$appium_port" \
-                nix develop -c "$REPO_ROOT/scripts/bridge/run-remote.sh" --with-devfed --port 0 \
+                nix develop -c "$REPO_ROOT/scripts/bridge/launch-remote.sh" --with-devfed --port 0 \
                 nix develop .#xcode -c ts-node "$REPO_ROOT/ui/native/tests/appium/runner.ts" $tests \
                 || ios26_rc=$?
         else
