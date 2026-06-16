@@ -151,6 +151,7 @@ export const DEEP_LINK_SCREENS = [
     'join',
     'join-then-ecash',
     'join-then-browse',
+    'join-then-join',
     'room',
     'user',
     'share-logs',
@@ -234,6 +235,17 @@ export const DEEP_LINKS = [
         params: [
             { name: 'invite', label: 'Invite Code' },
             { name: 'url', label: 'URL' },
+        ],
+    },
+    {
+        key: 'join-community-then-federation',
+        label: 'Join Community + Join Wallet Service',
+        description:
+            'Joins the community, then takes the user to join the wallet service. Each join step is skipped if they are already a member.',
+        screen: 'join-then-join',
+        params: [
+            { name: 'community', label: 'Community Invite Code' },
+            { name: 'federation', label: 'Wallet Service Invite Code' },
         ],
     },
     {

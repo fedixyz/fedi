@@ -26,6 +26,17 @@ import FederationPreview from './FederationPreview'
 const log = makeLog('JoinFederation')
 
 export const JoinFederation: React.FC = () => {
+    const { query } = useRouter()
+    // Remount on a chained join (?id=) so the second join gets a fresh preview
+    // and a reset redirect state, not the first join's stale ones.
+    return (
+        <JoinFederationScreen
+            key={typeof query.id === 'string' ? query.id : 'join'}
+        />
+    )
+}
+
+const JoinFederationScreen: React.FC = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const { push, query } = useRouter()
@@ -37,6 +48,7 @@ export const JoinFederation: React.FC = () => {
         typeof query.id === 'string' ? query.id : hashParams.id || ''
     const afterJoinEcash = hashParams.afterJoinEcash
     const afterJoinUrl = hashParams.afterJoinUrl
+    const afterJoinFederation = hashParams.afterJoinFederation
 
     const {
         isJoining,
@@ -68,9 +80,27 @@ export const JoinFederation: React.FC = () => {
                 return
             }
 
+            if (afterJoinFederation) {
+                // The ?id= change flips the remount key above, so the second
+                // join mounts fresh with its own preview.
+                push(
+                    `${onboardingRoute}/join?id=${encodeURIComponent(
+                        afterJoinFederation,
+                    )}`,
+                )
+                return
+            }
+
             push(nextRoute)
         },
-        [afterJoinEcash, afterJoinUrl, dispatch, federationPreview, push],
+        [
+            afterJoinEcash,
+            afterJoinUrl,
+            afterJoinFederation,
+            dispatch,
+            federationPreview,
+            push,
+        ],
     )
 
     // If they came here with invite code in query string then paste the code for them

@@ -91,6 +91,14 @@ export const getDeepLinkPath = (url: string): string => {
                     normalizeBrowserUrl(rawUrl),
                 )}`
             }
+            case 'join-then-join': {
+                const community = params.get('community')
+                const federation = params.get('federation')
+                if (!community || !federation) return homeRoute
+                return `${onboardingRoute}/join#id=${encodeURIComponent(
+                    normalizeCommunityInviteCode(community),
+                )}&afterJoinFederation=${encodeURIComponent(federation)}`
+            }
             default:
                 return '/'
         }

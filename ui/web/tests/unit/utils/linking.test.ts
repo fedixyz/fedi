@@ -96,6 +96,22 @@ describe('utils/linking', () => {
             ).toBe(
                 '/onboarding/join#id=fed1abc123&afterJoinUrl=https%3A%2F%2Fexample.com%2Fapp',
             )
+
+            expect(
+                getDeepLinkPath(
+                    'https://app.fedi.xyz/link#screen=join-then-join&community=community10abc&federation=fed1abc123',
+                ),
+            ).toBe(
+                '/onboarding/join#id=fedi%3Acommunity10abc&afterJoinFederation=fed1abc123',
+            )
+
+            expect(
+                getDeepLinkPath(
+                    'https://app.fedi.xyz/link?screen=join-then-join&community=community10abc&federation=fed1abc123',
+                ),
+            ).toBe(
+                '/onboarding/join#id=fedi%3Acommunity10abc&afterJoinFederation=fed1abc123',
+            )
         })
 
         it('should return fallback url for invalid deep links', () => {
@@ -119,6 +135,16 @@ describe('utils/linking', () => {
             expect(
                 getDeepLinkPath(
                     'https://app.fedi.xyz/link?screen=join-then-browse&url=example.com%2Fapp',
+                ),
+            ).toBe('/home')
+            expect(
+                getDeepLinkPath(
+                    'https://app.fedi.xyz/link?screen=join-then-join&community=community10abc',
+                ),
+            ).toBe('/home')
+            expect(
+                getDeepLinkPath(
+                    'https://app.fedi.xyz/link?screen=join-then-join&federation=fed1abc123',
                 ),
             ).toBe('/home')
         })

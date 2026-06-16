@@ -579,6 +579,36 @@ describe('linking', () => {
         })
     })
 
+    describe('join-then-join deep link', () => {
+        it('should route community-then-federation to JoinFederation with afterJoinFederation', () => {
+            const deepLink =
+                'https://app.fedi.xyz/link#screen=join-then-join&community=community10abc&federation=fed1abc123'
+            const normalized = normalizeDeepLink(deepLink)
+            expect(normalized).toBeDefined()
+
+            if (!normalized) return
+            const result = linking.getInternalLinkRoute(normalized.fediUri)
+            expect(result).toEqual({
+                routes: [
+                    {
+                        name: 'JoinFederation',
+                        params: {
+                            invite: 'fedi:community10abc',
+                            afterJoinFederation: 'fed1abc123',
+                        },
+                    },
+                ],
+            })
+        })
+
+        it('should return undefined when the wallet service invite is missing', () => {
+            const result = linking.getInternalLinkRoute(
+                'fedi://join-then-join?community=community10abc',
+            )
+            expect(result).toBeUndefined()
+        })
+    })
+
     describe('DEEP_LINKS schema', () => {
         it('every screen value in DEEP_LINKS has a handler in screenMap', () => {
             const screensInSchema = new Set(DEEP_LINKS.map(d => d.screen))

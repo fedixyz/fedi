@@ -111,6 +111,10 @@ const enrichments: Record<DeepLinkKey, BuilderEnrichment> = {
         category: 'onboarding',
         paramUI: { invite: inviteCommunity, url: urlBrowser },
     },
+    'join-community-then-federation': {
+        category: 'onboarding',
+        paramUI: { community: inviteCommunity, federation: inviteFederation },
+    },
     browser: {
         category: 'navigation',
         paramUI: { url: urlBrowser },

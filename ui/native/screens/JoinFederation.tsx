@@ -34,6 +34,7 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     const invite = route?.params?.invite
     const afterJoinEcash = route?.params?.afterJoinEcash
     const afterJoinUrl = route?.params?.afterJoinUrl
+    const afterJoinFederation = route?.params?.afterJoinFederation
     const isFocused = useIsFocused()
     const { publicFederations } = useLatestPublicFederations()
     const {
@@ -100,6 +101,15 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
                 )
                 return
             }
+            if (afterJoinFederation) {
+                navigation.dispatch(
+                    resetToHomeWithScreen(homeTab as 'Home' | 'Wallet', {
+                        name: 'JoinFederation',
+                        params: { invite: afterJoinFederation },
+                    }),
+                )
+                return
+            }
 
             if (!federationPreview && !communityPreview && !codeType) return
 
@@ -113,6 +123,7 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
             navigation,
             afterJoinEcash,
             afterJoinUrl,
+            afterJoinFederation,
         ],
     )
 

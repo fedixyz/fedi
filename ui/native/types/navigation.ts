@@ -173,6 +173,7 @@ export type RootStackParamList = {
         invite?: string
         afterJoinEcash?: string
         afterJoinUrl?: string
+        afterJoinFederation?: string
     }
     LanguageSettings: undefined
     MiniAppPermissionSettings: undefined

@@ -177,6 +177,19 @@ export const screenMap = {
             },
         }
     },
+    'join-then-join': (params: Record<string, string>) => {
+        const community = params.community
+        const federation = params.federation
+        if (!community || !federation) return undefined
+        return {
+            kind: 'root',
+            screen: 'JoinFederation',
+            params: {
+                invite: normalizeCommunityInviteCode(community),
+                afterJoinFederation: federation,
+            },
+        }
+    },
 } satisfies { [K in DeepLinkableScreen]: ScreenMapper } & Record<
     string,
     ScreenMapper
