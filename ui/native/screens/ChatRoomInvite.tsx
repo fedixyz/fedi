@@ -3,7 +3,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Input, Switch, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FlatList, ListRenderItem, StyleSheet, TextInput } from 'react-native'
+import {
+    FlatList,
+    ListRenderItem,
+    StyleSheet,
+    TextInput,
+    useWindowDimensions,
+} from 'react-native'
 
 import { WEB_APP_URL } from '@fedi/common/constants/api'
 import { DEEPLINK_HOSTS, LINK_PATH } from '@fedi/common/constants/linking'
@@ -64,6 +70,11 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
     const [inputValue, setInputValue] = useState('')
     const [isFocused, setIsFocused] = useState(false)
     const inputRef = useRef<TextInput>(null)
+    const { width, height } = useWindowDimensions()
+
+    // Shrink the QR on short screens (iPhone SE / 8) so the link + Share row
+    // below it stays on screen.
+    const qrSize = height < 700 ? width * 0.45 : width * 0.7
 
     // Hide the QR when knocking is off so we don't advertise an invite
     // link that lands on the invite-only screen.
@@ -237,6 +248,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                 qrValue={room.inviteCode as string}
                 shareValue={universalLink}
                 showTextWithAction="share"
+                size={qrSize}
             />
         </Column>
     ) : (

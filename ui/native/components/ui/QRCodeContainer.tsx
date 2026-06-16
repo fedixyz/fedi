@@ -37,6 +37,8 @@ interface Props {
     showActionButtons?: boolean
     /** Renders a text field with an inline action button */
     showTextWithAction?: 'copy' | 'share' | null
+    /** Override the QR size (and the matching text/button widths). Defaults to 70% of screen width. */
+    size?: number
 }
 
 const QRCodeContainer = ({
@@ -49,13 +51,15 @@ const QRCodeContainer = ({
     disableSave,
     showActionButtons,
     showTextWithAction,
+    size,
 }: Props) => {
     const { t } = useTranslation()
     const toast = useToast()
     const { theme } = useTheme()
     const { width } = useWindowDimensions()
 
-    const style = styles(theme, width, dark)
+    const qrSize = size ?? width * 0.7
+    const style = styles(theme, qrSize, dark)
 
     const handleCopy = () => {
         Clipboard.setString(copyValue)
@@ -77,7 +81,7 @@ const QRCodeContainer = ({
             <Row justify="center" style={style.qrCodeContainer}>
                 <QRCode
                     value={qrValue}
-                    size={width * 0.7}
+                    size={qrSize}
                     logoOverrideUrl={logoOverrideUrl}
                     disableSave={disableSave}
                 />
@@ -147,7 +151,7 @@ const QRCodeContainer = ({
     )
 }
 
-const styles = (theme: Theme, width: number, dark?: boolean) =>
+const styles = (theme: Theme, qrSize: number, dark?: boolean) =>
     StyleSheet.create({
         qrCodeContainer: {
             backgroundColor: dark ? theme.colors.background : undefined,
@@ -157,7 +161,7 @@ const styles = (theme: Theme, width: number, dark?: boolean) =>
             padding: theme.spacing.md,
         },
         textWithActionContainer: {
-            width: width * 0.7 + theme.spacing.md * 2,
+            width: qrSize + theme.spacing.md * 2,
             borderRadius: theme.borders.defaultRadius,
             borderColor: theme.colors.primaryLight,
             borderWidth: dark ? 0 : 1,
@@ -183,7 +187,7 @@ const styles = (theme: Theme, width: number, dark?: boolean) =>
             paddingLeft: theme.spacing.xs,
         },
         buttonContainer: {
-            width: width * 0.7 + theme.spacing.md * 2,
+            width: qrSize + theme.spacing.md * 2,
         },
         actionButton: {
             backgroundColor: theme.colors.offWhite,
