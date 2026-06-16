@@ -12,7 +12,7 @@ permissions:
 tracker-id: weekly-doc-updater
 engine:
   id: codex
-  model: gpt-5-codex
+  model: gpt-5.5
 strict: true
 
 network:
