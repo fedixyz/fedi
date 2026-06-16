@@ -65,6 +65,7 @@ import {
     selectMatrixRoomKnockingMembers,
     selectCanRespondToKnockRequests,
     selectShouldShowPendingJoinsIndicator,
+    selectShouldShowJoinOnChatPreview,
     markKnockRequestsSeen,
 } from '../redux'
 import {
@@ -1190,6 +1191,65 @@ export function useMatrixChatInvites(t: TFunction) {
     }
 
     return { joinPublicGroup, knockGroup }
+}
+
+export type DefaultChatJoinState = 'join' | 'pending' | 'joined'
+
+/**
+ * Join state and handler for a default community chat tile, so a user can
+ * join (or request to join) directly from the tile without opening the
+ * conversation first.
+ */
+export function useJoinDefaultChat(roomId: MatrixRoom['id'], t: TFunction) {
+    const { joinPublicGroup, knockGroup } = useMatrixChatInvites(t)
+    const room = useCommonSelector(s => selectMatrixRoom(s, roomId))
+    const defaultRoom = useCommonSelector(s =>
+        selectDefaultMatrixRoom(s, roomId),
+    )
+    // Fedi Global default chats auto-join everyone, so the app hides the join
+    // affordance for them. Keep the tile consistent with that exception.
+    const shouldShowJoin = useCommonSelector(s =>
+        selectShouldShowJoinOnChatPreview(s, roomId),
+    )
+    const [isJoining, setIsJoining] = useState(false)
+    // Membership written before the room list sync reflects it, so the tile
+    // doesn't flash back to "Join" after a successful join or knock.
+    const [localJoinState, setLocalJoinState] =
+        useState<DefaultChatJoinState | null>(null)
+
+    const isPublic = defaultRoom?.isPublic ?? room?.isPublic ?? false
+    const allowKnocking =
+        defaultRoom?.allowKnocking ?? room?.allowKnocking ?? false
+    const canJoin = shouldShowJoin && (isPublic || allowKnocking)
+
+    let joinState: DefaultChatJoinState
+    if (room?.roomState === 'joined' || room?.roomState === 'invited') {
+        joinState = 'joined'
+    } else if (room?.roomState === 'knocked') {
+        joinState = 'pending'
+    } else {
+        joinState = localJoinState ?? 'join'
+    }
+
+    const handleJoin = async () => {
+        if (!canJoin || isJoining || joinState !== 'join') return
+        setIsJoining(true)
+        try {
+            if (isPublic) {
+                await joinPublicGroup(roomId)
+                setLocalJoinState('joined')
+            } else {
+                await knockGroup(roomId)
+                setLocalJoinState('pending')
+            }
+        } catch {
+            // both surface their own error toast before rethrowing
+        } finally {
+            setIsJoining(false)
+        }
+    }
+
+    return { joinState, canJoin, isJoining, handleJoin }
 }
 
 export function useRoomKnockingAdminToggle(

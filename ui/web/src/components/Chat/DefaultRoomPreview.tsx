@@ -1,12 +1,17 @@
 import Link from 'next/link'
+import { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
+import {
+    useJoinDefaultChat,
+    useMatrixRoomPreview,
+} from '@fedi/common/hooks/matrix'
 import { MatrixRoom } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
 import { chatRoomRoute } from '../../constants/routes'
 import { styled, theme } from '../../styles'
+import { Button } from '../Button'
 import { Icon } from '../Icon'
 import { Text } from '../Text'
 
@@ -16,6 +21,10 @@ export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
         roomId: room.id,
         t,
     })
+    const { joinState, canJoin, isJoining, handleJoin } = useJoinDefaultChat(
+        room.id,
+        t,
+    )
 
     return (
         <DefaultRoomContainer href={chatRoomRoute(room.id)}>
@@ -28,12 +37,30 @@ export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
                 </Text>
                 {text && <Text variant="small">{text}</Text>}
             </DefaultRoomText>
-            <NewsItemArrow>
-                <Icon
-                    icon="ChevronRight"
-                    color={theme.colors.grey.toString()}
-                />
-            </NewsItemArrow>
+            {joinState === 'join' && canJoin ? (
+                <Button
+                    size="sm"
+                    loading={isJoining}
+                    onClick={(e: MouseEvent) => {
+                        // Block the tile link's navigation; joining happens
+                        // in place.
+                        e.preventDefault()
+                        handleJoin()
+                    }}>
+                    {t('words.join')}
+                </Button>
+            ) : joinState === 'pending' ? (
+                <Button size="sm" variant="secondary" disabled>
+                    {t('words.pending')}
+                </Button>
+            ) : (
+                <NewsItemArrow data-testid="DefaultRoomPreview__chevron">
+                    <Icon
+                        icon="ChevronRight"
+                        color={theme.colors.grey.toString()}
+                    />
+                </NewsItemArrow>
+            )}
         </DefaultRoomContainer>
     )
 }
