@@ -1,13 +1,14 @@
 import React, { memo, useRef, useState, useEffect, useCallback } from 'react'
 
-import { setChatReplyingToMessage } from '@fedi/common/redux'
+import { selectCanReply, setChatReplyingToMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { useAppDispatch } from '../../hooks'
+import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Icon } from '../Icon'
 import { ChatMessageActionsDrawer } from './ChatMessageActionsDrawer'
+import { hasReplyAction } from './chatMessageActionUtils'
 import { useChatMessageActions } from './useChatMessageActions'
 
 const log = makeLog('ChatSwipeableEventContainer')
@@ -47,8 +48,12 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
         const animationId = useRef<number | null>(null)
 
         const { roomId } = event
+        const canReplyInRoom = useAppSelector(s => selectCanReply(s, roomId))
+        const canReply = hasReplyAction(event, canReplyInRoom)
 
         const handleReply = useCallback(() => {
+            if (!canReply) return
+
             log.info('Reply activated', {
                 roomId,
                 eventId: event.id,
@@ -61,7 +66,7 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
             setCurrentSwipeDirection(null)
             setIsDragging(false)
             setRenderKey(prev => prev + 1)
-        }, [dispatch, roomId, event])
+        }, [canReply, dispatch, roomId, event])
 
         const {
             isActionsOpen,
@@ -71,13 +76,17 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
             wasLongPressActivated,
         } = useChatMessageActions(containerRef, event)
 
-        const handleTouchStart = useCallback((e: TouchEvent) => {
-            startX.current = e.touches[0].clientX
-            startY.current = e.touches[0].clientY
-            currentX.current = e.touches[0].clientX
-            gestureDecision.current = null
-            setIsDragging(true)
-        }, [])
+        const handleTouchStart = useCallback(
+            (e: TouchEvent) => {
+                if (!canReply) return
+                startX.current = e.touches[0].clientX
+                startY.current = e.touches[0].clientY
+                currentX.current = e.touches[0].clientX
+                gestureDecision.current = null
+                setIsDragging(true)
+            },
+            [canReply],
+        )
 
         const handleTouchMove = useCallback(
             (e: TouchEvent) => {
@@ -118,7 +127,6 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
         )
 
         const handleTouchEnd = useCallback(() => {
-            clearLongPressTimeout()
             if (wasLongPressActivated()) {
                 resetLongPressActivated()
                 setSwipeDistance(0)
@@ -166,7 +174,6 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                 animate()
             }
         }, [
-            clearLongPressTimeout,
             dragThreshold,
             handleReply,
             resetLongPressActivated,
@@ -176,6 +183,7 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
 
         const handleMouseDown = useCallback(
             (e: MouseEvent) => {
+                if (!canReply) return
                 if (e.button !== 0) return
                 resetLongPressActivated()
                 startX.current = e.clientX
@@ -184,7 +192,7 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                 gestureDecision.current = null
                 setIsDragging(true)
             },
-            [resetLongPressActivated],
+            [canReply, resetLongPressActivated],
         )
 
         const handleMouseMove = useCallback(
@@ -253,7 +261,6 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                 document.removeEventListener('mousemove', handleMouseMove)
                 document.removeEventListener('mouseup', handleMouseUp)
 
-                clearLongPressTimeout()
                 if (animationId.current !== null) {
                     cancelAnimationFrame(animationId.current)
                     animationId.current = null
@@ -266,7 +273,6 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
             handleMouseDown,
             handleMouseMove,
             handleMouseUp,
-            clearLongPressTimeout,
         ])
 
         useEffect(() => {
@@ -334,7 +340,17 @@ const Container = styled('div', {
     backgroundColor: 'transparent',
     touchAction: 'pan-y',
     userSelect: 'none',
+    // Keep iOS Safari from taking over message long-presses with native
+    // selection/callout UI. This includes media so image/video messages can
+    // still open the action menu for reactions, matching native.
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
     width: '100%',
+
+    '& *': {
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+    },
 })
 
 const SwipeableContent = styled('div', {

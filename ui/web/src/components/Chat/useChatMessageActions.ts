@@ -1,10 +1,13 @@
 import { RefObject, useCallback, useState } from 'react'
 
-import { selectMessageReactionsEnabled } from '@fedi/common/redux'
+import {
+    selectCanReply,
+    selectMessageReactionsEnabled,
+} from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 
 import { useAppSelector, useLongPress } from '../../hooks'
-import { hasMessageActions, hasReactionActions } from './chatMessageActionUtils'
+import { hasReactionActions, hasReplyAction } from './chatMessageActionUtils'
 
 const LONG_PRESS_DELAY_MS = 500
 const LONG_PRESS_MOVE_TOLERANCE = 36
@@ -25,8 +28,9 @@ export function useChatMessageActions<T extends HTMLElement>(
     const messageReactionsEnabled = useAppSelector(
         selectMessageReactionsEnabled,
     )
+    const canReplyInRoom = useAppSelector(s => selectCanReply(s, event.roomId))
     const hasActions =
-        hasMessageActions(event) ||
+        hasReplyAction(event, canReplyInRoom) ||
         hasReactionActions(event, messageReactionsEnabled)
 
     const openActions = useCallback(() => {
@@ -39,13 +43,22 @@ export function useChatMessageActions<T extends HTMLElement>(
         },
         [],
     )
-    const shouldStartLongPress = useCallback((pointerEvent: PointerEvent) => {
-        const isMediaTarget = isNativeContextMenuTarget(pointerEvent.target)
+    const shouldStartLongPress = useCallback(
+        (longPressEvent: PointerEvent | TouchEvent) => {
+            const isMediaTarget = isNativeContextMenuTarget(
+                longPressEvent.target,
+            )
 
-        if (pointerEvent.pointerType === 'mouse') return isMediaTarget
+            if (
+                'pointerType' in longPressEvent &&
+                longPressEvent.pointerType === 'mouse'
+            )
+                return isMediaTarget
 
-        return !isMediaTarget
-    }, [])
+            return true
+        },
+        [],
+    )
 
     const {
         clearLongPressTimeout,

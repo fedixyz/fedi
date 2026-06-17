@@ -2,14 +2,11 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MATRIX_QUICK_REACTION_EMOJIS } from '@fedi/common/constants/matrix'
-import { setChatReplyingToMessage } from '@fedi/common/redux'
+import { selectCanReply, setChatReplyingToMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import {
-    canAddMatrixReaction,
-    canReplyToMatrixEvent,
-} from '@fedi/common/utils/matrix'
+import { canAddMatrixReaction } from '@fedi/common/utils/matrix'
 
-import { useAppDispatch } from '../../hooks'
+import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { CircularLoader } from '../CircularLoader'
 import { Row } from '../Flex'
@@ -17,7 +14,7 @@ import { Icon } from '../Icon'
 import { Text } from '../Text'
 import { ChatBottomDrawer } from './ChatBottomDrawer'
 import { MatrixReactionEmojiPicker } from './MatrixReactionEmojiPicker'
-import { hasReactionActions } from './chatMessageActionUtils'
+import { hasReactionActions, hasReplyAction } from './chatMessageActionUtils'
 import { useMatrixReactionHandler } from './useMatrixReactionHandler'
 
 interface Props {
@@ -36,7 +33,8 @@ export const ChatMessageActionsDrawer: React.FC<Props> = ({
     const { handleReaction, messageReactionsEnabled, reactingEmoji } =
         useMatrixReactionHandler()
     const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
-    const canReply = canReplyToMatrixEvent(event)
+    const canReplyInRoom = useAppSelector(s => selectCanReply(s, event.roomId))
+    const canReply = hasReplyAction(event, canReplyInRoom)
     const canShowReactions = hasReactionActions(event, messageReactionsEnabled)
     const reactLabel = t('words.react')
 

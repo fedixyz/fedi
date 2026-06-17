@@ -2,10 +2,24 @@ import '@testing-library/jest-dom'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import { setFeatureFlags, setupStore } from '@fedi/common/redux'
+import {
+    addMatrixRoomInfo,
+    handleMatrixRoomListStreamUpdates,
+    setFeatureFlags,
+    setMatrixAuth,
+    setMatrixRoomMembers,
+    setMatrixRoomPowerLevels,
+    setupStore,
+} from '@fedi/common/redux'
+import { MOCK_MATRIX_ROOM } from '@fedi/common/tests/mock-data/matrix'
 import { createMockNonPaymentEvent } from '@fedi/common/tests/mock-data/matrix-event'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
-import { MatrixEvent } from '@fedi/common/types'
+import {
+    MatrixAuth,
+    MatrixEvent,
+    MatrixPowerLevel,
+    MatrixRoomMember,
+} from '@fedi/common/types'
 import {
     FeatureCatalog,
     RpcTimelineEventItemId,
@@ -17,6 +31,7 @@ import { renderWithProviders } from '../../../utils/render'
 
 const ROOM_ID = '!room:example.com'
 const EVENT_ID = '$event:example.com'
+const SELF_USER_ID = '@self:example.com'
 
 const event = createMockNonPaymentEvent({
     id: EVENT_ID as RpcTimelineEventItemId,
@@ -55,19 +70,68 @@ const reactablePollEvent: MatrixEvent<'m.poll'> = {
     },
 }
 
+function makeReplyableStore() {
+    const store = setupStore()
+
+    store.dispatch(
+        handleMatrixRoomListStreamUpdates([
+            { PushBack: { value: { status: 'ready', id: ROOM_ID } } },
+        ]),
+    )
+    store.dispatch(
+        addMatrixRoomInfo({
+            ...MOCK_MATRIX_ROOM,
+            id: ROOM_ID,
+            roomState: 'joined',
+        }),
+    )
+    store.dispatch(setMatrixAuth({ userId: SELF_USER_ID } as MatrixAuth))
+    store.dispatch(
+        setMatrixRoomMembers({
+            roomId: ROOM_ID,
+            members: [
+                {
+                    id: SELF_USER_ID,
+                    roomId: ROOM_ID,
+                    membership: 'join',
+                    ignored: false,
+                    powerLevel: {
+                        type: 'int',
+                        value: MatrixPowerLevel.Member,
+                    },
+                } as MatrixRoomMember,
+            ],
+        }),
+    )
+    store.dispatch(
+        setMatrixRoomPowerLevels({
+            roomId: ROOM_ID,
+            powerLevels: {
+                events: {
+                    'm.room.message': MatrixPowerLevel.Member,
+                },
+            },
+        }),
+    )
+
+    return store
+}
+
 describe('/components/Chat/ChatMessageActionsDrawer', () => {
     beforeEach(() => {
         jest.clearAllMocks()
     })
 
     it('should show web message actions without reactions', () => {
+        const store = makeReplyableStore()
+
         renderWithProviders(
             <ChatMessageActionsDrawer
                 event={event}
                 open
                 onOpenChange={jest.fn()}
             />,
-            { store: setupStore() },
+            { store },
         )
 
         expect(screen.getByText(i18n.t('words.reply'))).toBeInTheDocument()
@@ -83,14 +147,15 @@ describe('/components/Chat/ChatMessageActionsDrawer', () => {
     })
 
     it('should activate reply and close the drawer', async () => {
+        const store = makeReplyableStore()
         const onOpenChange = jest.fn()
-        const { store } = renderWithProviders(
+        renderWithProviders(
             <ChatMessageActionsDrawer
                 event={event}
                 open
                 onOpenChange={onOpenChange}
             />,
-            { store: setupStore() },
+            { store },
         )
 
         await userEvent.click(screen.getByText(i18n.t('words.reply')))
@@ -125,7 +190,7 @@ describe('/components/Chat/ChatMessageActionsDrawer', () => {
     })
 
     it('should show quick reactions when message reactions are enabled', () => {
-        const store = setupStore()
+        const store = makeReplyableStore()
         store.dispatch(
             setFeatureFlags({
                 message_reactions: {},
@@ -147,7 +212,7 @@ describe('/components/Chat/ChatMessageActionsDrawer', () => {
     })
 
     it('should not show quick reactions for polls', () => {
-        const store = setupStore()
+        const store = makeReplyableStore()
         store.dispatch(
             setFeatureFlags({
                 message_reactions: {},
@@ -173,7 +238,7 @@ describe('/components/Chat/ChatMessageActionsDrawer', () => {
     })
 
     it('should toggle a quick reaction and close the drawer', async () => {
-        const store = setupStore()
+        const store = makeReplyableStore()
         const toggleReaction = jest.fn().mockResolvedValue(true)
         const onOpenChange = jest.fn()
         store.dispatch(
@@ -203,7 +268,7 @@ describe('/components/Chat/ChatMessageActionsDrawer', () => {
     })
 
     it('should open the full emoji picker from the reactions row', async () => {
-        const store = setupStore()
+        const store = makeReplyableStore()
         store.dispatch(
             setFeatureFlags({
                 message_reactions: {},

@@ -63,7 +63,7 @@ export const useWarnBeforeUnload = (
     }, [shouldWarn, messageRef])
 }
 
-type LongPressEvent = PointerEvent | MouseEvent
+type LongPressEvent = PointerEvent | MouseEvent | TouchEvent
 
 type LongPressOptions = {
     delayMs?: number
@@ -72,7 +72,7 @@ type LongPressOptions = {
     enableMouseLongPress?: boolean
     enabled?: boolean
     shouldHandleContextMenu?: (event: MouseEvent) => boolean
-    shouldStartLongPress?: (event: PointerEvent) => boolean
+    shouldStartLongPress?: (event: PointerEvent | TouchEvent) => boolean
 }
 
 export function useLongPress<T extends HTMLElement>(
@@ -92,13 +92,18 @@ export function useLongPress<T extends HTMLElement>(
     const startX = useRef(0)
     const startY = useRef(0)
     const timeoutId = useRef<number | null>(null)
+    const startedAt = useRef<number | null>(null)
+    const pendingLongPressEvent = useRef<LongPressEvent | null>(null)
     const activated = useRef(false)
 
     const clearLongPressTimeout = useCallback(() => {
-        if (timeoutId.current === null) return
+        if (timeoutId.current !== null) {
+            window.clearTimeout(timeoutId.current)
+            timeoutId.current = null
+        }
 
-        window.clearTimeout(timeoutId.current)
-        timeoutId.current = null
+        startedAt.current = null
+        pendingLongPressEvent.current = null
     }, [])
 
     const resetLongPressActivated = useCallback(() => {
@@ -116,6 +121,11 @@ export function useLongPress<T extends HTMLElement>(
         const handlePointerDown = (e: PointerEvent) => {
             if (!enabled) return
             if (!e.isPrimary) return
+            // Mobile Safari can emit touch pointer events that are followed by
+            // pointercancel/pointerup before the touch sequence finishes. Use
+            // touch events as the source of truth for touch long-presses so iOS
+            // does not cancel the pending action before touchend.
+            if (e.pointerType === 'touch') return
             if (e.pointerType === 'mouse' && !enableMouseLongPress) return
             if (shouldStartLongPress && !shouldStartLongPress(e)) return
 
@@ -123,14 +133,19 @@ export function useLongPress<T extends HTMLElement>(
             startY.current = e.clientY
             clearLongPressTimeout()
             activated.current = false
+            startedAt.current = Date.now()
+            pendingLongPressEvent.current = e
             timeoutId.current = window.setTimeout(() => {
                 timeoutId.current = null
+                startedAt.current = null
+                pendingLongPressEvent.current = null
                 activated.current = true
                 onLongPressRef.current(e)
             }, delayMs)
         }
 
         const handlePointerMove = (e: PointerEvent) => {
+            if (e.pointerType === 'touch') return
             if (!e.isPrimary) return
             if (timeoutId.current === null) return
 
@@ -143,8 +158,90 @@ export function useLongPress<T extends HTMLElement>(
             }
         }
 
-        const handlePointerUp = () => {
+        const handlePointerUp = (e: PointerEvent) => {
+            // See handlePointerDown. Touch long-press cleanup must happen from
+            // touchend/touchcancel, not touch pointer events, for iOS Safari.
+            if (e.pointerType === 'touch') return
+
             clearLongPressTimeout()
+        }
+
+        const handleTouchEnd = (e: TouchEvent) => {
+            if (activated.current && pendingLongPressEvent.current !== null) {
+                const longPressEvent = pendingLongPressEvent.current
+
+                clearLongPressTimeout()
+                onLongPressRef.current(longPressEvent)
+                return
+            }
+
+            if (
+                timeoutId.current !== null &&
+                startedAt.current !== null &&
+                Date.now() - startedAt.current >= delayMs
+            ) {
+                // iOS Safari may delay the long-press timer while the touch is
+                // active. If the elapsed time is long enough by touchend, treat
+                // it as a completed long-press even if the timer callback has
+                // not run yet.
+                const longPressEvent = pendingLongPressEvent.current || e
+
+                window.clearTimeout(timeoutId.current)
+                timeoutId.current = null
+                startedAt.current = null
+                pendingLongPressEvent.current = null
+                activated.current = true
+                onLongPressRef.current(longPressEvent)
+                return
+            }
+
+            clearLongPressTimeout()
+        }
+
+        const handlePointerCancel = (e: PointerEvent) => {
+            // iOS Safari may send pointercancel during a valid long-press. Do
+            // not let that cancel the touch sequence; touchcancel still does.
+            if (e.pointerType === 'touch') return
+
+            clearLongPressTimeout()
+        }
+
+        const handleTouchStart = (e: TouchEvent) => {
+            if (!enabled) return
+            if (e.touches.length !== 1) return
+            if (shouldStartLongPress && !shouldStartLongPress(e)) return
+
+            const touch = e.touches[0]
+            startX.current = touch.clientX
+            startY.current = touch.clientY
+            clearLongPressTimeout()
+            activated.current = false
+            startedAt.current = Date.now()
+            pendingLongPressEvent.current = e
+            timeoutId.current = window.setTimeout(() => {
+                timeoutId.current = null
+                activated.current = true
+                // Do not open while the finger is still down. On iOS Safari
+                // opening the drawer during the active touch can race native
+                // selection/callout handling; commit the UI from touchend.
+            }, delayMs)
+        }
+
+        const handleTouchMove = (e: TouchEvent) => {
+            if (timeoutId.current === null) return
+            if (e.touches.length !== 1) {
+                clearLongPressTimeout()
+                return
+            }
+
+            const touch = e.touches[0]
+            const horizontalDistance = Math.abs(touch.clientX - startX.current)
+            const verticalDistance = Math.abs(touch.clientY - startY.current)
+            if (
+                Math.max(horizontalDistance, verticalDistance) >= moveTolerance
+            ) {
+                clearLongPressTimeout()
+            }
         }
 
         const handleContextMenu = (e: MouseEvent) => {
@@ -161,14 +258,26 @@ export function useLongPress<T extends HTMLElement>(
         element.addEventListener('pointerdown', handlePointerDown)
         element.addEventListener('pointermove', handlePointerMove)
         element.addEventListener('pointerup', handlePointerUp)
-        element.addEventListener('pointercancel', handlePointerUp)
+        element.addEventListener('pointercancel', handlePointerCancel)
+        element.addEventListener('touchstart', handleTouchStart)
+        element.addEventListener('touchmove', handleTouchMove)
+        // Capture touchend so swipe handlers can see wasLongPressActivated()
+        // after the hook commits the iOS long-press state.
+        element.addEventListener('touchend', handleTouchEnd, { capture: true })
+        element.addEventListener('touchcancel', clearLongPressTimeout)
         element.addEventListener('contextmenu', handleContextMenu)
 
         return () => {
             element.removeEventListener('pointerdown', handlePointerDown)
             element.removeEventListener('pointermove', handlePointerMove)
             element.removeEventListener('pointerup', handlePointerUp)
-            element.removeEventListener('pointercancel', handlePointerUp)
+            element.removeEventListener('pointercancel', handlePointerCancel)
+            element.removeEventListener('touchstart', handleTouchStart)
+            element.removeEventListener('touchmove', handleTouchMove)
+            element.removeEventListener('touchend', handleTouchEnd, {
+                capture: true,
+            })
+            element.removeEventListener('touchcancel', clearLongPressTimeout)
             element.removeEventListener('contextmenu', handleContextMenu)
             clearLongPressTimeout()
         }

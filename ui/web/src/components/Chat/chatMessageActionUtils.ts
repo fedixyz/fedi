@@ -1,8 +1,8 @@
 import { MatrixEvent } from '@fedi/common/types'
 import { canReplyToMatrixEvent } from '@fedi/common/utils/matrix'
 
-export function hasMessageActions(event: MatrixEvent) {
-    return canReplyToMatrixEvent(event)
+export function hasReplyAction(event: MatrixEvent, canReplyInRoom: boolean) {
+    return canReplyInRoom && canReplyToMatrixEvent(event)
 }
 
 export function hasReactionActions(
