@@ -50,6 +50,7 @@ const PinAccess: React.FC<Props> = ({ navigation }) => {
                         </Text>
                         <Switch
                             value={value}
+                            testID={`PinSwitch-${key}`}
                             onChange={() => {
                                 dispatch(
                                     setProtectedFeature({

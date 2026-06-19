@@ -2,6 +2,7 @@ import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
 import { Platform } from '../configs/appium/types'
 import { Chat } from './common/Chat.test'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
+import { PinProtection } from './common/PinProtection.test'
 import { Settings } from './common/Settings.test'
 import { BackupRestore } from './common/backupRestore.test'
 import { OnboardingTest } from './common/onboarding.test'
@@ -25,6 +26,7 @@ export const availableTests: Record<string, TestClass> = {
     chat: Chat,
     payments: Payments,
     backupRestore: BackupRestore,
+    pinProtection: PinProtection,
 }
 
 export type TestName = keyof typeof availableTests
