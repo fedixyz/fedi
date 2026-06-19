@@ -134,11 +134,11 @@ const visible2 = await this.elementIsDisplayed('Foo', 2000)  // custom timeout
 
 ### By visible text
 
-Use when an element has no `testID` (translated menu items, alert button labels):
+Prefer this over a `testID` for any element with a stable, unambiguous label. Reserve `testID`s for elements with no usable text: icon controls, value fields you read back, list items, and labels that collide on-screen. Match the i18n key's output (`import i18n from '@fedi/native/localization/i18n'`) rather than a hardcoded literal, so the locale files stay the source of truth. e2e runs in English.
 
 ```typescript
-await this.clickOnText('Edit profile', 0)         // first match, partial
-await this.clickOnText('Fedi Testnet', 0, true)   // exact match
+await this.clickOnText(i18n.t('words.next'), 0, true)   // translated label
+await this.clickOnText('Fedi Testnet', 0, true)         // literal for non-translated data
 const found = await this.isTextPresent('Some text')
 ```
 
@@ -187,7 +187,9 @@ await new Promise(r => setTimeout(r, 1000))
 
 ## Dynamic TestIDs
 
-Don't memorize a list of testIDs — they change as the app evolves. Read the existing two test files for current ones in use, and grep for `testID=` in `ui/native/screens` and `ui/native/components` when you need a new one.
+Don't memorize a list of testIDs, they change as the app evolves. Read the existing two test files for current ones in use, and grep for `testID=` in `ui/native/screens` and `ui/native/components` when you need a new one.
+
+When you add one, keep it a static string and put it on the element in the screen. A reusable component takes `testID` as a prop and forwards it to its native element rather than hardcoding one that collides across instances.
 
 Two patterns are worth knowing because they don't live in any single file:
 
@@ -221,4 +223,3 @@ Three places must be updated together. Forgetting any one silently drops the tes
 - **Some bottom-tab buttons trigger overlays, not navigation** — tapping `WalletTabButton` while already on the wallet tab opens the wallet switcher. Check `TabsNavigator.tsx` for `tabPress` listeners before assuming a tab tap is idempotent.
 - **Screenshots are failure-only** — captured by the runner only on test failure. A passing run's artifact bundle contains no screenshots.
 - **Locale changes need to be reverted within the test** — if a test changes language to Spanish, switch back to `en` before finishing. The runner's reset handles this between tests, but a test that assumes English mid-flow will break itself if it doesn't reset.
-- **Translated text is locale-dependent** — prefer `testID`s over `clickOnText` for English-only assertions.
