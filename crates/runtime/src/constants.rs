@@ -42,8 +42,11 @@ pub const FEDI_FILE_V0_PATH: &str = "./fedi_file.json";
 
 // Operation types in fedimint client
 pub const LIGHTNING_OPERATION_TYPE: &str = "ln";
+pub const LIGHTNINGV2_OPERATION_TYPE: &str = "lnv2";
 pub const MINT_OPERATION_TYPE: &str = "mint";
+pub const MINTV2_OPERATION_TYPE: &str = "mintv2";
 pub const WALLET_OPERATION_TYPE: &str = "wallet";
+pub const WALLETV2_OPERATION_TYPE: &str = "walletv2";
 pub const STABILITY_POOL_OPERATION_TYPE: &str = "stability_pool";
 pub const STABILITY_POOL_V2_OPERATION_TYPE: &str = "multi_sig_stability_pool";
 

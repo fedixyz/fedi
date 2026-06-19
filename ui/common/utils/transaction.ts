@@ -969,6 +969,19 @@ export const makeTxnDetailItems = (
         })
     }
 
+    // v2 ecash sends carry the ecash string so the user can copy it and
+    // manually reclaim/re-share the funds (v2 ecash has no programmatic
+    // cancel). v1 sends leave oob_notes null and use the cancel flow.
+    if (txn.kind === 'oobSend' && 'oob_notes' in txn && txn.oob_notes) {
+        items.push({
+            label: t('words.ecash'),
+            value: txn.oob_notes,
+            copiedMessage: t('phrases.copied-to-clipboard'),
+            copyable: true,
+            truncated: true,
+        })
+    }
+
     if (
         (txn.kind === 'onchainDeposit' || txn.kind === 'onchainWithdraw') &&
         'onchain_address' in txn

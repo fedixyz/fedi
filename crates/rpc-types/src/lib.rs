@@ -541,6 +541,11 @@ pub enum RpcTransactionKind {
     },
     OobSend {
         state: Option<RpcOOBSpendState>,
+        /// The ecash string handed out by this send. Surfaced for v2 ecash
+        /// (which has no programmatic cancel) so the user can copy it from
+        /// the tx detail and manually reclaim/re-share the funds. `None` for
+        /// v1 ecash, which has its own cancel flow.
+        oob_notes: Option<String>,
     },
     OobReceive {
         state: Option<RpcOOBReissueState>,

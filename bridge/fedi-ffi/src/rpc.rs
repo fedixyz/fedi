@@ -444,6 +444,12 @@ async fn getGatewayOverride(federation: Arc<FederationV2>) -> anyhow::Result<Opt
 
 #[macro_rules_derive(federation_rpc_method!)]
 async fn supportsSafeOnchainDeposit(federation: Arc<FederationV2>) -> anyhow::Result<bool> {
+    // walletv2 has no SAFE_DEPOSIT_MODULE_CONSENSUS_VERSION-style runtime
+    // gate — its design handles deposits of any size natively, so it's
+    // always safe.
+    if federation.client.walletv2().is_ok() {
+        return Ok(true);
+    }
     Ok(federation.client.wallet()?.supports_safe_deposit().await)
 }
 
@@ -756,19 +762,12 @@ async fn signLnurlMessage(
 
 #[macro_rules_derive(federation_rpc_method!)]
 async fn supportsRecurringdLnurl(federation: Arc<FederationV2>) -> anyhow::Result<bool> {
-    Ok(federation.get_recurringd_api().await.is_some())
+    Ok(federation.supports_recurringd_lnurl().await)
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
 async fn getRecurringdLnurl(federation: Arc<FederationV2>) -> anyhow::Result<String> {
-    federation
-        .get_recurringd_lnurl(
-            federation
-                .get_recurringd_api()
-                .await
-                .context(ErrorCode::RecurringdMetaNotFound)?,
-        )
-        .await
+    federation.get_recurringd_lnurl().await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]

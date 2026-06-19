@@ -70,7 +70,11 @@ export const SendOffline: React.FC<Props> = ({
             if (res) {
                 onEcashGenerated()
                 setEcash(res.ecash)
-                setQrFrames(dataToFrames(Buffer.from(res.ecash, 'base64')))
+                setQrFrames(
+                    res.ecash.toLowerCase().startsWith('fedimint')
+                        ? dataToFrames(res.ecash)
+                        : dataToFrames(Buffer.from(res.ecash, 'base64')),
+                )
             }
         } catch (err) {
             toast.error(t, err, 'errors.unknown-error')

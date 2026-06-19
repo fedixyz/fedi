@@ -41,6 +41,11 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
     const isOffline = useAppSelector(selectIsInternetUnreachable)
 
     const frames = useMemo(() => {
+        // v2 mintv2 ecash is base32-prefixed ("fedimint…"), not base64.
+        // Pass the string directly; qrloop accepts Buffer | string.
+        if (ecash.toLowerCase().startsWith('fedimint')) {
+            return dataToFrames(ecash)
+        }
         return dataToFrames(Buffer.from(ecash, 'base64'))
     }, [ecash])
 

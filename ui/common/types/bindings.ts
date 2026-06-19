@@ -1591,7 +1591,17 @@ export type RpcTransaction = {
       peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
-  | { kind: "oobSend"; state: RpcOOBSpendState | null }
+  | {
+      kind: "oobSend";
+      state: RpcOOBSpendState | null;
+      /**
+       * The ecash string handed out by this send. Surfaced for v2 ecash
+       * (which has no programmatic cancel) so the user can copy it from
+       * the tx detail and manually reclaim/re-share the funds. `None` for
+       * v1 ecash, which has its own cancel flow.
+       */
+      oob_notes: string | null;
+    }
   | { kind: "oobReceive"; state: RpcOOBReissueState | null }
   | { kind: "spDeposit"; state: RpcSPDepositState }
   | { kind: "spWithdraw"; state: RpcSPWithdrawState | null }
@@ -1632,7 +1642,17 @@ export type RpcTransactionKind =
       peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
-  | { kind: "oobSend"; state: RpcOOBSpendState | null }
+  | {
+      kind: "oobSend";
+      state: RpcOOBSpendState | null;
+      /**
+       * The ecash string handed out by this send. Surfaced for v2 ecash
+       * (which has no programmatic cancel) so the user can copy it from
+       * the tx detail and manually reclaim/re-share the funds. `None` for
+       * v1 ecash, which has its own cancel flow.
+       */
+      oob_notes: string | null;
+    }
   | { kind: "oobReceive"; state: RpcOOBReissueState | null }
   | { kind: "spDeposit"; state: RpcSPDepositState }
   | { kind: "spWithdraw"; state: RpcSPWithdrawState | null }
@@ -1681,7 +1701,17 @@ export type RpcTransactionListEntry = {
       peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
-  | { kind: "oobSend"; state: RpcOOBSpendState | null }
+  | {
+      kind: "oobSend";
+      state: RpcOOBSpendState | null;
+      /**
+       * The ecash string handed out by this send. Surfaced for v2 ecash
+       * (which has no programmatic cancel) so the user can copy it from
+       * the tx detail and manually reclaim/re-share the funds. `None` for
+       * v1 ecash, which has its own cancel flow.
+       */
+      oob_notes: string | null;
+    }
   | { kind: "oobReceive"; state: RpcOOBReissueState | null }
   | { kind: "spDeposit"; state: RpcSPDepositState }
   | { kind: "spWithdraw"; state: RpcSPWithdrawState | null }

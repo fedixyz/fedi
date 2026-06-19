@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::time::Duration;
 
 use env::envs::{
@@ -12,7 +13,7 @@ use fedimint_server_core::ServerModuleInitRegistry;
 use tracing::warn;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<Infallible> {
     fn fedi_modules() -> ServerModuleInitRegistry {
         let mut modules = fedimintd::default_modules();
 
