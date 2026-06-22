@@ -12,8 +12,9 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 source "$REPO_ROOT/scripts/common.sh"
 
-# needs the compiled binaries in the PATH
-export PATH="$CARGO_BIN_DIR:$PATH"
+# run the binaries from the install dir if the build provided one,
+# else from the cargo target
+export PATH="${DEVFED_BIN_DIR:-$CARGO_BIN_DIR}:$PATH"
 
 export FEDI_STABILITY_POOL_V2_MODULE_ENABLE=1
 export USE_STABILITY_POOL_TEST_PARAMS=1

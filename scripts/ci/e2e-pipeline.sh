@@ -31,6 +31,8 @@ REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 APPIUM_HOME="${APPIUM_HOME:-$REPO_ROOT/ui/.appium}"
 E2E_LOG_DIR="${E2E_LOG_DIR:-$APPIUM_HOME/pipeline}"
 mkdir -p "$E2E_LOG_DIR"
+# the dev-fed build installs its binaries here for the launch step to run
+export DEVFED_BIN_DIR="$E2E_LOG_DIR/devfed-bin"
 
 declare -A _E2E_PIDS=()
 declare -A _E2E_T0=()
@@ -329,7 +331,9 @@ run_pipeline_android() {
     run_async wasm bash "$REPO_ROOT/scripts/ui/install-wasm.sh"
     # Build the fed in parallel with the app build, ahead of the funding step.
     if _tests_need_devfed "$tests"; then
-        run_async devfed "$REPO_ROOT/scripts/bridge/build-remote.sh"
+        run_async devfed \
+            bash "$REPO_ROOT/scripts/ci/run-in-fs-dir-cache.sh" \
+            e2e-devfed "$REPO_ROOT/scripts/bridge/build-remote.sh"
     fi
 
     # emulators gate on yarn-install too: how many to boot comes from the
@@ -477,10 +481,12 @@ run_pipeline_ios() {
     run_async yarn-install bash -c "cd '$REPO_ROOT/ui' && yarn install --frozen-lockfile"
     run_async wasm bash "$REPO_ROOT/scripts/ui/install-wasm.sh"
     # Build the fed in parallel with the app build, ahead of the funding step.
-    # Default shell because the host workspace does not build under .#xcode
-    # (aws-lc-sys needs Go).
+    # Default shell: rocksdb's C++ build fails under .#xcode's iOS-targeted
+    # clang/SDK (libc++ headers like cstdint not found on the host).
     if _tests_need_devfed "$tests"; then
-        run_async devfed nix develop -c "$REPO_ROOT/scripts/bridge/build-remote.sh"
+        run_async devfed \
+            nix develop -c bash "$REPO_ROOT/scripts/ci/run-in-fs-dir-cache.sh" \
+            e2e-devfed "$REPO_ROOT/scripts/bridge/build-remote.sh"
     fi
 
     # simulators gate on yarn-install too: how many to boot comes from the
