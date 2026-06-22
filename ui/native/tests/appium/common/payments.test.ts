@@ -212,6 +212,7 @@ async function sendEcash(t: AppiumTestBase, sats: number): Promise<string> {
     await enterAmount(t, sats)
     await t.clickOnText('Next', 0, true)
     await t.waitForElementDisplayed('SendConfirmButton', 30000)
+    await assertEcashFeeDetailsVisible(t)
     await t.clickElementByKey('SendConfirmButton')
     // Offline-send warning is a native Alert.alert dialog.
     await t.acceptAlert('Continue')
@@ -220,6 +221,21 @@ async function sendEcash(t: AppiumTestBase, sats: number): Promise<string> {
     const ecash = (await t.getClipboard()).trim()
     if (!ecash) throw new Error('clipboard empty after copying ecash token')
     return ecash
+}
+
+async function assertEcashFeeDetailsVisible(t: AppiumTestBase): Promise<void> {
+    // The fee row is collapsed behind a "Show details" toggle.
+    await t.clickOnText('Show details', 0, true)
+    if (!(await t.elementIsDisplayed('fee-info-button', 5000))) {
+        throw new Error('ecash send is missing the fee details row')
+    }
+    await t.clickElementByKey('fee-info-button')
+    for (const line of ['Fee details', 'Fedi fee', 'Federation fee']) {
+        if (!(await t.isTextPresent(line, true, 5000))) {
+            throw new Error(`ecash fee breakdown is missing "${line}"`)
+        }
+    }
+    await t.clickElementByKey('fee-breakdown-close')
 }
 
 async function redeemEcash(t: AppiumTestBase, token: string): Promise<void> {
