@@ -1,121 +1,96 @@
 # Documentation Audit Report
 
-Review date: 2026-06-01
+Review date: 2026-06-22
 
 ## Scope
 
-- Review mode: full-scope fallback.
-- Boundary: no previous successful `Weekly Documentation Updater` run was available for workflow ID `286820929`; the current run is run number 1 for `.github/workflows/weekly-doc-updater.lock.yml`.
-- Current head: `5fcfd2a39a2e44d740a32d81190e01b74323a5c6` (`test(chat): cover invite-only path when allowKnocking is disabled (#11142)`).
-- Changed files or PRs driving scope: none. The full tracked Markdown inventory was selected because there was no prior successful run boundary.
-- Tracked Markdown inventory before this run's report was added: 73 files from `git ls-files '*.md'`.
-- This run adds `documentation-audit-report.md`, so the inventory will be 74 tracked Markdown files after merge.
+- Review mode: incremental.
+- Current workflow run: `27934482990`, `Weekly Documentation Updater`, run 4, head `358c7bab570a0cf75fa63995d95c8af8e1473da0`.
+- Previous successful run: `26760809414`, completed 2026-06-01T14:37:49Z at `5fcfd2a39a2e44d740a32d81190e01b74323a5c6`.
+- Boundary used: repository changes after the previous successful updater run through the current head. The local checkout was shallow and did not contain the boundary commit, so GitHub Actions, commit, PR, and PR-file APIs were used for the incremental map.
+- Tracked Markdown inventory: 85 files before this run; this run adds `ui/docs/meta_fields/federation_expiry_timestamp.md`, so the inventory will be 86 files after merge.
+
+## Changed Areas Driving Review
+
+Key merged PRs and commits mapped to tracked docs:
+
+- #10484 and #11540 added and expanded Playwright web e2e coverage, `scripts/ui/run-e2e-web.sh`, `ui/web/playwright.config.ts`, and the `web` platform in `.github/workflows/e2e-tests.yml`.
+- #11433 changed the daily e2e audit workflow and deterministic audit context scripts.
+- #11559 changed the weekly documentation updater workflow and compiled lock.
+- #10934 added the internal miniapp API debugger and changed `sendInjectorMessage` to support `AbortSignal`.
+- #11030 changed federation auto-select expiry filtering and prefixed metadata lookup.
+- #11435 and #11378 added the `message_reactions` feature flag and chat reaction runtime/UI behavior.
+- #11382 bumped Fedimint dependencies to the 0.11 Fedi tag and adjusted bridge/runtime test support.
+- #11483, #11487, and #11528 changed agent skill Markdown under `.agents/skills`.
+- #11441, #11446, #11532, #11558, and related commits changed Appium e2e test flows and available test options.
+
+## Markdown Selected For Review
+
+- `.agents/skills/feature-flags/SKILL.md`
+- `.agents/skills/fedi-ui-test-patterns/references/appium-writing.md`
+- `.agents/skills/ui-code-review/SKILL.md`
+- `.github/workflows/daily-e2e-coverage-check.md`
+- `.github/workflows/weekly-doc-updater.md`
+- `bridge/README.md`
+- `documentation-audit-report.md`
+- `ui/docs/LINKING.md`
+- `ui/docs/TESTING.md`
+- `ui/docs/meta_fields/README.md`
+- `ui/docs/meta_fields/federation_expiry_timestamp.md`
+- `ui/docs/meta_fields/popup_end_timestamp.md`
+- `ui/injections/README.md`
+- `ui/native/docs/cicd.md`
+- `ui/native/tests/README.md`
 
 ## Implementation Sources Checked
 
-- GitHub Actions workflow metadata for the current and previous updater runs.
-- `.github/workflows/*.yml` and `.github/workflows/weekly-doc-updater.md`.
-- Native release, upload, Google Play, TestFlight, UI checks, and version bump workflows.
-- `scripts/ui/bump-version-native.sh`, `scripts/ui/deploy-to-testflight.sh`, and supporting CI scripts.
-- `ui/native/android/fastlane/Fastfile` and `ui/native/ios/fastlane/Fastfile`.
-- Native and common UI source paths referenced by README links.
-- Meta-field definitions in `ui/common/types/fedimint.ts` and parsing in `ui/common/utils/FederationUtils.ts`.
+- GitHub Actions run history for workflow ID `286820929`.
+- GitHub commit list and selected PR file lists for the incremental interval.
+- `git ls-files '*.md'` for the tracked Markdown inventory.
+- `.github/workflows/e2e-tests.yml`, `.github/workflows/daily-e2e-coverage-check.md`, and `.github/workflows/weekly-doc-updater.md`.
+- `scripts/ui/run-e2e.sh`, `scripts/ui/run-e2e-web.sh`, `ui/web/package.json`, `ui/package.json`, and `ui/web/playwright.config.ts`.
+- `ui/injections/src/index.ts`, `ui/injections/src/utils.ts`, and current `sendInjectorMessage` call sites.
+- `ui/common/utils/FederationUtils.ts` and `ui/common/types/fedimint.ts` for supported meta-field behavior.
+- `crates/runtime/src/features.rs`, `ui/web/src/pages/api/features.ts`, and generated feature bindings through repository search.
 
-## Findings and Changes
+## Findings And Changes
 
-- Fixed broken internal documentation links in `ui/common/README.md`.
-- Fixed broken and stale relative links in `ui/native/README.md`, including old `fedi-react-native` bridge links, incorrect `./native/...` paths, and the renamed iOS `AppDelegate.mm` path.
-- Fixed missing meta-field reference targets in `ui/docs/meta_fields/README.md` by pointing popup message fields to the file that documents them.
-- Refreshed `ui/native/docs/cicd.md` for current workflow names, current APK/release channels, current version bump behavior, and current local iOS signing/deployment references.
-- Updated committed Fastlane reference docs for newer Android Nova lanes and iOS Nova/certificate lanes present in the Fastfiles.
+- `ui/docs/TESTING.md` was stale for web e2e. It now documents Playwright web e2e tests, the `run-e2e-web.sh` wrapper, local port behavior, Linux/Nix browser requirements, CI artifact output, and fixes a typo in the remote bridge section.
+- `ui/native/docs/cicd.md` omitted the current `End-to-end tests` workflow and its `web` platform. It now summarizes Android, iOS, and web e2e jobs and their runner scripts.
+- `ui/native/tests/README.md` listed only older Appium menu choices. It now includes the current settings, chat, payments, backup/restore, and PIN protection options.
+- `ui/injections/README.md` had an outdated `makeWebViewMessageHandler` signature and did not mention the abortable `sendInjectorMessage` helper. It now matches the current middleware parameter and documents timeout/cancellation usage.
+- `ui/docs/meta_fields/README.md` did not list `federation_expiry_timestamp`, even though current code supports it as an unprefixed compatibility alias for expiry handling. A new meta-field page documents the field, timestamp format, and the 30-day auto-select exclusion behavior.
+- Reviewed workflow and agent-skill docs changed in the interval; no additional drift was found there.
 
 ## Per-Document Status
 
 | File | Status |
 | --- | --- |
-| `.agents/skills/agent-browser/SKILL.md` | Reviewed; no change needed. |
-| `.agents/skills/agent-browser/references/authentication.md` | Reviewed; no change needed. |
-| `.agents/skills/agent-browser/references/commands.md` | Reviewed; no change needed. |
-| `.agents/skills/agent-browser/references/profiling.md` | Reviewed; no change needed. |
-| `.agents/skills/agent-browser/references/proxy-support.md` | Reviewed; no change needed. |
-| `.agents/skills/agent-browser/references/session-management.md` | Reviewed; no change needed. |
-| `.agents/skills/agent-browser/references/snapshot-refs.md` | Reviewed; no change needed. |
-| `.agents/skills/agent-browser/references/video-recording.md` | Reviewed; no change needed. |
-| `.agents/skills/android-emulator/SKILL.md` | Reviewed; no change needed. |
-| `.agents/skills/feature-flags/SKILL.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/SKILL.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/appium-running-ci.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/appium-running-local.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/appium-writing.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/integration-common-patterns.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/integration-native-patterns.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/integration-patterns.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/integration-web-patterns.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/mock-builders.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/unit-common-patterns.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/unit-native-patterns.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/unit-patterns.md` | Reviewed; no change needed. |
-| `.agents/skills/fedi-ui-test-patterns/references/unit-web-patterns.md` | Reviewed; no change needed. |
-| `.agents/skills/ios-emulator/SKILL.md` | Reviewed; no change needed. |
-| `.github/ISSUE_TEMPLATE/custom.md` | Reviewed; no change needed. |
-| `.github/PULL_REQUEST_TEMPLATE.md` | Reviewed; no change needed. |
-| `.github/workflows/daily-e2e-coverage-check.md` | Reviewed; no change needed. |
-| `.github/workflows/weekly-doc-updater.md` | Reviewed; no change needed. |
-| `README.md` | Reviewed; no change needed. |
-| `SECURITY.md` | Reviewed; no change needed. |
-| `bridge/README.md` | Reviewed; no change needed. |
-| `bridge/debugging.md` | Reviewed; no change needed. |
-| `bridge/fedi-swift/README.md` | Reviewed; no change needed. |
-| `crates/debug-tools/README.md` | Reviewed; no change needed. |
-| `crates/modules/fedi-social/README.md` | Reviewed; no change needed. |
-| `crates/modules/stability-pool-old/README.md` | Reviewed; preserved as old module documentation. |
-| `crates/modules/stability-pool/README.md` | Reviewed; no change needed. |
-| `ui/README.md` | Reviewed; no change needed. |
-| `ui/common/README.md` | Updated broken links. |
-| `ui/common/STORAGE_MIGRATION_GUIDE.md` | Reviewed; no change needed. |
-| `ui/common/scripts/README.md` | Reviewed; no change needed. |
-| `ui/common/wasm/README.md` | Reviewed; no change needed. |
-| `ui/docs/LINKING.md` | Reviewed; no change needed. |
-| `ui/docs/TESTING.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/README.md` | Updated popup message links. |
-| `ui/docs/meta_fields/chat_server_domain.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/default_currency.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/default_group_chats.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/federation_icon_url.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/fedi_internal_injection_disabled.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/fedimods.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/invite_codes_disabled.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/max_balance_msats.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/max_invoice_msats.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/max_stable_balance_msats.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/new_members_disabled.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/offline_wallet_disabled.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/onchain_deposits_disabled.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/pinned_message.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/popup_end_timestamp.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/social_recovery_disabled.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/stability_pool_disabled.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/tos_url.md` | Reviewed; no change needed. |
-| `ui/docs/meta_fields/welcome_message.md` | Reviewed; no change needed. |
-| `ui/injections/README.md` | Reviewed; no change needed. |
-| `ui/native/README.md` | Updated broken and stale source links. |
-| `ui/native/android/fastlane/README.md` | Updated generated lane reference for Nova lanes. |
-| `ui/native/docs/chat-features.md` | Reviewed; preserved as explicitly deprecated reference material. |
-| `ui/native/docs/cicd.md` | Updated stale workflow, versioning, and local build references. |
-| `ui/native/docs/development-plan.md` | Reviewed; preserved as historical planning material. |
-| `ui/native/ios/fastlane/README.md` | Updated generated lane reference for Nova and certificate lanes. |
-| `ui/native/tests/README.md` | Reviewed; no change needed. |
-| `ui/web/src/pages/api/bug-report/README.md` | Reviewed; no change needed. |
+| `.agents/skills/feature-flags/SKILL.md` | Reviewed; no change needed. The new `message_reactions` flag follows the documented add/consume workflow. |
+| `.agents/skills/fedi-ui-test-patterns/references/appium-writing.md` | Reviewed; no change needed. Current Appium conventions include the recent text/testID guidance. |
+| `.agents/skills/ui-code-review/SKILL.md` | Reviewed; no change needed. Split rule references are documented. |
+| `.github/workflows/daily-e2e-coverage-check.md` | Reviewed; no change needed. The prompt matches the deterministic full-codebase audit behavior. |
+| `.github/workflows/weekly-doc-updater.md` | Reviewed; no change needed. Incremental scope and safe-output requirements match this run's workflow. |
+| `bridge/README.md` | Reviewed; no change needed for the Fedimint 0.11 dependency bump. Existing build/test guidance is unchanged by the inspected code. |
+| `documentation-audit-report.md` | Updated for this incremental run. |
+| `ui/docs/LINKING.md` | Reviewed; no change needed. The native deeplink tightening still matches the documented `/link?screen=...` requirements. |
+| `ui/docs/TESTING.md` | Updated for Playwright web e2e and current CI behavior. |
+| `ui/docs/meta_fields/README.md` | Updated to list `federation_expiry_timestamp`. |
+| `ui/docs/meta_fields/federation_expiry_timestamp.md` | Added. |
+| `ui/docs/meta_fields/popup_end_timestamp.md` | Reviewed; no change needed. The new page links to it rather than duplicating popup-message details. |
+| `ui/injections/README.md` | Updated for `sendInjectorMessage` and `makeWebViewMessageHandler`. |
+| `ui/native/docs/cicd.md` | Updated for the current e2e workflow. |
+| `ui/native/tests/README.md` | Updated for the current native e2e test menu. |
 
 ## Validation
 
-- Ran a tracked Markdown inventory with `git ls-files '*.md'`.
-- Ran a local Markdown link-target scan for repository-relative links; no missing local targets remain.
-- Cross-checked current workflow names and paths against `.github/workflows/`.
-- Cross-checked Fastlane README lane lists against Android and iOS Fastfiles.
-- Cross-checked popup meta fields against `SupportedMetaFields` and `FederationUtils`.
+- Ran `git ls-files '*.md'` and counted the tracked Markdown inventory.
+- Cross-checked the previous successful updater run with GitHub Actions API.
+- Cross-checked recent commits and selected PR file lists through GitHub read APIs because the local git checkout was shallow.
+- Verified edited documentation against current local code and workflow files with `rg`, `sed`, and direct file reads.
+- No test suite was run because the changes are Markdown-only.
 
 ## Unresolved Areas
 
-- `ui/native/docs/chat-features.md` is explicitly deprecated and still references historical `fedi-react-native` commit URLs. It was preserved intentionally rather than rewritten as current chat architecture.
-- `ui/native/docs/development-plan.md` appears to be historical planning material. It was checked for obvious stale links and left unchanged.
+- The incremental interval touched many product UI files. This run reviewed docs mapped to changed behavior and foundational docs; it did not perform a full Markdown audit because a previous successful run boundary was available.
+- `bridge/README.md` still contains older manual troubleshooting guidance, but the Fedimint 0.11 bump did not provide a clear, repo-supported replacement path in the inspected files.

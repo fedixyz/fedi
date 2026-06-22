@@ -41,6 +41,12 @@ Developers should be sure their PRs pass these checks before requesting a review
 
 - [UI Checks](https://github.com/fedibtc/fedi/actions/workflows/test-ui.yml)
 
+The end-to-end workflow runs scheduled and manual e2e coverage across native and web:
+
+- [End-to-end tests](https://github.com/fedibtc/fedi/actions/workflows/e2e-tests.yml) accepts `platforms=all`, `android`, `ios`, or `web`.
+- Android and iOS jobs run the Appium pipeline through `scripts/ci/e2e-pipeline.sh` on self-hosted macOS GUI runners.
+- The web job runs `scripts/ui/run-e2e-web.sh` on a self-hosted Linux runner, starts the built web app with nightly environment variables, and uploads Playwright results from `ui/web/test-results/`.
+
 # Deployments
 
 ## Generate an APK

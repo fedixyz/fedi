@@ -17,7 +17,12 @@ E2E tests are fully automated and integrated into the development environment. N
 3. Choose your tests:
 
     - **o** - onboarding test
+    - **s** - settings test
     - **j** - JoinLeaveFederation test
+    - **c** - chat test
+    - **p** - payments test
+    - **b** - backupRestore test
+    - **n** - pinProtection test
     - **a** - all tests
     - **m** - manual selection
 

@@ -38,11 +38,36 @@ that don't have good developer tooling of their own, e.g. react-native.
 
 Read more at https://github.com/liriliri/eruda
 
+### `sendInjectorMessage`
+
+Sends an injection request from a web page to the host client and resolves when the matching `fedi:message` response event is dispatched. The optional `AbortSignal` cancels the wait and removes the response listener, which is useful for timeouts in tools that call many APIs.
+
+```ts
+import { InjectionMessageType } from '@fedi/injections'
+import { sendInjectorMessage } from '@fedi/injections/src/utils'
+
+const controller = new AbortController()
+const timer = setTimeout(() => controller.abort(), 15_000)
+
+try {
+    const info = await sendInjectorMessage(
+        {
+            id: 1,
+            type: InjectionMessageType.webln_getInfo,
+            data: undefined,
+        },
+        controller.signal,
+    )
+} finally {
+    clearTimeout(timer)
+}
+```
+
 ### `makeWebViewMessageHandler`
 
-Make an callback intended to be passed to `react-native-webview`'s `onMessage`
-prop. Takes in a `useRef` to a `<WebView />` and a dictionary of message
-handlers keyed by `InjectionMessageType`.
+Make a callback intended to be passed to `react-native-webview`'s `onMessage`
+prop. Takes in a `useRef` to a `<WebView />`, an array of async middlewares,
+and a dictionary of message handlers keyed by `InjectionMessageType`.
 
 ```ts
 import {
@@ -53,14 +78,18 @@ import {
 const MyWebView = () => {
     const webviewRef = useRef()
 
-    const handleMessage = makeWebViewMessageHandler(webviewRef, {
-        [InjectionMessageType.webln_getInfo]: () => {
-            return {
-                /* ... */
-            }
+    const handleMessage = makeWebViewMessageHandler(
+        webviewRef,
+        [],
+        {
+            [InjectionMessageType.webln_getInfo]: () => {
+                return {
+                    /* ... */
+                }
+            },
+            // ... methods for the rest of the message types
         },
-        // ... methods for the rest of the message types
-    })
+    )
 
     return <WebView ref={webviewRef} onMessage={handleMessage} />
 }

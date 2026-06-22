@@ -35,6 +35,8 @@ The UI is organized into workspaces with different types of tests:
 
 -   Unit Tests: For testing individual functions and components using mocks to minimize integration paths & cover more comprehensive edge cases / failure modes
 -   Integration Tests: Interactions between multiple components or systems, often using the Remote Bridge
+-   Web E2E Tests: Playwright tests in `ui/web/tests/e2e` that exercise the built web app in Chromium
+-   Native E2E Tests: Appium tests in `ui/native/tests/appium` that exercise Android emulators and iOS simulators
 
 ### Remote Bridge Integration
 
@@ -44,7 +46,7 @@ Many UI tests require a **Remote Bridge** connection to test real fedimint inter
 
 The `run-ui-tests.sh` script detects if a remote bridge is already running:
 
--   **Bridge Running** (port 26722): Tests run against existing remote ridge
+-   **Bridge Running** (port 26722): Tests run against existing remote bridge
 -   **No Bridge**: Starts a temporary remote bridge with dev federation, runs tests, then shuts down
 
 ### Integration Test Builder
@@ -193,6 +195,28 @@ or
 yarn test:integration filename
 ```
 
+### Web E2E Tests
+
+Web end-to-end tests use Playwright and live under `ui/web/tests/e2e`.
+
+Run the web e2e wrapper from the repository root:
+
+```bash
+./scripts/ui/run-e2e-web.sh
+```
+
+The wrapper builds UI dependencies, enters the web workspace, and runs the web `test:e2e` script. On Linux it must run inside the Nix dev shell so `PLAYWRIGHT_BROWSERS_PATH` points at the nix-built browser package; on other platforms it installs Chromium with Playwright if needed.
+
+Useful options:
+
+```bash
+./scripts/ui/run-e2e-web.sh --headed
+./scripts/ui/run-e2e-web.sh --debug
+./scripts/ui/run-e2e-web.sh -- --grep 'onboarding'
+```
+
+The default local port is `34157`. Set `WEB_E2E_PORT` to override it. In CI, the `End-to-end tests` workflow runs the web job with `platforms=web` or `platforms=all`, uploads `ui/web/test-results/`, and serves the app as a nightly production build because the bridge-backed web e2e flow depends on nightly feature behavior.
+
 ## Test Configuration
 
 Tests use Jest with custom test environments and utilities:
@@ -210,7 +234,7 @@ Custom Jest environment combining Node.js and jsdom for testing both business lo
 
 ## End-to-End Tests
 
-For mobile app testing with real devices/simulators, see the dedicated E2E documentation:
+For mobile app testing with real devices/simulators, see the dedicated native E2E documentation:
 
 **[📱 E2E Testing Guide](../native/tests/README.md)**
 
@@ -220,7 +244,7 @@ For mobile app testing with real devices/simulators, see the dedicated E2E docum
 
 -   **Unit tests**: Test individual functions/components in isolation
 -   **Integration tests**: Test interactions between multiple parts
--   **E2E tests**: Test complete UIUX flows on fully simulated devices
+-   **E2E tests**: Test complete UI/UX flows in Playwright, Android emulators, or iOS simulators
 
 ### Remote Bridge Tests
 
