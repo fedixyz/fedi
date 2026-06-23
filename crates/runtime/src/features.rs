@@ -523,7 +523,7 @@ impl FeatureCatalog {
             dummy_feature: None,
             show_stable_balance_web: None,
             private_room_knocking: None,
-            message_reactions: None,
+            message_reactions: Some(MessageReactionsFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),

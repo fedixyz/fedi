@@ -9,7 +9,7 @@ const prodRemoteFeatures: RemoteFeatures = {
     dummyFeature: false,
     showStableBalanceWeb: false,
     privateRoomKnocking: false,
-    messageReactions: false,
+    messageReactions: true,
 }
 const devRemoteFeatures: RemoteFeatures = {
     dummyFeature: true,
