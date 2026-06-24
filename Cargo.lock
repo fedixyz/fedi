@@ -2489,7 +2489,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea41269bd490d251b9eca50ccb43117e641cc68b129849757c15ece88fe0574"
 dependencies = [
  "heck 0.4.1",
- "indexmap 2.14.0",
+ "indexmap 1.9.3",
  "itertools 0.14.0",
  "proc-macro-crate",
  "proc-macro2",
@@ -11474,7 +11474,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "fedimint-core",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "secp256k1",
  "serde",
  "serde_json",
