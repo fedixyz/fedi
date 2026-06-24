@@ -1559,6 +1559,13 @@
             "show-fiat-txn-amounts": "Show Fiat Transaction Amounts",
             "show-fiat-txn-amounts-info": "Transaction amounts will be displayed in the selected fiat currency",
             "wallet-provider-guidance": "This is the wallet service securing your wallet and keeping your funds safe."
+        },
+        "merchant": {
+            "charge": "Charge",
+            "merchant-mode": "Merchant Mode",
+            "new-sale": "New Sale",
+            "sale-received": "Sale received",
+            "waiting-for-payment": "Waiting for Payment"
         }
     }
 }
