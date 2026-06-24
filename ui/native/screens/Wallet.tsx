@@ -169,6 +169,20 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                         disabled={sendDisabled}
                     />
                 </Row>
+                <Button
+                    title={t('feature.merchant.merchant-mode')}
+                    type="outline"
+                    icon={
+                        <SvgImage
+                            name="Cash"
+                            color={theme.colors.primary}
+                        />
+                    }
+                    containerStyle={{ width: '100%' }}
+                    onPress={() =>
+                        navigation.navigate('MerchantAmount', { federationId })
+                    }
+                />
                 {disabledMessage && (
                     <Text
                         center

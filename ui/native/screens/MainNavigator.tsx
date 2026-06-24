@@ -122,6 +122,9 @@ import Initializing from './Initializing'
 import JoinFederation from './JoinFederation'
 import LanguageSettings from './LanguageSettings'
 import LightningRequestQr from './LightningRequestQr'
+import MerchantAmount from './MerchantAmount'
+import MerchantQr from './MerchantQr'
+import MerchantSuccess from './MerchantSuccess'
 import LocateSocialRecovery from './LocateSocialRecovery'
 import LockScreen from './LockScreen'
 import LockedDevice from './LockedDevice'
@@ -861,6 +864,35 @@ export const MainNavigator = () => {
                             <Stack.Screen
                                 name="ReceiveSuccess"
                                 component={ReceiveSuccess}
+                                options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
+                                name="MerchantAmount"
+                                component={MerchantAmount}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('feature.merchant.merchant-mode')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MerchantQr"
+                                component={MerchantQr}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('feature.merchant.waiting-for-payment')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MerchantSuccess"
+                                component={MerchantSuccess}
                                 options={{ headerShown: false }}
                             />
                             {/* Transaction history */}
