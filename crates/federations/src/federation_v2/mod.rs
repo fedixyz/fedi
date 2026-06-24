@@ -101,11 +101,11 @@ use rpc_types::{
     RpcGenerateEcashResponse, RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard,
     RpcJsonClientConfig, RpcLightningGateway, RpcOperationFediFeeStatus, RpcOperationId,
     RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
-    RpcReturningMemberStatus, RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState,
-    RpcSPV2TransferOutState, RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcSPv2CachedSyncResponse,
-    RpcTransaction, RpcTransactionDirection, RpcTransactionKind, RpcTransactionListEntry,
-    SPv2DepositMetadata, SPv2TransferMetadata, SPv2WithdrawMetadata, SpMatrixTransferId,
-    SpV2TransferInKind, SpV2TransferOutKind,
+    RpcReclaimLnReceiveOutcome, RpcReturningMemberStatus, RpcSPDepositState, RpcSPV2DepositState,
+    RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState, RpcSPWithdrawState,
+    RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection, RpcTransactionKind,
+    RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata, SPv2WithdrawMetadata,
+    SpMatrixTransferId, SpV2TransferInKind, SpV2TransferOutKind,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
@@ -1972,7 +1972,11 @@ impl FederationV2 {
                     });
                 }
                 LightningOperationMeta {
-                    variant: LightningOperationMetaVariant::Receive { invoice, .. },
+                    // A manual receive reclaim re-runs the same claim flow, so it
+                    // is tracked identically to a normal incoming receive.
+                    variant:
+                        LightningOperationMetaVariant::Receive { invoice, .. }
+                        | LightningOperationMetaVariant::ReceiveReclaim { invoice, .. },
                     ..
                 } => {
                     self.spawn_cancellable("subscribe_to_ln_receive", move |fed| async move {
@@ -2809,6 +2813,67 @@ impl FederationV2 {
         Ok(())
     }
 
+    /// Manually reclaim a stuck lightning receive.
+    ///
+    /// Break-glass recovery for the case where an incoming lightning contract
+    /// was funded but the original receive operation already reached a terminal
+    /// state (e.g. the invoice expired before the contract was funded), leaving
+    /// the funds unclaimed.
+    ///
+    /// This is fund-safe in every other case. The reclaim spawns a fresh claim
+    /// attempt against the *same* incoming contract, and the federation rejects
+    /// the claim if the contract was never funded or was already claimed, so it
+    /// can only ever recover the user's own stuck funds: it never double-spends
+    /// or mints new funds. The original operation is left untouched; a new
+    /// operation is created for the attempt.
+    ///
+    /// Requires the original receive's local state history (not seed-only
+    /// restore safe).
+    pub async fn reclaim_ln_receive(
+        &self,
+        original_operation_id: OperationId,
+    ) -> Result<RpcReclaimLnReceiveOutcome> {
+        let ln = self.client.ln()?;
+        let reclaim_operation_id = ln.reclaim_ln_receive(original_operation_id).await?;
+
+        // Track the reclaim operation like any other receive so the balance,
+        // fees and transaction list update, and the attempt resumes if the app
+        // restarts.
+        self.subscribe_to_operation(reclaim_operation_id).await?;
+
+        // Observe the attempt briefly so we can give the user a definitive
+        // result instead of a fire-and-forget. The claim against an
+        // already-funded contract resolves in a few seconds; if it has not
+        // reached a terminal state by then it keeps running in the background.
+        let mut updates = ln
+            .subscribe_ln_receive(reclaim_operation_id)
+            .await?
+            .into_stream();
+        let observed = fedimint_core::task::timeout(Duration::from_secs(20), async {
+            while let Some(update) = updates.next().await {
+                match update {
+                    LnReceiveState::Claimed => {
+                        return Some(RpcReclaimLnReceiveOutcome::Reclaimed);
+                    }
+                    LnReceiveState::Canceled { reason } => {
+                        return Some(RpcReclaimLnReceiveOutcome::NothingToReclaim {
+                            reason: reason.to_string(),
+                        });
+                    }
+                    _ => {}
+                }
+            }
+            None
+        })
+        .await;
+
+        Ok(match observed {
+            Ok(Some(outcome)) => outcome,
+            // Timed out, or the stream ended before a terminal state.
+            Ok(None) | Err(_) => RpcReclaimLnReceiveOutcome::Pending,
+        })
+    }
+
     // FIXME: get rid of this method and just access self.secret directly
     /// Get client root secret
     fn root_secret(&self) -> DerivableSecret {
@@ -3299,6 +3364,32 @@ impl FederationV2 {
                                 )
                                 .await?
                                 .map(Into::into),
+                        };
+                    }
+                    LightningOperationMetaVariant::ReceiveReclaim { invoice, .. } => {
+                        let state = self
+                            .get_client_operation_outcome(operation_id, entry, |op_id| async move {
+                                self.client.ln()?.subscribe_ln_receive(op_id).await
+                            })
+                            .await?;
+                        // A reclaim that recovers funds shows as a normal incoming
+                        // receive. A reclaim that finds nothing is a no-op, so drop it
+                        // from history rather than surface a canceled receive that would
+                        // offer its own pointless reclaim button (which would just spawn
+                        // another no-op reclaim).
+                        if matches!(state, Some(LnReceiveState::Canceled { .. })) {
+                            return Ok(None);
+                        }
+                        transaction_amount = RpcAmount(Amount {
+                            msats: invoice.amount_milli_satoshis().unwrap(),
+                        });
+                        frontend_metadata =
+                            serde_json::from_value::<BaseMetadata>(lightning_meta.extra_meta)
+                                .unwrap_or_default()
+                                .into();
+                        transaction_kind = RpcTransactionKind::LnReceive {
+                            ln_invoice: invoice.to_string(),
+                            state: state.map(Into::into),
                         };
                     }
                     LightningOperationMetaVariant::RecurringPaymentReceive(payment) => {

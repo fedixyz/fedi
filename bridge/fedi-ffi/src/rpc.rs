@@ -61,10 +61,10 @@ use rpc_types::{
     RpcFediFeeStream, RpcFeeDetails, RpcFiatAmount, RpcGenerateEcashResponse,
     RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard, RpcInvoice,
     RpcLightningGateway, RpcMediaUploadParams, RpcOperationId, RpcParseInviteCodeResult,
-    RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey, RpcRecoveryId,
-    RpcRegisteredDevice, RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature,
-    RpcSignedLnurlMessage, RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection,
-    RpcTransactionListEntry, SocialRecoveryQr,
+    RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
+    RpcReclaimLnReceiveOutcome, RpcRecoveryId, RpcRegisteredDevice, RpcSPv2CachedSyncResponse,
+    RpcSPv2SyncResponse, RpcSignature, RpcSignedLnurlMessage, RpcStabilityPoolAccountInfo,
+    RpcTransaction, RpcTransactionDirection, RpcTransactionListEntry, SocialRecoveryQr,
 };
 use runtime::api::{IFediApi, LiveFediApi, MockFediApi};
 use runtime::bridge_runtime::Runtime;
@@ -468,6 +468,14 @@ async fn recheckPeginAddress(
     operation_id: RpcOperationId,
 ) -> anyhow::Result<()> {
     federation.recheck_pegin_address(operation_id.0).await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn reclaimLnReceive(
+    federation: Arc<FederationV2>,
+    operation_id: RpcOperationId,
+) -> anyhow::Result<RpcReclaimLnReceiveOutcome> {
+    federation.reclaim_ln_receive(operation_id.0).await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -2623,6 +2631,7 @@ rpc_methods!(RpcMethods {
     parseInviteCode,
     cancelEcash,
     repairWallet,
+    reclaimLnReceive,
     // Transactions
     updateCachedFiatFXInfo,
     listTransactions,

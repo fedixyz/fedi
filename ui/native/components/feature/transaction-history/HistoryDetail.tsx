@@ -65,6 +65,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     const { t } = useTranslation()
     const [notes, setNotes] = useState<string>(propsNotes || '')
     const [checkLoading, setCheckLoading] = useState(false)
+    const [reclaimLoading, setReclaimLoading] = useState(false)
     const toast = useToast()
     const transactionDisplayType = useAppSelector(selectTransactionDisplayType)
     const dispatch = useAppDispatch()
@@ -132,6 +133,60 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
             setCheckLoading(false)
         }
     }, [federationId, txn, fetchTransactions, t, toast, fedimint])
+
+    // Break-glass recovery for a receive that terminally failed (e.g. the
+    // invoice expired before the incoming contract was funded). Fund-safe: the
+    // bridge can only ever re-claim this same contract, never double-spend.
+    const handleReclaimLnReceive = useCallback(async () => {
+        if (!federationId || !txn) return
+
+        setReclaimLoading(true)
+        try {
+            const outcome = await fedimint.reclaimLnReceive({
+                federationId,
+                operationId: txn.id,
+            })
+            switch (outcome.type) {
+                case 'reclaimed':
+                    toast.show({
+                        status: 'success',
+                        content: t('feature.receive.reclaim-funds-success'),
+                    })
+                    break
+                case 'pending':
+                    toast.show({
+                        status: 'info',
+                        content: t('feature.receive.reclaim-funds-pending'),
+                    })
+                    break
+                case 'nothingToReclaim':
+                    toast.show({
+                        status: 'info',
+                        content: t('feature.receive.reclaim-funds-none'),
+                    })
+                    break
+            }
+        } catch (e) {
+            log.error('Failed to reclaim lightning receive', e)
+            toast.show({
+                status: 'error',
+                content: t('feature.receive.reclaim-funds-failed'),
+            })
+        } finally {
+            setReclaimLoading(false)
+            // refresh is best-effort so a failed reload can't mask the reclaim outcome
+            fetchTransactions().catch(err =>
+                log.error('Failed to refresh transactions after reclaim', err),
+            )
+        }
+    }, [federationId, txn, fetchTransactions, t, toast, fedimint])
+
+    // Only offer reclaim for a receive that has terminally failed, so a healthy
+    // or in-progress receive can never trigger a pointless attempt.
+    const isReclaimableLnReceive =
+        !!txn &&
+        (txn.kind === 'lnReceive' || txn.kind === 'lnRecurringdReceive') &&
+        txn.state?.type === 'canceled'
 
     const style = styles(theme)
 
@@ -233,6 +288,19 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                         }
                         onPress={handleCheckIncomingFunds}
                         disabled={checkLoading}
+                    />
+                </View>
+            )}
+            {isReclaimableLnReceive && (
+                <View style={style.checkFundsContainer}>
+                    <Button
+                        title={
+                            reclaimLoading
+                                ? t('words.reclaiming')
+                                : t('phrases.reclaim-funds')
+                        }
+                        onPress={handleReclaimLnReceive}
+                        disabled={reclaimLoading}
                     />
                 </View>
             )}

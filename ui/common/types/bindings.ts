@@ -863,6 +863,7 @@ export type RpcMethods = {
   parseInviteCode: [parseInviteCode, RpcParseInviteCodeResult];
   cancelEcash: [cancelEcash, null];
   repairWallet: [repairWallet, null];
+  reclaimLnReceive: [reclaimLnReceive, RpcReclaimLnReceiveOutcome];
   updateCachedFiatFXInfo: [updateCachedFiatFXInfo, null];
   listTransactions: [
     listTransactions,
@@ -1245,6 +1246,18 @@ export type RpcPublicRoomInfo = {
 };
 
 export type RpcPusher = JSONObject;
+
+/**
+ * Outcome of a manual [`reclaim_ln_receive`] break-glass attempt.
+ *
+ * The reclaim re-runs the claim flow against the *same* incoming contract, so
+ * it can only ever recover the user's own stuck funds: it never double-spends
+ * or mints new funds.
+ */
+export type RpcReclaimLnReceiveOutcome =
+  | { type: "reclaimed" }
+  | { type: "nothingToReclaim"; reason: string }
+  | { type: "pending" };
 
 export type RpcRecoveryId = string;
 
@@ -2458,6 +2471,11 @@ export type receiveEcash = {
 };
 
 export type recheckPeginAddress = {
+  federationId: RpcFederationId;
+  operationId: RpcOperationId;
+};
+
+export type reclaimLnReceive = {
   federationId: RpcFederationId;
   operationId: RpcOperationId;
 };

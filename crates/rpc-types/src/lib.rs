@@ -833,6 +833,27 @@ pub enum RpcLnReceiveState {
     Claimed,
 }
 
+/// Outcome of a manual [`reclaim_ln_receive`] break-glass attempt.
+///
+/// The reclaim re-runs the claim flow against the *same* incoming contract, so
+/// it can only ever recover the user's own stuck funds: it never double-spends
+/// or mints new funds.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+#[ts(export)]
+pub enum RpcReclaimLnReceiveOutcome {
+    /// The stuck incoming contract was claimed; funds were recovered.
+    Reclaimed,
+    /// The attempt terminated without recovering funds (e.g. the contract was
+    /// never funded, the invoice expired with no funding, or it was already
+    /// claimed). No funds moved.
+    NothingToReclaim { reason: String },
+    /// The attempt is still running after a short wait. It continues in the
+    /// background and will surface as a normal incoming lightning receive.
+    Pending,
+}
+
 #[derive(Debug, Serialize, Deserialize, TS, Clone)]
 #[serde(rename_all = "camelCase")]
 #[serde(untagged)]

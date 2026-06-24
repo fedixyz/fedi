@@ -397,6 +397,10 @@ export class FedimintBridge {
         return this.rpcTyped('repairWallet', { federationId })
     }
 
+    async reclaimLnReceive(args: bindings.RpcPayload<'reclaimLnReceive'>) {
+        return this.rpcTyped('reclaimLnReceive', args)
+    }
+
     async fedimintVersion() {
         return this.rpcTyped('fedimintVersion', {})
     }
