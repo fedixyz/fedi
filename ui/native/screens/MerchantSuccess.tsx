@@ -47,7 +47,7 @@ const MerchantSuccess: React.FC<Props> = ({ route }: Props) => {
                         title={t('feature.merchant.new-sale')}
                         onPress={() =>
                             navigation.dispatch(
-                                reset('MerchantAmount', { federationId }),
+                                reset('MerchantProducts', { federationId }),
                             )
                         }
                     />

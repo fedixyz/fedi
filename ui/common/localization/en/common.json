@@ -1561,10 +1561,24 @@
             "wallet-provider-guidance": "This is the wallet service securing your wallet and keeping your funds safe."
         },
         "merchant": {
+            "add-product": "Add product",
             "charge": "Charge",
+            "clear": "Clear",
+            "copy-link": "Copy link",
+            "custom-amount": "Enter custom amount",
+            "edit-catalog": "Edit Catalog",
+            "invalid-catalog": "This catalog could not be read.",
+            "item-name": "Item name",
             "merchant-mode": "Merchant Mode",
             "new-sale": "New Sale",
+            "no-products": "No products yet. Add your first item.",
+            "payment-sent": "Payment sent",
+            "payment-unavailable": "This merchant can't accept scan-to-pay yet.",
             "sale-received": "Sale received",
+            "scan-to-order": "Customers scan this to view your menu and pay",
+            "select-products": "Select products",
+            "share-catalog": "Share Catalog",
+            "tap-to-add": "Tap items to add to the sale",
             "waiting-for-payment": "Waiting for Payment"
         }
     }

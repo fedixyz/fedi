@@ -81,6 +81,10 @@ export type RootStackParamList = {
         federationId?: Federation['id']
         memo?: string
     }
+    MerchantProducts: { federationId?: Federation['id'] }
+    MerchantCatalogEdit: { federationId?: Federation['id'] }
+    MerchantCatalogShare: { federationId?: Federation['id'] }
+    MerchantCatalogOrder: { d?: string }
     MerchantAmount: { federationId?: Federation['id'] }
     MerchantQr: {
         invoice: string

@@ -180,7 +180,9 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                     }
                     containerStyle={{ width: '100%' }}
                     onPress={() =>
-                        navigation.navigate('MerchantAmount', { federationId })
+                        navigation.navigate('MerchantProducts', {
+                            federationId,
+                        })
                     }
                 />
                 {disabledMessage && (
