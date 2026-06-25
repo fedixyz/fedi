@@ -17,6 +17,7 @@ import {
 
 import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     clearAllMiniAppSessions,
@@ -44,10 +45,22 @@ import {
     setSurveyTimestamp,
     resetSurveyCompletions,
     setLatestAwareReleaseTag,
+    selectTotalBalanceMsats,
+    selectTotalStableBalanceSats,
+    setCountdownForTesting,
+    selectBackupReminderCountdownStartedAt,
+    selectBackupReminderDismissedThisSession,
+    selectHasReachedThresholds,
 } from '@fedi/common/redux'
 import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
 import { clearAllMiniAppPermissions } from '@fedi/common/redux/mod'
+import {
+    BACKUP_REMINDER_ELAPSED_MS,
+    BACKUP_REMINDER_THRESHOLD_SATS,
+    selectPersonalBackupReminderTriggersMet,
+    selectShouldShowBackupReminder,
+} from '@fedi/common/redux/personal-backup-reminder/personalBackupReminderSelectors'
 import { FediModCacheMode, SupportedCurrency } from '@fedi/common/types'
 import {
     GuardianStatus,
@@ -55,6 +68,7 @@ import {
     RpcLightningGateway,
     RpcPublicKey,
 } from '@fedi/common/types/bindings'
+import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getGuardianStatuses } from '@fedi/common/utils/FederationUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -147,6 +161,24 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     )
     const apiBtcUsdPrice = useAppSelector(s => s.currency.btcUsdRate)
     const apiFiatUsdPrices = useAppSelector(s => s.currency.fiatUsdRates)
+    const backupOnboardingMethod = useAppSelector(
+        s => s.environment.onboardingMethod,
+    )
+    const [backupHasPerformed] = useNuxStep('hasPerformedPersonalBackup')
+    const backupDismissedThisSession = useAppSelector(
+        selectBackupReminderDismissedThisSession,
+    )
+    const backupThresholdRecorded = useAppSelector(selectHasReachedThresholds)
+    const backupCountdownStartedAt = useAppSelector(
+        selectBackupReminderCountdownStartedAt,
+    )
+    const backupTotalBalanceMsats = useAppSelector(selectTotalBalanceMsats)
+    const backupStableSats = useAppSelector(selectTotalStableBalanceSats)
+    const backupTriggersMet = useAppSelector(
+        selectPersonalBackupReminderTriggersMet,
+    )
+    const backupShouldShow = useAppSelector(selectShouldShowBackupReminder)
+    const backupEcashSats = amountUtils.msatToSat(backupTotalBalanceMsats)
 
     const { shareLogs, status: shareLogsStatus } = useShareNativeLogs(
         paymentFederation?.id,
@@ -469,6 +501,25 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             })
     }
 
+    const backupElapsedMs =
+        backupCountdownStartedAt === null
+            ? null
+            : Date.now() - backupCountdownStartedAt
+    const backupElapsedDays =
+        backupElapsedMs === null
+            ? null
+            : Math.floor(backupElapsedMs / 86_400_000)
+    const backupRemainingDays =
+        backupElapsedMs === null
+            ? null
+            : Math.ceil(
+                  (BACKUP_REMINDER_ELAPSED_MS - backupElapsedMs) / 86_400_000,
+              )
+    const backupCountdownLabel =
+        backupCountdownStartedAt === null
+            ? 'not started'
+            : `${new Date(backupCountdownStartedAt).toISOString()} · ${backupElapsedDays}d elapsed · ${backupRemainingDays}d left`
+
     const style = styles(theme)
 
     return (
@@ -709,6 +760,50 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 <Text small style={style.switchLabel}>
                     {t('feature.developer.default-groups-info')}
                 </Text>
+            </SettingsSection>
+
+            <SettingsSection title="Backup reminder">
+                <Text small style={style.switchLabel}>
+                    {`onboardingMethod: ${backupOnboardingMethod ?? 'null'} (need new_seed)`}
+                </Text>
+                <Text small style={style.switchLabel}>
+                    {`hasPerformedPersonalBackup: ${backupHasPerformed}`}
+                </Text>
+                <Text small style={style.switchLabel}>
+                    {`dismissedThisSession: ${backupDismissedThisSession}`}
+                </Text>
+                <Text small style={style.switchLabel}>
+                    {`thresholdRecorded: ${backupThresholdRecorded}`}
+                </Text>
+                <Text small style={style.switchLabel}>
+                    {`countdown: ${backupCountdownLabel}`}
+                </Text>
+                <Text small style={style.switchLabel}>
+                    {`balance: ${backupEcashSats + backupStableSats} sats (threshold ${BACKUP_REMINDER_THRESHOLD_SATS})`}
+                </Text>
+                <Text small style={style.switchLabel}>
+                    {`triggersMet: ${backupTriggersMet} · shouldShow: ${backupShouldShow}`}
+                </Text>
+                <Button
+                    title="Backdate countdown 31 days"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(
+                            setCountdownForTesting(
+                                Date.now() - 31 * 24 * 60 * 60 * 1000,
+                            ),
+                        )
+                        toast.show('Countdown backdated 31 days')
+                    }}
+                />
+                <Button
+                    title="Clear countdown"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(setCountdownForTesting(null))
+                        toast.show('Countdown cleared')
+                    }}
+                />
             </SettingsSection>
 
             <SettingsSection title="Danger zone">

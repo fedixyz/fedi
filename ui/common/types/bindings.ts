@@ -224,6 +224,13 @@ export type FeatureCatalog = {
    */
   message_reactions: MessageReactionsFeatureConfig | null;
   /**
+   * Gates the personal backup reminder nudge for new-seed users. The trigger
+   * logic (countdown + balance threshold) is always compiled in; this flag
+   * only controls whether the reminder is allowed to surface, so it can be
+   * rolled out remotely without an app release.
+   */
+  personal_backup_reminder: PersonalBackupReminderFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -419,6 +426,8 @@ export type OnboardingMethod = "new_seed" | "restored";
 
 export type PanicEvent = { message: string };
 
+export type PersonalBackupReminderFeatureConfig = Record<string, never>;
+
 export type PrivateRoomKnockingFeatureConfig = Record<string, never>;
 
 export type RearrangeMiniappsFeatureConfig = Record<string, never>;
@@ -468,6 +477,11 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   messageReactions: boolean;
+  /**
+   * `#[serde(default)]` so the new bridge stays deserializable against any
+   * cached/older payload that omits the field.
+   */
+  personalBackupReminder: boolean;
 };
 
 export type RpcAccountId = string;

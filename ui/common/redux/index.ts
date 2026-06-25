@@ -43,6 +43,7 @@ import {
 } from './matrix'
 import { modSlice } from './mod'
 import { nuxSlice } from './nux'
+import { personalBackupReminderSlice } from './personal-backup-reminder/personalBackupReminderSlice'
 import { recoverySlice } from './recovery'
 import { securitySlice } from './security'
 import {
@@ -64,6 +65,8 @@ export * from './environment'
 export * from './federation'
 export * from './matrix'
 export * from './nux'
+export * from './personal-backup-reminder/personalBackupReminderSlice'
+export * from './personal-backup-reminder/personalBackupReminderSelectors'
 export * from './recovery'
 export * from './security'
 export * from './toast'
@@ -78,6 +81,7 @@ export const commonReducers = {
     matrix: matrixSlice.reducer,
     mod: modSlice.reducer,
     nux: nuxSlice.reducer,
+    personalBackupReminder: personalBackupReminderSlice.reducer,
     recovery: recoverySlice.reducer,
     storage: storageSlice.reducer,
     toast: toastSlice.reducer,

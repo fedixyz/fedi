@@ -26,7 +26,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 48,
+        version: 49,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -41,6 +41,11 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         authenticatedGuardian: state.federation.authenticatedGuardian,
         customFediMods: state.federation.customFediMods,
         nuxSteps: state.nux.steps,
+        personalBackupReminder: {
+            countdownStartedAt: state.personalBackupReminder.countdownStartedAt,
+            hasReachedThresholds:
+                state.personalBackupReminder.hasReachedThresholds,
+        },
         matrixAuth: state.matrix.auth,
         protectedFeatures: state.security.protectedFeatures,
         customGlobalMods: state.mod.customGlobalMods,
@@ -136,6 +141,8 @@ export function hasStorageStateChanged(
         ['federation', 'customFediMods'],
         ['matrix', 'auth'],
         ['nux', 'steps'],
+        ['personalBackupReminder', 'countdownStartedAt'],
+        ['personalBackupReminder', 'hasReachedThresholds'],
         ['security', 'protectedFeatures'],
         ['mod', 'customGlobalMods'],
         ['mod', 'miniAppOrder'],
@@ -861,6 +868,17 @@ async function migrateStoredState(
             protectedFeatures: {
                 ...migrationState.protectedFeatures,
                 personalBackup: true,
+            },
+        }
+    }
+
+    if (migrationState.version === 48) {
+        migrationState = {
+            ...migrationState,
+            version: 49,
+            personalBackupReminder: {
+                countdownStartedAt: null,
+                hasReachedThresholds: false,
             },
         }
     }

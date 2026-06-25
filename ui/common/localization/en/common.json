@@ -414,6 +414,8 @@
     },
     "feature": {
         "backup": {
+            "personal-backup-reminder-action": "Backup Now",
+            "personal-backup-reminder-title": "Backup your account to protect your money and data.",
             "backup-to-google-drive": "Backup to Google Drive",
             "beta-backup": "Beta feature - do a personal backup too",
             "camera-access-information": "To create a social backup, you will need to allow Fedi access to your camera to record a verification video",

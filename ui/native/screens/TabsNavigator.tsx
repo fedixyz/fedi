@@ -34,6 +34,7 @@ import {
 import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 import { HomeNavigationTab } from '@fedi/common/types/linking'
 
+import PersonalBackupReminderOverlay from '../components/feature/backup/PersonalBackupReminderOverlay'
 import ChatHeader from '../components/feature/chat/ChatHeader'
 import CommunitiesOverlay from '../components/feature/federations/CommunitiesOverlay'
 import WalletHeader from '../components/feature/federations/WalletHeader'
@@ -106,6 +107,8 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     const insets = useSafeAreaInsets()
     const [walletOverlayOpen, setWalletOverlayOpen] = useState(false)
     const [communitiesOverlayOpen, setCommunitiesOverlayOpen] = useState(false)
+    const [shouldShowBackupReminder, setShouldShowBackupReminder] =
+        useState(false)
     // TODO: Reimplement unseen logic with matrix
     // const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
     const hasUnreadMessages = useAppSelector(
@@ -115,6 +118,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     const loadedFederations = useAppSelector(selectLoadedFederations)
     const zendeskMsgCount = useAppSelector(selectZendeskUnreadMessageCount)
     const lastUsedTab = useAppSelector(selectLastUsedTab)
+
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const appStateRef = useRef<AppStateStatus>(
@@ -275,6 +279,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     name="Wallet"
                     component={Wallet}
                     listeners={({ navigation }) => ({
+                        focus: () => setShouldShowBackupReminder(true),
                         tabPress: event => {
                             if (
                                 !navigation.isFocused() ||
@@ -350,6 +355,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                 <Tab.Screen
                     name="Home"
                     listeners={({ navigation }) => ({
+                        focus: () => setShouldShowBackupReminder(true),
                         tabPress: event => {
                             if (
                                 !navigation.isFocused() ||
@@ -385,6 +391,10 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                 onOpenChange={setCommunitiesOverlayOpen}
             />
             <StabilityPoolMonitorManager />
+            <PersonalBackupReminderOverlay
+                open={shouldShowBackupReminder}
+                onDismiss={() => setShouldShowBackupReminder(false)}
+            />
         </>
     )
 }

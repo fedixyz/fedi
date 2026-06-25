@@ -65,6 +65,10 @@ pub struct RemoteFeatures {
     /// cached/older payload that omits the field.
     #[serde(default)]
     pub message_reactions: bool,
+    /// `#[serde(default)]` so the new bridge stays deserializable against any
+    /// cached/older payload that omits the field.
+    #[serde(default)]
+    pub personal_backup_reminder: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -147,6 +151,12 @@ pub struct FeatureCatalog {
     pub private_room_knocking: Option<PrivateRoomKnockingFeatureConfig>,
     /// Enables message reaction support.
     pub message_reactions: Option<MessageReactionsFeatureConfig>,
+
+    /// Gates the personal backup reminder nudge for new-seed users. The trigger
+    /// logic (countdown + balance threshold) is always compiled in; this flag
+    /// only controls whether the reminder is allowed to surface, so it can be
+    /// rolled out remotely without an app release.
+    pub personal_backup_reminder: Option<PersonalBackupReminderFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -272,6 +282,10 @@ pub struct MessageReactionsFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct PersonalBackupReminderFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -330,6 +344,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.personal_backup_reminder = if remote_features.personal_backup_reminder {
+            Some(PersonalBackupReminderFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -372,6 +391,7 @@ impl FeatureCatalog {
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
+            personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -427,6 +447,7 @@ impl FeatureCatalog {
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
+            personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -474,6 +495,7 @@ impl FeatureCatalog {
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
+            personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -524,6 +546,7 @@ impl FeatureCatalog {
             show_stable_balance_web: None,
             private_room_knocking: None,
             message_reactions: Some(MessageReactionsFeatureConfig {}),
+            personal_backup_reminder: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -588,5 +611,6 @@ mod tests {
         assert!(!remote_features.show_stable_balance_web);
         assert!(!remote_features.private_room_knocking);
         assert!(!remote_features.message_reactions);
+        assert!(!remote_features.personal_backup_reminder);
     }
 }

@@ -201,6 +201,7 @@ export type RootStackParamList = {
     RecoveryWords:
         | {
               nextScreenParams?: NavigationArgs
+              returnToOrigin?: boolean
           }
         | undefined
     RecoveryAssistConfirmation: { type: 'success' | 'error' }

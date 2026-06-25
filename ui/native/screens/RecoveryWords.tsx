@@ -47,7 +47,7 @@ const SeedWord = ({ number, word }: SeedWordProps) => {
 }
 
 const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
-    const { nextScreenParams } = route.params || {}
+    const { nextScreenParams, returnToOrigin } = route.params || {}
     const { t } = useTranslation()
     const { theme } = useTheme()
 
@@ -91,7 +91,9 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
         }
 
         if (hasPerformedPersonalBackup) {
-            return navigation.navigate('Settings')
+            return returnToOrigin
+                ? navigation.goBack()
+                : navigation.navigate('Settings')
         }
 
         completePersonalBackup()
@@ -99,6 +101,10 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
         if (isBackingUpBeforePin) {
             dispatch(setIsBackingUpBeforePin(false))
             return navigation.navigate('SetPin')
+        }
+
+        if (returnToOrigin) {
+            return navigation.goBack()
         }
 
         navigation.dispatch(reset('Settings'))
