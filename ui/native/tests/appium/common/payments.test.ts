@@ -52,6 +52,9 @@ export class Payments extends AppiumTestBase {
         await redeemEcash(alice, fundEcash)
         await alice.waitForText('Ecash claimed', 0, true, 120000)
         await alice.clickOnText('Go to wallet', 0, true)
+        // Funding alice past the reminder threshold raises the backup reminder
+        // overlay over the wallet and hides Receive/Send, so dismiss it first.
+        await dismissBackupReminderIfPresent(alice)
         await alice.waitForText('Receive', 0, true, 30000)
         const aliceFunded = await readWalletSats(alice)
         if (aliceFunded !== FUND_SATS) {
@@ -251,7 +254,24 @@ async function redeemEcash(t: AppiumTestBase, token: string): Promise<void> {
 
 async function dismissReceiveSuccess(t: AppiumTestBase): Promise<void> {
     await t.clickOnText('Done', 0, true)
+    // Receiving past the reminder threshold raises the backup reminder overlay
+    // once we land back on the wallet, so dismiss it before asserting Receive.
+    await dismissBackupReminderIfPresent(t)
     await t.waitForText('Receive', 0, true, 30000)
+}
+
+// The backup reminder overlay covers the wallet action buttons for a new-seed
+// account that crosses ~210 sats without backing up. "Not now" dismisses it for
+// the session, so dismissing once the first time an actor reaches a funded
+// wallet is enough. It is focus-gated to the wallet/home tab, so it never sits
+// over the receive/claim success screens and only needs handling once we are
+// back on the wallet.
+async function dismissBackupReminderIfPresent(
+    t: AppiumTestBase,
+): Promise<void> {
+    if (await t.elementIsDisplayed('BackupReminderDismissButton', 5000)) {
+        await t.clickElementByKey('BackupReminderDismissButton')
+    }
 }
 
 async function dismissSendSuccess(t: AppiumTestBase): Promise<void> {

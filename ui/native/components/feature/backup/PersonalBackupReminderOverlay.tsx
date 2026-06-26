@@ -52,7 +52,11 @@ const PersonalBackupReminderOverlay: React.FC<Props> = ({
                                     'feature.backup.personal-backup-reminder-action',
                                 )}
                             </Button>
-                            <Button fullWidth text onPress={handleDismiss}>
+                            <Button
+                                fullWidth
+                                text
+                                onPress={handleDismiss}
+                                testID="BackupReminderDismissButton">
                                 {t('phrases.not-now')}
                             </Button>
                         </Column>
