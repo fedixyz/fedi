@@ -53,9 +53,8 @@ export class Payments extends AppiumTestBase {
         await alice.waitForText('Ecash claimed', 0, true, 120000)
         await alice.clickOnText('Go to wallet', 0, true)
         // Funding alice past the reminder threshold raises the backup reminder
-        // overlay over the wallet and hides Receive/Send, so dismiss it first.
-        await dismissBackupReminderIfPresent(alice)
-        await alice.waitForText('Receive', 0, true, 30000)
+        // overlay over the wallet, which hides Receive until dismissed.
+        await waitForWalletReceive(alice)
         const aliceFunded = await readWalletSats(alice)
         if (aliceFunded !== FUND_SATS) {
             throw new Error(
@@ -80,7 +79,7 @@ export class Payments extends AppiumTestBase {
         await redeemEcash(alice, ecashToken)
         await alice.waitForText('Ecash claimed', 0, true, 60000)
         await alice.clickOnText('Go to wallet', 0, true)
-        await alice.waitForText('Receive', 0, true, 30000)
+        await waitForWalletReceive(alice)
         // Sent 2000 over lightning, received 1000 back as ecash, so alice's
         // balance must have moved below what she was funded with.
         const aliceFinal = await readWalletSats(alice)
@@ -153,11 +152,13 @@ async function generateDevfedEcash(msats: number): Promise<string> {
 
 // Tapping WalletTabButton while already on the wallet tab opens the wallet
 // switcher overlay instead of navigating, so only tap it when the wallet
-// action buttons aren't already on screen.
+// action buttons aren't already on screen. Clear the backup reminder first: it
+// hides Receive, which would otherwise read here as "not on the wallet yet".
 async function goToWallet(t: AppiumTestBase): Promise<void> {
+    await dismissBackupReminderIfPresent(t, 1000)
     if (await t.isTextPresent('Receive', true, 3000)) return
     await t.clickElementByKey('WalletTabButton')
-    await t.waitForText('Receive', 0, true)
+    await waitForWalletReceive(t)
 }
 
 // The sats balance is a value, not a label, so it carries a testID. Caller
@@ -255,23 +256,36 @@ async function redeemEcash(t: AppiumTestBase, token: string): Promise<void> {
 async function dismissReceiveSuccess(t: AppiumTestBase): Promise<void> {
     await t.clickOnText('Done', 0, true)
     // Receiving past the reminder threshold raises the backup reminder overlay
-    // once we land back on the wallet, so dismiss it before asserting Receive.
-    await dismissBackupReminderIfPresent(t)
-    await t.waitForText('Receive', 0, true, 30000)
+    // once we land back on the wallet, so clear it before asserting Receive.
+    await waitForWalletReceive(t)
 }
 
-// The backup reminder overlay covers the wallet action buttons for a new-seed
-// account that crosses ~210 sats without backing up. "Not now" dismisses it for
-// the session, so dismissing once the first time an actor reaches a funded
-// wallet is enough. It is focus-gated to the wallet/home tab, so it never sits
-// over the receive/claim success screens and only needs handling once we are
-// back on the wallet.
 async function dismissBackupReminderIfPresent(
     t: AppiumTestBase,
+    timeout = 1500,
 ): Promise<void> {
-    if (await t.elementIsDisplayed('BackupReminderDismissButton', 5000)) {
+    if (await t.elementIsDisplayed('BackupReminderDismissButton', timeout)) {
         await t.clickElementByKey('BackupReminderDismissButton')
     }
+}
+
+// Wait until the wallet's Receive button is on screen. The backup reminder
+// overlay (new-seed account over ~210 sats, not backed up) pops up a beat after
+// we land on the wallet, later on the slower android emulator, and hides
+// Receive. A one-shot dismiss races that delay and misses it, so poll: re-check
+// Receive and dismiss the overlay whenever it shows, until Receive wins. "Not
+// now" sets dismissedThisSession, so once dismissed it stays gone for the run.
+async function waitForWalletReceive(
+    t: AppiumTestBase,
+    timeout = 30000,
+): Promise<void> {
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+        if (await t.isTextPresent('Receive', true, 2000)) return
+        await dismissBackupReminderIfPresent(t, 1000)
+    }
+    // Final assert so a genuine miss fails with the usual message.
+    await t.waitForText('Receive', 0, true, 5000)
 }
 
 async function dismissSendSuccess(t: AppiumTestBase): Promise<void> {
@@ -281,7 +295,7 @@ async function dismissSendSuccess(t: AppiumTestBase): Promise<void> {
     if (await t.elementIsDisplayed('RateFederationCloseButton', 4000)) {
         await t.clickElementByKey('RateFederationCloseButton')
     }
-    await t.waitForText('Receive', 0, true, 30000)
+    await waitForWalletReceive(t)
 }
 
 // The amount keypad defaults to fiat (amountInputType is unset on a fresh
