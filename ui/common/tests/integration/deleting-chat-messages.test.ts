@@ -60,8 +60,8 @@ describe('message deletion', () => {
             const chatsListCharlie = selectMatrixChatsList(
                 storeCharlie.getState(),
             )
-            expect(chatsListBob).toHaveLength(1)
-            expect(chatsListCharlie).toHaveLength(1)
+            expect(chatsListBob.find(r => r.id === roomId)).toBeDefined()
+            expect(chatsListCharlie.find(r => r.id === roomId)).toBeDefined()
         })
 
         await act(async () => {

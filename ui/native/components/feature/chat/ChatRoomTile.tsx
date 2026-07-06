@@ -4,10 +4,15 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
+import {
+    selectChatTileName,
+    selectIsUnpreviewablePrivateGroup,
+} from '@fedi/common/redux'
 import dateUtils from '@fedi/common/utils/DateUtils'
 import { areChatListRoomRenderFieldsEqual } from '@fedi/common/utils/matrix'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
+import { useAppSelector } from '../../../state/hooks'
 import { MatrixRoom } from '../../../types'
 import { getMatrixPreviewIcon } from '../../../utils/matrix'
 import { AvatarSize } from '../../ui/Avatar'
@@ -30,6 +35,10 @@ const ChatRoomTile = ({ room, onSelect, onLongPress }: ChatRoomTileProps) => {
         showInvitePreview: true,
         showInviteUnread: true,
     })
+    const name = useAppSelector(s => selectChatTileName(s, room.id))
+    const isUnpreviewablePrivateGroup = useAppSelector(s =>
+        selectIsUnpreviewablePrivateGroup(s, room.id),
+    )
 
     const style = styles(theme)
 
@@ -50,7 +59,12 @@ const ChatRoomTile = ({ room, onSelect, onLongPress }: ChatRoomTileProps) => {
                 />
             }
             icon={getMatrixPreviewIcon(room.preview)}
-            title={room.name || DEFAULT_GROUP_NAME}
+            title={
+                name ||
+                (isUnpreviewablePrivateGroup
+                    ? t('feature.chat.private-group')
+                    : DEFAULT_GROUP_NAME)
+            }
             subtitle={text}
             subtitleProps={{
                 medium: isUnread,

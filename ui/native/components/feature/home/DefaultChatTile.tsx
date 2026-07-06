@@ -1,11 +1,21 @@
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { useNavigation } from '@react-navigation/native'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
-import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
+import {
+    useJoinDefaultChat,
+    useMatrixRoomPreview,
+} from '@fedi/common/hooks/matrix'
+import {
+    selectChatTileName,
+    selectIsUnpreviewablePrivateGroup,
+} from '@fedi/common/redux'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
+import { useAppSelector } from '../../../state/hooks'
 import { MatrixRoom } from '../../../types'
+import { NavigationHook } from '../../../types/navigation'
 import { BubbleView } from '../../ui/BubbleView'
 import { Column } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
@@ -25,10 +35,22 @@ const DefaultChatTile = ({
 }: DefaultChatTileProps) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
+    const navigation = useNavigation<NavigationHook>()
     const { text, isPublicBroadcast } = useMatrixRoomPreview({
         roomId: room?.id ?? '',
         t,
     })
+    const { joinState, canJoin } = useJoinDefaultChat(room?.id ?? '', t)
+    const isUnpreviewablePrivateGroup = useAppSelector(s =>
+        selectIsUnpreviewablePrivateGroup(s, room?.id ?? ''),
+    )
+    const name = useAppSelector(s => selectChatTileName(s, room?.id ?? ''))
+
+    const title =
+        name ||
+        (isUnpreviewablePrivateGroup
+            ? t('feature.chat.private-group')
+            : DEFAULT_GROUP_NAME)
 
     const style = styles(theme)
 
@@ -53,7 +75,7 @@ const DefaultChatTile = ({
                 </Column>
                 <Column grow basis={false}>
                     <Text style={style.title} numberOfLines={1} bold>
-                        {room.name || DEFAULT_GROUP_NAME}
+                        {title}
                     </Text>
                     {text && (
                         <Text
@@ -66,7 +88,34 @@ const DefaultChatTile = ({
                         </Text>
                     )}
                 </Column>
-                <SvgImage name="ChevronRight" color={theme.colors.grey} />
+                {joinState === 'join' && canJoin ? (
+                    // Open the room preview the invite scanner uses, so the
+                    // user sees the room and confirms the join or knock there
+                    // rather than committing straight from the tile. Nested in
+                    // the row Pressable, the Button captures the tap so it
+                    // doesn't also fire the row's onSelect.
+                    <Button
+                        size="sm"
+                        onPress={() =>
+                            navigation.navigate('RoomLink', {
+                                roomId: room.id,
+                            })
+                        }
+                        title={t('words.join')}
+                        testID={`DefaultChatTileJoinButton-${room.name}`}
+                        containerStyle={style.action}
+                    />
+                ) : joinState === 'pending' ? (
+                    <Button
+                        size="sm"
+                        disabled
+                        title={t('words.pending')}
+                        testID={`DefaultChatTilePendingButton-${room.name}`}
+                        containerStyle={style.action}
+                    />
+                ) : (
+                    <SvgImage name="ChevronRight" color={theme.colors.grey} />
+                )}
             </Pressable>
         </View>
     )
@@ -102,6 +151,9 @@ const styles = (theme: Theme) =>
             color: theme.colors.grey,
             lineHeight: 15,
             letterSpacing: -0.12,
+        },
+        action: {
+            flexShrink: 0,
         },
     })
 

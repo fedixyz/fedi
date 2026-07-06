@@ -75,8 +75,9 @@ function addRoomsToStore(
 }
 
 /**
- * Helper to create a default group preview for testing.
- * Requires a non-empty timeline to be included in the chat list.
+ * Helper to create a default group preview for testing. Pass an empty
+ * `timeline` for a chat with no messages and `infoOverrides` to shape its join
+ * rule (e.g. a knockable placeholder).
  */
 function makeDefaultGroupPreview(
     id: string,
@@ -85,6 +86,7 @@ function makeDefaultGroupPreview(
     timeline: MatrixGroupPreview['timeline'] = [
         makePreviewEvent(id, previewTimestamp),
     ],
+    infoOverrides: Partial<MatrixRoom> = {},
 ): MatrixGroupPreview {
     return {
         info: {
@@ -92,6 +94,7 @@ function makeDefaultGroupPreview(
             id,
             recencyStamp,
             roomState: 'invited',
+            ...infoOverrides,
         },
         timeline,
         isDefaultGroup: true,
@@ -367,7 +370,9 @@ describe('selectMatrixChatsList', () => {
         ])
     })
 
-    it('excludes default previews with empty timelines', () => {
+    it('includes default previews with empty timelines', () => {
+        // No empty-timeline filter: a default chat with no messages yet must
+        // still show so it can be joined from the tile.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const store = setupStore({
             matrix: {
@@ -390,7 +395,38 @@ describe('selectMatrixChatsList', () => {
 
         const result = selectMatrixChatsList(store.getState())
 
-        expect(result.map(r => r.id)).toEqual(['sdk-room'])
+        expect(result.map(r => r.id)).toContain('empty-default-group')
+    })
+
+    it('includes knockable default previews even with empty timelines', () => {
+        // A knockable room isn't world-readable until joined, so its preview
+        // (or its placeholder when the homeserver can't summarize it) has an
+        // empty timeline. It must still show so the join button can offer a
+        // knock.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const store = setupStore({
+            matrix: {
+                roomList: [],
+                roomPowerLevels: {},
+                rejectedRoomInvites: [],
+                seenRoomInvites: [],
+                groupPreviews: {
+                    'knockable-default-group': makeDefaultGroupPreview(
+                        'knockable-default-group',
+                        null,
+                        0,
+                        [],
+                        { allowKnocking: true, isPublic: false },
+                    ),
+                },
+            },
+        } as any)
+
+        addRoomsToStore(store, [makeRoom('sdk-room', 100)])
+
+        const result = selectMatrixChatsList(store.getState())
+
+        expect(result.map(r => r.id)).toContain('knockable-default-group')
     })
 
     it('places all default previews at the top when they are newer than every sdk room preview', () => {

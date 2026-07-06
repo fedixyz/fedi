@@ -54,7 +54,7 @@ describe('group chat interactions between 2 users', () => {
 
         await waitFor(() => {
             const chatsList2 = selectMatrixChatsList(storeBob.getState())
-            expect(chatsList2).toHaveLength(1)
+            expect(chatsList2.find(r => r.id === roomId)).toBeDefined()
         })
 
         const testMessage = 'test message'
@@ -125,7 +125,7 @@ describe('group chat interactions between 2 users', () => {
 
         await waitFor(() => {
             const chatsListBob = selectMatrixChatsList(storeBob.getState())
-            expect(chatsListBob).toHaveLength(1)
+            expect(chatsListBob.find(r => r.id === roomId)).toBeDefined()
         })
 
         renderHookWithBridge(
@@ -516,8 +516,10 @@ describe('group chat interactions among 3 users', () => {
                 const chatsListCharlie = selectMatrixChatsList(
                     storeCharlie.getState(),
                 )
-                expect(chatsListBob).toHaveLength(1)
-                expect(chatsListCharlie).toHaveLength(1)
+                expect(chatsListBob.find(r => r.id === roomId)).toBeDefined()
+                expect(
+                    chatsListCharlie.find(r => r.id === roomId),
+                ).toBeDefined()
             })
 
             const messageFromAlice = 'hello this is alice'
@@ -692,14 +694,13 @@ describe('direct chat interactions between 2 users', () => {
         await waitFor(() => {
             const chatsListAlice = selectMatrixChatsList(storeAlice.getState())
             const chatsListBob = selectMatrixChatsList(storeBob.getState())
-            expect(chatsListAlice).toHaveLength(1)
-            expect(chatsListBob).toHaveLength(1)
-            const alicesRoom = chatsListAlice[0]
-            const bobsRoom = chatsListBob[0]
-            expect(alicesRoom.id).toBe(bobsRoom.id)
-            expect(alicesRoom.isDirect).toBe(true)
-            expect(bobsRoom.isDirect).toBe(true)
-            roomId = alicesRoom.id
+            const alicesRoom = chatsListAlice.find(r => r.isDirect)
+            const bobsRoom = chatsListBob.find(r => r.isDirect)
+            expect(alicesRoom).toBeDefined()
+            expect(bobsRoom).toBeDefined()
+            expect(alicesRoom?.id).toBe(bobsRoom?.id)
+            expect(bobsRoom?.isDirect).toBe(true)
+            roomId = alicesRoom?.id as string
         })
 
         // observe both users' timelines
@@ -821,7 +822,9 @@ describe('direct message connection request state', () => {
         let invitedRoom: MatrixRoom | undefined
         await waitFor(() => {
             const chatsListBob = selectMatrixChatsList(storeBob.getState())
-            invitedRoom = chatsListBob.find(r => r.roomState === 'invited')
+            invitedRoom = chatsListBob.find(
+                r => r.roomState === 'invited' && r.isDirect,
+            )
             expect(invitedRoom).toBeDefined()
         })
 

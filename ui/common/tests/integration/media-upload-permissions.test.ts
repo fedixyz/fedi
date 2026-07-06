@@ -46,7 +46,11 @@ describe('media upload permissions', () => {
             )
         })
         await waitFor(() => {
-            expect(selectMatrixChatsList(storeBob.getState())).toHaveLength(1)
+            expect(
+                selectMatrixChatsList(storeBob.getState()).find(
+                    c => c.id === publicRoomId,
+                ),
+            ).toBeDefined()
         })
 
         renderHookWithBridge(
@@ -140,7 +144,9 @@ describe('media upload permissions', () => {
             )
         })
         await waitFor(() => {
-            expect(selectMatrixChatsList(storeBob.getState())).toHaveLength(2)
+            const chats = selectMatrixChatsList(storeBob.getState())
+            expect(chats.find(c => c.id === publicRoomId)).toBeDefined()
+            expect(chats.find(c => c.id === privateRoomId)).toBeDefined()
         })
 
         renderHookWithBridge(

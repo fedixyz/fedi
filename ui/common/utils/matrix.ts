@@ -410,6 +410,39 @@ export function makeChatFromUnjoinedRoomPreview(preview: MatrixGroupPreview) {
     return chat
 }
 
+// A community or federation default chat the homeserver won't preview for a
+// non-member. This happens for a knockable room when the server has no MSC3266
+// room-summary endpoint: the room id is in the community meta but its name and
+// join rule can't be fetched. Rather than hide the chat, surface a placeholder
+// tile that still offers a request-to-join, so the user can knock from it. The
+// name is left blank so the tile renders its default label, and allowKnocking
+// drives the join button to the knock confirm screen.
+export function makeUnpreviewableDefaultChat(
+    roomId: MatrixRoom['id'],
+): MatrixGroupPreview {
+    return {
+        info: {
+            id: roomId,
+            name: '',
+            avatarUrl: null,
+            joinedMemberCount: 0,
+            isPublic: false,
+            allowKnocking: true,
+            isPreview: true,
+            inviteCode: encodeFediMatrixRoomUri(roomId),
+            directUserId: null,
+            notificationCount: 0,
+            isMarkedUnread: false,
+            roomState: 'invited',
+            preview: null,
+            isDirect: false,
+            recencyStamp: null,
+        },
+        timeline: [],
+        isDefaultGroup: true,
+    }
+}
+
 export function getRoomEventPowerLevel(
     powerLevels: MatrixRoomPowerLevels,
     events: string | string[],

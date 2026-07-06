@@ -57,6 +57,7 @@ import {
     selectMatrixRoomSelectableEventIds,
     selectMatrixRoomSelfPowerLevel,
     selectDefaultMatrixRoom,
+    selectIsUnpreviewablePrivateGroup,
     selectFederationIds,
     selectFeatureFlag,
     selectMatrixRoomInviteIsSeen,
@@ -1978,6 +1979,10 @@ export function useMatrixRoomPreview({
         roomDraft ||
         isBlocked
 
+    const isUnpreviewablePrivateGroup = useCommonSelector(s =>
+        selectIsUnpreviewablePrivateGroup(s, roomId),
+    )
+
     const text = useMemo(() => {
         // For deriving the preview text, we prefer a `defaultRoom` (if any)
         // because we properly fetch the previews for them even if you haven't joined
@@ -1991,11 +1996,25 @@ export function useMatrixRoomPreview({
             return t('feature.chat.connection-request-pending')
         }
 
-        if (preferredPreviewRoom?.roomState === 'knocked') {
+        // A pending knock lands on the live room, never on the cached
+        // default-room preview (which stays frozen at its fetched state), so
+        // read the join/knock state from there.
+        if (matrixRoom?.roomState === 'knocked') {
             return t('feature.chat.request-to-join-pending')
         }
 
-        if (!preferredPreviewRoom?.preview) return t('feature.chat.no-messages')
+        if (isUnpreviewablePrivateGroup) {
+            return t('feature.chat.request-to-join-group')
+        }
+
+        if (!preferredPreviewRoom?.preview) {
+            // For a default-chat tile the user hasn't joined, an empty preview
+            // means we couldn't fetch the room's messages, not that it has
+            // none, so "no messages" would mislead. Show nothing instead. A
+            // joined room's emptiness is real, so it keeps the message.
+            if (defaultRoom && matrixRoom?.roomState !== 'joined') return ''
+            return t('feature.chat.no-messages')
+        }
 
         if (roomDraft)
             return t('feature.chat.draft-text', { text: roomDraft.trim() })
@@ -2024,7 +2043,15 @@ export function useMatrixRoomPreview({
         }
 
         return getRoomPreviewText(preferredPreviewRoom, t)
-    }, [defaultRoom, matrixRoom, t, roomDraft, myId, showInvitePreview])
+    }, [
+        defaultRoom,
+        matrixRoom,
+        t,
+        roomDraft,
+        myId,
+        showInvitePreview,
+        isUnpreviewablePrivateGroup,
+    ])
 
     return {
         text,

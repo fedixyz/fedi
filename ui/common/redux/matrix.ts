@@ -21,6 +21,7 @@ import {
     setGuardianitoBot,
     cancelEcash,
     selectFeatureFlag,
+    selectDefaultMatrixRoom,
 } from '.'
 import {
     GUARDIANITO_BOT_DISPLAY_NAME,
@@ -96,6 +97,7 @@ import {
     isMultispendWithdrawalEvent,
     isPaymentEvent,
     makeChatFromUnjoinedRoomPreview,
+    makeUnpreviewableDefaultChat,
     matrixIdToUsername,
     mxcUrlToHttpUrl,
     shouldShowUnreadIndicator,
@@ -2264,13 +2266,19 @@ export const previewCommunityDefaultChats = createAsyncThunk<
         const roomPreviews = await Promise.allSettled(
             defaultChats.map(fetchPreview),
         )
-        return roomPreviews.flatMap(preview => {
+        return roomPreviews.flatMap((preview, idx) => {
             if (preview.status === 'fulfilled') {
                 return [preview.value]
-            } else {
-                log.error('getRoomPreview', preview.reason)
-                return []
             }
+            // The homeserver won't preview this room for a non-member (a
+            // knockable room without MSC3266 summaries). Surface a placeholder
+            // so the chat still shows with a request-to-join button instead of
+            // disappearing from the list.
+            log.warn('getRoomPreview failed, using placeholder', {
+                roomId: defaultChats[idx],
+                reason: preview.reason,
+            })
+            return [makeUnpreviewableDefaultChat(defaultChats[idx])]
         })
     },
 )
@@ -2303,13 +2311,19 @@ export const previewFederationDefaultChats = createAsyncThunk<
         const roomPreviews = await Promise.allSettled(
             defaultChats.map(fetchPreview),
         )
-        return roomPreviews.flatMap(preview => {
+        return roomPreviews.flatMap((preview, idx) => {
             if (preview.status === 'fulfilled') {
                 return [preview.value]
-            } else {
-                log.error('getRoomPreview', preview.reason)
-                return []
             }
+            // The homeserver won't preview this room for a non-member (a
+            // knockable room without MSC3266 summaries). Surface a placeholder
+            // so the chat still shows with a request-to-join button instead of
+            // disappearing from the list.
+            log.warn('getRoomPreview failed, using placeholder', {
+                roomId: defaultChats[idx],
+                reason: preview.reason,
+            })
+            return [makeUnpreviewableDefaultChat(defaultChats[idx])]
         })
     },
 )
@@ -2459,8 +2473,6 @@ const selectDefaultChatsForChatList = createSelector(
             if (!info || !timeline) return result
             // don't include previews unless they are default groups
             if (!preview.isDefaultGroup) return result
-            // don't include previews that have no messages in the timeline
-            if (timeline.filter(t => t !== null).length === 0) return result
             // don't include previews for rooms we are already joined to
             if (roomsList.find(r => r.id === info.id)) return result
             result.push(makeChatFromUnjoinedRoomPreview(preview))
@@ -2560,6 +2572,37 @@ export const selectIsMatrixChatEmpty = (s: CommonState) =>
 
 export const selectMatrixRoom = (s: CommonState, roomId: MatrixRoom['id']) =>
     selectMatrixRooms(s).find(room => room.id === roomId)
+
+// A knockable default chat the homeserver wouldn't summarize, so it comes back
+// with no name and no messages. Membership is read from the live room rather
+// than the cached preview, which never updates, so the tile reads as a private
+// group to request to join only until the user actually joins. A pending knock
+// keeps it a "Private group" while the subtitle reports the request as pending.
+export const selectIsUnpreviewablePrivateGroup = (
+    s: CommonState,
+    roomId: MatrixRoom['id'],
+) => {
+    const preview = selectDefaultMatrixRoom(s, roomId)
+    const liveRoom = selectMatrixRoom(s, roomId)
+    return Boolean(
+        preview?.allowKnocking &&
+            !preview.preview &&
+            liveRoom?.roomState !== 'joined',
+    )
+}
+
+// The name to show on a chat tile, resolved the same way for the Spaces tiles
+// and the main chat list. Prefers the live room so a joined room shows its real
+// name even when its cached default-chat preview is an empty placeholder, then
+// the preview, then empty for the caller to label.
+export const selectChatTileName = (
+    s: CommonState,
+    roomId: MatrixRoom['id'],
+) => {
+    const liveRoom = selectMatrixRoom(s, roomId)
+    const preview = selectDefaultMatrixRoom(s, roomId)
+    return liveRoom?.name || preview?.name || ''
+}
 
 export const selectMatrixRoomInviteIsSeen = (
     s: CommonState,
