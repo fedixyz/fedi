@@ -311,11 +311,11 @@ describe('FederationUtils', () => {
             await switchGateway(
                 fedimint as unknown as Parameters<typeof switchGateway>[0],
                 'federation-id',
-                'gateway-id',
+                { kind: 'lnv1', pubkey: 'gateway-id' },
             )
 
             expect(fedimint.setGatewayOverride).toHaveBeenCalledWith(
-                'gateway-id',
+                { kind: 'lnv1', pubkey: 'gateway-id' },
                 'federation-id',
             )
         })

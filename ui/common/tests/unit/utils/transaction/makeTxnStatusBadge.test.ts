@@ -232,6 +232,9 @@ describe('makeTxnStatusBadge', () => {
         const oobReceiveIssuing = makeTestTxnEntry('oobReceive', {
             state: makeTestOOBReissueState('issuing'),
         })
+        const oobCancelMissingState = makeTestTxnEntry('oobCancel', {
+            state: null,
+        })
         const multispendWithdrawalUnknown = makeTestTxnEntry(
             'multispendWithdrawal',
             {
@@ -268,6 +271,7 @@ describe('makeTxnStatusBadge', () => {
         expect(makeTxnStatusBadge(spv2WithdrawalPending)).toBe('pending')
         expect(makeTxnStatusBadge(oobReceiveCreated)).toBe('pending')
         expect(makeTxnStatusBadge(oobReceiveIssuing)).toBe('pending')
+        expect(makeTxnStatusBadge(oobCancelMissingState)).toBe('pending')
         expect(makeTxnStatusBadge(spv2TransferOutDataNotInCache)).toBe(
             'pending',
         )

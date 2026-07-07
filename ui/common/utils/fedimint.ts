@@ -680,7 +680,7 @@ export class FedimintBridge {
     }
 
     async setGatewayOverride(
-        gatewayId: bindings.RpcPublicKey | null,
+        gatewayId: bindings.RpcLightningGatewayId | null,
         federationId: string,
     ) {
         return this.rpcTyped('setGatewayOverride', {

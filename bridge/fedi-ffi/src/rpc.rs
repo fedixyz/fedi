@@ -60,11 +60,12 @@ use rpc_types::{
     RpcEventId, RpcFederation, RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview,
     RpcFediFeeStream, RpcFeeDetails, RpcFiatAmount, RpcGenerateEcashResponse,
     RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard, RpcInvoice,
-    RpcLightningGateway, RpcMediaUploadParams, RpcOperationId, RpcParseInviteCodeResult,
-    RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
-    RpcReclaimLnReceiveOutcome, RpcRecoveryId, RpcRegisteredDevice, RpcSPv2CachedSyncResponse,
-    RpcSPv2SyncResponse, RpcSignature, RpcSignedLnurlMessage, RpcStabilityPoolAccountInfo,
-    RpcTransaction, RpcTransactionDirection, RpcTransactionListEntry, SocialRecoveryQr,
+    RpcLightningGateway, RpcLightningGatewayId, RpcMediaUploadParams, RpcOperationId,
+    RpcParseInviteCodeResult, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult,
+    RpcPublicKey, RpcReclaimLnReceiveOutcome, RpcRecoveryId, RpcRegisteredDevice,
+    RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature, RpcSignedLnurlMessage,
+    RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection, RpcTransactionListEntry,
+    SocialRecoveryQr,
 };
 use runtime::api::{IFediApi, LiveFediApi, MockFediApi};
 use runtime::bridge_runtime::Runtime;
@@ -430,16 +431,16 @@ async fn listGateways(federation: Arc<FederationV2>) -> anyhow::Result<Vec<RpcLi
 #[macro_rules_derive(federation_recovering_rpc_method!)]
 async fn setGatewayOverride(
     federation: Arc<FederationV2>,
-    gateway_id: Option<RpcPublicKey>,
+    gateway_id: Option<RpcLightningGatewayId>,
 ) -> anyhow::Result<()> {
-    federation
-        .set_gateway_override(gateway_id.as_ref().map(|g| &g.0))
-        .await
+    federation.set_gateway_override(gateway_id).await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
-async fn getGatewayOverride(federation: Arc<FederationV2>) -> anyhow::Result<Option<RpcPublicKey>> {
-    Ok(federation.get_gateway_override().await?.map(RpcPublicKey))
+async fn getGatewayOverride(
+    federation: Arc<FederationV2>,
+) -> anyhow::Result<Option<RpcLightningGatewayId>> {
+    federation.get_gateway_override().await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -606,7 +607,7 @@ async fn cancelEcash(
     // TODO: better type
     ecash: String,
 ) -> anyhow::Result<()> {
-    federation.cancel_ecash(ecash.parse()?).await
+    federation.cancel_ecash(ecash).await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -764,19 +765,12 @@ async fn signLnurlMessage(
 
 #[macro_rules_derive(federation_rpc_method!)]
 async fn supportsRecurringdLnurl(federation: Arc<FederationV2>) -> anyhow::Result<bool> {
-    Ok(federation.get_recurringd_api().await.is_some())
+    Ok(federation.supports_recurringd_lnurl().await)
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
 async fn getRecurringdLnurl(federation: Arc<FederationV2>) -> anyhow::Result<String> {
-    federation
-        .get_recurringd_lnurl(
-            federation
-                .get_recurringd_api()
-                .await
-                .context(ErrorCode::RecurringdMetaNotFound)?,
-        )
-        .await
+    federation.get_recurringd_lnurl().await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]

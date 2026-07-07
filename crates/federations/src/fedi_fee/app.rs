@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use anyhow::{anyhow, bail, ensure};
+use anyhow::{Context, anyhow, bail, ensure};
 use api_types::invoice_generator::GenerateInvoiceBreakdownItemV5;
 use async_recursion::async_recursion;
 use bitcoin::Network;
@@ -10,11 +10,9 @@ use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::util::backoff_util::custom_backoff;
 use fedimint_core::util::retry;
 use fedimint_core::{Amount, SATS_PER_BITCOIN};
-use fedimint_ln_client::OutgoingLightningPayment;
 use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
-use rpc_types::{LightningSendMetadata, RpcTransactionDirection};
-use runtime::constants::MILLION;
+use rpc_types::RpcTransactionDirection;
 use tokio::sync::Mutex;
 use tracing::{error, info, instrument};
 
@@ -24,9 +22,8 @@ use super::db::{
     OutstandingFediFeesByStreamPerTXTypeKeyPrefix, TotalAccruedFediFeesByStreamKey,
 };
 use super::{FediFeeHelper, FediFeeStream};
-use crate::federation_v2::client::ClientExt;
+use crate::federation_v2::FederationV2;
 use crate::federation_v2::db::LastFediFeesRemittanceSPv2BalanceKey;
-use crate::federation_v2::{FederationV2, zero_gateway_fees};
 
 // Unreasonable amount of fee, nobody should pay this much fee.
 const UNREASONABLE_FEDI_FEE_AMOUNT: Amount = Amount::from_sats(SATS_PER_BITCOIN / 10);
@@ -178,24 +175,16 @@ impl FediFeeRemittanceService {
         breakdown: Vec<AppFeeBreakdownItem>,
         accrued_fee_exceeds_threshold: bool,
     ) -> anyhow::Result<()> {
-        let gateway = fed.select_gateway().await?;
-        let amt_to_request = if accrued_fee_exceeds_threshold {
+        let fee_remittance = if accrued_fee_exceeds_threshold {
             info!("Accrued fee exceeds threshold");
-            let gateway_fees = gateway
-                .as_ref()
-                .map(|g| g.fees)
-                .unwrap_or(zero_gateway_fees());
-            let amt_to_request_numerator = MILLION
-                * (outstanding_fees_total
-                    .msats
-                    .checked_sub(gateway_fees.base_msat as u64)
-                    .ok_or(anyhow!("Accrued fee < base gateway fees!"))?);
-            let amt_to_request_denominator = MILLION + gateway_fees.proportional_millionths as u64;
-            Amount::from_msats(amt_to_request_numerator / amt_to_request_denominator)
+            Some(fed.prepare_fee_remittance(outstanding_fees_total).await?)
         } else {
             info!("Accrued fee below threshold, will request 0-amount invoice");
-            Amount::ZERO
+            None
         };
+        let amt_to_request = fee_remittance
+            .as_ref()
+            .map_or(Amount::ZERO, |remittance| remittance.invoice_amount);
 
         let (current_spv2_balance, spv2_balance_delta_cents) = if let Ok(spv2_account_info) =
             fed.spv2_account_info().await
@@ -318,14 +307,8 @@ impl FediFeeRemittanceService {
         );
         info!("fedi fee threshold exceeded, remitting");
 
-        let extra_meta = LightningSendMetadata {
-            is_fedi_fee_remittance: true,
-            frontend_metadata: None,
-        };
-        let ln = fed.client.ln()?;
-        let OutgoingLightningPayment { payment_type, .. } = ln
-            .pay_bolt11_invoice(gateway, invoice.to_owned(), extra_meta.clone())
-            .await?;
+        let fee_remittance =
+            fee_remittance.context("fee remittance missing after threshold was exceeded")?;
 
         fed.fedi_fee_db()
             .autocommit(
@@ -354,7 +337,7 @@ impl FediFeeRemittanceService {
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             })?;
 
-        if let Err(e) = fed.subscribe_to_ln_pay(payment_type, extra_meta).await {
+        if let Err(e) = fed.pay_fee_remittance(&invoice, fee_remittance).await {
             fed.fedi_fee_db()
                 .autocommit(
                     |dbtx, _| {

@@ -1728,13 +1728,9 @@ export const tryReclaimMatrixPayment = createAsyncThunk<
             event.content.senderOperationId,
         )
 
-        if (
-            !transaction ||
-            transaction.kind !== 'oobSend' ||
-            transaction.state?.type !== 'created'
-        ) {
+        if (!transaction || transaction.kind !== 'oobSend') {
             log.info(
-                `Skip reclaiming rejected matrix payment with operation ID ${event.content.senderOperationId}: already in "${transaction.state?.type}" state`,
+                `Skip reclaiming rejected matrix payment with operation ID ${event.content.senderOperationId}: transaction is not an ecash send`,
             )
             return
         }

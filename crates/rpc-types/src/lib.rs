@@ -352,8 +352,6 @@ pub struct RpcPayInvoiceResponse {
 #[ts(export)]
 pub struct RpcGenerateEcashResponse {
     pub ecash: String,
-    #[ts(type = "number")]
-    pub cancel_at: u64,
     pub operation_id: RpcOperationId,
 }
 
@@ -368,9 +366,18 @@ pub struct RpcPayAddressResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcLightningGateway {
+    pub id: RpcLightningGatewayId,
     pub node_pub_key: RpcPublicKey,
     pub gateway_id: RpcPublicKey,
     pub api: String, // TODO: url::Ur;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+#[ts(export)]
+pub enum RpcLightningGatewayId {
+    Lnv1 { pubkey: RpcPublicKey },
+    Lnv2 { url: String },
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -541,8 +548,16 @@ pub enum RpcTransactionKind {
     },
     OobSend {
         state: Option<RpcOOBSpendState>,
+        /// The ecash string handed out by this send. Surfaced for v2 ecash
+        /// so the user can copy, reclaim, or re-share it from the tx detail.
+        /// `None` for v1 ecash, which already carries the notes through the
+        /// existing cancel UX.
+        oob_notes: Option<String>,
     },
     OobReceive {
+        state: Option<RpcOOBReissueState>,
+    },
+    OobCancel {
         state: Option<RpcOOBReissueState>,
     },
     SpDeposit {
@@ -964,9 +979,19 @@ impl Default for BaseMetadata {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum EcashReceiveReason {
+    #[default]
+    Receive,
+    Cancel,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EcashReceiveMetadata {
     pub internal: bool,
+    #[serde(default)]
+    pub reason: EcashReceiveReason,
     pub frontend_metadata: Option<FrontendMetadata>,
 }
 

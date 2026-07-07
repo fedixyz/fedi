@@ -119,6 +119,7 @@ export type OnchainWithdrawTxn = TransactionKind<'onchainWithdraw'>
 export type OnchainDepositTxn = TransactionKind<'onchainDeposit'>
 export type OobSendTxn = TransactionKind<'oobSend'>
 export type OobReceiveTxn = TransactionKind<'oobReceive'>
+export type OobCancelTxn = TransactionKind<'oobCancel'>
 export type SpDepositTxn = TransactionKind<'spDeposit'>
 export type SpWithdrawTxn = TransactionKind<'spWithdraw'>
 export type Spv2DepositTxn = TransactionKind<'sPV2Deposit'>

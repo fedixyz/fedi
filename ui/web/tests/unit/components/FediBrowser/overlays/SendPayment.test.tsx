@@ -4,6 +4,7 @@ import { screen, waitFor } from '@testing-library/react'
 import { setupStore } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { MSats } from '@fedi/common/types'
+import { RpcLightningGateway } from '@fedi/common/types/bindings'
 
 import { SendPayment } from '../../../../../src/components/FediBrowser/overlays/SendPayment'
 import { AppState } from '../../../../../src/state/store'
@@ -11,6 +12,15 @@ import { renderWithProviders } from '../../../../utils/render'
 
 const onAcceptSpy = jest.fn()
 const onRejectSpy = jest.fn()
+
+const mockLightningGateways: RpcLightningGateway[] = [
+    {
+        id: { kind: 'lnv1', pubkey: 'gatewayId' },
+        nodePubKey: 'nodePubKey',
+        gatewayId: 'gatewayId',
+        api: 'https://gateway.com',
+    },
+]
 
 const mockDispatch = jest.fn(() => {
     const payload = { preimage: 'preimage' }
@@ -36,14 +46,7 @@ const getPreloadedState = (state: AppState) => ({
         federations: [mockFederation1],
         payFromFederationId: '1',
         gatewaysByFederation: {
-            '1': [
-                {
-                    nodePubKey: 'nodePubKey',
-                    gatewayId: 'gatewayId',
-                    api: 'https://gateway.com',
-                    active: true,
-                },
-            ],
+            '1': mockLightningGateways,
         },
     },
     browser: {

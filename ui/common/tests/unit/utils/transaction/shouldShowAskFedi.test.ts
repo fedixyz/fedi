@@ -261,6 +261,14 @@ describe('shouldShowAskFedi', () => {
         expect(shouldShowAskFedi(failed)).toBe(true)
     })
 
+    it('[ecash cancel] should show the "Ask Fedi" button while state is missing', () => {
+        const oobCancel = makeTestTxnEntry('oobCancel', {
+            state: null,
+        })
+
+        expect(shouldShowAskFedi(oobCancel)).toBe(true)
+    })
+
     it('[multispend deposit] should hide the "Ask Fedi" button', () => {
         const deposit = makeTestTxnEntry('multispendDeposit')
 

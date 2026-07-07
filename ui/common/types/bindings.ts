@@ -681,7 +681,6 @@ export type RpcFormattedBody = { format: string; formattedBody: string };
 
 export type RpcGenerateEcashResponse = {
   ecash: string;
-  cancelAt: number;
   operationId: RpcOperationId;
 };
 
@@ -740,10 +739,15 @@ export type RpcJsonClientConfig = {
 };
 
 export type RpcLightningGateway = {
+  id: RpcLightningGatewayId;
   nodePubKey: RpcPublicKey;
   gatewayId: RpcPublicKey;
   api: string;
 };
+
+export type RpcLightningGatewayId =
+  | { kind: "lnv1"; pubkey: RpcPublicKey }
+  | { kind: "lnv2"; url: string };
 
 export type RpcLnPayState =
   | { type: "created" }
@@ -862,7 +866,7 @@ export type RpcMethods = {
   getPrevPayInvoiceResult: [getPrevPayInvoiceResult, RpcPrevPayInvoiceResult];
   listGateways: [listGateways, Array<RpcLightningGateway>];
   setGatewayOverride: [setGatewayOverride, null];
-  getGatewayOverride: [getGatewayOverride, RpcPublicKey | null];
+  getGatewayOverride: [getGatewayOverride, RpcLightningGatewayId | null];
   supportsSafeOnchainDeposit: [supportsSafeOnchainDeposit, boolean];
   generateAddress: [generateAddress, string];
   getPegInFees: [getPegInFees, RpcAmount];
@@ -1618,8 +1622,19 @@ export type RpcTransaction = {
       peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
-  | { kind: "oobSend"; state: RpcOOBSpendState | null }
+  | {
+      kind: "oobSend";
+      state: RpcOOBSpendState | null;
+      /**
+       * The ecash string handed out by this send. Surfaced for v2 ecash
+       * so the user can copy, reclaim, or re-share it from the tx detail.
+       * `None` for v1 ecash, which already carries the notes through the
+       * existing cancel UX.
+       */
+      oob_notes: string | null;
+    }
   | { kind: "oobReceive"; state: RpcOOBReissueState | null }
+  | { kind: "oobCancel"; state: RpcOOBReissueState | null }
   | { kind: "spDeposit"; state: RpcSPDepositState }
   | { kind: "spWithdraw"; state: RpcSPWithdrawState | null }
   | { kind: "sPV2Deposit"; state: RpcSPV2DepositState }
@@ -1659,8 +1674,19 @@ export type RpcTransactionKind =
       peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
-  | { kind: "oobSend"; state: RpcOOBSpendState | null }
+  | {
+      kind: "oobSend";
+      state: RpcOOBSpendState | null;
+      /**
+       * The ecash string handed out by this send. Surfaced for v2 ecash
+       * so the user can copy, reclaim, or re-share it from the tx detail.
+       * `None` for v1 ecash, which already carries the notes through the
+       * existing cancel UX.
+       */
+      oob_notes: string | null;
+    }
   | { kind: "oobReceive"; state: RpcOOBReissueState | null }
+  | { kind: "oobCancel"; state: RpcOOBReissueState | null }
   | { kind: "spDeposit"; state: RpcSPDepositState }
   | { kind: "spWithdraw"; state: RpcSPWithdrawState | null }
   | { kind: "sPV2Deposit"; state: RpcSPV2DepositState }
@@ -1708,8 +1734,19 @@ export type RpcTransactionListEntry = {
       peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
-  | { kind: "oobSend"; state: RpcOOBSpendState | null }
+  | {
+      kind: "oobSend";
+      state: RpcOOBSpendState | null;
+      /**
+       * The ecash string handed out by this send. Surfaced for v2 ecash
+       * so the user can copy, reclaim, or re-share it from the tx detail.
+       * `None` for v1 ecash, which already carries the notes through the
+       * existing cancel UX.
+       */
+      oob_notes: string | null;
+    }
   | { kind: "oobReceive"; state: RpcOOBReissueState | null }
+  | { kind: "oobCancel"; state: RpcOOBReissueState | null }
   | { kind: "spDeposit"; state: RpcSPDepositState }
   | { kind: "spWithdraw"; state: RpcSPWithdrawState | null }
   | { kind: "sPV2Deposit"; state: RpcSPV2DepositState }
@@ -2504,7 +2541,7 @@ export type restoreMnemonic = { mnemonic: Array<string> };
 
 export type setGatewayOverride = {
   federationId: RpcFederationId;
-  gatewayId: RpcPublicKey | null;
+  gatewayId: RpcLightningGatewayId | null;
 };
 
 export type setGuardianPassword = {

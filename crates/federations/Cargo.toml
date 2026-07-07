@@ -14,10 +14,13 @@ fedimint-client = { workspace = true }
 fedimint-connectors = { workspace = true }
 fedimint-client-module = { workspace = true }
 fedimint-mint-client = { workspace = true }
+fedimint-mintv2-client = { workspace = true }
 fedimint-ln-client = { workspace = true }
 fedimint-api-client = { workspace = true }
 fedimint-ln-common = { workspace = true }
+fedimint-lnv2-client = { workspace = true }
 fedimint-wallet-client = { workspace = true }
+fedimint-walletv2-client = { workspace = true }
 fedimint-meta-client = { workspace = true }
 fedi-social-client = { workspace = true }
 stability-pool-client-old = { workspace = true }

@@ -9,9 +9,11 @@ use device_registration::DeviceRegistrationService;
 use federation_sm::{FederationState, FederationStateMachine};
 use federation_v2::{FederationPrefetchedInfo, FederationV2};
 use federations_locker::FederationsLocker;
+use fedimint_core::base32::{FEDIMINT_PREFIX, decode_prefixed};
 use fedimint_core::config::FederationIdPrefix;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_mint_client::OOBNotes;
+use fedimint_mintv2_client::ECash as MintV2ECash;
 use futures::StreamExt;
 use rpc_types::{RpcAmount, RpcEcashInfo, RpcFederationId, RpcFederationPreview};
 use runtime::bridge_runtime::Runtime;
@@ -267,6 +269,23 @@ impl Federations {
     }
 
     pub async fn validate_ecash(&self, ecash: String) -> anyhow::Result<RpcEcashInfo> {
+        if let Ok(v2_ecash) = decode_prefixed::<MintV2ECash>(FEDIMINT_PREFIX, &ecash) {
+            let amount = RpcAmount(v2_ecash.amount());
+            if let Some(federation_id) = v2_ecash.mint() {
+                let federation_id = federation_id.to_string();
+                if self.get_federations_map().contains_key(&federation_id) {
+                    return Ok(RpcEcashInfo::Joined {
+                        federation_id: RpcFederationId(federation_id),
+                        amount,
+                    });
+                }
+            }
+            return Ok(RpcEcashInfo::NotJoined {
+                federation_invite: None,
+                amount,
+            });
+        }
+
         let oob = OOBNotes::from_str(&ecash)?;
         let id = self.find_federation_id_for_prefix(oob.federation_id_prefix());
         match id {

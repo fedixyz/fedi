@@ -5,6 +5,7 @@ use std::time::SystemTime;
 use bitcoin::secp256k1;
 use fedimint_core::core::{ModuleKind, OperationId};
 use fedimint_core::encoding::{Decodable, Encodable};
+use fedimint_core::util::SafeUrl;
 use fedimint_core::{Amount, impl_db_lookup, impl_db_record};
 use rpc_types::{OperationFediFeeStatus, RpcTransactionDirection};
 use runtime::storage::state::FiatFXInfo;
@@ -95,12 +96,17 @@ pub enum BridgeDbPrefix {
     #[deprecated]
     LastFediFeesRemittanceTotalAccruedFees = 0xc6,
 
-    // Gateway override used by gateway selection
+    // Legacy lnv1 gateway override used by gateway selection.
+    #[deprecated]
     GatewayOverride = 0xc7,
 
     // Prefix partition for all stream-era fee state. Individual fee keys live
     // under their own subprefixes inside this namespace.
     FediFeePrefix = 0xc8,
+
+    // Canonical lightning gateway override. The deprecated GatewayOverride
+    // key stored only an lnv1 gateway pubkey.
+    LightningGatewayOverride = 0xc9,
 
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
@@ -183,13 +189,29 @@ impl_db_record!(
     db_prefix = BridgeDbPrefix::PendingFediFees,
 );
 
+#[derive(Debug, Decodable, Encodable, Clone)]
+pub enum LightningGatewayOverride {
+    Lnv1(secp256k1::PublicKey),
+    Lnv2(SafeUrl),
+}
+
 #[derive(Debug, Decodable, Encodable)]
+#[deprecated]
 pub struct GatewayOverrideKey;
 
 impl_db_record!(
     key = GatewayOverrideKey,
     value = secp256k1::PublicKey,
     db_prefix = BridgeDbPrefix::GatewayOverride,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct LightningGatewayOverrideKey;
+
+impl_db_record!(
+    key = LightningGatewayOverrideKey,
+    value = LightningGatewayOverride,
+    db_prefix = BridgeDbPrefix::LightningGatewayOverride,
 );
 
 #[derive(Debug, Decodable, Encodable)]

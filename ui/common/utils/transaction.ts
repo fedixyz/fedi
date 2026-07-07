@@ -70,6 +70,7 @@ export const getTxnDirection = (
                 | 'lnRecurringdReceive'
                 | 'onchainDeposit'
                 | 'oobReceive'
+                | 'oobCancel'
                 | 'spWithdraw'
                 | 'sPV2Withdrawal'
                 | 'sPV2TransferIn'
@@ -108,7 +109,11 @@ export const makeTxnIconDisplay = (
         return { icon: 'DollarCircle', color: 'stable' }
     }
 
-    if (txn.kind === 'oobSend' || txn.kind === 'oobReceive') {
+    if (
+        txn.kind === 'oobSend' ||
+        txn.kind === 'oobReceive' ||
+        txn.kind === 'oobCancel'
+    ) {
         return { icon: 'ChatPaymentCircle', color: 'bitcoin' }
     }
 
@@ -152,6 +157,8 @@ export const makeTxnTypeText = (
         case 'oobSend':
         case 'oobReceive':
             return t('words.ecash')
+        case 'oobCancel':
+            return t('phrases.canceled-ecash-send')
         case 'multispendDeposit':
             return t('words.deposit')
         case 'multispendWithdrawal':
@@ -185,6 +192,8 @@ export const makeTxnDetailTitleText = (
                 : t('feature.stabilitypool.you-withdrew')
         case 'oobReceive':
             return t('feature.receive.you-received')
+        case 'oobCancel':
+            return t('phrases.canceled-ecash-send')
         case 'lnReceive':
         case 'lnRecurringdReceive':
             switch (txn.state.type) {
@@ -447,6 +456,8 @@ export const makeTxnStatusText = (
     t: TFunction,
     txn: TransactionListEntry,
 ): string => {
+    if (txn.kind === 'oobCancel' && !txn.state) return t('words.pending')
+
     // there should always be a state, but return unknown just in case
     if (!txn.state) return t('words.unknown')
 
@@ -601,6 +612,19 @@ export const makeTxnStatusText = (
                 default:
                     return ''
             }
+        case 'oobCancel':
+            switch (txn.state?.type) {
+                case undefined:
+                case 'created':
+                case 'issuing':
+                    return t('words.pending')
+                case 'done':
+                    return t('words.canceled')
+                case 'failed':
+                    return t('words.failed')
+                default:
+                    return ''
+            }
         case 'sPV2TransferIn':
             switch (txn.state.type) {
                 case 'completedTransfer':
@@ -633,6 +657,8 @@ export const makeTxnStatusText = (
 export const makeTxnStatusBadge = (
     txn: TransactionListEntry,
 ): TransactionStatusBadge => {
+    if (txn.kind === 'oobCancel' && !txn.state) return 'pending'
+
     if (!txn.state) return 'failed'
 
     switch (txn.kind) {
@@ -771,6 +797,15 @@ export const makeTxnStatusBadge = (
                     return 'failed'
                 default:
                     txn.state.type satisfies 'created' | 'issuing'
+                    return 'pending'
+            }
+        case 'oobCancel':
+            switch (txn.state?.type) {
+                case 'done':
+                    return 'incoming'
+                case 'failed':
+                    return 'failed'
+                default:
                     return 'pending'
             }
         case 'multispendDeposit':
@@ -1395,6 +1430,13 @@ export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
                     return false
                 default:
                     txn.state.type satisfies 'created' | 'issuing' | 'failed'
+                    return true
+            }
+        case 'oobCancel':
+            switch (txn.state?.type) {
+                case 'done':
+                    return false
+                default:
                     return true
             }
         case 'spDeposit':

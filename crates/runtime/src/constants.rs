@@ -5,9 +5,9 @@ use fedimint_derive_secret::ChildId;
 
 pub const REISSUE_ECASH_TIMEOUT: Duration = Duration::from_secs(60);
 /// 3 days
-pub const ECASH_AUTO_CANCEL_DURATION_MAINNET: Duration = Duration::from_secs(60 * 60 * 24 * 3);
+pub const ECASH_INTERNAL_CHANGE_TIMEOUT_MAINNET: Duration = Duration::from_secs(60 * 60 * 24 * 3);
 /// 10 minutes
-pub const ECASH_AUTO_CANCEL_DURATION_MUTINYNET: Duration = Duration::from_secs(60 * 10);
+pub const ECASH_INTERNAL_CHANGE_TIMEOUT_MUTINYNET: Duration = Duration::from_secs(60 * 10);
 pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 pub const LNURL_CHILD_ID: u64 = 11;
 pub const XMPP_CHILD_ID: u64 = 10;
@@ -42,8 +42,11 @@ pub const FEDI_FILE_V0_PATH: &str = "./fedi_file.json";
 
 // Operation types in fedimint client
 pub const LIGHTNING_OPERATION_TYPE: &str = "ln";
+pub const LIGHTNINGV2_OPERATION_TYPE: &str = "lnv2";
 pub const MINT_OPERATION_TYPE: &str = "mint";
+pub const MINTV2_OPERATION_TYPE: &str = "mintv2";
 pub const WALLET_OPERATION_TYPE: &str = "wallet";
+pub const WALLETV2_OPERATION_TYPE: &str = "walletv2";
 pub const STABILITY_POOL_OPERATION_TYPE: &str = "stability_pool";
 pub const STABILITY_POOL_V2_OPERATION_TYPE: &str = "multi_sig_stability_pool";
 

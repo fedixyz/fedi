@@ -21,6 +21,7 @@ describe('getTxnDirection', () => {
             lnRecurringdReceive: TransactionDirection.receive,
             onchainDeposit: TransactionDirection.receive,
             oobReceive: TransactionDirection.receive,
+            oobCancel: TransactionDirection.receive,
             spWithdraw: TransactionDirection.receive,
             sPV2Withdrawal: TransactionDirection.receive,
             sPV2TransferIn: TransactionDirection.receive,

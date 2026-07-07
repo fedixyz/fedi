@@ -66,7 +66,7 @@ import {
     GuardianStatus,
     RpcFediFeeStream,
     RpcLightningGateway,
-    RpcPublicKey,
+    RpcLightningGatewayId,
 } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getGuardianStatuses } from '@fedi/common/utils/FederationUtils'
@@ -97,6 +97,12 @@ type FeesMap = { [key: string]: number }
 const sumFeesMap = (feesMap: FeesMap) =>
     Object.values(feesMap).reduce((total, fee) => total + fee, 0)
 
+const getGatewayIdValue = (gatewayId: RpcLightningGatewayId) => {
+    return gatewayId.kind === 'lnv1'
+        ? `lnv1:${gatewayId.pubkey}`
+        : `lnv2:${gatewayId.url}`
+}
+
 const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
@@ -106,7 +112,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const [isLoadingGateways, setIsLoadingGateways] = useState<boolean>(true)
     const [gateways, setGateways] = useState<RpcLightningGateway[]>([])
     const [overiddenGateway, setOveriddenGateway] =
-        useState<RpcPublicKey | null>(null)
+        useState<RpcLightningGatewayId | null>(null)
     const [outstandingFediSendFeesMap, setOutstandingFediSendFeesMap] =
         useState<FeesMap>({})
     const [outstandingFediReceiveFeesMap, setOutstandingFediReceiveFeesMap] =
@@ -343,11 +349,8 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         if (!paymentFederation?.id) return
 
         try {
-            await fedimint.setGatewayOverride(
-                gateway.gatewayId,
-                paymentFederation.id,
-            )
-            setOveriddenGateway(gateway.gatewayId)
+            await fedimint.setGatewayOverride(gateway.id, paymentFederation.id)
+            setOveriddenGateway(gateway.id)
         } catch (e) {
             log.error('Failed to switch gateway', e)
             toast.show({
@@ -931,7 +934,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         />
                     </View>
                     {gateways.map((gw: RpcLightningGateway, index: number) => (
-                        <View key={gw.gatewayId}>
+                        <View key={getGatewayIdValue(gw.id)}>
                             <CheckBox
                                 key={index}
                                 checkedIcon={<SvgImage name="RadioSelected" />}
@@ -945,7 +948,13 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                                         {gw.api}
                                     </Text>
                                 }
-                                checked={overiddenGateway === gw.gatewayId}
+                                checked={
+                                    overiddenGateway
+                                        ? getGatewayIdValue(
+                                              overiddenGateway,
+                                          ) === getGatewayIdValue(gw.id)
+                                        : false
+                                }
                                 onPress={() => handleSelectGateway(gw)}
                                 containerStyle={style.checkboxContainer}
                             />

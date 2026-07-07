@@ -28,6 +28,7 @@ import {
     RpcCommunity,
     RpcFederation,
     RpcFederationPreview,
+    RpcLightningGatewayId,
 } from '../types/bindings'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
@@ -655,7 +656,7 @@ export const getGuardianStatuses = async (
 export const switchGateway = async (
     fedimint: FedimintBridge,
     federationId: string,
-    gatewayId: string | null,
+    gatewayId: RpcLightningGatewayId | null,
 ): Promise<void> => {
     await fedimint.setGatewayOverride(gatewayId, federationId)
 }

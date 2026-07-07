@@ -2901,17 +2901,13 @@ async fn test_guardian_remittance_account_withdraw_all() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn test_recurring_lnurl(dev_fed: DevFed) -> anyhow::Result<()> {
+async fn test_recurring_lnurl(_dev_fed: DevFed) -> anyhow::Result<()> {
     let td = TestDevice::new().await?;
     let federation = td.join_default_fed().await?;
-    let lnurl1 = federation
-        .get_recurringd_lnurl(dev_fed.recurringd.api_url.clone())
-        .await?;
+    let lnurl1 = federation.get_recurringd_lnurl().await?;
     assert!(lnurl1.starts_with("lnurl"));
-    let lnurl2 = federation
-        .get_recurringd_lnurl(dev_fed.recurringd.api_url.clone())
-        .await?;
-    // lnurl must stay same if safe url is same
+    let lnurl2 = federation.get_recurringd_lnurl().await?;
+    // lnurl must stay the same for the same recurringd target
     assert_eq!(lnurl1, lnurl2);
     Ok(())
 }

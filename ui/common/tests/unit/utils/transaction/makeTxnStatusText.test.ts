@@ -239,6 +239,14 @@ describe('makeTxnStatusText', () => {
                 t('words.failed'),
             )
         })
+
+        it('oobCancel treats missing state as pending', () => {
+            const oobCancel = makeTestTxnEntry('oobCancel', {
+                state: null,
+            })
+
+            expect(makeTxnStatusText(t, oobCancel)).toBe(t('words.pending'))
+        })
     })
 
     describe('lnurl', () => {

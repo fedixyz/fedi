@@ -12,7 +12,10 @@ import {
     selectPaymentFederation,
     setSurveyTimestamp,
 } from '@fedi/common/redux'
-import { RpcLightningGateway, RpcPublicKey } from '@fedi/common/types/bindings'
+import {
+    RpcLightningGateway,
+    RpcLightningGatewayId,
+} from '@fedi/common/types/bindings'
 import {
     makeBase64CSVUri,
     makeCSVFilename,
@@ -30,12 +33,18 @@ import { styled } from '../../styles'
 
 const AUTOMATIC_GATEWAY_VALUE = '__automatic_gateway_override__'
 
+const getGatewayIdValue = (gatewayId: RpcLightningGatewayId) => {
+    return gatewayId.kind === 'lnv1'
+        ? `lnv1:${gatewayId.pubkey}`
+        : `lnv2:${gatewayId.url}`
+}
+
 function DeveloperPage() {
     const { t } = useTranslation()
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const [gateways, setGateways] = useState<RpcLightningGateway[]>([])
     const [overiddenGateway, setOveriddenGateway] =
-        useState<RpcPublicKey | null>(null)
+        useState<RpcLightningGatewayId | null>(null)
 
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
@@ -113,24 +122,29 @@ function DeveloperPage() {
             },
             ...gateways.map(gateway => ({
                 label: gateway.api,
-                value: gateway.gatewayId,
+                value: getGatewayIdValue(gateway.id),
             })),
         ],
         [gateways],
     )
 
     const handleSelectGateway = useCallback(
-        async (gatewayId: string) => {
+        async (gatewayIdValue: string) => {
             if (!federationId) return
             const nextGatewayId =
-                gatewayId === AUTOMATIC_GATEWAY_VALUE ? null : gatewayId
+                gatewayIdValue === AUTOMATIC_GATEWAY_VALUE
+                    ? null
+                    : (gateways.find(
+                          gateway =>
+                              getGatewayIdValue(gateway.id) === gatewayIdValue,
+                      )?.id ?? null)
 
             await fedimint.setGatewayOverride(nextGatewayId, federationId)
-            const overridePubKey =
+            const overrideGatewayId =
                 await fedimint.getGatewayOverride(federationId)
-            setOveriddenGateway(overridePubKey)
+            setOveriddenGateway(overrideGatewayId)
         },
-        [federationId, fedimint],
+        [federationId, fedimint, gateways],
     )
 
     return (
@@ -147,7 +161,9 @@ function DeveloperPage() {
                             <RadioGroup
                                 options={gatewayOptions}
                                 value={
-                                    overiddenGateway ?? AUTOMATIC_GATEWAY_VALUE
+                                    overiddenGateway
+                                        ? getGatewayIdValue(overiddenGateway)
+                                        : AUTOMATIC_GATEWAY_VALUE
                                 }
                                 onChange={handleSelectGateway}
                             />

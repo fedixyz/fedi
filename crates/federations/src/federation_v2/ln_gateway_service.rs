@@ -5,14 +5,14 @@ use std::time::Duration;
 use anyhow::Context as _;
 use bitcoin::secp256k1::{self, PublicKey};
 use fedimint_client::Client;
-use fedimint_core::db::{AutocommitError, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_ln_common::{LightningGateway, LightningGatewayAnnouncement};
 use tokio::sync::Mutex;
 use tracing::warn;
 
 use super::FederationV2;
 use super::client::ClientExt;
-use super::db::GatewayOverrideKey;
+use super::db::{LightningGatewayOverride, LightningGatewayOverrideKey};
 
 pub const META_VETTED_GATEWAYS_KEY: &str = "vetted_gateways";
 
@@ -39,36 +39,12 @@ impl LnGatewayService {
         }
     }
 
-    pub async fn set_gateway_override(
-        &self,
-        client: &Client,
-        gw_id: Option<&secp256k1::PublicKey>,
-    ) -> anyhow::Result<()> {
-        client
-            .db()
-            .autocommit(
-                |dbtx, _| {
-                    Box::pin(async {
-                        if let Some(gw_id) = gw_id {
-                            dbtx.insert_entry(&GatewayOverrideKey, gw_id).await;
-                        } else {
-                            dbtx.remove_entry(&GatewayOverrideKey).await;
-                        }
-                        Ok(())
-                    })
-                },
-                None,
-            )
-            .await
-            .map_err(|e| match e {
-                AutocommitError::CommitFailed { last_error, .. } => anyhow::anyhow!(last_error),
-                AutocommitError::ClosureError { error, .. } => error,
-            })
-    }
-
     pub async fn get_gateway_override(&self, client: &Client) -> Option<secp256k1::PublicKey> {
         let mut dbtx = client.db().begin_transaction_nc().await;
-        dbtx.get_value(&GatewayOverrideKey).await
+        match dbtx.get_value(&LightningGatewayOverrideKey).await {
+            Some(LightningGatewayOverride::Lnv1(pubkey)) => Some(pubkey),
+            _ => None,
+        }
     }
 
     async fn maybe_filter_vetted_gateways(
@@ -121,7 +97,18 @@ impl LnGatewayService {
         &self,
         client: &Client,
     ) -> anyhow::Result<Option<LightningGateway>> {
-        self.select_gateway_excluding(client, None).await
+        let gateway_override = self.get_gateway_override(client).await;
+        self.select_gateway_excluding(client, None, gateway_override)
+            .await
+    }
+
+    pub async fn select_gateway_with_override(
+        &self,
+        client: &Client,
+        gateway_override: Option<PublicKey>,
+    ) -> anyhow::Result<Option<LightningGateway>> {
+        self.select_gateway_excluding(client, None, gateway_override)
+            .await
     }
 
     pub async fn refresh_cache_and_select_gateway_excluding(
@@ -130,10 +117,11 @@ impl LnGatewayService {
         excluded_gateway_id: Option<secp256k1::PublicKey>,
     ) -> anyhow::Result<Option<LightningGateway>> {
         let ln = client.ln()?;
+        let gateway_override = self.get_gateway_override(client).await;
         if let Err(error) = ln.update_gateway_cache().await {
             warn!(?error, "updating gateway cache failed");
         }
-        self.select_gateway_excluding(client, excluded_gateway_id)
+        self.select_gateway_excluding(client, excluded_gateway_id, gateway_override)
             .await
     }
 
@@ -141,9 +129,9 @@ impl LnGatewayService {
         &self,
         client: &Client,
         excluded_gateway_id: Option<secp256k1::PublicKey>,
+        gateway_override: Option<PublicKey>,
     ) -> anyhow::Result<Option<LightningGateway>> {
         let ln = client.ln()?;
-        let gateway_override = self.get_gateway_override(client).await;
         let mut gws = Self::selectable_gateways(client, ln.list_gateways().await).await;
 
         // this should be rare, the background service should keep the gateways updated.

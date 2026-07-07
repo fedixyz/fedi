@@ -119,10 +119,18 @@ export function makeTestTxnEntry<T extends TransactionListEntry['kind']>(
             return {
                 kind,
                 state: makeTestOOBSpendState('created'),
+                oob_notes: null,
                 ...baseFields,
                 ...overrides,
             }
         case 'oobReceive':
+            return {
+                kind,
+                state: makeTestOOBReissueState('created'),
+                ...baseFields,
+                ...overrides,
+            }
+        case 'oobCancel':
             return {
                 kind,
                 state: makeTestOOBReissueState('created'),
