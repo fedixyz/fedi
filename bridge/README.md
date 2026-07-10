@@ -1,93 +1,150 @@
-# Fedi README
+# The Fedi bridge
 
-## Prerequisites
+The "bridge" is how the apps in `ui/` reach the Rust core in `crates/`. It is a thin platform
+adapter, not where features live: it supplies a platform event sink and storage implementation, then
+forwards calls into `crates/bridge`. New functionality belongs in `crates/`.
 
-[Install Rust](https://www.rust-lang.org/tools/install)
+For repository-wide setup, conventions and CI, see the [root README](../README.md) and
+[HACKING.md](../HACKING.md). Everything below assumes you are inside the Nix dev shell
+(`nix develop`, or `direnv allow` once).
+
+## Layout
+
+| Path | Contents |
+| --- | --- |
+| `fedi-ffi/` | The uniffi adapter for Android and iOS. Also owns `src/fedi.udl` |
+| `fedi-wasm/` | The wasm-bindgen adapter for the web app, with OPFS-backed storage |
+| `ffi-bindgen/` | Small binary that generates the Kotlin and Swift glue code |
+| `fedi-android/` | Gradle project that packages the Android `.so` files and Kotlin glue |
+| `fedi-swift/` | Swift package wrapping `fediFFI.xcframework` |
+| `fixtures/` | Test fixtures (an old database, a verification document) |
+
+## The FFI boundary
+
+The whole Rust/TypeScript surface is three functions plus a callback, declared in
+`fedi-ffi/src/fedi.udl`:
+
+```
+[Async] string fedimint_initialize(EventSink event_sink, string init_opts_json);
+[Async] string fedimint_rpc(string method, string payload);
+        sequence<string> fedimint_get_supported_events();
+```
+
+The UI sends a method name and a JSON payload and gets JSON back. Asynchronous notifications travel
+the other way, through `EventSink.event(event_type, body)`. `fedimint_get_supported_events` returns
+the event types the bridge can emit — use it rather than hardcoding that list on the UI side.
+
+Keeping the boundary this narrow is deliberate: `fedi-wasm` reuses `fedi-ffi`'s RPC glue, so both
+platforms exercise the same code path.
+
+### Generated bindings
+
+Nothing on either side of the boundary is written by hand twice.
+
+- **Kotlin and Swift** glue is generated from `fedi.udl` by `ffi-bindgen` (see below).
+- **TypeScript** types are generated from the `ts-rs` derives on the Rust types in
+  `crates/rpc-types`. Run `just generate-bridge-bindings`; it writes `ui/common/types/bindings.ts`.
+  Never edit that file by hand.
 
 ## Building
 
-`/scripts/bridge/build-bridge-android.sh` will build the Android package and publish to "maven local". `/scripts/bridge/build-bridge-ios.sh` build build the ios package which you can add to project via XCode UI.
+| Command | Result |
+| --- | --- |
+| `just build-bridge` | TypeScript bindings, then the iOS and Android artifacts |
+| `just build-bridge-android` | Android only |
+| `just build-bridge-ios` | iOS only (runs itself in the `.#xcode` shell) |
+| `just build-wasm` | The WASM bridge (`build-wasm-release` for a release profile) |
+| `just install-wasm` | Copies the built WASM into `ui/common/wasm` |
+| `just check-wasm` | `cargo check` for `wasm32-unknown-unknown` |
 
-Export the following variables to get Android builds working. Ask a project maintainer if you have any trouble building for Android.
+To save time, both mobile builds default to just the targets a simulator or emulator needs. Set
+`BUILD_ALL_BRIDGE_TARGETS=1` to build every target, which is what you want for a physical device or
+a release. `BRIDGE_TARGETS_TO_BUILD` overrides the list outright, and `CARGO_PROFILE` overrides the
+profile.
 
-```shell
-export ANDROID_NDK_ROOT=/Users/justin/Library/Android/sdk/ndk/25.1.8937393
-export PATH="$PATH:/Users/justin/Library/Android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/darwin-x86_64/bin"
-export AR=/opt/homebrew/opt/llvm/bin/llvm-ar
-./scripts/bridge/build-bridge-android.sh
-```
+| Platform | Default targets | With `BUILD_ALL_BRIDGE_TARGETS=1` |
+| --- | --- | --- |
+| Android | `aarch64-linux-android` | adds `x86_64-linux-android`, `armv7-linux-androideabi` |
+| iOS | `aarch64-apple-ios-sim`, `x86_64-apple-ios` | adds `aarch64-apple-ios` |
 
-## [Debugging](./debugging.md)
+iOS builds both simulator targets by default, and combines them with `lipo`, pending
+[#2497](https://github.com/fedibtc/fedi/issues/2497). They also default to the `dev-ios` Cargo
+profile, which is `dev` raised to `opt-level = 1` to work around an issue with unoptimized builds.
 
-## Troubleshooting
+### What the Android build actually does
 
-1. If you see `ld: error: unable to find library -lgcc` error, create these 4 files:
+`scripts/bridge/build-bridge-android.sh` drives two steps:
 
-```
-~/Library/Android/sdk/ndk/<version>/toolchains/llvm/prebuilt/darwin-x86_64/lib64/clang/14.0.6/lib/linux/i386/libgcc.a
-~/Library/Android/sdk/ndk/<version>/toolchains/llvm/prebuilt/darwin-x86_64/lib64/clang/14.0.6/lib/linux/arm/libgcc.a
-~/Library/Android/sdk/ndk/<version>/toolchains/llvm/prebuilt/darwin-x86_64/lib64/clang/14.0.6/lib/linux/aarch64/libgcc.a
-~/Library/Android/sdk/ndk/<version>/toolchains/llvm/prebuilt/darwin-x86_64/lib64/clang/14.0.6/lib/linux/x86_64/libgcc.a
-```
+1. `build-bridge-android-libs.sh` cross-compiles `fedi-ffi` into `libfediffi.so` for each target
+   (throttled, since linking is single-threaded) and generates the Kotlin glue with `ffi-bindgen`.
+2. `install-bridge-android.sh` copies those into the `fedi-android` Gradle project and publishes it
+   to a local Maven repository at `$ANDROID_BRIDGE_ARTIFACTS`
+   (`bridge/fedi-android/artifacts`, exported by the dev shell). `ui/native` consumes it from there.
 
-Inside them just put the following:
+In CI the first step is replaced by `nix build .#fedi-android-bridge-libs`.
 
-```
-INPUT(-lunwind)
-```
+The iOS build is simpler: `build-bridge-ios.sh` generates the Swift glue, builds `libfediffi.a` per
+target, and copies the headers and binaries into `fedi-swift/fediFFI.xcframework`.
 
-2. If you see `error occurred: Failed to find tool. Is `arm-linux-androideabi-clang++` installed?`, run these commands to copy the clang files into the appropriate architecture directory:
+## Why `ffi-bindgen` exists
 
-```
-cp $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64/bin/armv7a-linux-androideabi21-clang $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-clang
-cp  $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64/bin/armv7a-linux-androideabi21-clang++ $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-clang++
-```
+Generating uniffi bindings is two separate steps: building the native binaries, and building the
+glue code that calls them. uniffi requires that **the version of `uniffi` used to build the binaries
+matches the version of `uniffi-bindgen` that generated the glue** — and because the steps are
+separate, nothing checks this at build time. A mismatch fails at runtime, confusingly.
+
+`ffi-bindgen` is a one-line binary (`uniffi::uniffi_bindgen_main()`) that lives in this workspace,
+so it inherits the workspace's pinned `uniffi`. Using it instead of a separately installed
+`uniffi-bindgen` makes the mismatch impossible.
+
+## Binary size
+
+The `release` profile in the root `Cargo.toml` trades compile time for size: fat LTO, one codegen
+unit, and `opt-level = "z"`. Debug symbols are kept (`debug = "line-tables-only"`) so panics remain
+diagnosable; strip them afterwards if a build target needs to.
 
 ## Testing
 
-Run `fedimint/scripts/tmuxinator.sh` locally.
-
-```
-cd fedi-ffi
-cargo test -- --test-threads=1
+```bash
+just test-bridge            # the whole bridge suite
+just test-bridge <testcase> # one test
 ```
 
-# Template README
+This spins up a real local federation with `devi`, with the stability pool, social recovery and
+Lightning v2 modules enabled, and runs the `fedi-ffi` tests against it under `cargo nextest`. It is
+slow, and it needs nothing beyond the dev shell.
 
-## Build the library for Android
+## The remote bridge
 
-1. Fire the `buildAndroidLib` gradle task in the `fedi-android` directory
-2. Publish it to your local Maven (the library will appear at `~/.m2/repository/org/fedi/fedi-android/0.1.2/`)
+`crates/remote-server` hosts real `Bridge` instances out of process over HTTP and WebSocket, keyed
+by device ID. It backs the UI integration tests and lets you point an app at a bridge running
+elsewhere.
 
-```shell
-cd fedi-android
-./gradlew buildAndroidLib
-./gradlew publishToMavenLocal
+```bash
+./scripts/bridge/run-remote.sh --with-devfed   # build and launch, with a dev federation
+just clear-remote-bridge                       # wipe its data directory and the app's state
 ```
 
-You should then be able to use the library by adding it like any other dependency in an Android project, given you add mavenLocal() to your list of repositories to fetch dependencies from:
+Set `FEDI_DISABLE_REMOTE_BRIDGE=1` to skip starting it.
 
-```kotlin
-// build.gradle.kts
-repositories {
-    mavenCentral()
-    mavenLocal()
-}
-```
+## Debugging
 
-## A few important pieces of this template
+See [debugging.md](./debugging.md) for reading Android logs and filtering `fedi.log` files.
 
-### The custom Gradle plugin for the Android library
+## Troubleshooting
 
-This plugin lives in the `fedi-android/plugins/` directory, and collects the tasks of building the native binaries, building the glue code file, and putting them all in the correct places in the library to prepare for packaging. The plugin exposes the `buildAndroidLib` task to the Gradle build tool.
+**Android link errors mentioning macOS SDK paths**, such as `unknown argument
+'-search_paths_first'`. A previous host build can leave macOS paths in `aws-lc-sys`'s CMake cache,
+which then poisons the Android build. `build-bridge-android-libs.sh` detects and clears the affected
+directories automatically for local debug builds; if you hit it another way, delete the
+`aws-lc-sys` build directories under `$CARGO_BUILD_TARGET_DIR`.
 
-### The ffi-bindgen cli tool
+**Stale artifacts.** The Android build publishes into `$ANDROID_BRIDGE_ARTIFACTS` and the iOS build
+writes into `fedi-swift/fediFFI.xcframework`. If the app seems to run code you have already changed,
+rebuild the bridge before rebuilding the app — Metro will not do it for you.
 
-The task of building language bindings using uniff-rs can be thought of as consisting of two steps: (1) building the native binaries for each target architecture, (2) building a "glue code" file in the target language, which will call the native binaries.
+**Anything involving Xcode** needs the `.#xcode` shell, which symlinks your host's `Xcode.app`. Run
+`just install-xcode` if you do not have one.
 
-The `fedi-ffi/ffi-bingen/` directory contains a binary package which allows us to build the glue code files for each of the bindings (`fedi.kt` and `fedi.swift`) using a well-defined `uniffi-bindgen` version. In general, this cli tool can simply be downloaded from crates.io, but a requirement of the uniffi-rs library is that the native binaries produced by the `uniffi-rs` crate use the same version for that crate as the one used in the cli bindgen tool which produces the glue code. That these two versions be the same is not enforced at build time because the processes are separate, and it is therefore common for unaware contributors/developers to have problems with libraries where the binaries where produced by a different version than the glue code was. The ffi-bindgen cli tool ensures that all contributors need not downloading the uniffi-bindgen tool and instead build the glue code using the same provided tool (ffi-bindgen).
-
-### Reducing the size of the final binaries
-
-
-A special cargo profile is added with many flags turned on/off which allows to significantly reduce binary size.
+Building outside the Nix shell is unsupported: the shell provides the Android SDK and NDK, the
+cross-compilation toolchains, and the linker configuration that make any of the above work.
