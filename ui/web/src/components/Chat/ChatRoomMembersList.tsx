@@ -33,13 +33,17 @@ import { ChatAvatar } from './ChatAvatar'
 import { ChatKnockRequestActionsDialog } from './ChatKnockRequestActionsDialog'
 import { ChatPendingRequestTile } from './ChatPendingRequestTile'
 
-interface Props {
-    roomId: string
-}
-
 type MembersTab = 'members' | 'pending'
 
-export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
+interface Props {
+    roomId: string
+    initialTab?: MembersTab
+}
+
+export const ChatRoomMembersList: React.FC<Props> = ({
+    roomId,
+    initialTab,
+}) => {
     const dispatch = useAppDispatch()
     const myUserId = useAppSelector(selectMatrixAuth)?.userId
     const members = useAppSelector(s =>
@@ -60,7 +64,9 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
         decline,
     } = usePendingJoinRequests(roomId, t)
 
-    const [activeTab, setActiveTab] = useState<MembersTab>('members')
+    const [activeTab, setActiveTab] = useState<MembersTab>(
+        initialTab ?? 'members',
+    )
     const [selectedPendingUserId, setSelectedPendingUserId] = useState<
         string | null
     >(null)

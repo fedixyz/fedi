@@ -167,7 +167,12 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
         )
     } else if (page === 'members') {
         title = t('words.members')
-        content = <ChatRoomMembersList roomId={room.id} />
+        content = (
+            <ChatRoomMembersList
+                roomId={room.id}
+                initialTab={showPendingDot ? 'pending' : 'members'}
+            />
+        )
     } else if (page === 'invite') {
         title = t('feature.chat.invite-to-group')
         content = <ChatRoomInviteUser roomId={room.id} />
