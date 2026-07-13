@@ -196,13 +196,9 @@ impl LnOps for LnOpsV2 {
             frontend_metadata: Some(frontend_meta.clone()),
         };
         let custom_meta = serde_json::to_value(&extra_meta)?;
-        let operation_id = match lnv2
+        let operation_id = lnv2
             .send(invoice.clone(), gateway_override, custom_meta)
-            .await
-        {
-            Ok(operation_id) => operation_id,
-            Err(error) => return Err(error.into()),
-        };
+            .await?;
 
         async move {
             fed.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
