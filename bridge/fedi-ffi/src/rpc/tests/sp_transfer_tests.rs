@@ -91,10 +91,12 @@ pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
         .task_group
         .spawn_cancellable("receiver viewing room", async move {
             tracing::info!("receiver viewing room task started");
-            let mut pagination_stream = pin!(matrix_receiver
-                .subscribe_timeline_items_paginate_backwards_status(&room_id_clone)
-                .await
-                .unwrap());
+            let mut pagination_stream = pin!(
+                matrix_receiver
+                    .subscribe_timeline_items_paginate_backwards_status(&room_id_clone)
+                    .await
+                    .unwrap()
+            );
             while let Some(value) = pagination_stream.next().await {
                 if let RpcBackPaginationStatus::Idle = value {
                     matrix_receiver
@@ -215,10 +217,12 @@ pub async fn test_receiver_joins_federation_later(_dev_fed: DevFed) -> anyhow::R
         .task_group
         .spawn_cancellable("receiver viewing room", async move {
             tracing::info!("receiver viewing room task started");
-            let mut pagination_stream = pin!(matrix_receiver
-                .subscribe_timeline_items_paginate_backwards_status(&room_id_clone)
-                .await
-                .unwrap());
+            let mut pagination_stream = pin!(
+                matrix_receiver
+                    .subscribe_timeline_items_paginate_backwards_status(&room_id_clone)
+                    .await
+                    .unwrap()
+            );
             while let Some(value) = pagination_stream.next().await {
                 if let RpcBackPaginationStatus::Idle = value {
                     matrix_receiver

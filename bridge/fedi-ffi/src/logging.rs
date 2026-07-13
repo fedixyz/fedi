@@ -10,8 +10,8 @@ use std::{io, thread};
 
 use anyhow::Context;
 use fedimint_logging::{LOG_CLIENT, LOG_CLIENT_MODULE_WALLET, LOG_CLIENT_REACTOR};
-use rpc_types::event::{Event, EventSink, TypedEventExt};
 use rpc_types::RpcAppFlavor;
+use rpc_types::event::{Event, EventSink, TypedEventExt};
 use tracing::metadata::LevelFilter;
 use tracing_serde::AsSerde;
 use tracing_subscriber::layer::SubscriberExt;
@@ -357,8 +357,8 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        run_log_maintenance_pass, RpcAppFlavor, COMPRESSED_LOG_PREFIX, LEGACY_LOG_FILE_NAME,
-        LEGACY_MIGRATION_UNIXDAY, RAW_LOG_PREFIX,
+        COMPRESSED_LOG_PREFIX, LEGACY_LOG_FILE_NAME, LEGACY_MIGRATION_UNIXDAY, RAW_LOG_PREFIX,
+        RpcAppFlavor, run_log_maintenance_pass,
     };
 
     fn write_new_file(path: &Path, contents: impl AsRef<[u8]>) {

@@ -42,6 +42,32 @@ let
       "misc"
     ];
   };
+
+  # nixpkgs 26.05's sqlcipher package builds a shared object even under
+  # pkgsStatic, which cannot be linked by the fully static musl toolchain.
+  sqlcipherStatic = pkgs.pkgsStatic.sqlcipher.overrideAttrs (old: {
+    configureFlags = (old.configureFlags or [ ]) ++ [
+      "--disable-shared"
+      "--enable-static"
+    ];
+    buildFlags = [ "lib" ];
+    installTargets = [
+      "install-lib"
+      "install-headers"
+      "install-pc"
+    ];
+    postInstall = ''
+      mkdir $out/include/sqlcipher
+      mv $out/include/sqlite3.h $out/include/sqlcipher/sqlite3.h
+      mv $out/include/sqlite3ext.h $out/include/sqlcipher/sqlite3ext.h
+      mv $out/lib/lib{sqlite3,sqlcipher}.a
+      mv $out/lib/pkgconfig/{sqlite3,sqlcipher}.pc
+      substituteInPlace $out/lib/pkgconfig/sqlcipher.pc \
+        --replace-fail "-lsqlite3" "-lsqlcipher" \
+        --replace-fail "-lz" "-lz -lcrypto" \
+        --replace-fail "includedir}" "includedir}/sqlcipher"
+    '';
+  });
 in
 (flakeboxLib.craneMultiBuild { inherit toolchains profiles; }) (
   craneLib':
@@ -95,7 +121,7 @@ in
         "SQLITE3_${build_arch_underscores}_STATIC" = "true";
         "SQLITE3_${build_arch_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.sqlite.out}/lib/";
 
-        "SQLCIPHER_${build_arch_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.sqlcipher}/lib/";
+        "SQLCIPHER_${build_arch_underscores}_LIB_DIR" = "${sqlcipherStatic}/lib/";
         "SQLCIPHER_${build_arch_underscores}_STATIC" = "true";
       }
       // pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
@@ -134,7 +160,6 @@ in
           }
           ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.libiconv
-            pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
           ];
 
         nativeBuildInputs =
@@ -241,7 +266,11 @@ in
       args:
       replaceGitHash {
         name = args.pname;
-        package = craneLib.buildPackageGroup args;
+        package = (craneLib.buildPackageGroup args).overrideAttrs (old: {
+          # Older Crane emits a null mainProgram for package groups; nixpkgs
+          # 26.05 rejects null values in the structured derivation environment.
+          meta = removeAttrs (old.meta or { }) [ "mainProgram" ];
+        });
       };
   in
   rec {

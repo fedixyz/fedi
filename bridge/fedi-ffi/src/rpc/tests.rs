@@ -7,7 +7,7 @@ use std::sync::Once;
 use std::thread::available_parallelism;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use assert_matches::assert_matches;
 use bridge::RuntimeExt as _;
@@ -16,14 +16,14 @@ use devimint::cmd;
 use devimint::util::FedimintCli;
 use federations::federation_sm::FederationState;
 use federations::federation_v2::FederationV2;
-use federations::fedi_fee::{parse_fedi_guardian_fee_config, FediFeeStream};
+use federations::fedi_fee::{FediFeeStream, parse_fedi_guardian_fee_config};
 use fedi_social_client::common::VerificationDocument;
+use fedimint_core::Amount;
 use fedimint_core::db::IDatabaseTransactionOpsCore;
 use fedimint_core::encoding::Encodable;
 use fedimint_core::task::sleep_in_test;
 use fedimint_core::util::backoff_util::aggressive_backoff;
-use fedimint_core::util::{retry, BoxFuture, FmtCompact as _, FmtCompactAnyhow as _};
-use fedimint_core::Amount;
+use fedimint_core::util::{BoxFuture, FmtCompact as _, FmtCompactAnyhow as _, retry};
 use fedimint_logging::TracingSetup;
 use nostr::nips::nip44;
 use rpc_types::communities::{CommunityInvite, CommunityInviteV1};
@@ -35,8 +35,8 @@ use rpc_types::{
 use runtime::constants::{COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_FILE_V0_PATH, MILLION};
 use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
-use runtime::storage::state::CommunityJson;
 use runtime::storage::BRIDGE_DB_PREFIX;
+use runtime::storage::state::CommunityJson;
 use stability_pool_client::common::Account;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -50,7 +50,7 @@ mod utils;
 
 // nosemgrep: ban-wildcard-imports
 use crate::rpc::*;
-use crate::test_device::{use_lnd_gateway, MockFediApi, TestDevice};
+use crate::test_device::{MockFediApi, TestDevice, use_lnd_gateway};
 
 static INIT_TRACING: Once = Once::new();
 
@@ -370,9 +370,11 @@ async fn test_join_and_leave_and_join(_dev_fed: DevFed) -> anyhow::Result<()> {
     joinFederation(bridge, env_invite_code.clone(), false).await?;
 
     // Can't re-join a federation we're already a member of
-    assert!(joinFederation(bridge, env_invite_code.clone(), false)
-        .await
-        .is_err());
+    assert!(
+        joinFederation(bridge, env_invite_code.clone(), false)
+            .await
+            .is_err()
+    );
 
     // listTransactions works
     let federations = listFederations(&bridge.federations).await?;
@@ -417,7 +419,7 @@ async fn test_join_concurrent(_dev_fed: DevFed) -> anyhow::Result<()> {
         amount = receiveEcash(federation.clone(), ecash, FrontendMetadata::default())
             .await?
             .0
-             .0;
+            .0;
         wait_for_ecash_reissue(&federation).await?;
         tb.shutdown().await?;
     }
@@ -703,14 +705,16 @@ async fn test_ecash_with_fedi_fees(
     // If fedi_fee != 0, we expect this to fail since we cannot spend all of
     // ecash_receive_amount
     if receive_fedi_fee != Amount::ZERO {
-        assert!(generateEcash(
-            federation.clone(),
-            RpcAmount(ecash_receive_amount),
-            false,
-            FrontendMetadata::default()
-        )
-        .await
-        .is_err());
+        assert!(
+            generateEcash(
+                federation.clone(),
+                RpcAmount(ecash_receive_amount),
+                false,
+                FrontendMetadata::default()
+            )
+            .await
+            .is_err()
+        );
     }
     let ecash_send_amount = Amount::from_msats(ecash_receive_amount.msats / 2);
     let send_fedi_fee =
@@ -2190,12 +2194,14 @@ async fn test_preview_and_join_community(_dev_fed: DevFed) -> anyhow::Result<()>
 
     // Calling preview() does not join
     assert!(bridge.communities.communities.lock().await.is_empty());
-    assert!(bridge
-        .runtime
-        .app_state
-        .with_read_lock(|state| state.joined_communities.clone())
-        .await
-        .is_empty());
+    assert!(
+        bridge
+            .runtime
+            .app_state
+            .with_read_lock(|state| state.joined_communities.clone())
+            .await
+            .is_empty()
+    );
 
     // Calling join() actually joins
     joinCommunity(bridge, community_invite.to_string()).await?;
@@ -2257,9 +2263,11 @@ async fn test_list_and_leave_community(_dev_fed: DevFed) -> anyhow::Result<()> {
     assert!(listCommunities(bridge).await?.is_empty());
 
     // Leaving throws error
-    assert!(leaveCommunity(bridge, community_invite_0.to_string())
-        .await
-        .is_err());
+    assert!(
+        leaveCommunity(bridge, community_invite_0.to_string())
+            .await
+            .is_err()
+    );
 
     // Join community 0
     joinCommunity(bridge, community_invite_0.to_string()).await?;

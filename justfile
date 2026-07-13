@@ -38,8 +38,7 @@ format:
   if [ ! -f Cargo.toml ]; then
     cd {{invocation_directory()}}
   fi
-  cargo fmt --all
-  nixfmt $(git ls-files | grep "\.nix$")
+  treefmt
 
 
 # run lints (git pre-commit hook)
@@ -67,6 +66,16 @@ watch *ARGS="-x run":
     cd {{invocation_directory()}}
   fi
   env RUST_LOG=${RUST_LOG:-debug} cargo watch {{ARGS}}
+
+
+# run cargo-crap on the workspace
+crap *ARGS="--workspace":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ ! -f Cargo.toml ]; then
+    cd {{invocation_directory()}}
+  fi
+  cargo-crap {{ARGS}}
 
 
 # run `cargo clippy` on everything

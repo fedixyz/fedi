@@ -48,10 +48,12 @@ pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
         .await?;
 
     // Test initial state
-    assert!(multispend_matrix
-        .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
-        .await?
-        .is_none());
+    assert!(
+        multispend_matrix
+            .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+            .await?
+            .is_none()
+    );
 
     // Send group invitation
     let user1 = RpcUserId(matrix.client.user_id().unwrap().to_string());

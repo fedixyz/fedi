@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use bridge::onboarding::{BridgeOnboarding, RpcOnboardingStage};
 use bridge::{Bridge, BridgeFull};
 use devimint::cmd;
@@ -19,7 +19,7 @@ pub use runtime::api::MockFediApi;
 use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use runtime::storage::state::DeviceIdentifier;
-use runtime::storage::{OnboardingCompletionMethod, Storage, BRIDGE_DB_PREFIX};
+use runtime::storage::{BRIDGE_DB_PREFIX, OnboardingCompletionMethod, Storage};
 use tempfile::TempDir;
 use tokio::sync::OnceCell;
 

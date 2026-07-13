@@ -1,15 +1,15 @@
 use anyhow::Context;
-use base64::engine::general_purpose;
 use base64::Engine as _;
+use base64::engine::general_purpose;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::retry;
 use nostr::event::EventBuilder;
-use nostr::hashes::sha256::Hash as Sha256Hash;
 use nostr::hashes::Hash as _;
+use nostr::hashes::sha256::Hash as Sha256Hash;
 use nostr::nips::nip98::{HttpData, HttpMethod};
 use nostril::Nostril;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use reqwest::Client;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use runtime::bridge_runtime::Runtime;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

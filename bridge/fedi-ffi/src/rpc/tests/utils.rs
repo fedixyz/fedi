@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use fedimint_core::util::backoff_util::{custom_backoff, FibonacciBackoff};
+use fedimint_core::util::backoff_util::{FibonacciBackoff, custom_backoff};
 
 /// A constant 100ms backoff for tests with specified number of retries
 #[allow(unused)] // we will likely need it in future

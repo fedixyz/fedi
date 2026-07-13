@@ -313,12 +313,16 @@ pub async fn test_matrix_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
     .ok();
 
     let timeline_text = timeline_as_text(&timeline);
-    assert!(timeline_text
-        .iter()
-        .any(|t| t.as_deref() == Some("hello from user1")));
-    assert!(timeline_text
-        .iter()
-        .any(|t| t.as_deref() == Some("hello from user2")));
+    assert!(
+        timeline_text
+            .iter()
+            .any(|t| t.as_deref() == Some("hello from user1"))
+    );
+    assert!(
+        timeline_text
+            .iter()
+            .any(|t| t.as_deref() == Some("hello from user2"))
+    );
 
     Ok(())
 }

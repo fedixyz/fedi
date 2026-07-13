@@ -4,7 +4,7 @@
     # Pineed due to fastelan issues
     # See https://github.com/fedibtc/fedi/pull/6903
     # url = "github:NixOS/nixpkgs/nixos-24.11";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
@@ -17,7 +17,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flakebox = {
-      url = "github:dpc/flakebox?rev=f96cbeafded56bc6f5c27fbd96e4fcc78b8a8861";
+      url = "github:rustshop/flakebox?rev=a7d0a93133cb0352835cc60a5ba3a7cd094aba37";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
     };
@@ -85,6 +85,7 @@
         pkgs = import nixpkgs {
           inherit system;
           overlays = [
+            flakebox.overlays.default
             fedimint-pkgs.overlays.all
 
             (final: prev: {
@@ -101,7 +102,7 @@
               binaryen = pkgs-unstable.binaryen;
               wasm-bindgen-cli = pkgs-unstable.wasm-bindgen-cli_0_2_114;
               snappy = prev.snappy.overrideAttrs (
-                f: p: rec {
+                _finalAttrs: previousAttrs: rec {
                   version = "1.2.1";
                   src = prev.fetchFromGitHub {
                     owner = "google";
@@ -109,6 +110,10 @@
                     rev = version;
                     hash = "sha256-IzKzrMDjh+Weor+OrKdX62cAKYTdDXgldxCgNE2/8vk=";
                   };
+                  # nixpkgs 26.05 carries patches for Snappy 1.2.2 that do not
+                  # apply to the 1.2.1 source pinned here.
+                  patches = [ ];
+                  cmakeFlags = (previousAttrs.cmakeFlags or [ ]) ++ [ "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" ];
                 }
               );
             })
@@ -154,6 +159,7 @@
 
             dontUnpack = true;
             dontStrip = !pkgs.stdenv.isDarwin;
+            inherit (package) version;
 
             installPhase = ''
               cp -a ${package} $out
@@ -204,10 +210,16 @@
           ]
         );
 
-        flakeboxLib = flakebox.lib.${system} {
+        flakeboxLib = flakebox.lib.mkLib pkgs {
           # customizations will go here in the future
           config = {
             toolchain.channel = "stable";
+            # treefmt still invokes the formatter by its historical binary name.
+            env.shellPackages = [
+              (pkgs.writeShellScriptBin "nixfmt-rfc-style" ''
+                exec ${pkgs.nixfmt}/bin/nixfmt "$@"
+              '')
+            ];
 
             # we have our own weird CI workflows
             github.ci.enable = false;
@@ -216,7 +228,9 @@
             ];
             typos.pre-commit.enable = false;
             git.pre-commit.trailing_newline = false;
-            rootDir.".agents/skills/agent-browser".source = pkgs.agent-browser.src + /skills/agent-browser;
+            # Keep the checked-in skill project-owned; Flakebox should not refresh it
+            # as a side effect of unrelated toolchain updates.
+            rootDir.".agents/skills/agent-browser".source = ./.agents/skills/agent-browser;
             # we must not use --workspace anywhere
             just.rules.clippy.content = lib.mkForce ''
               # run `cargo clippy` on everything
@@ -240,43 +254,28 @@
             '';
           };
         };
+        toolchainArgs = {
+          extraRustFlags = "--cfg=curve25519_dalek_backend=\"serial\" -Csymbol-mangling-version=v0";
 
-        toolchainArgs =
-          let
-            llvmPackages = pkgs.llvmPackages_11;
-          in
-          {
-            extraRustFlags = "--cfg=curve25519_dalek_backend=\"serial\" -Csymbol-mangling-version=v0";
+          components = [
+            "rustc"
+            "cargo"
+            "clippy"
+            "rust-analyzer"
+            "rust-src"
+          ];
 
-            components = [
-              "rustc"
-              "cargo"
-              "clippy"
-              "rust-analyzer"
-              "rust-src"
+          args = {
+            nativeBuildInputs = [
+              pkgs.wasm-bindgen-cli
+              pkgs.geckodriver
+              pkgs.wasm-pack
+            ]
+            ++ lib.optionals (!pkgs.stdenv.isDarwin) [
+              pkgs.firefox
             ];
-
-            args = {
-              nativeBuildInputs = [
-                pkgs.wasm-bindgen-cli
-                pkgs.geckodriver
-                pkgs.wasm-pack
-              ]
-              ++ lib.optionals (!pkgs.stdenv.isDarwin) [
-                pkgs.firefox
-              ];
-            };
-          }
-          // lib.optionalAttrs stdenv.isDarwin {
-            # TODO: we seem to be hitting some miscompilation(?) with
-            # the new (as of nixos-24.11 default: clang 18), which causes
-            # fedimint-cli segfault randomly, but only in Nix sandbox.
-            # Supper weird.
-            stdenv = pkgs.clang16Stdenv;
-            clang = pkgs.llvmPackages_16.clang;
-            libclang = pkgs.llvmPackages_16.libclang.lib;
-            clang-unwrapped = pkgs.llvmPackages_16.clang-unwrapped;
           };
+        };
 
         stdTargets = flakeboxLib.mkStdTargets {
           inherit androidSdk;
@@ -382,10 +381,8 @@
                 pkgs.gnused
                 pkgs.yarn
                 pkgs.nodejs_22
-                pkgs.nodePackages.prettier # for ts-bindgen
                 pkgs.jdk17
-                pkgs.nodePackages.typescript-language-server
-                pkgs.nodePackages.ts-node
+                pkgs.typescript-language-server
                 # tools for managing native app deployments
                 # fastlane 2.232.2 via nixpkgs-unstable
                 pkgs-unstable.fastlane
@@ -429,7 +426,6 @@
                 pkgs.darwin.text_cmds
                 pkgs.darwin.shell_cmds
                 pkgs.darwin.system_cmds
-                pkgs.darwin.ditto
                 pkgs.darwin.ps
               ];
 

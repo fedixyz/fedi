@@ -2,7 +2,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use async_trait::async_trait;
 use bridge::Bridge;
 use fedimint_core::rustls::install_crypto_provider;

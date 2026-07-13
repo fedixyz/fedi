@@ -155,12 +155,14 @@ pub async fn test_nostr_community_preview_join_leave(_dev_fed: DevFed) -> anyhow
 
     // Calling preview() does not join
     assert!(bridge.communities.communities.lock().await.is_empty());
-    assert!(bridge
-        .runtime
-        .app_state
-        .with_read_lock(|state| state.joined_communities.clone())
-        .await
-        .is_empty());
+    assert!(
+        bridge
+            .runtime
+            .app_state
+            .with_read_lock(|state| state.joined_communities.clone())
+            .await
+            .is_empty()
+    );
 
     // Calling join() actually joins
     joinCommunity(bridge, invite_code.to_string()).await?;

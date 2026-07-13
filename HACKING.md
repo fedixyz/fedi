@@ -23,7 +23,7 @@ first.
 ### Nix is not optional
 
 The development environment is defined by `flake.nix` and built on
-[flakebox](https://github.com/dpc/flakebox). It pins everything: the Rust toolchain and its
+[flakebox](https://github.com/rustshop/flakebox). It pins everything: the Rust toolchain and its
 Android/iOS/WASM targets, Node and Yarn, the JDK, the Android SDK, `bitcoind`, `lnd`, Core
 Lightning, `electrs`, a Matrix homeserver, a nostr relay, `mprocs`, and more.
 
@@ -48,7 +48,7 @@ thing that installs the hooks, so do not skip it.
 | --- | --- |
 | `nix develop` | Everything, by default |
 | `nix develop .#xcode` | Anything touching Xcode: iOS bridge, CocoaPods, TestFlight |
-| `nix develop .#lint` | The lint tools alone (`semgrep`, `nixfmt`); what CI's lint job uses |
+| `nix develop .#lint` | The lint tools alone (`semgrep`, `treefmt`); what CI's lint job uses |
 | `nix develop .#vercel` | Deploying the PWA |
 
 The `xcode` shell is impure: it symlinks your host's `/Applications/Xcode.app`. Run
@@ -172,7 +172,7 @@ detail.
 ## Linting and formatting
 
 ```bash
-just format        # cargo fmt --all, plus nixfmt
+just format        # treefmt over Rust and Nix sources
 just lint          # runs the pre-commit hook without stashing
 just clippy        # native and wasm32 clippy
 just semgrep       # the custom rules in .config/semgrep.yaml
@@ -182,8 +182,9 @@ just lint-ui       # eslint over ui/
 just format-ui-code
 ```
 
-The `pre-commit` hook checks `cargo fmt`, that `Cargo.lock` is current, that no `dbg!` survives,
-`nixfmt`, semgrep, shellcheck, and trailing whitespace.
+`.treefmt.toml` is the source of truth for Rust and Nix formatting. The `pre-commit` hook temporarily
+stashes unstaged tracked changes, then checks formatting, `Cargo.lock`, semgrep, shellcheck, and
+whitespace. `just lint` sets `NO_STASH=true` and checks the current worktree directly.
 
 ## Rust conventions
 
@@ -203,8 +204,7 @@ must compile to WASM, where much of `std` misbehaves. `.config/semgrep.yaml` enf
 `.rustfmt.toml` sets edition 2024, `StdExternalCrate` import grouping, `Module` import granularity,
 and comment wrapping. Just run `just format`.
 
-Two more, both deliberate: the clippy and build recipes avoid `--workspace` (see the overrides in
-`flake.nix`), and `dbg!` in a `.rs` file fails the pre-commit hook.
+The clippy and build recipes deliberately avoid `--workspace` (see the overrides in `flake.nix`).
 
 ## UI conventions
 
