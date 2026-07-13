@@ -400,7 +400,16 @@
                 pkgs.esplora-electrs
                 pkgs.clightning
                 pkgs.lnd
-                (pkgs-unstable.matrix-synapse.override { extras = [ ]; })
+                # Patched to fix a missed-wakeup race in the notifier that stalls
+                # sliding-sync long-polls. See nix/patches for details.
+                (pkgs-unstable.matrix-synapse.override {
+                  matrix-synapse-unwrapped = pkgs-unstable.matrix-synapse-unwrapped.overridePythonAttrs (old: {
+                    patches = (old.patches or [ ]) ++ [
+                      ./nix/patches/matrix-synapse-notifier-lost-wakeup.patch
+                    ];
+                  });
+                  extras = [ ];
+                })
                 pkgs.nostr-rs-relay
                 pkgs.sccache
                 pkgs.ripgrep
