@@ -544,7 +544,7 @@ impl FeatureCatalog {
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: None,
             show_stable_balance_web: None,
-            private_room_knocking: None,
+            private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {

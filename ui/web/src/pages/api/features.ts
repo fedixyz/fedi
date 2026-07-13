@@ -8,7 +8,7 @@ import type { RemoteFeatures } from '@fedi/common/types/bindings'
 const prodRemoteFeatures: RemoteFeatures = {
     dummyFeature: false,
     showStableBalanceWeb: false,
-    privateRoomKnocking: false,
+    privateRoomKnocking: true,
     messageReactions: true,
     personalBackupReminder: false,
 }
