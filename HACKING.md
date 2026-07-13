@@ -86,16 +86,18 @@ Android and iOS) and `bridge/fedi-wasm` (wasm-bindgen, for the browser) are thin
 supply a platform `EventSink` and an `IStorage`, then forward calls inward. `fedi-wasm` even reuses
 `fedi-ffi`'s RPC glue. **If you are adding a feature, it belongs in `crates/`, not in `bridge/`.**
 
-**The RPC boundary is two functions.** From `bridge/fedi-ffi/src/fedi.udl`:
+**The RPC boundary is three functions plus a callback.** From `bridge/fedi-ffi/src/fedi.udl`:
 
 ```
-string fedimint_initialize(EventSink event_sink, string init_opts_json);
-string fedimint_rpc(string method, string payload);
+[Async] string fedimint_initialize(EventSink event_sink, string init_opts_json);
+[Async] string fedimint_rpc(string method, string payload);
+        sequence<string> fedimint_get_supported_events();
 ```
 
 TypeScript sends a method name and a JSON payload and gets JSON back. Asynchronous notifications
-travel the other way through `EventSink.event(event_type, body)`. Everything else is layered on top
-of these.
+travel the other way through `EventSink.event(event_type, body)`. Use
+`fedimint_get_supported_events` to enumerate the event types the bridge can emit rather than
+hardcoding that list UI-side.
 
 **Types are generated, never hand-written.** Rust types in `crates/rpc-types` derive `ts-rs`'s
 `TS`. `just generate-bridge-bindings` runs `scripts/bridge/ts-bindgen.sh`, which exports each type,
@@ -129,8 +131,9 @@ client) and carries no business logic. `bridge` is the router on top. `federatio
 | `just build-ui-deps` | `yarn install` for the UI workspace |
 | `just pod-install` | CocoaPods for the iOS app |
 
-Building the Android bridge outside Nix needs `ANDROID_NDK_ROOT` and friends set by hand; see
-[bridge/README.md](./bridge/README.md), which also collects the NDK linker workarounds.
+Building the Android bridge outside Nix is unsupported; the dev shell provides the SDK, NDK,
+cross-compilation toolchains, and linker setup. See [bridge/README.md](./bridge/README.md) for the
+current mobile bridge build details and troubleshooting notes.
 
 ## Testing
 
