@@ -3,6 +3,10 @@ import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
+import {
+    selectChatTileName,
+    selectIsUnpreviewablePrivateGroup,
+} from '@fedi/common/redux'
 import { MatrixRoom } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 import {
@@ -10,6 +14,7 @@ import {
     shouldShowUnreadIndicator,
 } from '@fedi/common/utils/matrix'
 
+import { useAppSelector } from '../../hooks'
 import { theme } from '../../styles'
 import { getMatrixPreviewIcon } from '../../utils/matrix'
 import { ChatAvatar } from './ChatAvatar'
@@ -39,6 +44,10 @@ export const ChatListItem = React.memo(function ChatListItem({ room }: Props) {
         roomId: room.id,
         t,
     })
+    const name = useAppSelector(s => selectChatTileName(s, room.id))
+    const isUnpreviewablePrivateGroup = useAppSelector(s =>
+        selectIsUnpreviewablePrivateGroup(s, room.id),
+    )
 
     const timestamp = useMemo(() => {
         if (!room.preview?.timestamp) return undefined
@@ -50,7 +59,12 @@ export const ChatListItem = React.memo(function ChatListItem({ room }: Props) {
             href={`/chat/room/${room.id}`}
             active={isActive}
             avatar={<ChatAvatar room={room} css={{ flexShrink: 0 }} />}
-            title={room.name}
+            title={
+                name ||
+                (isUnpreviewablePrivateGroup
+                    ? t('feature.chat.private-group')
+                    : t('feature.chat.new-group'))
+            }
             icon={getMatrixPreviewIcon(room.preview)}
             subtitle={text}
             subtitleProps={{

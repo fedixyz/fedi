@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 
 import {
     addMatrixRoomInfo,
@@ -12,10 +12,17 @@ import {
 } from '@fedi/common/tests/mock-data/matrix'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import { MatrixRoom } from '@fedi/common/types'
+import { makeUnpreviewableDefaultChat } from '@fedi/common/utils/matrix'
 import { DefaultRoomPreview } from '@fedi/web/src/components/Chat/DefaultRoomPreview'
+import { chatConfirmJoinPublicRoomRoute } from '@fedi/web/src/constants/routes'
 import i18n from '@fedi/web/src/localization/i18n'
 
 import { renderWithProviders } from '../../../utils/render'
+
+const mockPush = jest.fn()
+jest.mock('next/router', () => ({
+    useRouter: () => ({ push: mockPush }),
+}))
 
 const TEST_ROOM_ID = '!default-chat:test.server'
 const TEST_COMMUNITY_ID = 'test-community'
@@ -86,7 +93,7 @@ describe('/components/Chat/DefaultRoomPreview', () => {
         mockKnockRoom.mockResolvedValue(undefined)
     })
 
-    it('should join a public chat in place from the Join button', async () => {
+    it('should open the room preview from the Join button for a public chat', () => {
         renderWithProviders(
             <DefaultRoomPreview room={createDefaultChatRoom()} />,
             {
@@ -99,16 +106,15 @@ describe('/components/Chat/DefaultRoomPreview', () => {
             screen.getByRole('button', { name: i18n.t('words.join') }),
         )
 
-        await waitFor(() => {
-            expect(mockJoinRoom).toHaveBeenCalledWith(TEST_ROOM_ID, true)
-        })
+        // Opens the confirm-join screen rather than joining in place.
+        expect(mockPush).toHaveBeenCalledWith(
+            chatConfirmJoinPublicRoomRoute(TEST_ROOM_ID),
+        )
+        expect(mockJoinRoom).not.toHaveBeenCalled()
         expect(mockKnockRoom).not.toHaveBeenCalled()
-        expect(
-            await screen.findByTestId('DefaultRoomPreview__chevron'),
-        ).toBeInTheDocument()
     })
 
-    it('should knock on a private knockable chat and show Pending', async () => {
+    it('should open the room preview from the Join button for a knockable chat', () => {
         renderWithProviders(
             <DefaultRoomPreview room={createDefaultChatRoom()} />,
             {
@@ -124,15 +130,13 @@ describe('/components/Chat/DefaultRoomPreview', () => {
             screen.getByRole('button', { name: i18n.t('words.join') }),
         )
 
-        await waitFor(() => {
-            expect(mockKnockRoom).toHaveBeenCalledWith(TEST_ROOM_ID, undefined)
-        })
+        // A knockable room opens the same confirm screen, where the knock is
+        // confirmed; it must not knock straight from the tile.
+        expect(mockPush).toHaveBeenCalledWith(
+            chatConfirmJoinPublicRoomRoute(TEST_ROOM_ID),
+        )
+        expect(mockKnockRoom).not.toHaveBeenCalled()
         expect(mockJoinRoom).not.toHaveBeenCalled()
-        expect(
-            await screen.findByRole('button', {
-                name: i18n.t('words.pending'),
-            }),
-        ).toBeInTheDocument()
     })
 
     it('should show Pending for a chat the user already knocked on', () => {
@@ -168,5 +172,46 @@ describe('/components/Chat/DefaultRoomPreview', () => {
             screen.getByTestId('DefaultRoomPreview__chevron'),
         ).toBeInTheDocument()
         expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    it('labels an unpreviewable knockable chat as a private group', () => {
+        const store = setupStore()
+        store.dispatch({
+            type: 'matrix/previewCommunityDefaultChats/fulfilled',
+            payload: [makeUnpreviewableDefaultChat(TEST_ROOM_ID)],
+            meta: { arg: { communityId: TEST_COMMUNITY_ID } },
+        })
+
+        renderWithProviders(
+            <DefaultRoomPreview room={createDefaultChatRoom({ name: '' })} />,
+            { store, fedimint: createFedimint() },
+        )
+
+        // Web tiles match the native label instead of a blank or "New group".
+        expect(
+            screen.getByText(i18n.t('feature.chat.private-group')),
+        ).toBeInTheDocument()
+    })
+
+    it('shows the real room name once joined, not a placeholder label', () => {
+        const store = setupStore()
+        store.dispatch({
+            type: 'matrix/previewCommunityDefaultChats/fulfilled',
+            payload: [makeUnpreviewableDefaultChat(TEST_ROOM_ID)],
+            meta: { arg: { communityId: TEST_COMMUNITY_ID } },
+        })
+        // Live membership knows the real name even though the cached preview
+        // is the empty placeholder.
+        addMembership(store, 'joined')
+
+        renderWithProviders(
+            <DefaultRoomPreview room={createDefaultChatRoom({ name: '' })} />,
+            { store, fedimint: createFedimint() },
+        )
+
+        expect(screen.getByText('Community Chat')).toBeInTheDocument()
+        expect(
+            screen.queryByText(i18n.t('feature.chat.private-group')),
+        ).not.toBeInTheDocument()
     })
 })
