@@ -41,6 +41,9 @@ impl BackupService {
             .await
     }
 
+    // Fedi still relies on federation backups for device recovery, so we
+    // intentionally keep using `backup_to_federation` until we migrate off of it.
+    #[allow(deprecated)]
     async fn backup_inner(&self, client: &Client) -> Result<()> {
         let backup = FediBackupMetadata::new();
         client

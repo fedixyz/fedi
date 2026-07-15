@@ -9,9 +9,6 @@ use runtime::storage::{BRIDGE_DB_PREFIX, IStorage};
 #[derive(Debug, Encodable, Decodable, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct FileStorageKey(String);
 
-#[derive(Debug, Encodable, Decodable)]
-pub struct FileStorageKeyPrefix;
-
 impl_db_record!(
     key = FileStorageKey,
     value = Vec<u8>,
@@ -35,7 +32,7 @@ impl IStorage for WasmStorage {
         Ok(self.global_db.clone())
     }
 
-    async fn delete_federation_db(&self, db_name: &str) -> anyhow::Result<()> {
+    async fn delete_federation_db(&self, _db_name: &str) -> anyhow::Result<()> {
         unimplemented!()
     }
 

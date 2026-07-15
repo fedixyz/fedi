@@ -1219,6 +1219,8 @@ async fn internalMarkBridgeExport(runtime: Arc<Runtime>) -> anyhow::Result<()> {
 async fn internalExportBridgeState(bridge: &Bridge, path: String) -> anyhow::Result<()> {
     #[cfg(not(target_family = "wasm"))]
     bridge.export_bridge_state(path.into()).await?;
+    #[cfg(target_family = "wasm")]
+    let _ = (bridge, path);
     Ok(())
 }
 

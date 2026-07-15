@@ -108,6 +108,8 @@ impl Matrix {
         // v2 to avoid reusing the old matrix db for new redb pwa
         #[cfg(target_family = "wasm")]
         let builder = builder.indexeddb_store("matrix-db-native-sync-v2", Some(passphrase));
+        #[cfg(target_family = "wasm")]
+        let _ = base_dir;
 
         let client = builder.build().await.map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(client)

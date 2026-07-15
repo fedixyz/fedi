@@ -4747,6 +4747,9 @@ impl FederationPrefetchedInfo {
         //     .await?;
 
         let decoders = ModuleDecoderRegistry::default().with_fallback();
+        // Fedi still relies on federation backups for device recovery, so we
+        // intentionally keep using this API until we migrate off of it.
+        #[allow(deprecated)]
         let ((client_config, _api), backup) = tokio::try_join!(
             fedimint_api_client::download_from_invite_code(&connectors, &invite_code),
             Client::download_backup_from_federation_static(
