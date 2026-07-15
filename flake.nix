@@ -438,6 +438,9 @@
               export ESLINT_USE_FLAT_CONFIG=false
 
               export REPO_ROOT="$(git rev-parse --show-toplevel)"
+              source "$REPO_ROOT/scripts/fd-limit.sh"
+              ensure_fd_limit 10000 dev-shell
+
               export CARGO_BUILD_TARGET_DIR="''${CARGO_BUILD_TARGET_DIR:-''${REPO_ROOT}/target-nix}"
               # ts-rs writes generated TS bindings here (see scripts/bridge/ts-bindgen.sh); default
               # it to the build target dir so a bare `cargo test` doesn't leak them into the source

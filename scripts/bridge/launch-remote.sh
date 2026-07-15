@@ -11,6 +11,8 @@ fi
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
 source "$REPO_ROOT/scripts/common.sh"
+source "$REPO_ROOT/scripts/fd-limit.sh"
+ensure_fd_limit 10000
 
 # run the binaries from the install dir if the build provided one,
 # else from the cargo target
