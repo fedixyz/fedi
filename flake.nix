@@ -439,6 +439,10 @@
 
               export REPO_ROOT="$(git rev-parse --show-toplevel)"
               export CARGO_BUILD_TARGET_DIR="''${CARGO_BUILD_TARGET_DIR:-''${REPO_ROOT}/target-nix}"
+              # ts-rs writes generated TS bindings here (see scripts/bridge/ts-bindgen.sh); default
+              # it to the build target dir so a bare `cargo test` doesn't leak them into the source
+              # tree.
+              export TS_RS_EXPORT_DIR="''${TS_RS_EXPORT_DIR:-''${CARGO_BUILD_TARGET_DIR}/bindings/}"
               export UPSTREAM_FEDIMINTD_NIX_PKG=${fedimint-pkgs.packages.${system}.fedimintd}
               export FEDIMINT_LOAD_TEST_TOOL_NIX_PKG=${fedimint-pkgs.packages.${system}.fedimint-load-test-tool}
 
