@@ -33,6 +33,7 @@ const comparison = await buildComparison(previousRun)
 const inventory = buildAppiumInventory()
 const nativeSurfaceInventory = buildNativeSurfaceInventory()
 const openE2ECoverageIssues = await findOpenE2ECoverageIssues()
+const openE2ECoveragePrs = await findOpenE2ECoveragePrs()
 const auditContext = {
     schema: 'e2e_audit_context_v1',
     audit_context_id: `e2e_audit_context_v1:${runId || 'local'}:${currentSha.slice(0, 12)}`,
@@ -54,6 +55,7 @@ const auditContext = {
     changed_commits: comparison.changed_commits,
     merged_pull_requests: comparison.merged_pull_requests,
     open_e2e_coverage_issues: openE2ECoverageIssues,
+    open_e2e_coverage_prs: openE2ECoveragePrs,
     appium_inventory: inventory,
     native_surface_inventory: nativeSurfaceInventory,
 }
@@ -71,6 +73,7 @@ console.log(`changed_files=${auditContext.changed_files.length}`)
 console.log(
     `open_e2e_coverage_issues=${auditContext.open_e2e_coverage_issues.length}`,
 )
+console.log(`open_e2e_coverage_prs=${auditContext.open_e2e_coverage_prs.length}`)
 console.log(`appium_tests=${auditContext.appium_inventory.test_files.length}`)
 console.log(`native_surface_groups=${auditContext.native_surface_inventory.length}`)
 
@@ -217,16 +220,62 @@ async function findMergedPullRequests(since) {
 async function findOpenE2ECoverageIssues() {
     if (!token) return []
 
-    const query = encodeURIComponent(
-        `repo:${repo} is:issue is:open label:"e2e testing"`,
-    )
     try {
-        const data = await github(
-            `/search/issues?q=${query}&sort=updated&order=desc&per_page=100`,
+        const items = await searchAllIssues(
+            `repo:${repo} is:issue is:open label:"e2e testing"`,
         )
-        const items = data?.items || []
 
         return Promise.all(items.map(summarizeOpenE2ECoverageIssue))
+    } catch (error) {
+        return [
+            {
+                lookup_error:
+                    error instanceof Error ? error.message : String(error),
+            },
+        ]
+    }
+}
+
+// Search results cap at 100 per page; a corpus past that would silently
+// truncate the dedupe context and let the audit file duplicates, so walk
+// the pages until a short one.
+async function searchAllIssues(query, maxPages = 5) {
+    const items = []
+    for (let page = 1; page <= maxPages; page++) {
+        const data = await github(
+            `/search/issues?q=${encodeURIComponent(query)}&sort=updated&order=desc&per_page=100&page=${page}`,
+        )
+        const pageItems = data?.items || []
+        items.push(...pageItems)
+        if (pageItems.length < 100) return items
+    }
+    console.warn(`search truncated at ${items.length} results: ${query}`)
+    return items
+}
+
+// An open [e2e coverage] PR means the gap fix is already in flight; dedupe
+// must see it or the workflow re-attempts the same gap every run until merge.
+async function findOpenE2ECoveragePrs() {
+    if (!token) return []
+
+    const queries = [
+        `repo:${repo} is:pr is:open label:"e2e testing"`,
+        `repo:${repo} is:pr is:open "[e2e coverage]" in:title`,
+    ]
+    try {
+        const itemsByNumber = new Map()
+        for (const query of queries) {
+            for (const item of await searchAllIssues(query)) {
+                if (!itemsByNumber.has(item.number)) {
+                    itemsByNumber.set(item.number, item)
+                }
+            }
+        }
+
+        // PRs are issues to the REST API, so the issue summarizer works as-is.
+        return Promise.all(
+            [...itemsByNumber.values()].map(summarizeOpenE2ECoverageIssue),
+        )
     } catch (error) {
         return [
             {
@@ -308,7 +357,8 @@ function extractCoverageGapKeys(text, explicitText = text) {
         },
         {
             key: 'chat',
-            pattern: /\b(chat|message|group|room|knock|matrix)\b/i,
+            pattern:
+                /\b(chat|message|knock|group chat|chat room|matrix room)\b/i,
         },
         {
             key: 'recovery',
@@ -574,10 +624,14 @@ function renderMarkdown(context) {
     const changedCommits = context.changed_commits.slice(0, 50)
     const mergedPrs = context.merged_pull_requests.slice(0, 30)
     const openE2ECoverageIssues = context.open_e2e_coverage_issues.slice(0, 100)
+    const openE2ECoveragePrs = (context.open_e2e_coverage_prs || []).slice(
+        0,
+        100,
+    )
     const trackedGapKeys = [
         ...new Set(
-            openE2ECoverageIssues.flatMap(
-                issue => issue.coverage_gap_keys || [],
+            [...openE2ECoverageIssues, ...openE2ECoveragePrs].flatMap(
+                item => item.coverage_gap_keys || [],
             ),
         ),
     ].sort()
@@ -615,11 +669,17 @@ ${renderList(mergedPrs.map(pr => (pr.lookup_error ? `lookup_error: ${pr.lookup_e
 
 ## Open E2E Coverage Issues
 
-Every open issue labeled "e2e testing", auto-generated and hand-written alike. This is the primary dedupe context before creating a new e2e audit issue. A candidate gap whose coverage_gap_key appears in tracked_coverage_gap_keys below is already tracked: emit noop citing the tracking issue number, unless coverage_gaps explains why the candidate is a distinct flow the listed issues do not cover.
+Every open issue labeled "e2e testing", auto-generated and hand-written alike. These issues gate re-filing only: never create a new issue for a gap any of them already tracks, and cite the issue number instead. They do not gate implementation; treat them as the work queue and prefer implementing a gap one of them tracks. tracked_coverage_gap_keys aggregates the open issues here and the open PRs in the next section.
 
 tracked_coverage_gap_keys=${trackedGapKeys.join(',') || 'none'}
 
 ${renderList(openE2ECoverageIssues.map(renderOpenE2ECoverageIssue))}
+
+## Open E2E Coverage PRs
+
+Every open pull request labeled "e2e testing" or title-prefixed "[e2e coverage]". A gap with an open PR here already has a fix in flight: treat it as tracked, do not implement or re-report it, and cite the PR number instead.
+
+${renderList(openE2ECoveragePrs.map(renderOpenE2ECoverageIssue))}
 
 ## Appium Tests Inspected
 

@@ -12,15 +12,33 @@ permissions:
 tracker-id: daily-e2e-coverage-check
 engine:
   id: codex
-  model: gpt-5-codex
+  model: gpt-5.5
 strict: true
+
+# create_pull_request generates its patch from the merge-base with the
+# default branch; without this fetch, origin/master is absent on non-default
+# ref runs and patch generation fails with ERR_SYSTEM.
+checkout:
+  fetch:
+    - master
 
 network:
   allowed:
     - defaults
     - github
+    - node
 
 safe-outputs:
+  create-pull-request:
+    title-prefix: "[e2e coverage] "
+    labels: [testing, "e2e testing", "ai generated"]
+    draft: true
+    auto-merge: false
+    allowed-files:
+      - "ui/native/tests/appium/**"
+      - "ui/native/screens/**"
+      - "ui/native/components/**"
+      - "scripts/ui/run-e2e.sh"
   create-issue:
     max: 1
     title-prefix: "[e2e audit] "
@@ -30,6 +48,7 @@ safe-outputs:
 
 tools:
   cache-memory: true
+  edit:
   github:
     toolsets: [default, actions]
   bash:
@@ -37,7 +56,11 @@ tools:
     - "cat"
     - "sed"
     - "rg"
+    - "ls"
     - "git"
+    - "node"
+    - "yarn:*"
+    - "npx:*"
 
 ---
 
@@ -45,23 +68,35 @@ tools:
 
 You are an AI e2e test coverage agent for this repository.
 
-Your job is to review the native Appium e2e test suite against the full user-facing codebase and identify important user flows that should have e2e coverage.
+Your job is to review the native Appium e2e test suite against the full user-facing codebase, identify important user flows that should have e2e coverage, and close the most valuable gap you can: implement the missing Appium test yourself, validate it, and open a draft pull request. Filing an issue is the fallback for gaps that cannot be implemented safely in this run.
 
-This workflow is audit-only. Do not modify files, add tests, add selectors, add fixtures, update reports, create branches, or create pull requests. If concrete e2e coverage gaps are found, report them by creating a single issue. If no concrete gap is found, emit a `noop` safe output with the required audit evidence and state that `coverage_gaps` has no concrete gaps and `coverage_gap_keys=none`.
+Per run, finish with exactly one of these final safe outputs:
 
-The workflow appends a deterministic e2e audit context to the prompt before the agent runs. Base the audit on that context. Any `create_issue` body or `noop` message must include the exact `audit_context_id` from the deterministic context and these evidence fields in the text: `review_scope`, `comparison_boundary`, `changed_files`, `appium_tests_inspected`, `native_surface_inventory`, `coverage_map`, `coverage_gaps`, `coverage_gap_keys`, and `validation_performed`.
+- `create_pull_request` when you found an implementable gap with no fix in flight, implemented it, and validation passed; a gap tracked by an open issue is the preferred target, with `Refs #<issue>` in the body
+- `create_issue` when the best remaining gap is blocked by a prerequisite you cannot safely provide and no open issue tracks it yet
+- `noop` when there is nothing to implement and nothing untracked to file: every remaining gap is blocked and already tracked by an open issue, or a failed implementation attempt concerned a gap an open issue already tracks
+- `missing_data`, `missing_tool`, or `report_incomplete` when the audit or the validation environment is broken
 
-Do not pass the evidence fields as GitHub issue labels. For `create_issue`, omit the `labels` field entirely; the workflow applies `testing`, `e2e testing`, and `ai generated` automatically. Do not include the `[e2e audit]` prefix in the issue title; the workflow applies it automatically.
+Never emit both `create_pull_request` and `create_issue` in the same run. Work on at most one gap per run.
+
+The workflow appends a deterministic e2e audit context to the prompt before the agent runs. Base the audit on that context. Any `create_pull_request` body, `create_issue` body, or `noop` message must include the exact `audit_context_id` from the deterministic context and these evidence fields in the text: `review_scope`, `comparison_boundary`, `changed_files`, `appium_tests_inspected`, `native_surface_inventory`, `coverage_map`, `coverage_gaps`, `coverage_gap_keys`, and `validation_performed`.
+
+Do not pass the evidence fields as GitHub labels. For `create_issue` and `create_pull_request`, omit the `labels` field entirely; the workflow applies `testing`, `e2e testing`, and `ai generated` automatically. Do not include the `[e2e audit]` prefix in issue titles or the `[e2e coverage]` prefix in pull request titles; the workflow applies them automatically.
 
 Plain text final responses are invalid for this workflow. If the deterministic context is missing or the audit cannot continue, use `missing_data` or `report_incomplete` and describe the blocker plus the last successful inspection step.
 
-Do not print or describe a `safeoutputs` command in a code block. Actually invoke the configured safe-output tool/CLI exactly once with the final `create_issue`, `noop`, `missing_data`, or `report_incomplete` payload so the workflow records an output item.
+Do not print or describe a `safeoutputs` command in a code block. Actually invoke the configured safe-output tool/CLI exactly once with the final `create_pull_request`, `create_issue`, `noop`, `missing_data`, or `report_incomplete` payload so the workflow records an output item. The safe-output call is the last thing you do: finish the entire audit, any implementation, and validation first, because the run ends after that single call. An empty or absent cache-memory folder is the normal first-run state, not a blocker; never emit `missing_data` for it. `missing_data` is only for the deterministic audit context itself being missing or unreadable.
 
-Before creating an issue, inspect the `Open E2E Coverage Issues` section in the deterministic context, then search open issues in this repository labeled `e2e testing` if the context is missing or ambiguous. The dedupe corpus is every open issue with that label, hand-written and auto-generated alike, not just prior `[e2e audit]` reports. If the same concrete gaps are already tracked by any open issue, emit `noop` and mention the existing issue number instead of creating a duplicate. Treat a candidate gap whose coverage_gap_key appears in the `tracked_coverage_gap_keys` line of that section as already tracked, and cite the tracking issue number, unless `coverage_gaps` explains why the candidate is a distinct flow the listed issues do not cover. Only create an issue when at least one concrete coverage gap is not already tracked by an open issue labeled `e2e testing`.
+Before creating a pull request or an issue, inspect the `Open E2E Coverage Issues` and `Open E2E Coverage PRs` sections in the deterministic context, then search open issues and pull requests in this repository labeled `e2e testing` if the context is missing or ambiguous. The two lists mean opposite things:
 
-For every final `create_issue` body or `noop` message, include `coverage_gap_keys` as a short comma-separated list of lowercase keys. Keep it simple and descriptive, for example `payments`, `scanner`, `pin`, `stability_pool`, `tab_navigation`, `recovery`, or `chat`. If no concrete gaps exist, use `coverage_gap_keys=none`. If all concrete gaps are already tracked, list the tracked keys and mention the existing issue number in `coverage_gaps`.
+- Open coverage PRs (that label or a `[e2e coverage]` title prefix) mark gaps whose fix is already in flight. Never implement or re-report such a gap; cite the PR number. The same goes for a gap whose earlier generated PR was closed without merging (check cache memory).
+- Open issues labeled `e2e testing` are the work queue, not a keep-out list. An implementable gap tracked by an open issue is the preferred implementation target: implement it and put `Refs #<issue>` in the PR body. Issues only gate re-filing: never create an issue for a gap any open issue already tracks, and when everything left is blocked and tracked, emit `noop` citing the issue numbers.
 
-Do not use `noop` when any new untracked concrete coverage gap is found. A `noop` is valid when `coverage_gaps` explicitly states no concrete gaps, or when all concrete gaps found are already tracked by open issues labeled `e2e testing`. If `coverage_gaps` lists missing payment, scanner, PIN, stability pool, federation, chat, onboarding, recovery, settings, navigation, or other user-facing workflows that are not already tracked, you must use `create_issue`.
+Treat a candidate gap whose coverage_gap_key appears in the `tracked_coverage_gap_keys` line as tracked in this sense: PR-tracked means do not touch, issue-tracked means implement it rather than re-file it, unless `coverage_gaps` explains why the candidate is a distinct flow the listed items do not cover.
+
+For every final `create_pull_request` body, `create_issue` body, or `noop` message, include `coverage_gap_keys` as a short comma-separated list of lowercase keys. Keep it simple and descriptive, for example `payments`, `scanner`, `pin`, `stability_pool`, `tab_navigation`, `recovery`, or `chat`. If no concrete gaps exist, use `coverage_gap_keys=none`. If all concrete gaps are already tracked, list the tracked keys and mention the existing issue or PR number in `coverage_gaps`.
+
+Do not use `noop` while any implementable gap without a fix in flight remains, tracked by an issue or not, and do not use it when an untracked concrete gap needs filing. A `noop` is valid when `coverage_gaps` explicitly states no concrete gaps, or when every remaining gap is blocked and already tracked by open issues, or has an open coverage PR. If `coverage_gaps` lists missing payment, scanner, PIN, stability pool, federation, chat, onboarding, recovery, settings, navigation, or other user-facing workflows with no fix in flight, you must use `create_pull_request` (implementable) or `create_issue` (blocked and untracked).
 
 Always perform a full-codebase review of the native user-facing surface. Recent changes and previous run data are supporting context only; they must not limit the review scope.
 
@@ -135,15 +170,44 @@ Do not add e2e tests for:
 - flows that require unstable external services and cannot be made deterministic
 - hidden, deprecated, or intentionally unreachable screens
 
-## Requirements
+## Implementable Or Blocked
 
-1. Inspect the current e2e suite and runner before deciding coverage is missing.
-2. Review the full native user-facing codebase every run; do not limit the audit to recent changes.
-3. Do not add or edit Appium tests, fixtures, selectors, product code, workflow files, shell scripts, package metadata, or reports.
-4. If a concrete coverage gap exists, describe the missing workflow, why existing tests do not cover it, and the smallest recommended follow-up test.
-5. If the gap would require new fixture state, selectors, or product decisions, describe that prerequisite instead of making the change.
-6. Prefer `testID` or accessibility ID selectors when recommending future test coverage.
-7. Do not update package manager lockfiles or broad dependency metadata.
+Classify every concrete gap with no fix in flight before choosing what to do with it:
+
+- `implementable`: the whole flow can be driven with the existing `AppiumTestBase` helpers; every required selector already exists, or the only missing pieces are `testID` props you can add to `ui/native/screens/**` or `ui/native/components/**` without changing behavior; the flow needs no new fixture state, no dev-fed or external endpoint that the suite does not already use, no product decision, and at most the actor count the runner supports; the flow is small enough that you are confident it is correct from reading the code, without running a device
+- `blocked`: everything else; name the blocking prerequisite precisely (for example: new fixture state, missing selectors that need more than a `testID` prop, an undecided product question, an endpoint or account the runner cannot reach)
+
+Implement the smallest implementable gap: fewest screens, one actor if possible, existing fixtures and prerequisites, assertions on stable copy or existing `testID`s. A short test that proves the core of the flow beats an ambitious test that walks every branch. You are writing Appium code without device feedback, so be conservative.
+
+Check your cache memory folder for notes from previous runs before choosing; finding it empty just means no previous run left notes, so continue normally. Record in cache memory which gap you attempted, its coverage_gap_keys, and the outcome, truthfully: write that a PR was created only after the `create_pull_request` call actually succeeded, and record a failed call as an infrastructure failure. Only a generated PR that a human closed without merging takes a gap off the table; infrastructure and validation failures are retryable, so a gap with only those in its history is still a valid target. Treat notes from previous runs with the same skepticism: a note claiming a PR exists counts only if the open PRs section of the deterministic context confirms one.
+
+## Test Implementation Conventions
+
+Read `.agents/skills/fedi-ui-test-patterns/references/appium-writing.md` in this repository before writing any code, and follow it exactly. It is the canonical guide for this suite: test class shape, `prerequisites`/`produces`/`actors` statics, fixtures, the element interaction API, dynamic testID patterns, registration, and gotchas. Do not improvise patterns that are not in that guide or in the existing tests it points to.
+
+Constraints specific to this workflow, on top of the guide:
+
+- Prefer `static actors = 1`; use `2` only when the flow inherently needs a second device.
+- Register the suite in `ui/native/tests/appium/registry.ts` and add it to the interactive list in `scripts/ui/run-e2e.sh`. You cannot edit `.github/workflows/e2e-tests.yml` from this workflow, so adding the suite to its `inputs.tests.options` dropdown is a one-line reviewer follow-up; say so in the PR body.
+- Prefer selectors that already exist in the product code. When a selector is missing and a `testID` prop on an existing element in `ui/native/screens/**` or `ui/native/components/**` is the only blocker, add that `testID` with the smallest possible diff and nothing else. Any other product code change makes the gap `blocked`.
+
+## Validation
+
+The native workspace's full typecheck and build need wasm artifacts the Rust bridge produces; they do not exist on this runner and cannot be built here. The appium test tree is deliberately self-contained, and `ui/native/tsconfig.appium.json` typechecks exactly that tree without them. Do not run `yarn lint:tsc`, `yarn build:deps`, or any repo-wide build: they fail here for reasons unrelated to your change.
+
+Run these from the repository root before creating the pull request, and let the install finish; it takes several minutes:
+
+1. `cd ui && yarn install --frozen-lockfile` (if `yarn` is unavailable, use `npx --yes yarn@1.22.22` in its place)
+2. `cd ui/native && yarn tsc -p tsconfig.appium.json` must pass with no errors
+3. `cd ui/native && yarn eslint <every .ts file you added or changed under the test tree>` must pass with no errors
+4. `cd ui && npx --yes -p typescript@5 -p ts-node ts-node --compilerOptions '{"module":"commonjs","moduleResolution":"node","esModuleInterop":true}' native/tests/appium/required-actors.ts <suiteKey>` must print your suite's actor count, proving the registration resolves
+5. `cd ui/native && yarn prettier --write <every .ts file you added or changed>`, then re-run steps 2 and 3 if it changed anything
+
+A `testID` prop added to a product file outside the test tree is validated by eslint and prettier only; the full product typecheck cannot run here, so keep such edits to pure `testID` attributes and say exactly that in `validation_performed`. Do not run eslint or prettier on shell scripts.
+
+Device execution is impossible in this environment: the real suite runs on self-hosted macOS runners with simulators and emulators. Do not claim the test ran on a device. The PR body must say device validation is pending and how a human runs it: `gh workflow run e2e-tests.yml -f tests=all` (the `tests` dropdown gains a dedicated option for the new suite only after a reviewer adds it).
+
+If validation fails and you cannot fix it within the constraints above, do not create the pull request. Discard the broken attempt and state in `validation_performed` what you attempted and which step failed: file the `create_issue` fallback when no open issue tracks the gap, or emit `noop` citing the tracking issue when one does, and record the failure in cache memory either way. If validation cannot run at all (install or tooling breakage unrelated to your change), use `report_incomplete` or `missing_tool` and describe the breakage.
 
 ## Review Process
 
@@ -163,7 +227,7 @@ Record the scope in working notes and summarize it in the final safe output. The
 
 Inspect:
 
-- `ui/native/tests/appium/runner.ts` and its `availableTests` map
+- `ui/native/tests/appium/runner.ts` and the `availableTests` map in `ui/native/tests/appium/registry.ts`
 - every test in `ui/native/tests/appium/common/`
 - registered fixtures in `ui/native/tests/appium/fixtures/`
 - `.github/workflows/e2e-tests.yml` test input options
@@ -180,23 +244,39 @@ For important user-facing flows found in the full native surface:
 - check whether unit or integration tests already cover the risk well enough
 - decide whether the missing coverage is concrete, speculative, or not needed
 
-Concrete gaps should be reported as recommended follow-up work. Speculative gaps should be reported only when the missing coverage is important enough for a human to decide.
+Then remove every gap with a fix in flight (open coverage PR, or a generated PR closed unmerged per cache memory), classify the rest as `implementable` or `blocked`, and choose at most one gap to act on: the smallest implementable gap if any exists (prefer one an open issue tracks, and `Refs` it), otherwise the most valuable blocked gap that no issue tracks yet.
 
-If one or more concrete gaps are found, the final safe output must be `create_issue`, not `noop`.
+### 4. Implement The Chosen Implementable Gap
 
-### 4. Report Findings
+Write the test suite and its registry entry following the Test Implementation Conventions, adding `testID` props only where they are the sole blocker. Keep the diff minimal.
 
-For each meaningful gap, include:
+Commit your changes on the checked-out HEAD with `git add` and `git commit`. Do not create or switch git branches: the workflow publishes from the checked-out branch, and a new local branch breaks its patch generation because the shallow checkout has no remote refs for a merge-base.
+
+### 5. Validate
+
+Run the Validation steps. Only proceed to a pull request when typecheck, lint, and the registration check all pass.
+
+### 6. Report
+
+For a `create_pull_request` body, include:
+
+- what user-facing flow the new test covers and how it drives it
+- the suite key, how to run it on a device (`gh workflow run e2e-tests.yml -f tests=all` until the dropdown option lands), and the reviewer follow-up of adding the suite to `inputs.tests.options` in `.github/workflows/e2e-tests.yml`
+- `Refs #<issue>` when an open audit issue tracks this gap
+- the required audit evidence fields; `coverage_gaps` must mark the chosen gap `implementable` and name any other gaps found with their classification
+- `validation_performed` naming exactly what ran and passed (the scoped appium typecheck via `tsc -p tsconfig.appium.json`, eslint on the changed files, the required-actors registration check, prettier) and stating that device execution is pending
+- any assumptions a reviewer should double-check (selectors read from code, timing choices, fixture state)
+
+For a `create_issue` body (a blocked gap, or a failed implementation attempt, in both cases with no open issue already tracking the gap), include:
 
 - the user-facing flow
 - the existing e2e tests reviewed
 - why those tests do not cover the flow
 - the recommended Appium test name and target file
-- any selector, fixture, or product decision needed before implementation
+- the blocking prerequisite (selector, fixture, or product decision), or the validation failure that stopped the implementation attempt
+- the required audit evidence fields; `coverage_gaps` must mark the gap `blocked` and name the prerequisite
 
-Do not implement the recommended test.
-
-### 5. Final Audit Output
+### 7. Final Audit Output
 
 The final safe output should include:
 
@@ -207,17 +287,13 @@ The final safe output should include:
 - changed files or pull requests reviewed as supporting context
 - native surface inventory reviewed
 - existing e2e coverage map
-- coverage gaps found
+- coverage gaps found, each classified `implementable` or `blocked`
 - coverage_gap_keys
-- recommended follow-up tests or prerequisites
-- validation performed while auditing, or why validation was not run
-
-### 6. No Code Changes
-
-This workflow must not create pull requests, commit repository changes, or modify files. If no meaningful e2e coverage gaps are found, emit a `noop` safe output with the required audit evidence, `coverage_gaps=no concrete gaps`, and `coverage_gap_keys=none`. If concrete gaps are found, report them by creating a single issue with a concise audit summary and the required audit evidence.
+- validation performed, or why validation was not run
 
 ## Exit Conditions
 
-- If no meaningful e2e coverage gaps are found, emit a `noop` safe output with the required audit evidence.
-- If all gaps are already covered by unit or integration tests, emit a `noop` safe output with the required audit evidence.
-- If there are only speculative or low-value gaps, emit a `noop` safe output with the required audit evidence.
+- If you implemented a gap with no fix in flight and validation passed, invoke `create_pull_request` with the draft PR, with `Refs #<issue>` when an open issue tracks the gap.
+- If the best remaining gap is blocked and no open issue tracks it, or your implementation attempt for an untracked gap failed validation, invoke `create_issue` with the required audit evidence and the blocker.
+- If no meaningful e2e coverage gaps are found, if all gaps are already covered by unit or integration tests, if every remaining gap is blocked and already tracked by an open issue or has an open coverage PR, if a failed implementation attempt concerned an issue-tracked gap, or if there are only speculative or low-value gaps, emit a `noop` safe output with the required audit evidence citing the tracking numbers.
+- If the audit or validation environment is broken, use `missing_data`, `missing_tool`, or `report_incomplete` with the blocker.

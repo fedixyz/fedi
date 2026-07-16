@@ -1,0 +1,10 @@
+{
+    "extends": "@tsconfig/react-native/tsconfig.json",
+    "compilerOptions": {
+        "lib": ["esnext"],
+        "strictPropertyInitialization": false,
+        "noEmit": true
+    },
+    "include": ["tests/appium/**/*.ts", "tests/configs/appium/**/*.ts"],
+    "exclude": ["node_modules"]
+}

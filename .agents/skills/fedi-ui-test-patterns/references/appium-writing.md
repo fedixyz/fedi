@@ -28,6 +28,7 @@ Default shape:
 - named export of a class extending `AppiumTestBase`
 - optional `static prerequisites` declaring required states (default `[]` = fresh install)
 - optional `static produces` declaring the states the device satisfies after a successful run (default `[]`). Required if the test leaves the device in a state a subsequent test could rely on, otherwise the ledger lies and the next test re-runs setup against a non-fresh app
+- optional `static actors` declaring how many devices the flow drives (default `1`, `chat` uses `2`). The CI pipeline boots that many simulators/emulators, derived from the registry via `ui/native/tests/appium/required-actors.ts`
 - single `execute()` method containing the full flow
 - assertions are `throw new Error(...)` — never Jest matchers
 - a `catch` method at the end for error logging (convention)
@@ -209,9 +210,9 @@ Built from the entity name with spaces stripped. Other punctuation (parens, hyph
 
 Three places must be updated together. Forgetting any one silently drops the test from one of the entry points.
 
-1. `ui/native/tests/appium/runner.ts` — import the class, add it to `availableTests`. The map key is the CLI-facing name.
-2. `.github/workflows/e2e-tests.yml` — add the new name to `inputs.tests.options`. The workflow_dispatch dropdown is an explicit allowlist.
-3. `scripts/ui/run-e2e.sh` — add to the `available_tests` array and the interactive menu.
+1. `ui/native/tests/appium/registry.ts`: import the class, add it to `availableTests`. The map key is the CLI-facing name. This is the registration correctness depends on: the runner resolves tests from it and CI derives device counts from it via `required-actors.ts`.
+2. `.github/workflows/e2e-tests.yml`: add the new name to `inputs.tests.options`. The workflow_dispatch dropdown is an explicit allowlist, so until the option lands the new test only runs on CI as part of `tests=all`.
+3. `scripts/ui/run-e2e.sh`: add to the `available_tests` array and the interactive menu.
 
 ---
 
