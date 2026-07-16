@@ -127,6 +127,12 @@ jobs:
               timeout-minutes: 10
               run: nix build -L .#ci.testCiAll
 
+            # Clippy/check fingerprints cannot reuse cargo build artifacts, so
+            # this uses a separate source-independent dependency cache.
+            - name: Clippy (WASM)
+              timeout-minutes: 10
+              run: nix build -L .#wasm32-unknown.ci.workspaceWasmClippy
+
             - name: Build wasm
               timeout-minutes: 10
               run: nix build -L .#wasm32-unknown.ci.fedi-wasm-pack

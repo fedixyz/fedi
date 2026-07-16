@@ -272,6 +272,65 @@ in
           meta = removeAttrs (old.meta or { }) [ "mainProgram" ];
         });
       };
+
+    # Workspace libraries in `cargo tree --target wasm32-unknown-unknown
+    # --package fedi-wasm --edges normal,build`. Promoting its workspace
+    # dependencies to roots does not enable extra features because none has a
+    # non-empty default feature.
+    wasmClippyPackages = [
+      "api-types"
+      "bridge"
+      "bug-report"
+      "communities"
+      "device-registration"
+      "env"
+      "federations"
+      "fedi-ffi"
+      "fedi-social-client"
+      "fedi-social-common"
+      "fedi-wasm"
+      "matrix"
+      "multispend"
+      "nostril"
+      "rpc-types"
+      "runtime"
+      "sp-transfer"
+      "stability-pool-client"
+      "stability-pool-client-old"
+      "stability-pool-common"
+      "stability-pool-common-old"
+    ];
+    wasmClippyArgs =
+      lib.concatMapStringsSep " " (package: "--package ${package}") wasmClippyPackages
+      + " --lib --no-deps";
+    wasmClippyPreBuild = ''
+      comm -12 \
+        <(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[].name' | sort) \
+        <(cargo tree --locked --target wasm32-unknown-unknown --package fedi-wasm \
+          --edges normal,build --prefix none | sed 's/ v[0-9].*//' | sort -u) \
+        > actual-wasm-clippy-packages
+      printf '%s\n' ${lib.escapeShellArgs wasmClippyPackages} \
+        | sort > expected-wasm-clippy-packages
+      if ! diff -u expected-wasm-clippy-packages actual-wasm-clippy-packages; then
+        echo "Update wasmClippyPackages to match the fedi-wasm WASM dependency closure." >&2
+        exit 1
+      fi
+
+      nonempty_defaults=$(
+        cargo metadata --locked --no-deps --format-version 1 \
+          | jq -r --argjson packages '${builtins.toJSON wasmClippyPackages}' \
+             '.packages[]
+             | select(.name as $name | $packages | index($name))
+             | select(.name != "fedi-wasm")
+             | select((.features.default // []) | length > 0)
+             | .name'
+      )
+      if [[ -n "$nonempty_defaults" ]]; then
+        echo "Promoted WASM Clippy roots must not enable extra default features:" >&2
+        echo "$nonempty_defaults" >&2
+        exit 1
+      fi
+    '';
   in
   rec {
     workspaceDeps = craneLib.buildWorkspaceDepsOnly {
@@ -316,6 +375,20 @@ in
     workspaceWasmBuild = craneLib.buildWorkspace {
       cargoArtifacts = workspaceWasmDeps;
       buildPhaseCargoCommand = "cargoWithProfile build --locked --lib --package fedi-wasm";
+    };
+
+    workspaceWasmClippyDeps = craneLib.buildDepsOnly {
+      pname = "fedi-wasm-clippy-deps";
+      nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.jq ];
+      preBuild = wasmClippyPreBuild;
+      buildPhaseCargoCommand = "cargoWithProfile clippy --locked ${wasmClippyArgs}";
+    };
+
+    workspaceWasmClippy = craneLib.cargoClippy {
+      cargoArtifacts = workspaceWasmClippyDeps;
+      # Keep the single-threaded WASM Arc exception local to this check.
+      cargoClippyExtraArgs = "${wasmClippyArgs} -- --deny warnings --allow deprecated --allow clippy::arc_with_non_send_sync";
+      doInstallCargoArtifacts = false;
     };
 
     fedi-wasm-pack = craneLib.mkCargoDerivation {
