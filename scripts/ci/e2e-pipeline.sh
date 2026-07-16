@@ -293,6 +293,23 @@ _capture_android_logs() {
         > "$out_dir/ui-$suffix.log" 2>/dev/null || true
 }
 
+# iOS twin of _capture_android_logs: the same log files live in the app's
+# Documents dir (the bridge dataDir on iOS) inside the simulator's data
+# container, which simctl exposes on the host filesystem.
+# Usage: _capture_ios_logs <device_udid> <suffix>
+_capture_ios_logs() {
+    local device="$1" suffix="$2"
+    local bundle_id="${APP_BUNDLE_ID:-org.fedi.alpha}"
+    local out_dir="$REPO_ROOT/ui/.appium"
+    mkdir -p "$out_dir"
+    local container
+    container=$(xcrun simctl get_app_container "$device" "$bundle_id" data 2>/dev/null) || return 0
+    cat "$container"/Documents/fedi.log.* \
+        > "$out_dir/bridge-$suffix.log" 2>/dev/null || true
+    cat "$container"/Documents/fedi-ui.*.log \
+        > "$out_dir/ui-$suffix.log" 2>/dev/null || true
+}
+
 # ─────────────────────────────────────────────────────────────────────────
 # Android pipeline DAG
 #
@@ -573,6 +590,10 @@ run_pipeline_ios() {
                 || ios26_rc=$?
         fi
         popd >/dev/null
+        _capture_ios_logs "$device_a" "a"
+        if [ -n "$device_b" ]; then
+            _capture_ios_logs "$device_b" "b"
+        fi
         local dur=$(($(_ts) - t0))
         if [ "$ios26_rc" = "0" ]; then
             echo "  ✅ $label passed ($(_fmt_dur "$dur"))"

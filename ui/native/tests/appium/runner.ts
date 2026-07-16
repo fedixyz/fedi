@@ -66,6 +66,61 @@ function captureAndroidAppLogs(testName: string) {
     }
 }
 
+// iOS twin of captureAndroidAppLogs: the same fedi.log.<unixday> and
+// fedi-ui.<i>.log files live in the app's Documents dir (the bridge dataDir
+// on iOS), which simctl exposes on the host filesystem through the app's
+// data container.
+function captureIosAppLogs(testName: string) {
+    if (currentPlatform !== Platform.IOS) return
+    const bundleId = process.env.APP_BUNDLE_ID || 'org.fedi.alpha'
+    const outDir = path.join(process.cwd(), '.appium')
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
+    for (const h of AppiumManager.activeHandles()) {
+        const udid = AppiumManager.deviceId(h)
+        if (!udid) continue
+        let docsDir: string
+        try {
+            const container = execFileSync(
+                'xcrun',
+                ['simctl', 'get_app_container', udid, bundleId, 'data'],
+                { encoding: 'utf8' },
+            ).trim()
+            docsDir = path.join(container, 'Documents')
+        } catch (containerError) {
+            console.error(
+                `Failed to locate app container for actor "${h}":`,
+                containerError,
+            )
+            continue
+        }
+        const logs = [
+            ['bridge', 'fedi.log.'],
+            ['ui', 'fedi-ui.'],
+        ] as const
+        for (const [label, prefix] of logs) {
+            const outPath = path.join(
+                outDir,
+                `${testName}-failure-${label}-${h}.log`,
+            )
+            try {
+                const parts = fs
+                    .readdirSync(docsDir)
+                    .filter(f => f.startsWith(prefix))
+                    .sort()
+                    .map(f => fs.readFileSync(path.join(docsDir, f)))
+                if (parts.length === 0) continue
+                fs.writeFileSync(outPath, Buffer.concat(parts))
+                console.log(`Device ${label} log saved to: ${outPath}`)
+            } catch (logError) {
+                console.error(
+                    `Failed to capture ${label} log for actor "${h}":`,
+                    logError,
+                )
+            }
+        }
+    }
+}
+
 // Mutated by ensureState as fixtures run; cleared on test failure (state untrusted).
 const currentState = new Set<string>()
 
@@ -292,6 +347,7 @@ async function runTests(testNames: string[]): Promise<void> {
                 }
 
                 captureAndroidAppLogs(testName)
+                captureIosAppLogs(testName)
 
                 // Device state untrusted after failure: reset primary,
                 // tear down spawned actors.
