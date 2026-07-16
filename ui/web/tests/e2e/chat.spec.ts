@@ -66,7 +66,7 @@ test('groups are created and knock requests are resolved', async ({
 
     // Knocker: each home tile reflects its join state: joined chats keep
     // the bare chevron, a pending knock shows Pending, and an unjoined
-    // public chat joins in place from its Join button.
+    // public chat's Join button opens the confirm-join screen.
     await knockerChat.joinCommunity(communityCode)
 
     const joinedTile = knockerChat.homeChatTile(PRIVATE_GROUP.name)
@@ -87,6 +87,22 @@ test('groups are created and knock requests are resolved', async ({
     })
     await expect(joinButton).toBeVisible({ timeout: 60_000 })
     await joinButton.click()
+
+    // Join routes to the confirm-join screen, the same screen a scanned
+    // room invite opens. Continue confirms the public join and lands in
+    // the conversation.
+    await knockerChat.waitForUrl(/\/chat\/join-room\//, 60_000)
+    const continueButton = knockerChat.page.getByRole('button', {
+        name: 'Continue',
+        exact: true,
+    })
+    await expect(continueButton).toBeVisible({ timeout: 60_000 })
+    await continueButton.click()
+    await knockerChat.waitForUrl(/\/chat\/room\//, 60_000)
+
+    // Back on home, the now-joined chat's tile drops its Join button for
+    // the bare chevron.
+    await knockerChat.goto('/home')
     await expect(
         unjoinedTile.getByTestId('DefaultRoomPreview__chevron'),
     ).toBeVisible({ timeout: 60_000 })
