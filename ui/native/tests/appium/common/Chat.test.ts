@@ -149,7 +149,15 @@ async function verifyGroupInChatList(
     if (!tile) {
         throw new Error(`Failed - Group "${group.name}" not found in chat list`)
     }
-    const preview = await t.findElementByText(group.message, 0, false)
+    // The tile preview is a lazy summary that lags matrix sync; encrypted
+    // (non-public) groups also need the latest event decrypted before the
+    // text renders, which loses the default 20s window under CI load.
+    const preview = await t.findElementByText(
+        group.message,
+        0,
+        false,
+        MATRIX_TIMEOUT,
+    )
     if (!preview) {
         throw new Error(
             `Failed - Message preview for "${group.name}" not found. Expected: "${group.message}"`,
