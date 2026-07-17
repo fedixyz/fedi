@@ -359,5 +359,8 @@ impl BridgeFull {
     }
     pub fn on_app_foreground(&self) {
         self.communities.refresh_metas_in_background();
+        // Refresh the remote feature cache on foreground so a flag flipped
+        // server-side is picked up after a single cold start instead of two.
+        self.runtime.remote_features.spawn_refresh();
     }
 }

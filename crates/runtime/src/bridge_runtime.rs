@@ -8,7 +8,7 @@ use super::event::EventSink;
 use super::storage::Storage;
 use crate::api::IFediApi;
 use crate::db::BridgeDbPrefix;
-use crate::features::FeatureCatalog;
+use crate::features::{FeatureCatalog, RemoteFeaturesService};
 use crate::rpc_stream::RpcStreamPool;
 use crate::storage::{AppState, BRIDGE_DB_PREFIX};
 
@@ -29,6 +29,7 @@ pub struct Runtime {
     pub feature_catalog: Arc<FeatureCatalog>,
     pub stream_pool: RpcStreamPool,
     pub connectors: ConnectorRegistry,
+    pub remote_features: RemoteFeaturesService,
 }
 
 impl Runtime {
@@ -44,6 +45,14 @@ impl Runtime {
         feature_catalog: Arc<FeatureCatalog>,
     ) -> Self {
         let stream_pool = RpcStreamPool::new(event_sink.clone(), task_group.clone());
+        let remote_features = RemoteFeaturesService::new(
+            task_group.clone(),
+            global_db.with_prefix(vec![BRIDGE_DB_PREFIX]),
+            feature_catalog.runtime_env,
+        );
+        // Warm the remote feature cache at startup. Foreground events refresh it
+        // again so the cache stays fresh between launches.
+        remote_features.spawn_refresh();
         Self {
             storage,
             connectors,
@@ -54,6 +63,7 @@ impl Runtime {
             global_db,
             feature_catalog,
             stream_pool,
+            remote_features,
         }
     }
 

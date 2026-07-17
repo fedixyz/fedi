@@ -131,14 +131,14 @@ impl TestDevice {
             .clone()
     }
 
-    async fn feature_catalog(&self, task_group: &TaskGroup) -> anyhow::Result<Arc<FeatureCatalog>> {
+    async fn feature_catalog(&self) -> anyhow::Result<Arc<FeatureCatalog>> {
         Ok(self
             .feature_catalog
             .get_or_try_init(|| async {
                 let global_db = self.global_db().await?;
                 let bridge_db = global_db.with_prefix(vec![BRIDGE_DB_PREFIX]);
                 Ok::<Arc<FeatureCatalog>, anyhow::Error>(Arc::new(
-                    FeatureCatalog::new(task_group, bridge_db, RuntimeEnvironment::Tests).await,
+                    FeatureCatalog::new(&bridge_db, RuntimeEnvironment::Tests).await,
                 ))
             })
             .await?
@@ -164,7 +164,7 @@ impl TestDevice {
                         self.event_sink(),
                         task_group.clone(),
                         self.fedi_api(),
-                        self.feature_catalog(&task_group).await?,
+                        self.feature_catalog().await?,
                         self.device_identifier(),
                     )
                     .await?,

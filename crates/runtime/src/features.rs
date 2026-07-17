@@ -1,9 +1,11 @@
 use std::env;
+use std::sync::Arc;
 
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::task::TaskGroup;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use tracing::warn;
 use ts_rs::TS;
 
@@ -294,11 +296,11 @@ pub struct LnurlReceivesFeatureConfig {
 }
 
 impl FeatureCatalog {
-    pub async fn new(
-        task_group: &TaskGroup,
-        bridge_db: Database,
-        runtime_env: RuntimeEnvironment,
-    ) -> Self {
+    /// Build the catalog from the compiled-in defaults plus the last remote
+    /// layer cached in the bridge DB. Fetching a fresh remote layer is the
+    /// runtime's job (see `Runtime::spawn_refresh_remote_features`), so the
+    /// freshly fetched value only takes effect on the next launch.
+    pub async fn new(bridge_db: &Database, runtime_env: RuntimeEnvironment) -> Self {
         let mut feature_catalog = match runtime_env {
             RuntimeEnvironment::Dev => Self::new_dev(),
             RuntimeEnvironment::Staging => Self::new_staging(),
@@ -306,18 +308,10 @@ impl FeatureCatalog {
             RuntimeEnvironment::Tests => Self::new_tests(),
         };
 
-        {
-            let mut dbtx = bridge_db.begin_transaction_nc().await;
-            if let Some(remote_features) = dbtx.get_value(&RemoteFeaturesLastFetchedKey).await {
-                feature_catalog.apply_remote_layer(remote_features);
-            }
+        let mut dbtx = bridge_db.begin_transaction_nc().await;
+        if let Some(remote_features) = dbtx.get_value(&RemoteFeaturesLastFetchedKey).await {
+            feature_catalog.apply_remote_layer(remote_features);
         }
-
-        task_group.spawn_cancellable("refresh remote features", async move {
-            if let Err(error) = refresh_remote_features(&bridge_db, &runtime_env).await {
-                warn!(?error, ?runtime_env, "failed to refresh remote features");
-            }
-        });
 
         feature_catalog
     }
@@ -552,6 +546,53 @@ impl FeatureCatalog {
             }),
             update_screen: None,
         }
+    }
+}
+
+/// Owns background refreshes of the remote feature layer.
+///
+/// Holds a lock so at most one refresh runs at a time. Without it, the startup
+/// refresh and a foreground refresh (or two foregrounds) could write
+/// `RemoteFeaturesLastFetchedKey` concurrently, and the second `commit_tx`
+/// would panic on the transaction conflict.
+pub struct RemoteFeaturesService {
+    task_group: TaskGroup,
+    bridge_db: Database,
+    runtime_env: RuntimeEnvironment,
+    refresh_lock: Arc<Mutex<()>>,
+}
+
+impl RemoteFeaturesService {
+    pub fn new(
+        task_group: TaskGroup,
+        bridge_db: Database,
+        runtime_env: RuntimeEnvironment,
+    ) -> Self {
+        Self {
+            task_group,
+            bridge_db,
+            runtime_env,
+            refresh_lock: Arc::new(Mutex::new(())),
+        }
+    }
+
+    /// Spawn a background fetch of the latest remote feature layer into the
+    /// bridge DB, skipping if a refresh is already in flight. Call at startup
+    /// and on every app foreground; the fetched value is applied on the next
+    /// launch, not the running session.
+    pub fn spawn_refresh(&self) {
+        let Ok(guard) = self.refresh_lock.clone().try_lock_owned() else {
+            return;
+        };
+        let bridge_db = self.bridge_db.clone();
+        let runtime_env = self.runtime_env;
+        self.task_group
+            .spawn_cancellable("refresh remote features", async move {
+                let _guard = guard;
+                if let Err(error) = refresh_remote_features(&bridge_db, &runtime_env).await {
+                    warn!(?error, ?runtime_env, "failed to refresh remote features");
+                }
+            });
     }
 }
 

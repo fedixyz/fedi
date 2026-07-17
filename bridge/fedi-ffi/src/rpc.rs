@@ -113,7 +113,7 @@ pub async fn fedimint_initialize_async(
     let global_db = storage.federation_database_v2("global").await?;
     let bridge_db = global_db.with_prefix(vec![BRIDGE_DB_PREFIX]);
     let task_group = TaskGroup::new();
-    let feature_catalog = Arc::new(FeatureCatalog::new(&task_group, bridge_db, runtime_env).await);
+    let feature_catalog = Arc::new(FeatureCatalog::new(&bridge_db, runtime_env).await);
 
     let fedi_api: Arc<dyn IFediApi> = match app_flavor {
         RpcAppFlavor::Tests => Arc::new(MockFediApi::default()),
