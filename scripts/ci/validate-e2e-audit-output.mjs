@@ -380,9 +380,49 @@ function hunkOnlyAddsTestIds(hunk) {
             return residual.trim().length > 0 ? [residual] : []
         })
     return (
-        oldLines.length === newLines.length &&
-        oldLines.every((line, index) => line === newLines[index])
+        (oldLines.length === newLines.length &&
+            oldLines.every((line, index) => line === newLines[index])) ||
+        reflowedTestIdOnly(oldLines, newLines)
     )
+}
+
+// A formatter reflows an element across lines when the added testID makes it
+// long, so the sides can differ line-by-line while staying token-identical.
+// Whitespace inside string literals stays significant (copy changes must not
+// normalize away); outside literals it collapses, and vanishes next to
+// punctuation where JS/JSX ignores it.
+function reflowedTestIdOnly(oldLines, newLines) {
+    return (
+        normalizeReflow(oldLines.join(' ')) ===
+        normalizeReflow(newLines.join(' '))
+    )
+}
+
+function normalizeReflow(text) {
+    let out = ''
+    let quote = null
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i]
+        if (quote) {
+            out += ch
+            if (ch === quote && text[i - 1] !== '\\') quote = null
+            continue
+        }
+        if (ch === '"' || ch === "'" || ch === '`') {
+            quote = ch
+            out += ch
+            continue
+        }
+        if (/\s/.test(ch)) {
+            if (!/\s/.test(out.at(-1) || '')) out += ' '
+            continue
+        }
+        out += ch
+    }
+    return out
+        .replace(/\s+(?=[<>{}()=,;/])/g, '')
+        .replace(/(?<=[<>{}()=,;/])\s+/g, '')
+        .trim()
 }
 
 function stripTestIdAttributes(line) {
@@ -607,6 +647,34 @@ function runSelfTests() {
 +<View testID="Foo" />`)[0]
     if (!selector.hunks.every(hunkOnlyAddsTestIds)) {
         throw new Error('rejected testID-only product change')
+    }
+
+    const reflowed =
+        parsePatchSections(`diff --git a/ui/native/screens/Foo.tsx b/ui/native/screens/Foo.tsx
+--- a/ui/native/screens/Foo.tsx
++++ b/ui/native/screens/Foo.tsx
+@@ -1 +1,4 @@
+-<Pressable style={style.container} onPress={handlePress}>
++<Pressable
++    style={style.container}
++    onPress={handlePress}
++    testID="NotesInputButton">`)[0]
+    if (!reflowed.hunks.every(hunkOnlyAddsTestIds)) {
+        throw new Error('rejected reflowed testID-only product change')
+    }
+
+    const reflowedCopyChange =
+        parsePatchSections(`diff --git a/ui/native/screens/Foo.tsx b/ui/native/screens/Foo.tsx
+--- a/ui/native/screens/Foo.tsx
++++ b/ui/native/screens/Foo.tsx
+@@ -1 +1,4 @@
+-<Button title={'pay now'} onPress={handlePress}>
++<Button
++    title={'paynow'}
++    onPress={handlePress}
++    testID="PayButton">`)[0]
+    if (reflowedCopyChange.hunks.every(hunkOnlyAddsTestIds)) {
+        throw new Error('accepted copy change hidden in a testID reflow')
     }
 
     const headerPrefix =
