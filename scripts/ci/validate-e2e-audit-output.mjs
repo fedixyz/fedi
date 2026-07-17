@@ -230,7 +230,7 @@ function validatePullRequestEvidence(index, type, text) {
         '(?:pass(?:ed|es)?|clean|succeeded|green|(?:no|0|zero) errors)'
     const statesPass = tool =>
         new RegExp(
-            `${tool}[^,;\\n]{0,120}?\\b${passWords}\\b|\\b${passWords}\\b[^,;\\n]{0,120}?${tool}`,
+            `${tool}[^;\\n]{0,200}?\\b${passWords}\\b|\\b${passWords}\\b[^;\\n]{0,200}?${tool}`,
             'i',
         ).test(text)
 
