@@ -1,4 +1,6 @@
 /* eslint-disable no-console */
+import fs from 'fs'
+import path from 'path'
 import { ChainablePromiseArray, ChainablePromiseElement } from 'webdriverio'
 
 import AppiumManager from './AppiumManager'
@@ -416,6 +418,43 @@ export class AppiumTestBase {
         throw new Error(
             `Element with key "${key}" not displayed after ${timeout}ms. Errors: ${errors.map(e => e.message).join('; ')}`,
         )
+    }
+
+    // Polls until the element is no longer displayed. The inverse of
+    // waitForElementDisplayed, for "this went away" assertions such as a Join
+    // button giving way to the chevron after joining in place.
+    async waitForElementGone(
+        key: string,
+        timeout = DEFAULT_TIMEOUT,
+    ): Promise<void> {
+        const startTime = Date.now()
+        while (Date.now() - startTime < timeout) {
+            const element = await this.findElementByKey(key)
+            const visible =
+                element !== null &&
+                (await element.isDisplayed().catch(() => false))
+            if (!visible) return
+            await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        throw new Error(
+            `Element with key "${key}" still displayed after ${timeout}ms`,
+        )
+    }
+
+    // Writes a screenshot to the same screenshots/ dir the runner uploads on
+    // failure, so success-path UI (here, the community chats list) can be
+    // eyeballed in the run artifacts.
+    async saveScreenshot(label: string): Promise<void> {
+        try {
+            const png = await this.driver.takeScreenshot()
+            const dir = path.join(process.cwd(), 'screenshots')
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+            const file = path.join(dir, `${label}-${this.handle}.png`)
+            fs.writeFileSync(file, png, 'base64')
+            console.log(`Screenshot saved to: ${file}`)
+        } catch (error) {
+            console.error(`saveScreenshot("${label}") failed:`, error)
+        }
     }
 
     async clickElementByKey(
@@ -1151,5 +1190,60 @@ export class AppiumTestBase {
                 { url, bundleId },
             ])
         }
+    }
+
+    // The in-app browser (FediModBrowser) renders mini apps in a
+    // react-native-webview. Switching into its WEBVIEW context makes
+    // this.driver.$ queries resolve against the embedded web DOM (via
+    // chromedriver on Android) instead of the native tree, so a test can
+    // drive a web mini app such as the community-creation tool.
+    async getContexts(): Promise<string[]> {
+        return (await this.driver.getContexts()) as string[]
+    }
+
+    // Polls until the in-app browser's WEBVIEW context exists, then switches
+    // to it. The context only appears once the page has a live document, so a
+    // freshly opened browser needs a beat. Returns the context name.
+    async switchToWebviewContext(timeout = MATRIX_TIMEOUT): Promise<string> {
+        const start = Date.now()
+        let last: string[] = []
+        while (Date.now() - start < timeout) {
+            last = await this.getContexts()
+            const webview = last.find(c => c.startsWith('WEBVIEW'))
+            if (webview) {
+                await this.driver.switchContext(webview)
+                return webview
+            }
+            await new Promise(r => setTimeout(r, 1000))
+        }
+        throw new Error(
+            `No WEBVIEW context appeared within ${timeout}ms. Contexts: ${last.join(', ')}`,
+        )
+    }
+
+    async switchToNativeContext(): Promise<void> {
+        await this.driver.switchContext('NATIVE_APP')
+    }
+
+    // Within the active WEBVIEW context, click a web element matched by a CSS
+    // selector once it is present. Mirrors the role/text the web e2e uses for
+    // the same tool, expressed as CSS so it works through chromedriver.
+    async clickWebElement(
+        selector: string,
+        timeout = MATRIX_TIMEOUT,
+    ): Promise<void> {
+        const el = this.driver.$(selector)
+        await el.waitForDisplayed({ timeout })
+        await el.click()
+    }
+
+    async typeWebElement(
+        selector: string,
+        text: string,
+        timeout = MATRIX_TIMEOUT,
+    ): Promise<void> {
+        const el = this.driver.$(selector)
+        await el.waitForDisplayed({ timeout })
+        await el.setValue(text)
     }
 }

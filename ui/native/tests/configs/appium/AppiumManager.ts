@@ -72,6 +72,9 @@ const getCapabilities = (handle: string): AppiumConfig => {
             // sessions hang the second driver init silently.
             'appium:systemPort': 8200 + idx * 100,
             'appium:chromedriverPort': 9515 + idx,
+            // Fetch a chromedriver matching the debug build's WebView so a
+            // test can switch into the in-app browser context (community tool).
+            'appium:chromedriverAutodownload': true,
         }
     } else {
         const udid = envForHandle('DEVICE_ID', handle)

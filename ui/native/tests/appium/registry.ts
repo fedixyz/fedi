@@ -1,6 +1,7 @@
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
 import { Platform } from '../configs/appium/types'
 import { Chat } from './common/Chat.test'
+import { CommunityChatJoin } from './common/CommunityChatJoin.test'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { PinProtection } from './common/PinProtection.test'
 import { Settings } from './common/Settings.test'
@@ -24,6 +25,7 @@ export const availableTests: Record<string, TestClass> = {
     settings: Settings,
     joinLeaveFederations: JoinLeaveFederation,
     chat: Chat,
+    communityChatJoin: CommunityChatJoin,
     payments: Payments,
     backupRestore: BackupRestore,
     pinProtection: PinProtection,
