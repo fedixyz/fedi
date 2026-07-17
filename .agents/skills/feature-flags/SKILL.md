@@ -37,6 +37,8 @@ Update both maps intentionally:
 
 Use camelCase field names in this file because it imports the generated `RemoteFeatures` TypeScript type.
 
+The matching `new_prod()` compiled default only affects a flag's first launch and permanently-offline installs, so it does not have to move in lockstep with the served value. See `references/flag-lifecycle-and-cleanup.md` for the lifecycle and how to graduate a flag safely.
+
 ## Adding A New Remote Flag
 
 Use `dummy_feature` as the guide in `crates/runtime/src/features.rs`.
@@ -69,6 +71,10 @@ const showDummyFeature = useAppSelector(s =>
 ```
 
 Do not use the web API camelCase key in the Redux selector.
+
+## Retiring A Flag
+
+Turning a flag on is a rollout step, not the end of its life. Once a flag is on in every environment and the feature has proven stable, remove it so the code stops branching on dead config. The full removal checklist, and how the compiled default and remote layer interact, are in `references/flag-lifecycle-and-cleanup.md`.
 
 ## Verification
 
