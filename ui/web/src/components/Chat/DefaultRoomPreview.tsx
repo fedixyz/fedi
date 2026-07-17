@@ -12,7 +12,6 @@ import {
     selectIsUnpreviewablePrivateGroup,
 } from '@fedi/common/redux'
 import { MatrixRoom } from '@fedi/common/types'
-import stringUtils from '@fedi/common/utils/StringUtils'
 
 import {
     chatConfirmJoinPublicRoomRoute,
@@ -48,8 +47,8 @@ export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
                 <Icon icon={isPublicBroadcast ? 'SpeakerPhone' : 'Chat'} />
             </IconContainer>
             <DefaultRoomText>
-                <Text variant="body" weight="bold">
-                    {stringUtils.truncateString(title, 25)}
+                <Text variant="body" weight="bold" ellipsize>
+                    {title}
                 </Text>
                 {text && <Text variant="small">{text}</Text>}
             </DefaultRoomText>
@@ -96,6 +95,9 @@ const DefaultRoomText = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     flex: 1,
+    // Let the column shrink below its content so the title's ellipsis
+    // engages instead of pushing the join button out of the tile.
+    minWidth: 0,
     textAlign: 'left',
 })
 

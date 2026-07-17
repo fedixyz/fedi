@@ -214,4 +214,25 @@ describe('/components/Chat/DefaultRoomPreview', () => {
             screen.queryByText(i18n.t('feature.chat.private-group')),
         ).not.toBeInTheDocument()
     })
+
+    it('keeps a long room name intact instead of cutting it in the DOM', () => {
+        // The full name must stay in the DOM: a character-limit cut corrupts
+        // the tile's accessible name, so overflow is CSS ellipsis only.
+        const longName = 'Extremely Long Community Chat Name'
+
+        renderWithProviders(
+            <DefaultRoomPreview
+                room={createDefaultChatRoom({ name: longName })}
+            />,
+            {
+                store: createStoreWithDefaultChat({
+                    isPublic: true,
+                    name: longName,
+                }),
+                fedimint: createFedimint(),
+            },
+        )
+
+        expect(screen.getByText(longName)).toBeInTheDocument()
+    })
 })

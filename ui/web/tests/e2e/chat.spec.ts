@@ -3,7 +3,6 @@ import {
     BROADCAST_GROUP,
     KNOCKABLE_GROUPS,
     PRIVATE_GROUP,
-    PUBLIC_GROUP,
 } from './fixtures/chat-groups'
 import { test, expect } from './fixtures/test'
 
@@ -57,12 +56,11 @@ test('groups are created and knock requests are resolved', async ({
 
     // Admin: bundle the groups into a Space so they surface as community
     // chat tiles. The knocker's membership in each is now joined
-    // (private), knock-pending (broadcast), and none (public).
-    const communityCode = await communityTool.createSpace('E2E Knock Space', [
-        PRIVATE_GROUP.name,
-        BROADCAST_GROUP.name,
-        PUBLIC_GROUP.name,
-    ])
+    // (private), knock-pending (broadcast), and none (both public rooms).
+    const communityCode = await communityTool.createSpace(
+        'E2E Knock Space',
+        ALL_GROUPS.map(g => g.name),
+    )
 
     // Knocker: each home tile reflects its join state: joined chats keep
     // the bare chevron, a pending knock shows Pending, and an unjoined
@@ -80,31 +78,34 @@ test('groups are created and knock requests are resolved', async ({
         pendingTile.getByRole('button', { name: 'Pending', exact: true }),
     ).toBeVisible({ timeout: 60_000 })
 
-    const unjoinedTile = knockerChat.homeChatTile(PUBLIC_GROUP.name)
-    const joinButton = unjoinedTile.getByRole('button', {
-        name: 'Join',
-        exact: true,
-    })
-    await expect(joinButton).toBeVisible({ timeout: 60_000 })
-    await joinButton.click()
+    // Both public shapes (plain and broadcast-only) offer Join on their
+    // tiles. Join routes to the confirm-join screen, the same screen a
+    // scanned room invite opens, and Continue confirms the public join
+    // and lands in the conversation.
+    for (const group of ALL_GROUPS.filter(g => g.isPublic)) {
+        const unjoinedTile = knockerChat.homeChatTile(group.name)
+        const joinButton = unjoinedTile.getByRole('button', {
+            name: 'Join',
+            exact: true,
+        })
+        await expect(joinButton).toBeVisible({ timeout: 60_000 })
+        await joinButton.click()
 
-    // Join routes to the confirm-join screen, the same screen a scanned
-    // room invite opens. Continue confirms the public join and lands in
-    // the conversation.
-    await knockerChat.waitForUrl(/\/chat\/join-room\//, 60_000)
-    const continueButton = knockerChat.page.getByRole('button', {
-        name: 'Continue',
-        exact: true,
-    })
-    await expect(continueButton).toBeVisible({ timeout: 60_000 })
-    await continueButton.click()
-    await knockerChat.waitForUrl(/\/chat\/room\//, 60_000)
+        await knockerChat.waitForUrl(/\/chat\/join-room\//, 60_000)
+        const continueButton = knockerChat.page.getByRole('button', {
+            name: 'Continue',
+            exact: true,
+        })
+        await expect(continueButton).toBeVisible({ timeout: 60_000 })
+        await continueButton.click()
+        await knockerChat.waitForUrl(/\/chat\/room\//, 60_000)
 
-    // Back on home, the now-joined chat's tile drops its Join button for
-    // the bare chevron.
-    await knockerChat.goto('/home')
-    await expect(
-        unjoinedTile.getByTestId('DefaultRoomPreview__chevron'),
-    ).toBeVisible({ timeout: 60_000 })
-    await expect(unjoinedTile.getByRole('button')).toHaveCount(0)
+        // Back on home, the now-joined chat's tile drops its Join button
+        // for the bare chevron.
+        await knockerChat.goto('/home')
+        await expect(
+            unjoinedTile.getByTestId('DefaultRoomPreview__chevron'),
+        ).toBeVisible({ timeout: 60_000 })
+        await expect(unjoinedTile.getByRole('button')).toHaveCount(0)
+    }
 })
