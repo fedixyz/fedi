@@ -121,13 +121,18 @@ console.log(
 )
 
 function validateAuditedOutput(index, type, text, item) {
-    if (!text.includes(context.audit_context_id)) {
+    const carriesAuditReport = type === 'noop' || type === 'create_issue'
+
+    if (carriesAuditReport && !text.includes(context.audit_context_id)) {
         errors.push(
             `item ${index} (${type}) is missing audit_context_id ${context.audit_context_id}`,
         )
     }
 
-    if (!fieldHasValue(text, 'review_scope', /^full-codebase\b/i)) {
+    if (
+        carriesAuditReport &&
+        !fieldHasValue(text, 'review_scope', /^full-codebase\b/i)
+    ) {
         errors.push(
             `item ${index} (${type}) must state review_scope=full-codebase`,
         )
@@ -138,7 +143,7 @@ function validateAuditedOutput(index, type, text, item) {
         hasIssueLabels(item)
     ) {
         errors.push(
-            `item ${index} (${type}) must not set GitHub labels; include audit evidence fields in the body and let the workflow apply configured labels automatically`,
+            `item ${index} (${type}) must not set GitHub labels; the workflow applies configured labels automatically`,
         )
     }
 
@@ -157,13 +162,15 @@ function validateAuditedOutput(index, type, text, item) {
         )
     }
 
-    const missingFields = requiredEvidenceFields.filter(
-        field => !text.toLowerCase().includes(field),
-    )
-    if (missingFields.length > 0) {
-        errors.push(
-            `item ${index} (${type}) is missing evidence fields: ${missingFields.join(', ')}`,
+    if (carriesAuditReport) {
+        const missingFields = requiredEvidenceFields.filter(
+            field => !text.toLowerCase().includes(field),
         )
+        if (missingFields.length > 0) {
+            errors.push(
+                `item ${index} (${type}) is missing evidence fields: ${missingFields.join(', ')}`,
+            )
+        }
     }
 
     for (const pattern of invalidNoopPatterns) {
@@ -180,14 +187,14 @@ function validateAuditedOutput(index, type, text, item) {
         )
     }
 
-    if (!fieldHasValue(text, 'coverage_gap_keys', /\S/)) {
+    if (carriesAuditReport && !fieldHasValue(text, 'coverage_gap_keys', /\S/)) {
         errors.push(
             `item ${index} (${type}) must include non-empty coverage_gap_keys`,
         )
     }
 
     if (
-        (type === 'create_issue' || type === 'create_pull_request') &&
+        type === 'create_issue' &&
         fieldHasValue(text, 'coverage_gap_keys', /^(none|n\/a|na)\b/i)
     ) {
         errors.push(
@@ -204,6 +211,21 @@ function validateAuditedOutput(index, type, text, item) {
 // Device execution is impossible on this runner, so honest bodies name the
 // static checks, say they passed, and say device validation is still pending.
 function validatePullRequestEvidence(index, type, text) {
+    if (!/#\d+/.test(text)) {
+        errors.push(
+            `item ${index} (${type}) must reference the tracking issue with ref #<number>`,
+        )
+    }
+
+    const leakedFields = requiredEvidenceFields.filter(field =>
+        text.toLowerCase().includes(field),
+    )
+    if (leakedFields.length > 0) {
+        errors.push(
+            `item ${index} (${type}) must not carry audit evidence fields (${leakedFields.join(', ')}); the audit report lives in the tracking issue`,
+        )
+    }
+
     const passWords =
         '(?:pass(?:ed|es)?|clean|succeeded|green|(?:no|0|zero) errors)'
     const statesPass = tool =>
