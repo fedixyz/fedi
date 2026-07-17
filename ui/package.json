@@ -20,7 +20,10 @@
         "dev:web": "turbo run dev --parallel --filter=web...",
         "dev:native": "turbo run dev --parallel --filter=native...",
         "knip": "knip",
-        "lint": "turbo run lint",
+        "lint": "yarn lint:workspaces && yarn lint:knip && yarn lint:syncpack",
+        "lint:knip": "knip",
+        "lint:syncpack": "syncpack list-mismatches",
+        "lint:workspaces": "turbo run lint",
         "format": "prettier --write '*.{js,json,md,ts}' && turbo run format",
         "format:check": "prettier --check '*.{js,json,md,ts}' && turbo run format:check --parallel",
         "test": "turbo run test",
@@ -34,7 +37,7 @@
         "postinstall": "patch-package"
     },
     "devDependencies": {
-        "@types/node": "^22.9.0",
+        "@types/node": "^22.15.17",
         "appium": "^3.0.0",
         "knip": "^5.36.5",
         "patch-package": "^8.0.0",

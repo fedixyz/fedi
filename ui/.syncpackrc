@@ -1,0 +1,9 @@
+{
+    "versionGroups": [
+        {
+            "dependencies": ["react-redux"],
+            "isIgnored": true,
+            "packages": ["**"]
+        }
+    ]
+}
