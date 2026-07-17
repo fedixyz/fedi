@@ -250,13 +250,13 @@ Then remove every gap with a fix in flight (open coverage PR, or a generated PR 
 
 Write the test suite and its registry entry following the Test Implementation Conventions, adding `testID` props only where they are the sole blocker. Keep the diff minimal.
 
-Commit your changes on the checked-out HEAD with `git add` and `git commit`. Do not create or switch git branches: the workflow publishes from the checked-out branch, and a new local branch breaks its patch generation because the shallow checkout has no remote refs for a merge-base.
-
 ### 5. Validate
 
 Run the Validation steps. Only proceed to a pull request when typecheck, lint, and the registration check all pass.
 
 ### 6. Report
+
+Before writing the commit message, pull request title, and body, read `commit/SKILL.md` and `write-pr/SKILL.md` from the `fedibtc/skills` repository with the github `get_file_contents` tool and follow their conventions. Where they conflict with the required formats in this workflow, this workflow wins. If that repository is not readable, continue without it.
 
 For a `create_pull_request` body, include:
 

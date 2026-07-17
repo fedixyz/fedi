@@ -65,6 +65,7 @@ if (Array.isArray(output.errors) && output.errors.length > 0) {
 }
 
 const errors = []
+const blockedTypes = []
 
 const itemTypes = output.items.map(item =>
     normalizeType(item.type || item.kind || item.name || ''),
@@ -94,6 +95,7 @@ for (const [index, item] of output.items.entries()) {
         type === 'report_incomplete'
     ) {
         validateBlockedOutput(index, type, text)
+        blockedTypes.push(type)
         continue
     }
 
@@ -104,6 +106,14 @@ for (const [index, item] of output.items.entries()) {
 
 if (errors.length > 0) {
     fail(errors.join('\n'))
+}
+
+// A blocked output is well-formed but means the audit never finished; exit
+// non-zero so the run shows red instead of masquerading as a green no-op.
+if (blockedTypes.length > 0) {
+    fail(
+        `audit did not complete: agent ended with ${blockedTypes.join(', ')}; see the safe output details for the blocker`,
+    )
 }
 
 console.log(
