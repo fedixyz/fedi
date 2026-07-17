@@ -79,7 +79,7 @@ Per run, finish with exactly one of these final safe outputs:
 
 Never emit both `create_pull_request` and `create_issue` in the same run. Work on at most one gap per run.
 
-The workflow appends a deterministic e2e audit context to the prompt before the agent runs. Base the audit on that context. Any `create_issue` body or `noop` message must include the exact `audit_context_id` from the deterministic context and these evidence fields in the text: `review_scope`, `comparison_boundary`, `changed_files`, `appium_tests_inspected`, `native_surface_inventory`, `coverage_map`, `coverage_gaps`, `coverage_gap_keys`, and `validation_performed`. A `create_pull_request` body must not carry those fields; it is a normal developer pull request and the audit report lives in the tracking issue.
+The workflow appends a deterministic e2e audit context to the prompt before the agent runs. Base the audit on that context. Any `create_issue` body or `noop` message must include the exact `audit_context_id` from the deterministic context and these evidence fields in the text: `review_scope`, `comparison_boundary`, `changed_files`, `appium_tests_inspected`, `native_surface_inventory`, `coverage_map`, `coverage_gaps`, `coverage_gap_keys`, and `validation_performed`. A `create_pull_request` body must not use any of those field names anywhere in its text; it is a normal developer pull request, the flow is described in plain words, and the audit report lives in the tracking issue.
 
 Do not pass the evidence fields as GitHub labels. For `create_issue` and `create_pull_request`, omit the `labels` field entirely; the workflow applies `testing`, `e2e testing`, and `ai generated` automatically. Do not include the `[e2e audit]` prefix in issue titles or the `[e2e coverage]` prefix in pull request titles; the workflow applies them automatically.
 
@@ -244,7 +244,7 @@ For important user-facing flows found in the full native surface:
 - check whether unit or integration tests already cover the risk well enough
 - decide whether the missing coverage is concrete, speculative, or not needed
 
-Then remove every gap with a fix in flight (open coverage PR, or a generated PR closed unmerged per cache memory), classify the rest as `implementable` or `blocked`, and choose at most one gap to act on: the smallest implementable gap an open issue tracks, otherwise the most valuable gap no issue tracks yet, implementable or blocked, to file as an issue.
+Then remove every gap with a fix in flight or a rejected fix: an open coverage PR, or an `[e2e coverage]` pull request closed without merging. Cache notes cannot know PR numbers (the PR is created after the agent finishes), so check candidate gaps with the github pull request search tool, querying `[e2e coverage]` titles in any state and matching them to the gap's tracking issue. Classify the rest as `implementable` or `blocked`, and choose at most one gap to act on: the smallest implementable gap an open issue tracks, otherwise the most valuable gap no issue tracks yet, implementable or blocked, to file as an issue.
 
 ### 4. Implement The Chosen Implementable Gap
 
