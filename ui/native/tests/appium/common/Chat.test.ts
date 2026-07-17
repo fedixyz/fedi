@@ -279,7 +279,7 @@ async function respondToOnlyKnock(
         await t.clickElementByKey('pendingTab')
         if (await t.elementIsDisplayed('KnockRequestTile', 3000)) {
             await t.clickElementByKey('KnockRequestTile')
-            await t.waitForElementDisplayed(button)
+            await t.waitForElementDisplayed(button, MATRIX_TIMEOUT)
             await t.clickElementByKey(button)
             handled = true
             break

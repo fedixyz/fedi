@@ -104,6 +104,31 @@ function devfedBaseUrl(): string {
     return `http://127.0.0.1:${port}`
 }
 
+// The fed is a freshly launched local process; the first funding calls can
+// race a connection reset ("fetch failed") before it settles.
+async function fetchDevfedText(pathAndQuery: string): Promise<string> {
+    const url = `${devfedBaseUrl()}${pathAndQuery}`
+    let lastErr: unknown
+    for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+            const res = await fetch(url)
+            const body = await res.text()
+            if (!res.ok) {
+                throw new Error(`${pathAndQuery} ${res.status}: ${body}`)
+            }
+            return body
+        } catch (err) {
+            lastErr = err
+            if (attempt < 5) {
+                await new Promise(r => setTimeout(r, attempt * 500))
+            }
+        }
+    }
+    throw new Error(
+        `dev-fed GET ${pathAndQuery} failed after 5 attempts: ${(lastErr as Error).message}`,
+    )
+}
+
 // The fed binds every service to the host's loopback, which an android
 // emulator cannot see (its 127.0.0.1 is the emulator itself). Map each fed
 // port into the emulators with adb reverse so the app can dial the invite's
@@ -111,9 +136,7 @@ function devfedBaseUrl(): string {
 // nothing.
 async function reverseDevfedPortsIntoDevices(): Promise<void> {
     if (currentPlatform !== Platform.ANDROID) return
-    const res = await fetch(`${devfedBaseUrl()}/ports`)
-    const body = await res.text()
-    if (!res.ok) throw new Error(`ports ${res.status}: ${body}`)
+    const body = await fetchDevfedText('/ports')
     const ports: number[] = JSON.parse(body).ports
     if (!ports?.length) throw new Error(`ports response had no ports: ${body}`)
     for (const handle of AppiumManager.activeHandles()) {
@@ -133,18 +156,14 @@ async function reverseDevfedPortsIntoDevices(): Promise<void> {
 }
 
 async function getDevfedInvite(): Promise<string> {
-    const res = await fetch(`${devfedBaseUrl()}/invite_code`)
-    const body = await res.text()
-    if (!res.ok) throw new Error(`invite_code ${res.status}: ${body}`)
+    const body = await fetchDevfedText('/invite_code')
     const invite = JSON.parse(body).invite_code
     if (!invite) throw new Error(`invite_code response had no invite: ${body}`)
     return invite
 }
 
 async function generateDevfedEcash(msats: number): Promise<string> {
-    const res = await fetch(`${devfedBaseUrl()}/generate_ecash/${msats}`)
-    const body = await res.text()
-    if (!res.ok) throw new Error(`generate_ecash ${res.status}: ${body}`)
+    const body = await fetchDevfedText(`/generate_ecash/${msats}`)
     const ecash = JSON.parse(body).ecash
     if (!ecash) throw new Error(`generate_ecash response had no ecash: ${body}`)
     return ecash

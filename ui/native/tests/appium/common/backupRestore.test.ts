@@ -190,11 +190,13 @@ export class BackupRestore extends AppiumTestBase {
             }
 
             if (group.isPublic) {
-                // Unencrypted: the preview is present as soon as the room syncs.
+                // Unencrypted: no key backup to wait out, just a lazy
+                // preview that can lag matrix sync under CI load.
                 const preview = await this.findElementByText(
                     group.message,
                     0,
                     false,
+                    MATRIX_TIMEOUT,
                 )
                 if (!preview) {
                     missingMessages.push(`"${group.name}" → "${group.message}"`)

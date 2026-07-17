@@ -64,7 +64,9 @@ export async function createGroupAndSendMessage(
 ): Promise<void> {
     console.log(`[${t.handle}] Creating group: ${group.name}`)
     await t.clickElementByKey('PlusButton')
-    await t.clickOnText('Create a group', 0, true)
+    // Local UI, not matrix-gated, but a busy RN thread on a loaded CI host
+    // can render the menu late; MATRIX_TIMEOUT is just the bigger budget.
+    await t.clickOnText('Create a group', 0, true, MATRIX_TIMEOUT)
     await t.waitForElementDisplayed('GroupNameInput')
     await t.typeIntoElementByKey('GroupNameInput', group.name)
     if (group.broadcastOnly) await t.clickElementByKey('BroadcastOnlySwitch')
