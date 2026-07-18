@@ -189,6 +189,7 @@ Constraints specific to this workflow, on top of the guide:
 
 - Prefer `static actors = 1`; use `2` only when the flow inherently needs a second device.
 - Register the suite in `ui/native/tests/appium/registry.ts` and add it to the interactive list in `scripts/ui/run-e2e.sh`. You cannot edit `.github/workflows/e2e-tests.yml` from this workflow, so adding the suite to its `inputs.tests.options` dropdown is a one-line reviewer follow-up; say so in the PR body.
+- You also cannot edit `scripts/ci/e2e-pipeline.sh`. The output validator rejects any change to it. A suite that needs the local devimint federation (funded wallets, on-chain or lightning operations) still works, since full runs (`tests=all`) always start the dev fed. Registering the suite in `_tests_need_devfed()` there, so selective runs start the fed too, is part of the same one-line reviewer follow-up; say so in the PR body instead of touching the file.
 - Prefer selectors that already exist in the product code. When a selector is missing and a `testID` prop on an existing element in `ui/native/screens/**` or `ui/native/components/**` is the only blocker, add that `testID` with the smallest possible diff and nothing else. Any other product code change makes the gap `blocked`.
 
 ## Validation
@@ -256,7 +257,7 @@ Run the Validation steps. Only proceed to a pull request when typecheck, lint, a
 
 ### 6. Report
 
-A `create_pull_request` is a normal developer pull request addressing the tracking issue, following the repository pull request template: `## Description` with `ref #<issue>`, the user-facing flow the suite covers and its key, the reviewer follow-up of adding the suite to `inputs.tests.options` in `.github/workflows/e2e-tests.yml`, and any assumptions a reviewer should double-check; `## Testing` stating explicitly that each check ran and passed, with the word passed (the scoped appium typecheck via `tsc -p tsconfig.appium.json`, eslint on the changed files, the required-actors registration check, prettier), and that device execution was not run in this environment (`gh workflow run e2e-tests.yml -f tests=all` runs it). The commit message is a conventional `test(e2e): ...` subject plus motivation bullets.
+A `create_pull_request` is a normal developer pull request addressing the tracking issue, following the repository pull request template: `## Description` with `ref #<issue>`, the user-facing flow the suite covers and its key, the reviewer follow-up of adding the suite to `inputs.tests.options` in `.github/workflows/e2e-tests.yml` (and to `_tests_need_devfed()` in `scripts/ci/e2e-pipeline.sh` when the suite uses the dev fed), and any assumptions a reviewer should double-check; `## Testing` stating explicitly that each check ran and passed, with the word passed (the scoped appium typecheck via `tsc -p tsconfig.appium.json`, eslint on the changed files, the required-actors registration check, prettier), and that device execution was not run in this environment (`gh workflow run e2e-tests.yml -f tests=all` runs it). The commit message is a conventional `test(e2e): ...` subject plus motivation bullets.
 
 For a `create_issue` body (an untracked gap, whether implementable or blocked), include:
 

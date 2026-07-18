@@ -208,11 +208,12 @@ Built from the entity name with spaces stripped. Other punctuation (parens, hyph
 
 ## Registering A New Test
 
-Three places must be updated together. Forgetting any one silently drops the test from one of the entry points.
+Three places must be updated together, plus a fourth for dev-fed tests. Forgetting any one silently drops the test from one of the entry points.
 
 1. `ui/native/tests/appium/registry.ts`: import the class, add it to `availableTests`. The map key is the CLI-facing name. This is the registration correctness depends on: the runner resolves tests from it and CI derives device counts from it via `required-actors.ts`.
 2. `.github/workflows/e2e-tests.yml`: add the new name to `inputs.tests.options`. The workflow_dispatch dropdown is an explicit allowlist, so until the option lands the new test only runs on CI as part of `tests=all`.
 3. `scripts/ui/run-e2e.sh`: add to the `available_tests` array and the interactive menu.
+4. `scripts/ci/e2e-pipeline.sh`, only if the test needs the local devimint federation (like `payments`): add the name to the `_tests_need_devfed()` case so selective runs (`tests=<name>`) start the fed. `tests=all` starts it regardless, so a missing entry surfaces only when the test is dispatched alone.
 
 ---
 
