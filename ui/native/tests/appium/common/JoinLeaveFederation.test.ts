@@ -5,6 +5,30 @@ export class JoinLeaveFederation extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
     static produces = ['onboarded', 'extraFederationsJoined'] as const
 
+    // The app rejects leaving any federation while another federation is
+    // still recovering (#3754), and re-joining a previously-left federation
+    // kicks off a recovery whose duration depends on the federation's
+    // blockchain scan, so a single leave attempt is not enough.
+    private async leaveFederationViaAccordion(
+        accordionKey: string,
+        federationName: string,
+    ): Promise<void> {
+        const deadline = Date.now() + 120000
+        while (Date.now() < deadline) {
+            await this.clickElementByKey('Leave Federation')
+            await this.acceptAlert('Yes')
+            if (await this.waitForElementToDisappear(accordionKey, 10000)) {
+                return
+            }
+            console.log(
+                `Leaving ${federationName} was rejected, likely because a recovery is still in progress. Retrying...`,
+            )
+        }
+        throw new Error(
+            `Failed - ${federationName} accordion is in the account settings after leaving`,
+        )
+    }
+
     async execute(): Promise<void> {
         console.log('Starting Joining Public Federation Test')
         await this.clickElementByKey('WalletTabButton')
@@ -69,18 +93,10 @@ export class JoinLeaveFederation extends AppiumTestBase {
             )
         }
         await this.scrollToElement('Leave Federation')
-        await this.clickElementByKey('Leave Federation')
-        await this.acceptAlert('Yes')
-        if (
-            (await this.elementIsDisplayed(
-                'BitcoinPrinciplesFedAccordionButton',
-                2000,
-            )) === true
-        ) {
-            throw new Error(
-                `Failed - Bitcoin Principles accordion is in the account settings after leaving`,
-            )
-        }
+        await this.leaveFederationViaAccordion(
+            'BitcoinPrinciplesFedAccordionButton',
+            'Bitcoin Principles',
+        )
         await this.clickElementByKey('HeaderCloseButton')
         await this.waitForElementDisplayed('PlusButton')
         if (
@@ -144,18 +160,10 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 `Failed - E-Cash Club accordion is not in the account settings`,
             )
         }
-        await this.clickElementByKey('Leave Federation')
-        await this.acceptAlert('Yes')
-        if (
-            (await this.elementIsDisplayed(
-                'E-CashClubFedAccordionButton',
-                2000,
-            )) === true
-        ) {
-            throw new Error(
-                `Failed - E-Cash Club accordion is in the account settings after leaving`,
-            )
-        }
+        await this.leaveFederationViaAccordion(
+            'E-CashClubFedAccordionButton',
+            'E-Cash Club',
+        )
         await this.clickElementByKey('HeaderCloseButton')
         // await this.clickElementByKey('HomeHeaderHamburger') <-- no longer used
         await this.waitForElementDisplayed('PlusButton')

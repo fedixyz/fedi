@@ -554,6 +554,28 @@ export class AppiumTestBase {
         }
     }
 
+    async waitForElementToDisappear(
+        key: string,
+        timeout = DEFAULT_TIMEOUT,
+    ): Promise<boolean> {
+        const startTime = Date.now()
+        while (Date.now() - startTime < timeout) {
+            try {
+                const element = await this.findElementByKey(key)
+                if (!(await this.isElementVisible(element))) {
+                    return true
+                }
+            } catch {
+                return true
+            }
+            await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        console.log(
+            `Element with key "${key}" is still displayed after ${timeout}ms`,
+        )
+        return false
+    }
+
     private async isElementClickable(
         element: ChainablePromiseElement,
     ): Promise<boolean> {
