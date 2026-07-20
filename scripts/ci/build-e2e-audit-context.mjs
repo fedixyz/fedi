@@ -77,6 +77,35 @@ console.log(`open_e2e_coverage_prs=${auditContext.open_e2e_coverage_prs.length}`
 console.log(`appium_tests=${auditContext.appium_inventory.test_files.length}`)
 console.log(`native_surface_groups=${auditContext.native_surface_inventory.length}`)
 
+appendStepSummary(renderStepSummaryIntro(auditContext))
+
+// This intro is the first block of the agent job's step summary: a plain
+// description for readers with no gh-aw context, ahead of the harness
+// diagnostics the bundled gh-aw steps append after the agent runs. The
+// validator appends the matching "What this run did" outcome section.
+function renderStepSummaryIntro(context) {
+    const inventory = context.appium_inventory
+    const surfaceFiles = context.native_surface_inventory.reduce(
+        (total, group) => total + group.file_count,
+        0,
+    )
+    return `## The daily e2e coverage audit
+
+Once a day this workflow has an AI agent compare the native app's user-facing flows against the Appium e2e test suite and act on the most valuable coverage gap: open a draft PR implementing the missing test, file an \`[e2e audit]\` issue for a gap nobody tracks yet, or record that there is nothing new to do.
+
+This \`agent\` job is the audit itself. The outcome is under **What this run did** below; everything else on this page is diagnostics from the agent harness (tool calls, network firewall, token usage).
+
+**Checked this run:** ${inventory.test_files.length} Appium test suites against ${surfaceFiles} native source files in ${context.native_surface_inventory.length} surface groups, with ${context.open_e2e_coverage_issues.length} open e2e issues and ${context.open_e2e_coverage_prs.length} open e2e PRs counting as already-tracked gaps.
+
+`
+}
+
+function appendStepSummary(markdown) {
+    const summaryPath = process.env.GITHUB_STEP_SUMMARY
+    if (!summaryPath) return
+    fs.appendFileSync(summaryPath, markdown)
+}
+
 function getArg(name) {
     const index = process.argv.indexOf(name)
     return index === -1 ? undefined : process.argv[index + 1]

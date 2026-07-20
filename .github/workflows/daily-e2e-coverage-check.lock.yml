@@ -339,6 +339,16 @@ jobs:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
         # poutine:ignore untrusted_checkout_exec
         run: bash "${RUNNER_TEMP}/gh-aw/actions/validate_prompt_placeholders.sh"
+      - name: Explain this job in the step summary
+        continue-on-error: true
+        run: |
+          {
+            echo "## The daily e2e coverage audit"
+            echo ""
+            echo "Once a day this workflow has an AI agent look for user-facing flows in the native app that have no Appium e2e test, then open a draft PR implementing the most valuable missing test, file an \`[e2e audit]\` issue for an untracked gap, or record that there is nothing new to do. The run's outcome is summarized in the \`conclusion\` job below."
+            echo ""
+            echo "This \`activation\` job only assembles the agent's instructions. The collapsed \"Generated Prompt\" below is the full instruction text, kept for debugging; you do not need to read it."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Print prompt
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
@@ -1192,6 +1202,49 @@ jobs:
           mkdir -p /tmp/gh-aw/
           find "/tmp/gh-aw/" -type f -print
           echo "GH_AW_AGENT_OUTPUT=/tmp/gh-aw/agent_output.json" >> "$GITHUB_OUTPUT"
+      - name: Explain the run outcome in the step summary
+        if: always()
+        continue-on-error: true
+        env:
+          AGENT_RESULT: ${{ needs.agent.result }}
+          DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          OUTPUT_TYPES: ${{ needs.agent.outputs.output_types }}
+          SAFE_OUTPUTS_RESULT: ${{ needs.safe_outputs.result }}
+          CREATED_PR_URL: ${{ needs.safe_outputs.outputs.created_pr_url }}
+          CREATED_ISSUE_URL: ${{ needs.safe_outputs.outputs.created_issue_url }}
+        run: |
+          RATE_LIMITED=false
+          if [ -f /tmp/gh-aw/agent-stdio.log ] && grep -qE 'isRateLimitError=true|"type":"turn\.failed".*(429|[Tt]oo [Mm]any [Rr]equests|[Rr]ate.?limit)' /tmp/gh-aw/agent-stdio.log; then
+            RATE_LIMITED=true
+          fi
+          {
+            echo "## What this job is"
+            echo ""
+            echo "End-of-run bookkeeping for the daily e2e coverage audit: it records the outcome below and files a failure-report issue when the run broke."
+            echo ""
+            if [ -n "$CREATED_PR_URL" ]; then
+              echo "**Outcome:** the audit implemented a missing e2e test and opened a draft PR: $CREATED_PR_URL"
+            elif [ -n "$CREATED_ISSUE_URL" ]; then
+              echo "**Outcome:** the audit filed an issue for an untracked coverage gap: $CREATED_ISSUE_URL"
+            elif [ "$OUTPUT_TYPES" = "noop" ]; then
+              echo "**Outcome:** nothing posted, because the audit found no new untracked coverage gap. Its exact message is under \"No-Op Messages\" below."
+            elif [ "$AGENT_RESULT" != "success" ] && [ "$RATE_LIMITED" = "true" ]; then
+              echo "**Outcome:** no audit happened. **The AI provider rate-limited the run** (HTTP 429 from the model API). This is an upstream quota issue, not a code or workflow problem. It clears on its own, so re-run the workflow later or wait for the next scheduled run."
+            elif [ "$AGENT_RESULT" != "success" ]; then
+              echo "**Outcome:** the audit failed before producing a publishable result. The agent job's summary says what went wrong."
+            elif [ -n "$OUTPUT_TYPES" ] && [ "$SAFE_OUTPUTS_RESULT" != "success" ]; then
+              echo "**Outcome:** the audit produced \"$OUTPUT_TYPES\" but publishing did not complete (safe_outputs job: ${SAFE_OUTPUTS_RESULT:-skipped})."
+            else
+              echo "**Outcome:** nothing posted."
+            fi
+            echo ""
+            case "$DETECTION_CONCLUSION" in
+              success) echo "**Threat scan:** passed." ;;
+              skipped) echo "**Threat scan:** nothing to scan." ;;
+              "") echo "**Threat scan:** did not run." ;;
+              *) echo "**Threat scan:** $DETECTION_CONCLUSION; the audit's output was not cleared for posting." ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Collect usage artifact files
         if: always()
         continue-on-error: true
@@ -1438,6 +1491,15 @@ jobs:
           done
           echo "Prepared threat detection files:"
           ls -la /tmp/gh-aw/threat-detection/ 2>/dev/null || true
+      - name: Explain this job in the step summary
+        if: always() && steps.detection_guard.outputs.run_detection == 'true'
+        continue-on-error: true
+        run: |
+          {
+            echo "## What this job is"
+            echo ""
+            echo "A safety gate, separate from the e2e audit itself: a second AI pass re-reads everything the audit agent wants to post (its issue, PR, or no-op message, plus any code patch) and screens it for prompt injection, leaked secrets, and malicious changes before it goes out. The collapsed \"Threat Detection Prompt\" below is that scanner's own instructions, which is why it talks about a security analyst. The verdict is at the bottom of this summary."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Setup threat detection
         if: always() && steps.detection_guard.outputs.run_detection == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1645,6 +1707,21 @@ jobs:
                 core.setFailed(msg);
               }
             }
+      - name: Append threat detection verdict to step summary
+        if: always() && steps.detection_guard.outputs.run_detection == 'true'
+        continue-on-error: true
+        env:
+          DETECTION_CONCLUSION: ${{ steps.detection_conclusion.outputs.conclusion }}
+          DETECTION_REASON: ${{ steps.detection_conclusion.outputs.reason }}
+        run: |
+          {
+            echo ""
+            case "$DETECTION_CONCLUSION" in
+              success) echo "**Verdict:** ✅ no threats found; the audit's output was cleared for posting." ;;
+              skipped) echo "**Verdict:** nothing to scan; the audit produced no output." ;;
+              *) echo "**Verdict:** ❌ ${DETECTION_CONCLUSION:-unknown} (${DETECTION_REASON:-no reason recorded}); the audit's output was not cleared and nothing was posted. Details in this job's log." ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"
 
   safe_outputs:
     needs:

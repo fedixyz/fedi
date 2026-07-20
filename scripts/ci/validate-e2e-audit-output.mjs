@@ -5,6 +5,7 @@ const agentOutputPath =
     getArg('--agent-output') || '/tmp/gh-aw/agent_output.json'
 const contextPath = getArg('--context') || '/tmp/gh-aw/e2e-audit-context.json'
 const patchDir = getArg('--patch-dir') || '/tmp/gh-aw'
+const agentLogPath = getArg('--agent-log') || '/tmp/gh-aw/agent-stdio.log'
 
 // The prompt's testID-only rule for product files is not enforceable via the
 // safe-outputs allowed_files globs (they accept any change under screens/
@@ -49,8 +50,11 @@ if (process.argv.includes('--self-test')) {
     process.exit(0)
 }
 
+let loadedOutput
+
 const context = readJson(contextPath, 'audit context')
 const output = readJson(agentOutputPath, 'agent output')
+loadedOutput = output
 
 if (!Array.isArray(output.items)) {
     fail('agent output is missing an items array')
@@ -118,6 +122,10 @@ if (blockedTypes.length > 0) {
 
 console.log(
     `validated ${output.items.length} E2E audit safe output item(s) for ${context.audit_context_id}`,
+)
+
+writeOutcomeSummary(
+    '✅ Validation passed. Anything to post is published by the safe_outputs job, and the conclusion job summary links the result.',
 )
 
 function validateAuditedOutput(index, type, text, item) {
@@ -832,6 +840,85 @@ function getArg(name) {
 }
 
 function fail(message) {
+    writeOutcomeSummary(
+        `❌ The run is red because this outcome failed validation; nothing was posted:\n\n${message
+            .split('\n')
+            .map(line => `- ${excerpt(line, 300)}`)
+            .join('\n')}`,
+    )
     console.error(`E2E audit output validation failed:\n${message}`)
     process.exit(1)
+}
+
+// The matching "The daily e2e coverage audit" intro at the top of this job's
+// summary is written by build-e2e-audit-context.mjs before the agent runs;
+// together they bracket the harness diagnostics with plain language.
+function writeOutcomeSummary(verdict) {
+    const summaryPath = process.env.GITHUB_STEP_SUMMARY
+    if (!summaryPath) return
+    fs.appendFileSync(
+        summaryPath,
+        `## What this run did\n\n${describeAgentOutcome()}\n\n${verdict}\n`,
+    )
+}
+
+function describeAgentOutcome() {
+    const items = loadedOutput?.items
+    if (!Array.isArray(items) || items.length === 0) {
+        return `The agent died before finishing the audit and produced no final output. ${describeAgentDeath()}`
+    }
+    return items.map(describeOutcomeItem).join('\n\n')
+}
+
+// gh-aw's job outputs carry no upstream-429 signal (its rate-limit flag covers
+// only the gh-aw credit budget), so the cause is recovered from the agent's
+// transcript, the same way gh-aw's failure-issue handler does it.
+function describeAgentDeath() {
+    let log
+    try {
+        log = fs.readFileSync(agentLogPath, 'utf8')
+    } catch {
+        return 'No agent transcript was found to explain why.'
+    }
+    const failures = [
+        ...log.matchAll(
+            /"type":"turn\.failed","error":\{"message":"((?:[^"\\]|\\.)*)"/g,
+        ),
+    ]
+    const lastFailure = failures.at(-1)?.[1]
+    if (
+        (lastFailure && /429|too many requests|rate.?limit/i.test(lastFailure)) ||
+        log.includes('isRateLimitError=true')
+    ) {
+        return `**Why: the AI provider rate-limited the workflow** (${excerpt(lastFailure || 'HTTP 429 Too Many Requests', 200)}). This is an upstream quota issue, not a problem with the audit or the app code. It clears on its own, so re-run the workflow later or wait for the next scheduled run.`
+    }
+    if (lastFailure) {
+        return `**Why:** the model API reported: ${excerpt(lastFailure, 300)}`
+    }
+    return 'The transcript shows no model-API failure. See the "Execute Codex CLI" step log.'
+}
+
+function describeOutcomeItem(item) {
+    const type = normalizeType(item.type || item.kind || item.name || '')
+    if (type === 'create_pull_request') {
+        return `The agent implemented a missing e2e test and proposed a draft PR: "${excerpt(item.title, 120)}".`
+    }
+    if (type === 'create_issue') {
+        return `The agent found an untracked coverage gap and drafted an issue for it: "${excerpt(item.title, 120)}".`
+    }
+    if (type === 'noop') {
+        const reason =
+            getFieldValueUntilNextField(collectText(item), 'coverage_gaps') ||
+            item.message
+        return `The agent decided nothing needs posting: ${excerpt(reason, 300)}`
+    }
+    return `The agent stopped early with ${type || 'an unrecognized output'}: ${excerpt(collectText(item), 300)}`
+}
+
+function excerpt(value, max) {
+    const text = String(value ?? '')
+        .replace(/`/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim()
+    return text.length > max ? `${text.slice(0, max)}…` : text
 }
