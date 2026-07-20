@@ -394,7 +394,15 @@
                 # tools for managing native app deployments
                 # fastlane 2.232.2 via nixpkgs-unstable
                 pkgs-unstable.fastlane
-                pkgs.ruby
+                # Every ruby tool in the .#xcode shell (fastlane here, plus
+                # cocoapods and bundler in the xcode override) must come from
+                # one nixpkgs. The shell exports a single GEM_PATH and each
+                # ruby bin wrapper prepends it ahead of its own gems, so two
+                # builds of the same ruby version cross-load each other's
+                # native extensions (nkf.bundle, bigdecimal.bundle) and hit
+                # "linked to incompatible libruby", crashing the tool. keep
+                # them all on nixpkgs-unstable to share fastlane's ruby build.
+                pkgs-unstable.ruby
                 pkgs.rsync
                 pkgs.perl
                 pkgs.pkg-config
@@ -567,8 +575,11 @@
             ++ prev.buildInputs;
             nativeBuildInputs =
               lib.optionals stdenv.isDarwin [
-                pkgs.bundler
-                pkgs.cocoapods
+                # unstable, to share fastlane's ruby build (see the ruby note
+                # in crossDevShell). mixing a stable-nixpkgs ruby tool here
+                # reintroduces the "linked to incompatible libruby" crash.
+                pkgs-unstable.bundler
+                pkgs-unstable.cocoapods
                 pkgs.unzip
                 (pkgs.hiPrio xcode-wrapper)
                 pkgs.fs-dir-cache
