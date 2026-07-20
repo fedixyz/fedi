@@ -257,6 +257,8 @@ Run the Validation steps. Only proceed to a pull request when typecheck, lint, a
 
 ### 6. Report
 
+Name the `create_pull_request` branch `e2e-coverage/<short-kebab-slug>`, for example `e2e-coverage/onchain-receive`. The `e2e-coverage/` prefix is required so the branch groups with the rest of the repo's `owner/topic` branches. Do not add your own uniqueness suffix, the workflow appends one. Use the same name for the local `git` branch you commit on.
+
 A `create_pull_request` is a normal developer pull request addressing the tracking issue, following the repository pull request template: `## Description` with `ref #<issue>`, the user-facing flow the suite covers and its key, the reviewer follow-up of adding the suite to `inputs.tests.options` in `.github/workflows/e2e-tests.yml` (and to `_tests_need_devfed()` in `scripts/ci/e2e-pipeline.sh` when the suite uses the dev fed), and any assumptions a reviewer should double-check; `## Testing` stating explicitly that each check ran and passed, with the word passed (the scoped appium typecheck via `tsc -p tsconfig.appium.json`, eslint on the changed files, the required-actors registration check, prettier), and that device execution was not run in this environment (`gh workflow run e2e-tests.yml -f tests=all` runs it). The commit message is a conventional `test(e2e): ...` subject plus motivation bullets.
 
 For a `create_issue` body (an untracked gap, whether implementable or blocked), include:
