@@ -79,14 +79,26 @@ There are two `mprocs` setups and they do different things:
 
 ## Architecture
 
-Read the README's diagram first. The parts worth internalising before changing Rust code:
+Read the README's diagram first. This section goes one level deeper: how dispatch, events and the
+UI wiring actually work, and [where to start when something misbehaves](#where-to-look-when-debugging).
 
-**One core, two adapters.** `crates/bridge` holds the real logic. `bridge/fedi-ffi` (uniffi, for
-Android and iOS) and `bridge/fedi-wasm` (wasm-bindgen, for the browser) are thin platform shims that
-supply a platform `EventSink` and an `IStorage`, then forward calls inward. `fedi-wasm` even reuses
-`fedi-ffi`'s RPC glue. **If you are adding a feature, it belongs in `crates/`, not in `bridge/`.**
+### One core, two adapters
 
-**The RPC boundary is three functions plus a callback.** From `bridge/fedi-ffi/src/fedi.udl`:
+`crates/bridge` holds the real logic. `bridge/fedi-ffi` (uniffi, for Android and iOS) and
+`bridge/fedi-wasm` (wasm-bindgen, for the browser) are thin platform shims that supply a platform
+`EventSink` and an `IStorage`, then forward calls inward. `fedi-wasm` even reuses `fedi-ffi`'s RPC
+glue, so a fix in the shared RPC layer fixes both platforms at once. **If you are adding a feature,
+it belongs in `crates/`, not in `bridge/`.**
+
+Layering below the bridge: `runtime` is the foundation (storage, database, events, feature flags,
+Fedi's API client) and carries no business logic. `bridge` is the router on top. `federations`,
+`matrix`, `communities`, `multispend` and friends are the subsystems `bridge` dispatches into.
+Fedimint client modules (mint, lightning, wallet, `fedi-social`, both stability pools) are
+registered in `crates/federations/src/federation_v2/mod.rs`.
+
+### The RPC boundary
+
+Three functions plus a callback, from `bridge/fedi-ffi/src/fedi.udl`:
 
 ```
 [Async] string fedimint_initialize(EventSink event_sink, string init_opts_json);
@@ -99,22 +111,137 @@ travel the other way through `EventSink.event(event_type, body)`. Use
 `fedimint_get_supported_events` to enumerate the event types the bridge can emit rather than
 hardcoding that list UI-side.
 
-**Types are generated, never hand-written.** Rust types in `crates/rpc-types` derive `ts-rs`'s
-`TS`. `just generate-bridge-bindings` runs `scripts/bridge/ts-bindgen.sh`, which exports each type,
-concatenates them onto the hand-written prelude `ui/common/types/bindings.ts.inc`, and writes
-`ui/common/types/bindings.ts`. Never edit `bindings.ts` by hand; change the Rust type and
-regenerate.
+How a call dispatches, hop by hop:
 
-**Layering.** `runtime` is the foundation (storage, database, events, feature flags, Fedi's API
-client) and carries no business logic. `bridge` is the router on top. `federations`, `matrix`,
-`communities`, `multispend` and friends are the subsystems `bridge` dispatches into.
+1. A component or thunk calls a typed wrapper on `FedimintBridge`
+   (`ui/common/utils/fedimint.ts`). The class is constructed with an injected transport function —
+   that is the entire platform abstraction. Native injects `NativeModules.FedimintFfi.rpc`
+   (`ui/native/bridge/native.ts`, backed by Kotlin `FedimintFfiModule.kt` and Swift
+   `FedimintFfi.swift`); web injects a token-correlated `postMessage` round trip to the WASM worker
+   (`ui/web/src/lib/bridge/worker.ts` ↔ `wasm.worker.ts`, persisting to an OPFS-backed redb file
+   `bridge.db`).
+2. Both platforms land in `fedimint_rpc_async` → `RpcMethods::handle` in
+   `bridge/fedi-ffi/src/rpc.rs`. The `rpc_methods!` registry near the bottom of that file is the
+   single source of truth for every method name; "Unrecognized RPC command" means the method is
+   missing there (or your `bindings.ts` is stale).
+3. Handlers are declared with macros: `rpc_method!` (plain), `federation_rpc_method!`
+   (auto-resolves the `federationId` argument to a `FederationV2`), or
+   `federation_recovering_rpc_method!` (also works while that federation is mid-recovery). A method
+   that errors during recovery is probably using the wrong macro.
+4. Arguments deserialize into a macro-generated struct; the subsystem is fetched off the bridge via
+   the `TryGet` trait — this is where "complete onboarding first" errors are raised. Results come
+   back as `{"result": ...}`, failures as `RpcError` JSON, which the UI surfaces as a thrown
+   `BridgeError`.
 
-**The remote bridge.** `crates/remote-server` is an axum HTTP/WebSocket server that hosts real
-`Bridge` instances out of process, keyed by device ID. It backs the UI integration tests (port
-`26722`) and lets you drive a bridge running elsewhere. `just clear-remote-bridge` wipes its state.
+### The bridge is a state machine
 
-**Fedimint is a fork.** `Cargo.toml` pins `github.com/fedibtc/fedimint` at tag `v0.11.0-fedi7`, and
-`matrix-rust-sdk`, `uniffi` and `iroh` are likewise pinned to Fedi forks.
+Many RPCs fail until the bridge reaches `Full`; the `bridgeStatus` RPC tells you which state you
+are in.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Onboarding: fresh install / recovery
+    [*] --> Full: existing AppState loads
+    [*] --> Offboarding
+    Onboarding --> Full: complete_onboarding()
+    Onboarding --> Offboarding
+```
+
+Onboarding stages are `Init` → `SocialRecovery` / `DeviceIndexSelection`
+(`crates/bridge/src/onboarding.rs`); offboarding reasons are `DeviceIdentifierMismatch`,
+`InternalBridgeExport` and `DeviceIndexConflict` (`crates/bridge/src/full.rs`).
+
+`BridgeFull` (`full.rs`) owns the subsystems — `Runtime`, `Federations`, `Communities`, `BgMatrix`,
+multispend, sp-transfer, device registration, `Nostril` — and its `start_bg` spawns the multispend
+and sp-transfer coordination services as background tasks, so bugs in those features often live in
+a task, not in an RPC handler. Matrix is wrapped in `BgMatrix` (`crates/bridge/src/bg_matrix.rs`)
+and initializes lazily in the background; "matrix not ready yet" races start there.
+
+### Events and streams
+
+Two mechanisms share the `EventSink` callback:
+
+- **Fire-and-forget events.** A subsystem calls `runtime.event_sink.typed_event(&Event::...)`. The
+  `Event` enum and its camelCase type strings (`"balance"`, `"transaction"`, ...) live in
+  `crates/rpc-types/src/event.rs` — not in `runtime`. The supported-events list is duplicated by
+  hand in `bridge/fedi-ffi/src/ffi.rs` (a test enforces enum ⊆ list), so adding a variant means
+  touching both.
+- **Streams (subscriptions).** `RpcStreamPool` (`crates/runtime/src/rpc_stream.rs`) pushes each
+  item of a Rust `Stream` as a `"streamUpdate"` event carrying `{stream_id, sequence, data}`. On
+  the TS side `FedimintBridge.rpcStream` allocates the id and keeps a handler map; unsubscribing
+  fires the `streamCancel` RPC. A stalled subscription is debugged at exactly those two files.
+
+Delivery differs per platform before converging:
+
+| Hop | Native | Web |
+| --- | --- | --- |
+| Rust → JS | uniffi callback → `EventDispatcher` (Kotlin/Swift) → `BridgeNativeEventEmitter`; the JS side must register via `subscribeToBridgeEvents()` (`ui/native/bridge/native.ts`) | worker calls `postMessage({event, data})`, demuxed in `worker.onmessage` — there is **no separate subscribe step on web** |
+| JS fan-out | `fedimint.emit(type, body)`: `streamUpdate` routed by `stream_id`, everything else to `addListener` subscribers | same |
+| → Redux | listeners registered in one place: `initializeCommonStore` (`ui/common/redux/index.ts`) | same |
+
+Two details worth knowing in that last hop: `balance` events are debounced before dispatching, and
+some thunks register their own temporary listeners (e.g. `receiveEcash` listens for
+`transaction`).
+
+### Types are generated, never hand-written
+
+Rust types in `crates/rpc-types` derive `ts-rs`'s `TS`. `just generate-bridge-bindings` runs
+`scripts/bridge/ts-bindgen.sh`, which exports each type, concatenates them onto the hand-written
+prelude `ui/common/types/bindings.ts.inc`, and writes `ui/common/types/bindings.ts`. Never edit
+`bindings.ts` by hand; change the Rust type and regenerate.
+
+### Mini-apps: the webview message protocol
+
+Mini-apps run in a WebView (native) or iframe (web) and get `window.webln` / `window.nostr` from
+scripts in `ui/injections`:
+
+```mermaid
+sequenceDiagram
+    participant M as Mini-app page
+    participant I as Injected provider (ui/injections)
+    participant H as Host handler
+    participant FB as fedimint
+
+    M->>I: window.webln.sendPayment(invoice)
+    I->>H: sendInjectorMessage → ReactNativeWebView.postMessage (web: window.postMessage)
+    Note over H: native: handler map + permission middleware<br/>in screens/FediModBrowser.tsx<br/>web: useIFrameListener in web/src/hooks/browser.ts
+    H->>FB: fedimint.payInvoice(...)
+    H-->>I: CustomEvent "fedi:message" (matched by id + type)
+    I-->>M: promise resolves
+```
+
+A broken WebLN/nostr call is one of exactly four suspects: the injected script
+(`ui/injections/src/injectables/`), the message matcher (`ui/injections/src/utils.ts`), the host
+handler map, or the underlying bridge RPC.
+
+### The remote bridge
+
+`crates/remote-server` is an axum HTTP/WebSocket server that hosts real `Bridge` instances out of
+process, keyed by device ID. It backs the UI integration tests (port `26722`) and lets you drive a
+bridge without any app: `POST /:device_id/init`, `POST /:device_id/rpc/:method`, events over
+WebSocket at `GET /:device_id/events` — plus `/invite_code` and `/generate_ecash/:amount` when run
+with `--with-devfed`. `just clear-remote-bridge` wipes its state.
+
+### Fedimint is a fork
+
+`Cargo.toml` pins `github.com/fedibtc/fedimint` at tag `v0.11.0-fedi7`, and `matrix-rust-sdk`,
+`uniffi` and `iroh` are likewise pinned to Fedi forks, so upstream documentation may not match the
+behavior you observe.
+
+### Where to look when debugging
+
+| Symptom | Start here |
+| --- | --- |
+| RPC error / wrong data | The method's entry in the `rpc_methods!` registry → handler → subsystem |
+| "Unrecognized RPC command" | Missing from that registry, or stale `bindings.ts` |
+| "complete onboarding first" | The bridge state machine — check `bridgeStatus` |
+| Event never reaches the UI | Walk the hop table above one hop at a time; remember the hand-maintained supported-events list in `ffi.rs` |
+| Stream stalls | `RpcStreamPool` (Rust) ↔ `rpcStream` handler map (TS); check sequence numbers and early `streamCancel` |
+| Redux wrong after an event | `initializeCommonStore` wiring; remember `balance` is debounced |
+| Matrix race | `BgMatrix` lazy initialization |
+| Multispend / sp-transfer oddity | The background services from `BridgeFull::start_bg`, not just the RPC handlers |
+| Mini-app API failure | The four suspects listed under the webview protocol |
+| Need a bridge without the app | The remote bridge routes above |
 
 ## Building
 
@@ -210,7 +337,9 @@ The clippy and build recipes deliberately avoid `--workspace` (see the overrides
 
 `@fedi/common` holds the shared logic — Redux state, hooks, types, i18n — and renders nothing.
 `@fedi/web` and `@fedi/native` are two renderers of it. Logic that both platforms need belongs in
-`common`.
+`common`. To stay platform-neutral, `common` never imports the bridge instance: thunks take
+`fedimint` as an argument (`dispatch(payInvoice({ fedimint, ... }))`) and each platform injects its
+own transport. Follow that pattern when adding thunks.
 
 Keep native and web at parity, or say why not: the pull request template asks for it explicitly.
 
