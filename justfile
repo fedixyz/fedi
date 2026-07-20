@@ -81,7 +81,7 @@ crap *ARGS="--workspace":
 # run `cargo clippy` on everything
 clippy *ARGS="--locked --all-targets":
   cargo clippy {{ARGS}}
-  cargo clippy --package fedi-wasm --target wasm32-unknown-unknown {{ARGS}}
+  cargo clippy --package fedi-wasm --target wasm32-unknown-unknown {{ARGS}} -- --deny warnings --allow deprecated --allow clippy::arc_with_non_send_sync
 
 # run `cargo clippy --fix` on everything
 clippy-fix *ARGS="--locked --all-targets":
