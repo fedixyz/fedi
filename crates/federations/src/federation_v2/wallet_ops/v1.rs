@@ -113,6 +113,11 @@ impl WalletOps for WalletOpsV1 {
             .get_network()
     }
 
+    async fn supports_safe_deposit(&self, fed: &FederationV2) -> Result<bool> {
+        // gated on the wallet module reaching the safe-deposit consensus version
+        Ok(fed.client.wallet()?.supports_safe_deposit().await)
+    }
+
     /// Generate bitcoin address
     async fn generate_address(
         &self,

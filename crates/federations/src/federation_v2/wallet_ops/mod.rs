@@ -19,6 +19,12 @@ pub trait WalletOps: MaybeSend + MaybeSync {
     /// Get the bitcoin network type this federation's wallet module is using
     fn get_network(&self, fed: &FederationV2) -> Network;
 
+    /// Whether this federation supports the safe on-chain deposit flow, which
+    /// is what gates offering an on-chain receive address in the app. Fallible
+    /// because for some wallet versions answering means querying the
+    /// federation.
+    async fn supports_safe_deposit(&self, fed: &FederationV2) -> Result<bool>;
+
     /// Generate bitcoin address
     async fn generate_address(
         &self,

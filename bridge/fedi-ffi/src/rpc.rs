@@ -445,7 +445,7 @@ async fn getGatewayOverride(
 
 #[macro_rules_derive(federation_rpc_method!)]
 async fn supportsSafeOnchainDeposit(federation: Arc<FederationV2>) -> anyhow::Result<bool> {
-    Ok(federation.client.wallet()?.supports_safe_deposit().await)
+    federation.supports_safe_deposit().await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]

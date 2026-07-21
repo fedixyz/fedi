@@ -1490,6 +1490,10 @@ impl FederationV2 {
         self.wallet_ops.generate_address(self, frontend_meta).await
     }
 
+    pub async fn supports_safe_deposit(&self) -> Result<bool> {
+        self.wallet_ops.supports_safe_deposit(self).await
+    }
+
     /// Generate lightning invoice
     pub async fn generate_invoice(
         &self,

@@ -36,6 +36,13 @@ impl WalletOps for WalletOpsV2 {
             .get_network()
     }
 
+    async fn supports_safe_deposit(&self, _fed: &FederationV2) -> Result<bool> {
+        // walletv2 deposits are claimed from guardian-signed outputs by the
+        // background scanner; there is no unsafe peg-in address reuse to guard
+        // against, so every walletv2 deposit is safe.
+        Ok(true)
+    }
+
     /// Generate bitcoin address
     async fn generate_address(
         &self,
