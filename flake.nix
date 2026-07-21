@@ -17,9 +17,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flakebox = {
-      url = "github:rustshop/flakebox?rev=a7d0a93133cb0352835cc60a5ba3a7cd094aba37";
+      url = "github:rustshop/flakebox?rev=6189be5fc6df1e687d284d882662f08afede259f";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
+    };
+
+    wild = {
+      url = "github:davidlattimore/wild/0.9.0";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
 
     fs-dir-cache = {
@@ -58,6 +63,7 @@
       cargo-deluxe,
       android-nixpkgs,
       flakebox,
+      wild,
       andy,
       llm-agents,
       ...
@@ -89,6 +95,16 @@
             fedimint-pkgs.overlays.all
 
             (final: prev: {
+              # wild 0.9.0 (nixpkgs 26.05 only carries 0.8.0), used by flakebox's
+              # linker module for host builds. Same setup as upstream fedimint.
+              inherit
+                (import nixpkgs-unstable {
+                  inherit system;
+                  overlays = [ (import wild) ];
+                })
+                wild
+                wild-unwrapped
+                ;
               rocksdb_7_10 = nixpkgs.legacyPackages.${system}.rocksdb_7_10;
               fs-dir-cache = fs-dir-cache.packages.${system}.default;
               cargo-deluxe = cargo-deluxe.packages.${system}.default;
@@ -213,6 +229,7 @@
         flakeboxLib = flakebox.lib.mkLib pkgs {
           # customizations will go here in the future
           config = {
+            linker.wild.enable = true;
             toolchain.channel = "stable";
             rust.rustfmt.content = ''
               group_imports = "StdExternalCrate"

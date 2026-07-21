@@ -111,7 +111,11 @@ in
         # librocksdb-sys 0.17+ no longer reliably propagates C++ stdlib
         # linkage from RocksDB, which leaves final binaries with undefined
         # std::* symbols during Nix builds.
-        "CARGO_TARGET_${build_arch_upper}_RUSTFLAGS" = "-C link-arg=-lstdc++";
+        # Appended to the toolchain's own flags (wild linker etc.) instead of a plain
+        # assignment, because this env attr overrides flakebox's toolchain env.
+        "CARGO_TARGET_${build_arch_upper}_RUSTFLAGS" = "${
+          toolchains.default.commonArgs."CARGO_TARGET_${build_arch_upper}_RUSTFLAGS" or ""
+        } -C link-arg=-lstdc++";
 
         # does not produce static lib in most versions
         "SNAPPY_${build_arch_underscores}_STATIC" = "true";
