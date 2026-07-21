@@ -196,7 +196,6 @@ ln-gateway = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7
 
 [profile.dev]
 debug = "line-tables-only"
-incremental = false
 opt-level = 1
 
 # in dev mode optimize crates that are perf-critical (usually just crypto crates)
