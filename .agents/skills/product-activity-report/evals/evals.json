@@ -1,0 +1,26 @@
+{
+  "skill_name": "product-activity-report",
+  "evals": [
+    {
+      "id": 0,
+      "name": "shipped-product-repo",
+      "prompt": "can you put together a rundown of what the team's been working on lately in the fedi repo? something i can forward to the ops folks, they're not engineers so keep it readable",
+      "expected_output": "Inline briefing of at most 10 plain-language product items plus a linked HTML report. Liveness claims verified against release tags and production feature flags, not inferred from merges. Native and web release states distinguished where they differ.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "pre-product-repo",
+      "prompt": "what's moving in fedibtc/decentralized-federations? i want a product update on it for thursday",
+      "expected_output": "A real report at the capability altitude (what is being built and how far along), with an explicit up-front statement that none of it is in users' hands, and no Shipped status anywhere. Not an empty report.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "multi-repo-merged",
+      "prompt": "i need one summary covering both fedibtc/fedi and fedibtc/decentralized-federations for the leadership sync tomorrow. what's happening across both?",
+      "expected_output": "A single merged ranked list covering both repos, each item tagged with its source repo, rendered as one HTML report rather than two separate reports.",
+      "files": []
+    }
+  ]
+}
