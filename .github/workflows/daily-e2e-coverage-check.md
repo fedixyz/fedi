@@ -29,6 +29,9 @@ network:
     - node
 
 safe-outputs:
+  report-failure-as-issue: false
+  report-incomplete:
+    create-issue: false
   create-pull-request:
     title-prefix: "[e2e coverage] "
     labels: [testing, "e2e testing", "ai generated"]
