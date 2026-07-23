@@ -81,6 +81,20 @@ export type RootStackParamList = {
         federationId?: Federation['id']
         memo?: string
     }
+    MerchantProducts: { federationId?: Federation['id'] }
+    MerchantCatalogEdit: { federationId?: Federation['id'] }
+    MerchantCatalogShare: { federationId?: Federation['id'] }
+    MerchantCatalogOrder: { d?: string }
+    MerchantAmount: { federationId?: Federation['id'] }
+    MerchantQr: {
+        invoice: string
+        amountSats: Sats
+        federationId?: Federation['id']
+    }
+    MerchantSuccess: {
+        amountSats: Sats
+        federationId?: Federation['id']
+    }
     BugReportSuccess: undefined
     CameraPermission: { nextScreen: keyof RootStackParamList } | undefined
     ChatImageViewer: { uri: string; downloadable?: boolean }

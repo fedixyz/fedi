@@ -152,6 +152,17 @@ export const screenMap = {
         return { kind: 'root', screen: 'JoinFederation' }
     },
     'share-logs': () => ({ kind: 'root', screen: 'ShareLogs' }),
+    'merchant-pos': () => ({ kind: 'root', screen: 'MerchantProducts' }),
+    'merchant-catalog': (params: Record<string, string>) => {
+        const d = params?.d
+        if (d)
+            return {
+                kind: 'root',
+                screen: 'MerchantCatalogOrder',
+                params: { d },
+            }
+        return { kind: 'root', screen: 'MerchantCatalogOrder' }
+    },
     'join-then-ecash': (params: Record<string, string>) => {
         const { invite, ecash } = params
         if (!invite || !ecash) return undefined
