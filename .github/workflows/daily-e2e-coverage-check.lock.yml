@@ -1041,6 +1041,12 @@ jobs:
         run: |
           node scripts/ci/validate-e2e-audit-output.mjs --self-test
           node scripts/ci/validate-e2e-audit-output.mjs --agent-output /tmp/gh-aw/agent_output.json --context /tmp/gh-aw/e2e-audit-context.json --patch-dir /tmp/gh-aw
+      - name: Retry transient audit failures
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_AW_WORKFLOW_FILE: daily-e2e-coverage-check.lock.yml
+        run: bash scripts/ci/retry-e2e-audit.sh
       - name: Parse agent logs for step summary
         if: always()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
