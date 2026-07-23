@@ -1,12 +1,12 @@
 ---
 name: product-activity-report
 description: >-
-  Report GitHub product activity in plain language: what is moving in the product across a repo's pull requests and issues (features being built, fixes landing, improvements shipping), ranked by recent activity and written so a non-technical reader (product, ops, leadership) understands it at a glance. ALWAYS use this when someone asks for product activity, a product activity report, product activity on GitHub, GitHub activity, repo activity, or what the GitHub activity says about the product, for one repo or several. Equally, use it when they never mention GitHub at all and ask what is the team working on, what's new, what shipped, what changed recently, what's coming, or want a "product update", "activity summary", "recent work rundown", "what's happening" or "what have we been up to" overview. Covers shipped, in-progress, and planned work, not just bugs. Verifies what is genuinely live per platform (native and web release separately) instead of assuming a merge means shipped. Handles repos whose product has not launched yet. Filters out developer-only work with no user impact. Produces a quick inline list plus a richer linked HTML report. Reach for it instead of dumping raw PR or issue titles.
+  Turn a repo's pull requests and issues into a plain-language report of what is moving in the product, for a non-technical reader. Use for any ask about product activity or GitHub activity, and for "what is the team working on", "what shipped", "what changed recently", "what's coming", or a product update. Prefer product-bug-report when the ask is only about bugs.
 ---
 
 # Product activity report
 
-This is the broader sibling of the `product-bug-report` skill. That one answers "what's broken." This one answers "what's moving in the product" across everything: new features, fixes, and improvements, whether they just shipped, are being built, or are planned. If the request is specifically and only about bugs, prefer `product-bug-report`. If the request is specifically about the contents of the next release cut, prefer `report-next-release`.
+This answers "what's moving in the product" across everything: new features, fixes, and improvements, whether they just shipped, are being built, or are planned. Hand off to `product-bug-report` when the ask is specifically about what is broken. Where a `report-next-release` skill is installed, hand off to that when the ask is specifically about what the next release cut contains.
 
 ## Who this is for, and why that changes everything
 
@@ -48,9 +48,11 @@ The repo is not always `fedibtc/fedi`. Take it from the request, defaulting to `
 
 ```bash
 REPO=fedibtc/fedi
-REPO_PATH=~/fedibtc/fedi   # a local clone, needed for the release checks in Step 4
+REPO_PATH=$(git rev-parse --show-toplevel)   # a clone of $REPO, for the release checks in Step 4
 git -C "$REPO_PATH" fetch --tags origin --quiet
 ```
+
+When the report covers a repo you are not standing in, clone it somewhere first and point `REPO_PATH` there. Without a clone the release checks cannot run, and every item falls back to "merged, cannot confirm release", which is honest but much less useful.
 
 Fetch the tags before anything else. A local clone that is a few days stale is missing the newest release tag, and every release check in Step 4 then quietly answers against the wrong baseline, reporting shipped work as unreleased. This failure is silent, which is what makes it worth one command up front.
 
@@ -143,6 +145,8 @@ Three things about this repo's release model make the naive version of this chec
 
 **Release lineages are cut from the previous release tag, not from master.** A web release is the last `web/X.Y.Z` tag plus only the specific commits intended for it, cherry-picked. Master is never deployed, so "merged to master" carries no information about liveness at all, and a change can sit merged for months while releases go out around it. It also means containment is not ancestry: the master-side merge commit is not an ancestor of the release tag, and a naive `git merge-base --is-ancestor` says "no" for work that plainly did ship. The script checks ancestry, then the PR number, then the PR title in commits reachable from the ref, which is what finds a change listed inside a squashed backport commit, and prints which method answered.
 
+The title check is the weak one, so it comes with a guard. A squashed backport lists what it carried by title, and titles repeat, most often between a change and the revert that undid it. So a title hit only counts when exactly one pull request in the repo owns that title. When several do, the script reports `maybe` rather than `in`, and a `maybe` is not liveness. Go read the ref, or leave the item at `Merged, pending release`.
+
 **Native and web are independent products for this purpose, so parity is a fact you check, never one you assume.** They are cut on different schedules by different people, so an item is routinely live on one and absent from the other, and neither direction is the default. The script's `live on:` line is the answer. Carry it into the report: the status chip has one slot, so give it the platform where most users are, and make the summary's first sentence say the split in plain words, as in "live on the phone; reaching the web app with its next release". A reader who is told "it's live" and then cannot find it on the surface they use has been told something false, and that is the mistake they remember. When an item is live on neither, it is `Merged, pending release` no matter how long ago it merged.
 
 For gate 3, read the real production values, never infer them from a merge:
@@ -222,13 +226,13 @@ One warning about recency: a feature that has been live for months but whose onl
 
 Write a JSON file capturing your synthesis. This is the only judgment-heavy artifact you produce, and a bundled script turns it into both outputs so the quick list and the rich report can never disagree.
 
-Put it in a scratch run directory rather than `/tmp`, so the artifacts survive and stay findable:
+Put it somewhere outside the repo, so a report never lands in a commit. If your setup has a convention for throwaway artifacts, follow it. Otherwise a temp directory works:
 
 ```bash
-RUN=$(scratch new product-activity-report "activity report for $REPO")
+RUN=$(mktemp -d -t product-activity-report)
 ```
 
-Write the JSON to `$RUN/files/activity-report.json`:
+Write the JSON to `$RUN/activity-report.json`:
 
 ```json
 {
@@ -272,8 +276,8 @@ Run the bundled renderer. It writes the HTML report and prints the inline briefi
 
 ```bash
 python3 "<skill-dir>/scripts/render_report.py" \
-  "$RUN/files/activity-report.json" \
-  "$RUN/reports/activity-report-$(date +%F).html"
+  "$RUN/activity-report.json" \
+  "$RUN/activity-report-$(date +%F).html"
 ```
 
 Replace `<skill-dir>` with this skill's own directory (the base directory shown when the skill loads).

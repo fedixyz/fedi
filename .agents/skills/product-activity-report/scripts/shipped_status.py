@@ -90,7 +90,16 @@ def deployed_refs(repo, repo_path):
         for track, tag in newest_tag_per_track(repo_path).items():
             refs.setdefault(track, (tag, "newest tag, NOT confirmed deployed"))
 
-    return {t: v for t, v in refs.items() if have_ref(repo_path, v[0])}
+    # Dropping an unusable track silently reads as "no such platform" rather
+    # than "could not check", so say so and let the caller decide.
+    usable, missing = {}, []
+    for track, (ref, how) in refs.items():
+        (usable.setdefault(track, (ref, how)) if have_ref(repo_path, ref)
+         else missing.append((track, ref)))
+    for track, ref in missing:
+        print(f"WARNING: {track} deployed {ref}, which is not in this clone. "
+              f"Fetch it, or treat {track} as unknown rather than unshipped.")
+    return usable
 
 
 def have_ref(repo_path, ref):
@@ -108,17 +117,39 @@ def grep_ref(repo_path, ref, needle):
     return out.strip() if code == 0 else ""
 
 
-def contains(repo_path, sha, ref, number, title):
-    """(is_contained, how) for work that may have been merged OR cherry-picked."""
+_title_owners = {}
+
+
+def title_is_unique(repo, title):
+    """A title identifies work only when one PR owns it.
+
+    A squashed backport lists what it carried by title, the only handle on
+    cherry-picked work, and a change and its revert usually share one.
+    """
+    if title in _title_owners:
+        return _title_owners[title]
+    code, out, _ = run(
+        ["gh", "pr", "list", "--repo", repo, "--state", "all", "--limit", "20",
+         "--search", f'"{title}" in:title', "--json", "title",
+         "--jq", f'[.[] | select(.title == {json.dumps(title)})] | length'])
+    unique = code == 0 and out.strip().isdigit() and int(out.strip()) <= 1
+    _title_owners[title] = unique
+    return unique
+
+
+def contains(repo, repo_path, sha, ref, number, title):
+    """(verdict, how) where verdict is "in", "maybe", or "" for absent."""
     if sha:
         code, _, _ = run(["git", "merge-base", "--is-ancestor", sha, ref], cwd=repo_path)
         if code == 0:
-            return True, "merged"
+            return "in", "merged"
     if grep_ref(repo_path, ref, f"(#{number})"):
-        return True, "cherry-picked, cited by number"
+        return "in", "cherry-picked, cited by number"
     if title and grep_ref(repo_path, ref, title):
-        return True, "cherry-picked, listed by title"
-    return False, "absent"
+        if title_is_unique(repo, title):
+            return "in", "cherry-picked, listed by title"
+        return "maybe", "title shared with another pr, confirm before claiming"
+    return "", "absent"
 
 
 def describe(repo, number):
@@ -181,17 +212,22 @@ def main():
             print(f"{line} not merged -> In progress\n    {info['title']}\n")
             continue
         print(f"{line} merged={merged_at} {sha[:10]}")
-        live_on, cherry = [], False
+        live_on, unconfirmed, cherry = [], [], False
         for track, (ref, _) in sorted(refs.items()):
-            state, how = contains(args.repo_path, sha, ref, number, info["title"])
-            print(f"    {'in' if state else 'NOT in':<6} {ref} ({track}) [{how}]")
-            if state:
+            verdict, how = contains(args.repo, args.repo_path, sha, ref, number, info["title"])
+            label = {"in": "in", "maybe": "maybe"}.get(verdict, "NOT in")
+            print(f"    {label:<6} {ref} ({track}) [{how}]")
+            if verdict == "in":
                 live_on.append(track)
                 cherry = cherry or how.startswith("cherry")
+            elif verdict == "maybe":
+                unconfirmed.append(track)
         if not refs:
             print("    nothing deployed to check against")
-        verdict = ", ".join(live_on) if live_on else "no platform"
-        print(f"    live on: {verdict}")
+        print(f"    live on: {', '.join(live_on) if live_on else 'no platform'}")
+        if unconfirmed:
+            print(f"    unconfirmed on {', '.join(unconfirmed)}: a title match alone can")
+            print("    hit a revert or a same-titled pr, so do not report it as live")
         if cherry:
             print("    cherry-picked: confirm the feature's own code is at that ref,")
             print("    not just a flag flip, before calling it live on that platform")
