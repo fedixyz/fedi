@@ -79,12 +79,34 @@ crap *ARGS="--workspace":
 
 
 # run `cargo clippy` on everything
-clippy *ARGS="--locked --all-targets":
-  cargo clippy {{ARGS}}
-  cargo clippy --package fedi-wasm --target wasm32-unknown-unknown {{ARGS}} -- --deny warnings --allow deprecated
+clippy *ARGS="--locked":
+  cargo clippy --all-targets {{ARGS}}
+  just clippy-wasm {{ARGS}}
+
+[private]
+clippy-wasm *ARGS:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  workspace_packages=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[].name' | sort)
+  wasm_dependencies=$(cargo tree --locked --target wasm32-unknown-unknown --package fedi-wasm --edges normal,build --prefix none | sed 's/ v[0-9].*//' | sort -u)
+  wasm_packages=$(
+    comm -12 \
+      <(printf '%s\n' "$workspace_packages") \
+      <(printf '%s\n' "$wasm_dependencies")
+  )
+  if [[ -z "$wasm_packages" ]]; then
+    echo "fedi-wasm has no workspace dependencies to lint" >&2
+    exit 1
+  fi
+  mapfile -t packages <<< "$wasm_packages"
+  package_args=()
+  for package in "${packages[@]}"; do
+    package_args+=(--package "$package")
+  done
+  CLIPPY_CONF_DIR="$PWD/.config/clippy-wasm" cargo clippy "${package_args[@]}" --lib --no-deps --target wasm32-unknown-unknown {{ARGS}} -- --deny warnings --allow deprecated
 
 # run `cargo clippy --fix` on everything
-clippy-fix *ARGS="--locked --all-targets":
+clippy-fix *ARGS="--locked":
   just clippy {{ARGS}} --fix
 
 

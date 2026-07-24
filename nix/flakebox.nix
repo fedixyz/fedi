@@ -384,12 +384,14 @@ in
     workspaceWasmClippyDeps = craneLib.buildDepsOnly {
       pname = "fedi-wasm-clippy-deps";
       nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.jq ];
+      CLIPPY_CONF_DIR = "${rustSrc}/.config/clippy-wasm";
       preBuild = wasmClippyPreBuild;
       buildPhaseCargoCommand = "cargoWithProfile clippy --locked ${wasmClippyArgs}";
     };
 
     workspaceWasmClippy = craneLib.cargoClippy {
       cargoArtifacts = workspaceWasmClippyDeps;
+      CLIPPY_CONF_DIR = "${rustSrc}/.config/clippy-wasm";
       cargoClippyExtraArgs = "${wasmClippyArgs} -- --deny warnings --allow deprecated";
       doInstallCargoArtifacts = false;
     };

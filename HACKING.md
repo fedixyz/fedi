@@ -315,18 +315,23 @@ whitespace. `just lint` sets `NO_STASH=true` and checks the current worktree dir
 
 ## Rust conventions
 
-Beyond what `rustfmt` and `clippy` enforce, this codebase has rules that exist because the same code
-must compile to WASM, where much of `std` misbehaves. `.config/semgrep.yaml` enforces them:
+Beyond what `rustfmt` and the default Clippy configuration enforce, this codebase has rules that
+exist because the same code must compile to WASM, where much of `std` misbehaves.
+`.config/semgrep.yaml` and `.config/clippy-wasm/clippy.toml` enforce them:
 
 | Don't | Do | Why |
 | --- | --- | --- |
 | `SystemTime::now`, `Instant::now` | `fedimint_core::time::now` | WASM compatibility |
+| Native threads or blocking MPSC receives | Async tasks and channels | Blocking APIs do not work in WASM |
 | `tokio::spawn` | `fedimint_core::task::spawn` | Names the task |
 | `tokio::time::sleep` | `fedimint_core::task::sleep` | Does not work in WASM |
 | `fs::write`, `File::create` | `fedimint_core::util::write_overwrite` | Be explicit on overwrite |
 | `use foo::*` | Name your imports | Except `use super::*` in test modules |
 
-`.clippy.toml` additionally bans `tokio::sync::watch::Sender::send` — use `send_replace`.
+The root `.clippy.toml` additionally bans `tokio::sync::watch::Sender::send` — use `send_replace`.
+The WASM Clippy recipe selects `.config/clippy-wasm` through `CLIPPY_CONF_DIR`. Clippy replaces the
+root configuration rather than extending it, so the WASM configuration must duplicate shared bans
+and stay synchronized with the root configuration.
 
 `.rustfmt.toml` sets edition 2024, `StdExternalCrate` import grouping, `Module` import granularity,
 and comment wrapping. Just run `just format`.

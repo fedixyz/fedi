@@ -1,0 +1,16 @@
+disallowed-methods = [
+    { path = "tokio::sync::watch::Sender::send", reason = "use send_replace instead" },
+    { path = "std::time::SystemTime::now", reason = "use fedimint_core::time::now for WASM compatibility" },
+    { path = "std::time::SystemTime::elapsed", reason = "use fedimint_core::time for WASM compatibility" },
+    { path = "std::thread::spawn", reason = "native threads are unavailable in Fedi's WASM runtime" },
+    { path = "std::thread::sleep", reason = "do not block Fedi's WASM runtime" },
+    { path = "std::sync::mpsc::Receiver::recv", reason = "do not block Fedi's WASM runtime" },
+    { path = "std::sync::mpsc::Receiver::recv_timeout", reason = "do not block Fedi's WASM runtime" },
+    { path = "std::sync::mpsc::Receiver::iter", reason = "do not block Fedi's WASM runtime" },
+]
+
+disallowed-types = [
+    { path = "std::time::Instant", reason = "use fedimint_core::time for WASM compatibility" },
+    { path = "tokio::time::Instant", reason = "use fedimint_core::time for WASM compatibility" },
+    { path = "std::thread::Builder", reason = "native threads are unavailable in Fedi's WASM runtime" },
+]
