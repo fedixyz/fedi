@@ -1041,12 +1041,6 @@ jobs:
         run: |
           node scripts/ci/validate-e2e-audit-output.mjs --self-test
           node scripts/ci/validate-e2e-audit-output.mjs --agent-output /tmp/gh-aw/agent_output.json --context /tmp/gh-aw/e2e-audit-context.json --patch-dir /tmp/gh-aw
-      - name: Retry transient audit failures
-        if: failure()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN || secrets.GITHUB_TOKEN }}
-          GH_AW_WORKFLOW_FILE: daily-e2e-coverage-check.lock.yml
-        run: bash scripts/ci/retry-e2e-audit.sh
       - name: Parse agent logs for step summary
         if: always()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1167,6 +1161,7 @@ jobs:
       needs.activation.outputs.stale_lock_file_failed == 'true' || needs.activation.outputs.daily_ai_credits_exceeded == 'true')
     runs-on: ubuntu-slim
     permissions:
+      actions: write
       contents: write
       issues: write
       pull-requests: write
@@ -1208,6 +1203,19 @@ jobs:
           mkdir -p /tmp/gh-aw/
           find "/tmp/gh-aw/" -type f -print
           echo "GH_AW_AGENT_OUTPUT=/tmp/gh-aw/agent_output.json" >> "$GITHUB_OUTPUT"
+      - name: Checkout retry script
+        if: needs.agent.result == 'failure'
+        continue-on-error: true
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          sparse-checkout: scripts/ci
+      - name: Retry transient audit failures
+        if: needs.agent.result == 'failure'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_AW_WORKFLOW_FILE: daily-e2e-coverage-check.lock.yml
+        run: bash scripts/ci/retry-e2e-audit.sh
       - name: Explain the run outcome in the step summary
         if: always()
         continue-on-error: true
