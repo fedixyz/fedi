@@ -1752,9 +1752,13 @@ impl FederationV2 {
         assert!(!self.recovering());
 
         let client_config = self.client.config().await;
-        let (mint_instance, cfg) = client_config
-            .get_first_module_by_kind::<MintClientConfig>(fedimint_mint_client::KIND)
-            .expect("mint module must be present in config");
+        // Blind-nonce reuse is a v1 mint concept; a kind-two federation has no
+        // mint module and nothing to check.
+        let Ok((mint_instance, cfg)) =
+            client_config.get_first_module_by_kind::<MintClientConfig>(fedimint_mint_client::KIND)
+        else {
+            return true;
+        };
 
         let mut dbtx = self.client.db().begin_transaction().await;
         let Some(version_set) = dbtx.get_value(&CachedApiVersionSetKey).await else {

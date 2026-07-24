@@ -138,34 +138,34 @@ matrix-sdk-ui = { git = "https://github.com/fedibtc/matrix-rust-sdk", tag = "fed
 
 fedimint_threshold_crypto = { version = "0.2.1", package = "fedimint-threshold-crypto" }
 
-fedimintd = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-cli = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-build = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-server = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-server-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-client-module = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-tbs = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-mintv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-walletv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-lnv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-aead = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-rocksdb = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-bip39 = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-logging = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-portalloc = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-fedimint-cursed-redb = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-devimint = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
-ln-gateway = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi7" }
+fedimintd = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-cli = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-build = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-core = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-server = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-server-core = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-client-module = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-tbs = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-mintv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-walletv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-lnv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-aead = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-rocksdb = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-bip39 = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-logging = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-portalloc = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+fedimint-cursed-redb = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+devimint = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
+ln-gateway = { git = "https://github.com/fedibtc/fedimint", rev = "00fa5a484388a4084c9c3d7046d6b79dc2379d6b" }
 
 
 # Uncomment these to use local fedimint v2
@@ -240,6 +240,6 @@ debug = false
 [patch.crates-io]
 # https://github.com/mozilla/uniffi-rs/issues/1938
 uniffi = { git = "https://github.com/mozilla/uniffi-rs", rev = "f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8" }
-iroh = { git = "https://github.com/fedibtc/iroh", branch = "ma/0.35.0-no-holepunch" }
-iroh-base = { git = "https://github.com/fedibtc/iroh", branch = "ma/0.35.0-no-holepunch" }
-iroh-relay = { git = "https://github.com/fedibtc/iroh", branch = "ma/0.35.0-no-holepunch" }
+iroh = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }
+iroh-base = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }
+iroh-relay = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }

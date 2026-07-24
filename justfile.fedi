@@ -26,6 +26,9 @@ build-wasm-nix:
 test-bridge testcase="":
    ./scripts/test-bridge.sh "{{testcase}}"
 
+test-bridge-kind-two testcase="":
+   ./scripts/test-bridge-kind-two.sh "{{testcase}}"
+
 test-stability-pool:
   ./scripts/test-stability-pool.sh
 

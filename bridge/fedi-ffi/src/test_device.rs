@@ -9,6 +9,7 @@ use bridge::{Bridge, BridgeFull};
 use devimint::cmd;
 use devimint::util::LnCli;
 use federations::federation_v2::FederationV2;
+use federations::federation_v2::client::ClientExt;
 use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::task::TaskGroup;
 use matrix::Matrix;
@@ -283,6 +284,12 @@ impl FakeEventSink {
 /// Get LND pubkey using lncli, then have `federation` switch to using
 /// whatever gateway is using that node pubkey
 pub async fn use_lnd_gateway(federation: &FederationV2) -> anyhow::Result<()> {
+    // Without lnv1 there are no gateway registrations to pin: lnv2 gateways
+    // are guardian-vetted, and tests exercising lightning on such a
+    // federation set that vetting up themselves.
+    if federation.client.ln().is_err() {
+        return Ok(());
+    }
     let lnd_node_pubkey: PublicKey = cmd!(LnCli, "getinfo").out_json().await?["identity_pubkey"]
         .as_str()
         .map(|s| s.to_owned())

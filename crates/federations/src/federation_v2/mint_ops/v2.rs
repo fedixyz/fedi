@@ -3,7 +3,7 @@ use bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
 use fedimint_client::module::oplog::OperationLogEntry;
 use fedimint_core::base32::{FEDIMINT_PREFIX, decode_prefixed, encode_prefixed};
 use fedimint_core::core::OperationId;
-use fedimint_core::{Amount, apply, async_trait_maybe_send};
+use fedimint_core::{Amount, OutPointRange, apply, async_trait_maybe_send};
 use fedimint_mintv2_client::{
     ECash as MintV2ECash, FinalReceiveOperationState as MintV2FinalReceiveOperationState,
     MintOperationMeta as MintV2OperationMeta,
@@ -21,6 +21,37 @@ use super::super::{FederationTransactionParts, FederationV2, get_max_spendable_a
 use super::MintOps;
 
 pub struct MintOpsV2;
+
+impl MintOpsV2 {
+    /// Whether a receive that reached
+    /// [`MintV2FinalReceiveOperationState::Success`] has credited the balance.
+    ///
+    /// Success only means the federation accepted the transaction; the balance
+    /// credit is the change issuance that follows, driven by state machines
+    /// that share the receive's operation id. The receive is settled once none
+    /// of them is active anymore.
+    async fn receive_settled(fed: &FederationV2, operation_id: OperationId) -> bool {
+        !fed.client.has_active_states(operation_id).await
+    }
+
+    /// Waits for a successful receive to settle per [`Self::receive_settled`].
+    async fn await_receive_settled(
+        fed: &FederationV2,
+        operation_id: OperationId,
+        change_outpoint_range: OutPointRange,
+    ) {
+        if let Err(e) = fed
+            .client
+            .await_primary_bitcoin_module_outputs(
+                operation_id,
+                change_outpoint_range.into_iter().collect(),
+            )
+            .await
+        {
+            warn!("mintv2 change issuance await failed: {e:?}");
+        }
+    }
+}
 
 #[apply(async_trait_maybe_send!)]
 impl MintOps for MintOpsV2 {
@@ -191,7 +222,9 @@ impl MintOps for MintOpsV2 {
     ) {
         match operation.meta::<MintV2OperationMeta>() {
             MintV2OperationMeta::Receive {
-                ecash, custom_meta, ..
+                ecash,
+                change_outpoint_range,
+                custom_meta,
             } => {
                 if let Ok(decoded) = decode_prefixed::<MintV2ECash>(FEDIMINT_PREFIX, &ecash) {
                     let amount = decoded.amount();
@@ -213,6 +246,14 @@ impl MintOps for MintOpsV2 {
                             .await;
                         match final_state {
                             Ok(MintV2FinalReceiveOperationState::Success) => {
+                                // Wait for settlement so listeners see the new
+                                // balance when the event fires.
+                                MintOpsV2::await_receive_settled(
+                                    &fed,
+                                    operation_id,
+                                    change_outpoint_range,
+                                )
+                                .await;
                                 if !is_fee_exempt {
                                     let _ = fed
                                         .write_success_receive_fedi_fees(operation_id, amount)
@@ -248,8 +289,8 @@ impl MintOps for MintOpsV2 {
 
     async fn get_transaction(
         &self,
-        _fed: &FederationV2,
-        _operation_id: OperationId,
+        fed: &FederationV2,
+        operation_id: OperationId,
         entry: OperationLogEntry,
         fedi_fee_msats: u64,
     ) -> anyhow::Result<Option<FederationTransactionParts>> {
@@ -294,16 +335,25 @@ impl MintOps for MintOpsV2 {
                 let amount = decode_prefixed::<MintV2ECash>(FEDIMINT_PREFIX, &ecash)
                     .map(|ecash| ecash.amount())
                     .unwrap_or(Amount::ZERO);
-                let state = entry
+                let state = match entry
                     .try_outcome::<MintV2FinalReceiveOperationState>()
                     .ok()
                     .flatten()
-                    .map(|state| match state {
-                        MintV2FinalReceiveOperationState::Success => RpcOOBReissueState::Done,
-                        MintV2FinalReceiveOperationState::Rejected => RpcOOBReissueState::Failed {
+                {
+                    Some(MintV2FinalReceiveOperationState::Success) => {
+                        if Self::receive_settled(fed, operation_id).await {
+                            Some(RpcOOBReissueState::Done)
+                        } else {
+                            None
+                        }
+                    }
+                    Some(MintV2FinalReceiveOperationState::Rejected) => {
+                        Some(RpcOOBReissueState::Failed {
                             error: "rejected by federation".into(),
-                        },
-                    });
+                        })
+                    }
+                    None => None,
+                };
                 Ok(Some(FederationTransactionParts {
                     amount: RpcAmount(amount),
                     kind: if extra_meta.reason == EcashReceiveReason::Cancel {

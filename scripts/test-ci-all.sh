@@ -75,6 +75,11 @@ function test_bridge_use_upstream_fedimintd() {
 }
 export -f test_bridge_use_upstream_fedimintd
 
+function test_bridge_kind_two() {
+  fm-run-test "${FUNCNAME[0]}" ./scripts/test-bridge-kind-two.sh
+}
+export -f test_bridge_kind_two
+
 tests_to_run_in_parallel=()
 for _ in $(seq "${FM_TEST_CI_ALL_TIMES:-1}"); do
 # NOTE: try to keep the slowest tests first, except 'always_success_test',
@@ -87,6 +92,7 @@ tests_to_run_in_parallel+=(
   test_stability_pool
   test_bridge
   test_bridge_use_upstream_fedimintd
+  test_bridge_kind_two
 )
 done
 

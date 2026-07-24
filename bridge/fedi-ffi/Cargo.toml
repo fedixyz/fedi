@@ -96,6 +96,7 @@ uniffi = { version = "0.25.3", features = ["build"] }
 fedimint-build = { workspace = true }
 
 [dev-dependencies]
+fedimint-mintv2-client = { workspace = true }
 redb-storage = { workspace = true }
 assert_matches = { workspace = true }
 tempfile = "3.17.1"

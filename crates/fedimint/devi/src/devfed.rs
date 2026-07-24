@@ -53,6 +53,19 @@ impl DevFed {
         let ((), (), _, synapse, nostr_relay, ()) = tokio::try_join!(
             async {
                 let client = dev_fed.internal_client().await?;
+                // Walletv2 has no deposit state machine (deposits are
+                // auto-claimed), so there is no operation to await: watch the
+                // balance instead, like upstream's `Federation::pegin_client`.
+                let initial_balance = if devimint::util::supports_wallet_v2() {
+                    // The walletv2 server module skips all blocks that predate
+                    // its first consensus block count vote. Make sure that vote
+                    // happened before depositing, or the deposit is skipped
+                    // and never claimed.
+                    dev_fed.fed().await?.await_block_sync().await?;
+                    Some(client.balance().await?)
+                } else {
+                    None
+                };
                 let (address, operation_id) = client.get_deposit_addr().await?;
                 dev_fed
                     .bitcoind()
@@ -60,7 +73,15 @@ impl DevFed {
                     .send_to(address, client_pegin_amount)
                     .await?;
                 dev_fed.bitcoind().await?.mine_blocks_no_wait(11).await?;
-                client.await_deposit(&operation_id).await?;
+                match initial_balance {
+                    // 10% slack for mintv2 note-issuance fees, as upstream.
+                    Some(initial) => {
+                        client
+                            .await_balance(initial + client_pegin_amount * 1000 * 9 / 10)
+                            .await?;
+                    }
+                    None => client.await_deposit(&operation_id).await?,
+                }
 
                 if seed_spv2_liquidity {
                     // Deposit to SPV2 stability pool as liquidity provider
