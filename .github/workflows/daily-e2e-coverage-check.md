@@ -199,6 +199,18 @@ Constraints specific to this workflow, on top of the guide:
 - When selecting by visible text, pass the instance index `0` and exact match explicitly. `scrollToText` defaults to instance 1, which only matches when a platform exposes the same label twice; android usually exposes it once, so the default scrolls past the element and returns null. Settings drawer rows are clicked by key with their label text (the pressable merges its label into the accessibility id), matching the existing settings suite.
 - When asserting rendered text that contains a number, read the formatter the screen uses before hardcoding the string. Amount displays group thousands through `amountUtils.formatNumber`, so 1000 sats renders as `1,000 SATS`, and an ungrouped assertion times out on every platform.
 
+### Code Comments
+
+The default is no comment. Write one only when it names a constraint the code cannot show, one a future editor would otherwise violate: why a leg runs at this position, why a selector strategy is forced (a runtime-keyed testID, a platform accessibility difference), why state must be restored (a later suite reuses it), or a genuine trap like an overlay that intercepts navigation. One or two lines, said plainly.
+
+Never write comments that:
+
+- restate what the next line does ("open settings", "enter the amount", "verify the balance") or narrate the flow step by step; `console.log` progress markers and the flow's own method names already carry the story
+- describe this run's task, the gap, or the tracking issue; that context lives in the commit message and PR body
+- explain a choice without naming the wrong edit it prevents
+
+When extending an existing suite, match its comment density and conventions (for example the payments suite's `// Phase N:` markers or the join/leave suite's `// END of ...` markers) instead of inventing new ones.
+
 ## Validation
 
 The native workspace's full typecheck and build need wasm artifacts the Rust bridge produces; they do not exist on this runner and cannot be built here. The appium test tree is deliberately self-contained, and `ui/native/tsconfig.appium.json` typechecks exactly that tree without them. Do not run `yarn lint:tsc`, `yarn build:deps`, or any repo-wide build: they fail here for reasons unrelated to your change.
@@ -266,7 +278,20 @@ Run the Validation steps. Only proceed to a pull request when typecheck, lint, a
 
 Name the `create_pull_request` branch `e2e-coverage/<short-kebab-slug>`, for example `e2e-coverage/onchain-receive`. The `e2e-coverage/` prefix is required so the branch groups with the rest of the repo's `owner/topic` branches. Do not add your own uniqueness suffix, the workflow appends one. Use the same name for the local `git` branch you commit on.
 
-A `create_pull_request` is a normal developer pull request addressing the tracking issue, following the repository pull request template: `## Description` with `ref #<issue>`, the user-facing flow covered and its key, which existing suite gained the flow (or, only for a genuinely new suite, the reviewer follow-up of adding it to `inputs.tests.options` in `.github/workflows/e2e-tests.yml`, and to `_tests_need_devfed()` in `scripts/ci/e2e-pipeline.sh` when it uses the dev fed), and any assumptions a reviewer should double-check; `## Testing` stating explicitly that each check ran and passed, with the word passed (the scoped appium typecheck via `tsc -p tsconfig.appium.json`, eslint on the changed files, the required-actors registration check for the suite that gained the flow, prettier), and that device execution was not run in this environment (`gh workflow run e2e-tests.yml -f tests=<suite>` runs an extended existing suite selectively; `tests=all` covers everything). The commit message is a conventional `test(e2e): ...` subject plus motivation bullets.
+A `create_pull_request` is a normal developer pull request addressing the tracking issue, written for a reviewer who has not seen the diff and was not part of this run.
+
+`## Description` contains, in order:
+
+- `ref #<issue>` on its own line
+- one or two sentences of prose walking the user-facing flow the test drives, naming the flow key and which existing suite gained it. Describe behavior, not mechanics: name what the user does and what the test asserts, and mention a symbol only when the reviewer needs it to locate something in the diff
+- one sentence on placement: why this suite owns the flow (shared state, shared prologue, or shared tracking issue), or, for a genuinely new suite, why no existing suite passes through the needed state plus the reviewer follow-up of adding it to `inputs.tests.options` in `.github/workflows/e2e-tests.yml` (and to `_tests_need_devfed()` in `scripts/ci/e2e-pipeline.sh` when it uses the dev fed)
+- any assumption a reviewer should double-check, only if one exists
+
+Do not enumerate touched files or registration plumbing the diff already shows, do not list each helper reused, do not add a bullet per mechanical step, and do not use em dashes anywhere in the body or commit. The description is a few sentences of prose, not a changelog.
+
+`## Testing` is two bullets: one comma-joined sentence stating the word passed for the scoped appium typecheck via `tsc -p tsconfig.appium.json`, eslint on the changed files, the required-actors registration check for the suite that gained the flow, and prettier; and one stating device execution was not run in this environment and is pending, with the dispatch command a human runs (`gh workflow run e2e-tests.yml -f tests=<suite>` for an extended existing suite; `tests=all` covers everything). Do not paste each command as its own bullet with its full flags.
+
+The commit message is a conventional `test(e2e): <lowercase description>` subject of at most 72 characters, then a blank line, then two or three `-` bullets. Bullets are lowercase fragments with no blank lines between them and no trailing periods. They carry only what the diff cannot say: the motivation, the placement decision, and any constraint that shaped the approach. Never write a bullet that restates the diff ("add the suite", "register it in the registry"), never include counts of files or assertions, and never add a `Co-Authored-By` or any other trailer.
 
 For a `create_issue` body (an untracked gap, whether implementable or blocked), include:
 
