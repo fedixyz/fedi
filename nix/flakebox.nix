@@ -390,8 +390,7 @@ in
 
     workspaceWasmClippy = craneLib.cargoClippy {
       cargoArtifacts = workspaceWasmClippyDeps;
-      # Keep the single-threaded WASM Arc exception local to this check.
-      cargoClippyExtraArgs = "${wasmClippyArgs} -- --deny warnings --allow deprecated --allow clippy::arc_with_non_send_sync";
+      cargoClippyExtraArgs = "${wasmClippyArgs} -- --deny warnings --allow deprecated";
       doInstallCargoArtifacts = false;
     };
 

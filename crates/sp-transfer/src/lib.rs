@@ -1,3 +1,7 @@
+// Fedi's WASM runtime is single-threaded; retain `Arc` to keep shared
+// native/WASM APIs uniform.
+#![cfg_attr(target_family = "wasm", allow(clippy::arc_with_non_send_sync))]
+
 //! # SP Transfers - Stability Pool Transfers via Matrix
 //!
 //! This crate implements peer-to-peer fiat transfers between Stability Pool

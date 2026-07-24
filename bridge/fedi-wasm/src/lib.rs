@@ -1,5 +1,7 @@
 #![recursion_limit = "256"]
 #![cfg(target_family = "wasm")]
+// Fedi's WASM runtime is single-threaded; retain `Arc` to keep shared native/WASM APIs uniform.
+#![cfg_attr(target_family = "wasm", allow(clippy::arc_with_non_send_sync))]
 
 use std::cell::RefCell;
 use std::panic::AssertUnwindSafe;

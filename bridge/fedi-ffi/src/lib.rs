@@ -1,4 +1,7 @@
 #![recursion_limit = "256"]
+// Fedi's WASM runtime is single-threaded; retain `Arc` to keep shared native/WASM APIs uniform.
+#![cfg_attr(target_family = "wasm", allow(clippy::arc_with_non_send_sync))]
+
 #[cfg(not(target_family = "wasm"))]
 pub mod ffi;
 pub mod guardinito_client;
