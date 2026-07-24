@@ -41,11 +41,20 @@ format:
   treefmt
 
 
-# run lints (git pre-commit hook)
+# run lints
 lint:
   #!/usr/bin/env bash
   set -euo pipefail
-  env NO_STASH=true $(git rev-parse --git-common-dir)/hooks/pre-commit
+  export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${HOME:-${TMPDIR:-/tmp}}/.cache}"
+  flakebox-in-each-cargo-workspace cargo update --workspace --locked -q
+  if command -v semgrep >/dev/null && [ -s .config/semgrep.yaml ]; then
+    just semgrep
+  fi
+  while IFS= read -r path; do
+    shellcheck --severity=warning "$path"
+  done < <(git ls-files '*.sh')
+  git diff --check HEAD
+  treefmt -q --fail-on-change
 
 
 # run tests

@@ -252,7 +252,28 @@
               "justfile.fedi"
             ];
             typos.pre-commit.enable = false;
-            git.pre-commit.trailing_newline = false;
+            git = {
+              pre-commit.enable = false;
+              commit-msg.enable = false;
+              commit-template.enable = false;
+            };
+            # Keep the checks available explicitly without installing a Git hook.
+            just.rules.lint.content = lib.mkForce ''
+              # run lints
+              lint:
+                #!/usr/bin/env bash
+                set -euo pipefail
+                export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-''${HOME:-''${TMPDIR:-/tmp}}/.cache}"
+                flakebox-in-each-cargo-workspace cargo update --workspace --locked -q
+                if command -v semgrep >/dev/null && [ -s .config/semgrep.yaml ]; then
+                  just semgrep
+                fi
+                while IFS= read -r path; do
+                  shellcheck --severity=warning "$path"
+                done < <(git ls-files '*.sh')
+                git diff --check HEAD
+                treefmt -q --fail-on-change
+            '';
             # Keep the checked-in skill project-owned; Flakebox should not refresh it
             # as a side effect of unrelated toolchain updates.
             rootDir.".agents/skills/agent-browser".source = ./.agents/skills/agent-browser;

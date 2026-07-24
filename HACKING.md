@@ -38,9 +38,21 @@ and work on `ui/` alone, but nothing else is supported that way.
 3. Enter the shell: `nix develop`, in every terminal you work from. Or install
    [direnv](https://direnv.net) and run `direnv allow` once — `.envrc` is just `use flake`.
 
-Entering the default shell runs `.config/flakebox/shellHook.sh`, which symlinks the git hooks from
-`misc/git-hooks/` into your `.git/hooks/` and sets the commit message template. This is the only
-thing that installs the hooks, so do not skip it.
+The development shell does not install Git hooks or configure a commit message template. Clones
+that previously entered an older shell may remove the old hook symlinks and template setting once:
+
+```bash
+root="$(git rev-parse --show-toplevel)"
+hooks="$(git rev-parse --git-common-dir)/hooks"
+for hook in pre-commit commit-msg; do
+  path="$hooks/$hook"
+  if test -L "$path" && test "$(readlink "$path")" = "$root/misc/git-hooks/$hook"; then
+    rm -f "$path"
+  fi
+done
+test "$(git config --local --get commit.template || true)" != misc/git-hooks/commit-template.txt ||
+  git config --local --unset-all commit.template
+```
 
 ### The dev shells
 
@@ -300,7 +312,7 @@ detail.
 
 ```bash
 just format        # treefmt over Rust and Nix sources
-just lint          # runs the pre-commit hook without stashing
+just lint          # runs the repository lint checks
 just clippy        # native and wasm32 clippy
 just semgrep       # the custom rules in .config/semgrep.yaml
 just typos         # spell check; add valid words to .typos.toml
@@ -309,9 +321,8 @@ just lint-ui       # eslint over ui/
 just format-ui-code
 ```
 
-`.treefmt.toml` is the source of truth for Rust and Nix formatting. The `pre-commit` hook temporarily
-stashes unstaged tracked changes, then checks formatting, `Cargo.lock`, semgrep, shellcheck, and
-whitespace. `just lint` sets `NO_STASH=true` and checks the current worktree directly.
+`.treefmt.toml` is the source of truth for Rust and Nix formatting. `just lint` checks formatting,
+`Cargo.lock`, semgrep, shellcheck, and whitespace in the current worktree.
 
 ## Rust conventions
 
@@ -362,8 +373,8 @@ See [ui/README.md](./ui/README.md).
 
 ## Submitting changes
 
-**Commit messages must be [Conventional Commits](https://www.conventionalcommits.org).** The
-`commit-msg` hook runs `convco check` and will reject anything else. Recent history gives the shape:
+**Commit messages must be [Conventional Commits](https://www.conventionalcommits.org).** Recent
+history gives the shape:
 
 ```
 feat(native): join community default chats from the chat tile
@@ -372,7 +383,7 @@ test(e2e): poll past the backup reminder overlay on android
 chore: bump version for 26.6.1
 ```
 
-Explain *why* in the body — the commit template says so. There is no gitmoji convention here.
+Explain *why* in the body. There is no gitmoji convention here.
 
 Before pushing, run `just final-check` (and `just test-ui` if you touched `ui/`).
 

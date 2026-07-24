@@ -105,8 +105,7 @@ just build-ui-deps    # install the UI's node modules
 just run-dev-ui       # build the bridge and run the native app + PWA
 ```
 
-Entering the dev shell also installs this repo's git hooks. Run `just` on its own to list every
-available recipe.
+Run `just` on its own to list every available recipe.
 
 Before opening a pull request:
 
@@ -115,8 +114,7 @@ just final-check      # lint, clippy, and the Rust test suite
 just test-ui          # UI unit and integration tests
 ```
 
-Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org) — a
-`commit-msg` hook enforces this with `convco`.
+Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org).
 
 **[HACKING.md](./HACKING.md) is the full contributor guide**: environment setup, the build and test
 matrix, the codebase's Rust and UI conventions, CI, and the release process. Read it before your
