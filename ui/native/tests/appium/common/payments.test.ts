@@ -65,7 +65,13 @@ export class Payments extends AppiumTestBase {
                 `alice has ${aliceFunded} sats after funding, expected ${FUND_SATS}`,
             )
         }
-        console.log('[phase1] alice funded')
+        await assertNewestTransaction(alice, {
+            title: 'You received',
+            type: 'ecash',
+            statuses: ['Complete'],
+            sats: FUND_SATS,
+        })
+        console.log('[phase1] alice funded, history entry checked')
 
         // Phase 2: alice -> bob over lightning (send + receive across devices).
         console.log('[phase2] alice -> bob lightning')
@@ -75,6 +81,18 @@ export class Payments extends AppiumTestBase {
         await bob.waitForText('You received', 0, true, 120000)
         await dismissSendSuccess(alice)
         await dismissReceiveSuccess(bob)
+        await assertNewestTransaction(alice, {
+            title: 'You sent',
+            type: 'Lightning',
+            statuses: ['Sent'],
+            sats: LN_P2P_SATS,
+        })
+        await assertNewestTransaction(bob, {
+            title: 'You received',
+            type: 'Lightning',
+            statuses: ['Received'],
+            sats: LN_P2P_SATS,
+        })
         console.log('[phase2] lightning transfer confirmed on both devices')
 
         // Phase 3: bob -> alice over ecash (offline send + claim).
@@ -92,6 +110,21 @@ export class Payments extends AppiumTestBase {
                 `alice balance ${aliceFinal} should be below the funded ${aliceFunded} after the transfers`,
             )
         }
+        await assertNewestTransaction(alice, {
+            title: 'You received',
+            type: 'ecash',
+            statuses: ['Complete'],
+            sats: ECASH_SATS,
+        })
+        // Bob is still on the ecash QR screen from sendEcash; the header
+        // close returns straight to the tabs.
+        await bob.clickElementByKey('HeaderCloseButton')
+        await assertNewestTransaction(bob, {
+            title: 'You sent',
+            type: 'ecash',
+            statuses: ['Sent'],
+            sats: ECASH_SATS,
+        })
         console.log('[phase3] ecash transfer confirmed')
 
         // Phase 4: alice pegs out on-chain to a static regtest address.
@@ -134,6 +167,12 @@ export class Payments extends AppiumTestBase {
                 `alice balance ${afterOnchain} should be below ${aliceFinal} after the on-chain send`,
             )
         }
+        await assertNewestTransaction(alice, {
+            title: 'You sent',
+            type: 'On-chain',
+            statuses: ['Sent', 'Pending'],
+            sats: ONCHAIN_SEND_SATS,
+        })
         console.log('[phase4] on-chain send confirmed')
     }
 }
@@ -223,6 +262,86 @@ async function goToWallet(t: AppiumTestBase): Promise<void> {
     await dismissBackupReminderIfPresent(t, 1000)
     if (await t.isTextPresent('Receive', true, 3000)) return
     await t.clickElementByKey('WalletTabButton')
+    await waitForWalletReceive(t)
+}
+
+// Assert against the detail overlay's secondary amount: with the default
+// fiat display it renders the raw sats ("2,000 SATS"), while the primary
+// amount and the list rows go through the exchange rate and aren't
+// deterministic. The status is a list because an on-chain send may still
+// be "Pending" when checked.
+async function assertNewestTransaction(
+    t: AppiumTestBase,
+    expected: {
+        title: string
+        type: string
+        statuses: string[]
+        sats: number
+    },
+): Promise<void> {
+    await goToWallet(t)
+    await t.clickElementByKey('BalanceCard__TransactionHistory')
+    await t.waitForElementDisplayed('transaction-item', 30000)
+
+    // The list renders cached rows while its refresh is in flight, so the
+    // first row can still be the previous entry; re-open it until the
+    // title matches instead of failing on a stale row. A genuinely wrong
+    // newest entry still fails: retries never change what the row is.
+    let titleSeen = false
+    for (let attempt = 1; attempt <= 3 && !titleSeen; attempt++) {
+        await t.clickElementByKey('transaction-item')
+        titleSeen = await t.isTextPresent(expected.title, true, 5000)
+        if (!titleSeen) {
+            await t.clickElementByKey('HistoryDetailCloseButton')
+            await new Promise(r => setTimeout(r, 2000))
+        }
+    }
+    if (!titleSeen) {
+        throw new Error(`newest transaction never showed "${expected.title}"`)
+    }
+
+    if (!(await t.isTextPresent(expected.type, true, 5000))) {
+        throw new Error(
+            `newest transaction is not typed "${expected.type}" after ${expected.title}`,
+        )
+    }
+
+    // Send entries carry their fee inside txn.amount (a 2,000 sats
+    // lightning send renders as "2,004 SATS" on the dev fed), so bound the
+    // amount instead of matching it exactly; receives are exact and pass
+    // the bound trivially. Read the amount by key: a text search for
+    // " SATS" matches the whole overlay on ios, where the accessibility
+    // tree concatenates child labels.
+    const satsText = (
+        await t.getTextByKey('HistoryDetailSecondaryAmount')
+    ).trim()
+    const shownSats = parseInt(satsText.replace(/[^0-9]/g, ''), 10)
+    const feeAllowance = Math.max(10, Math.ceil(expected.sats * 0.01))
+    if (
+        Number.isNaN(shownSats) ||
+        shownSats < expected.sats ||
+        shownSats > expected.sats + feeAllowance
+    ) {
+        throw new Error(
+            `newest transaction shows "${satsText}", expected ${expected.sats} sats plus at most ${feeAllowance} in fees`,
+        )
+    }
+
+    let statusSeen = false
+    for (const status of expected.statuses) {
+        if (await t.isTextPresent(status, true, 2000)) {
+            statusSeen = true
+            break
+        }
+    }
+    if (!statusSeen) {
+        throw new Error(
+            `newest transaction status is not one of ${expected.statuses.join(', ')}`,
+        )
+    }
+
+    await t.clickElementByKey('HistoryDetailCloseButton')
+    await t.clickElementByKey('HeaderBackButton')
     await waitForWalletReceive(t)
 }
 

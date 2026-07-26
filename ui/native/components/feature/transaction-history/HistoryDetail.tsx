@@ -196,6 +196,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     return (
         <Pressable style={style.container} onPress={Keyboard.dismiss}>
             <TouchableOpacity
+                testID="HistoryDetailCloseButton"
                 style={style.closeIconContainer}
                 onPress={handleClose}>
                 <SvgImage name="Close" size="md" />
@@ -221,7 +222,10 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                             )
                         }>
                         <Row gap="xs" align="center">
-                            <Text color={theme.colors.grey} medium>
+                            <Text
+                                testID="HistoryDetailSecondaryAmount"
+                                color={theme.colors.grey}
+                                medium>
                                 {formattedSecondaryAmount}
                             </Text>
                             <SvgImage
