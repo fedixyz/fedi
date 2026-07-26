@@ -73,8 +73,15 @@ export class Payments extends AppiumTestBase {
         })
         console.log('[phase1] alice funded, history entry checked')
 
-        // Phase 2: alice -> bob over lightning (send + receive across devices).
-        console.log('[phase2] alice -> bob lightning')
+        // Phase 2: alice generates an on-chain receive address.
+        console.log('[phase2] alice on-chain receive address')
+        const onchainAddress = await generateOnchainReceiveAddress(alice)
+        console.log(
+            `[phase2] on-chain address copied (${onchainAddress.slice(0, 8)}...)`,
+        )
+
+        // Phase 3: alice -> bob over lightning (send + receive across devices).
+        console.log('[phase3] alice -> bob lightning')
         const bobInvoice = await generateLightningInvoice(bob, LN_P2P_SATS)
         await payLightningInvoice(alice, bobInvoice)
         await alice.waitForText('You sent', 0, true, 60000)
@@ -93,10 +100,10 @@ export class Payments extends AppiumTestBase {
             statuses: ['Received'],
             sats: LN_P2P_SATS,
         })
-        console.log('[phase2] lightning transfer confirmed on both devices')
+        console.log('[phase3] lightning transfer confirmed on both devices')
 
-        // Phase 3: bob -> alice over ecash (offline send + claim).
-        console.log('[phase3] bob -> alice ecash')
+        // Phase 4: bob -> alice over ecash (offline send + claim).
+        console.log('[phase4] bob -> alice ecash')
         const ecashToken = await sendEcash(bob, ECASH_SATS)
         await redeemEcash(alice, ecashToken)
         await alice.waitForText('Ecash claimed', 0, true, 60000)
@@ -125,10 +132,10 @@ export class Payments extends AppiumTestBase {
             statuses: ['Sent'],
             sats: ECASH_SATS,
         })
-        console.log('[phase3] ecash transfer confirmed')
+        console.log('[phase4] ecash transfer confirmed')
 
-        // Phase 4: alice pegs out on-chain to a static regtest address.
-        console.log('[phase4] alice on-chain send')
+        // Phase 5: alice pegs out on-chain to a static regtest address.
+        console.log('[phase5] alice on-chain send')
         await alice.clickOnText('Send', 0, true)
         await acceptCameraPermissionIfPresent(alice)
         await alice.setClipboard(REGTEST_DESTINATION_ADDRESS)
@@ -173,7 +180,7 @@ export class Payments extends AppiumTestBase {
             statuses: ['Sent', 'Pending'],
             sats: ONCHAIN_SEND_SATS,
         })
-        console.log('[phase4] on-chain send confirmed')
+        console.log('[phase5] on-chain send confirmed')
     }
 }
 
@@ -375,6 +382,42 @@ async function generateLightningInvoice(
         )
     }
     return invoice
+}
+
+async function generateOnchainReceiveAddress(
+    t: AppiumTestBase,
+): Promise<string> {
+    await goToWallet(t)
+    await t.clickOnText('Receive', 0, true)
+    await t.waitForElementDisplayed('ReceiveRequestButton')
+    await t.clickElementByKey('bitcoinTab')
+    await t.waitForText('Copy', 0, true, 30000)
+    await t.setClipboard('')
+
+    for (let attempt = 1; attempt <= 10; attempt++) {
+        await t.clickOnText('Copy', 0, true)
+        const address = (await t.getClipboard()).trim()
+        if (isBitcoinAddress(address)) {
+            await t.clickElementByKey('HeaderBackButton')
+            await waitForWalletReceive(t)
+            return address
+        }
+        await new Promise(r => setTimeout(r, 1000))
+    }
+
+    const clipboard = (await t.getClipboard()).trim()
+    throw new Error(
+        `clipboard did not contain a bitcoin address after on-chain receive copy: "${clipboard.slice(
+            0,
+            40,
+        )}"`,
+    )
+}
+
+function isBitcoinAddress(value: string): boolean {
+    return /^(bc1|tb1|bcrt1)[a-z0-9]{20,}$|^[13mn2][a-km-zA-HJ-NP-Z1-9]{25,}$/.test(
+        value,
+    )
 }
 
 async function payLightningInvoice(
