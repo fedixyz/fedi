@@ -21,6 +21,10 @@ import {
 const FUND_SATS = 10000
 const LN_P2P_SATS = 2000
 const ECASH_SATS = 1000
+const ONCHAIN_SEND_SATS = 1000
+// bitcoin-address-validation accepts legacy testnet addresses, whose version
+// bytes are also valid for regtest on-chain payments in the local dev fed.
+const REGTEST_DESTINATION_ADDRESS = 'mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn'
 
 export class Payments extends AppiumTestBase {
     // No registry prerequisites: a local fed's invite is only known at
@@ -89,6 +93,48 @@ export class Payments extends AppiumTestBase {
             )
         }
         console.log('[phase3] ecash transfer confirmed')
+
+        // Phase 4: alice pegs out on-chain to a static regtest address.
+        console.log('[phase4] alice on-chain send')
+        await alice.clickOnText('Send', 0, true)
+        await acceptCameraPermissionIfPresent(alice)
+        await alice.setClipboard(REGTEST_DESTINATION_ADDRESS)
+        await alice.clickElementByKey('PasteButton')
+        await allowPasteIfPrompted(alice)
+
+        await ensureSatsMode(alice)
+        await enterAmount(alice, ONCHAIN_SEND_SATS)
+        await alice.clickOnText('Continue', 0, true)
+
+        await alice.waitForElementDisplayed('OnchainSendDetailsButton', 30000)
+        await alice.clickElementByKey('OnchainSendDetailsButton')
+        for (const line of ['Send to', 'Fees', 'Send from']) {
+            if (!(await alice.isTextPresent(line, true, 5000))) {
+                throw new Error(
+                    `on-chain confirmation details missing "${line}"`,
+                )
+            }
+        }
+
+        await alice.clickElementByKey('SendConfirmButton')
+        await alice.waitForText('You sent', 0, true, 120000)
+        // The success screen groups thousands (accounting.formatNumber), so
+        // 1000 renders as "1,000 SATS".
+        await alice.waitForText(
+            `${ONCHAIN_SEND_SATS.toLocaleString('en-US')} SATS`,
+            0,
+            true,
+            5000,
+        )
+        await dismissSendSuccess(alice)
+
+        const afterOnchain = await readWalletSats(alice)
+        if (afterOnchain >= aliceFinal) {
+            throw new Error(
+                `alice balance ${afterOnchain} should be below ${aliceFinal} after the on-chain send`,
+            )
+        }
+        console.log('[phase4] on-chain send confirmed')
     }
 }
 

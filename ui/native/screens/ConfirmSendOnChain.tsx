@@ -175,6 +175,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
             <View style={style.buttonsGroup}>
                 {renderDetails()}
                 <Button
+                    testID="OnchainSendDetailsButton"
                     fullWidth
                     containerStyle={[style.button]}
                     buttonStyle={[style.detailsButton]}
@@ -188,6 +189,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
                     }
                 />
                 <Button
+                    testID="SendConfirmButton"
                     fullWidth
                     containerStyle={[style.button]}
                     onPress={handleSend}
