@@ -124,6 +124,7 @@ Fallback rules:
 7. Keep edits concise, repo-specific, and technically grounded.
 8. Do not skip a tracked Markdown file solely because it was not part of a previous hard-coded documentation list.
 9. Update `documentation-audit-report.md` to summarize what you reviewed, what was outdated, what you changed, and any remaining uncertain areas.
+10. Write every pull request, issue, workflow run, and commit reference in the audit report as a clickable Markdown link.
 
 ## Review Process
 
@@ -188,6 +189,15 @@ Update `documentation-audit-report.md` with:
 - concise findings
 - what was changed in this run
 - any unresolved areas where the code was ambiguous
+
+GitHub does not autolink bare `#1234` references, run IDs, or commit SHAs inside a rendered Markdown file the way it does in a pull request body, so write them as explicit Markdown links. Build the URLs from the repository in the GitHub context:
+
+- pull request: `[#11683](https://github.com/OWNER/REPO/pull/11683)`
+- issue: `[#11683](https://github.com/OWNER/REPO/issues/11683)`
+- workflow run: `[29227493245](https://github.com/OWNER/REPO/actions/runs/29227493245)`
+- commit: `[0c3b474fd8dfdff0eaef664d5f7ae9c618332257](https://github.com/OWNER/REPO/commit/0c3b474fd8dfdff0eaef664d5f7ae9c618332257)`
+
+Link every occurrence, including references inside the scope, findings, and per-document status sections. Keep the visible link text as the plain `#number`, run ID, or SHA so the report still reads the same.
 
 ### 6. Create a pull request
 
