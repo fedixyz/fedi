@@ -66,8 +66,8 @@ use fedimint_ln_client::incoming::IncomingSmError;
 use fedimint_ln_client::pay::GatewayPayError;
 use fedimint_ln_client::receive::LightningReceiveError;
 use fedimint_ln_client::{
-    InternalPayState, LightningClientInit, LnPayState, LnReceiveState, OutgoingLightningPayment,
-    PayBolt11InvoiceError,
+    InternalPayState, LightningClientInit, LightningClientModule as LnV1ClientModule, LnPayState,
+    LnReceiveState, OutgoingLightningPayment, PayBolt11InvoiceError,
 };
 use fedimint_ln_common::LightningGateway;
 use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
@@ -80,7 +80,6 @@ use fedimint_walletv2_client::WalletClientModule as WalletV2ClientModule;
 use futures::{FutureExt, Stream, StreamExt};
 use guardian_remittance::GuardianRemittanceAccount;
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
-pub use ln_ops::LnOpsV1;
 use lnurl_receives_service::LnurlReceivesService;
 use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries};
 use rand::Rng;
@@ -142,7 +141,7 @@ use self::db::{
     TransactionDateFiatInfoKey,
 };
 use self::ln_gateway_service::LnGatewayService;
-use self::ln_ops::LnOpsRouter;
+use self::ln_ops::{LnOpsV1, LnOpsV2};
 use self::mint_ops::{MintOpsV1, MintOpsV2};
 use self::stability_pool_sweeper_service::StabilityPoolSweeperService;
 use self::wallet_ops::WalletOpsV1;
@@ -460,12 +459,16 @@ impl FederationV2 {
         device_registration_service: Arc<DeviceRegistrationService>,
     ) -> Arc<Self> {
         let recovering = client.has_pending_recoveries();
-        // Lightning is the odd one out. Kind-one federations have mintv1,
-        // walletv1, lnv1, and lnv2; kind-two federations have mintv2,
-        // walletv2, and lnv2. Keep all lightning dispatch/fallback rules in
-        // one router.
-        let ln_ops: Box<dyn ln_ops::LnOps> = Box::new(LnOpsRouter);
         let client_config = client.config().await;
+        let has_lnv1 = client_config
+            .modules
+            .values()
+            .any(|config| config.is_kind(&LnV1ClientModule::kind()));
+        let ln_ops: Box<dyn ln_ops::LnOps> = if has_lnv1 {
+            Box::new(LnOpsV1)
+        } else {
+            Box::new(LnOpsV2)
+        };
         let has_mintv2 = client_config
             .modules
             .values()
@@ -1933,15 +1936,21 @@ impl FederationV2 {
         &self,
         gateway_id: Option<RpcLightningGatewayId>,
     ) -> Result<()> {
-        let gateway_override = match gateway_id {
-            Some(RpcLightningGatewayId::Lnv1 { pubkey }) => {
+        let gateway_override = match (gateway_id, self.ln_ops.version()) {
+            (Some(RpcLightningGatewayId::Lnv1 { pubkey }), ln_ops::Version::V1) => {
                 Some(LightningGatewayOverride::Lnv1(pubkey.0))
             }
-            Some(RpcLightningGatewayId::Lnv2 { url }) => {
+            (Some(RpcLightningGatewayId::Lnv2 { url }), ln_ops::Version::V2) => {
                 let safe_url = SafeUrl::parse(&url).context("invalid lnv2 gateway override url")?;
                 Some(LightningGatewayOverride::Lnv2(safe_url))
             }
-            None => None,
+            (Some(_), ln_ops::Version::V1) => {
+                bail!("Gateway incompatible with v1");
+            }
+            (Some(_), ln_ops::Version::V2) => {
+                bail!("Gateway incompatible with v2");
+            }
+            (None, _) => None,
         };
         self.client
             .db()
@@ -4538,20 +4547,19 @@ impl FederationV2 {
             .expect("hardcoded recurringd v2 URL is valid")
     }
 
-    /// True if either lightning module can produce an lnurl right now:
-    /// v2 is always able to (uses the hardcoded default); v1 only when
-    /// the federation has configured a recurringd URL.
+    /// True if lightning can produce an lnurl right now: v2 always can
+    /// (uses the hardcoded default); v1 only when the federation has
+    /// configured a recurringd URL. Keyed on the active lightning
+    /// version, not module presence: a kind-one federation may carry an
+    /// (ignored) lnv2 module, but lnurls still go through v1 there.
     pub async fn supports_recurringd_lnurl(&self) -> bool {
-        if self.client.lnv2().is_ok() {
+        if matches!(self.ln_ops.version(), ln_ops::Version::V2) {
             return true;
         }
         self.get_recurringd_api_v1().await.is_some()
     }
 
-    /// Either register or get the lnurl. Picks the v2 path (with the
-    /// hardcoded v2 recurringd URL) when lnv2 is present, falling back
-    /// to v1 only when the federation has explicitly configured a v1
-    /// recurringd URL via meta/env.
+    /// Either register or get the lnurl.
     pub async fn get_recurringd_lnurl(&self) -> anyhow::Result<String> {
         self.ln_ops.get_recurringd_lnurl(self).await
     }

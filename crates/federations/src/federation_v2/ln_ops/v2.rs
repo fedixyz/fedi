@@ -579,4 +579,8 @@ impl LnOps for LnOpsV2 {
             .await
             .map_err(Into::into)
     }
+
+    fn version(&self) -> super::Version {
+        super::Version::V2
+    }
 }

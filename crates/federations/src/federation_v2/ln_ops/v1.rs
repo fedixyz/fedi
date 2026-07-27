@@ -751,4 +751,8 @@ impl LnOps for LnOpsV1 {
 
         Ok(payment_code.code)
     }
+
+    fn version(&self) -> super::Version {
+        super::Version::V1
+    }
 }

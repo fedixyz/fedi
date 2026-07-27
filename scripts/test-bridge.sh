@@ -17,12 +17,12 @@ export USE_STABILITY_POOL_TEST_PARAMS=1
 export FEDI_STABILITY_POOL_MODULE_TEST_PARAMS=1
 export FEDI_SOCIAL_RECOVERY_MODULE_ENABLE=1
 export RUST_BACKTRACE=0
-export FM_ENABLE_MODULE_LNV2=1
 export FM_DISABLE_BASE_FEES=1
 
 # FEDI_FEDERATION_KIND selects the federation generation the suite runs
-# against: "one" (default) keeps the v1 modules, "two" runs v2-only
-# (mintv2 + walletv2 + lnv2).
+# against: "one" (default) runs v1-only (mint + wallet + lnv1), "two"
+# runs v2-only (mintv2 + walletv2 + lnv2). Mixed module generations are
+# not supported.
 case "${FEDI_FEDERATION_KIND:-one}" in
 one) ;;
 two)
@@ -31,6 +31,7 @@ two)
 	export FM_ENABLE_MODULE_LNV1=0
 	export FM_ENABLE_MODULE_MINTV2=1
 	export FM_ENABLE_MODULE_WALLETV2=1
+	export FM_ENABLE_MODULE_LNV2=1
 	;;
 *)
 	echo "invalid FEDI_FEDERATION_KIND '${FEDI_FEDERATION_KIND}' (expected 'one' or 'two')" >&2

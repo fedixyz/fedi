@@ -1,4 +1,3 @@
-mod router;
 mod v1;
 mod v2;
 
@@ -11,7 +10,6 @@ use fedimint_core::util::SafeUrl;
 use fedimint_core::{Amount, apply, async_trait_maybe_send};
 use fedimint_ln_common::LightningGateway;
 use lightning_invoice::Bolt11Invoice;
-pub use router::LnOpsRouter;
 use rpc_types::{
     FrontendMetadata, RpcFeeDetails, RpcLightningGateway, RpcPayInvoiceResponse,
     RpcPrevPayInvoiceResult,
@@ -118,4 +116,12 @@ pub trait LnOps: MaybeSend + MaybeSync {
     async fn list_gateways(&self, fed: &FederationV2) -> anyhow::Result<Vec<RpcLightningGateway>>;
 
     async fn get_recurringd_lnurl(&self, fed: &FederationV2) -> anyhow::Result<String>;
+
+    fn version(&self) -> Version;
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum Version {
+    V1,
+    V2,
 }
