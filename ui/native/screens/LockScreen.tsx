@@ -167,6 +167,7 @@ const LockScreen = ({ navigation, route }: Props) => {
                             <View style={style.forgotPinButtonContainer}>
                                 <Button
                                     day
+                                    testID="ForgotPinButton"
                                     title={
                                         <Text caption>
                                             {t('feature.pin.forgot-your-pin')}
