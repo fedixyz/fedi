@@ -1,5 +1,42 @@
 /* eslint-disable no-console */
+import fs from 'fs'
+import path from 'path'
+
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
+import {
+    acceptCameraPermissionIfPresent,
+    allowPasteIfPrompted,
+} from '../fixtures/setupOnboardedLocalFed'
+
+// E-Cash Club is the one pasteable federation the runner can reach: the
+// suite's own list-joins prove it, while the other federations in
+// meta-federations.json are external and their previews time out on CI.
+const INVITE_PREVIEW_FEDERATION_NAME = 'E-Cash Club'
+
+type PublicFederationMeta = {
+    federation_name?: string
+    invite_code?: string
+}
+
+function getPublicFederationInvite(federationName: string): string {
+    const metaPath = path.resolve(
+        __dirname,
+        '../../../../web/public/meta-federations.json',
+    )
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as Record<
+        string,
+        PublicFederationMeta
+    >
+    const federation = Object.values(meta).find(
+        f => f.federation_name === federationName,
+    )
+    if (!federation?.invite_code) {
+        throw new Error(
+            `No invite code found for public federation "${federationName}"`,
+        )
+    }
+    return federation.invite_code
+}
 
 export class JoinLeaveFederation extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
@@ -29,10 +66,42 @@ export class JoinLeaveFederation extends AppiumTestBase {
         )
     }
 
+    // Stops at the join preview on purpose: completing the join here would
+    // turn the walk's later first-time E-Cash Club join into a recovery
+    // rejoin. The join tap itself is covered by the list path, which lands
+    // on this same screen.
+    private async previewFederationByPastedInvite(
+        invite: string,
+        federationName: string,
+    ): Promise<void> {
+        await this.clickElementByKey('PlusButton')
+        await this.clickElementByKey('joinTab')
+        await acceptCameraPermissionIfPresent(this)
+        await this.setClipboard(invite)
+        await this.clickElementByKey('PasteButton')
+        await allowPasteIfPrompted(this)
+        await this.clickOnText('Continue', 0, true)
+        await this.waitForElementDisplayed('JoinFederationButton', 45000)
+        if (!(await this.isTextPresent(federationName, true, 5000))) {
+            throw new Error(
+                `Failed - pasted invite preview does not show "${federationName}"`,
+            )
+        }
+        // The paste path pushes the join screen directly over the wallet,
+        // so a single back lands home.
+        await this.clickElementByKey('HeaderBackButton')
+        await this.waitForElementDisplayed('PlusButton', 10000)
+    }
+
     async execute(): Promise<void> {
         console.log('Starting Joining Public Federation Test')
         await this.clickElementByKey('WalletTabButton')
         await this.waitForElementDisplayed('FediTestnetDetailsButton', 2000)
+        await this.previewFederationByPastedInvite(
+            getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
+            INVITE_PREVIEW_FEDERATION_NAME,
+        )
+        // END of the process of previewing a Federation by pasted invite code
         await this.clickElementByKey('PlusButton')
         await this.scrollToElement('E-CashClubJoinButton')
         await this.clickElementByKey('E-CashClubJoinButton')
