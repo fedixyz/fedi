@@ -1479,6 +1479,7 @@
         "llm-agents": "llm-agents",
         "nixpkgs": "nixpkgs_8",
         "nixpkgs-unstable": "nixpkgs-unstable_2",
+        "sieve": "sieve",
         "wild": "wild_3"
       }
     },
@@ -1564,6 +1565,29 @@
         "owner": "rust-lang",
         "ref": "nightly",
         "repo": "rust-analyzer",
+        "type": "github"
+      }
+    },
+    "sieve": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs-unstable"
+        ]
+      },
+      "locked": {
+        "lastModified": 1784542943,
+        "narHash": "sha256-EHm3Ao90p69vdtBU0PeDZo0tPXsurciWOfZFjJlGs4k=",
+        "owner": "fedibtc",
+        "repo": "sieve",
+        "rev": "9ee2215b7e4b7860e9e6d7dda53c8e766c37e778",
+        "type": "github"
+      },
+      "original": {
+        "owner": "fedibtc",
+        "repo": "sieve",
         "type": "github"
       }
     },

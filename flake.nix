@@ -50,6 +50,12 @@
       url = "github:numtide/llm-agents.nix";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
+
+    sieve = {
+      url = "github:fedibtc/sieve";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs =
@@ -66,6 +72,7 @@
       wild,
       andy,
       llm-agents,
+      sieve,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -438,6 +445,7 @@
                 fedimint-pkgs.packages.${system}.gateway-pkgs
                 fedimint-pkgs.packages.${system}.fedimint-recurringd
                 fedimint-pkgs.packages.${system}.fedimint-recurringdv2
+                sieve.packages.${system}.sieve
                 pkgs.fs-dir-cache
                 pkgs.cargo-nextest
                 pkgs.cargo-audit
