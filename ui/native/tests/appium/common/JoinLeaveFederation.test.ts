@@ -191,7 +191,40 @@ export class JoinLeaveFederation extends AppiumTestBase {
         }
         await this.clickElementByKey('HomeTabButton')
         // END of the process of re-joining to a Public Federation without TOS
+
+        // Wallet switching: both federations are joined at this point, with
+        // E-Cash Club active from the re-join. The switcher rows are selected
+        // by visible name because their testIDs are keyed by federation id,
+        // which is a runtime hash.
+        await this.clickElementByKey('WalletTabButton')
+        await this.openWalletSwitcher()
+        await this.clickOnText('Fedi Testnet', 0, true)
+        await this.waitForElementDisplayed('FediTestnetDetailsButton', 30000)
+        if (await this.elementIsDisplayed('E-CashClubDetailsButton', 2000)) {
+            throw new Error(
+                'E-Cash Club remained selected after switching to Fedi Testnet',
+            )
+        }
+
+        await this.openWalletSwitcher()
+        await this.clickOnText('E-Cash Club', 0, true)
+        await this.waitForElementDisplayed('E-CashClubDetailsButton', 30000)
+        if (await this.elementIsDisplayed('FediTestnetDetailsButton', 2000)) {
+            throw new Error(
+                'Fedi Testnet remained selected after switching to E-Cash Club',
+            )
+        }
+        await this.clickElementByKey('HomeTabButton')
+        // END of the process of switching the active wallet between federations
     }
+
+    // Tapping the wallet tab while it is focused opens the switcher overlay
+    // instead of navigating.
+    private async openWalletSwitcher(): Promise<void> {
+        await this.clickElementByKey('WalletTabButton')
+        await this.waitForText('Select Wallet Service', 0, true, 10000)
+    }
+
     catch(error: unknown) {
         console.error('Onboarding test failed:', error)
     }
