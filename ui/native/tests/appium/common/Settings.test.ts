@@ -1,9 +1,32 @@
 /* eslint-disable no-console */
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 
+const TEST_DISPLAY_NAME = 'e2eprofile'
+const FALLBACK_TEST_DISPLAY_NAME = 'e2eprofile2'
+
 export class Settings extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
     static produces = ['onboarded'] as const
+
+    private async changeDisplayName(displayName: string): Promise<void> {
+        await this.scrollToElement('Edit profile')
+        await this.clickElementByKey('Edit profile')
+        await this.waitForElementDisplayed('DisplayNameInput')
+        await this.typeIntoElementByKey('DisplayNameInput', displayName)
+        await this.dismissKeyboard()
+        await this.clickOnText('Save', 0, true)
+        await this.waitForElementDisplayed('UserQrContainer')
+    }
+
+    private async assertDisplayedName(expected: string): Promise<void> {
+        const actual = await this.getTextByKey('DisplayNameProper')
+
+        if (actual !== expected) {
+            throw new Error(
+                `Expected display name "${expected}", but found "${actual}"`,
+            )
+        }
+    }
 
     async execute(): Promise<void> {
         console.log('Starting Settings Test')
@@ -11,6 +34,22 @@ export class Settings extends AppiumTestBase {
         await this.clickElementByKey('HomeTabButton')
         await this.clickElementByKey('AvatarButton')
         await this.waitForElementDisplayed('UserQrContainer')
+
+        // Edit profile sits at the top of the drawer, so run this leg before
+        // the walk scrolls down.
+        const originalDisplayName = await this.getTextByKey('DisplayNameProper')
+        const updatedDisplayName =
+            originalDisplayName === TEST_DISPLAY_NAME
+                ? FALLBACK_TEST_DISPLAY_NAME
+                : TEST_DISPLAY_NAME
+
+        await this.changeDisplayName(updatedDisplayName)
+        await this.assertDisplayedName(updatedDisplayName)
+
+        // later suites reuse the 'onboarded' state this suite produces, so
+        // the original name has to come back
+        await this.changeDisplayName(originalDisplayName)
+        await this.assertDisplayedName(originalDisplayName)
 
         await this.scrollToElement('App Settings')
         await this.clickElementByKey('App Settings')
