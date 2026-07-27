@@ -32,8 +32,8 @@ GitHub Actions workflows build and deploy the native app with Nix and Fastlane. 
 The UI checks workflow runs on pull requests and checks for:
 
 - Code formatting issues via Prettier
-- Code linting issues via ESLint (uses typescript-parser)
-- Typescript errors
+- Workspace linting via ESLint and TypeScript
+- UI dependency hygiene via Knip and Syncpack
 - Unit and integration test failures
 - Metro startup failures
 

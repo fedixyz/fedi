@@ -1,93 +1,104 @@
 # Documentation Audit Report
 
-Review date: 2026-07-13
+Review date: 2026-07-27
 
 ## Scope
 
 - Review mode: incremental.
-- Current workflow run: `29227493245`, `Weekly Documentation Updater`, run 7, head
+- Current workflow run: `30241518535`, `Weekly Documentation Updater`, run 9, head
+  `df5e8db3507a4a8a50289de554f2f60d6278f1c7`.
+- Previous successful run: `29227493245`, completed 2026-07-13T06:01:19Z at
   `0c3b474fd8dfdff0eaef664d5f7ae9c618332257`.
-- Previous successful run: `28771983481`, completed 2026-07-06T06:23:45Z at
-  `750bb569aca961472aec7be29c32adb6a66e28d2`.
 - Boundary used: repository changes after the previous successful updater run through the current
-  head. The local checkout only contained the current head, so GitHub Actions, commit, PR, and PR
-  file APIs were used for the incremental map.
-- Tracked Markdown inventory: 87 files.
+  head. GitHub Actions and PR/commit APIs identified the successful-run boundary and merged work;
+  the local checkout was shallow and could not fetch private history without credentials, so local
+  file inspection was limited to the current tree.
+- Tracked Markdown inventory: 90 files.
 
 ## Changed Areas Driving Review
 
 Key merged PRs and commits mapped to tracked docs:
 
-- #11683 expanded the root `README.md`, added `HACKING.md`, and rewrote `bridge/README.md`.
-- #11672 changed the daily e2e coverage audit prompt and
-  `scripts/ci/build-e2e-audit-context.mjs` to dedupe against all open issues labeled
-  `e2e testing`.
-- #11571 added v2 Fedimint module routing, Lightning gateway ID changes, v2 ecash cancel handling,
-  and bumped Fedimint to `v0.11.0-fedi7`.
-- #11561 changed native/common default chat and room-knocking behavior for community chat tiles.
-- #11688 changed web room members behavior so pending join requests can open the Pending tab first.
-- #11658 bumped native app versions to `26.6.1`; no tracked Markdown describes a pinned current
-  native version.
+- #11690 updated the daily e2e coverage audit workflow so it can implement tracked gaps and open
+  draft pull requests.
+- #11716 added iOS app and bridge log capture to the Appium e2e runner and pipeline, matching the
+  Android app-log capture path.
+- #11661 added Knip and Syncpack dependency hygiene checks to the UI lint command.
+- #11705 added feature-flag lifecycle documentation under the repository skill docs.
+- #11598 changed feature-flag refresh behavior on app foreground.
+- #11710, the WASM Clippy gate work, and the Flakebox hook-removal change updated Rust linting,
+  build warnings, and local development assumptions.
+- #11711, #11712, #11660, #11722, and the e2e coverage PRs #11758, #11765, #11773, #11774, #11790,
+  and #11792 changed Appium/web e2e coverage and user-flow tests.
 
 ## Markdown Selected For Review
 
+- `.agents/skills/fedi-ui-test-patterns/references/appium-running-ci.md`
+- `.agents/skills/feature-flags/SKILL.md`
+- `.agents/skills/feature-flags/references/flag-lifecycle-and-cleanup.md`
 - `.github/workflows/daily-e2e-coverage-check.md`
 - `HACKING.md`
 - `README.md`
-- `bridge/README.md`
 - `documentation-audit-report.md`
-- `ui/native/docs/chat-features.md`
+- `ui/README.md`
+- `ui/native/docs/cicd.md`
 
 ## Implementation Sources Checked
 
 - GitHub Actions run history for workflow ID `286820929`.
-- GitHub commit list and merged PR file lists for the incremental interval.
+- GitHub commit list and merged PR search results for the incremental interval.
 - `git ls-files '*.md'` for the tracked Markdown inventory.
-- `bridge/fedi-ffi/src/fedi.udl` and `bridge/fedi-ffi/src/ffi.rs` for the current FFI boundary.
-- `scripts/ci/build-e2e-audit-context.mjs` and `.github/workflows/daily-e2e-coverage-check.md`.
-- `bridge/README.md`, `README.md`, and `HACKING.md` against current repo layout and bridge build
-  scripts.
-- Chat-related docs search across `ui/docs`, `ui/native/docs`, and workspace README files.
+- `.github/workflows/daily-e2e-coverage-check.md` and the current e2e audit prompt text.
+- `.github/workflows/e2e-tests.yml`, `scripts/ci/e2e-pipeline.sh`, and
+  `ui/native/tests/appium/runner.ts` for Appium artifact and log behavior.
+- `.github/workflows/test-ui.yml`, `scripts/ci/check-ui-code-linting.sh`, and `ui/package.json`
+  for UI lint behavior.
+- `justfile`, `.github/workflows/nix.yml`, `.config/clippy-wasm/clippy.toml`, and `HACKING.md`
+  for hook removal, lint, and WASM Clippy behavior.
+- Feature-flag skill docs and feature-flag implementation paths for the lifecycle docs added in
+  the interval.
 
 ## Findings And Changes
 
-- `HACKING.md` still described the RPC boundary as two functions and omitted
-  `fedimint_get_supported_events`, while `bridge/fedi-ffi/src/fedi.udl` now exposes three functions
-  plus `EventSink`. Updated the section to match the UDL and to direct UI code to enumerate events
-  via `fedimint_get_supported_events`.
-- `HACKING.md` also said Android bridge builds outside Nix need hand-set `ANDROID_NDK_ROOT` values
-  and referred to NDK linker workarounds, but the current `bridge/README.md` says outside-Nix bridge
-  builds are unsupported and documents the Nix-provided SDK/NDK/toolchain path. Updated the
-  contributor guide to match.
-- `README.md` and `bridge/README.md` already describe the three-function FFI surface, current
-  Fedimint fork tag, v1/v2 Stability Pool naming, and supported bridge build flow.
-- `.github/workflows/daily-e2e-coverage-check.md` already matches the current context builder's
-  `Open E2E Coverage Issues`, `tracked_coverage_gap_keys`, and `e2e testing` label dedupe behavior.
-- `ui/native/docs/chat-features.md` is explicitly deprecated historical XMPP documentation, so the
-  Matrix room-knocking/default-chat changes were intentionally not folded into it.
+- `ui/native/docs/cicd.md` described UI linting as ESLint and TypeScript only. The current
+  `ui/package.json` `lint` script runs workspace linting plus `lint:knip` and `lint:syncpack`, and
+  `scripts/ci/check-ui-code-linting.sh` invokes that full script. Updated the CI overview to include
+  Knip and Syncpack dependency hygiene checks.
+- `.agents/skills/fedi-ui-test-patterns/references/appium-running-ci.md` listed Appium, pipeline,
+  screenshots, and Metro artifacts, but did not mention the app bridge/UI logs now captured for
+  Android and iOS. Added the end-of-run and per-failure app log filenames.
+- `HACKING.md` already matches the hook-removal change, the retained `just lint` entry point, and
+  the separate WASM Clippy configuration.
+- `.github/workflows/daily-e2e-coverage-check.md` already matches the current implementation-driven
+  e2e audit behavior and validation constraints.
+- The feature-flag lifecycle docs added in #11705 are current for the compiled default and remote
+  layer behavior; no additional change was needed for the foreground refresh change.
 
 ## Per-Document Status
 
 | File | Status |
 | --- | --- |
+| `.agents/skills/fedi-ui-test-patterns/references/appium-running-ci.md` | Updated for app log artifacts. |
+| `.agents/skills/feature-flags/SKILL.md` | Reviewed; no change needed. |
+| `.agents/skills/feature-flags/references/flag-lifecycle-and-cleanup.md` | Reviewed; no change needed. |
 | `.github/workflows/daily-e2e-coverage-check.md` | Reviewed; no change needed. |
-| `HACKING.md` | Updated for the current FFI boundary and supported bridge build assumptions. |
+| `HACKING.md` | Reviewed; no change needed. |
 | `README.md` | Reviewed; no change needed. |
-| `bridge/README.md` | Reviewed; no change needed. |
 | `documentation-audit-report.md` | Updated for this incremental run. |
-| `ui/native/docs/chat-features.md` | Reviewed as intentionally deprecated; no change made. |
+| `ui/README.md` | Reviewed; no change needed. |
+| `ui/native/docs/cicd.md` | Updated for UI dependency hygiene lint checks. |
 
 ## Validation
 
 - Ran `git ls-files '*.md'` and counted the tracked Markdown inventory.
 - Cross-checked the previous successful updater run with the GitHub Actions API.
-- Cross-checked recent commits and selected PR file lists through GitHub read APIs because the local
-  git checkout was shallow.
+- Cross-checked recent commits and merged PRs through GitHub read APIs because the local git
+  checkout was shallow and private fetches were unauthenticated.
 - Verified edited documentation against current local code with `rg`, `sed`, and direct file reads.
 - No test suite was run because the changes are Markdown-only.
 
 ## Unresolved Areas
 
-- The chat changes in #11561 and #11688 affect user-facing behavior, but the only tracked chat
-  architecture document found in the selected search area is explicitly deprecated. No current
-  request-to-join guide exists to update.
+- The exact changed-file list could not be computed with local `git diff` because the boundary
+  commit was not present and private fetches were unauthenticated. GitHub run, commit, and PR
+  metadata were sufficient to map the recent work to the reviewed Markdown files.

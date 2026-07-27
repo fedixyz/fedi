@@ -45,6 +45,8 @@ gh run download <run-id> -n android-logs -D /tmp/e2e-debug
 Inside the bundle:
 
 - `ui/.appium/appium-attempt-1.log` — full WebDriver proxy traffic between the test and the platform driver. Search for `404`, `NoSuchElementError`, or `mobile: alert` to find the failing command.
+- `ui/.appium/bridge-a.log`, `bridge-b.log`, `ui-a.log`, `ui-b.log` — end-of-run app logs pulled from each active actor. Android bundles these plus `logcat-a.log` / `logcat-b.log`; iOS pulls the same bridge and UI log files from the simulator app container.
+- `ui/.appium/<testName>-failure-bridge-<actor>.log`, `ui/.appium/<testName>-failure-ui-<actor>.log` — per-failure app logs captured before the runner resets app state.
 - `ui/.appium/pipeline/*.log` — per-stage output (bridge, Metro, emulators, build, Appium startup). Useful when failure happens before tests start.
 - `ui/screenshots/*.png` — captured ONLY on test failure, named `<testName>-failure-<timestamp>.png`. The runner also dumps the page source alongside.
 - `metro.log` — JS bundling errors.
