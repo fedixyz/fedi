@@ -62,6 +62,7 @@ export class Chat extends AppiumTestBase {
         // prop the Android assertion guards. PUBLIC_GROUP is safe to dirty
         // here: later knock phases never reopen it.
         if (currentPlatform === Platform.ANDROID) {
+            await assertKeyboardStaysOpenAfterSend(alice, PUBLIC_GROUP)
             await assertLongPressOpensActionsWithKeyboardUp(alice, PUBLIC_GROUP)
         }
 
@@ -185,6 +186,67 @@ async function assertLongPressOpensActionsWithKeyboardUp(
     // Tapping reply closes the overlay; pop back to the chat list.
     await t.clickElementByKey('SelectedMessageOverlayReply')
     await t.clickElementByKey('HeaderBackButton')
+}
+
+// Guards the composer going disabled while a send is in flight, which drops
+// the keyboard and never brings it back.
+async function assertKeyboardStaysOpenAfterSend(
+    t: AppiumTestBase,
+    group: Group,
+): Promise<void> {
+    const message = 'Keyboard persistence message'
+    await openRoomByName(t, group.name)
+    await t.clickElementByKey('MessageInput-TextInput')
+    await t.typeIntoElementByKey('MessageInput-TextInput', message)
+    await t.waitForElementDisplayed('MessageInput-SendButton')
+    // A device that never shows a soft keyboard would otherwise pass the real
+    // assertion below for the wrong reason.
+    if (!(await isKeyboardShown(t))) {
+        throw new Error('Keyboard was not shown before sending a message')
+    }
+    await t.clickElementByKey('MessageInput-SendButton')
+    // The composer only clears once the send resolves. Waiting on the message
+    // text returns mid-send, since android's partial-text locator matches the
+    // composer itself.
+    await waitForComposerCleared(t, message)
+    if (!(await waitForKeyboardShown(t, 5000))) {
+        throw new Error('Keyboard was dismissed after sending a message')
+    }
+    await t.waitForText(message, 0, false, MATRIX_TIMEOUT)
+    await t.clickElementByKey('HeaderBackButton')
+}
+
+async function waitForComposerCleared(
+    t: AppiumTestBase,
+    message: string,
+): Promise<void> {
+    const deadline = Date.now() + MATRIX_TIMEOUT
+    while (Date.now() < deadline) {
+        const composer = await t.waitForElementDisplayed(
+            'MessageInput-TextInput',
+        )
+        if (!(await composer.getText()).includes(message)) return
+        await new Promise(r => setTimeout(r, 500))
+    }
+    throw new Error('Composer never cleared, so the message was never sent')
+}
+
+// A single sample can land on a re-render. Polling stays strict because the
+// regression keeps the keyboard down for good.
+async function waitForKeyboardShown(
+    t: AppiumTestBase,
+    timeout: number,
+): Promise<boolean> {
+    const deadline = Date.now() + timeout
+    do {
+        if (await isKeyboardShown(t)) return true
+        await new Promise(r => setTimeout(r, 500))
+    } while (Date.now() < deadline)
+    return false
+}
+
+async function isKeyboardShown(t: AppiumTestBase): Promise<boolean> {
+    return Boolean(await t.driver.executeScript('mobile: isKeyboardShown', []))
 }
 
 async function openRoomByName(t: AppiumTestBase, name: string): Promise<void> {
