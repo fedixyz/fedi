@@ -22,9 +22,12 @@ export FM_DISABLE_BASE_FEES=1
 # FEDI_FEDERATION_KIND selects the federation generation the suite runs
 # against: "one" (default) runs v1-only (mint + wallet + lnv1), "two"
 # runs v2-only (mintv2 + walletv2 + lnv2). Mixed module generations are
-# not supported.
+# not supported. lnv2 must be disabled explicitly on kind-one: fedimintd
+# enables it by default when the env var is unset.
 case "${FEDI_FEDERATION_KIND:-one}" in
-one) ;;
+one)
+	export FM_ENABLE_MODULE_LNV2=0
+	;;
 two)
 	export FM_ENABLE_MODULE_MINT=0
 	export FM_ENABLE_MODULE_WALLET=0

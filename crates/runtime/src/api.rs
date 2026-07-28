@@ -150,6 +150,13 @@ impl LiveFediApi {
 
 type DeviceIndex = u8;
 
+/// Mints a fee invoice for the exact amount the bridge requests.
+pub type FediFeeInvoiceGenerator = Box<
+    dyn Fn(Amount) -> fedimint_core::util::BoxFuture<'static, anyhow::Result<Bolt11Invoice>>
+        + Send
+        + Sync,
+>;
+
 #[derive(Default)]
 pub struct MockFediApi {
     // (seed, index) => (encrypted device identifier, last registration timestamp)
@@ -158,11 +165,19 @@ pub struct MockFediApi {
 
     // Invoice that will be returned whenever fetch_fedi_invoice is called
     fedi_fee_invoice: Option<Bolt11Invoice>,
+
+    // Takes precedence over the fixed invoice: mints one for the requested
+    // amount, which the bridge validates against its request
+    fedi_fee_invoice_generator: Option<FediFeeInvoiceGenerator>,
 }
 
 impl MockFediApi {
     pub fn set_fedi_fee_invoice(&mut self, invoice: Bolt11Invoice) {
         self.fedi_fee_invoice = Some(invoice);
+    }
+
+    pub fn set_fedi_fee_invoice_generator(&mut self, generator: FediFeeInvoiceGenerator) {
+        self.fedi_fee_invoice_generator = Some(generator);
     }
 }
 
@@ -362,13 +377,16 @@ impl IFediApi for MockFediApi {
 
     async fn fetch_fedi_fee_invoice(
         &self,
-        _amount: Amount,
+        amount: Amount,
         _network: Network,
         _accrued_fee_delta: Amount,
         _spv2_balance_delta_cents: Option<i64>,
         _first_comm_invite_code: FirstCommunityInviteCodeState,
         _breakdown: Vec<GenerateInvoiceBreakdownItemV5>,
     ) -> anyhow::Result<Bolt11Invoice> {
+        if let Some(generator) = &self.fedi_fee_invoice_generator {
+            return generator(amount).await;
+        }
         self.fedi_fee_invoice
             .clone()
             .ok_or(anyhow::anyhow!("Invoice not set"))

@@ -284,12 +284,6 @@ impl FakeEventSink {
 /// Get LND pubkey using lncli, then have `federation` switch to using
 /// whatever gateway is using that node pubkey
 pub async fn use_lnd_gateway(federation: &FederationV2) -> anyhow::Result<()> {
-    // Without lnv1 there are no gateway registrations to pin: lnv2 gateways
-    // are guardian-vetted, and tests exercising lightning on such a
-    // federation set that vetting up themselves.
-    if federation.client.ln().is_err() {
-        return Ok(());
-    }
     let lnd_node_pubkey: PublicKey = cmd!(LnCli, "getinfo").out_json().await?["identity_pubkey"]
         .as_str()
         .map(|s| s.to_owned())
@@ -297,7 +291,10 @@ pub async fn use_lnd_gateway(federation: &FederationV2) -> anyhow::Result<()> {
         .parse()
         .unwrap();
     let mut gateways = federation.list_gateways().await?;
-    if gateways.is_empty() {
+    if gateways.is_empty() && federation.client.ln().is_ok() {
+        // Refresh the lnv1 registration cache; on kind-two the guardians'
+        // lnv2 gateway list (devimint adds the spawned gateways to it) is
+        // the only source.
         federation.select_gateway().await?;
         gateways = federation.list_gateways().await?;
     }

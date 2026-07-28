@@ -102,6 +102,12 @@ impl DevFed {
                 Ok(())
             },
             async {
+                // LDK gateways are lnv2-only in devimint: without lnv2 they
+                // never connect to the federation, so there is nothing to
+                // peg in.
+                if !devimint::util::supports_lnv2() {
+                    return Ok(());
+                }
                 let gw_ldk = dev_fed.gw_ldk_connected().await?.clone();
                 let address = gw_ldk
                     .client()
@@ -120,18 +126,33 @@ impl DevFed {
                     .map(|_| ())
             },
             async {
-                let pegin_addr = dev_fed
-                    .gw_lnd_registered()
-                    .await?
-                    .client()
-                    .get_pegin_addr(&dev_fed.fed().await?.calculate_federation_id())
-                    .await?;
+                let gw_lnd = dev_fed.gw_lnd_registered().await?;
+                let fed_id = dev_fed.fed().await?.calculate_federation_id();
+                let pegin_addr = gw_lnd.client().get_pegin_addr(&fed_id).await?;
                 dev_fed
                     .bitcoind()
                     .await?
                     .send_to(pegin_addr, gw_pegin_amount)
                     .await?;
-                dev_fed.bitcoind().await?.mine_blocks_no_wait(11).await
+                dev_fed.bitcoind().await?.mine_blocks_no_wait(11).await?;
+                // Gateways fund incoming lnv2 contracts from their ecash
+                // balance, so a lightning receive fails until the gateway
+                // has claimed its peg-in. Wait for the claim to land.
+                devimint::util::poll("gw lnd pegin claim", || async {
+                    let balance = gw_lnd
+                        .client()
+                        .ecash_balance(fed_id.clone())
+                        .await
+                        .map_err(std::ops::ControlFlow::Continue)?;
+                    // 10% slack for mintv2 note-issuance fees.
+                    if balance < gw_pegin_amount * 1000 * 9 / 10 {
+                        return Err(std::ops::ControlFlow::Continue(anyhow::anyhow!(
+                            "gateway ecash not claimed yet: {balance}"
+                        )));
+                    }
+                    Ok(())
+                })
+                .await
             },
             Synapse::start(&process_mgr),
             NostrRelay::start(&process_mgr),

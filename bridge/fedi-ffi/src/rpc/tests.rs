@@ -245,12 +245,13 @@ fn should_skip_test_using_stock_fedimintd() -> bool {
     }
 }
 
-// Gateway registrations are an lnv1 concept, so an lnv1-less (kind-two)
-// federation has none: its lnv2 gateways would need guardian vetting, which
-// this suite doesn't set up yet.
-fn should_skip_test_needing_gateway_registrations() -> bool {
+// The lnv2 recurringd URL is hardcoded to the Fedi-operated production
+// service, which a dev federation cannot use, so recurringd-dependent tests
+// only run on kind-one (whose v1 path takes the devimint recurringd URL
+// from federation meta).
+fn should_skip_test_needing_dev_recurringd() -> bool {
     if !devimint::util::supports_lnv1() {
-        info!("Skipping test as a lnv1-less federation has no gateway registrations");
+        info!("Skipping test as the lnv2 recurringd URL is hardcoded to production");
         true
     } else {
         false
@@ -492,10 +493,6 @@ async fn wait_for_federation_loading(
 
 #[allow(dead_code)]
 async fn test_lightning_send_and_receive(dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_needing_gateway_registrations() {
-        return Ok(());
-    }
-
     // Vec of tuple of (send_ppm, receive_ppm)
     let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
     for (send_ppm, receive_ppm) in fee_ppm_values {
@@ -512,6 +509,10 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 ) -> anyhow::Result<()> {
     let td = TestDevice::new().await?;
     let (bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+    // Pin the LND gateway: the external side of this test pays and issues
+    // invoices via the LDK gateway's node, so automatic selection landing
+    // on that same gateway would make it pay itself.
+    use_lnd_gateway(federation).await?;
     setLightningModuleFediFeeSchedule(
         bridge,
         federation.rpc_federation_id(),
@@ -565,10 +566,20 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
         .await;
     }
 
-    assert_eq!(
-        receive_amount.checked_sub(fedi_fee).expect("Can't fail"),
-        federation.get_balance().await
-    );
+    let expected_balance = receive_amount.checked_sub(fedi_fee).expect("Can't fail");
+    let balance = federation.get_balance().await;
+    if devimint::util::supports_mint_v2() {
+        // On kind-two the lnv2 gateway receive fee and the mintv2 issuance
+        // fees come out of the received amount. Allow the same 10% slack as
+        // the dev-fed peg-in.
+        assert!(
+            balance <= expected_balance
+                && balance >= Amount::from_msats(expected_balance.msats * 9 / 10),
+            "balance {balance} out of range for expected {expected_balance}"
+        );
+    } else {
+        assert_eq!(expected_balance, balance);
+    }
 
     // get invoice
     let send_amount = Amount::from_sats(50);
@@ -598,7 +609,7 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 }
 
 async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_needing_gateway_registrations() {
+    if should_skip_test_needing_dev_recurringd() {
         return Ok(());
     }
 
@@ -2621,15 +2632,65 @@ async fn test_community_v2_migration(_dev_fed: DevFed) -> anyhow::Result<()> {
     Ok(())
 }
 
+type MintedFeeInvoice = Arc<std::sync::Mutex<Option<Bolt11Invoice>>>;
+
+/// MockFediApi whose fee-invoice endpoint mints an invoice on the LDK
+/// gateway's node for the exact amount the bridge requests, since the
+/// requested amount (outstanding fees minus the quoted gateway fee) is not
+/// predictable by the test. Also returns the slot the minted invoice lands
+/// in.
+fn fee_invoice_generator_mock(dev_fed: &DevFed) -> (MockFediApi, MintedFeeInvoice) {
+    let minted = MintedFeeInvoice::default();
+    let mut mock = MockFediApi::default();
+    let gw_ldk_client = dev_fed.gw_ldk.client();
+    let slot = minted.clone();
+    mock.set_fedi_fee_invoice_generator(Box::new(move |amount| {
+        let gw_ldk_client = gw_ldk_client.clone();
+        let slot = slot.clone();
+        Box::pin(async move {
+            let invoice = gw_ldk_client.create_invoice(amount.msats).await?;
+            *slot.lock().unwrap() = Some(invoice.clone());
+            Ok(invoice)
+        })
+    }));
+    (mock, minted)
+}
+
+async fn await_minted_fee_invoice_paid(
+    dev_fed: &DevFed,
+    minted: &MintedFeeInvoice,
+) -> anyhow::Result<()> {
+    let gw_ldk_client = dev_fed.gw_ldk.client();
+    retry("fedi fee remitting", aggressive_backoff(), || {
+        let gw_ldk_client = gw_ldk_client.clone();
+        let minted = minted.clone();
+        async move {
+            let invoice = minted
+                .lock()
+                .unwrap()
+                .clone()
+                .context("fee invoice not requested yet")?;
+            gw_ldk_client
+                .wait_bolt11_invoice(invoice.payment_hash().consensus_encode_to_vec())
+                .await
+        }
+    })
+    .await
+}
+
 async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_using_stock_fedimintd() || should_skip_test_needing_gateway_registrations()
-    {
+    if should_skip_test_using_stock_fedimintd() {
         return Ok(());
     }
 
     let mut td = TestDevice::new().await?;
     let bridge = td.bridge_full().await?;
     let federation = td.join_default_fed().await?;
+    // Pin the LND gateway: the remittance invoice is issued by the LDK
+    // gateway's node, and lnv2 gateway selection prefers the invoice
+    // issuer's own gateway, which cannot pay itself. The override is
+    // stored in the client db, so it survives the bridge restart.
+    use_lnd_gateway(federation).await?;
     setStabilityPoolModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 21_000, 0)
         .await?;
 
@@ -2704,23 +2765,12 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
     td.shutdown().await?;
 
     // Mock fee remittance endpoint
-    // On restart, gateway cache may be empty so we use the full outstanding fee
-    // amount (no gateway fees subtracted)
-    let fedi_fee_invoice = dev_fed.gw_ldk.client().create_invoice(105_000).await?;
-    let mut mock_fedi_api = MockFediApi::default();
-    mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
+    let (mock_fedi_api, minted_invoice) = fee_invoice_generator_mock(&dev_fed);
     td.with_fedi_api(mock_fedi_api.into());
     let new_bridge = td.bridge_full().await?;
 
     // Wait for fedi fee to be remitted
-    let gw_ldk_client = dev_fed.gw_ldk.client();
-    let payment_hash = fedi_fee_invoice.payment_hash().consensus_encode_to_vec();
-    retry("fedi fee remitting", aggressive_backoff(), || {
-        let gw_ldk_client = gw_ldk_client.clone();
-        let payment_hash = payment_hash.clone();
-        async move { gw_ldk_client.wait_bolt11_invoice(payment_hash).await }
-    })
-    .await?;
+    await_minted_fee_invoice_paid(&dev_fed, &minted_invoice).await?;
 
     // Ensure outstanding fee has been cleared
     let federation = wait_for_federation_loading(new_bridge, &federation_id.to_string()).await?;
@@ -2741,23 +2791,23 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
 }
 
 async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_using_stock_fedimintd() || should_skip_test_needing_gateway_registrations()
-    {
+    if should_skip_test_using_stock_fedimintd() {
         return Ok(());
     }
 
     // Mock fee remittance endpoint
-    // Gateway cache may be empty so we use the full outstanding fee amount
-    // (no gateway fees subtracted)
-    let fedi_fee_invoice = dev_fed.gw_ldk.client().create_invoice(105_000).await?;
-    let mut mock_fedi_api = MockFediApi::default();
-    mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
+    let (mock_fedi_api, minted_invoice) = fee_invoice_generator_mock(&dev_fed);
     let mut td = TestDevice::new().await?;
     td.with_fedi_api(Arc::new(mock_fedi_api));
 
     // Setup bridge, join test federation, set SP send fee ppm
     let bridge = td.bridge_full().await?;
     let federation = td.join_default_fed().await?;
+    // Pin the LND gateway: the remittance invoice is issued by the LDK
+    // gateway's node, and lnv2 gateway selection prefers the invoice
+    // issuer's own gateway, which cannot pay itself. The override is
+    // stored in the client db, so it survives the bridge restart.
+    use_lnd_gateway(federation).await?;
     setStabilityPoolModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 21_000, 0)
         .await?;
 
@@ -2814,14 +2864,7 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
     }
 
     // Wait for fedi fee to be remitted
-    let gw_ldk_client = dev_fed.gw_ldk.client();
-    let payment_hash = fedi_fee_invoice.payment_hash().consensus_encode_to_vec();
-    retry("fedi fee remitting", aggressive_backoff(), || {
-        let gw_ldk_client = gw_ldk_client.clone();
-        let payment_hash = payment_hash.clone();
-        async move { gw_ldk_client.wait_bolt11_invoice(payment_hash).await }
-    })
-    .await?;
+    await_minted_fee_invoice_paid(&dev_fed, &minted_invoice).await?;
     // Ensure outstanding fee has been cleared
     assert_eq!(
         Amount::ZERO,
@@ -3020,7 +3063,7 @@ async fn test_guardian_remittance_account_withdraw_all() -> anyhow::Result<()> {
 }
 
 async fn test_recurring_lnurl(_dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_needing_gateway_registrations() {
+    if should_skip_test_needing_dev_recurringd() {
         return Ok(());
     }
 
