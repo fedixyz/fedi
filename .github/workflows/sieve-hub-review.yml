@@ -1,0 +1,52 @@
+name: 'Sieve hub review'
+
+on:
+    workflow_dispatch:
+        inputs:
+            repo:
+                description: 'Target repo (owner/name)'
+                required: true
+            pr_number:
+                description: 'PR number to review'
+                required: true
+
+permissions:
+    contents: read
+
+concurrency:
+    group: sieve-hub-review-${{ inputs.repo }}-${{ inputs.pr_number }}
+    cancel-in-progress: true
+
+env:
+    SIEVE_HOST: https://sieve.fedi.xyz
+    # TODO: pin a release once it includes `review-pr`.
+    SIEVE_REV: master
+
+jobs:
+    review:
+        name: 'Publish sieve review'
+        runs-on: [self-hosted, linux]
+        # Cold runners compile sieve from source.
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+            - name: Mint the cross-repo app token
+              id: app-token
+              if: vars.SIEVE_HUB_APP_ID != ''
+              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              with:
+                  app-id: ${{ vars.SIEVE_HUB_APP_ID }}
+                  private-key: ${{ secrets.SIEVE_HUB_APP_PRIVATE_KEY }}
+                  owner: fedibtc
+
+            - name: Publish review and sticky PR comment
+              env:
+                  SIEVE_TOKEN: ${{ secrets.SIEVE_TOKEN }}
+                  GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.SIEVE_HUB_TOKEN }}
+                  # Avoid anonymous GitHub API rate limits during the Nix fetch.
+                  NIX_CONFIG: access-tokens = github.com=${{ github.token }}
+                  REPO: ${{ inputs.repo }}
+                  PR_NUMBER: ${{ inputs.pr_number }}
+              # The generic Linux binary does not run on NixOS.
+              run: nix shell "github:fedibtc/sieve/${SIEVE_REV}#sieve" nixpkgs#gh nixpkgs#jq nixpkgs#git --command ./scripts/ci/sieve-hub-review.sh "$REPO" "$PR_NUMBER"
