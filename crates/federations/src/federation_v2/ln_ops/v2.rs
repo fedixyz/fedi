@@ -4,7 +4,7 @@ use fedimint_core::core::OperationId;
 use fedimint_core::{Amount, apply, async_trait_maybe_send};
 use fedimint_lnv2_client::{
     FinalReceiveOperationState as LnV2FinalReceiveOperationState,
-    FinalSendOperationState as LnV2FinalSendOperationState,
+    FinalSendOperationState as LnV2FinalSendOperationState, InvoiceSendStatus,
     LightningOperationMeta as LnV2OperationMeta, ReceiveOperationMeta as LnV2ReceiveOperationMeta,
     ReceiveOperationState as LnV2ReceiveOperationState, SendOperationMeta as LnV2SendOperationMeta,
     SendOperationState as LnV2SendOperationState,
@@ -310,10 +310,16 @@ impl LnOps for LnOpsV2 {
 
     async fn get_prev_pay_invoice_result(
         &self,
-        _fed: &FederationV2,
-        _invoice: &Bolt11Invoice,
+        fed: &FederationV2,
+        invoice: &Bolt11Invoice,
     ) -> Result<RpcPrevPayInvoiceResult> {
-        Ok(RpcPrevPayInvoiceResult { completed: false })
+        let status = fed.client.lnv2()?.get_invoice_send_status(invoice).await?;
+        // In-flight and failed sends report not-completed to match the v1
+        // semantics: a retry of an in-flight send is rejected by lnv2's send
+        // itself, and a failed send is safe to pay again.
+        Ok(RpcPrevPayInvoiceResult {
+            completed: matches!(status, InvoiceSendStatus::Succeeded(_)),
+        })
     }
 
     async fn subscribe_operation(

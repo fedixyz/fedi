@@ -138,34 +138,34 @@ matrix-sdk-ui = { git = "https://github.com/fedibtc/matrix-rust-sdk", tag = "fed
 
 fedimint_threshold_crypto = { version = "0.2.1", package = "fedimint-threshold-crypto" }
 
-fedimintd = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-cli = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-build = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-core = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-server = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-server-core = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-client-module = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-tbs = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-mintv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-walletv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-lnv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-aead = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-rocksdb = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-bip39 = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-logging = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-portalloc = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-fedimint-cursed-redb = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-devimint = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
-ln-gateway = { git = "https://github.com/fedibtc/fedimint", rev = "350d426fb426dcf7cecd28ff365ec7a48a7d8005" }
+fedimintd = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-cli = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-build = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-core = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-server = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-server-core = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-client-module = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-tbs = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-mintv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-walletv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-lnv2-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-aead = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-rocksdb = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-bip39 = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-logging = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-portalloc = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+fedimint-cursed-redb = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+devimint = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
+ln-gateway = { git = "https://github.com/fedibtc/fedimint", rev = "96830aca7f9e5395efed3890556b28bff764abe4" }
 
 
 # Uncomment these to use local fedimint v2

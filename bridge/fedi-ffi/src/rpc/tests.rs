@@ -589,6 +589,13 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
         .create_invoice(send_amount.msats)
         .await?;
 
+    assert!(
+        !getPrevPayInvoiceResult(federation.clone(), invoice.to_string())
+            .await?
+            .completed,
+        "unpaid invoice must not report a completed previous payment"
+    );
+
     // check balance
     payInvoice(
         federation.clone(),
@@ -602,6 +609,14 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
         .client()
         .wait_bolt11_invoice(invoice.payment_hash().consensus_encode_to_vec())
         .await?;
+
+    // Chat payment receipts rely on this to detect an already-paid invoice.
+    assert!(
+        getPrevPayInvoiceResult(federation.clone(), invoice.to_string())
+            .await?
+            .completed,
+        "paid invoice must report a completed previous payment"
+    );
 
     // TODO shaurya unsure how to account for gateway fee when verifying fedi fee
     // amount
