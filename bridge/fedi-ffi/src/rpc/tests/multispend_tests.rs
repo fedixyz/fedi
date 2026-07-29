@@ -355,7 +355,10 @@ pub async fn test_multispend_last_seen_cache_churn_does_not_panic(
 ) -> anyhow::Result<()> {
     const PRE_MESSAGES: usize = 25;
     const POST_MESSAGES: usize = 120;
-    const SHRINK_NUDGE_ATTEMPTS: usize = 30;
+    // The event cache shrinks in a task the sdk spawns when the last
+    // subscription drops, so under load the shrink can lag well behind our
+    // subscribe/check cycle; give it a generous window.
+    const SHRINK_NUDGE_ATTEMPTS: usize = 120;
     const STRESS_ATTEMPTS: usize = 8;
 
     let td1 = TestDevice::new().await?;
@@ -419,7 +422,7 @@ pub async fn test_multispend_last_seen_cache_churn_does_not_panic(
                 SendMessageData::text(format!("multispend-repro-shrink-nudge-{i}")),
             )
             .await?;
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(250)).await;
     }
 
     anyhow::ensure!(

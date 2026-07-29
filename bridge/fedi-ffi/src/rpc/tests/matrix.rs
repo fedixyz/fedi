@@ -594,18 +594,32 @@ pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Resu
         return Ok(());
     }
     let timeline = matrix.timeline(&room_id).await?;
-    let event_id = timeline
-        .latest_event_id()
-        .await
-        .context("expected last event id")?;
-    let event = timeline
-        .item_by_event_id(&event_id)
-        .await
-        .context("expected last event")?;
-    let source = match event.content().as_message().unwrap().msgtype() {
-        MessageType::File(f) => f.source.clone(),
-        _ => unreachable!(),
-    };
+    // The send is only reflected in the timeline once the server echoes the
+    // event back, so the latest event can still be a room state event for a
+    // while; poll instead of assuming the attachment is already there.
+    let source = devimint::util::poll("waiting for the attachment event", || async {
+        let event_id = timeline
+            .latest_event_id()
+            .await
+            .context("no event id yet")
+            .map_err(ControlFlow::Continue)?;
+        let event = timeline
+            .item_by_event_id(&event_id)
+            .await
+            .context("event not found")
+            .map_err(ControlFlow::Continue)?;
+        match event
+            .content()
+            .as_message()
+            .map(|message| message.msgtype())
+        {
+            Some(MessageType::File(file)) => Ok(file.source.clone()),
+            _ => Err(ControlFlow::Continue(anyhow!(
+                "latest event is not the attachment yet"
+            ))),
+        }
+    })
+    .await?;
 
     // Download the file
     let downloaded_data = matrix.download_file(source).await?;
