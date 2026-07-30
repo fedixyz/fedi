@@ -1,5 +1,9 @@
 name: 'Sieve hub review'
 
+# Two entry points: dispatch with a repo + PR number, or comment @fedi-sieve
+# on a PR here (comment events only reach the repo hosting the workflow, so
+# the tag covers fedi PRs; other repos are dispatch-only). Both review the
+# PR regardless of draft or CI state.
 on:
     workflow_dispatch:
         inputs:
@@ -9,13 +13,11 @@ on:
             pr_number:
                 description: 'PR number to review'
                 required: true
+    issue_comment:
+        types: [created]
 
 permissions:
     contents: read
-
-concurrency:
-    group: sieve-hub-review-${{ inputs.repo }}-${{ inputs.pr_number }}
-    cancel-in-progress: true
 
 env:
     SIEVE_HOST: https://sieve.fedi.xyz
@@ -25,6 +27,20 @@ env:
 jobs:
     review:
         name: 'Publish sieve review'
+        if: >-
+            github.event_name == 'workflow_dispatch' ||
+            (github.event.issue.pull_request != null &&
+             contains(github.event.comment.body, '@fedi-sieve') &&
+             (github.event.comment.author_association == 'OWNER' ||
+              github.event.comment.author_association == 'MEMBER' ||
+              github.event.comment.author_association == 'COLLABORATOR'))
+        # Job-level, not workflow-level: every comment in the repo creates a
+        # run that joins a workflow-level group before the job `if` runs, so
+        # an unrelated comment would cancel an in-flight review. A skipped
+        # job never acquires a job-level group.
+        concurrency:
+            group: sieve-hub-review-${{ inputs.repo || github.repository }}-${{ inputs.pr_number || github.event.issue.number }}
+            cancel-in-progress: true
         runs-on: [self-hosted, linux]
         # Cold runners compile sieve from source.
         timeout-minutes: 30
@@ -46,7 +62,7 @@ jobs:
                   GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.SIEVE_HUB_TOKEN }}
                   # Avoid anonymous GitHub API rate limits during the Nix fetch.
                   NIX_CONFIG: access-tokens = github.com=${{ github.token }}
-                  REPO: ${{ inputs.repo }}
-                  PR_NUMBER: ${{ inputs.pr_number }}
+                  REPO: ${{ inputs.repo || github.repository }}
+                  PR_NUMBER: ${{ inputs.pr_number || github.event.issue.number }}
               # The generic Linux binary does not run on NixOS.
               run: nix shell "github:fedibtc/sieve/${SIEVE_REV}#sieve" nixpkgs#gh nixpkgs#jq nixpkgs#git --command ./scripts/ci/sieve-hub-review.sh "$REPO" "$PR_NUMBER"

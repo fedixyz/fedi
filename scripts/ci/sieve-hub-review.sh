@@ -16,9 +16,13 @@ fi
 
 sieve --version
 
-pr=$(gh pr view "$number" --repo "$repo" --json headRefName,headRefOid,isCrossRepository)
+pr=$(gh pr view "$number" --repo "$repo" --json state,headRefName,headRefOid,isCrossRepository)
 branch=$(jq -r '.headRefName' <<<"$pr")
 head=$(jq -r '.headRefOid' <<<"$pr")
+if [ "$(jq -r '.state' <<<"$pr")" != "OPEN" ]; then
+    echo "$repo#$number is not open; nothing to review"
+    exit 0
+fi
 if [ "$(jq -r '.isCrossRepository' <<<"$pr")" = "true" ]; then
     echo "::error::$repo#$number is a fork PR; the hub only reviews branches the org owns"
     exit 1
