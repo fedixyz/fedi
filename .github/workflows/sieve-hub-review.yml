@@ -22,7 +22,7 @@ permissions:
 env:
     SIEVE_HOST: https://sieve.fedi.xyz
     # Must match the deployed server's schema; bump with each sieve release.
-    SIEVE_REV: v0.4.2
+    SIEVE_REV: v0.4.3
 
 jobs:
     review:
