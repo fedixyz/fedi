@@ -58,7 +58,10 @@ jobs:
               id: sieve-release
               env:
                   GH_TOKEN: ${{ github.token }}
-              run: ./scripts/ci/sieve-latest-release.sh >> "$GITHUB_OUTPUT"
+                  # Avoid anonymous GitHub API rate limits during the Nix fetch.
+                  NIX_CONFIG: access-tokens = github.com=${{ github.token }}
+              # The runner has no gh on PATH.
+              run: nix shell nixpkgs#gh --command ./scripts/ci/sieve-latest-release.sh >> "$GITHUB_OUTPUT"
 
             - name: Publish review and sticky PR comment
               env:
