@@ -3,12 +3,12 @@ use fedimint_client::module::oplog::OperationLogEntry;
 use fedimint_core::core::OperationId;
 use fedimint_core::{Amount, apply, async_trait_maybe_send};
 use fedimint_lnv2_client::{
-    FinalReceiveOperationState as LnV2FinalReceiveOperationState,
     FinalSendOperationState as LnV2FinalSendOperationState, InvoiceSendStatus,
     LightningOperationMeta as LnV2OperationMeta, ReceiveOperationMeta as LnV2ReceiveOperationMeta,
     ReceiveOperationState as LnV2ReceiveOperationState, SendOperationMeta as LnV2SendOperationMeta,
     SendOperationState as LnV2SendOperationState,
 };
+use futures::StreamExt;
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
 use rpc_types::error::ErrorCode;
 use rpc_types::{
@@ -341,28 +341,36 @@ impl LnOps for LnOpsV2 {
                         error!("lnv2 module not present");
                         return;
                     };
-                    let final_state =
-                        match lnv2.await_final_send_operation_state(operation_id).await {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("lnv2 await_final_send failed: {e:?}");
-                                return;
-                            }
-                        };
-                    if !extra_meta.is_fedi_fee_remittance {
-                        match final_state {
-                            LnV2FinalSendOperationState::Success(_) => {
-                                let _ = fed.write_success_send_fedi_fees(operation_id).await;
-                            }
-                            LnV2FinalSendOperationState::Refunded
-                            | LnV2FinalSendOperationState::Failure => {
-                                let _ = fed.write_failed_send_fedi_fees(operation_id).await;
-                            }
+                    let mut updates = match lnv2
+                        .subscribe_send_operation_state_updates(operation_id)
+                        .await
+                    {
+                        Ok(updates) => updates.into_stream(),
+                        Err(e) => {
+                            warn!("lnv2 subscribe_send failed: {e:?}");
+                            return;
                         }
-                    }
-                    fed.update_operation_state(operation_id, final_state).await;
-                    if !extra_meta.is_fedi_fee_remittance {
-                        fed.send_transaction_event(operation_id).await;
+                    };
+                    // history reads back whatever this records, so record every update
+                    while let Some(state) = updates.next().await {
+                        fed.update_operation_state(operation_id, state.clone())
+                            .await;
+                        if extra_meta.is_fedi_fee_remittance {
+                            continue;
+                        }
+                        match state {
+                            LnV2SendOperationState::Success(_) => {
+                                let _ = fed.write_success_send_fedi_fees(operation_id).await;
+                                fed.send_transaction_event(operation_id).await;
+                            }
+                            LnV2SendOperationState::Refunded | LnV2SendOperationState::Failure => {
+                                let _ = fed.write_failed_send_fedi_fees(operation_id).await;
+                                fed.send_transaction_event(operation_id).await;
+                            }
+                            LnV2SendOperationState::Funding
+                            | LnV2SendOperationState::Funded
+                            | LnV2SendOperationState::Refunding => {}
+                        }
                     }
                 });
             }
@@ -377,27 +385,36 @@ impl LnOps for LnOpsV2 {
                         error!("lnv2 module not present");
                         return;
                     };
-                    let final_state =
-                        match lnv2.await_final_receive_operation_state(operation_id).await {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("lnv2 await_final_receive failed: {e:?}");
-                                return;
-                            }
-                        };
-                    match final_state {
-                        LnV2FinalReceiveOperationState::Claimed => {
-                            let _ = fed
-                                .write_success_receive_fedi_fees(operation_id, amount)
-                                .await;
+                    let mut updates = match lnv2
+                        .subscribe_receive_operation_state_updates(operation_id)
+                        .await
+                    {
+                        Ok(updates) => updates.into_stream(),
+                        Err(e) => {
+                            warn!("lnv2 subscribe_receive failed: {e:?}");
+                            return;
                         }
-                        LnV2FinalReceiveOperationState::Expired
-                        | LnV2FinalReceiveOperationState::Failure => {
-                            let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
+                    };
+                    // history reads back whatever this records, so record every update
+                    while let Some(state) = updates.next().await {
+                        fed.update_operation_state(operation_id, state.clone())
+                            .await;
+                        match state {
+                            LnV2ReceiveOperationState::Claimed => {
+                                let _ = fed
+                                    .write_success_receive_fedi_fees(operation_id, amount)
+                                    .await;
+                                fed.send_transaction_event(operation_id).await;
+                            }
+                            LnV2ReceiveOperationState::Expired
+                            | LnV2ReceiveOperationState::Failure => {
+                                let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
+                                fed.send_transaction_event(operation_id).await;
+                            }
+                            LnV2ReceiveOperationState::Pending
+                            | LnV2ReceiveOperationState::Claiming => {}
                         }
                     }
-                    fed.update_operation_state(operation_id, final_state).await;
-                    fed.send_transaction_event(operation_id).await;
                 });
             }
             // LNURL receive flows are driven by recurringd; no
@@ -408,8 +425,8 @@ impl LnOps for LnOpsV2 {
 
     async fn get_transaction(
         &self,
-        _fed: &FederationV2,
-        _operation_id: OperationId,
+        fed: &FederationV2,
+        operation_id: OperationId,
         entry: OperationLogEntry,
         fedi_fee_msats: u64,
     ) -> anyhow::Result<Option<FederationTransactionParts>> {
@@ -443,10 +460,14 @@ impl LnOps for LnOpsV2 {
                 // Success). FinalSendOperationState is just a
                 // convenience projection; the on-disk shape is
                 // SendOperationState.
-                let state = entry
-                    .try_outcome::<LnV2SendOperationState>()
-                    .ok()
-                    .flatten()
+                let state = fed
+                    .get_client_operation_outcome(operation_id, entry, |op_id| async move {
+                        fed.client
+                            .lnv2()?
+                            .subscribe_send_operation_state_updates(op_id)
+                            .await
+                    })
+                    .await?
                     .map(|s| match s {
                         LnV2SendOperationState::Success(preimage) => {
                             fedimint_ln_client::LnPayState::Success {
@@ -502,10 +523,14 @@ impl LnOps for LnOpsV2 {
                         (inv.to_string(), inv.amount_milli_satoshis().unwrap_or(0))
                     }
                 };
-                let state = entry
-                    .try_outcome::<LnV2ReceiveOperationState>()
-                    .ok()
-                    .flatten()
+                let state = fed
+                    .get_client_operation_outcome(operation_id, entry, |op_id| async move {
+                        fed.client
+                            .lnv2()?
+                            .subscribe_receive_operation_state_updates(op_id)
+                            .await
+                    })
+                    .await?
                     .map(|s| match s {
                         LnV2ReceiveOperationState::Claimed => {
                             fedimint_ln_client::LnReceiveState::Claimed

@@ -29,8 +29,8 @@ use nostr::nips::nip44;
 use rpc_types::communities::{CommunityInvite, CommunityInviteV1};
 use rpc_types::event::TransactionEvent;
 use rpc_types::{
-    RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState, RpcReturningMemberStatus,
-    RpcSPV2TransferInState, RpcTransactionDirection, RpcTransactionKind,
+    RpcLnPayState, RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState,
+    RpcReturningMemberStatus, RpcSPV2TransferInState, RpcTransactionDirection, RpcTransactionKind,
 };
 use runtime::constants::{COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_FILE_V0_PATH, MILLION};
 use runtime::db::BridgeDbPrefix;
@@ -534,6 +534,30 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
     )
     .await?;
 
+    assert!(
+        listTransactions(federation.clone(), None, None)
+            .await?
+            .iter()
+            .any(|entry| matches!(
+                entry,
+                Ok(RpcTransactionListEntry {
+                    transaction: RpcTransaction {
+                        kind: RpcTransactionKind::LnReceive {
+                            ln_invoice,
+                            state: Some(
+                                RpcLnReceiveState::Created
+                                    | RpcLnReceiveState::WaitingForPayment { .. }
+                            ),
+                            ..
+                        },
+                        ..
+                    },
+                    ..
+                }) if *ln_invoice == invoice_string
+            )),
+        "unpaid receive invoice must show as pending in transaction history"
+    );
+
     dev_fed
         .gw_ldk
         .client()
@@ -616,6 +640,27 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
             .await?
             .completed,
         "paid invoice must report a completed previous payment"
+    );
+
+    assert!(
+        listTransactions(federation.clone(), None, None)
+            .await?
+            .iter()
+            .any(|entry| matches!(
+                entry,
+                Ok(RpcTransactionListEntry {
+                    transaction: RpcTransaction {
+                        kind: RpcTransactionKind::LnPay {
+                            ln_invoice,
+                            state: Some(RpcLnPayState::Success { .. }),
+                            ..
+                        },
+                        ..
+                    },
+                    ..
+                }) if *ln_invoice == invoice.to_string()
+            )),
+        "paid send must show as succeeded in transaction history"
     );
 
     // TODO shaurya unsure how to account for gateway fee when verifying fedi fee
