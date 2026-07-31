@@ -40,8 +40,12 @@ git clone --quiet --branch "$branch" \
     "https://x-access-token:${GH_TOKEN}@github.com/${repo}.git" "$workdir/repo"
 cd "$workdir/repo"
 
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    echo "::warning::ANTHROPIC_API_KEY is not set, so this review is a mechanical recap of the diff and carries no judgment"
+# A stale API key must not shadow a working subscription token.
+if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    unset ANTHROPIC_API_KEY
+fi
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    echo "::warning::neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN is set, so this review is a mechanical recap of the diff and carries no judgment"
     sieve --host "$SIEVE_HOST" review-pr
     exit 0
 fi
