@@ -67,10 +67,12 @@ jobs:
               env:
                   SIEVE_REV: ${{ steps.sieve-release.outputs.rev }}
                   SIEVE_TOKEN: ${{ secrets.SIEVE_TOKEN }}
+                  # Without this the job falls back to a mechanical recap.
+                  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
                   GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.SIEVE_HUB_TOKEN }}
                   # Avoid anonymous GitHub API rate limits during the Nix fetch.
                   NIX_CONFIG: access-tokens = github.com=${{ github.token }}
                   REPO: ${{ inputs.repo || github.repository }}
                   PR_NUMBER: ${{ inputs.pr_number || github.event.issue.number }}
               # The generic Linux binary does not run on NixOS.
-              run: nix shell "github:fedibtc/sieve/${SIEVE_REV}#sieve" nixpkgs#gh nixpkgs#jq nixpkgs#git --command ./scripts/ci/sieve-hub-review.sh "$REPO" "$PR_NUMBER"
+              run: nix shell "github:fedibtc/sieve/${SIEVE_REV}#sieve" nixpkgs#claude-code nixpkgs#gh nixpkgs#jq nixpkgs#git --command ./scripts/ci/sieve-hub-review.sh "$REPO" "$PR_NUMBER"
