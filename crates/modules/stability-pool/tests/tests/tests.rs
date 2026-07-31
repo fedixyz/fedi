@@ -498,6 +498,30 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
     Ok(())
 }
 
+/// The pool is only solvent while providers have locked at least as much as
+/// seekers. stability-pool-old checked this after every cycle change; spv2
+/// asserts individual deposit amounts but not the relationship between the two
+/// sides, so a regression that under-collateralised seekers would go unnoticed.
+fn assert_provider_covers_seekers(seeker_info: &AccountInfo, provider_info: &AccountInfo) {
+    assert!(
+        provider_info.sync_response.locked_balance >= seeker_info.sync_response.locked_balance,
+        "provider locked {} does not cover seeker locked {}",
+        provider_info.sync_response.locked_balance,
+        seeker_info.sync_response.locked_balance,
+    );
+}
+
+/// Everything an account holds inside the pool, in bitcoin terms: staged
+/// deposits not yet locked, locked deposits, and accrued-but-unwithdrawn fees.
+/// stability-pool-old asserted that deposits equal holdings plus withdrawals at
+/// every step; spv2 only checks individual deposit amounts, so a fee or
+/// cycle-rollover bug that leaked value out of the pool would go unnoticed.
+fn account_total(info: &AccountInfo) -> Amount {
+    info.sync_response.staged_balance
+        + info.sync_response.locked_balance
+        + info.sync_response.idle_balance
+}
+
 async fn seeker_and_provider_tests(
     seeker: Arc<ForkedClient>,
     provider: Arc<ForkedClient>,
@@ -516,6 +540,12 @@ async fn seeker_and_provider_tests(
         seeker.wait_for_locked_seek_change(seeker_acc_info),
         provider.wait_for_locked_provide_change(provider_acc_info)
     )?;
+    assert_provider_covers_seekers(&seeker_info, &provider_info);
+    assert_eq!(
+        account_total(&seeker_info).msats + account_total(&provider_info).msats,
+        seek1_msats + provide1_msats,
+        "first-round deposits are not fully accounted for",
+    );
 
     let fees_paid = 1; // 24ppb means 1 part for 200k (ceiling division)
     let locked_seek_1 = seek1_msats - fees_paid;
@@ -561,6 +591,10 @@ async fn seeker_and_provider_tests(
         seeker.wait_for_locked_seek_change(seeker_acc_info),
         provider.wait_for_locked_provide_change(provider_acc_info)
     )?;
+    assert_provider_covers_seekers(&seeker_info, &provider_info);
+    // Snapshot the combined total now, before `active_deposits` below is
+    // destructured and partially moves out of `seeker_info` / `provider_info`.
+    let combined_before = account_total(&seeker_info).msats + account_total(&provider_info).msats;
 
     let fees_paid = fees_paid + 1 + 1; // 50ppb is 1 part for 600_000 (ceiling division), +1 for rounding
     let locked_seek_1 = locked_seek_1 - 1; // -1 for fee
@@ -611,6 +645,38 @@ async fn seeker_and_provider_tests(
         seeker.get_sp_account_info(AccountType::Seeker),
         provider.get_sp_account_info(AccountType::Provider)
     )?;
+    assert_provider_covers_seekers(&seeker_info, &provider_info);
+    let combined_after = account_total(&seeker_info).msats + account_total(&provider_info).msats;
+    // The mock oracle prices one bitcoin at 1,000,000 cents, so four cents is
+    // 400_000 msats. Fees only move value between the two accounts, and the
+    // server hands the fee pool's rounding remainder to an arbitrary provider,
+    // so fees cancel exactly in the combined total.
+    //
+    // The remaining 1 msat is lost in the withdrawal path itself.
+    // `process_unlock_input_inner` converts the leftover msat amount to fiat
+    // with the flooring `FiatAmount::from_btc_amount`, and cycle rollover
+    // converts it back: here 300_001 msats floors to 3 cents and expands back
+    // to 300_000. The shortfall stays in the seeker's own locked balance rather
+    // than being destroyed.
+    //
+    // `from_btc_amount_roundtrip_safe` does not help: it only takes the
+    // incremented fiat value when that converts back to the exact original
+    // msats, and 4 cents is 400_000, not 300_001. Ceiling unconditionally would
+    // be worse, unlocking 400_000 after 99_999 was already drained from staged.
+    // Delivering the exact amount would mean carrying an msat remainder through
+    // `UnlockRequest`, whose `FiatOrAll` cannot express one — a persisted
+    // encoding change, so a consensus version bump and a migration for pending
+    // requests come with it.
+    // Both totals are pinned exactly by the assertions around this one, so the
+    // drop is deterministic: assert it rather than tolerating a band. A band
+    // would be symmetric and would also accept a pool that destroyed one msat
+    // more than the conversion above accounts for. Subtracting from
+    // `combined_before` keeps this from underflowing if the pool ever gains.
+    assert_eq!(
+        combined_after,
+        combined_before - 399_999,
+        "the pool must lose the withdrawn 400_000 msats less the one msat above"
+    );
     let locked_seek_2 = (staged_seek_2 + locked_seek_2) - 400_000; // after staged seek is drained, newer locked seek is drained
     let locked_provide_1 = locked_seek_1 + locked_seek_2 + 1;
     let fees_paid = fees_paid + 1 + 1; // 24ppb is 1 parts for 300_000, +1 for rounding

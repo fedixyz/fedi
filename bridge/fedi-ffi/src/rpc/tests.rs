@@ -30,7 +30,8 @@ use rpc_types::communities::{CommunityInvite, CommunityInviteV1};
 use rpc_types::event::TransactionEvent;
 use rpc_types::{
     RpcLnPayState, RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState,
-    RpcReturningMemberStatus, RpcSPV2TransferInState, RpcTransactionDirection, RpcTransactionKind,
+    RpcOnchainWithdrawState, RpcReturningMemberStatus, RpcSPV2TransferInState,
+    RpcTransactionDirection, RpcTransactionKind,
 };
 use runtime::constants::{COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_FILE_V0_PATH, MILLION};
 use runtime::db::BridgeDbPrefix;
@@ -224,6 +225,18 @@ async fn bitcoin_cli_send_to_address(address: &str, amount: &str) -> anyhow::Res
     Ok(())
 }
 
+async fn bitcoin_cli_new_address() -> anyhow::Result<String> {
+    let btc_port = std::env::var("FM_PORT_BTC_RPC").unwrap_or(String::from("18443"));
+    cmd!(
+        BitcoinCli,
+        "-rpcport={btc_port}",
+        "-rpcwallet=",
+        "getnewaddress"
+    )
+    .out_string()
+    .await
+}
+
 async fn join_test_fed_recovery(
     bridge: &BridgeFull,
     recover_from_scratch: bool,
@@ -297,6 +310,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_ecash,
         test_ecash_overissue,
         test_on_chain,
+        test_on_chain_v2,
         test_ecash_cancel,
         test_backup_and_recovery,
         test_backup_and_recovery_from_scratch,
@@ -1022,10 +1036,11 @@ async fn test_ecash_overissue(_dev_fed: DevFed) -> anyhow::Result<()> {
 
 // on chain is marked experimental for 0.4
 async fn test_on_chain(_dev_fed: DevFed) -> anyhow::Result<()> {
-    // TODO: write a walletv2 onchain test. This one is v1-shaped throughout:
-    // it expects a deposit operation to exist per generated address and reads
-    // the v1 wallet fee consensus, while walletv2 deposits are auto-claimed
-    // by a background scanner with no per-address operation.
+    // This test is v1-shaped throughout: it expects a deposit operation to
+    // exist per generated address and reads the v1 wallet fee consensus,
+    // while walletv2 deposits are auto-claimed by a background scanner with
+    // no per-address operation. See `test_on_chain_v2` for the kind-two
+    // counterpart.
     if devimint::util::supports_wallet_v2() {
         return Ok(());
     }
@@ -1036,6 +1051,113 @@ async fn test_on_chain(_dev_fed: DevFed) -> anyhow::Result<()> {
         test_on_chain_with_fedi_fees(send_ppm, receive_ppm).await?;
         test_on_chain_with_fedi_fees_with_restart(send_ppm, receive_ppm).await?;
     }
+
+    Ok(())
+}
+
+/// The kind-two counterpart of `test_on_chain`. walletv2 has no per-address
+/// deposit operation — the background scanner creates one when it spots the
+/// UTXO — so this polls for the deposit to appear and claim rather than
+/// asserting an operation exists the moment the address is funded. The peg-in
+/// fee is read off the resulting transaction instead of from the v1 wallet's
+/// fee consensus.
+async fn test_on_chain_v2(_dev_fed: DevFed) -> anyhow::Result<()> {
+    if !devimint::util::supports_wallet_v2() {
+        info!("Skipping kind-two onchain test on a kind-one federation");
+        return Ok(());
+    }
+
+    let td = TestDevice::new().await?;
+    let (bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+
+    // WalletOpsV2 resolves fedi fees under the v1 wallet kind, so the v1
+    // schedule setter is still the right one here.
+    setWalletModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 0, 0).await?;
+
+    let address = generateAddress(federation.clone(), FrontendMetadata::default()).await?;
+    bitcoin_cli_send_to_address(&address, "0.1").await?;
+
+    // Poll until the scanner has created the deposit operation and it reaches a
+    // claimed state. `peg_in_fees` comes from the walletv2 receive meta.
+    let peg_in_fees = devimint::util::poll("waiting for walletv2 deposit claim", || async {
+        let txns = listTransactions(federation.clone(), None, None).await;
+        for entry in txns.into_iter().flatten().flatten() {
+            if let RpcTransactionKind::OnchainDeposit {
+                onchain_address,
+                peg_in_fees,
+                state: Some(RpcOnchainDepositState::Claimed(_)),
+            } = entry.transaction.kind
+            {
+                if onchain_address == address {
+                    return Ok(peg_in_fees);
+                }
+            }
+        }
+        Err(ControlFlow::Continue(anyhow!("deposit not claimed yet")))
+    })
+    .await?;
+
+    // 0.1 BTC was sent. The credited balance is that minus the federation's
+    // peg-in fee; mintv2 issuance fees are why this is a close-enough check.
+    let deposited = Amount::from_sats(10_000_000);
+    let expected_balance = Amount::from_msats(deposited.msats - peg_in_fees.0.msats);
+    // The deposit reaches a claimed state in the transaction list before the
+    // balance ledger catches up. Reading the balance once races that gap and
+    // sees zero when the rest of the suite is running, so wait for the credit
+    // to land and only then hold it to the expected amount.
+    let credited = devimint::util::poll("waiting for the deposit to credit", || async {
+        let balance = federation.get_balance().await;
+        if balance.msats == 0 {
+            return Err(ControlFlow::Continue(anyhow!("balance not credited yet")));
+        }
+        Ok(balance)
+    })
+    .await?;
+    assert_balance_close_enough(expected_balance, credited);
+
+    // Now send some of it back on-chain and check the withdrawal reaches a
+    // terminal success state carrying a txid.
+    let withdraw_address = bitcoin_cli_new_address().await?;
+    let withdraw_amount = Amount::from_sats(1_000_000);
+
+    let preview = previewPayAddress(
+        federation.clone(),
+        withdraw_address.clone(),
+        withdraw_amount.sats_round_down(),
+    )
+    .await?;
+    assert!(
+        preview.network_fee.0.msats > 0,
+        "walletv2 send_fee must report a non-zero network fee"
+    );
+
+    payAddress(
+        federation.clone(),
+        withdraw_address.clone(),
+        withdraw_amount.sats_round_down(),
+        FrontendMetadata::default(),
+    )
+    .await?;
+
+    // Match on the destination address. Several tests share this federation, so
+    // an unrelated withdrawal reaching a terminal state must not satisfy this.
+    devimint::util::poll("waiting for walletv2 withdrawal", || async {
+        let txns = listTransactions(federation.clone(), None, None).await;
+        for entry in txns.into_iter().flatten().flatten() {
+            if let RpcTransactionKind::OnchainWithdraw {
+                onchain_address,
+                state: Some(RpcOnchainWithdrawState::Succeeded { .. }),
+                ..
+            } = entry.transaction.kind
+            {
+                if onchain_address == withdraw_address {
+                    return Ok(());
+                }
+            }
+        }
+        Err(ControlFlow::Continue(anyhow!("withdrawal not settled yet")))
+    })
+    .await?;
 
     Ok(())
 }
@@ -3168,9 +3290,8 @@ async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
     // The offline half of this test is v1-mint-shaped: it expects
     // generateEcash to eventually fail with OfflineExactEcashFailed, but a
     // mintv2 send spends local notes without contacting the federation, so
-    // it keeps succeeding while offline.
-    // TODO: a purpose-built kind-two offline test (init + balance survive a
-    // downed federation; a mintv2 receive fails offline).
+    // it keeps succeeding while offline. See
+    // `test_bridge_handles_federation_offline_v2` for the kind-two counterpart.
     if devimint::util::supports_mint_v2() {
         return Ok(());
     }
@@ -3278,6 +3399,131 @@ async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
             .await;
         }
     }
+    Ok(())
+}
+
+/// The kind-two counterpart of `test_bridge_handles_federation_offline`. A
+/// mintv2 send spends local notes without contacting the federation, so the v1
+/// expectation that ecash generation fails while offline does not hold. What
+/// does require the federation is a mintv2 *receive*, which submits a
+/// transaction — so that is what must fail, while init and the cached balance
+/// must both survive.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_bridge_handles_federation_offline_v2() -> anyhow::Result<()> {
+    if !devimint::util::supports_mint_v2() {
+        info!("Skipping kind-two offline test on a kind-one federation");
+        return Ok(());
+    }
+
+    let mut dev_fed = DevFed::new_with_setup(4).await?;
+    let invite_code = dev_fed.fed.invite_code()?;
+
+    let mut td = TestDevice::new().await?;
+    let original_balance;
+    let ecash_for_offline_receive;
+
+    // Join and fund while the federation is up, and mint a second piece of
+    // ecash from the CLI to attempt receiving later while it is down.
+    {
+        let bridge = td.bridge_full().await?;
+        let rpc_federation = joinFederation(bridge, invite_code.clone(), false).await?;
+        let federation = bridge
+            .federations
+            .get_federation_maybe_recovering(&rpc_federation.id.0)?;
+
+        let ecash = cli_generate_ecash(fedimint_core::Amount::from_msats(100_000)).await?;
+        receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
+        wait_for_ecash_reissue(&federation).await?;
+
+        original_balance = federation.get_balance().await;
+        assert!(original_balance.msats != 0);
+
+        ecash_for_offline_receive =
+            cli_generate_ecash(fedimint_core::Amount::from_msats(10_000)).await?;
+
+        drop(federation);
+        td.shutdown().await?;
+    }
+
+    // Take the federation down.
+    dev_fed.fed.terminate_all_servers().await?;
+
+    // The same device must still initialise and report the cached balance, then
+    // fail the federation-dependent operation.
+    {
+        let bridge = td.bridge_full().await?;
+        assert!(bridge.federations.get_federations_map().len() == 1);
+
+        let event_sink = td.event_sink();
+        let rpc_federation = fedimint_core::task::timeout(Duration::from_secs(2), async move {
+            'check: loop {
+                let events = event_sink.events();
+                for (_, ev_body) in events.iter().rev().filter(|(kind, _)| kind == "federation") {
+                    let ev_body =
+                        serde_json::from_str::<RpcFederationMaybeLoading>(ev_body).unwrap();
+                    match ev_body {
+                        RpcFederationMaybeLoading::Loading { .. } => (),
+                        RpcFederationMaybeLoading::Failed { error, id } => {
+                            bail!("federation {:?} loading failed: {}", id, error.detail)
+                        }
+                        RpcFederationMaybeLoading::Ready(rpc_federation) => {
+                            assert!(rpc_federation.invite_code == invite_code);
+                            break 'check Ok::<_, anyhow::Error>(rpc_federation);
+                        }
+                    }
+                }
+                fedimint_core::task::sleep_in_test(
+                    "waiting for federation ready event",
+                    Duration::from_millis(100),
+                )
+                .await;
+            }
+        })
+        .await??;
+
+        assert_eq!(
+            rpc_federation.balance.0, original_balance,
+            "the cached balance must survive a downed federation"
+        );
+
+        let federation = bridge
+            .federations
+            .get_federation_maybe_recovering(&rpc_federation.id.0)?;
+
+        // A mintv2 receive submits a transaction, so it cannot settle while the
+        // federation is unreachable. The call itself may return Ok and fail in
+        // the state machine, so accept either shape and require only that the
+        // reissue does not report Done.
+        let receive_result = receiveEcash(
+            federation.clone(),
+            ecash_for_offline_receive,
+            FrontendMetadata::default(),
+        )
+        .await;
+
+        if receive_result.is_ok() {
+            let settled = fedimint_core::task::timeout(
+                Duration::from_secs(5),
+                wait_for_ecash_reissue(&federation),
+            )
+            .await;
+
+            assert!(
+                matches!(settled, Err(_) | Ok(Err(_))),
+                "a mintv2 receive must not settle while the federation is offline"
+            );
+        }
+
+        // Checked on both branches, so the test cannot report success merely
+        // because the receive call errored for some unrelated reason. Whatever
+        // shape the failure took, nothing may have been credited.
+        assert_eq!(
+            federation.get_balance().await,
+            original_balance,
+            "an offline receive must not credit the balance"
+        );
+    }
+
     Ok(())
 }
 
