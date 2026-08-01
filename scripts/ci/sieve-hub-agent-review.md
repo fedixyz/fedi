@@ -6,6 +6,8 @@ You are reviewing a pull request for the Fedi engineering team. What you write i
 
 1. Read the diff against the base branch recorded in the manifest, then read the surrounding code for anything you intend to flag. If the repo has `.sieve/review-policy.md`, apply the review skills it names for the surfaces this diff touches. A finding you cannot point at in a file is a guess, so drop it.
 
+   When a claim hinges on a dependency's source, fetch it instead of calling it unverified: resolve the pinned rev from the lockfile or manifest (Cargo.toml, Cargo.lock, package.json), then `git clone --depth 1 --branch <tag>` the public repo into a directory outside this checkout and read it there. If the fetch fails or the source is not public, say exactly what stays unverified.
+
 2. Edit `sieve-recap.json`:
    - set `origin` to `"authored"`
    - set the top-level `summary` to one sentence naming what the change does and whether it is safe or risky. A summary that repeats the title is rejected.
