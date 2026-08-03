@@ -1,6 +1,6 @@
 name: 'Sieve hub review'
 
-# Two entry points: dispatch with a repo + PR number, or comment @fedi-sieve
+# Two entry points: dispatch with a repo + PR number, or say sieve in a comment
 # on a PR here (comment events only reach the repo hosting the workflow, so
 # the tag covers fedi PRs; other repos are dispatch-only). Both review the
 # PR regardless of draft or CI state.
@@ -25,10 +25,13 @@ env:
 jobs:
     review:
         name: 'Publish sieve review'
+        # Sieve's own sticky comment says "sieve", so dropping the bot check
+        # would let it review its own review forever.
         if: >-
             github.event_name == 'workflow_dispatch' ||
             (github.event.issue.pull_request != null &&
-             contains(github.event.comment.body, '@fedi-sieve') &&
+             github.event.comment.user.type != 'Bot' &&
+             contains(github.event.comment.body, 'sieve') &&
              (github.event.comment.author_association == 'OWNER' ||
               github.event.comment.author_association == 'MEMBER' ||
               github.event.comment.author_association == 'COLLABORATOR'))
@@ -45,9 +48,16 @@ jobs:
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+            - name: Check the comment calls sieve by name
+              id: trigger
+              if: github.event_name == 'issue_comment'
+              env:
+                  COMMENT_BODY: ${{ github.event.comment.body }}
+              run: ./scripts/ci/sieve-comment-trigger.sh
+
             - name: Mint the cross-repo app token
               id: app-token
-              if: vars.SIEVE_HUB_APP_ID != ''
+              if: steps.trigger.outputs.matched != 'false' && vars.SIEVE_HUB_APP_ID != ''
               uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
               with:
                   app-id: ${{ vars.SIEVE_HUB_APP_ID }}
@@ -56,6 +66,7 @@ jobs:
 
             - name: Resolve the deployed sieve release
               id: sieve-release
+              if: steps.trigger.outputs.matched != 'false'
               env:
                   GH_TOKEN: ${{ github.token }}
                   # Avoid anonymous GitHub API rate limits during the Nix fetch.
@@ -64,6 +75,7 @@ jobs:
               run: nix shell nixpkgs#gh --command ./scripts/ci/sieve-latest-release.sh >> "$GITHUB_OUTPUT"
 
             - name: Publish review and sticky PR comment
+              if: steps.trigger.outputs.matched != 'false'
               env:
                   SIEVE_REV: ${{ steps.sieve-release.outputs.rev }}
                   SIEVE_TOKEN: ${{ secrets.SIEVE_TOKEN }}
