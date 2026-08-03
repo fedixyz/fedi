@@ -106,13 +106,19 @@ diagnosable; strip them afterwards if a build target needs to.
 ## Testing
 
 ```bash
-just test-bridge            # the whole bridge suite
-just test-bridge <testcase> # one test
+just test-bridge                 # the default kind-one bridge suite
+just test-bridge <testcase>      # one kind-one test
+just test-bridge-kind-two        # the kind-two bridge suite
+just test-bridge-kind-two <test> # one kind-two test
 ```
 
-This spins up a real local federation with `devi`, with the stability pool, social recovery and
-Lightning v2 modules enabled, and runs the `fedi-ffi` tests against it under `cargo nextest`. It is
-slow, and it needs nothing beyond the dev shell.
+This spins up a real local federation with `devi`, with the stability pool and social recovery
+modules enabled, and runs the `fedi-ffi` tests against it under `cargo nextest`. The default
+`just test-bridge` path runs a kind-one federation with v1 mint, wallet and lightning modules, and
+explicitly disables lnv2 because fedimintd enables it by default when the environment variable is
+unset. `just test-bridge-kind-two` sets `FEDI_FEDERATION_KIND=two` and runs the same suite against a
+v2-only federation with mintv2, walletv2 and lnv2. Mixed module generations are unsupported. The
+suite is slow, and it needs nothing beyond the dev shell.
 
 ## The remote bridge
 

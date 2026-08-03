@@ -285,7 +285,8 @@ but they are slow.
 | Command | Runs |
 | --- | --- |
 | `just test` | `cargo test` over the workspace |
-| `just test-bridge [testcase]` | The bridge suite against a dev federation |
+| `just test-bridge [testcase]` | The bridge suite against a default kind-one dev federation |
+| `just test-bridge-kind-two [testcase]` | The bridge suite against a v2-only dev federation |
 | `just test-stability-pool` | Stability Pool v1 module tests |
 | `scripts/test-stability-pool-v2.sh` | Stability Pool v2 module tests |
 | `scripts/test-fm-upstream-tests.sh` | Upstream Fedimint suites, e.g. `cli-tests` |
