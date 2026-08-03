@@ -108,6 +108,12 @@ pub enum BridgeDbPrefix {
     // key stored only an lnv1 gateway pubkey.
     LightningGatewayOverride = 0xc9,
 
+    // walletv2 onchain addresses the user generated and may still receive a
+    // deposit to. walletv2 creates no operation at address-generation time (the
+    // scanner only makes one once it claims), so we track the address here to
+    // show an "awaiting deposit" entry, mirroring v1's immediate pending tile.
+    WalletV2AwaitingDeposit = 0xca,
+
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
     #[allow(dead_code)]
@@ -187,6 +193,36 @@ impl_db_record!(
     key = PendingFediFeesKey,
     value = Amount,
     db_prefix = BridgeDbPrefix::PendingFediFees,
+);
+
+/// A walletv2 onchain address the user generated, keyed so we can list the
+/// still-unclaimed ones.
+#[derive(Debug, Clone, Decodable, Encodable)]
+pub struct WalletV2AwaitingDepositKey(pub String);
+
+#[derive(Debug, Clone, Decodable, Encodable)]
+pub struct WalletV2AwaitingDepositKeyPrefix;
+
+#[derive(Debug, Clone, Decodable, Encodable)]
+pub enum WalletV2AwaitingDeposit {
+    /// Unix time (seconds) the address was generated, used to sort the
+    /// synthetic "awaiting deposit" entry into the tx list.
+    Awaiting(u64),
+    /// walletv2 hands the same address back until its scanner advances the
+    /// index, so the row has to outlive the claim: a fresh pending entry there
+    /// would attach to the deposit already claimed to it.
+    Claimed,
+}
+
+impl_db_record!(
+    key = WalletV2AwaitingDepositKey,
+    value = WalletV2AwaitingDeposit,
+    db_prefix = BridgeDbPrefix::WalletV2AwaitingDeposit,
+);
+
+impl_db_lookup!(
+    key = WalletV2AwaitingDepositKey,
+    query_prefix = WalletV2AwaitingDepositKeyPrefix,
 );
 
 #[derive(Debug, Decodable, Encodable, Clone)]

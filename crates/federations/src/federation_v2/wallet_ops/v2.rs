@@ -49,9 +49,14 @@ impl WalletOps for WalletOpsV2 {
         fed: &FederationV2,
         _frontend_meta: FrontendMetadata,
     ) -> Result<String> {
-        // v2 wallet has no per-address operation lifecycle — receive() just
-        // returns the next unused address. funds appear in balance when claimed.
-        Ok(fed.client.walletv2()?.receive().await.to_string())
+        // v2 wallet has no per-address operation lifecycle. receive() just
+        // returns the next unused address, and funds appear when claimed.
+        let address = fed.client.walletv2()?.receive().await.to_string();
+        // record the address so history shows an "awaiting deposit" entry until
+        // the background scanner detects and claims a deposit to it (walletv2
+        // creates no operation before then). see FederationV2::list_transactions.
+        fed.write_walletv2_awaiting_deposit(&address).await?;
+        Ok(address)
     }
 
     async fn recheck_pegin_address(

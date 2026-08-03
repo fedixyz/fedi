@@ -311,6 +311,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_ecash_overissue,
         test_on_chain,
         test_on_chain_v2,
+        test_walletv2_awaiting_deposit,
         test_ecash_cancel,
         test_backup_and_recovery,
         test_backup_and_recovery_from_scratch,
@@ -1158,6 +1159,136 @@ async fn test_on_chain_v2(_dev_fed: DevFed) -> anyhow::Result<()> {
         Err(ControlFlow::Continue(anyhow!("withdrawal not settled yet")))
     })
     .await?;
+
+    Ok(())
+}
+
+/// walletv2 creates no operation until its scanner claims, so the bridge
+/// records each generated address and shows it as an awaiting deposit.
+async fn test_walletv2_awaiting_deposit(_dev_fed: DevFed) -> anyhow::Result<()> {
+    if !devimint::util::supports_wallet_v2() {
+        info!("Skipping walletv2 awaiting-deposit test on a kind-one federation");
+        return Ok(());
+    }
+
+    let td = TestDevice::new().await?;
+    let federation = td.join_default_fed().await?;
+
+    // the awaiting-deposit entry must show before any coin moves
+    let address = generateAddress(federation.clone(), FrontendMetadata::default()).await?;
+    assert_matches!(
+        listTransactions(federation.clone(), None, None).await?[0],
+        Ok(RpcTransactionListEntry {
+            transaction: RpcTransaction {
+                kind: RpcTransactionKind::OnchainDeposit {
+                    state: Some(RpcOnchainDepositState::WaitingForTransaction),
+                    ..
+                },
+                ..
+            },
+            ..
+        })
+    );
+
+    // the pending entry's id is address-derived, the claim's is not
+    let pending_id = match &listTransactions(federation.clone(), None, None).await?[0] {
+        Ok(entry) => entry.transaction.id.clone(),
+        Err(e) => bail!("expected an awaiting deposit entry: {e}"),
+    };
+    updateTransactionNotes(
+        federation.clone(),
+        pending_id.clone(),
+        "coffee money".to_owned(),
+    )
+    .await?;
+    assert_eq!(
+        listTransactions(federation.clone(), None, None).await?[0]
+            .as_ref()
+            .ok()
+            .and_then(|entry| entry.transaction.txn_notes.clone()),
+        Some("coffee money".to_owned()),
+    );
+
+    bitcoin_cli_send_to_address(&address, "0.1").await?;
+
+    // the bridge only subscribes to an op the first time the tx list is read,
+    // so poll listTransactions here; the event sink won't fire for the claim.
+    // any cursor at all skips the awaiting-deposit merge, so keep this one:
+    // it is what makes the render, not the merge, hand the note over
+    let claim = loop {
+        let past_first_page = listTransactions(federation.clone(), Some(u32::MAX), None).await?;
+        let claimed = past_first_page.into_iter().flatten().find(|entry| {
+            matches!(
+                &entry.transaction.kind,
+                RpcTransactionKind::OnchainDeposit {
+                    onchain_address,
+                    state: Some(RpcOnchainDepositState::Claimed(_)),
+                    ..
+                } if onchain_address == &address
+            )
+        });
+        if let Some(entry) = claimed {
+            break entry.transaction;
+        }
+        fedimint_core::task::sleep_in_test(
+            "waiting for walletv2 deposit to be claimed",
+            Duration::from_secs(1),
+        )
+        .await;
+    };
+    assert_ne!(claim.id, pending_id);
+    assert_eq!(claim.txn_notes.as_deref(), Some("coffee money"));
+
+    // the claim issues the credited notes asynchronously, so the balance
+    // settles a moment after the Claimed state. 90% floor covers the note
+    // issuance fees, matching devimint's own v2 peg-in balance check.
+    devimint::util::poll("walletv2 deposit credited", || async {
+        let balance = federation.get_balance().await;
+        if balance >= Amount::from_sats(9_000_000) {
+            Ok(())
+        } else {
+            Err(ControlFlow::Continue(anyhow!(
+                "balance {balance} not yet credited"
+            )))
+        }
+    })
+    .await?;
+
+    // the awaiting entry was reconciled into the claim, not left as a duplicate
+    let deposits: Vec<_> = listTransactions(federation.clone(), None, None)
+        .await?
+        .into_iter()
+        .filter_map(|entry| match entry {
+            Ok(entry)
+                if matches!(
+                    entry.transaction.kind,
+                    RpcTransactionKind::OnchainDeposit { .. }
+                ) =>
+            {
+                Some(entry.transaction)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(deposits.len(), 1);
+    assert_ne!(deposits[0].id, pending_id);
+    assert_eq!(deposits[0].txn_notes.as_deref(), Some("coffee money"));
+
+    // walletv2 only advances its receive address after the scanner claims,
+    // and that search lags, so asking again can hand back the used address
+    let reissued = generateAddress(federation.clone(), FrontendMetadata::default()).await?;
+    let onchain_rows = listTransactions(federation.clone(), None, None)
+        .await?
+        .into_iter()
+        .flatten()
+        .filter(|entry| {
+            matches!(
+                entry.transaction.kind,
+                RpcTransactionKind::OnchainDeposit { .. }
+            )
+        })
+        .count();
+    assert_eq!(onchain_rows, if reissued == address { 1 } else { 2 });
 
     Ok(())
 }

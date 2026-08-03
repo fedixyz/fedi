@@ -17,6 +17,7 @@ use std::time::Duration;
 use ::serde::{Deserialize, Serialize};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use bitcoin::address::NetworkUnchecked;
+use bitcoin::hashes::{Hash as _, sha256};
 use bitcoin::secp256k1::{self, PublicKey, schnorr};
 use bitcoin::{Address, Network};
 use bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
@@ -91,13 +92,13 @@ use rpc_types::{
     FrontendMetadata, GuardianStatus, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
     RpcGenerateEcashResponse, RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard,
-    RpcJsonClientConfig, RpcLightningGateway, RpcLightningGatewayId, RpcOperationFediFeeStatus,
-    RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
-    RpcReclaimLnReceiveOutcome, RpcReturningMemberStatus, RpcSPDepositState, RpcSPV2DepositState,
-    RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState, RpcSPWithdrawState,
-    RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection, RpcTransactionKind,
-    RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata, SPv2WithdrawMetadata,
-    SpMatrixTransferId, SpV2TransferInKind, SpV2TransferOutKind,
+    RpcJsonClientConfig, RpcLightningGateway, RpcLightningGatewayId, RpcOnchainDepositState,
+    RpcOperationFediFeeStatus, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult,
+    RpcPublicKey, RpcReclaimLnReceiveOutcome, RpcReturningMemberStatus, RpcSPDepositState,
+    RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState,
+    RpcSPWithdrawState, RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection,
+    RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata,
+    SPv2WithdrawMetadata, SpMatrixTransferId, SpV2TransferInKind, SpV2TransferOutKind,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
@@ -138,7 +139,8 @@ use self::backup_service::BackupService;
 use self::db::{
     LastStabilityPoolDepositCycleKey, OperationFediFeeStatusKey, OperationFediFeeStatusKeyPrefix,
     OutstandingFediFeesPerTXTypeKeyPrefix, PendingFediFeesPerTXTypeKeyPrefix,
-    TransactionDateFiatInfoKey,
+    TransactionDateFiatInfoKey, WalletV2AwaitingDeposit, WalletV2AwaitingDepositKey,
+    WalletV2AwaitingDepositKeyPrefix,
 };
 use self::ln_gateway_service::LnGatewayService;
 use self::ln_ops::{LnOpsV1, LnOpsV2};
@@ -2404,37 +2406,221 @@ impl FederationV2 {
         Ok(None)
     }
 
+    /// A repeat call keeps whatever the address already holds, claim included.
+    pub async fn write_walletv2_awaiting_deposit(&self, address: &str) -> anyhow::Result<()> {
+        let key = WalletV2AwaitingDepositKey(address.to_owned());
+        self.client
+            .db()
+            .autocommit(
+                |dbtx, _| {
+                    let key = key.clone();
+                    Box::pin(async move {
+                        // re-checked inside the boundary so two concurrent calls
+                        // can't both see None and both insert
+                        if dbtx.get_value(&key).await.is_none() {
+                            let now = to_unix_time(fedimint_core::time::now())?;
+                            dbtx.insert_entry(&key, &WalletV2AwaitingDeposit::Awaiting(now))
+                                .await;
+                        }
+                        Ok::<(), anyhow::Error>(())
+                    })
+                },
+                Some(100),
+            )
+            .await
+            .map_err(|e| match e {
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow!(last_error)
+                }
+                fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
+            })
+    }
+
+    async fn list_walletv2_awaiting_deposits(&self) -> Vec<(String, u64)> {
+        self.dbtx()
+            .await
+            .into_nc()
+            .find_by_prefix(&WalletV2AwaitingDepositKeyPrefix)
+            .await
+            .filter_map(|(k, v)| async move {
+                match v {
+                    WalletV2AwaitingDeposit::Awaiting(created_at) => Some((k.0, created_at)),
+                    WalletV2AwaitingDeposit::Claimed => None,
+                }
+            })
+            .collect::<Vec<_>>()
+            .await
+    }
+
+    /// Derived from the address so it stays stable across list calls.
+    fn walletv2_awaiting_deposit_id(address: &str) -> OperationId {
+        OperationId(sha256::Hash::hash(address.as_bytes()).to_byte_array())
+    }
+
+    async fn walletv2_awaiting_deposit_tx(&self, address: &str) -> RpcTransaction {
+        let id = Self::walletv2_awaiting_deposit_id(address);
+        RpcTransaction {
+            id: id.fmt_full().to_string(),
+            amount: RpcAmount(Amount::ZERO),
+            fedi_app_fee_status: None,
+            fedi_guardian_fee_status: None,
+            txn_notes: self.dbtx().await.get_value(&TransactionNotesKey(id)).await,
+            tx_date_fiat_info: None,
+            frontend_metadata: FrontendMetadata::default(),
+            kind: RpcTransactionKind::OnchainDeposit {
+                onchain_address: address.to_owned(),
+                peg_in_fees: RpcAmount(Amount::ZERO),
+                state: Some(RpcOnchainDepositState::WaitingForTransaction),
+            },
+            outcome_time: None,
+        }
+    }
+
+    /// Handing the note over at render, not from the merge, is what covers a
+    /// claim older than the first page. Returns the note now on the claim.
+    async fn settle_walletv2_awaiting_deposit(
+        &self,
+        address: &str,
+        claim_id: OperationId,
+    ) -> Option<String> {
+        let key = WalletV2AwaitingDepositKey(address.to_owned());
+        // every rendered onchain deposit reaches this, so don't make the
+        // common case a write transaction
+        if !matches!(
+            self.dbtx().await.get_value(&key).await,
+            Some(WalletV2AwaitingDeposit::Awaiting(_))
+        ) {
+            return None;
+        }
+        let pending_id = Self::walletv2_awaiting_deposit_id(address);
+        let result = self
+            .client
+            .db()
+            .autocommit(
+                |dbtx, _| {
+                    let key = key.clone();
+                    Box::pin(async move {
+                        dbtx.insert_entry(&key, &WalletV2AwaitingDeposit::Claimed)
+                            .await;
+                        let Some(notes) = dbtx.remove_entry(&TransactionNotesKey(pending_id)).await
+                        else {
+                            return Ok::<Option<String>, anyhow::Error>(None);
+                        };
+                        if let Some(existing) = dbtx.get_value(&TransactionNotesKey(claim_id)).await
+                        {
+                            return Ok(Some(existing));
+                        }
+                        dbtx.insert_entry(&TransactionNotesKey(claim_id), &notes)
+                            .await;
+                        Ok(Some(notes))
+                    })
+                },
+                Some(100),
+            )
+            .await;
+        match result {
+            Ok(notes) => notes,
+            Err(error) => {
+                warn!("failed to settle walletv2 awaiting deposit: {error:?}");
+                None
+            }
+        }
+    }
+
+    fn entry_created_at(entry: &Result<RpcTransactionListEntry, String>) -> u64 {
+        entry.as_ref().map(|e| e.created_at).unwrap_or(0)
+    }
+
+    /// walletv2 creates no operation until the scanner claims, so a deposit
+    /// is invisible without this. First page only, since this truncates.
+    /// `oldest_op_time` is None when the page reached the end of the log.
+    async fn merge_walletv2_awaiting_deposits(
+        &self,
+        entries: &mut Vec<Result<RpcTransactionListEntry, String>>,
+        limit: usize,
+        oldest_op_time: Option<u64>,
+    ) {
+        let awaiting = self.list_walletv2_awaiting_deposits().await;
+        if awaiting.is_empty() {
+            return;
+        }
+        let claimed: std::collections::HashSet<String> = entries
+            .iter()
+            .filter_map(|entry| match entry {
+                Ok(entry) => match &entry.transaction.kind {
+                    RpcTransactionKind::OnchainDeposit {
+                        onchain_address, ..
+                    } => Some(onchain_address.clone()),
+                    _ => None,
+                },
+                Err(_) => None,
+            })
+            .collect();
+        for (address, created_at) in awaiting {
+            // never show an address next to its own claimed deposit
+            if claimed.contains(&address) {
+                continue;
+            }
+            // a claim older than this page never reached `claimed`, so showing
+            // the address here would sit alongside its own claimed deposit
+            if oldest_op_time.is_some_and(|oldest| created_at < oldest) {
+                continue;
+            }
+            entries.push(Ok(RpcTransactionListEntry {
+                created_at,
+                transaction: self.walletv2_awaiting_deposit_tx(&address).await,
+            }));
+        }
+        entries.sort_by(|a, b| Self::entry_created_at(b).cmp(&Self::entry_created_at(a)));
+        entries.truncate(limit);
+    }
+
     /// Return all transactions via operation log
     pub async fn list_transactions(
         &self,
         limit: usize,
         start_after: Option<ChronologicalOperationLogKey>,
     ) -> Vec<Result<RpcTransactionListEntry, String>> {
-        let futures = self
+        let page = self
             .client
             .operation_log()
             .paginate_operations_rev(limit, start_after)
-            .await
-            .into_iter()
-            .map(|(op_key, entry)| async move {
-                let Ok(created_at) = to_unix_time(op_key.creation_time) else {
-                    return None;
-                };
+            .await;
+        // a short page reached the end of the log, so every claim is in view. count
+        // ops, not rendered entries: ops that render as nothing understate the page
+        let oldest_op_time = (page.len() >= limit)
+            .then(|| {
+                page.iter()
+                    .filter_map(|(op_key, _)| to_unix_time(op_key.creation_time).ok())
+                    .min()
+            })
+            .flatten();
+        let futures = page.into_iter().map(|(op_key, entry)| async move {
+            let Ok(created_at) = to_unix_time(op_key.creation_time) else {
+                return None;
+            };
 
-                match self.get_transaction_inner(op_key.operation_id, entry).await {
-                    Ok(Some(transaction)) => Some(Ok(RpcTransactionListEntry {
-                        created_at,
-                        transaction,
-                    })),
-                    Ok(None) => None,
-                    Err(e) => Some(Err(e.to_string())),
-                }
-            });
-        futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .flatten()
-            .collect()
+            match self.get_transaction_inner(op_key.operation_id, entry).await {
+                Ok(Some(transaction)) => Some(Ok(RpcTransactionListEntry {
+                    created_at,
+                    transaction,
+                })),
+                Ok(None) => None,
+                Err(e) => Some(Err(e.to_string())),
+            }
+        });
+        let mut entries: Vec<Result<RpcTransactionListEntry, String>> =
+            futures::future::join_all(futures)
+                .await
+                .into_iter()
+                .flatten()
+                .collect();
+
+        if start_after.is_none() {
+            self.merge_walletv2_awaiting_deposits(&mut entries, limit, oldest_op_time)
+                .await;
+        }
+        entries
     }
 
     pub async fn get_transaction(
@@ -2467,7 +2653,7 @@ impl FederationV2 {
         entry: OperationLogEntry,
     ) -> anyhow::Result<Option<RpcTransaction>> {
         let module = entry.operation_module_kind().to_owned();
-        timeout_log_only(
+        let transaction = timeout_log_only(
             self.get_transaction_really_inner(operation_id, entry),
             Duration::from_secs(30),
             || {
@@ -2478,7 +2664,22 @@ impl FederationV2 {
                 );
             },
         )
-        .await
+        .await?;
+
+        let Some(mut transaction) = transaction else {
+            return Ok(None);
+        };
+        if let RpcTransactionKind::OnchainDeposit {
+            ref onchain_address,
+            ..
+        } = transaction.kind
+            && let Some(notes) = self
+                .settle_walletv2_awaiting_deposit(onchain_address, operation_id)
+                .await
+        {
+            transaction.txn_notes.get_or_insert(notes);
+        }
+        Ok(Some(transaction))
     }
 
     async fn get_transaction_really_inner(
