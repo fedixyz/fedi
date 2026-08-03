@@ -4,7 +4,7 @@ use std::time::Duration;
 use ::matrix::{Matrix as FediMatrix, SendMessageData};
 use anyhow::Context;
 use bitcoin::secp256k1;
-use fedimint_core::util::backoff_util::aggressive_backoff;
+use fedimint_core::util::backoff_util::aggressive_backoff_long;
 use fedimint_core::util::retry;
 use futures::FutureExt;
 use matrix_sdk::ruma::RoomId;
@@ -78,7 +78,7 @@ pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
     let event_id = timeline.latest_event_id().await.unwrap();
     let _event_data = retry(
         "wait for event data to be available",
-        aggressive_backoff(),
+        aggressive_backoff_long(),
         || async {
             multispend_matrix
                 .get_multispend_event_data(
@@ -133,7 +133,7 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
 
     let event_data1 = retry(
         "wait for user1 event data",
-        aggressive_backoff(),
+        aggressive_backoff_long(),
         || async {
             multispend_matrix1
                 .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
@@ -155,7 +155,7 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
     );
     let event_data2 = retry(
         "wait for user2 to receive",
-        aggressive_backoff(),
+        aggressive_backoff_long(),
         || async {
             multispend_matrix2
                 .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
@@ -179,7 +179,7 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
     // Verify group is finalized in matrix1
     let final_group1 = retry(
         "wait for group to be finalized",
-        aggressive_backoff(),
+        aggressive_backoff_long(),
         || async {
             multispend_matrix2
                 .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
@@ -255,7 +255,7 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
 
     let event_data1 = retry(
         "wait for user1 event data",
-        aggressive_backoff(),
+        aggressive_backoff_long(),
         || async {
             multispend_matrix1
                 .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
@@ -278,7 +278,7 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
 
     let event_data2 = retry(
         "wait for user2 to receive",
-        aggressive_backoff(),
+        aggressive_backoff_long(),
         || async {
             multispend_matrix2
                 .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
@@ -301,7 +301,7 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
     // Verify invitation state has the rejection recorded
     let event_data1 = retry(
         "wait for rejection to be recorded",
-        aggressive_backoff(),
+        aggressive_backoff_long(),
         || async {
             let data = multispend_matrix1
                 .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
