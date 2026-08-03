@@ -308,6 +308,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_lightning_send_and_receive,
         test_lnurl_receive,
         test_ecash,
+        test_ecash_duplicate_receive_rejected,
         test_ecash_overissue,
         test_on_chain,
         test_on_chain_v2,
@@ -975,6 +976,69 @@ async fn wait_for_ecash_reissue(federation: &FederationV2) -> Result<(), anyhow:
         }
     })
     .await
+}
+
+/// Regression test: receiving the same ecash notes a second time must fail
+/// instead of reporting success.
+///
+/// mintv2's client-side `receive()` derives the operation id from the notes
+/// and, for notes that were already received, returns the existing operation
+/// id as if the call had just succeeded. The bridge then reports success to
+/// the caller and writes the pending fedi receive fee again for the same
+/// operation, without any new funds arriving. The v1 mint rejects a duplicate
+/// receive; mintv2 must observably do the same.
+async fn test_ecash_duplicate_receive_rejected(_dev_fed: DevFed) -> anyhow::Result<()> {
+    // Receiver with a nonzero receive fee, so a double-charged fee would be
+    // observable in the outstanding fee accrual.
+    let td_recv = TestDevice::new().await?;
+    let (bridge, receiver) = (
+        td_recv.bridge_full().await?,
+        td_recv.join_default_fed().await?,
+    );
+    setMintModuleFediFeeSchedule(bridge, receiver.rpc_federation_id(), 0, 10_000).await?;
+
+    let ecash = cli_generate_ecash(Amount::from_msats(100_000)).await?;
+
+    receiveEcash(receiver.clone(), ecash.clone(), FrontendMetadata::default()).await?;
+    wait_for_ecash_reissue(receiver).await?;
+    let balance_after_receive = receiver.get_balance().await;
+    let fees_after_receive = receiver
+        .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+        .await;
+
+    let second_receive = receiveEcash(receiver.clone(), ecash, FrontendMetadata::default()).await;
+    assert!(
+        second_receive.is_err(),
+        "receiving the same ecash twice must fail, got {second_receive:?}"
+    );
+    assert_eq!(
+        receiver.get_balance().await,
+        balance_after_receive,
+        "duplicate receive must not change the balance"
+    );
+    assert_eq!(
+        receiver
+            .get_outstanding_fedi_fees_by_stream(FediFeeStream::App)
+            .await,
+        fees_after_receive,
+        "duplicate receive must not accrue another receive fee"
+    );
+
+    // Concurrent duplicates: both calls can pass any client-side fast path, so
+    // the atomic operation-id check in fedimint's transaction submission must
+    // let exactly one win.
+    let ecash = cli_generate_ecash(Amount::from_msats(200_000)).await?;
+    let (first, second) = tokio::join!(
+        receiveEcash(receiver.clone(), ecash.clone(), FrontendMetadata::default()),
+        receiveEcash(receiver.clone(), ecash, FrontendMetadata::default()),
+    );
+    assert_eq!(
+        usize::from(first.is_ok()) + usize::from(second.is_ok()),
+        1,
+        "exactly one concurrent duplicate receive must succeed, got {first:?} and {second:?}"
+    );
+    wait_for_ecash_reissue(receiver).await?;
+    Ok(())
 }
 
 async fn test_ecash_overissue(_dev_fed: DevFed) -> anyhow::Result<()> {
