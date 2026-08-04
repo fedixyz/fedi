@@ -26,7 +26,10 @@ const styles = (theme: Theme, insets: Insets) =>
             position: 'relative',
             marginLeft: -(theme.spacing.md + (insets.left || 0)),
             marginRight: -(theme.spacing.md + (insets.right || 0)),
-            marginTop: -theme.spacing.sm,
+            // Match MessageInput's container paddingTop (theme.spacing.xs) so this
+            // band stays flush with the top divider and doesn't fully cancel the
+            // container gap when it renders below the reply bar.
+            marginTop: -theme.spacing.xs,
             paddingTop: theme.spacing.xs,
             paddingBottom: theme.spacing.xs,
             paddingHorizontal: theme.spacing.md + (insets.left || 0),

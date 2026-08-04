@@ -89,7 +89,8 @@ const styles = (theme: Theme, insets: Insets) =>
             marginLeft: -(theme.spacing.md + (insets.left || 0)),
             marginRight: -(theme.spacing.md + (insets.right || 0)),
             // Fill the container's top padding area with the same background without changing the bar's internal height/padding.
-            marginTop: -theme.spacing.sm,
+            // Must match MessageInput's container paddingTop (theme.spacing.xs) so the bar sits flush with the top divider.
+            marginTop: -theme.spacing.xs,
             paddingTop: Math.max(theme.spacing.sm - 4, 0),
             backgroundColor: theme.colors.offWhite100,
             width: 'auto',
