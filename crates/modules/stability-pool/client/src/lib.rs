@@ -62,8 +62,20 @@ pub use sync_service::StabilityPoolSyncService;
 
 const BTC_DEPOSITOR_ACCOUNT_CHILD_ID: ChildId = ChildId(0);
 
-#[derive(Debug, Clone)]
-pub struct StabilityPoolClientInit;
+#[derive(Debug, Clone, Default)]
+pub struct StabilityPoolClientInit {
+    btc_depositor_keypair_override: Option<Keypair>,
+}
+
+impl StabilityPoolClientInit {
+    /// Use an externally derived key for the btc-depositor account.
+    ///
+    /// The default intentionally keeps the historical module-secret derivation.
+    pub fn with_btc_depositor_keypair(mut self, keypair: Keypair) -> Self {
+        self.btc_depositor_keypair_override = Some(keypair);
+        self
+    }
+}
 
 impl ModuleInit for StabilityPoolClientInit {
     type Common = StabilityPoolCommonGen;
@@ -89,6 +101,7 @@ impl ClientModuleInit for StabilityPoolClientInit {
                 .module_root_secret()
                 .to_owned()
                 .to_secp_key(&Secp256k1::new()),
+            btc_depositor_keypair_override: self.btc_depositor_keypair_override,
             module_root_secret: args.module_root_secret().to_owned(),
             module_api: args.module_api().clone(),
             client_ctx: args.context(),
@@ -108,6 +121,7 @@ impl ClientModuleInit for StabilityPoolClientInit {
 pub struct StabilityPoolClientModule {
     pub cfg: StabilityPoolClientConfig,
     client_key_pair: Keypair,
+    btc_depositor_keypair_override: Option<Keypair>,
     module_api: DynModuleApi,
     pub client_ctx: ClientContext<Self>,
     notifier: ModuleNotifier<StabilityPoolStateMachine>,
@@ -579,10 +593,11 @@ impl StabilityPoolClientModule {
         match acc_type {
             // Keep the btc-depositor account on a separate derivation path so it
             // is not linkable to the normal seeker/provider account key.
-            AccountType::BtcDepositor => self
-                .module_root_secret
-                .child_key(BTC_DEPOSITOR_ACCOUNT_CHILD_ID)
-                .to_secp_key(secp256k1::SECP256K1),
+            AccountType::BtcDepositor => self.btc_depositor_keypair_override.unwrap_or_else(|| {
+                self.module_root_secret
+                    .child_key(BTC_DEPOSITOR_ACCOUNT_CHILD_ID)
+                    .to_secp_key(secp256k1::SECP256K1)
+            }),
             AccountType::Seeker | AccountType::Provider => self.client_key_pair,
         }
     }
@@ -1418,4 +1433,32 @@ pub enum CliCommand {
         account_type: AccountTypeArg,
         amount_msats: Amount,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use fedimint_derive_secret::DerivableSecret;
+
+    use super::*;
+
+    #[test]
+    fn default_btc_depositor_derivation_is_stable() {
+        assert!(
+            StabilityPoolClientInit::default()
+                .btc_depositor_keypair_override
+                .is_none()
+        );
+
+        let root = DerivableSecret::new_root(&[42; 32], b"stability-pool-client-test");
+        let account = Account::single(
+            root.child_key(BTC_DEPOSITOR_ACCOUNT_CHILD_ID)
+                .to_secp_key(secp256k1::SECP256K1)
+                .public_key(),
+            AccountType::BtcDepositor,
+        );
+        assert_eq!(
+            account.id().to_string(),
+            "spd1uasx4zkkjywetgyp47xfj6nravuvv03jr5574kldkhvcqrmax5cswsrvjz"
+        );
+    }
 }

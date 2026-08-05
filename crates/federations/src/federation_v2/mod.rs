@@ -441,7 +441,7 @@ impl FederationV2 {
         client_builder.with_module(WalletClientInit(None));
         client_builder.with_module(fedimint_walletv2_client::WalletClientInit);
         client_builder.with_module(FediSocialClientInit);
-        client_builder.with_module(StabilityPoolClientInit);
+        client_builder.with_module(StabilityPoolClientInit::default());
         client_builder.with_module(stability_pool_client_old::StabilityPoolClientInit);
         let client_builder = client_builder
             .with_iroh_enable_dht(false)

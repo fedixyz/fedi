@@ -7,7 +7,7 @@ async fn main() -> anyhow::Result<()> {
         .with_default_modules()
         .with_module(FediSocialClientInit)
         .with_module(stability_pool_client_old::StabilityPoolClientInit)
-        .with_module(stability_pool_client::StabilityPoolClientInit)
+        .with_module(stability_pool_client::StabilityPoolClientInit::default())
         .run()
         .await;
     Ok(())
