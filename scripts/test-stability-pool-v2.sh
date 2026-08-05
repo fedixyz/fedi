@@ -12,6 +12,10 @@ export FEDI_STABILITY_POOL_V2_MODULE_ENABLE=1
 export FEDI_STABILITY_POOL_MODULE_TEST_PARAMS=1
 export FM_DISABLE_BASE_FEES=1
 
+# spv2 is the stability pool's own version, independent of the fedimint module
+# generation, so this suite is kind-one like its v1 counterpart
+select_federation_modules "${FEDI_FEDERATION_KIND:-one}" || exit 1
+
 build_workspace
 
 # needs the compiled binaries in the PATH

@@ -14,6 +14,10 @@ export USE_STABILITY_POOL_TEST_PARAMS=1
 export FEDI_STABILITY_POOL_MODULE_TEST_PARAMS=1
 export FM_DISABLE_BASE_FEES=1
 
+# these suites do not exercise lightning; kind-one pins them to the v1 module
+# set rather than to whatever the pinned fedimint happens to default to
+select_federation_modules "${FEDI_FEDERATION_KIND:-one}" || exit 1
+
 build_workspace
 
 # needs the compiled binaries in the PATH

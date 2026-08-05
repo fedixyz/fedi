@@ -15,6 +15,10 @@ export FEDI_SOCIAL_RECOVERY_MODULE_ENABLE=1
 export FM_DISABLE_BASE_FEES=1
 export RUST_BACKTRACE=full
 
+# upstream's devimint tests skip their lnv2 parts when lnv2 is absent, which is
+# upstream's own "LNv2: 0" matrix cell, so kind-one is a supported shape here
+select_federation_modules "${FEDI_FEDERATION_KIND:-one}" || exit 1
+
 # fedi packages
 source scripts/test-common.sh ""
 echo "Running in temporary directory $FM_TEST_DIR"

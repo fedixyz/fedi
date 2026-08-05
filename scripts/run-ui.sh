@@ -5,6 +5,11 @@ export FM_UI_KIND=${1:-"old"}
 export FM_FED_SIZE=${2:-2}
 export FM_FED_NAME=${3:-"Cypherpunk Federation"}
 
+source scripts/common.sh
+
+# set FEDI_FEDERATION_KIND=two for a v2 federation
+select_federation_modules "${FEDI_FEDERATION_KIND:-one}" || exit 1
+
 source scripts/build.sh $FM_FED_SIZE
 cargo build ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}}
 export PATH="$FM_BIN_DIR:$PATH"

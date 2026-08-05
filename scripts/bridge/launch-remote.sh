@@ -23,10 +23,10 @@ export USE_STABILITY_POOL_TEST_PARAMS=1
 export FEDI_STABILITY_POOL_MODULE_TEST_PARAMS=1
 export FEDI_SOCIAL_RECOVERY_MODULE_ENABLE=1
 export RUST_BACKTRACE=0
-# fedimintd enables lnv2 by default when the env var is unset, and the
-# remote-bridge dev fed is kind-one (pure v1).
-export FM_ENABLE_MODULE_LNV2=0
 export FM_DISABLE_BASE_FEES=1
+
+# the remote-bridge dev fed is kind-one (pure v1)
+select_federation_modules "${FEDI_FEDERATION_KIND:-one}" || exit 1
 
 BRIDGE_DATADIR="$CARGO_BUILD_TARGET_DIR/datadir"
 mkdir -p "$BRIDGE_DATADIR"

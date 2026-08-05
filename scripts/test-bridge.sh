@@ -20,27 +20,8 @@ export RUST_BACKTRACE=0
 export FM_DISABLE_BASE_FEES=1
 
 # FEDI_FEDERATION_KIND selects the federation generation the suite runs
-# against: "one" (default) runs v1-only (mint + wallet + lnv1), "two"
-# runs v2-only (mintv2 + walletv2 + lnv2). Mixed module generations are
-# not supported. lnv2 must be disabled explicitly on kind-one: fedimintd
-# enables it by default when the env var is unset.
-case "${FEDI_FEDERATION_KIND:-one}" in
-one)
-	export FM_ENABLE_MODULE_LNV2=0
-	;;
-two)
-	export FM_ENABLE_MODULE_MINT=0
-	export FM_ENABLE_MODULE_WALLET=0
-	export FM_ENABLE_MODULE_LNV1=0
-	export FM_ENABLE_MODULE_MINTV2=1
-	export FM_ENABLE_MODULE_WALLETV2=1
-	export FM_ENABLE_MODULE_LNV2=1
-	;;
-*)
-	echo "invalid FEDI_FEDERATION_KIND '${FEDI_FEDERATION_KIND}' (expected 'one' or 'two')" >&2
-	exit 1
-	;;
-esac
+# against: "one" (default) runs v1-only, "two" runs v2-only.
+select_federation_modules "${FEDI_FEDERATION_KIND:-one}" || exit 1
 
 # fedi packages
 source scripts/test-common.sh ""

@@ -2,6 +2,9 @@
 
 source $REPO_ROOT/scripts/common.sh
 
+# set FEDI_FEDERATION_KIND=two for a v2 dev fed
+select_federation_modules "${FEDI_FEDERATION_KIND:-one}" || exit 1
+
 $REPO_ROOT/scripts/enforce-nix.sh
 
 
