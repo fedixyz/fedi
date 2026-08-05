@@ -1828,7 +1828,10 @@ impl FederationV2 {
         let mint_instance_id = client_config
             .modules
             .iter()
-            .find(|(_, config)| config.is_kind(&MintClientModule::kind()))
+            .find(|(_, config)| {
+                config.is_kind(&MintClientModule::kind())
+                    || config.is_kind(&MintV2ClientModule::kind())
+            })
             .map(|(id, _)| id);
         let mut stream = pin!(self.client.subscribe_to_recovery_progress().fuse());
         loop {

@@ -1660,6 +1660,15 @@ async fn test_backup_and_recovery_inner(from_scratch: bool) -> anyhow::Result<()
 
         fedimint_core::task::sleep(Duration::from_millis(100)).await;
     }
+    // The wallet had activity before the backup, so the mint recovery scan has
+    // items to walk and must have reported progress along the way (the UI
+    // shows a silent stuck restore otherwise).
+    assert!(
+        td.event_sink()
+            .num_events_of_type("recoveryProgress".into())
+            >= 1,
+        "mint recovery must emit progress events"
+    );
     let recovery_federation = recovery_bridge.federations.get_federation(&id.0)?;
     // Currently, accrued fedi fee is merged back into balance upon recovery
     // wait atmost 10s
