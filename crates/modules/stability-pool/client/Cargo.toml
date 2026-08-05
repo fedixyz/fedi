@@ -24,3 +24,6 @@ async-stream = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
+
+[dev-dependencies]
+fedimint-connectors = { workspace = true }

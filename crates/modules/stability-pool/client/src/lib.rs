@@ -1437,28 +1437,84 @@ pub enum CliCommand {
 
 #[cfg(test)]
 mod tests {
-    use fedimint_derive_secret::DerivableSecret;
+    use std::time::Duration;
+
+    use fedimint_api_client::api::DynGlobalApi;
+    use fedimint_client::module::module::FinalClientIface;
+    use fedimint_connectors::ConnectorRegistry;
+    use fedimint_core::db::mem_impl::MemDatabase;
 
     use super::*;
 
-    #[test]
-    fn default_btc_depositor_derivation_is_stable() {
-        assert!(
-            StabilityPoolClientInit::default()
-                .btc_depositor_keypair_override
-                .is_none()
-        );
+    fn test_module(
+        module_root_secret: DerivableSecret,
+        btc_depositor_keypair_override: Option<Keypair>,
+    ) -> StabilityPoolClientModule {
+        let module_instance_id = ModuleInstanceId::from(0u16);
+        let db = Database::new(MemDatabase::new(), Default::default());
+        let (module_db, global_dbtx_access_token) = db.with_prefix_module_id(module_instance_id);
+        let client = FinalClientIface::default();
 
-        let root = DerivableSecret::new_root(&[42; 32], b"stability-pool-client-test");
-        let account = Account::single(
-            root.child_key(BTC_DEPOSITOR_ACCOUNT_CHILD_ID)
-                .to_secp_key(secp256k1::SECP256K1)
-                .public_key(),
-            AccountType::BtcDepositor,
+        StabilityPoolClientModule {
+            cfg: StabilityPoolClientConfig {
+                cycle_duration: Duration::from_secs(1),
+                min_allowed_seek: Amount::ZERO,
+                max_allowed_provide_fee_rate_ppb: 0,
+                min_allowed_cancellation_bps: 0,
+            },
+            client_key_pair: module_root_secret.clone().to_secp_key(secp256k1::SECP256K1),
+            btc_depositor_keypair_override,
+            module_api: DynGlobalApi::new(
+                futures::executor::block_on(ConnectorRegistry::build_from_client_defaults().bind())
+                    .expect("valid connector registry"),
+                Default::default(),
+                None,
+            )
+            .expect("valid empty API")
+            .with_module(module_instance_id),
+            client_ctx: ClientContext::new(
+                client.clone(),
+                module_instance_id,
+                global_dbtx_access_token,
+                module_db,
+            ),
+            notifier: ModuleNotifier::new(
+                tokio::sync::broadcast::channel(1).0,
+                module_instance_id,
+                client,
+            ),
+            db,
+            module_root_secret,
+        }
+    }
+
+    #[test]
+    fn btc_depositor_keypair_is_stable() {
+        let module_root_secret =
+            DerivableSecret::new_root(&[42; 32], b"stability-pool-client-test");
+        let default_module = test_module(
+            module_root_secret.clone(),
+            StabilityPoolClientInit::default().btc_depositor_keypair_override,
         );
         assert_eq!(
-            account.id().to_string(),
+            default_module
+                .our_account(AccountType::BtcDepositor)
+                .id()
+                .to_string(),
             "spd1uasx4zkkjywetgyp47xfj6nravuvv03jr5574kldkhvcqrmax5cswsrvjz"
+        );
+
+        let override_keypair = Keypair::from_secret_key(
+            secp256k1::SECP256K1,
+            &secp256k1::SecretKey::from_slice(&[1; 32]).expect("valid secret key"),
+        );
+        let overridden_module = test_module(module_root_secret, Some(override_keypair));
+        assert_eq!(
+            overridden_module
+                .our_account(AccountType::BtcDepositor)
+                .id()
+                .to_string(),
+            "spd1e7z9l3cql4tjdg84jwwrwng2hjyxqqec2va2jwtc65yjy2er2grs2lx0s5"
         );
     }
 }
