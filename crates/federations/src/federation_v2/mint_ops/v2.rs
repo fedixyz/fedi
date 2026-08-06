@@ -3,6 +3,7 @@ use bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
 use fedimint_client::module::oplog::OperationLogEntry;
 use fedimint_core::base32::{FEDIMINT_PREFIX, decode_prefixed, encode_prefixed};
 use fedimint_core::core::OperationId;
+use fedimint_core::task::timeout;
 use fedimint_core::{Amount, OutPointRange, apply, async_trait_maybe_send};
 use fedimint_mintv2_client::{
     ECash as MintV2ECash, FinalReceiveOperationState as MintV2FinalReceiveOperationState,
@@ -17,7 +18,9 @@ use rpc_types::{
 use tracing::warn;
 
 use super::super::client::ClientExt;
-use super::super::{FederationTransactionParts, FederationV2, get_max_spendable_amount};
+use super::super::{
+    FederationTransactionParts, FederationV2, REISSUE_ECASH_TIMEOUT, get_max_spendable_amount,
+};
 use super::MintOps;
 
 pub struct MintOpsV2;
@@ -209,7 +212,17 @@ impl MintOps for MintOpsV2 {
             internal: false,
             frontend_metadata: Some(frontend_meta),
         })?;
-        let (operation_id, ecash) = mintv2.send(amount, custom_meta).await?;
+        // A send with exact denominations on hand is a pure local-db operation
+        // (and must stay offline-capable, so no preflight ping here). One that
+        // needs change first runs a consensus round with no internal timeout;
+        // bound it so an unreachable federation cannot pin the federation-wide
+        // spend guard indefinitely. v1 instead releases the guard around its
+        // change round, but mintv2's send interleaves selection and
+        // change-making behind one call, so bounding is what the bridge can do.
+        let (operation_id, ecash) =
+            timeout(REISSUE_ECASH_TIMEOUT, mintv2.send(amount, custom_meta))
+                .await
+                .context(ErrorCode::OfflineExactEcashFailed)??;
         let sent_amount = ecash.amount();
         let ecash = encode_prefixed(FEDIMINT_PREFIX, &ecash);
         let settled_fees_by_stream = fed

@@ -33,7 +33,9 @@ use rpc_types::{
     RpcOnchainWithdrawState, RpcReturningMemberStatus, RpcSPV2TransferInState,
     RpcTransactionDirection, RpcTransactionKind,
 };
-use runtime::constants::{COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_FILE_V0_PATH, MILLION};
+use runtime::constants::{
+    COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_FILE_V0_PATH, MILLION, REISSUE_ECASH_TIMEOUT,
+};
 use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
 use runtime::storage::BRIDGE_DB_PREFIX;
@@ -3763,6 +3765,41 @@ async fn test_bridge_handles_federation_offline_v2() -> anyhow::Result<()> {
             original_balance,
             "an offline receive must not credit the balance"
         );
+
+        // Generating ecash offline either succeeds instantly (exact
+        // denominations on hand, a pure local operation) or needs a
+        // change-making consensus round, which cannot complete offline and
+        // must fail within its bounded window instead of hanging on the
+        // federation-wide spend guard forever. Which path runs depends on the
+        // wallet's denominations, so accept both, but require bounded
+        // completion.
+        let generate_result = fedimint_core::task::timeout(
+            REISSUE_ECASH_TIMEOUT + Duration::from_secs(30),
+            generateEcash(
+                federation.clone(),
+                // Comfortably below the fee-adjusted virtual balance (an
+                // amount at the balance edge can bounce off the insufficient
+                // balance check instead of exercising the send)
+                RpcAmount(Amount::from_msats(original_balance.msats * 3 / 4)),
+                false,
+                FrontendMetadata::default(),
+            ),
+        )
+        .await
+        .expect("offline ecash generation must complete within the bounded window");
+        match generate_result {
+            // Exact denominations were on hand, a pure local operation.
+            Ok(_) => {}
+            // Change-making hit the bounded consensus wait; any other error
+            // means the generation failed for an unrelated reason and the
+            // bounded-wait path was not exercised.
+            Err(e) => assert!(
+                RpcError::from_anyhow(&e)
+                    .error_code
+                    .is_some_and(|code| code == ErrorCode::OfflineExactEcashFailed),
+                "offline change-making must fail with OfflineExactEcashFailed, got {e:?}"
+            ),
+        }
     }
 
     Ok(())
