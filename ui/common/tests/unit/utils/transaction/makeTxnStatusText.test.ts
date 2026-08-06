@@ -239,13 +239,35 @@ describe('makeTxnStatusText', () => {
                 t('words.failed'),
             )
         })
+    })
 
-        it('oobCancel treats missing state as pending', () => {
-            const oobCancel = makeTestTxnEntry('oobCancel', {
-                state: null,
+    describe('missing state', () => {
+        it('should describe any kind still missing a state as pending', () => {
+            const kinds = [
+                'lnPay',
+                'lnReceive',
+                'lnRecurringdReceive',
+                'onchainWithdraw',
+                'onchainDeposit',
+                'oobSend',
+                'oobReceive',
+                'oobCancel',
+                'spDeposit',
+                'spWithdraw',
+                'sPV2Deposit',
+                'sPV2Withdrawal',
+                'sPV2TransferIn',
+                'sPV2TransferOut',
+            ] as const
+
+            kinds.forEach(kind => {
+                expect(
+                    makeTxnStatusText(
+                        t,
+                        makeTestTxnEntry(kind, { state: null }),
+                    ),
+                ).toBe(t('words.pending'))
             })
-
-            expect(makeTxnStatusText(t, oobCancel)).toBe(t('words.pending'))
         })
     })
 

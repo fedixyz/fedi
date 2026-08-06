@@ -456,10 +456,9 @@ export const makeTxnStatusText = (
     t: TFunction,
     txn: TransactionListEntry,
 ): string => {
-    if (txn.kind === 'oobCancel' && !txn.state) return t('words.pending')
-
-    // there should always be a state, but return unknown just in case
-    if (!txn.state) return t('words.unknown')
+    // same rule as makeTxnStatusBadge: a missing state is a not-yet-terminal
+    // operation, not an unknown outcome
+    if (!txn.state) return t('words.pending')
 
     switch (txn.kind) {
         case 'lnPay':
@@ -657,9 +656,9 @@ export const makeTxnStatusText = (
 export const makeTxnStatusBadge = (
     txn: TransactionListEntry,
 ): TransactionStatusBadge => {
-    if (txn.kind === 'oobCancel' && !txn.state) return 'pending'
-
-    if (!txn.state) return 'failed'
+    // A missing state means the operation is not terminal yet: terminal
+    // outcomes always carry one, a fresh operation's state can just lag
+    if (!txn.state) return 'pending'
 
     switch (txn.kind) {
         case 'lnPay':
@@ -737,7 +736,7 @@ export const makeTxnStatusBadge = (
                     return 'pending'
             }
         case 'lnRecurringdReceive':
-            switch (txn.state?.type) {
+            switch (txn.state.type) {
                 case 'claimed':
                 case 'created': // Remove this once bug is fixed
                     // TODO+TEST: Identify what "bug" refers to and set to "pending" if the bug is fixed
@@ -755,7 +754,7 @@ export const makeTxnStatusBadge = (
                     return 'pending'
             }
         case 'onchainDeposit':
-            switch (txn.state?.type) {
+            switch (txn.state.type) {
                 case 'claimed':
                     return 'incoming'
                 case 'failed':

@@ -232,9 +232,6 @@ describe('makeTxnStatusBadge', () => {
         const oobReceiveIssuing = makeTestTxnEntry('oobReceive', {
             state: makeTestOOBReissueState('issuing'),
         })
-        const oobCancelMissingState = makeTestTxnEntry('oobCancel', {
-            state: null,
-        })
         const multispendWithdrawalUnknown = makeTestTxnEntry(
             'multispendWithdrawal',
             {
@@ -271,13 +268,37 @@ describe('makeTxnStatusBadge', () => {
         expect(makeTxnStatusBadge(spv2WithdrawalPending)).toBe('pending')
         expect(makeTxnStatusBadge(oobReceiveCreated)).toBe('pending')
         expect(makeTxnStatusBadge(oobReceiveIssuing)).toBe('pending')
-        expect(makeTxnStatusBadge(oobCancelMissingState)).toBe('pending')
         expect(makeTxnStatusBadge(spv2TransferOutDataNotInCache)).toBe(
             'pending',
         )
         expect(makeTxnStatusBadge(spv2TransferInDataNotInCache)).toBe('pending')
         expect(makeTxnStatusBadge(spDepositDataNotInCache)).toBe('pending')
         expect(makeTxnStatusBadge(spv2DepositDataNotInCache)).toBe('pending')
+    })
+
+    it('should return "pending" for any kind still missing a state', () => {
+        const kinds = [
+            'lnPay',
+            'lnReceive',
+            'lnRecurringdReceive',
+            'onchainWithdraw',
+            'onchainDeposit',
+            'oobSend',
+            'oobReceive',
+            'oobCancel',
+            'spDeposit',
+            'spWithdraw',
+            'sPV2Deposit',
+            'sPV2Withdrawal',
+            'sPV2TransferIn',
+            'sPV2TransferOut',
+        ] as const
+
+        kinds.forEach(kind => {
+            expect(
+                makeTxnStatusBadge(makeTestTxnEntry(kind, { state: null })),
+            ).toBe('pending')
+        })
     })
 
     it('should return "failed" for failed transactions', () => {
