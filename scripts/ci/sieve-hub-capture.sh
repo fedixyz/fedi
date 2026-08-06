@@ -220,7 +220,7 @@ ui_tap() {
         fi
         sleep 3
         waited=$((waited + 3))
-        if [ $((waited % 15)) -eq 0 ]; then
+        if [ $((waited % 9)) -eq 0 ]; then
             adb shell input swipe 360 900 360 500 300
         fi
     done
@@ -238,12 +238,79 @@ wait_for_key() {
     return 1
 }
 
+# Settles the screen before a screenshot: two consecutive identical ui
+# dumps (a dump takes about a second, so this is a few seconds of real
+# time). Spinners never stabilize, which the iteration cap absorbs.
+wait_idle() {
+    local prev="" cur
+    for _ in $(seq 1 8); do
+        cur=$(dump_ui)
+        if [ -n "$cur" ] && [ "$cur" = "$prev" ]; then
+            return 0
+        fi
+        prev=$cur
+        sleep 0.5
+    done
+    return 0
+}
+
 shoot() {
     local side=$1 name=$2
     mkdir -p "$out_dir/$side"
-    sleep 2
+    wait_idle
     adb exec-out screencap -p >"$out_dir/$side/$name.png"
     echo "captured $side/$name.png"
+}
+
+# Clears whatever a station left on screen with BACK, then returns to the
+# home tab. Never tap a surprise system dialog's buttons: that can
+# navigate out of the app entirely.
+reanchor() {
+    local _
+    for _ in 1 2 3; do
+        find_key "HomeTabButton" >/dev/null && break
+        adb shell input keyevent 4
+        sleep 1
+    done
+    ui_tap "HomeTabButton" 15 >/dev/null 2>&1 || true
+}
+
+# Stations are best-effort: a failed tap loses that screen only, never
+# the later stations.
+tour_stations() {
+    local side=$1
+
+    reanchor
+    shoot "$side" "04-home"
+
+    ui_tap "ChatTabButton" 30 && shoot "$side" "05-chat"
+    reanchor
+
+    # tapping WalletTabButton while already on the wallet opens the wallet
+    # switcher overlay instead of navigating (see the payments e2e), so
+    # every station starts from home
+    if ui_tap "WalletTabButton" 30; then
+        # the backup reminder sheet can pop over the wallet and hide it
+        ui_tap "BackupReminderDismissButton" 5 >/dev/null 2>&1 || true
+        shoot "$side" "06-wallet"
+        if ui_tap "Receive" 20; then
+            shoot "$side" "07-receive"
+        fi
+    fi
+    reanchor
+
+    ui_tap "ModsTabButton" 30 && shoot "$side" "08-mods"
+    reanchor
+
+    if ui_tap "AvatarButton" 30; then
+        shoot "$side" "09-account"
+        # App Settings sits below the fold of the settings sheet, several
+        # scrolls down
+        if ui_tap "App Settings" 60; then
+            shoot "$side" "10-app-settings"
+        fi
+    fi
+    reanchor
 }
 
 # The same six taps setupOnboarded.ts uses: new seed, manual setup, join
@@ -261,7 +328,6 @@ tour() {
     ui_tap "Get started" || return 0
     ui_tap "No" 60 || return 0
     ui_tap "ManualSetupButton" 60 || return 0
-    sleep 4
     shoot "$side" "02-federation-list"
     ui_tap "FediTestnetJoinButton" 90 || return 0
     # the preview renders a loading placeholder until the federation
@@ -269,13 +335,8 @@ tour() {
     wait_for_key "JoinFederationButton" 90 || true
     shoot "$side" "03-federation-preview"
     ui_tap "JoinFederationButton" 60 || return 0
-    ui_tap "HomeTabButton" 120 || return 0
-    sleep 5
-    shoot "$side" "04-home"
-    ui_tap "ChatTabButton" 30 && {
-        sleep 3
-        shoot "$side" "05-chat"
-    }
+    wait_for_key "HomeTabButton" 120 || return 0
+    tour_stations "$side"
     return 0
 }
 
