@@ -2,6 +2,16 @@
 # no matter the profile, we want to kill tests that hanged on something
 slow-timeout = { period = "60s", terminate-after = 3 }
 
+# The bridge wrapper runs the whole sub-test suite concurrently inside one
+# test, so its wall time is the slowest sub-test chain plus load, already
+# ~155s on a busy runner. Give it its own termination window: above the
+# ~125s retry budgets inside, below fm-run-test's 245s command timeout
+# (minus pre-test setup), so nextest terminates first and keeps its
+# diagnostics.
+[[profile.default.overrides]]
+filter = 'test(tests_wrapper_for_bridge)'
+slow-timeout = { period = "50s", terminate-after = 4 }
+
 # define `dev` to allow running cargo and nextest with the same profile name
 # inherits default profile config
 [profile.dev]
@@ -12,10 +22,18 @@ fail-fast = true
 failure-output = "immediate"
 slow-timeout = { period = "60s", terminate-after = 3 }
 
+[[profile.release.overrides]]
+filter = 'test(tests_wrapper_for_bridge)'
+slow-timeout = { period = "50s", terminate-after = 4 }
+
 [profile.ci]
 fail-fast = true
 failure-output = "immediate"
 slow-timeout = { period = "60s", terminate-after = 3 }
+
+[[profile.ci.overrides]]
+filter = 'test(tests_wrapper_for_bridge)'
+slow-timeout = { period = "50s", terminate-after = 4 }
 
 [[profile.ci.overrides]]
 filter = 'test(flaky_)'
