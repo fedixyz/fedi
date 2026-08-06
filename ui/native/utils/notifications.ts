@@ -164,6 +164,19 @@ export const displayPaymentReceivedNotification = async (
     // Skip outbound payments
     if (direction !== TransactionDirection.receive) return
 
+    // An ecash cancel reclaims the user's own notes; it counts as a receive
+    // but is not a payment from anyone, and its event also fires on failure
+    if (transaction.kind === 'oobCancel') return
+
+    // A lightning receive event also fires when an invoice dies (lnv2 expiry
+    // or failure, a canceled recurring receive); only a claim moved funds
+    if (
+        (transaction.kind === 'lnReceive' ||
+            transaction.kind === 'lnRecurringdReceive') &&
+        transaction.state?.type !== 'claimed'
+    )
+        return
+
     // Skip on-chain transactions until claimed
     if (
         transaction.kind === 'onchainDeposit' &&

@@ -86,7 +86,11 @@ jest.mock('@fedi/common/assets/svgs', () => {
 jest.mock('@notifee/react-native', () => ({
     getInitialNotification: jest.fn().mockResolvedValue(undefined),
     onForegroundEvent: jest.fn(() => () => undefined),
+    displayNotification: jest.fn().mockResolvedValue(undefined),
+    incrementBadgeCount: jest.fn().mockResolvedValue(undefined),
+    getBadgeCount: jest.fn().mockResolvedValue(1),
     EventType: { PRESS: 'PRESS' },
+    AndroidGroupAlertBehavior: { SUMMARY: 'summary' },
 }))
 
 jest.mock('@react-native-firebase/messaging', () => ({
@@ -197,6 +201,9 @@ jest.mock('react-native', () => ({
     ActivityIndicator: jest.requireActual('react-native').ActivityIndicator,
     Alert: {
         alert: jest.fn(),
+    },
+    Appearance: {
+        getColorScheme: jest.fn(() => 'light'),
     },
     Animated: jest.requireActual('react-native').Animated,
     Button: jest.requireActual('react-native').Button,
