@@ -42,9 +42,12 @@ jobs:
         concurrency:
             group: sieve-hub-review-${{ inputs.repo || github.repository }}-${{ inputs.pr_number || github.event.issue.number }}
             cancel-in-progress: true
-        runs-on: [self-hosted, linux]
-        # Cold runners compile sieve from source.
-        timeout-minutes: 30
+        # The e2e macs, whose emulators work today; the linux runners hide
+        # /dev/kvm from jobs, so move back once devops exposes it.
+        runs-on: [self-hosted, macos, arm64, macstadium, gui]
+        # Cold runners compile sieve from source, and a ui PR adds an
+        # emulator capture pass (apk build + two metro tours).
+        timeout-minutes: 60
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
@@ -74,6 +77,21 @@ jobs:
               # The runner has no gh on PATH.
               run: nix shell nixpkgs#gh --command ./scripts/ci/sieve-latest-release.sh >> "$GITHUB_OUTPUT"
 
+            - name: Capture UI screenshots on an emulator
+              if: steps.trigger.outputs.matched != 'false'
+              # A capture failure must never cost the review itself.
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.SIEVE_HUB_TOKEN }}
+                  # Avoid anonymous GitHub API rate limits during the Nix fetch.
+                  NIX_CONFIG: access-tokens = github.com=${{ github.token }}
+                  REPO: ${{ inputs.repo || github.repository }}
+                  PR_NUMBER: ${{ inputs.pr_number || github.event.issue.number }}
+                  OUT_DIR: ${{ github.workspace }}/sieve-screenshots
+              # The dev shell carries the emulator and app toolchain; the
+              # runner has no gh, jq, or imagemagick on PATH.
+              run: nix develop -c nix shell nixpkgs#gh nixpkgs#jq nixpkgs#imagemagick --command ./scripts/ci/sieve-hub-capture.sh
+
             - name: Publish review and sticky PR comment
               if: steps.trigger.outputs.matched != 'false'
               env:
@@ -90,5 +108,6 @@ jobs:
                   NIXPKGS_ALLOW_UNFREE: '1'
                   REPO: ${{ inputs.repo || github.repository }}
                   PR_NUMBER: ${{ inputs.pr_number || github.event.issue.number }}
+                  SIEVE_SCREENSHOTS_DIR: ${{ github.workspace }}/sieve-screenshots
               # The generic Linux binary does not run on NixOS.
               run: nix shell --impure "github:fedibtc/sieve/${SIEVE_REV}#sieve" nixpkgs#claude-code nixpkgs#gh nixpkgs#jq nixpkgs#git --command ./scripts/ci/sieve-hub-review.sh "$REPO" "$PR_NUMBER"

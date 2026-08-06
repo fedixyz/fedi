@@ -40,6 +40,12 @@ git clone --quiet --branch "$branch" \
     "https://x-access-token:${GH_TOKEN}@github.com/${repo}.git" "$workdir/repo"
 cd "$workdir/repo"
 
+# the agent prompt looks for screenshots/ by that exact name
+if [ -n "${SIEVE_SCREENSHOTS_DIR:-}" ] && [ -d "$SIEVE_SCREENSHOTS_DIR" ]; then
+    cp -R "$SIEVE_SCREENSHOTS_DIR" screenshots
+    echo "imported $(find screenshots -name '*.png' | wc -l | tr -d ' ') captured screenshots"
+fi
+
 # A stale API key must not shadow a working subscription token.
 if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
     unset ANTHROPIC_API_KEY
