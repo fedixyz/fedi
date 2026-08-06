@@ -1140,7 +1140,9 @@ export const listGateways = createAsyncThunk<
         const gatewaysByFederation = selectGatewaysByFederation(getState())
         const federationGateway = gatewaysByFederation[federationId]
 
-        if (federationGateway) {
+        // An empty list is a cache miss, not a cached answer: serving [] for
+        // the rest of the session would keep lightning dead until restart.
+        if (federationGateway?.length) {
             return federationGateway
         }
 
