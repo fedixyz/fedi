@@ -11,6 +11,7 @@ import { useSendEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { Federation, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { ecashToQrFrameData } from '@fedi/common/utils/qrFrames'
 
 import { styled, theme } from '../../styles'
 import { AmountInput } from '../AmountInput'
@@ -70,7 +71,7 @@ export const SendOffline: React.FC<Props> = ({
             if (res) {
                 onEcashGenerated()
                 setEcash(res.ecash)
-                setQrFrames(dataToFrames(Buffer.from(res.ecash, 'base64')))
+                setQrFrames(dataToFrames(ecashToQrFrameData(res.ecash)))
             }
         } catch (err) {
             toast.error(t, err, 'errors.unknown-error')

@@ -17,7 +17,7 @@ import {
 } from 'react-native-vision-camera'
 
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { getBufferEncoding } from '@fedi/common/utils/istextorbinary'
+import { qrFrameDataToString } from '@fedi/common/utils/qrFrames'
 
 import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
@@ -76,13 +76,7 @@ const QrCodeScanner = ({ processing, onQrCodeDetected }: QrCodeScanner) => {
                 setFrames(newFrames)
                 setProgress(progressOfFrames(newFrames))
                 if (areFramesComplete(newFrames)) {
-                    // Convert the data to a string. If it's binary encoded, convert as base64.
-                    const frameData = framesToData(newFrames)
-                    const strData = frameData.toString(
-                        getBufferEncoding(frameData) === 'binary'
-                            ? 'base64'
-                            : 'utf8',
-                    )
+                    const strData = qrFrameDataToString(framesToData(newFrames))
                     handleDetected(strData)
                     // Reset frames & progress after short delay
                     setTimeout(() => {

@@ -1,6 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import { Buffer } from 'buffer'
 import { dataToFrames } from 'qrloop'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +14,7 @@ import {
     selectIsInternetUnreachable,
     selectPaymentFederation,
 } from '@fedi/common/redux'
+import { ecashToQrFrameData } from '@fedi/common/utils/qrFrames'
 
 import { Column, Row } from '../components/ui/Flex'
 import HoloAlert from '../components/ui/HoloAlert'
@@ -41,7 +41,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
     const isOffline = useAppSelector(selectIsInternetUnreachable)
 
     const frames = useMemo(() => {
-        return dataToFrames(Buffer.from(ecash, 'base64'))
+        return dataToFrames(ecashToQrFrameData(ecash))
     }, [ecash])
 
     // show new qr every 100ms
