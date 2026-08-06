@@ -34,6 +34,78 @@ impl MintOpsV2 {
         !fed.client.has_active_states(operation_id).await
     }
 
+    /// Spawns [`Self::drive_receive_to_completion`] unless a driver for this
+    /// operation is already running, claimed through the shared in-flight
+    /// set; the claim is released when the task ends. Both the live
+    /// subscriber and the listing-triggered recovery route through here, so
+    /// a history read during the other's bridge-finalization window cannot
+    /// start a duplicate driver.
+    async fn spawn_receive_driver(
+        fed: &FederationV2,
+        task_name: &'static str,
+        operation_id: OperationId,
+        amount: Amount,
+        is_fee_exempt: bool,
+        change_outpoint_range: OutPointRange,
+    ) {
+        fed.spawn_operation_subscriber(operation_id, task_name, move |fed| async move {
+            MintOpsV2::drive_receive_to_completion(
+                &fed,
+                operation_id,
+                amount,
+                is_fee_exempt,
+                change_outpoint_range,
+            )
+            .await;
+        })
+        .await;
+    }
+
+    /// Drives a receive to its terminal state: waits for settlement, finalizes
+    /// the Fedi fee, and notifies listeners. The operation outcome is
+    /// persisted along the way by outcome_or_updates inside
+    /// await_final_receive_operation_state, so it is not also stashed in the
+    /// in-memory map. Shared by the live subscriber and the lazy
+    /// crash-recovery path in get_transaction; fee writes are idempotent, so
+    /// overlapping calls are safe.
+    async fn drive_receive_to_completion(
+        fed: &FederationV2,
+        operation_id: OperationId,
+        amount: Amount,
+        is_fee_exempt: bool,
+        change_outpoint_range: OutPointRange,
+    ) {
+        let Ok(mintv2) = fed.client.mintv2() else {
+            warn!("mintv2 module not available");
+            return;
+        };
+        match mintv2
+            .await_final_receive_operation_state(operation_id)
+            .await
+        {
+            Ok(MintV2FinalReceiveOperationState::Success) => {
+                // Wait for settlement so listeners see the new balance when
+                // the event fires.
+                Self::await_receive_settled(fed, operation_id, change_outpoint_range).await;
+                if !is_fee_exempt {
+                    let _ = fed
+                        .write_success_receive_fedi_fees(operation_id, amount)
+                        .await;
+                }
+            }
+            Ok(MintV2FinalReceiveOperationState::Rejected) => {
+                if !is_fee_exempt {
+                    let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
+                }
+            }
+            Err(e) => {
+                warn!("mintv2 await_final_receive failed: {e:?}");
+                return;
+            }
+        }
+        fed.send_transaction_event(operation_id).await;
+    }
+
     /// Waits for a successful receive to settle per [`Self::receive_settled`].
     async fn await_receive_settled(
         fed: &FederationV2,
@@ -236,45 +308,15 @@ impl MintOps for MintOpsV2 {
                         });
                     let is_fee_exempt =
                         receive_meta.internal || receive_meta.reason == EcashReceiveReason::Cancel;
-                    fed.spawn_cancellable("subscribe mintv2 receive", move |fed| async move {
-                        let mintv2 = fed
-                            .client
-                            .mintv2()
-                            .expect("mintv2 selected in FederationV2::new");
-                        let final_state = mintv2
-                            .await_final_receive_operation_state(operation_id)
-                            .await;
-                        match final_state {
-                            Ok(MintV2FinalReceiveOperationState::Success) => {
-                                // Wait for settlement so listeners see the new
-                                // balance when the event fires.
-                                MintOpsV2::await_receive_settled(
-                                    &fed,
-                                    operation_id,
-                                    change_outpoint_range,
-                                )
-                                .await;
-                                if !is_fee_exempt {
-                                    let _ = fed
-                                        .write_success_receive_fedi_fees(operation_id, amount)
-                                        .await;
-                                }
-                            }
-                            Ok(MintV2FinalReceiveOperationState::Rejected) => {
-                                if !is_fee_exempt {
-                                    let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
-                                }
-                            }
-                            Err(e) => {
-                                warn!("mintv2 await_final_receive failed: {e:?}");
-                                return;
-                            }
-                        }
-                        // Outcome is now persisted to the operation log by
-                        // outcome_or_updates inside await_final_receive_operation_state,
-                        // so we don't need to also stash it in the in-memory map.
-                        fed.send_transaction_event(operation_id).await;
-                    });
+                    MintOpsV2::spawn_receive_driver(
+                        fed,
+                        "subscribe mintv2 receive",
+                        operation_id,
+                        amount,
+                        is_fee_exempt,
+                        change_outpoint_range,
+                    )
+                    .await;
                 }
             }
             // Send is terminal at creation time — notes are already
@@ -321,7 +363,9 @@ impl MintOps for MintOpsV2 {
                 }))
             }
             MintV2OperationMeta::Receive {
-                ecash, custom_meta, ..
+                ecash,
+                custom_meta,
+                change_outpoint_range,
             } => {
                 let extra_meta = serde_json::from_value::<EcashReceiveMetadata>(custom_meta)
                     .unwrap_or(EcashReceiveMetadata {
@@ -335,25 +379,59 @@ impl MintOps for MintOpsV2 {
                 let amount = decode_prefixed::<MintV2ECash>(FEDIMINT_PREFIX, &ecash)
                     .map(|ecash| ecash.amount())
                     .unwrap_or(Amount::ZERO);
-                let state = match entry
+                // A missing outcome means the receive is still in flight: the
+                // outcome is only persisted once terminal, and the subscribe
+                // task (re-spawned on startup for active operations) persists
+                // it. Report in-flight (and accepted-but-unsettled) as
+                // Issuing; the frontend renders a missing state as failed.
+                let outcome = entry
                     .try_outcome::<MintV2FinalReceiveOperationState>()
                     .ok()
-                    .flatten()
-                {
+                    .flatten();
+                // The subscribe task persists the outcome and then finalizes
+                // the bridge side (fee record, terminal event). A crash can
+                // interrupt anywhere in that sequence: no outcome at all, or
+                // an outcome with the fee record still pending. Either way no
+                // one drives the operation anymore (startup only re-subscribes
+                // active operations), so recover it from the listing through
+                // the same path the live subscriber runs; the next listing
+                // sees the finished state.
+                let finalization_pending =
+                    outcome.is_none() || fed.is_receive_fee_pending(operation_id).await;
+                // The spawn claims the operation in the shared in-flight
+                // set, deduplicating against overlapping listings and
+                // against a live subscriber still in its finalization
+                // window; the claim is released when the task ends so a
+                // failed recovery can retry on a later listing.
+                if finalization_pending && !fed.client.has_active_states(operation_id).await {
+                    let is_fee_exempt =
+                        extra_meta.internal || extra_meta.reason == EcashReceiveReason::Cancel;
+                    MintOpsV2::spawn_receive_driver(
+                        fed,
+                        "recover mintv2 receive outcome",
+                        operation_id,
+                        amount,
+                        is_fee_exempt,
+                        change_outpoint_range,
+                    )
+                    .await;
+                }
+                let state = match outcome {
                     Some(MintV2FinalReceiveOperationState::Success) => {
                         if Self::receive_settled(fed, operation_id).await {
-                            Some(RpcOOBReissueState::Done)
+                            RpcOOBReissueState::Done
                         } else {
-                            None
+                            RpcOOBReissueState::Issuing
                         }
                     }
                     Some(MintV2FinalReceiveOperationState::Rejected) => {
-                        Some(RpcOOBReissueState::Failed {
+                        RpcOOBReissueState::Failed {
                             error: "rejected by federation".into(),
-                        })
+                        }
                     }
-                    None => None,
+                    None => RpcOOBReissueState::Issuing,
                 };
+                let state = Some(state);
                 Ok(Some(FederationTransactionParts {
                     amount: RpcAmount(amount),
                     kind: if extra_meta.reason == EcashReceiveReason::Cancel {

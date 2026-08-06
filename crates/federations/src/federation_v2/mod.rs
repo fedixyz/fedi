@@ -6,7 +6,7 @@ mod lnurl_receives_service;
 mod meta;
 
 use std::any::Any;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::pin;
@@ -402,6 +402,11 @@ pub struct FederationV2 {
     pub spend_guard: Mutex<()>,
     // Mutex to prevent concurrent generate_ecash because logic is very fragile.
     pub generate_ecash_lock: Mutex<()>,
+    // Operation ids with a subscriber task in flight, so the several places
+    // that can spawn one for the same operation (startup replay, creation,
+    // lazy recovery from a transaction listing) don't pile up duplicates.
+    // See spawn_operation_subscriber.
+    pub operation_subscriptions: Mutex<HashSet<OperationId>>,
     pub this_weak: Weak<Self>,
     pub guard: FederationLockGuard,
     // Stability pool v2 services for syncing accout history between client and server
@@ -506,6 +511,7 @@ impl FederationV2 {
             stability_pool_sweeper_service: OnceCell::new(),
             client,
             spend_guard: Default::default(),
+            operation_subscriptions: Default::default(),
             generate_ecash_lock: Default::default(),
             this_weak: weak.clone(),
             guard,
@@ -534,6 +540,39 @@ impl FederationV2 {
                 return;
             };
             f(this).await;
+        });
+    }
+
+    /// Spawns a per-operation subscriber task, deduplicated by operation id.
+    ///
+    /// If a subscriber for `operation_id` is already in flight this is a
+    /// no-op, so the several callers that may fire for the same operation
+    /// (startup replay via subscribe_to_operation, creation, and lazy
+    /// recovery from a transaction listing) don't pile up duplicate tasks or
+    /// emit duplicate terminal events. The claim is released when the task
+    /// ends, so a failed subscribe can be retried by a later caller.
+    pub async fn spawn_operation_subscriber<Fut>(
+        &self,
+        operation_id: OperationId,
+        task: impl Into<String>,
+        f: impl FnOnce(Arc<Self>) -> Fut + MaybeSend + 'static,
+    ) where
+        Fut: Future<Output = ()> + MaybeSend + 'static,
+    {
+        if !self
+            .operation_subscriptions
+            .lock()
+            .await
+            .insert(operation_id)
+        {
+            return;
+        }
+        self.spawn_cancellable(task, move |fed| async move {
+            f(fed.clone()).await;
+            fed.operation_subscriptions
+                .lock()
+                .await
+                .remove(&operation_id);
         });
     }
 
@@ -4211,6 +4250,23 @@ impl FederationV2 {
         }
 
         res
+    }
+
+    /// Whether a receive's fee record still awaits terminal finalization
+    /// (success debit or failure cleanup) on the App stream. Fee-exempt
+    /// receives have no record and report false.
+    pub async fn is_receive_fee_pending(&self, operation_id: OperationId) -> bool {
+        matches!(
+            self.fedi_fee_db()
+                .begin_transaction_nc()
+                .await
+                .get_value(&OperationFediFeeStatusByStreamKey(
+                    operation_id,
+                    FediFeeStream::App,
+                ))
+                .await,
+            Some(OperationFediFeeStatus::PendingReceive { .. })
+        )
     }
 
     async fn write_pending_receive_fedi_fee_ppms(

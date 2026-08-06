@@ -828,6 +828,22 @@ async fn test_ecash_with_fedi_fees(
     let receive_fedi_fee =
         Amount::from_msats((ecash_receive_amount.msats * fedi_fees_receive_ppm).div_ceil(MILLION));
     receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
+    // The receive may still be in flight here; its history entry must already
+    // surface a state, as the frontend renders a missing state as failed.
+    let txns = federation.list_transactions(usize::MAX, None).await;
+    assert!(
+        matches!(
+            txns.first(),
+            Some(Ok(RpcTransactionListEntry {
+                transaction: RpcTransaction {
+                    kind: RpcTransactionKind::OobReceive { state: Some(_) },
+                    ..
+                },
+                ..
+            }))
+        ),
+        "in-flight ecash receive must show a state in transaction history"
+    );
     wait_for_ecash_reissue(federation).await?;
 
     // check balance (sometimes fedimint-cli gives more than we ask for)
@@ -3715,6 +3731,27 @@ async fn test_bridge_handles_federation_offline_v2() -> anyhow::Result<()> {
             assert!(
                 matches!(settled, Err(_) | Ok(Err(_))),
                 "a mintv2 receive must not settle while the federation is offline"
+            );
+
+            // The receive is deterministically in flight (it cannot reach a
+            // terminal state while the federation is down), so its history
+            // entry must show as issuing, never as missing or failed.
+            let txns = federation.list_transactions(usize::MAX, None).await;
+            assert!(
+                matches!(
+                    txns.first(),
+                    Some(Ok(RpcTransactionListEntry {
+                        transaction: RpcTransaction {
+                            kind: RpcTransactionKind::OobReceive {
+                                state: Some(RpcOOBReissueState::Issuing),
+                            },
+                            ..
+                        },
+                        ..
+                    }))
+                ),
+                "an in-flight receive must list as issuing, got {:?}",
+                txns.first()
             );
         }
 
