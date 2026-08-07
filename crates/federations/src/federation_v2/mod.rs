@@ -1043,7 +1043,7 @@ impl FederationV2 {
         if self.recovering() {
             None
         } else {
-            Some(self.wallet_ops.get_network(self))
+            self.wallet_ops.get_network(self)
         }
     }
 

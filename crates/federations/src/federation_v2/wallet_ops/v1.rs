@@ -106,11 +106,11 @@ impl WalletOpsV1 {
 
 #[apply(async_trait_maybe_send!)]
 impl WalletOps for WalletOpsV1 {
-    fn get_network(&self, fed: &FederationV2) -> Network {
-        fed.client
-            .wallet()
-            .expect("wallet selected in FederationV2::new")
-            .get_network()
+    fn get_network(&self, fed: &FederationV2) -> Option<Network> {
+        // The config selects walletv1, but the client may not have registered
+        // it (e.g. an API-version incompatibility after a guardian upgrade);
+        // a panic here would kill every RPC that asks for the network.
+        Some(fed.client.wallet().ok()?.get_network())
     }
 
     async fn supports_safe_deposit(&self, fed: &FederationV2) -> Result<bool> {

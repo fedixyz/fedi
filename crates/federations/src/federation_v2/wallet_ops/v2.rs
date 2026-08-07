@@ -23,17 +23,75 @@ use crate::federation_v2::async_trait_maybe_send;
 
 pub struct WalletOpsV2;
 
+impl WalletOpsV2 {
+    /// Spawns the receive subscriber for a deposit operation, deduplicated
+    /// through [`FederationV2::spawn_operation_subscriber`] so the several
+    /// callers that can fire for the same operation don't pile up duplicate
+    /// tasks. The subscriber awaits the terminal state, finalizes the fee
+    /// record, and emits the terminal transaction event.
+    async fn spawn_receive_subscriber(
+        fed: &FederationV2,
+        operation_id: OperationId,
+        amount: Amount,
+    ) {
+        fed.spawn_operation_subscriber(
+            operation_id,
+            "subscribe walletv2 receive",
+            move |fed| async move {
+                Self::run_receive_subscription(&fed, operation_id, amount).await;
+            },
+        )
+        .await;
+    }
+
+    async fn run_receive_subscription(
+        fed: &FederationV2,
+        operation_id: OperationId,
+        amount: Amount,
+    ) {
+        let Ok(walletv2) = fed.client.walletv2() else {
+            error!("walletv2 module not present");
+            return;
+        };
+        let final_state = match walletv2
+            .await_final_receive_operation_state(operation_id)
+            .await
+        {
+            Ok(state) => state,
+            Err(error) => {
+                warn!("walletv2 await_final_receive failed: {error:?}");
+                return;
+            }
+        };
+        match final_state {
+            FinalReceiveOperationState::Success => {
+                // Scanner-created receives never wrote a pending fee entry (no
+                // creation hook on our side), so this is a no-op for fees
+                // today — kept for symmetry with the other receive
+                // subscribers and for when a pending entry exists.
+                let _ = fed
+                    .write_success_receive_fedi_fees(operation_id, amount)
+                    .await;
+            }
+            FinalReceiveOperationState::Aborted => {
+                let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
+            }
+        }
+        fed.send_transaction_event(operation_id).await;
+    }
+}
+
 // NOTE: walletv2 send/receive do not currently expose custom metadata fields,
 // so frontend notes/contact metadata cannot be persisted for walletv2
 // transactions. Keep returning `frontend_metadata: None` until upstream exposes
 // parity with the lnv2/mintv2 custom metadata APIs.
 #[apply(async_trait_maybe_send!)]
 impl WalletOps for WalletOpsV2 {
-    fn get_network(&self, fed: &FederationV2) -> Network {
-        fed.client
-            .walletv2()
-            .expect("walletv2 selected in FederationV2::new")
-            .get_network()
+    fn get_network(&self, fed: &FederationV2) -> Option<Network> {
+        // The config selects walletv2, but the client may not have registered
+        // it (e.g. an API-version incompatibility after a guardian upgrade);
+        // a panic here would kill every RPC that asks for the network.
+        Some(fed.client.walletv2().ok()?.get_network())
     }
 
     async fn supports_safe_deposit(&self, _fed: &FederationV2) -> Result<bool> {
@@ -209,38 +267,7 @@ impl WalletOps for WalletOpsV2 {
                 let amount = Amount::from_msats(
                     meta.value.to_sat().saturating_sub(meta.fee.to_sat()) * 1000,
                 );
-                fed.spawn_cancellable("subscribe walletv2 receive", move |fed| async move {
-                    let Ok(walletv2) = fed.client.walletv2() else {
-                        error!("walletv2 module not present");
-                        return;
-                    };
-                    let final_state = match walletv2
-                        .await_final_receive_operation_state(operation_id)
-                        .await
-                    {
-                        Ok(state) => state,
-                        Err(error) => {
-                            warn!("walletv2 await_final_receive failed: {error:?}");
-                            return;
-                        }
-                    };
-                    match final_state {
-                        FinalReceiveOperationState::Success => {
-                            // Scanner-created receives never wrote a pending fee
-                            // entry (no creation hook on our side), so this is a
-                            // no-op for fees today — kept for symmetry with the
-                            // other receive subscribers and for when a pending
-                            // entry exists.
-                            let _ = fed
-                                .write_success_receive_fedi_fees(operation_id, amount)
-                                .await;
-                        }
-                        FinalReceiveOperationState::Aborted => {
-                            let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
-                        }
-                    }
-                    fed.send_transaction_event(operation_id).await;
-                });
+                Self::spawn_receive_subscriber(fed, operation_id, amount).await;
             }
         }
     }
@@ -344,41 +371,14 @@ impl WalletOps for WalletOpsV2 {
                         // have no persisted outcome yet. Subscribe
                         // lazily: completed ops resolve immediately
                         // and persist their outcome for the next
-                        // listing.
-                        fed.spawn_cancellable(
-                            "subscribe walletv2 receive",
-                            move |fed| async move {
-                                let Ok(walletv2) = fed.client.walletv2() else {
-                                    error!("walletv2 module not present");
-                                    return;
-                                };
-                                let final_state = match walletv2
-                                    .await_final_receive_operation_state(operation_id)
-                                    .await
-                                {
-                                    Ok(state) => state,
-                                    Err(error) => {
-                                        warn!("walletv2 await_final_receive failed: {error:?}");
-                                        return;
-                                    }
-                                };
-                                match final_state {
-                                    FinalReceiveOperationState::Success => {
-                                        let _ = fed
-                                            .write_success_receive_fedi_fees(
-                                                operation_id,
-                                                Amount::from_msats(net_sats * 1000),
-                                            )
-                                            .await;
-                                    }
-                                    FinalReceiveOperationState::Aborted => {
-                                        let _ =
-                                            fed.write_failed_receive_fedi_fees(operation_id).await;
-                                    }
-                                }
-                                fed.send_transaction_event(operation_id).await;
-                            },
-                        );
+                        // listing. The spawn deduplicates against the
+                        // startup subscriber and repeated listings.
+                        Self::spawn_receive_subscriber(
+                            fed,
+                            operation_id,
+                            Amount::from_msats(net_sats * 1000),
+                        )
+                        .await;
                         RpcOnchainDepositState::Confirmed(tx_data)
                     }
                 };
