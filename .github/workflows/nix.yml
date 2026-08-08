@@ -560,8 +560,16 @@ jobs:
             age_seconds=$((current_time - last_modified))
             age_days=$((age_seconds / 86400))
 
-            echo "System last modified: $(date -d @$last_modified '+%Y-%m-%d %H:%M:%S UTC')"
-            echo "Current time: $(date -d @$current_time '+%Y-%m-%d %H:%M:%S UTC')"
+            format_utc_timestamp() {
+              if [ "$(uname)" = "Darwin" ]; then
+                date -u -r "$1" '+%Y-%m-%d %H:%M:%S UTC'
+              else
+                date -u -d "@$1" '+%Y-%m-%d %H:%M:%S UTC'
+              fi
+            }
+
+            echo "System last modified: $(format_utc_timestamp "$last_modified")"
+            echo "Current time: $(format_utc_timestamp "$current_time")"
             echo "System age: $age_days days"
 
             if [ $age_days -gt $MAX_AGE_DAYS ]; then
