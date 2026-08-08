@@ -122,6 +122,13 @@ import Initializing from './Initializing'
 import JoinFederation from './JoinFederation'
 import LanguageSettings from './LanguageSettings'
 import LightningRequestQr from './LightningRequestQr'
+import MerchantAmount from './MerchantAmount'
+import MerchantCatalogEdit from './MerchantCatalogEdit'
+import MerchantCatalogOrder from './MerchantCatalogOrder'
+import MerchantCatalogShare from './MerchantCatalogShare'
+import MerchantProducts from './MerchantProducts'
+import MerchantQr from './MerchantQr'
+import MerchantSuccess from './MerchantSuccess'
 import LocateSocialRecovery from './LocateSocialRecovery'
 import LockScreen from './LockScreen'
 import LockedDevice from './LockedDevice'
@@ -861,6 +868,83 @@ export const MainNavigator = () => {
                             <Stack.Screen
                                 name="ReceiveSuccess"
                                 component={ReceiveSuccess}
+                                options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
+                                name="MerchantProducts"
+                                component={MerchantProducts}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('feature.merchant.merchant-mode')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MerchantCatalogEdit"
+                                component={MerchantCatalogEdit}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('feature.merchant.edit-catalog')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MerchantCatalogShare"
+                                component={MerchantCatalogShare}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('feature.merchant.share-catalog')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MerchantCatalogOrder"
+                                component={MerchantCatalogOrder}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('feature.merchant.merchant-mode')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MerchantAmount"
+                                component={MerchantAmount}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('feature.merchant.custom-amount')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MerchantQr"
+                                component={MerchantQr}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('feature.merchant.waiting-for-payment')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MerchantSuccess"
+                                component={MerchantSuccess}
                                 options={{ headerShown: false }}
                             />
                             {/* Transaction history */}
