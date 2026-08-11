@@ -96,7 +96,10 @@ clippy *ARGS="--locked":
 clippy-wasm *ARGS:
   #!/usr/bin/env bash
   set -euo pipefail
-  workspace_packages=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[].name' | sort)
+  # Package names can collide with external dependencies; Cargo's exact
+  # workspace package IDs keep every selected `--package` unambiguous.
+  metadata=$(cargo metadata --locked --no-deps --format-version 1)
+  workspace_packages=$(jq -r '.packages[].name' <<< "$metadata" | sort)
   wasm_dependencies=$(cargo tree --locked --target wasm32-unknown-unknown --package fedi-wasm --edges normal,build --prefix none | sed 's/ v[0-9].*//' | sort -u)
   wasm_packages=$(
     comm -12 \
@@ -110,7 +113,18 @@ clippy-wasm *ARGS:
   mapfile -t packages <<< "$wasm_packages"
   package_args=()
   for package in "${packages[@]}"; do
-    package_args+=(--package "$package")
+    mapfile -t package_ids < <(
+      jq -r --arg package "$package" \
+        '.packages[] | select(.name == $package) | .id' \
+        <<< "$metadata"
+    )
+    if [[ ${#package_ids[@]} -eq 0 ]]; then
+      echo "could not resolve workspace package ID for $package" >&2
+      exit 1
+    fi
+    for package_id in "${package_ids[@]}"; do
+      package_args+=(--package "$package_id")
+    done
   done
   CLIPPY_CONF_DIR="$PWD/.config/clippy-wasm" cargo clippy "${package_args[@]}" --lib --no-deps --target wasm32-unknown-unknown {{ARGS}} -- --deny warnings --allow deprecated
 
