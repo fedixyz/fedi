@@ -8,13 +8,12 @@ user-invocable: true
 
 ## For the Greptile code review bot
 
-If you are the Greptile code review bot (or another always-on PR review bot), ignore everything in this skill except the files in `references/rules/`. Do not apply:
+If you are the Greptile code review bot (or another always-on PR review bot), skip the process parts of this skill:
 
-- `references/principles.md` (the review principles)
 - the `## How to run a review` procedure and its regression vectors
 - `## Anti-patterns`
 
-Use only the concrete, fedi-specific rules in `references/rules/`, scoped to `ui/**`. You already have general review judgment. The rest is process for a human or a developer-invoked agent. If a developer asked you to run this skill, it is not about you: use everything.
+Use the concrete, fedi-specific rules in `references/rules/`, scoped to `ui/**`, and read `references/principles.md` section 4, "Block on cost, not preference", before grading anything as blocking. A rule names a pattern worth flagging. Section 4 is the only thing that decides whether the instance stops a merge. The rest is process for a human or a developer-invoked agent. If a developer asked you to run this skill, it is not about you: use everything.
 
 You are reviewing a change in the `ui/` workspace (the web, native, and shared `common` TypeScript/React code) to reduce the risk of shipping something that costs the team later, and to hand the person running the review a set of findings ordered by cost. The regression vectors below assume the TS/React/React Native stack. For Rust, bridge, or infra changes, stop and tell the reviewer this skill does not cover them.
 
@@ -71,7 +70,7 @@ The fedi-specific, enforceable patterns below link to `references/rules/`. The r
 - Shared code and native/web parity, including a value recomputed in two places: see `references/rules/shared-common-code.md`. Every PR here states its native/web parity impact (see the PR template).
 - Rename- or refactor-only changes that cross an external boundary: deeplinks, persisted state keys, exported data, public RPC names. "Just renaming" is a frequent source of silent breakage.
 - User-facing copy and terminology: internal terms leaking into the UI (e.g. `room` where the product says `group` or `chat`), inconsistent naming.
-- Hardcoded user-facing strings: see `references/rules/i18n.md`. Blocking, not hygiene.
+- Hardcoded user-facing strings: see `references/rules/i18n.md`. A defect, not hygiene, once you have checked that the string is actually translatable copy and named who sees it.
 - Dead or experimental code left in: a disabled block, a failed-experiment codepath, a commented-out branch. It survives reviews because it looks inert. Flag it for removal.
 - Comments added or changed in the diff: hold them to the project's comment conventions.
 - Tests: see `references/rules/tests.md`.
