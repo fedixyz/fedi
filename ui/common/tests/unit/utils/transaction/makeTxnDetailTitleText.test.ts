@@ -1,4 +1,3 @@
-import { TransactionListEntry } from '../../../../types'
 import { makeTxnDetailTitleText } from '../../../../utils/transaction'
 import { createMockT } from '../../../utils/setup'
 import {
@@ -12,13 +11,30 @@ import {
 describe('makeTxnDetailTitleText', () => {
     const t = createMockT()
 
-    it('should return "unknown" for a transaction without a state', () => {
-        const txn = {
-            kind: 'unknown',
-            state: null,
-        } as unknown as TransactionListEntry
-        const title = makeTxnDetailTitleText(t, txn)
-        expect(title).toBe(t('words.unknown'))
+    it('should title a state-less transaction by its kind, never as unknown', () => {
+        // every kind whose bindings allow a null state
+        const expectedTitles = {
+            lnPay: t('feature.send.you-sent'),
+            lnReceive: t('phrases.receive-pending'),
+            lnRecurringdReceive: t('phrases.receive-pending'),
+            onchainWithdraw: t('feature.send.you-sent'),
+            onchainDeposit: t('phrases.receive-pending'),
+            oobSend: t('feature.send.you-sent'),
+            oobReceive: t('feature.receive.you-received'),
+            oobCancel: t('phrases.canceled-ecash-send'),
+            spWithdraw: t('feature.stabilitypool.you-withdrew'),
+        } as const
+
+        Object.entries(expectedTitles).forEach(([kind, title]) => {
+            expect(
+                makeTxnDetailTitleText(
+                    t,
+                    makeTestTxnEntry(kind as keyof typeof expectedTitles, {
+                        state: null,
+                    }),
+                ),
+            ).toBe(title)
+        })
     })
 
     it('[lnPay, oobSend, onchainWithdraw] should return "you-sent"', () => {

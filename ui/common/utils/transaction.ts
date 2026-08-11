@@ -173,9 +173,6 @@ export const makeTxnDetailTitleText = (
     t: TFunction,
     txn: TransactionListEntry,
 ): string => {
-    // there should always be a state, but return unknown just in case
-    if (!txn.state) return t('words.unknown')
-
     switch (txn.kind) {
         case 'lnPay':
         case 'oobSend':
@@ -196,6 +193,9 @@ export const makeTxnDetailTitleText = (
             return t('phrases.canceled-ecash-send')
         case 'lnReceive':
         case 'lnRecurringdReceive':
+            // same rule as makeTxnStatusBadge: a missing state is a
+            // not-yet-terminal operation, not an unknown outcome
+            if (!txn.state) return t('phrases.receive-pending')
             switch (txn.state.type) {
                 case 'claimed':
                     return t('feature.receive.you-received')
@@ -210,6 +210,7 @@ export const makeTxnDetailTitleText = (
                     return t('phrases.receive-pending')
             }
         case 'onchainDeposit':
+            if (!txn.state) return t('phrases.receive-pending')
             switch (txn.state.type) {
                 case 'waitingForTransaction':
                     return t('phrases.address-created')
