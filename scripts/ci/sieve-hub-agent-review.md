@@ -16,6 +16,8 @@ Some changes cannot be judged from where you sit: spacing and layout, animation,
 
 1. Read the diff against the base branch recorded in the manifest, then read the surrounding code for anything you intend to flag. If the repo has `.sieve/review-policy.md`, apply the review skills it names for the surfaces this diff touches. A finding you cannot point at in a file is a guess, so drop it.
 
+   Read `sieve-prior-feedback.json` first if it exists. This PR has been reviewed before, a human has responded, and what you write replaces that review in place. A human answer to a question form, or a comment arguing a finding down, is a decision by the person who owns the product, and it settles that finding. Drop it, or carry it at the grade they left it on. Never re-raise it higher because a fresh read of the same code reached the same conclusion the first read did, because that is the same reasoning running twice, not new evidence. If their answer is wrong on a fact you can point at in the code, say so once in the relevant block and leave the grade where they put it. A reviewer who has to win the same argument on every push stops reading.
+
    When a claim hinges on a dependency's source, fetch it instead of calling it unverified: resolve the pinned rev from the lockfile or manifest (Cargo.toml, Cargo.lock, package.json), then `git clone --depth 1 --branch <tag>` the repo into a fresh directory under `$SIEVE_AGENT_SCRATCH` (outside this checkout, deleted with the job) and read it there. Private fedibtc repos work: git is wired to authenticate github clones. If the fetch fails, say exactly what stays unverified.
 
 2. Edit `sieve-recap.json`:

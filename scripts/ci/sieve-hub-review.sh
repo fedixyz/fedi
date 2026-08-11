@@ -77,6 +77,19 @@ if [ "$(jq -r '.skipped // false' <<<"$scaffold")" = "true" ]; then
     exit 0
 fi
 
+# publishing reuses "<repo>#<branch>" as the idempotency key, so that is how
+# the prior version is found. No prior review is the common case, so a miss
+# here must not cost the review.
+# referenced by sieve-hub-agent-review.md
+feedback=sieve-prior-feedback.json
+prior=$(sieve --json --host "$SIEVE_HOST" list --repo "$repo" 2>/dev/null |
+    jq -r --arg key "$repo#$branch" 'first(.reviews[]? | select(.idempotencyKey == $key) | .id) // empty') || prior=""
+if [ -n "$prior" ] && sieve --json --host "$SIEVE_HOST" feedback "$prior" >"$feedback" 2>/dev/null; then
+    echo "prior review $prior carries $(jq '[.actionableThreads[]?, .fyiThreads[]?, .resolvedThreads[]?] | length' "$feedback") human thread(s)"
+else
+    rm -f "$feedback"
+fi
+
 # --print alone is silent until the agent exits
 claude --print --verbose --output-format stream-json --model "$agent_model" \
     --allowed-tools Read Grep Glob Edit Write "Bash(git:*)" "Bash(jq:*)" "Bash(sieve:*)" \
