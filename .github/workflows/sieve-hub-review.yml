@@ -44,9 +44,9 @@ jobs:
         concurrency:
             group: sieve-hub-review-${{ inputs.repo || github.repository }}-${{ inputs.pr_number || github.event.issue.number }}
             cancel-in-progress: true
-        runs-on: [self-hosted, linux]
-        # avdmanager takes ~10 minutes on these hosts, and an uncached
-        # branch cold-builds the android bridge
+        # the emulator only boots here: qemu segfaults under the linux runner units
+        runs-on: [self-hosted, macos, arm64, macstadium, gui]
+        # an uncached branch cold-builds the android bridge
         timeout-minutes: 120
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
