@@ -18,6 +18,8 @@ on:
 
 permissions:
     contents: read
+    # gh pr view needs the read; the sticky comment needs the write
+    pull-requests: write
 
 env:
     SIEVE_HOST: https://sieve.fedi.xyz
@@ -42,12 +44,10 @@ jobs:
         concurrency:
             group: sieve-hub-review-${{ inputs.repo || github.repository }}-${{ inputs.pr_number || github.event.issue.number }}
             cancel-in-progress: true
-        # The e2e macs, whose emulators work today; the linux runners hide
-        # /dev/kvm from jobs, so move back once devops exposes it.
-        runs-on: [self-hosted, macos, arm64, macstadium, gui]
-        # Cold runners compile sieve from source, and a ui PR adds an
-        # emulator capture pass (apk build + two metro tours).
-        timeout-minutes: 60
+        runs-on: [self-hosted, linux]
+        # avdmanager takes ~10 minutes on these hosts, and an uncached
+        # branch cold-builds the android bridge
+        timeout-minutes: 120
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
@@ -57,15 +57,6 @@ jobs:
               env:
                   COMMENT_BODY: ${{ github.event.comment.body }}
               run: ./scripts/ci/sieve-comment-trigger.sh
-
-            - name: Mint the cross-repo app token
-              id: app-token
-              if: steps.trigger.outputs.matched != 'false' && vars.SIEVE_HUB_APP_ID != ''
-              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-              with:
-                  app-id: ${{ vars.SIEVE_HUB_APP_ID }}
-                  private-key: ${{ secrets.SIEVE_HUB_APP_PRIVATE_KEY }}
-                  owner: fedibtc
 
             - name: Resolve the deployed sieve release
               id: sieve-release
@@ -82,7 +73,8 @@ jobs:
               # A capture failure must never cost the review itself.
               continue-on-error: true
               env:
-                  GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.SIEVE_HUB_TOKEN }}
+                  # capture never leaves this repo
+                  GH_TOKEN: ${{ github.token }}
                   # Avoid anonymous GitHub API rate limits during the Nix fetch.
                   NIX_CONFIG: access-tokens = github.com=${{ github.token }}
                   REPO: ${{ inputs.repo || github.repository }}
@@ -101,7 +93,8 @@ jobs:
                   # falls back to a mechanical recap.
                   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
                   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-                  GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.SIEVE_HUB_TOKEN }}
+                  # the org PAT carries cross-repo read; the job-token floor reads this repo only
+                  GH_TOKEN: ${{ secrets.GH_PAT_FEDIBTC_READ_ONLY || github.token }}
                   # Avoid anonymous GitHub API rate limits during the Nix fetch.
                   NIX_CONFIG: access-tokens = github.com=${{ github.token }}
                   # claude-code is unfree; nix only honors this when the eval is --impure.

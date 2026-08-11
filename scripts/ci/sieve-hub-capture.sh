@@ -30,7 +30,8 @@ if ! jq -r '.files[].path' <<<"$pr" | grep -qE '^ui/(native|common)/'; then
     exit 0
 fi
 
-workdir=$(mktemp -d)
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/sieve-capture.XXXXXX")
+find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'sieve-capture.*' -not -path "$workdir" -mmin +180 -exec rm -rf {} + 2>/dev/null || true
 emu_pid=""
 # Six runner slots share this host's adb server, so kill only our own
 # processes and never adb itself.
@@ -43,6 +44,8 @@ cleanup() {
     rm -rf "$workdir"
 }
 trap cleanup EXIT
+# bash skips EXIT traps on unhandled signals
+trap 'exit 129' HUP INT TERM
 
 if [ -n "${CLONE_REUSE:-}" ] && [ -d "$CLONE_REUSE/.git" ]; then
     # local iteration: skip the clone and reuse a previous run's checkout
@@ -104,9 +107,11 @@ fi
 
 section "boot emulator"
 # a hard-killed run leaks its emulator, and the e2e cleanup's reaper only
-# greps qemu-system-x86_64, which an arm64 host never runs. One runner
-# slot per mac host, so any sieve-capture emulator alive now is stale.
-pkill -f -- "-avd sieve-capture-" 2>/dev/null || true
+# greps qemu-system-x86_64, which an arm64 host never runs. macs run one
+# slot per host; linux runs six, and this pkill would hit a live neighbor.
+if [ "$(uname)" = "Darwin" ]; then
+    pkill -f -- "-avd sieve-capture-" 2>/dev/null || true
+fi
 arch=$(uname -m)
 case "$arch" in
 x86_64) abi="x86_64" ;;
@@ -149,8 +154,10 @@ if [ -f "$avd_path/config.ini" ]; then
         echo "hw.keyboard=yes"
     } >>"$avd_path/config.ini"
 fi
+# quickboot's file-backed ram image segfaults qemu under the linux
+# runner units
 emulator -avd "$avd" -port "$emu_port" \
-    -no-snapshot-save -no-boot-anim -no-audio -no-window \
+    -no-snapshot -no-boot-anim -no-audio -no-window \
     -gpu swiftshader_indirect -accel auto \
     >"$workdir/emulator.log" 2>&1 &
 emu_pid=$!
