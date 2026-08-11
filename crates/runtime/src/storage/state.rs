@@ -340,11 +340,57 @@ pub struct FediFeeSchedule {
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(from = "FediGuardianFeeConfigSerde")]
 pub struct FediGuardianFeeConfig {
     /// Guardian fee charged on send-side transactions, in ppm.
     pub send_ppm: u64,
-    /// Destination account for guardian-fee remittance.
-    pub remittance_account: Account,
+    /// Weighted destination accounts for guardian-fee remittances.
+    pub recipients: Vec<FediGuardianFeeRecipient>,
+}
+
+/// Deserialize-only adapter for app state written before weighted recipients.
+/// Runtime state and all new serialization use only `recipients`.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum FediGuardianFeeConfigSerde {
+    Current {
+        send_ppm: u64,
+        recipients: Vec<FediGuardianFeeRecipient>,
+    },
+    Legacy {
+        send_ppm: u64,
+        remittance_account: Account,
+    },
+}
+
+impl From<FediGuardianFeeConfigSerde> for FediGuardianFeeConfig {
+    fn from(config: FediGuardianFeeConfigSerde) -> Self {
+        match config {
+            FediGuardianFeeConfigSerde::Current {
+                send_ppm,
+                recipients,
+            } => Self {
+                send_ppm,
+                recipients,
+            },
+            FediGuardianFeeConfigSerde::Legacy {
+                send_ppm,
+                remittance_account,
+            } => Self {
+                send_ppm,
+                recipients: vec![FediGuardianFeeRecipient {
+                    account: remittance_account,
+                    weight: 1,
+                }],
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FediGuardianFeeRecipient {
+    pub account: Account,
+    pub weight: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
@@ -597,5 +643,47 @@ impl Default for FediFeeSchedule {
             remittance_threshold_msat: 100_000,
             modules,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
+    use stability_pool_client::common::AccountType;
+
+    use super::*;
+
+    #[test]
+    fn legacy_guardian_fee_config_loads_as_single_weighted_recipient() {
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[7; 32]).unwrap();
+        let account = Account::single(
+            PublicKey::from_secret_key(&secp, &secret_key),
+            AccountType::BtcDepositor,
+        );
+        let federation: FederationInfo = serde_json::from_value(serde_json::json!({
+            "version": 2,
+            "database_prefix": 7,
+            "guardian_fee_config": {
+                "send_ppm": 250,
+                "remittance_account": account,
+            },
+        }))
+        .unwrap();
+
+        let config = federation.guardian_fee_config.as_ref().unwrap();
+        assert_eq!(config.send_ppm, 250);
+        assert_eq!(
+            config.recipients,
+            vec![FediGuardianFeeRecipient {
+                account: account.clone(),
+                weight: 1,
+            }]
+        );
+
+        let serialized = serde_json::to_value(federation).unwrap();
+        let config = &serialized["guardian_fee_config"];
+        assert!(config.get("remittance_account").is_none());
+        assert_eq!(config["recipients"].as_array().unwrap().len(), 1);
     }
 }

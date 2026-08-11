@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{ffi, iter};
 
@@ -750,6 +750,29 @@ impl StabilityPoolClientModule {
         .await
     }
 
+    /// Submits multiple btc-balance deposits as one atomic transaction inside
+    /// a caller-provided database transaction.
+    pub async fn deposit_to_btc_balances_dbtx(
+        &self,
+        dbtx: &mut DatabaseTransaction<'_>,
+        operation_id: OperationId,
+        deposits: Vec<(AccountId, Amount, BtcBalanceDepositMetadata)>,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<OutPointRange> {
+        validate_btc_balance_deposit_batch(&deposits)?;
+        let outputs = deposits
+            .into_iter()
+            .map(|(account_id, amount, metadata)| {
+                ensure!(
+                    account_id.acc_type() == AccountType::BtcDepositor,
+                    "DepositToBtcBalance requires a btc-balance account"
+                );
+                Ok(btc_balance_deposit_output(account_id, amount, metadata))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        submit_tx_with_deposit_outputs_dbtx(self, dbtx, operation_id, outputs, extra_meta).await
+    }
+
     pub async fn deposit_to_provide(
         &self,
         amount: Amount,
@@ -1198,21 +1221,100 @@ async fn submit_tx_with_output_dbtx(
         .await
 }
 
+/// Composes an atomic multi-output deposit into an existing caller-owned DB
+/// transaction.
+async fn submit_tx_with_deposit_outputs_dbtx(
+    module: &StabilityPoolClientModule,
+    dbtx: &mut DatabaseTransaction<'_>,
+    operation_id: OperationId,
+    outputs: Vec<StabilityPoolOutput>,
+    extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+) -> anyhow::Result<OutPointRange> {
+    let client_ctx = &module.client_ctx;
+    let (output_bundle, amount) = build_deposit_output_bundle_and_amount(&outputs)?;
+    let tx = TransactionBuilder::new().with_outputs(client_ctx.make_client_outputs(output_bundle));
+    let meta_gen = deposit_outputs_meta_generator(amount, extra_meta);
+    client_ctx
+        .finalize_and_submit_transaction_dbtx(
+            dbtx,
+            operation_id,
+            StabilityPoolCommonGen::KIND.as_str(),
+            meta_gen,
+            tx,
+        )
+        .await
+}
+
+fn validate_btc_balance_deposit_batch(
+    deposits: &[(AccountId, Amount, BtcBalanceDepositMetadata)],
+) -> anyhow::Result<()> {
+    ensure!(!deposits.is_empty(), "btc-balance deposit batch is empty");
+    let mut account_ids = BTreeSet::new();
+    ensure!(
+        deposits
+            .iter()
+            .all(|(account_id, _, _)| account_ids.insert(*account_id)),
+        "btc-balance deposit batch contains duplicate accounts"
+    );
+    Ok(())
+}
+
+fn build_deposit_output_bundle_and_amount(
+    outputs: &[StabilityPoolOutput],
+) -> anyhow::Result<(
+    ClientOutputBundle<StabilityPoolOutput, StabilityPoolStateMachine>,
+    Amount,
+)> {
+    let amount = outputs.iter().try_fold(Amount::ZERO, |total, output| {
+        total
+            .msats
+            .checked_add(amount_for_output(output).msats)
+            .map(Amount::from_msats)
+            .ok_or_else(|| anyhow::anyhow!("btc-balance deposit batch amount overflow"))
+    })?;
+    Ok((build_output_bundle_from_outputs(outputs), amount))
+}
+
 /// Builds the shared output bundle for any output-only stability-pool
 /// transaction submission path.
 fn build_output_bundle(
     output: &StabilityPoolOutput,
 ) -> ClientOutputBundle<StabilityPoolOutput, StabilityPoolStateMachine> {
-    let amount = amount_for_output(output);
+    build_output_bundle_from_outputs(std::slice::from_ref(output))
+}
+
+fn build_output_bundle_from_outputs(
+    outputs: &[StabilityPoolOutput],
+) -> ClientOutputBundle<StabilityPoolOutput, StabilityPoolStateMachine> {
     ClientOutputBundle::<StabilityPoolOutput, StabilityPoolStateMachine>::new(
-        vec![ClientOutput {
-            amounts: Amounts::new_bitcoin(amount),
-            output: output.clone(),
-        }],
-        vec![ClientOutputSM {
-            state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
-        }],
+        outputs
+            .iter()
+            .map(|output| ClientOutput {
+                amounts: Amounts::new_bitcoin(amount_for_output(output)),
+                output: output.clone(),
+            })
+            .collect(),
+        outputs
+            .iter()
+            .map(|_| ClientOutputSM {
+                state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
+            })
+            .collect(),
     )
+}
+
+fn deposit_outputs_meta_generator(
+    amount: Amount,
+    extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+) -> impl Fn(OutPointRange) -> StabilityPoolMeta + Clone {
+    let extra_meta =
+        serde_json::to_value(extra_meta).expect("serializing operation metadata must not fail");
+    move |out_point_range: OutPointRange| StabilityPoolMeta::Deposit {
+        txid: out_point_range.txid,
+        change_outpoints: out_point_range.into_iter().collect(),
+        amount,
+        extra_meta: extra_meta.clone(),
+    }
 }
 
 /// Produces the operation metadata generator shared by the normal and DBTX
@@ -1487,6 +1589,7 @@ mod tests {
     use fedimint_api_client::api::DynGlobalApi;
     use fedimint_client::module::module::FinalClientIface;
     use fedimint_connectors::ConnectorRegistry;
+    use fedimint_core::BitcoinHash;
     use fedimint_core::db::mem_impl::MemDatabase;
 
     use super::*;
@@ -1561,5 +1664,55 @@ mod tests {
                 .to_string(),
             "spd1e7z9l3cql4tjdg84jwwrwng2hjyxqqec2va2jwtc65yjy2er2grs2lx0s5"
         );
+    }
+
+    #[test]
+    fn btc_balance_deposit_batch_builds_one_bundle_and_aggregate_meta() {
+        let deposits = (1_u8..=9)
+            .map(|byte| {
+                let keypair = Keypair::from_secret_key(
+                    secp256k1::SECP256K1,
+                    &secp256k1::SecretKey::from_slice(&[byte; 32]).unwrap(),
+                );
+                (
+                    Account::single(keypair.public_key(), AccountType::BtcDepositor).id(),
+                    Amount::from_msats(u64::from(byte) * 10_000),
+                    BtcBalanceDepositMetadata(vec![byte; 1024]),
+                )
+            })
+            .collect::<Vec<_>>();
+        validate_btc_balance_deposit_batch(&deposits).unwrap();
+
+        let outputs = deposits
+            .iter()
+            .cloned()
+            .map(|(account_id, amount, metadata)| {
+                btc_balance_deposit_output(account_id, amount, metadata)
+            })
+            .collect::<Vec<_>>();
+        let (bundle, amount) = build_deposit_output_bundle_and_amount(&outputs).unwrap();
+        assert_eq!(bundle.outputs().len(), 9);
+        assert_eq!(amount, Amount::from_msats(450_000));
+        assert!(outputs.consensus_encode_to_vec().len() < 40_000);
+
+        let txid = TransactionId::from_byte_array([42; 32]);
+        let outpoints = OutPointRange::new_single(txid, 9).unwrap();
+        let meta =
+            deposit_outputs_meta_generator(amount, serde_json::json!({"batch": true}))(outpoints);
+        let StabilityPoolMeta::Deposit {
+            txid: meta_txid,
+            change_outpoints,
+            amount: meta_amount,
+            ..
+        } = meta
+        else {
+            panic!("expected deposit operation metadata");
+        };
+        assert_eq!(meta_txid, txid);
+        assert_eq!(change_outpoints.len(), 1);
+        assert_eq!(meta_amount, amount);
+
+        let duplicate = vec![deposits[0].clone(), deposits[0].clone()];
+        assert!(validate_btc_balance_deposit_batch(&duplicate).is_err());
     }
 }
