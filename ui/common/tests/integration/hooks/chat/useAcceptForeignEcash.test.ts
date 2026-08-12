@@ -10,6 +10,7 @@ import {
     selectMatrixAuth,
     selectMatrixChatsList,
     selectMatrixRoomEvents,
+    selectMatrixRoomPaginationStatus,
     sendMatrixPaymentPush,
     setupStore,
 } from '../../../../redux'
@@ -60,19 +61,11 @@ describe('useCreateMatrixRoom', () => {
 
         await waitFor(() => {
             const chatsList2 = selectMatrixChatsList(storeBob.getState())
-            expect(chatsList2).toHaveLength(1)
-        })
-
-        act(() => {
-            storeAlice.dispatch(
-                sendMatrixPaymentPush({
-                    fedimint: fedimintAlice,
-                    federationId,
-                    roomId,
-                    recipientId: bobAuth?.userId as string,
-                    amount: paymentAmountSats,
-                }),
-            )
+            expect(
+                chatsList2.find(
+                    room => room.id === roomId && room.roomState === 'joined',
+                ),
+            ).toBeDefined()
         })
 
         renderHookWithBridge(
@@ -80,6 +73,26 @@ describe('useCreateMatrixRoom', () => {
             storeBob,
             fedimintBob,
         )
+
+        await waitFor(() => {
+            expect(
+                selectMatrixRoomPaginationStatus(storeBob.getState(), roomId),
+            ).toBeDefined()
+        })
+
+        await act(async () => {
+            await storeAlice
+                .dispatch(
+                    sendMatrixPaymentPush({
+                        fedimint: fedimintAlice,
+                        federationId,
+                        roomId,
+                        recipientId: bobAuth?.userId as string,
+                        amount: paymentAmountSats,
+                    }),
+                )
+                .unwrap()
+        })
 
         let paymentEvent: MatrixPaymentEvent
 
