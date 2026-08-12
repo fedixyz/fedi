@@ -6,7 +6,7 @@ mod lnurl_receives_service;
 mod meta;
 
 use std::any::Any;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::pin;
@@ -4990,7 +4990,39 @@ fn internal_pay_is_bad_state(outcome: serde_json::Value) -> bool {
     serde_json::from_value::<InternalPayState>(outcome).is_err()
 }
 
+/// A mixed core strands wallet deposits on clients without a matching ecash
+/// module.
+fn ensure_supported_federation_shape<'a>(
+    module_kinds: impl Iterator<Item = &'a fedimint_core::core::ModuleKind>,
+) -> anyhow::Result<()> {
+    let kinds: BTreeSet<_> = module_kinds.cloned().collect();
+    let mint_v1 = kinds.contains(&MintClientModule::kind());
+    let wallet_v1 = kinds.contains(&fedimint_wallet_client::WalletClientModule::kind());
+    let mint_v2 = kinds.contains(&MintV2ClientModule::kind());
+    let wallet_v2 = kinds.contains(&WalletV2ClientModule::kind());
+
+    let generation_one = mint_v1 && !mint_v2 && !wallet_v2;
+    let generation_two = mint_v2 && !mint_v1 && !wallet_v1;
+    if !(generation_one || generation_two) {
+        warn!(
+            ?kinds,
+            "Refusing to join a federation with an unsupported module shape"
+        );
+        anyhow::bail!("This federation is not supported by this version of the app");
+    }
+    Ok(())
+}
+
 impl FederationPrefetchedInfo {
+    /// Returning members (backup present) always rejoin; only fresh joins are
+    /// shape-gated.
+    pub fn ensure_joinable(&self) -> anyhow::Result<()> {
+        if self.backup.is_some() {
+            return Ok(());
+        }
+        ensure_supported_federation_shape(self.client_config.modules.values().map(|m| m.kind()))
+    }
+
     pub async fn fetch(
         connectors: ConnectorRegistry,
         invite_code: &str,
@@ -5044,7 +5076,59 @@ impl FederationPrefetchedInfo {
 }
 #[cfg(test)]
 mod tests {
+    use fedimint_core::core::ModuleKind;
+
     use super::*;
+
+    fn shape(names: &[&'static str]) -> Vec<ModuleKind> {
+        names
+            .iter()
+            .map(|name| ModuleKind::from_static_str(name))
+            .collect()
+    }
+
+    #[test]
+    fn generation_one_shape_is_joinable() {
+        let kinds = shape(&["ln", "lnv2", "meta", "mint", "wallet", "stability_pool"]);
+        assert!(ensure_supported_federation_shape(kinds.iter()).is_ok());
+    }
+
+    #[test]
+    fn generation_two_shape_is_joinable() {
+        let kinds = shape(&[
+            "lnv2",
+            "meta",
+            "mintv2",
+            "multi_sig_stability_pool",
+            "walletv2",
+        ]);
+        assert!(ensure_supported_federation_shape(kinds.iter()).is_ok());
+    }
+
+    #[test]
+    fn mixed_shape_is_rejected() {
+        let kinds = shape(&[
+            "ln",
+            "lnv2",
+            "meta",
+            "mintv2",
+            "multi_sig_stability_pool",
+            "wallet",
+        ]);
+        assert!(ensure_supported_federation_shape(kinds.iter()).is_err());
+    }
+
+    #[test]
+    fn cross_generation_wallet_is_rejected() {
+        let kinds = shape(&["ln", "mint", "wallet", "walletv2"]);
+        assert!(ensure_supported_federation_shape(kinds.iter()).is_err());
+    }
+
+    #[test]
+    fn no_ecash_shape_is_rejected() {
+        let kinds = shape(&["ln", "wallet"]);
+        assert!(ensure_supported_federation_shape(kinds.iter()).is_err());
+    }
 
     #[test]
     fn test_pay_state_is_getting_parsed() {

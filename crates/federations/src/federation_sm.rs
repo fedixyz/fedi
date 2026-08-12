@@ -110,6 +110,7 @@ impl FederationStateMachine {
             ),
             "Federation already joined"
         );
+        info.ensure_joinable()?;
         let guard = locker
             .try_lock_federation(federation_id.clone())
             .expect("lock must not be held in this federation state");
