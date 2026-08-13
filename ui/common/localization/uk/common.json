@@ -693,6 +693,7 @@
             "export-transactions-csv": "Експортувати транзакції у CSV",
             "log-fcm-token": "Додати FCM-токен в лоґ",
             "logs": "Лоґи",
+            "edge": "edge",
             "nightly": "нічна версія",
             "nova": "nova",
             "select-federation-share-logs": "Виберіть Гаманцевий сервіс, з якого надати журнали",

@@ -103,6 +103,19 @@ platform :ios do
     )
   end
 
+  desc "Create a release build (Fedi Edge)"
+  lane :build_edge do
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediEdge",
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.edge" => "match AppStore org.fedi.edge"
+        }
+      }
+    )
+  end
+
   desc "Push a new beta build to TestFlight from CI (Fedi Nightly)"
   lane :beta_ci_nightly do
     match(
@@ -167,6 +180,38 @@ platform :ios do
     )
   end
 
+  desc "Push a new beta build to TestFlight from CI (Fedi Edge)"
+  lane :beta_ci_edge do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.edge',
+      generate_apple_certs: false,
+      force: false,
+      verbose: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-edge-react-native-certs",
+      storage_mode: 'git',
+      keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
+      keychain_password: ENV['MATCH_PASSWORD'],
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+
+    # these steps are the same as standard beta lane
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediEdge",
+      verbose: true,
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.edge" => "match AppStore org.fedi.edge"
+        }
+      }
+    )
+    changelog_from_git_commits
+    upload_to_testflight(
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
   desc "Push a new beta build to TestFlight (Fedi Nightly)"
   lane :beta_nightly do
     build_app(
@@ -192,6 +237,23 @@ platform :ios do
       export_options: {
         provisioningProfiles: {
           "org.fedi.nova" => "match AppStore org.fedi.nova"
+        }
+      }
+    )
+    changelog_from_git_commits
+    upload_to_testflight(
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
+  desc "Push a new beta build to TestFlight (Fedi Edge)"
+  lane :beta_edge do
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediEdge",
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.edge" => "match AppStore org.fedi.edge"
         }
       }
     )
@@ -242,6 +304,19 @@ platform :ios do
     )
   end
 
+  desc "Check for signing certificates (Fedi Edge)"
+  lane :check_appstore_certs_edge do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.edge',
+      generate_apple_certs: false,
+      readonly: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-edge-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
   # These renew commands should only ever be needed if the distribution
   # certificates in the Apple Developer Portal have expired
   # Details: https://www.notion.so/fedi21/Knowledge-Base-0f40176380ca43628dbd6a306bcd7e99?p=8d0c7b3d38d94474a8959649c4d11b9a&pm=s
@@ -276,6 +351,18 @@ platform :ios do
       app_identifier: 'org.fedi.nova',
       generate_apple_certs: true,
       git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-nova-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
+  desc "Generate renewed signing certificates (Fedi Edge)"
+  lane :renew_appstore_certs_edge do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.edge',
+      generate_apple_certs: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-edge-react-native-certs",
       storage_mode: 'git',
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
@@ -318,5 +405,17 @@ platform :ios do
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
     renew_appstore_certs_nova
+  end
+
+  desc "Nuke and regenerate all certificates (Edge)"
+  lane :nuke_and_regenerate_certs_edge do
+    match_nuke(
+      type: 'appstore',
+      skip_confirmation: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-edge-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+    renew_appstore_certs_edge
   end
 end

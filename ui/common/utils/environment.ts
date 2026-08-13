@@ -45,6 +45,16 @@ export const isNova = () => {
     )
 }
 
+// Not part of isExperimental: edge must take the production side of every
+// experimental/staging switch.
+export const isEdge = () => {
+    return (
+        !!process &&
+        (process.env.FEDI_ENV === 'edge' ||
+            process.env.NEXT_PUBLIC_FEDI_ENV === 'edge')
+    )
+}
+
 export const isExperimental = () => isNightly() || isNova()
 
 export const isDevOrExperimental = isDev() || isExperimental()

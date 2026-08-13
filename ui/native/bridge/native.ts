@@ -8,7 +8,7 @@ import { BridgeError } from '@fedi/common/utils/errors'
 import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { isExperimental } from '../utils/device-info'
+import { isEdge, isExperimental } from '../utils/device-info'
 
 const { BridgeNativeEventEmitter, FedimintFfi } = NativeModules
 
@@ -58,7 +58,13 @@ export async function unsubscribeFromBridgeEvents(
 }
 
 export const getAppFlavor = (): RpcAppFlavor['type'] => {
-    return isDev() ? 'dev' : isExperimental() ? 'nightly' : 'bravo'
+    return isDev()
+        ? 'dev'
+        : isEdge()
+          ? 'edge'
+          : isExperimental()
+            ? 'nightly'
+            : 'bravo'
 }
 
 export async function initializeBridge(

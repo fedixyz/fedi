@@ -712,6 +712,7 @@
             "export-transactions-csv": "Export transactions CSV",
             "log-fcm-token": "Log FCM token",
             "logs": "Logs",
+            "edge": "edge",
             "nightly": "nightly",
             "nova": "nova",
             "select-federation-share-logs": "Select a federation to share logs from",

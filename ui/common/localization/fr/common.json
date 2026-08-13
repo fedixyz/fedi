@@ -693,6 +693,7 @@
             "export-transactions-csv": "Exporter les transactions CSV",
             "log-fcm-token": "Consigner le jeton FCM",
             "logs": "Journaux",
+            "edge": "edge",
             "nightly": "Nightly",
             "nova": "nova",
             "select-federation-share-logs": "Sélectionnez un service de portefeuille à partir duquel partager les journaux.",

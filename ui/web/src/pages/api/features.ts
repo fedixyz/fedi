@@ -12,6 +12,10 @@ const prodRemoteFeatures: RemoteFeatures = {
     messageReactions: true,
     personalBackupReminder: false,
 }
+// Edge-only overrides go here; with none, edge tracks production.
+const edgeRemoteFeatures: RemoteFeatures = {
+    ...prodRemoteFeatures,
+}
 const devRemoteFeatures: RemoteFeatures = {
     dummyFeature: true,
     showStableBalanceWeb: true,
@@ -33,7 +37,14 @@ export default async function handler(
         return
     }
 
-    const remoteFeatures = isProduction ? prodRemoteFeatures : devRemoteFeatures
+    // Bridges without the edge flavor never send env, so absent = production.
+    const isEdge = req.query.env === 'edge'
+
+    const remoteFeatures = isProduction
+        ? isEdge
+            ? edgeRemoteFeatures
+            : prodRemoteFeatures
+        : devRemoteFeatures
 
     res.status(200).json(remoteFeatures)
 }

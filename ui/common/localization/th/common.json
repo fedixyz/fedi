@@ -694,6 +694,7 @@
             "export-transactions-csv": "ส่งออกธุรกรรมเป็น CSV",
             "log-fcm-token": "บันทึก FCM Token",
             "logs": "Logs",
+            "edge": "edge",
             "nightly": "nightly",
             "nova": "nova",
             "select-federation-share-logs": "เลือกบริการกระเป๋าเงิน เพื่อแชร์ Logs",

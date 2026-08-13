@@ -693,6 +693,7 @@
             "export-transactions-csv": "Exporta tus transacciones en formato CSV",
             "log-fcm-token": "Registrar token de FCM",
             "logs": "Registros",
+            "edge": "edge",
             "nightly": "Nightly",
             "nova": "Nova",
             "select-federation-share-logs": "Selecciona una federación desde la cual compartir los registros.",

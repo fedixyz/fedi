@@ -693,6 +693,7 @@
             "export-transactions-csv": "Ohereza ihererekanya muri CSV",
             "log-fcm-token": "Andika ikimenyetso cya FCM",
             "logs": "Logs",
+            "edge": "edge",
             "nightly": "Nightly",
             "nova": "Nova",
             "select-federation-share-logs": "Hitamo ikigega cyo gusangira amakuru kivuyemo",

@@ -693,6 +693,7 @@
             "export-transactions-csv": "ግብይቶችን ወደ CSV ላክ",
             "log-fcm-token": "Log FCM token",
             "logs": "Logs",
+            "edge": "edge",
             "nightly": "nightly",
             "nova": "nova",
             "select-federation-share-logs": "logsን ለማጋራት የቦርሳ አገልግሎት ይምረጡ",

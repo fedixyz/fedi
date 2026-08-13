@@ -141,4 +141,10 @@ export const isNova = () => {
     return RNDI.getBundleId().includes('nova')
 }
 
+// Not part of isExperimental: edge must take the production side of every
+// experimental/staging switch.
+export const isEdge = () => {
+    return RNDI.getBundleId().includes('edge')
+}
+
 export const isExperimental = () => isNightly() || isNova()

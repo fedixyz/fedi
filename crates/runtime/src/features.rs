@@ -10,8 +10,8 @@ use tracing::warn;
 use ts_rs::TS;
 
 use crate::constants::{
-    FEDI_GLOBAL_COMMUNITY_PROD, FEDI_GLOBAL_COMMUNITY_STAGING, PROD_REMOTE_FEATURES_URL,
-    STAGING_REMOTE_FEATURES_URL,
+    EDGE_REMOTE_FEATURES_URL, FEDI_GLOBAL_COMMUNITY_PROD, FEDI_GLOBAL_COMMUNITY_STAGING,
+    PROD_REMOTE_FEATURES_URL, STAGING_REMOTE_FEATURES_URL,
 };
 use crate::db::RemoteFeaturesLastFetchedKey;
 
@@ -20,6 +20,9 @@ use crate::db::RemoteFeaturesLastFetchedKey;
 /// - Dev = a locally-built developer build of the Fedi app
 /// - Tests = locally-build developer build for automated testing.
 /// - Staging = an internal build of the Fedi app, such as the nightly build
+/// - Edge = an external build of the Fedi app that runs against production
+///   infrastructure but ships unreviewed code, with its own remote feature
+///   layer
 /// - Prod = an external build of the Fedi app, such as the Fedi build
 ///
 /// Note the increasing strictness of the runtimes. Dev is the least strict and
@@ -41,6 +44,7 @@ pub enum RuntimeEnvironment {
     Dev,
     Tests,
     Staging,
+    Edge,
     Prod,
 }
 
@@ -304,6 +308,7 @@ impl FeatureCatalog {
         let mut feature_catalog = match runtime_env {
             RuntimeEnvironment::Dev => Self::new_dev(),
             RuntimeEnvironment::Staging => Self::new_staging(),
+            RuntimeEnvironment::Edge => Self::new_edge(),
             RuntimeEnvironment::Prod => Self::new_prod(),
             RuntimeEnvironment::Tests => Self::new_tests(),
         };
@@ -499,6 +504,13 @@ impl FeatureCatalog {
         }
     }
 
+    fn new_edge() -> Self {
+        Self {
+            runtime_env: RuntimeEnvironment::Edge,
+            ..Self::new_prod()
+        }
+    }
+
     fn new_prod() -> Self {
         Self {
             runtime_env: RuntimeEnvironment::Prod,
@@ -602,6 +614,7 @@ async fn refresh_remote_features(
 ) -> anyhow::Result<()> {
     let url = match runtime_env {
         RuntimeEnvironment::Prod => PROD_REMOTE_FEATURES_URL,
+        RuntimeEnvironment::Edge => EDGE_REMOTE_FEATURES_URL,
         RuntimeEnvironment::Dev | RuntimeEnvironment::Staging => STAGING_REMOTE_FEATURES_URL,
         // no dependency on remote stuff on tests
         RuntimeEnvironment::Tests => return Ok(()),

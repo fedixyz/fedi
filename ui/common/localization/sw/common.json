@@ -693,6 +693,7 @@
             "export-transactions-csv": "Hamisha shughuli za CSV",
             "log-fcm-token": "Log FCM token",
             "logs": "Logs",
+            "edge": "edge",
             "nightly": "nightly",
             "nova": "nova",
             "select-federation-share-logs": "Chagua Shirikisho utakayotumia kutuma logs",

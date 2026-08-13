@@ -693,6 +693,7 @@
             "export-transactions-csv": "صدّر معاملات CSV",
             "log-fcm-token": "سجّل رمز FCM",
             "logs": "السجلات",
+            "edge": "edge",
             "nightly": "Nightly",
             "nova": "nova",
             "select-federation-share-logs": "اختر خدمة محفظة لمشاركة السجلات منها",

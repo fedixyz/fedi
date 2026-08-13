@@ -56,6 +56,7 @@ pub struct RpcInitOpts {
 pub enum RpcAppFlavor {
     Dev,
     Nightly,
+    Edge,
     Bravo,
     Tests,
 }

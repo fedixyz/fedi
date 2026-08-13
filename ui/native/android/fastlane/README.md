@@ -119,6 +119,14 @@ Submit a new internal build (Nightly)
 
 Build a new APK to release (Nova)
 
+### android build_edge_apk
+
+```sh
+[bundle exec] fastlane android build_edge_apk
+```
+
+Build a new APK to release (Edge)
+
 ### android build_nova
 
 ```sh
@@ -126,6 +134,14 @@ Build a new APK to release (Nova)
 ```
 
 Build a new app bundle to release (Nova)
+
+### android build_edge
+
+```sh
+[bundle exec] fastlane android build_edge
+```
+
+Build a new app bundle to release (Edge)
 
 ### android upload_internal_build_nova
 
@@ -135,6 +151,14 @@ Build a new app bundle to release (Nova)
 
 Upload the latest build to internal track (Nova)
 
+### android upload_internal_build_edge
+
+```sh
+[bundle exec] fastlane android upload_internal_build_edge
+```
+
+Upload the latest build to internal track (Edge)
+
 ### android internal_nova
 
 ```sh
@@ -142,6 +166,14 @@ Upload the latest build to internal track (Nova)
 ```
 
 Submit a new internal build (Nova)
+
+### android internal_edge
+
+```sh
+[bundle exec] fastlane android internal_edge
+```
+
+Submit a new internal build (Edge)
 
 ----
 

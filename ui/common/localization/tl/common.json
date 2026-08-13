@@ -693,6 +693,7 @@
             "export-transactions-csv": "I-export ang transactions CSV",
             "log-fcm-token": "Log FCM token",
             "logs": "Logs",
+            "edge": "edge",
             "nightly": "nightly",
             "nova": "nova",
             "select-federation-share-logs": "Pumili ng Serbisyo ng Wallet kung saan i-share ang logs",

@@ -62,6 +62,7 @@ These workflows have the same core Android build path as the production release 
 
 - [Release Fedi Nightly](https://github.com/fedibtc/fedi/actions/workflows/release-nightly.yml) builds the nightly APK, creates a draft GitHub release, and then calls the nightly Google Play and TestFlight deployment workflows when run from `master` or `release/**`.
 - [Release Fedi Nova](https://github.com/fedibtc/fedi/actions/workflows/release-nova.yml) builds the Nova APK, creates a draft GitHub release, and then calls the Nova Google Play and TestFlight deployment workflows.
+- [Release Fedi Edge](https://github.com/fedibtc/fedi/actions/workflows/release-edge.yml) builds the Edge APK, creates a draft GitHub release, and then calls the Edge Google Play and TestFlight deployment workflows. Edge builds run against production infrastructure, so dispatch this workflow from the `edge` branch.
 
 ## Play Store
 
@@ -70,6 +71,7 @@ This workflow also has all the same build steps as the APK workflow but assemble
 - [Deploy to Google Play - Internal Testing](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-gp-internal-testing.yml)
 - [Deploy to Google Play - Internal Testing (Fedi Nightly)](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-gp-internal-testing-nightly.yml)
 - [Deploy to Google Play - Internal Testing (Fedi Nova)](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-gp-internal-testing-nova.yml)
+- [Deploy to Google Play - Internal Testing (Fedi Edge)](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-gp-internal-testing-edge.yml)
 
 ## TestFlight
 
@@ -78,6 +80,7 @@ This workflow builds the bridge for iOS so is similar to the above APK workflow 
 - [Deploy to TestFlight](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-testflight.yml)
 - [Deploy to TestFlight (Fedi Nightly)](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-testflight-nightly.yml)
 - [Deploy to TestFlight (Fedi Nova)](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-testflight-nova.yml)
+- [Deploy to TestFlight (Fedi Edge)](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-testflight-edge.yml)
 
 ❗❗❗
 This currently takes an extremely long time (1hr+) since the `macos` runner is slow to build the bridge and it's also more expensive relative to Linux.

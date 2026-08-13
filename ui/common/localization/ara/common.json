@@ -275,6 +275,7 @@
             "download-logs": "Download logs",
             "export-transactions-csv": "Rasulu transaction CSV",
             "logs": "Logs",
+            "edge": "edge",
             "nightly": "Nightly",
             "nova": "Nova",
             "share-logs": "Saal logs",

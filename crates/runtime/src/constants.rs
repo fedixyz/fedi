@@ -64,6 +64,7 @@ pub const FEDI_INVOICE_API_URL_MAINNET: &str =
 
 pub const PROD_REMOTE_FEATURES_URL: &str = "https://app.fedi.xyz/api/features";
 pub const STAGING_REMOTE_FEATURES_URL: &str = "https://fedi-ashen.vercel.app/api/features";
+pub const EDGE_REMOTE_FEATURES_URL: &str = "https://fedi-ashen.vercel.app/api/features?env=edge";
 
 pub const COMMUNITY_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community");
 pub const COMMUNITY_V2_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community2");

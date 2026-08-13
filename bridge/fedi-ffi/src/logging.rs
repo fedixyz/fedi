@@ -152,7 +152,7 @@ fn max_compressed_log_files(app_flavor: RpcAppFlavor) -> usize {
         // Keep nightly retention intentionally tiny for now so the pruning path
         // gets exercised regularly; we expect to raise this substantially later.
         RpcAppFlavor::Nightly => 3,
-        RpcAppFlavor::Bravo | RpcAppFlavor::Dev | RpcAppFlavor::Tests => 30,
+        RpcAppFlavor::Bravo | RpcAppFlavor::Edge | RpcAppFlavor::Dev | RpcAppFlavor::Tests => 30,
     }
 }
 

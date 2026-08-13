@@ -418,12 +418,16 @@ release branches.
 
 ## Releases and app flavors
 
-`ui/native/android/app/build.gradle` defines four Android product flavors on the `env` dimension.
-Three of them ship — **production**, **nightly** (built daily) and **nova** — and each has its own
-`just` recipes, for example `just build-nightly-apk` and `just deploy-to-testflight-nova`. Only
-these three have iOS counterparts.
+`ui/native/android/app/build.gradle` defines five Android product flavors on the `env` dimension.
+Four of them ship (**production**, **nightly** built daily, **nova** and **edge**) and each has its
+own `just` recipes, for example `just build-nightly-apk` and `just deploy-to-testflight-edge`. Only
+these four have iOS counterparts. Edge runs against production infrastructure (production Matrix
+homeserver, device registration, feature flag defaults) but ships unreviewed code. Its remote
+feature layer lives at `/api/features?env=edge` on the staging web deployment, which redeploys on
+every master merge, so a flag can flip for edge without touching production and without waiting
+for a web release.
 
-The fourth, **dev**, never ships. It exists so you can install several isolated builds side by side:
+The fifth, **dev**, never ships. It exists so you can install several isolated builds side by side:
 `./gradlew assembleDevDebug -PdevId=07` gives you application ID `com.fedi.dev07` with its own app
 data and its own launcher name. Firebase processing is disabled for it.
 

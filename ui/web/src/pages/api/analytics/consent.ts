@@ -15,7 +15,7 @@ const schema = z.object({
         'modal-dismiss',
         'settings-update',
     ]),
-    appFlavor: z.enum(['bravo', 'dev', 'nightly', 'tests']),
+    appFlavor: z.enum(['bravo', 'edge', 'dev', 'nightly', 'tests']),
 }) satisfies z.ZodType<AnalyticsConsent>
 
 export default async function handler(

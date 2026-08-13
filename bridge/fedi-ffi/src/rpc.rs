@@ -107,6 +107,7 @@ pub async fn fedimint_initialize_async(
     let runtime_env = match app_flavor {
         RpcAppFlavor::Dev => RuntimeEnvironment::Dev,
         RpcAppFlavor::Nightly => RuntimeEnvironment::Staging,
+        RpcAppFlavor::Edge => RuntimeEnvironment::Edge,
         RpcAppFlavor::Bravo => RuntimeEnvironment::Prod,
         RpcAppFlavor::Tests => RuntimeEnvironment::Tests,
     };
@@ -117,7 +118,7 @@ pub async fn fedimint_initialize_async(
 
     let fedi_api: Arc<dyn IFediApi> = match app_flavor {
         RpcAppFlavor::Tests => Arc::new(MockFediApi::default()),
-        RpcAppFlavor::Dev | RpcAppFlavor::Nightly | RpcAppFlavor::Bravo => {
+        RpcAppFlavor::Dev | RpcAppFlavor::Nightly | RpcAppFlavor::Edge | RpcAppFlavor::Bravo => {
             Arc::new(LiveFediApi::new(feature_catalog.clone()))
         }
     };

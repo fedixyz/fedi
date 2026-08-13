@@ -55,6 +55,14 @@ Create a release build (Fedi Nightly)
 
 Create a release build (Fedi Nova)
 
+### ios build_edge
+
+```sh
+[bundle exec] fastlane ios build_edge
+```
+
+Create a release build (Fedi Edge)
+
 ### ios beta_ci_nightly
 
 ```sh
@@ -71,6 +79,14 @@ Push a new beta build to TestFlight from CI (Fedi Nightly)
 
 Push a new beta build to TestFlight from CI (Fedi Nova)
 
+### ios beta_ci_edge
+
+```sh
+[bundle exec] fastlane ios beta_ci_edge
+```
+
+Push a new beta build to TestFlight from CI (Fedi Edge)
+
 ### ios beta_nightly
 
 ```sh
@@ -86,6 +102,14 @@ Push a new beta build to TestFlight (Fedi Nightly)
 ```
 
 Push a new beta build to TestFlight (Fedi Nova)
+
+### ios beta_edge
+
+```sh
+[bundle exec] fastlane ios beta_edge
+```
+
+Push a new beta build to TestFlight (Fedi Edge)
 
 ### ios check_appstore_certs
 
@@ -111,6 +135,14 @@ Check for signing certificates (Fedi Nightly)
 
 Check for signing certificates (Fedi Nova)
 
+### ios check_appstore_certs_edge
+
+```sh
+[bundle exec] fastlane ios check_appstore_certs_edge
+```
+
+Check for signing certificates (Fedi Edge)
+
 ### ios renew_appstore_certs
 
 ```sh
@@ -135,6 +167,14 @@ Generate renewed signing certificates (Fedi Nightly)
 
 Generate renewed signing certificates (Fedi Nova)
 
+### ios renew_appstore_certs_edge
+
+```sh
+[bundle exec] fastlane ios renew_appstore_certs_edge
+```
+
+Generate renewed signing certificates (Fedi Edge)
+
 ### ios nuke_and_regenerate_certs
 
 ```sh
@@ -158,6 +198,14 @@ Nuke and regenerate all certificates (Nightly)
 ```
 
 Nuke and regenerate all certificates (Nova)
+
+### ios nuke_and_regenerate_certs_edge
+
+```sh
+[bundle exec] fastlane ios nuke_and_regenerate_certs_edge
+```
+
+Nuke and regenerate all certificates (Edge)
 
 ----
 

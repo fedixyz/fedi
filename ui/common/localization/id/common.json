@@ -693,6 +693,7 @@
             "export-transactions-csv": "Ekspor CSV transaksi",
             "log-fcm-token": "Catat token FCM",
             "logs": "Log",
+            "edge": "edge",
             "nightly": "Nightly",
             "nova": "nova",
             "select-federation-share-logs": "Pilih Layanan Dompet untuk berbagi log.",

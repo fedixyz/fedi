@@ -162,6 +162,44 @@ platform :android do
     upload_internal_build_nova
   end
 
+  # For edge builds
+  desc "Build a new APK to release (Edge)"
+  lane :build_edge_apk do
+    gradle(
+      task: 'assemble',
+      flavor: 'edge',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Build a new app bundle to release (Edge)"
+  lane :build_edge do
+    gradle(
+      task: 'bundle',
+      flavor: 'edge',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Upload the latest build to internal track (Edge)"
+  lane :upload_internal_build_edge do
+    upload_to_play_store(
+      track: 'internal',
+      package_name: 'com.fedi.edge',
+      aab: './app/build/outputs/bundle/edgeRelease/app-edge-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new internal build (Edge)"
+  lane :internal_edge do
+    build_edge
+    upload_internal_build_edge
+  end
+
   # desc "Deploy a new version to the Google Play"
   # lane :deploy do
   #   gradle(task: "clean assembleRelease")

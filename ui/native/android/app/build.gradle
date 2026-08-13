@@ -174,7 +174,7 @@ android {
             packagingOptions {
                 gradle.startParameter.getTaskNames().each { task ->
                     if (task.contains('assemble') || task.contains('bundle')) {
-                        if (task.contains('nightly') || task.contains('nova')) {
+                        if (task.contains('nightly') || task.contains('nova') || task.contains('edge')) {
                             doNotStrip '**/libfediffi.so'
                         }
                     }
@@ -194,7 +194,7 @@ android {
             packagingOptions {
                 gradle.startParameter.getTaskNames().each { task ->
                     if (task.contains('assemble') || task.contains('bundle')) {
-                        if (task.contains('nightly') || task.contains('nova')) {
+                        if (task.contains('nightly') || task.contains('nova') || task.contains('edge')) {
                             doNotStrip '**/libfediffi.so'
                         }
                     }
@@ -213,6 +213,11 @@ android {
         nova {
             dimension "env"
             applicationIdSuffix ".nova"
+            manifestPlaceholders = [autoVerify: "true"]
+        }
+        edge {
+            dimension "env"
+            applicationIdSuffix ".edge"
             manifestPlaceholders = [autoVerify: "true"]
         }
         production {

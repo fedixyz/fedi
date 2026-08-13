@@ -491,6 +491,7 @@ export type RpcAmount = MSats;
 export type RpcAppFlavor =
   | { type: "dev" }
   | { type: "nightly" }
+  | { type: "edge" }
   | { type: "bravo" }
   | { type: "tests" };
 
