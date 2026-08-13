@@ -23,8 +23,9 @@ use bitcoin::{Address, Network};
 use bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
 use client::ClientExt;
 use db::{
-    FediRawClientConfigKey, InviteCodeKey, LastStabilityPoolV2DepositCycleKey,
-    LightningGatewayOverride, LightningGatewayOverrideKey, TransactionNotesKey,
+    FediRawClientConfigKey, FedimintEventLogCursorKey, InviteCodeKey,
+    LastStabilityPoolV2DepositCycleKey, LightningGatewayOverride, LightningGatewayOverrideKey,
+    TransactionNotesKey,
 };
 use device_registration::DeviceRegistrationService;
 use fedi_social_client::common::VerificationDocument;
@@ -63,6 +64,7 @@ use fedimint_core::{
     Amount, PeerId, TransactionId, apply, async_trait_maybe_send, maybe_add_send_sync,
 };
 use fedimint_derive_secret::{ChildId, DerivableSecret};
+use fedimint_eventlog::DBTransactionEventLogExt;
 use fedimint_ln_client::incoming::IncomingSmError;
 use fedimint_ln_client::pay::GatewayPayError;
 use fedimint_ln_client::receive::LightningReceiveError;
@@ -495,6 +497,43 @@ impl FederationV2 {
         Ok(client_builder)
     }
 
+    /// Initializes the bridge's lnv2 lnurl-receives event-log cursor
+    /// ([`FedimintEventLogCursorKey`]) to the log's current tail, if it
+    /// isn't already set. Must run before `db` is handed to a
+    /// `ClientBuilder::open`/`recover`/`join` call, never after: the lnv2
+    /// scanner is spawned from inside `LightningClientModule::new`, itself
+    /// called during client construction, so a snapshot taken any later can
+    /// race it. A payment that settled while the app was closed can get
+    /// claimed and its `ReceivePaymentEvent` logged by the scanner *before*
+    /// a post-construction snapshot runs, landing the cursor above that
+    /// event and skipping it as history forever -- silently reintroducing
+    /// the exact stopped-device catch-up failure this feature exists to
+    /// fix, right at the upgrade boundary.
+    ///
+    /// A fresh or freshly recovered `db` has an empty or event-free log, so
+    /// this just writes [`fedimint_eventlog::EventLogId::LOG_START`] there
+    /// -- harmless, and deliberately not special-cased: every federation
+    /// load path gets exactly the same durable cursor before its client
+    /// exists.
+    ///
+    /// Failure here fails federation load. That is fail-closed on purpose:
+    /// `db` is unusable regardless if a single transaction against it can't
+    /// commit, and proceeding without a durable cursor would only invite
+    /// the historical-replay failure this function exists to prevent -- see
+    /// `ln_ops::LnOpsV2`'s consumer, which refuses to run at all rather
+    /// than default a missing cursor back to the log's start.
+    async fn init_event_log_cursor_if_absent(db: &Database) -> anyhow::Result<()> {
+        let mut dbtx = db.begin_transaction().await;
+        if dbtx.get_value(&FedimintEventLogCursorKey).await.is_none() {
+            let tail = dbtx.get_next_event_log_id().await;
+            dbtx.insert_entry(&FedimintEventLogCursorKey, &tail).await;
+        }
+        dbtx.commit_tx_result()
+            .await
+            .context("failed to initialize event-log cursor")?;
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         runtime: Arc<Runtime>,
@@ -866,6 +905,8 @@ impl FederationV2 {
         {
             error!("lnurl receives service already initialized");
         }
+
+        self.ln_ops.start_background_services(self);
     }
 
     pub fn client_root_secret_from_root_mnemonic(
@@ -911,6 +952,7 @@ impl FederationV2 {
             .await
             .context("config not found in database")?;
         let federation_id = config.calculate_federation_id();
+        Self::init_event_log_cursor_if_absent(&federation_db).await?;
 
         let client = {
             info!("started federation loading");
@@ -1057,6 +1099,7 @@ impl FederationV2 {
                 info.invite_code.api_secret(),
             )
             .await?;
+        Self::init_event_log_cursor_if_absent(&federation_db).await?;
         let client = if recover_from_scratch {
             info!("recovering from scratch");
             client_preview
@@ -2047,15 +2090,21 @@ impl FederationV2 {
     }
 
     async fn send_transaction_event(&self, operation_id: OperationId) {
-        match self.get_transaction(operation_id).await {
-            Ok(transaction) => {
-                let event = Event::transaction(self.federation_id().to_string(), transaction);
-                self.runtime.event_sink.typed_event(&event);
-            }
-            Err(e) => {
-                tracing::error!("Failed to get transaction details: {}", e);
-            }
+        if let Err(e) = self.try_send_transaction_event(operation_id).await {
+            tracing::error!("Failed to send transaction event: {}", e);
         }
+    }
+
+    /// Sends the transaction event for the operation, or reports why it
+    /// could not be built or was not accepted by the sink. For callers
+    /// whose next step must not happen unless the event actually reached
+    /// the sink: the lnurl receive subscriber checks this before clearing
+    /// the pending entry that drives redelivery. Fire-and-forget callers
+    /// use [`Self::send_transaction_event`].
+    async fn try_send_transaction_event(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let transaction = self.get_transaction(operation_id).await?;
+        let event = Event::transaction(self.federation_id().to_string(), transaction);
+        self.runtime.event_sink.try_typed_event(&event)
     }
 
     fn send_recovery_progress(&self, progress: RecoveryProgress) {

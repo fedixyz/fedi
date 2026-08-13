@@ -35,13 +35,28 @@ type BridgeArc = Arc<Bridge>;
 #[derive(Clone)]
 struct AppState {
     bridges: Arc<RwLock<HashMap<String, BridgeState>>>,
+    /// Per-device event queues, deliberately *outside* [`BridgeState`]:
+    /// a bridge shutdown (every websocket disconnect causes one) must not
+    /// drop events the sink already acknowledged accepting. The next
+    /// bridge init for the device reuses its queue and the next
+    /// connection drains it.
+    event_queues: Arc<RwLock<HashMap<String, DeviceEventQueue>>>,
     data_dir: PathBuf,
     dev_fed: Option<Arc<devi::DevFed>>,
 }
 
+// TODO: process-local only -- a remote-server restart loses queued events
+// whose lnurl markers are already durable, and the send-failure -> shutdown
+// -> re-init path lacks a focused regression test. See
+// https://github.com/fedibtc/fedi/issues/11907.
+#[derive(Clone)]
+struct DeviceEventQueue {
+    tx: mpsc::Sender<BridgeEvent>,
+    rx: Arc<Mutex<EventReceiver>>,
+}
+
 struct BridgeState {
     bridge: BridgeArc,
-    event_rx: Arc<Mutex<mpsc::Receiver<BridgeEvent>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,12 +71,31 @@ struct EventSink {
 
 impl IEventSink for EventSink {
     fn event(&self, event_type: String, body: String) {
+        if let Err(err) = self.try_event(event_type, body) {
+            tracing::warn!("dropping bridge event: {err}");
+        }
+    }
+
+    // The queue is bounded and the reader can go away, so an event is only
+    // accepted once try_send took it.
+    fn try_event(&self, event_type: String, body: String) -> anyhow::Result<()> {
         let event = BridgeEvent {
             event: event_type,
             data: body,
         };
-        let _ = self.tx.try_send(event);
+        self.tx
+            .try_send(event)
+            .map_err(|err| anyhow::anyhow!("event queue rejected event: {err}"))
     }
+}
+
+/// The event queue's consuming end, plus the one event popped but not yet
+/// delivered to a websocket. Retaining it means a failed socket send retries
+/// on the next connection instead of dropping the event -- the sink
+/// acknowledged acceptance when it queued it, so it may not be lost here.
+struct EventReceiver {
+    rx: mpsc::Receiver<BridgeEvent>,
+    unsent: Option<BridgeEvent>,
 }
 
 #[derive(Parser)]
@@ -102,6 +136,7 @@ async fn main() -> Result<()> {
     );
     let state = AppState {
         bridges: Arc::new(RwLock::new(HashMap::new())),
+        event_queues: Arc::new(RwLock::new(HashMap::new())),
         data_dir: cli.data_dir,
         dev_fed,
     };
@@ -184,9 +219,24 @@ async fn handle_init(
     }
     drop(bridges);
 
-    let (event_tx, event_rx) = mpsc::channel(1000);
+    // Reuse the device's queue if one exists: it can hold events accepted
+    // before a previous bridge shutdown, which the next connection still
+    // owes the client.
+    let queue = {
+        let mut queues = state.event_queues.write().await;
+        queues
+            .entry(device_id.clone())
+            .or_insert_with(|| {
+                let (tx, rx) = mpsc::channel(1000);
+                DeviceEventQueue {
+                    tx,
+                    rx: Arc::new(Mutex::new(EventReceiver { rx, unsent: None })),
+                }
+            })
+            .clone()
+    };
     let event_sink = Arc::new(EventSink {
-        tx: event_tx.clone(),
+        tx: queue.tx.clone(),
     });
 
     let data_dir = state.data_dir.join(&device_id);
@@ -200,13 +250,11 @@ async fn handle_init(
     )
     .await?;
 
-    state.bridges.write().await.insert(
-        device_id.clone(),
-        BridgeState {
-            bridge,
-            event_rx: Arc::new(Mutex::new(event_rx)),
-        },
-    );
+    state
+        .bridges
+        .write()
+        .await
+        .insert(device_id.clone(), BridgeState { bridge });
 
     info!("Bridge initialized successfully for device: {}", device_id);
     Ok(Json(serde_json::json!({})))
@@ -246,6 +294,10 @@ async fn handle_reset(
     if data_dir.exists() {
         std::fs::remove_dir_all(&data_dir)?;
     }
+    // The queue outlives bridge shutdowns on purpose, but a reset erases
+    // the device: events from the erased state must not reach its fresh
+    // successor.
+    state.event_queues.write().await.remove(&device_id);
 
     info!("Bridge reset for device: {}", device_id);
     Ok(Json(serde_json::json!({})))
@@ -298,28 +350,35 @@ async fn handle_events(
     State(state): State<AppState>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    let bridges = state.bridges;
-    ws.on_upgrade(move |socket| handle_websocket(socket, device_id, bridges))
+    ws.on_upgrade(move |socket| handle_websocket(socket, device_id, state))
 }
 
-async fn handle_websocket(
-    mut socket: WebSocket,
-    device_id: String,
-    bridges: Arc<RwLock<HashMap<String, BridgeState>>>,
-) {
+async fn handle_websocket(mut socket: WebSocket, device_id: String, state: AppState) {
     info!("WebSocket connection established for device: {}", device_id);
 
-    let event_rx = bridges
+    let event_rx = state
+        .event_queues
         .read()
         .await
         .get(&device_id)
         .expect("bridge must initialized")
-        .event_rx
+        .rx
         .clone();
 
     let mut rx = event_rx.lock().await;
 
     loop {
+        // Deliver the retained event first; it only clears on a successful
+        // socket send.
+        if let Some(event) = rx.unsent.take() {
+            let json = serde_json::to_string(&event).expect("failed to json serialize");
+            if let Err(err) = socket.send(Message::Text(json)).await {
+                error!("WebSocket send failed, retaining event: {}", err);
+                rx.unsent = Some(event);
+                break;
+            }
+            continue;
+        }
         tokio::select! {
             Some(msg) = socket.recv() => {
                 match msg {
@@ -339,16 +398,14 @@ async fn handle_websocket(
                     _ => {}
                 }
             }
-            Some(event) = rx.recv() => {
-                if let Ok(json) = serde_json::to_string(&event)
-                    && socket.send(Message::Text(json)).await.is_err()
-                {
-                    break;
-                }
+            Some(event) = rx.rx.recv() => {
+                // Park it; the top of the loop delivers and only then
+                // lets go of it.
+                rx.unsent = Some(event);
             }
         }
     }
-    if let Err(err) = shutdown_bridge(&bridges, &device_id).await {
+    if let Err(err) = shutdown_bridge(&state.bridges, &device_id).await {
         error!(
             "Failed to shut down bridge for device {}: {}",
             device_id, err.0

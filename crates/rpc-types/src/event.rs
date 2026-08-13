@@ -470,76 +470,42 @@ impl Event {
 
 pub trait TypedEventExt: IEventSink {
     fn typed_event(&self, event: &Event) {
-        match event {
-            Event::Log(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "log".into(), body);
-            }
-            Event::Transaction(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "transaction".into(), body);
-            }
-            Event::Federation(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "federation".into(), body);
-            }
-            Event::Balance(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "balance".into(), body);
-            }
-            Event::Panic(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "panic".into(), body);
-            }
-            Event::SPv2Deposit(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "spv2Deposit".into(), body);
-            }
-            Event::SPv2Withdrawal(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "spv2Withdrawal".into(), body);
-            }
-            Event::SPv2Transfer(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "spv2Transfer".into(), body);
-            }
-            Event::StabilityPoolDeposit(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "stabilityPoolDeposit".into(), body);
-            }
-            Event::StabilityPoolWithdrawal(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "stabilityPoolWithdrawal".into(), body);
-            }
-            Event::RecoveryComplete(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "recoveryComplete".into(), body);
-            }
-            Event::RecoveryProgress(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "recoveryProgress".into(), body);
-            }
-            Event::DeviceRegistration(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "deviceRegistration".into(), body);
-            }
-            Event::StabilityPoolUnfilledDepositSwept(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "stabilityPoolUnfilledDepositSwept".into(), body);
-            }
-            Event::CommunityMetadataUpdated(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "communityMetadataUpdated".into(), body);
-            }
-            Event::CommunityMigratedToV2(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "communityMigratedToV2".into(), body);
-            }
-            Event::NonceReuseCheckFailed(event) => {
-                let body = serde_json::to_string(&event).expect("failed to json serialize");
-                IEventSink::event(self, "nonceReuseCheckFailed".into(), body);
-            }
-        };
+        let (event_type, body) = serialize_event(event);
+        IEventSink::event(self, event_type, body);
+    }
+
+    /// Sends the event, reporting whether the sink accepted it -- see
+    /// [`IEventSink::try_event`].
+    fn try_typed_event(&self, event: &Event) -> anyhow::Result<()> {
+        let (event_type, body) = serialize_event(event);
+        IEventSink::try_event(self, event_type, body)
+    }
+}
+
+fn serialize_event(event: &Event) -> (String, String) {
+    fn body<T: serde::Serialize>(event: &T) -> String {
+        serde_json::to_string(event).expect("failed to json serialize")
+    }
+    match event {
+        Event::Log(event) => ("log".into(), body(event)),
+        Event::Transaction(event) => ("transaction".into(), body(event)),
+        Event::Federation(event) => ("federation".into(), body(event)),
+        Event::Balance(event) => ("balance".into(), body(event)),
+        Event::Panic(event) => ("panic".into(), body(event)),
+        Event::SPv2Deposit(event) => ("spv2Deposit".into(), body(event)),
+        Event::SPv2Withdrawal(event) => ("spv2Withdrawal".into(), body(event)),
+        Event::SPv2Transfer(event) => ("spv2Transfer".into(), body(event)),
+        Event::StabilityPoolDeposit(event) => ("stabilityPoolDeposit".into(), body(event)),
+        Event::StabilityPoolWithdrawal(event) => ("stabilityPoolWithdrawal".into(), body(event)),
+        Event::RecoveryComplete(event) => ("recoveryComplete".into(), body(event)),
+        Event::RecoveryProgress(event) => ("recoveryProgress".into(), body(event)),
+        Event::DeviceRegistration(event) => ("deviceRegistration".into(), body(event)),
+        Event::StabilityPoolUnfilledDepositSwept(event) => {
+            ("stabilityPoolUnfilledDepositSwept".into(), body(event))
+        }
+        Event::CommunityMetadataUpdated(event) => ("communityMetadataUpdated".into(), body(event)),
+        Event::CommunityMigratedToV2(event) => ("communityMigratedToV2".into(), body(event)),
+        Event::NonceReuseCheckFailed(event) => ("nonceReuseCheckFailed".into(), body(event)),
     }
 }
 

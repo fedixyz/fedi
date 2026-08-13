@@ -16,22 +16,24 @@ use devimint::cmd;
 use devimint::util::FedimintCli;
 use federations::federation_sm::FederationState;
 use federations::federation_v2::FederationV2;
+use federations::federation_v2::db::{FedimintEventLogCursorKey, LnurlReceivePendingKey};
 use federations::fedi_fee::{FediFeeStream, parse_fedi_guardian_fee_config};
 use fedi_social_client::common::VerificationDocument;
 use fedimint_core::Amount;
-use fedimint_core::db::IDatabaseTransactionOpsCore;
+use fedimint_core::db::{IDatabaseTransactionOpsCore, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::Encodable;
 use fedimint_core::task::sleep_in_test;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::{BoxFuture, FmtCompact as _, FmtCompactAnyhow as _, retry};
+use fedimint_lnv2_client::common::gateway_api::PaymentFee;
 use fedimint_logging::TracingSetup;
 use nostr::nips::nip44;
 use rpc_types::communities::{CommunityInvite, CommunityInviteV1};
 use rpc_types::event::TransactionEvent;
 use rpc_types::{
-    RpcLnPayState, RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState,
-    RpcOnchainWithdrawState, RpcReturningMemberStatus, RpcSPV2TransferInState,
-    RpcTransactionDirection, RpcTransactionKind,
+    RpcLightningGatewayId, RpcLnPayState, RpcLnReceiveState, RpcOOBReissueState,
+    RpcOnchainDepositState, RpcOnchainWithdrawState, RpcReturningMemberStatus,
+    RpcSPV2TransferInState, RpcTransactionDirection, RpcTransactionKind,
 };
 use runtime::constants::{
     COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_FILE_V0_PATH, MILLION, REISSUE_ECASH_TIMEOUT,
@@ -254,23 +256,6 @@ async fn join_test_fed_recovery(
 fn should_skip_test_using_stock_fedimintd() -> bool {
     if std::env::var(USE_UPSTREAM_FEDIMINTD_ENV).is_ok() {
         info!("Skipping test as we're using stock/upstream fedimintd binary");
-        true
-    } else {
-        false
-    }
-}
-
-// lnv2 LNURL receives never surface as transactions: `ln_ops::v2` no-ops
-// `LnurlReceive` in both `subscribe_operation` and `get_transaction`, so a
-// kind-two client emits no `LnRecurringdReceive` event for these tests to
-// match, and they poll until nextest kills the whole wrapper. See #11872.
-//
-// The recurringd URL is no longer the blocker --
-// `TEST_BRIDGE_RECURRINGD_API_V2` points the v2 path at devimint's recurringdv2
-// -- so removing this guard is a question of #11872, not of configuration.
-fn should_skip_test_needing_lnurl_transactions() -> bool {
-    if !devimint::util::supports_lnv1() {
-        info!("Skipping test as lnv2 lnurl receives do not surface as transactions");
         true
     } else {
         false
@@ -612,6 +597,35 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
         .await;
     }
 
+    // Exactly one claimed event for this receive. Ordinary (non-lnurl) lnv2
+    // receives have no dedup coverage of their own like test_lnurl_receive's
+    // count_claimed_events: the event-log consumer classifies by operation
+    // meta and skips these by construction (see handle_event_log_entry), but
+    // the loop above only breaks on the first match, so a regression that
+    // made the consumer spawn for ordinary receives too would double-emit
+    // silently without this count.
+    let claimed_count = td
+        .event_sink()
+        .events()
+        .iter()
+        .filter(|(kind, _)| kind == "transaction")
+        .filter_map(|(_, body)| serde_json::from_str::<TransactionEvent>(body).ok())
+        .filter(|ev| {
+            matches!(
+                &ev.transaction.kind,
+                RpcTransactionKind::LnReceive {
+                    ln_invoice,
+                    state: Some(RpcLnReceiveState::Claimed),
+                    ..
+                } if *ln_invoice == invoice_string
+            )
+        })
+        .count();
+    assert_eq!(
+        claimed_count, 1,
+        "expected exactly one claimed event for the receive"
+    );
+
     let expected_balance = receive_amount.checked_sub(fedi_fee).expect("Can't fail");
     let balance = federation.get_balance().await;
     if devimint::util::supports_mint_v2() {
@@ -691,14 +705,166 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 }
 
 async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_needing_lnurl_transactions() {
-        return Ok(());
-    }
+    // On kind-two the lnurl embeds the federation's whole gateway list and
+    // recurringdv2 takes the first that answers, in an order nothing
+    // specifies. Today that lands on gw_lnd -- verified from recurringdv2's
+    // logs -- but were it ever gw_ldk, this test would be paying the invoice
+    // from the node that issued it. Pin the receive gateway so payer and
+    // receiver stay distinct by construction rather than by accident, the
+    // same pairing fedimint's own lnv2 lnurl test pins. Kind-one needs no
+    // pin: its only lnv1 gateway is LND while the test pays from LDK.
+    let kind_two = !devimint::util::supports_lnv1();
+
+    // v2 gateways deduct their receive fee from the incoming contract, so
+    // what lands is the requested amount minus that fee; v1 deducts nothing.
+    // The bridge reports what lands (per team decision on #11872), and the
+    // expectation is exact -- an implementation that reported the requested
+    // amount instead of the contract amount must fail here. Devimint gateways
+    // run the default lnv2 transaction fee; if that ever changes, this fails
+    // loudly, which is preferable to a bound loose enough to hide the
+    // difference between the two amounts.
+    let expected_credited = |requested: fedimint_core::Amount| {
+        if kind_two {
+            PaymentFee::TRANSACTION_FEE_DEFAULT.subtract_from(requested.msats)
+        } else {
+            requested
+        }
+    };
+    let pin_receive_gateway = async |federation: &Arc<FederationV2>| {
+        if kind_two {
+            setGatewayOverride(
+                federation.clone(),
+                Some(RpcLightningGatewayId::Lnv2 {
+                    url: dev_fed.gw_lnd.addr.clone(),
+                }),
+            )
+            .await?;
+        }
+        anyhow::Ok(())
+    };
+
+    // A deliberately outsized lightning receive fee: lnurl receives must not
+    // be charged a Fedi fee (matching v1's lnurl_receives_service), and with
+    // the default schedule of zero that exemption is untestable. 20% is far
+    // above every real fee in the flow, so an accidental charge cannot hide
+    // inside the mintv2-issuance slack on the balance assertions either.
+    let lnurl_receive_fee_ppm = 200_000;
+    // Checked across *all* module kinds: the success-side fee table is keyed
+    // by the operation-log module kind (`lnv2` for these operations), and
+    // these devices perform nothing but lnurl receives, so any nonzero
+    // receive-direction accrual under any module is a charged fee.
+    let assert_no_lightning_receive_fedi_fee = async |federation: &Arc<FederationV2>| {
+        for fees in [
+            federation
+                .get_pending_fedi_fees_per_tx_type_by_stream(FediFeeStream::App)
+                .await,
+            federation
+                .get_outstanding_fedi_fees_per_tx_type_by_stream(FediFeeStream::App)
+                .await,
+        ] {
+            for (module, direction, amount) in fees {
+                if direction == RpcTransactionDirection::Receive {
+                    assert_eq!(
+                        amount,
+                        fedimint_core::Amount::ZERO,
+                        "lnurl receives must not accrue a Fedi fee (module {module})"
+                    );
+                }
+            }
+        }
+    };
+
+    // Bounded wait for the next claimed lnurl event after index `seen`. Kind
+    // and state select the event; the amount is asserted by the caller
+    // afterwards, so a claimed event with a wrong amount fails that assertion
+    // instead of being ignored here until nextest kills the suite.
+    let next_claimed_transaction = async |td: &TestDevice, seen: usize| {
+        let deadline = fedimint_core::time::now() + Duration::from_secs(120);
+        loop {
+            let events = td.event_sink().events();
+            let claimed = events
+                .iter()
+                .skip(seen)
+                .filter(|(kind, _)| kind == "transaction")
+                .filter_map(|(_, body)| serde_json::from_str::<TransactionEvent>(body).ok())
+                .find(|ev| {
+                    matches!(
+                        ev.transaction.kind,
+                        RpcTransactionKind::LnRecurringdReceive {
+                            state: Some(RpcLnReceiveState::Claimed),
+                            ..
+                        }
+                    )
+                });
+            if let Some(ev) = claimed {
+                break ev.transaction;
+            }
+            assert!(
+                fedimint_core::time::now() < deadline,
+                "no claimed lnurl event within deadline"
+            );
+            fedimint_core::task::sleep_in_test(
+                "waiting for external lnurl recv",
+                Duration::from_millis(1000),
+            )
+            .await;
+        }
+    };
+
+    // One claimed event per receive, exactly. More than one means the same
+    // terminal event was emitted twice -- the duplicate-emit race the
+    // subscriber dedup's single ownership exists to prevent -- which the
+    // wait loops below cannot see, since they break on the first match.
+    let count_claimed_events = |events: &[(String, String)], amount: fedimint_core::Amount| {
+        events
+            .iter()
+            .filter(|(kind, _)| kind == "transaction")
+            .filter_map(|(_, body)| serde_json::from_str::<TransactionEvent>(body).ok())
+            .filter(|ev| {
+                matches!(
+                    ev.transaction.kind,
+                    RpcTransactionKind::LnRecurringdReceive {
+                        state: Some(RpcLnReceiveState::Claimed),
+                        ..
+                    }
+                ) && ev.transaction.amount.0 == amount
+            })
+            .count()
+    };
+
+    // Any-amount variant for the restart block, where the sink is fresh: a
+    // replayed or duplicated event must be counted even if its amount is
+    // wrong, or a wrong-amount replay would slip past an expected-amount
+    // filter.
+    let count_all_claimed_events = |events: &[(String, String)]| {
+        events
+            .iter()
+            .filter(|(kind, _)| kind == "transaction")
+            .filter_map(|(_, body)| serde_json::from_str::<TransactionEvent>(body).ok())
+            .filter(|ev| {
+                matches!(
+                    ev.transaction.kind,
+                    RpcTransactionKind::LnRecurringdReceive {
+                        state: Some(RpcLnReceiveState::Claimed),
+                        ..
+                    }
+                )
+            })
+            .count()
+    };
 
     // Try to pay same user 10x via lnurl
     {
         let td = TestDevice::new().await?;
-        let (_bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+        let (bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+        setLightningModuleFediFeeSchedule(
+            bridge,
+            federation.rpc_federation_id(),
+            0,
+            lnurl_receive_fee_ppm,
+        )
+        .await?;
+        pin_receive_gateway(federation).await?;
         let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
 
         for count in 1..=10 {
@@ -709,41 +875,46 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
             let invoice =
                 fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
 
+            let events_seen = td.event_sink().events().len();
             // Pay invoice using gateway's node
             dev_fed.gw_ldk.client().pay_invoice(invoice).await?;
 
-            // check for event of type transaction that has ln_state
-            'check: loop {
-                let events = td.event_sink().events();
-                for (_, ev_body) in events
-                    .iter()
-                    .rev()
-                    .filter(|(kind, _)| kind == "transaction")
-                {
-                    let ev_body = serde_json::from_str::<TransactionEvent>(ev_body).unwrap();
-                    let transaction = ev_body.transaction;
-                    if matches!(
-                        transaction.kind,
-                        RpcTransactionKind::LnRecurringdReceive {
-                            state: Some(RpcLnReceiveState::Claimed),
-                            ..
-                        }
-                    ) && transaction.amount.0.msats == count * 100 * 1000
-                    {
-                        break 'check;
-                    }
-                }
+            let transaction = next_claimed_transaction(&td, events_seen).await;
+            let credited = transaction.amount.0;
+            assert_eq!(credited, expected_credited(receive_amount));
+            // No per-operation Fedi fee status either: the per-type tables
+            // checked below only ever see settled fees, so a pending one is
+            // only visible here.
+            assert!(
+                transaction.fedi_app_fee_status.is_none(),
+                "lnurl receives must not carry a Fedi fee status"
+            );
 
-                fedimint_core::task::sleep_in_test(
-                    "waiting for external lnurl recv",
-                    Duration::from_millis(1000),
-                )
-                .await;
+            let delta = federation.get_balance().await.saturating_sub(prev_balance);
+            if kind_two {
+                // The lnv2 gateway's receive fee is already inside `credited`;
+                // mintv2 note-issuance fees additionally come out of the
+                // claimed ecash. Same 10% slack convention as
+                // test_lightning_send_and_receive and the dev-fed peg-in.
+                assert!(
+                    delta <= credited
+                        && delta >= fedimint_core::Amount::from_msats(credited.msats * 9 / 10),
+                    "balance delta {delta} out of range for credited {credited}"
+                );
+            } else {
+                assert_eq!(receive_amount, credited);
+                assert_eq!(credited, delta);
             }
+            assert_no_lightning_receive_fedi_fee(federation).await;
+        }
 
+        let events = td.event_sink().events();
+        for count in 1..=10 {
+            let expected = expected_credited(fedimint_core::Amount::from_sats(count * 100));
             assert_eq!(
-                receive_amount,
-                federation.get_balance().await.saturating_sub(prev_balance),
+                count_claimed_events(&events, expected),
+                1,
+                "expected exactly one claimed event for {expected}"
             );
         }
     }
@@ -752,7 +923,15 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
     {
         for _count in 1..=10 {
             let td = TestDevice::new().await?;
-            let (_bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+            let (bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+            setLightningModuleFediFeeSchedule(
+                bridge,
+                federation.rpc_federation_id(),
+                0,
+                lnurl_receive_fee_ppm,
+            )
+            .await?;
+            pin_receive_gateway(federation).await?;
             let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
 
             let prev_balance = federation.get_balance().await;
@@ -762,41 +941,264 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
             let invoice =
                 fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
 
+            let events_seen = td.event_sink().events().len();
             // Pay invoice using gateway's node
             dev_fed.gw_ldk.client().pay_invoice(invoice).await?;
 
-            // check for event of type transaction that has ln_state
-            'check: loop {
-                let events = td.event_sink().events();
-                for (_, ev_body) in events
-                    .iter()
-                    .rev()
-                    .filter(|(kind, _)| kind == "transaction")
-                {
-                    let ev_body = serde_json::from_str::<TransactionEvent>(ev_body).unwrap();
-                    let transaction = ev_body.transaction;
-                    if matches!(
-                        transaction.kind,
-                        RpcTransactionKind::LnRecurringdReceive {
-                            state: Some(RpcLnReceiveState::Claimed),
-                            ..
-                        }
-                    ) {
-                        break 'check;
-                    }
-                }
+            let transaction = next_claimed_transaction(&td, events_seen).await;
+            let credited = transaction.amount.0;
+            assert_eq!(credited, expected_credited(receive_amount));
+            // No per-operation Fedi fee status either: the per-type tables
+            // checked below only ever see settled fees, so a pending one is
+            // only visible here.
+            assert!(
+                transaction.fedi_app_fee_status.is_none(),
+                "lnurl receives must not carry a Fedi fee status"
+            );
 
+            let delta = federation.get_balance().await.saturating_sub(prev_balance);
+            if kind_two {
+                // Same fee reasoning as the first block above.
+                assert!(
+                    delta <= credited
+                        && delta >= fedimint_core::Amount::from_msats(credited.msats * 9 / 10),
+                    "balance delta {delta} out of range for credited {credited}"
+                );
+            } else {
+                assert_eq!(receive_amount, credited);
+                assert_eq!(credited, delta);
+            }
+            assert_no_lightning_receive_fedi_fee(federation).await;
+
+            let events = td.event_sink().events();
+            assert_eq!(
+                count_claimed_events(&events, expected_credited(receive_amount)),
+                1,
+                "expected exactly one claimed event"
+            );
+        }
+    }
+
+    // This restart block exercises lnv2's persisted delivery state
+    // specifically, which needs real wall-clock elapsed time with the bridge
+    // down; kind-one has no equivalent durability contract to test
+    // (recurringd's HTTP poll just resumes) and loses no coverage that
+    // existed before this PR by skipping it. It also happens to be the
+    // single biggest contributor to the kind-one wrapper's runtime, which
+    // otherwise crowds its hard 200s cap.
+    if kind_two {
+        // Pay while the device is stopped: the receive is claimed on the next
+        // start and announced exactly once, and the advanced cursor plus the
+        // cleared pending index keep a further restart from replaying it.
+        // This is the case the durable delivery design exists for;
+        // within-session duplicate coverage above cannot see it.
+        let mut td = TestDevice::new().await?;
+        let receive_amount = fedimint_core::Amount::from_sats(300);
+        let expected = expected_credited(receive_amount);
+        let federation_id;
+        let invoice;
+        {
+            let (bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+            setLightningModuleFediFeeSchedule(
+                bridge,
+                federation.rpc_federation_id(),
+                0,
+                lnurl_receive_fee_ppm,
+            )
+            .await?;
+            pin_receive_gateway(federation).await?;
+            let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
+            invoice =
+                fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
+            federation_id = federation.federation_id();
+            td.shutdown().await?;
+        }
+
+        // The invoice needs no bridge: recurringd and the gateway settle it
+        // between themselves, funding the incoming contract.
+        dev_fed.gw_ldk.client().pay_invoice(invoice).await?;
+
+        // First restart: the scanner claims and logs the event, the consumer
+        // picks it up from the persisted cursor and announces it once.
+        {
+            let bridge = td.bridge_full().await?;
+            let federation =
+                wait_for_federation_loading(bridge, &federation_id.to_string()).await?;
+            let transaction = next_claimed_transaction(&td, 0).await;
+            assert_eq!(transaction.amount.0, expected);
+            assert!(
+                transaction.fedi_app_fee_status.is_none(),
+                "lnurl receives must not carry a Fedi fee status"
+            );
+            assert_no_lightning_receive_fedi_fee(&federation).await;
+
+            // The event arrives before the pending entry is cleared
+            // (delivery is at-least-once), so shutting down now could cancel
+            // the removal and make the replay check below flaky for a
+            // legitimate reason. Wait for the entry to clear; that also
+            // closes the window for a late duplicate before the count.
+            let operation_id = fedimint_core::core::OperationId::from_str(&transaction.id)?;
+            let cleared_deadline = fedimint_core::time::now() + Duration::from_secs(30);
+            loop {
+                let pending = federation
+                    .client
+                    .db()
+                    .begin_transaction_nc()
+                    .await
+                    .get_value(&LnurlReceivePendingKey(operation_id))
+                    .await
+                    .is_some();
+                if !pending {
+                    break;
+                }
+                assert!(
+                    fedimint_core::time::now() < cleared_deadline,
+                    "pending lnurl receive entry was not cleared"
+                );
                 fedimint_core::task::sleep_in_test(
-                    "waiting for external lnurl recv",
-                    Duration::from_millis(1000),
+                    "waiting for pending lnurl receive to clear",
+                    Duration::from_millis(200),
                 )
                 .await;
             }
-
             assert_eq!(
-                receive_amount,
-                federation.get_balance().await.saturating_sub(prev_balance),
+                count_all_claimed_events(&td.event_sink().events()),
+                1,
+                "expected exactly one claimed event after restart"
             );
+            td.shutdown().await?;
+        }
+
+        // Second restart: the cursor is past the event and the pending index
+        // is empty, so nothing replays. The event sink is fresh per bridge
+        // instance, so a replay would show up as a claimed event within this
+        // wait, and correct behavior as none at all.
+        {
+            let bridge = td.bridge_full().await?;
+            wait_for_federation_loading(bridge, &federation_id.to_string()).await?;
+            fedimint_core::task::sleep_in_test(
+                "waiting to observe whether the claimed event replays",
+                Duration::from_secs(5),
+            )
+            .await;
+            assert_eq!(
+                count_all_claimed_events(&td.event_sink().events()),
+                0,
+                "cleared delivery state must prevent replaying the claimed event after restart"
+            );
+        }
+
+        // Regression: the upgrade boundary on a pre-feature install, where
+        // the event-log cursor was never persisted at all. Before the fix
+        // the cursor was initialized inside the consumer's own background
+        // task, which only runs after the client -- and its lnv2 scanner --
+        // already exists; a payment claimed in that gap could get skipped
+        // as history forever. It must now be established before the client
+        // is ever constructed, so simulate a device that upgraded with a
+        // payment already waiting: remove the cursor this device's own
+        // join just wrote (a genuinely pre-feature install never had one
+        // either), pay while stopped exactly like the block above, and
+        // confirm the claimed event still arrives exactly once.
+        {
+            let mut td = TestDevice::new().await?;
+            let receive_amount = fedimint_core::Amount::from_sats(300);
+            let expected = expected_credited(receive_amount);
+            let federation_id;
+            let invoice;
+            {
+                let (bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+                setLightningModuleFediFeeSchedule(
+                    bridge,
+                    federation.rpc_federation_id(),
+                    0,
+                    lnurl_receive_fee_ppm,
+                )
+                .await?;
+                pin_receive_gateway(federation).await?;
+                let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
+                invoice =
+                    fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
+                federation_id = federation.federation_id();
+
+                federation
+                    .client
+                    .db()
+                    .autocommit(
+                        |dbtx, _| {
+                            Box::pin(async move {
+                                dbtx.remove_entry(&FedimintEventLogCursorKey).await;
+                                anyhow::Ok(())
+                            })
+                        },
+                        Some(10),
+                    )
+                    .await?;
+                assert!(
+                    federation
+                        .client
+                        .db()
+                        .begin_transaction_nc()
+                        .await
+                        .get_value(&FedimintEventLogCursorKey)
+                        .await
+                        .is_none(),
+                    "event-log cursor must actually be absent ahead of the restart, \
+                     or this test exercises nothing"
+                );
+
+                td.shutdown().await?;
+            }
+
+            // The invoice needs no bridge: recurringd and the gateway settle
+            // it between themselves, funding the incoming contract.
+            dev_fed.gw_ldk.client().pay_invoice(invoice).await?;
+
+            // Restart with the payment already waiting and no cursor
+            // persisted: the pre-open init must snapshot the tail before
+            // the client -- and its scanner -- exists, or this claim gets
+            // silently skipped as history.
+            {
+                let bridge = td.bridge_full().await?;
+                let federation =
+                    wait_for_federation_loading(bridge, &federation_id.to_string()).await?;
+                let transaction = next_claimed_transaction(&td, 0).await;
+                assert_eq!(transaction.amount.0, expected);
+                assert!(
+                    transaction.fedi_app_fee_status.is_none(),
+                    "lnurl receives must not carry a Fedi fee status"
+                );
+                assert_no_lightning_receive_fedi_fee(&federation).await;
+
+                let operation_id = fedimint_core::core::OperationId::from_str(&transaction.id)?;
+                let cleared_deadline = fedimint_core::time::now() + Duration::from_secs(30);
+                loop {
+                    let pending = federation
+                        .client
+                        .db()
+                        .begin_transaction_nc()
+                        .await
+                        .get_value(&LnurlReceivePendingKey(operation_id))
+                        .await
+                        .is_some();
+                    if !pending {
+                        break;
+                    }
+                    assert!(
+                        fedimint_core::time::now() < cleared_deadline,
+                        "pending lnurl receive entry was not cleared"
+                    );
+                    fedimint_core::task::sleep_in_test(
+                        "waiting for pending lnurl receive to clear",
+                        Duration::from_millis(200),
+                    )
+                    .await;
+                }
+                assert_eq!(
+                    count_all_claimed_events(&td.event_sink().events()),
+                    1,
+                    "expected exactly one claimed event across the upgrade boundary"
+                );
+            }
         }
     }
 
@@ -3497,10 +3899,6 @@ async fn test_guardian_remittance_account_withdraw_all() -> anyhow::Result<()> {
 }
 
 async fn test_recurring_lnurl(_dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_needing_lnurl_transactions() {
-        return Ok(());
-    }
-
     let td = TestDevice::new().await?;
     let federation = td.join_default_fed().await?;
     let lnurl1 = federation.get_recurringd_lnurl().await?;

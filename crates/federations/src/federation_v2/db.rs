@@ -7,6 +7,7 @@ use fedimint_core::core::{ModuleKind, OperationId};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::util::SafeUrl;
 use fedimint_core::{Amount, impl_db_lookup, impl_db_record};
+use fedimint_eventlog::EventLogId;
 use rpc_types::{OperationFediFeeStatus, RpcTransactionDirection};
 use runtime::storage::state::FiatFXInfo;
 use stability_pool_client::common::FiatAmount;
@@ -114,11 +115,68 @@ pub enum BridgeDbPrefix {
     // show an "awaiting deposit" entry, mirroring v1's immediate pending tile.
     WalletV2AwaitingDeposit = 0xca,
 
+    // 0xcb was briefly used by a pre-release iteration of the lnurl receives
+    // event consumer (a permanent emitted-event marker). 0xcc below kept its
+    // byte across that iteration's known-index becoming today's
+    // pending-index (same encoding, narrower meaning), so a dev install
+    // that ran the marker build may hold a stale entry there, worth at most
+    // one duplicate event under the at-least-once contract.
+
+    // lnv2 lnurl receives are created by the lnv2 client's own background
+    // scanner, so the lnurl receives event-log consumer announces them rather
+    // than any creation-time code path. This index holds the receives whose
+    // terminal transaction event is still owed: inserted in the same tx that
+    // advances the event-log cursor past the receive's ReceivePaymentEvent,
+    // removed only once the sink has accepted the event, so delivery is
+    // at-least-once -- a crash between the two re-emits once. Startup and the
+    // periodic repair pass respawn subscribers from it, so recovery work
+    // scales with interrupted receives, not history.
+    LnurlReceivePending = 0xcc,
+    // Position in the fedimint client's persistent (non-trimable) event log
+    // up to which the bridge has durably consumed events. Advanced one entry
+    // at a time, in the same tx as whatever that entry's handling wrote.
+    // Established before the client -- and so the lnv2 scanner that writes
+    // to this log -- can ever exist for the federation (see
+    // FederationV2::init_event_log_cursor_if_absent): a first-ever value is
+    // the log's tail at that moment, never the log's start, so an existing
+    // install's upgrade never re-announces history, and a post-construction
+    // snapshot can never race the scanner and skip an event. The event-log
+    // consumer refuses to run if it ever finds this key absent rather than
+    // defaulting it to the log's start.
+    FedimintEventLogCursor = 0xcd,
+
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
     #[allow(dead_code)]
     FedimintInternalReservedStart = 0xd0,
 }
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct LnurlReceivePendingKey(pub OperationId);
+
+impl_db_record!(
+    key = LnurlReceivePendingKey,
+    value = (),
+    db_prefix = BridgeDbPrefix::LnurlReceivePending,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct LnurlReceivePendingKeyPrefix;
+
+impl_db_lookup!(
+    key = LnurlReceivePendingKey,
+    query_prefix = LnurlReceivePendingKeyPrefix,
+);
+
+/// See [`BridgeDbPrefix::FedimintEventLogCursor`].
+#[derive(Debug, Decodable, Encodable)]
+pub struct FedimintEventLogCursorKey;
+
+impl_db_record!(
+    key = FedimintEventLogCursorKey,
+    value = EventLogId,
+    db_prefix = BridgeDbPrefix::FedimintEventLogCursor,
+);
 
 #[derive(Debug, Decodable, Encodable)]
 pub struct FediRawClientConfigKey;

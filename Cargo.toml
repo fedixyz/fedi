@@ -150,6 +150,7 @@ fedimint-client-module = { git = "https://github.com/fedibtc/fedimint", tag = "v
 fedimint-tbs = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi9" }
 fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi9" }
 fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi9" }
+fedimint-eventlog = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi9" }
 fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi9" }
 fedimint-mintv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi9" }
 fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.0-fedi9" }

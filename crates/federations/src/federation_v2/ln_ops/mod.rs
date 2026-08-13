@@ -117,6 +117,13 @@ pub trait LnOps: MaybeSend + MaybeSync {
 
     async fn get_recurringd_lnurl(&self, fed: &FederationV2) -> anyhow::Result<String>;
 
+    /// Spawns whatever long-running services this lightning version needs.
+    ///
+    /// Called once from `start_background_tasks`. The default is nothing:
+    /// v1's recurringd poller predates this hook and stays where it is, in
+    /// `lnurl_receives_service`.
+    fn start_background_services(&self, _fed: &FederationV2) {}
+
     fn version(&self) -> Version;
 }
 
