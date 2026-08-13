@@ -260,13 +260,17 @@ fn should_skip_test_using_stock_fedimintd() -> bool {
     }
 }
 
-// The lnv2 recurringd URL is hardcoded to the Fedi-operated production
-// service, which a dev federation cannot use, so recurringd-dependent tests
-// only run on kind-one (whose v1 path takes the devimint recurringd URL
-// from federation meta).
-fn should_skip_test_needing_dev_recurringd() -> bool {
+// lnv2 LNURL receives never surface as transactions: `ln_ops::v2` no-ops
+// `LnurlReceive` in both `subscribe_operation` and `get_transaction`, so a
+// kind-two client emits no `LnRecurringdReceive` event for these tests to
+// match, and they poll until nextest kills the whole wrapper. See #11872.
+//
+// The recurringd URL is no longer the blocker --
+// `TEST_BRIDGE_RECURRINGD_API_V2` points the v2 path at devimint's recurringdv2
+// -- so removing this guard is a question of #11872, not of configuration.
+fn should_skip_test_needing_lnurl_transactions() -> bool {
     if !devimint::util::supports_lnv1() {
-        info!("Skipping test as the lnv2 recurringd URL is hardcoded to production");
+        info!("Skipping test as lnv2 lnurl receives do not surface as transactions");
         true
     } else {
         false
@@ -687,7 +691,7 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 }
 
 async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_needing_dev_recurringd() {
+    if should_skip_test_needing_lnurl_transactions() {
         return Ok(());
     }
 
@@ -3493,7 +3497,7 @@ async fn test_guardian_remittance_account_withdraw_all() -> anyhow::Result<()> {
 }
 
 async fn test_recurring_lnurl(_dev_fed: DevFed) -> anyhow::Result<()> {
-    if should_skip_test_needing_dev_recurringd() {
+    if should_skip_test_needing_lnurl_transactions() {
         return Ok(());
     }
 

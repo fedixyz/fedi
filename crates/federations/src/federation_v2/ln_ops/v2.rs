@@ -604,7 +604,7 @@ impl LnOps for LnOpsV2 {
         fed.client
             .lnv2()?
             .generate_lnurl(
-                FederationV2::get_recurringd_api_v2(),
+                FederationV2::get_recurringd_api_v2()?,
                 fed.get_lnv2_gateway_override().await?,
             )
             .await

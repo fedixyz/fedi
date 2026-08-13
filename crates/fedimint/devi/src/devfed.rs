@@ -7,6 +7,7 @@ use devimint::external::{Bitcoind, Esplora, Lnd};
 use devimint::federation::Federation;
 use devimint::gatewayd::Gatewayd;
 use devimint::recurringd::Recurringd;
+use devimint::recurringdv2::Recurringdv2;
 use devimint::util::ProcessManager;
 use devimint::vars::{self, mkdir};
 use fedimint_core::task::TaskGroup;
@@ -28,6 +29,10 @@ pub struct DevFed {
     pub gw_ldk_second: Gatewayd,
     pub esplora: Esplora,
     pub recurringd: Recurringd,
+    /// Held so the process outlives this struct's construction: dropping its
+    /// `ProcessHandle` kills the server, and `TEST_BRIDGE_RECURRINGD_API_V2`
+    /// points at it for the whole test run.
+    pub recurringdv2: Recurringdv2,
     pub synapse: Synapse,
     pub nostr_relay: NostrRelay,
 }
@@ -200,6 +205,13 @@ impl DevFed {
                 devimint.recurringd.api_url.to_string(),
             )
         };
+        // Expose recurringdv2 API for tests via env override
+        unsafe {
+            std::env::set_var(
+                "TEST_BRIDGE_RECURRINGD_API_V2",
+                devimint.recurringdv2.api_url.to_string(),
+            )
+        };
         Ok(Self {
             bitcoind: devimint.bitcoind,
             lnd: devimint.lnd,
@@ -209,6 +221,7 @@ impl DevFed {
             gw_ldk_second: devimint.gw_ldk_second,
             esplora: devimint.esplora,
             recurringd: devimint.recurringd,
+            recurringdv2: devimint.recurringdv2,
             synapse,
             nostr_relay,
         })

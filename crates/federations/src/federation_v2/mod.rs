@@ -4955,11 +4955,25 @@ impl FederationV2 {
     }
 
     /// v2 lightning's recurringd URL — always the Fedi-operated v2
-    /// service. Federation meta/env overrides do not apply on the v2
-    /// path because they point at v1-protocol recurringd instances.
-    pub fn get_recurringd_api_v2() -> SafeUrl {
-        SafeUrl::from_str("https://lnurl.fedimint.org/")
-            .expect("hardcoded recurringd v2 URL is valid")
+    /// service in production. `TEST_BRIDGE_RECURRINGD_API` (the v1
+    /// override) does not apply here because it points at a
+    /// v1-protocol recurringd instance; dev/test environments that need
+    /// a v2 override must set `TEST_BRIDGE_RECURRINGD_API_V2` instead.
+    ///
+    /// Fails closed: a set-but-unparseable override is an error, not a
+    /// silent fallback to production. Falling back would route dev/test
+    /// lnurls to the production service — exactly what the override
+    /// exists to prevent — so a typo'd or malformed value must surface
+    /// as a loud failure instead of a quiet wrong-environment call.
+    pub fn get_recurringd_api_v2() -> anyhow::Result<SafeUrl> {
+        if let Ok(var) = std::env::var("TEST_BRIDGE_RECURRINGD_API_V2") {
+            return SafeUrl::from_str(&var).with_context(|| {
+                format!("TEST_BRIDGE_RECURRINGD_API_V2 is set but is not a valid URL: {var}")
+            });
+        }
+
+        Ok(SafeUrl::from_str("https://lnurl.fedimint.org/")
+            .expect("hardcoded recurringd v2 URL is valid"))
     }
 
     /// True if lightning can produce an lnurl right now: v2 always can
