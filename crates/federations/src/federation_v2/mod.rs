@@ -76,7 +76,7 @@ use fedimint_mint_client::api::MintFederationApi;
 use fedimint_mint_client::config::MintClientConfig;
 use fedimint_mint_client::{MintClientInit, MintClientModule};
 use fedimint_mintv2_client::MintClientModule as MintV2ClientModule;
-use fedimint_wallet_client::{DepositStateV2, PegOutFees, WalletClientInit};
+use fedimint_wallet_client::{DepositStateV2, PegOutFees, WalletClientInit, WalletClientModule};
 use fedimint_walletv2_client::WalletClientModule as WalletV2ClientModule;
 use futures::{FutureExt, Stream, StreamExt};
 use guardian_remittance::GuardianRemittanceAccount;
@@ -375,6 +375,47 @@ impl std::fmt::Debug for FederationV2 {
     }
 }
 
+/// Which of Fedi's two federation shapes this is.
+///
+/// Kind one carries all-v1 modules, kind two all-v2, so one decision drives
+/// every module's dispatch rather than one per module.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FederationKind {
+    One,
+    Two,
+}
+
+impl FederationKind {
+    /// Keyed on the presence of v1 modules rather than v2 ones: a real kind-one
+    /// federation carries an lnv2 module the bridge never uses, so lnv2's
+    /// presence is not evidence of a kind-two federation, while lnv1's presence
+    /// is evidence of a kind-one one.
+    ///
+    /// A federation carrying both generations is not a shape Fedi supports; it
+    /// resolves to [`Self::One`], whose modules are the ones actually present,
+    /// and is logged.
+    fn detect(kinds: &BTreeSet<ModuleKind>) -> Self {
+        let has_v1 = kinds.contains(&LnV1ClientModule::kind())
+            || kinds.contains(&MintClientModule::kind())
+            || kinds.contains(&WalletClientModule::kind());
+        // lnv2 is deliberately excluded here: a real kind-one federation
+        // carries an unused lnv2 module, so its presence must not count as
+        // evidence that the federation is mixed. mintv2 and walletv2 get no
+        // such exception — the bridge never ships those unused.
+        let has_v2 = kinds.contains(&MintV2ClientModule::kind())
+            || kinds.contains(&WalletV2ClientModule::kind());
+
+        if has_v1 && has_v2 {
+            warn!(
+                ?kinds,
+                "federation carries both v1 and v2 modules; treating it as kind one"
+            );
+        }
+
+        if has_v1 { Self::One } else { Self::Two }
+    }
+}
+
 /// Federation is a wrapper of "client ng" to assist with handling RPC commands
 pub struct FederationV2 {
     pub runtime: Arc<Runtime>,
@@ -464,37 +505,151 @@ impl FederationV2 {
         multispend_services: Arc<dyn MultispendNotifications>,
         spt_notifications: Arc<dyn SptNotifications>,
         device_registration_service: Arc<DeviceRegistrationService>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
         let recovering = client.has_pending_recoveries();
         let client_config = client.config().await;
-        let has_lnv1 = client_config
+        let kinds: BTreeSet<ModuleKind> = client_config
             .modules
             .values()
-            .any(|config| config.is_kind(&LnV1ClientModule::kind()));
-        let ln_ops: Box<dyn ln_ops::LnOps> = if has_lnv1 {
-            Box::new(LnOpsV1)
-        } else {
-            Box::new(LnOpsV2)
+            .map(|config| config.kind().clone())
+            .collect();
+        let federation_kind = FederationKind::detect(&kinds);
+
+        // `federation_kind` is one decision for all three modules, but nothing
+        // stops a malformed federation from e.g. advertising mintv2 while
+        // resolving to kind one (because lnv1 or wallet is present). Check the
+        // config before selecting, and fall back to whichever module the
+        // federation actually lists -- loudly, since that is not a shape Fedi
+        // supports.
+        //
+        // These read the *config*, not `client.mintv2()`. Registration is not
+        // settled this early: on a plain join every `get_first_module` still
+        // fails here, which is why the caller above reaches for the network via
+        // `client.wallet().ok()`. Keying the guard off registration looks
+        // stricter and is simply wrong -- it rejected every federation in CI.
+        //
+        // Only mint is fatal when the config lists neither generation's module.
+        // `MintOps::get_raw_balance` reaches for its module with `.expect()`
+        // (mint_ops/v1.rs, mint_ops/v2.rs) and the startup balance event calls
+        // it almost immediately, so selecting an absent mint would panic rather
+        // than degrade. `LnOps` and `WalletOps` access their modules fallibly
+        // throughout -- `?`, `.ok()?`, let-else -- so a federation carrying
+        // neither lightning module or neither wallet module stays loadable,
+        // with only those calls erroring. Failing construction there would turn
+        // a degraded federation into an unloadable one.
+        //
+        // That leaves the case #11863 describes, where API-version negotiation
+        // skips a module the config lists, unguarded: the op gets selected and
+        // its `.expect()` fires on first use. That panic predates this commit
+        // and is not made worse by it -- the old code selected the same op from
+        // the same config -- and it cannot be caught here, because at this point
+        // nothing has been registered either way. Fixing it means making the
+        // ops' module access fallible, which is #11863's lineage, not this
+        // refactor's.
+        let has_ln_v1 = kinds.contains(&LnV1ClientModule::kind());
+        let has_ln_v2 = kinds.contains(&fedimint_lnv2_client::LightningClientModule::kind());
+        let ln_ops: Box<dyn ln_ops::LnOps> = match (federation_kind, has_ln_v1, has_ln_v2) {
+            (FederationKind::One, true, _) => Box::new(LnOpsV1),
+            (FederationKind::Two, _, true) => Box::new(LnOpsV2),
+            (FederationKind::One, false, true) => {
+                error!(
+                    ?kinds,
+                    "lnv1 module absent from a kind-one federation config; \
+                     falling back to lnv2 ops"
+                );
+                Box::new(LnOpsV2)
+            }
+            (FederationKind::Two, true, false) => {
+                error!(
+                    ?kinds,
+                    "lnv2 module absent from a kind-two federation config; \
+                     falling back to lnv1 ops"
+                );
+                Box::new(LnOpsV1)
+            }
+            (FederationKind::One, false, false) => {
+                warn!(
+                    ?kinds,
+                    "federation lists no lightning module; lightning calls will fail"
+                );
+                Box::new(LnOpsV1)
+            }
+            (FederationKind::Two, false, false) => {
+                warn!(
+                    ?kinds,
+                    "federation lists no lightning module; lightning calls will fail"
+                );
+                Box::new(LnOpsV2)
+            }
         };
-        let has_mintv2 = client_config
-            .modules
-            .values()
-            .any(|config| config.is_kind(&MintV2ClientModule::kind()));
-        let has_walletv2 = client_config
-            .modules
-            .values()
-            .any(|config| config.is_kind(&WalletV2ClientModule::kind()));
-        let mint_ops: Box<dyn mint_ops::MintOps> = if has_mintv2 {
-            Box::new(MintOpsV2)
-        } else {
-            Box::new(MintOpsV1)
+
+        let has_mint_v1 = kinds.contains(&MintClientModule::kind());
+        let has_mint_v2 = kinds.contains(&MintV2ClientModule::kind());
+        let mint_ops: Box<dyn mint_ops::MintOps> = match (federation_kind, has_mint_v1, has_mint_v2)
+        {
+            (FederationKind::One, true, _) => Box::new(MintOpsV1),
+            (FederationKind::Two, _, true) => Box::new(MintOpsV2),
+            (FederationKind::One, false, true) => {
+                error!(
+                    ?kinds,
+                    "mint module absent from a kind-one federation config; \
+                     falling back to mintv2 ops"
+                );
+                Box::new(MintOpsV2)
+            }
+            (FederationKind::Two, true, false) => {
+                error!(
+                    ?kinds,
+                    "mintv2 module absent from a kind-two federation config; \
+                     falling back to mint ops"
+                );
+                Box::new(MintOpsV1)
+            }
+            (_, false, false) => bail!(
+                "federation config lists no mint module -- neither mint nor mintv2 -- \
+                 only {kinds:?}"
+            ),
         };
-        let wallet_ops: Box<dyn wallet_ops::WalletOps> = if has_walletv2 {
-            Box::new(WalletOpsV2)
-        } else {
-            Box::new(WalletOpsV1)
-        };
-        Arc::new_cyclic(|weak| Self {
+
+        let has_wallet_v1 = kinds.contains(&WalletClientModule::kind());
+        let has_wallet_v2 = kinds.contains(&WalletV2ClientModule::kind());
+        let wallet_ops: Box<dyn wallet_ops::WalletOps> =
+            match (federation_kind, has_wallet_v1, has_wallet_v2) {
+                (FederationKind::One, true, _) => Box::new(WalletOpsV1),
+                (FederationKind::Two, _, true) => Box::new(WalletOpsV2),
+                (FederationKind::One, false, true) => {
+                    error!(
+                        ?kinds,
+                        "wallet module absent from a kind-one federation config; \
+                         falling back to walletv2 ops"
+                    );
+                    Box::new(WalletOpsV2)
+                }
+                (FederationKind::Two, true, false) => {
+                    error!(
+                        ?kinds,
+                        "walletv2 module absent from a kind-two federation config; \
+                         falling back to wallet ops"
+                    );
+                    Box::new(WalletOpsV1)
+                }
+                (FederationKind::One, false, false) => {
+                    warn!(
+                        ?kinds,
+                        "federation lists no wallet module; on-chain calls will fail"
+                    );
+                    Box::new(WalletOpsV1)
+                }
+                (FederationKind::Two, false, false) => {
+                    warn!(
+                        ?kinds,
+                        "federation lists no wallet module; on-chain calls will fail"
+                    );
+                    Box::new(WalletOpsV2)
+                }
+            };
+
+        Ok(Arc::new_cyclic(|weak| Self {
             task_group: runtime.task_group.make_subgroup(),
             runtime,
             operation_states: Default::default(),
@@ -523,7 +678,7 @@ impl FederationV2 {
             spv2_sweeper_service: Default::default(),
             lnurl_receives_service: Default::default(),
             guardian_status_cache: Mutex::new(None),
-        })
+        }))
     }
 
     pub fn spawn_cancellable<Fut>(
@@ -789,7 +944,7 @@ impl FederationV2 {
             spt_notifications,
             device_registration_service,
         )
-        .await;
+        .await?;
         federation.start_background_tasks_if_ready().await;
         Ok(federation)
     }
@@ -946,7 +1101,7 @@ impl FederationV2 {
             spt_notifications,
             device_registration_service,
         )
-        .await;
+        .await?;
 
         // If the phone dies here, it's still ok because the federation wouldn't
         // exist in the app_state, and we'd reattempt to join it. And the name of the
@@ -5163,5 +5318,60 @@ mod tests {
         ));
 
         assert!(!is_gateway_availability_error(&error));
+    }
+
+    fn kinds(modules: &[ModuleKind]) -> BTreeSet<ModuleKind> {
+        modules.iter().cloned().collect()
+    }
+
+    #[test]
+    fn detects_kind_one() {
+        let kinds = kinds(&[
+            LnV1ClientModule::kind(),
+            MintClientModule::kind(),
+            WalletClientModule::kind(),
+        ]);
+
+        assert_eq!(FederationKind::detect(&kinds), FederationKind::One);
+    }
+
+    #[test]
+    fn detects_kind_one_with_unused_lnv2() {
+        // This is the real kind-one shape: an all-v1 federation that also
+        // carries an lnv2 module the bridge never uses. lnv2's presence must
+        // not flip the detected kind to two.
+        let kinds = kinds(&[
+            LnV1ClientModule::kind(),
+            MintClientModule::kind(),
+            WalletClientModule::kind(),
+            fedimint_lnv2_client::LightningClientModule::kind(),
+        ]);
+
+        assert_eq!(FederationKind::detect(&kinds), FederationKind::One);
+    }
+
+    #[test]
+    fn detects_kind_two() {
+        let kinds = kinds(&[
+            fedimint_lnv2_client::LightningClientModule::kind(),
+            MintV2ClientModule::kind(),
+            WalletV2ClientModule::kind(),
+        ]);
+
+        assert_eq!(FederationKind::detect(&kinds), FederationKind::Two);
+    }
+
+    #[test]
+    fn detects_mixed_generation_as_kind_one() {
+        let kinds = kinds(&[LnV1ClientModule::kind(), MintV2ClientModule::kind()]);
+
+        assert_eq!(FederationKind::detect(&kinds), FederationKind::One);
+    }
+
+    #[test]
+    fn detects_empty_as_kind_two() {
+        let kinds = kinds(&[]);
+
+        assert_eq!(FederationKind::detect(&kinds), FederationKind::Two);
     }
 }
