@@ -70,11 +70,40 @@ ready_filter='
       elif ($ctx | map(select(.state != "SUCCESS")) | length) > 0 then false
       else true
       end'
-# A StatusContext has no completion time, so its start stands in for one.
+# A StatusContext has no completion time, so when it was posted stands in.
 green_at_filter='
     [(.statusCheckRollup[]? | select(.__typename == "CheckRun") | .completedAt),
-     (.statusCheckRollup[]? | select(.__typename == "StatusContext") | .startedAt)]
+     (.statusCheckRollup[]? | select(.__typename == "StatusContext") | .createdAt)]
     | map(select(. != null)) | max // ""'
+
+# gh pr view's rollup query also asks for each check's workflow run, which
+# needs an actions grant the cross-repo app does not carry
+# shellcheck disable=SC2016  # $owner and friends are graphql variables
+checks_query='
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      commits(last: 1) {
+        nodes {
+          commit {
+            statusCheckRollup {
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun { status conclusion completedAt }
+                  ... on StatusContext { state createdAt }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+# shellcheck disable=SC2016  # jq path, not shell
+checks_shape='{statusCheckRollup:
+    [.data.repository.pullRequest.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[]?]}'
 
 failures=()
 dispatched=0
@@ -105,10 +134,12 @@ for repo in $repos; do
         fi
         number=$(jq -r '.number' <<<"$pr")
         # A checks fetch that fails must not look like a green PR.
-        if ! checks=$(gh_retry pr view "$number" --repo "$repo" --json statusCheckRollup); then
+        if ! checks=$(gh_retry api graphql -f query="$checks_query" \
+            -F owner="${repo%%/*}" -F name="${repo##*/}" -F number="$number"); then
             failures+=("$repo#$number (checks)")
             continue
         fi
+        checks=$(jq -c "$checks_shape" <<<"$checks")
         if [ "$(jq -r "$ready_filter" <<<"$checks")" != "true" ]; then
             skipped_not_ready=$((skipped_not_ready + 1))
             continue
