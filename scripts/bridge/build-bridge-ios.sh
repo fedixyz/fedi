@@ -35,7 +35,16 @@ rm -f $(find $CARGO_BUILD_TARGET_DIR -name libfediffi.a | grep -v '/deps/')
 
 # build binaries for each supported target
 for target in "${TARGETS[@]}"; do
-  cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}" --package fedi-ffi ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} --target $target $CARGO_FLAGS
+  # Pre-A11 devices (the A10 iPhone 7, down to the A9 on iOS 15.1) have no
+  # ARMv8.1 LSE atomics. Left unpinned, a newer Apple toolchain can compile
+  # aws-lc with CAS/CASAL, which SIGILL on those chips and crash the app on its
+  # first TLS handshake. Pin the device arm64 C build to the A7 baseline so it
+  # falls back to the ldxr/stxr loop. Simulator and x86 run on modern hardware.
+  cpu_pin=()
+  if [ "$target" = "aarch64-apple-ios" ]; then
+    cpu_pin=("TARGET_CFLAGS=${TARGET_CFLAGS:-} -mcpu=apple-a7")
+  fi
+  env "${cpu_pin[@]}" cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}" --package fedi-ffi ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} --target $target $CARGO_FLAGS
 done
 
 # make sure build artifacts are available to the fedi-swift Xcode package
