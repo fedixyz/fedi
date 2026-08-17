@@ -1,77 +1,83 @@
 # Documentation Audit Report
 
-Review date: 2026-08-03
+Review date: 2026-08-17
 
 ## Scope
 
 - Review mode: incremental.
-- Current workflow run: [30788669204](https://github.com/fedibtc/fedi/actions/runs/30788669204), `Weekly Documentation Updater`, head [694842969950419721a0e931297f3b4c1e380dc8](https://github.com/fedibtc/fedi/commit/694842969950419721a0e931297f3b4c1e380dc8).
-- Previous successful run: [30241518535](https://github.com/fedibtc/fedi/actions/runs/30241518535), completed 2026-07-27T06:10:19Z at [df5e8db3507a4a8a50289de554f2f60d6278f1c7](https://github.com/fedibtc/fedi/commit/df5e8db3507a4a8a50289de554f2f60d6278f1c7).
-- Boundary used: repository changes after [30241518535](https://github.com/fedibtc/fedi/actions/runs/30241518535) through current head [694842969950419721a0e931297f3b4c1e380dc8](https://github.com/fedibtc/fedi/commit/694842969950419721a0e931297f3b4c1e380dc8), based on GitHub Actions run history, merged PR metadata, and commit metadata.
+- Current workflow run: [31996611900](https://github.com/fedibtc/fedi/actions/runs/31996611900), `Weekly Documentation Updater`, head [9c8c99dd726dde2879f4bcd025afb9c34118b964](https://github.com/fedibtc/fedi/commit/9c8c99dd726dde2879f4bcd025afb9c34118b964).
+- Previous successful run: [31358214194](https://github.com/fedibtc/fedi/actions/runs/31358214194), completed 2026-08-10T05:26:10Z at [24f3405e571926cd16e9250a4e9dc967f1534576](https://github.com/fedibtc/fedi/commit/24f3405e571926cd16e9250a4e9dc967f1534576).
+- Boundary used: repository changes after [31358214194](https://github.com/fedibtc/fedi/actions/runs/31358214194) through current head [9c8c99dd726dde2879f4bcd025afb9c34118b964](https://github.com/fedibtc/fedi/commit/9c8c99dd726dde2879f4bcd025afb9c34118b964), based on GitHub Actions run history, merged PR metadata, and commit metadata.
 - Tracked Markdown inventory: 93 files.
 
 ## Changed Areas Driving Review
 
 Key merged PRs and commits mapped to tracked docs:
 
-- [#11797](https://github.com/fedibtc/fedi/pull/11797) updated the weekly documentation updater prompt so audit-report references must be explicit Markdown links.
-- [#11729](https://github.com/fedibtc/fedi/pull/11729) added the Sieve CLI to the dev shell and introduced `.sieve/review-policy.md`.
-- [#11785](https://github.com/fedibtc/fedi/pull/11785) removed the LN router and made bridge test federations all-v1 or all-v2 instead of mixed-generation.
-- [#11755](https://github.com/fedibtc/fedi/pull/11755) fixed in-flight lnv2 transaction history behavior.
-- [#11825](https://github.com/fedibtc/fedi/pull/11825) added kind-two bridge coverage for walletv2 on-chain behavior and mintv2 offline behavior, plus Stability Pool v2 invariants.
-- [#11826](https://github.com/fedibtc/fedi/pull/11826), [#11828](https://github.com/fedibtc/fedi/pull/11828), [#11831](https://github.com/fedibtc/fedi/pull/11831), [#11832](https://github.com/fedibtc/fedi/pull/11832), and [#11834](https://github.com/fedibtc/fedi/pull/11834) changed the Sieve hub review workflow and agent prompt.
+- [#11898](https://github.com/fedibtc/fedi/pull/11898) added the Fedi Edge native app flavor, Edge release/deploy workflows, Fastlane lanes, `just` recipes, and Edge feature-flag endpoint behavior.
+- [#11893](https://github.com/fedibtc/fedi/pull/11893), [#11895](https://github.com/fedibtc/fedi/pull/11895), [#11902](https://github.com/fedibtc/fedi/pull/11902), [#11903](https://github.com/fedibtc/fedi/pull/11903), and [#11904](https://github.com/fedibtc/fedi/pull/11904) changed the Sieve hub review workflow, review prompt, prior-feedback handling, runner selection, and UI review skill guidance.
+- [#11875](https://github.com/fedibtc/fedi/pull/11875) changed the canonical WASM Clippy recipe in `flake.nix` and regenerated `justfile`.
+- [#11912](https://github.com/fedibtc/fedi/pull/11912), [#11913](https://github.com/fedibtc/fedi/pull/11913), and [#11918](https://github.com/fedibtc/fedi/pull/11918) changed federation-kind detection, lnv2 recurringd dev/test override behavior, and lnv2 LNURL receive event delivery.
+- [#11901](https://github.com/fedibtc/fedi/pull/11901) changed mixed-shape federation join handling.
+- [#11871](https://github.com/fedibtc/fedi/pull/11871) changed guardian-fee remittance internals.
+- [#11879](https://github.com/fedibtc/fedi/pull/11879) and [#11910](https://github.com/fedibtc/fedi/pull/11910) changed shared UI transaction/test behavior without changing a tracked user guide.
 
 ## Markdown Selected For Review
 
-- `.sieve/review-policy.md`
+- `.agents/skills/ui-code-review/SKILL.md`
+- `.agents/skills/ui-code-review/references/rules/i18n.md`
 - `HACKING.md`
 - `bridge/README.md`
-- `bridge/debugging.md`
-- `crates/modules/stability-pool/README.md`
-- `crates/modules/stability-pool-old/README.md`
 - `documentation-audit-report.md`
 - `scripts/ci/sieve-hub-agent-review.md`
+- `ui/native/android/fastlane/README.md`
+- `ui/native/docs/cicd.md`
+- `ui/native/ios/fastlane/README.md`
 
 ## Implementation Sources Checked
 
 - GitHub Actions run history for workflow ID `286820929`.
 - GitHub merged PR search results and commit list for the incremental interval.
+- GitHub commit metadata and changed-file lists for [9c8c99dd726dde2879f4bcd025afb9c34118b964](https://github.com/fedibtc/fedi/commit/9c8c99dd726dde2879f4bcd025afb9c34118b964), [874672f77ca92361a3082d6a6b28807cbc695d49](https://github.com/fedibtc/fedi/commit/874672f77ca92361a3082d6a6b28807cbc695d49), [0dd28d70c5f51babbcee785e1a85dd5fd8a0c3c9](https://github.com/fedibtc/fedi/commit/0dd28d70c5f51babbcee785e1a85dd5fd8a0c3c9), [1f27a2bf750b1d32a4ab35057a32112964401c8f](https://github.com/fedibtc/fedi/commit/1f27a2bf750b1d32a4ab35057a32112964401c8f), [462142180f5242bae849ab6f7590bb2577d47294](https://github.com/fedibtc/fedi/commit/462142180f5242bae849ab6f7590bb2577d47294), [dd2128b7c4415dfb4a784afdd4188dceb9917c94](https://github.com/fedibtc/fedi/commit/dd2128b7c4415dfb4a784afdd4188dceb9917c94), [63d3ff3ffbe6e3e0aa36cff6817cafc24d14f8ab](https://github.com/fedibtc/fedi/commit/63d3ff3ffbe6e3e0aa36cff6817cafc24d14f8ab), [899ece9995748a79a0c54434efbc774b2af73186](https://github.com/fedibtc/fedi/commit/899ece9995748a79a0c54434efbc774b2af73186), [7d6aa4e0ad5b3532b638a589edc06ee2c592563a](https://github.com/fedibtc/fedi/commit/7d6aa4e0ad5b3532b638a589edc06ee2c592563a), [20ca0ea7468ce5dd5c51700390aefaa41ef8005b](https://github.com/fedibtc/fedi/commit/20ca0ea7468ce5dd5c51700390aefaa41ef8005b), [bf0529e9a6bc12a0220b64f5b150f8bd7e514cce](https://github.com/fedibtc/fedi/commit/bf0529e9a6bc12a0220b64f5b150f8bd7e514cce), [5cb2115b0eb351002da721a307030ce5d6af8412](https://github.com/fedibtc/fedi/commit/5cb2115b0eb351002da721a307030ce5d6af8412), and [e0644a85534e6d9be5a82258e89e5b32af462ec3](https://github.com/fedibtc/fedi/commit/e0644a85534e6d9be5a82258e89e5b32af462ec3).
 - `git ls-files '*.md'` for the tracked Markdown inventory.
-- `justfile.fedi`, `scripts/test-bridge.sh`, `scripts/test-bridge-kind-two.sh`, and `scripts/bridge/launch-remote.sh` for bridge test commands and federation-kind behavior.
-- `bridge/fedi-ffi/src/rpc/tests.rs`, `crates/federations/src/federation_v2/mod.rs`, and `crates/federations/src/federation_v2/ln_ops/v2.rs` for kind-two bridge coverage and lnv2 transaction history behavior.
-- `.github/workflows/sieve-hub-review.yml`, `scripts/ci/sieve-hub-review.sh`, `scripts/ci/sieve-hub-agent-review.md`, and `.sieve/review-policy.md` for Sieve hub review behavior.
-- `crates/modules/stability-pool/tests/tests/tests.rs` and the Stability Pool README files for the v2 invariant-test additions.
+- `.github/workflows/release-edge.yml`, `.github/workflows/deploy-to-gp-internal-testing-edge.yml`, `.github/workflows/deploy-to-testflight-edge.yml`, and `.github/workflows/renew-ios-certs.yml` for Edge release/deploy behavior.
+- `ui/native/android/fastlane/Fastfile`, `ui/native/ios/fastlane/Fastfile`, `scripts/ui/build-edge-apk.sh`, `scripts/ui/build-edge-ipa.sh`, and `justfile.fedi` for Edge build lanes and recipes.
+- `crates/runtime/src/constants.rs`, `crates/runtime/src/features.rs`, `ui/web/src/pages/api/features.ts`, `ui/common/utils/environment.ts`, `ui/native/bridge/native.ts`, and `ui/native/utils/device-info.ts` for Edge runtime and feature-flag behavior.
+- `.github/workflows/sieve-hub-review.yml`, `scripts/ci/sieve-hub-review.sh`, `scripts/ci/sieve-hub-capture.sh`, `scripts/ci/sieve-hub-agent-review.md`, `.agents/skills/ui-code-review/SKILL.md`, and `.agents/skills/ui-code-review/references/rules/i18n.md` for Sieve review behavior.
+- `bridge/fedi-ffi/src/rpc/tests.rs`, `crates/federations/src/federation_v2/mod.rs`, and `crates/federations/src/federation_v2/ln_ops/v2.rs` for the federation and lnv2 changes that might affect bridge docs.
 
 ## Findings And Changes
 
-- `bridge/README.md` was stale. It said the bridge test federation enabled Lightning v2 by default, but `scripts/test-bridge.sh` now runs kind-one as pure v1 and explicitly sets `FM_ENABLE_MODULE_LNV2=0`; kind-two coverage lives behind `just test-bridge-kind-two`. Updated the testing section with the current default and kind-two commands.
-- `HACKING.md` listed only `just test-bridge [testcase]`, which missed the new `just test-bridge-kind-two [testcase]` entry point from `justfile.fedi`. Added the kind-two bridge test command and clarified that the default command is the kind-one suite.
-- `.sieve/review-policy.md` matches the current dev-shell Sieve CLI addition and repo skill routing guidance.
-- `scripts/ci/sieve-hub-agent-review.md` matches the current hub workflow: the agent authors `sieve-recap.json`, validates with `sieve publish --dry-run --redact`, supports dependency-source fetches, and reflects the current verdict, evidence-block, and altitude rules.
-- Stability Pool docs remain current for the reviewed test-only v2 invariant additions; no user-facing module behavior changed.
+- `HACKING.md` was partially stale. Its CI section said release and deploy workflows are gated to release branches, but [#11898](https://github.com/fedibtc/fedi/pull/11898) added `release-edge.yml`, which is intentionally dispatched from the long-lived `edge` branch. Updated the wording to distinguish standard release branches from the Edge channel.
+- `ui/native/docs/cicd.md` already documents the Edge release workflow, Edge Google Play/TestFlight deployment workflows, and dispatching from the `edge` branch.
+- `ui/native/android/fastlane/README.md` and `ui/native/ios/fastlane/README.md` are current with the Edge lanes generated from the Fastfiles.
+- `scripts/ci/sieve-hub-agent-review.md` already reflects `sieve attach-diff`, prior-feedback handling, dependency-source fetches under `$SIEVE_AGENT_SCRATCH`, and current dry-run validation.
+- `.agents/skills/ui-code-review/SKILL.md` and `.agents/skills/ui-code-review/references/rules/i18n.md` match the current review-bot grading guidance and i18n exception for proper nouns/data tokens.
+- `bridge/README.md` remains current for the reviewed kind-one/kind-two bridge test commands; the lnv2 recurringd and event-delivery changes did not add a new documented command or user-facing setup step.
 
 ## Per-Document Status
 
 | File | Status |
 | --- | --- |
-| `.sieve/review-policy.md` | Reviewed; no change needed. |
-| `HACKING.md` | Updated with `just test-bridge-kind-two [testcase]` and clarified the default bridge suite. |
-| `bridge/README.md` | Updated for kind-one default bridge tests, explicit lnv2 disabling, and kind-two test commands. |
-| `bridge/debugging.md` | Reviewed; no change needed. |
-| `crates/modules/stability-pool/README.md` | Reviewed; no change needed. |
-| `crates/modules/stability-pool-old/README.md` | Reviewed; no change needed. |
+| `.agents/skills/ui-code-review/SKILL.md` | Reviewed; no change needed. |
+| `.agents/skills/ui-code-review/references/rules/i18n.md` | Reviewed; no change needed. |
+| `HACKING.md` | Updated release/deploy workflow wording for the Edge branch dispatch model. |
+| `bridge/README.md` | Reviewed; no change needed. |
 | `documentation-audit-report.md` | Updated for this incremental run. |
 | `scripts/ci/sieve-hub-agent-review.md` | Reviewed; no change needed. |
+| `ui/native/android/fastlane/README.md` | Reviewed; no change needed. |
+| `ui/native/docs/cicd.md` | Reviewed; no change needed. |
+| `ui/native/ios/fastlane/README.md` | Reviewed; no change needed. |
 
 ## Validation
 
 - Ran `git ls-files '*.md'` and counted 93 tracked Markdown files.
 - Cross-checked the previous successful updater run with the GitHub Actions API.
-- Cross-checked recent merged PRs and commits with GitHub read APIs.
-- Verified edited documentation against the current bridge test scripts, just recipes, Sieve workflow, and implementation files with `rg` and `sed`.
+- Cross-checked recent merged PRs, commits, and changed files with GitHub read APIs.
+- Verified selected documentation against current workflows, Fastfiles, `just` recipes, Sieve scripts, Edge runtime files, and federation implementation files with `rg` and `sed`.
 - Ran `git diff --check`.
 - No test suite was run because the changes are Markdown-only.
 
 ## Unresolved Areas
 
-- The local checkout is shallow at [694842969950419721a0e931297f3b4c1e380dc8](https://github.com/fedibtc/fedi/commit/694842969950419721a0e931297f3b4c1e380dc8), so changed-file scope was built from GitHub run, PR, and commit metadata rather than a local `git diff` against [df5e8db3507a4a8a50289de554f2f60d6278f1c7](https://github.com/fedibtc/fedi/commit/df5e8db3507a4a8a50289de554f2f60d6278f1c7).
+- The local checkout is shallow at [9c8c99dd726dde2879f4bcd025afb9c34118b964](https://github.com/fedibtc/fedi/commit/9c8c99dd726dde2879f4bcd025afb9c34118b964), and unauthenticated `git fetch` could not read the private repository. Changed-file scope was therefore built from GitHub run, PR, and commit metadata rather than a local `git diff` against [24f3405e571926cd16e9250a4e9dc967f1534576](https://github.com/fedibtc/fedi/commit/24f3405e571926cd16e9250a4e9dc967f1534576).

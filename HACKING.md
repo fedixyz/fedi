@@ -413,8 +413,9 @@ workflows; almost every job inside them skips. Change the `precheck` job, not th
 need to adjust what runs.
 
 Release and deploy workflows (`release-*.yml`, `deploy-to-testflight*.yml`,
-`deploy-to-gp-internal-testing*.yml`, `vercel-prod.yml`) are manual or scheduled and gated to
-release branches.
+`deploy-to-gp-internal-testing*.yml`, `vercel-prod.yml`) are manual or scheduled. Production and
+standard release workflows run from release branches; Edge is dispatched from the long-lived `edge`
+branch because it is the rolling unreviewed-code channel.
 
 ## Releases and app flavors
 
