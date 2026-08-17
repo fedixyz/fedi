@@ -1,0 +1,60 @@
+name: 'Sieve hub sweep'
+
+# Dispatches a sieve hub review for every open PR that is out of draft, has
+# passed CI, and whose head has not been reviewed yet, so the reviewed repos
+# add no workflow files and hold no secrets.
+on:
+    schedule:
+        # Sweep latency is the review latency.
+        - cron: '*/15 * * * *'
+    workflow_dispatch:
+        inputs:
+            repos:
+                description: 'Repos to sweep, space-separated owner/name (empty sweeps the whole org)'
+                required: false
+            max_age_hours:
+                description: 'Only review PRs whose checks went green this recently (default 24)'
+                required: false
+
+permissions:
+    contents: read
+    # Dispatches sieve-hub-review.yml.
+    actions: write
+
+# Overlapping sweeps would dispatch the same PRs twice.
+concurrency:
+    group: sieve-hub-sweep
+    cancel-in-progress: false
+
+env:
+    # the cron's scope; an empty `repos` input deliberately means the whole org
+    CRON_REPOS: 'fedibtc/fedi'
+
+jobs:
+    sweep:
+        name: 'Sweep for reviewable PRs'
+        runs-on: [self-hosted, linux]
+        # an org-wide sweep spends most of ten minutes on per-PR api calls
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+            - name: Mint the cross-repo app token
+              id: app-token
+              if: vars.SIEVE_HUB_APP_ID != ''
+              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              with:
+                  app-id: ${{ vars.SIEVE_HUB_APP_ID }}
+                  private-key: ${{ secrets.SIEVE_HUB_APP_PRIVATE_KEY }}
+                  owner: fedibtc
+
+            - name: Dispatch reviews for unreviewed PRs
+              env:
+                  GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.SIEVE_HUB_TOKEN }}
+                  # github.token cannot read the org's other repos, but it can
+                  # dispatch workflows in this one.
+                  DISPATCH_TOKEN: ${{ github.token }}
+                  SWEEP_REPOS: ${{ github.event_name == 'workflow_dispatch' && inputs.repos || env.CRON_REPOS }}
+                  MAX_AGE_HOURS: ${{ inputs.max_age_hours }}
+              # gh and jq are not on the runner's bare PATH.
+              run: nix shell nixpkgs#gh nixpkgs#jq --command ./scripts/ci/sieve-hub-sweep.sh

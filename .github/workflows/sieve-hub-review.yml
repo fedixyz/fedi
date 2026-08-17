@@ -1,9 +1,11 @@
 name: 'Sieve hub review'
+run-name: 'Sieve review ${{ inputs.repo || github.repository }}#${{ inputs.pr_number || github.event.issue.number }}'
 
-# Two entry points: dispatch with a repo + PR number, or say sieve in a comment
-# on a PR here (comment events only reach the repo hosting the workflow, so
-# the tag covers fedi PRs; other repos are dispatch-only). Both review the
-# PR regardless of draft or CI state.
+# Two entry points: dispatch with a repo + PR number (manually or from the
+# cron sweep), or say sieve in a comment on a PR here (comment events only
+# reach the repo hosting the workflow, so the tag covers fedi PRs; other
+# repos are dispatch-only). Both review the PR regardless of draft or CI
+# state.
 on:
     workflow_dispatch:
         inputs:
@@ -37,13 +39,12 @@ jobs:
              (github.event.comment.author_association == 'OWNER' ||
               github.event.comment.author_association == 'MEMBER' ||
               github.event.comment.author_association == 'COLLABORATOR'))
-        # Job-level, not workflow-level: every comment in the repo creates a
-        # run that joins a workflow-level group before the job `if` runs, so
-        # an unrelated comment would cancel an in-flight review. A skipped
-        # job never acquires a job-level group.
+        # Job-level so skipped comment runs never enter the group. The sweep
+        # re-dispatches a PR whose review is still in flight, so cancelling
+        # would restart the review on every tick.
         concurrency:
             group: sieve-hub-review-${{ inputs.repo || github.repository }}-${{ inputs.pr_number || github.event.issue.number }}
-            cancel-in-progress: true
+            cancel-in-progress: false
         # the emulator only boots here: qemu segfaults under the linux runner units
         runs-on: [self-hosted, macos, arm64, macstadium, gui]
         # an uncached branch cold-builds the android bridge
