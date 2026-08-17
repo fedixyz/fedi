@@ -8,6 +8,16 @@ export class Settings extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
     static produces = ['onboarded'] as const
 
+    // Earlier suites leave this drawer scrolled and it keeps that offset.
+    // Rewind up: android hides off-screen nodes, and scrollToElement only
+    // searches downward.
+    private async openDrawerAtTop(): Promise<void> {
+        await this.waitForElementDisplayed('UserQrContainer')
+        await this.scrollToElement('DisplayNameProper', {
+            scrollDirection: 'up',
+        })
+    }
+
     private async changeDisplayName(displayName: string): Promise<void> {
         await this.scrollToElement('Edit profile')
         await this.clickElementByKey('Edit profile')
@@ -15,7 +25,7 @@ export class Settings extends AppiumTestBase {
         await this.typeIntoElementByKey('DisplayNameInput', displayName)
         await this.dismissKeyboard()
         await this.clickOnText('Save', 0, true)
-        await this.waitForElementDisplayed('UserQrContainer')
+        await this.openDrawerAtTop()
     }
 
     private async assertDisplayedName(expected: string): Promise<void> {
@@ -33,7 +43,7 @@ export class Settings extends AppiumTestBase {
 
         await this.clickElementByKey('HomeTabButton')
         await this.clickElementByKey('AvatarButton')
-        await this.waitForElementDisplayed('UserQrContainer')
+        await this.openDrawerAtTop()
 
         // Edit profile sits at the top of the drawer, so run this leg before
         // the walk scrolls down.
