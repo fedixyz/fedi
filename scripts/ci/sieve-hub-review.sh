@@ -90,18 +90,36 @@ else
     rm -f "$feedback"
 fi
 
+prompt="$script_dir/sieve-hub-agent-review.md"
+trace="$workdir/agent-trace.jsonl"
+# the workflow builds the CLI from the newest sieve release, so this runs
+# against releases that predate run records
+trace_args=()
+if sieve publish --help 2>/dev/null | grep -q -- '--trace'; then
+    trace_args=(--trace "$trace" --trace-prompt "$prompt")
+else
+    echo "::warning::sieve $(sieve --version) has no run records, so this review publishes without one"
+fi
+
 # --print alone is silent until the agent exits
 claude --print --verbose --output-format stream-json --model "$agent_model" \
     --allowed-tools Read Grep Glob Edit Write "Bash(git:*)" "Bash(jq:*)" "Bash(sieve:*)" \
-    <"$script_dir/sieve-hub-agent-review.md" \
+    <"$prompt" \
+    | tee "$trace" \
     | jq --unbuffered -rj 'if .type == "assistant" then ([.message.content[]? | if .type == "tool_use" then "agent> \(.name) \((.input.command // .input.file_path // .input.pattern // "") | tostring | .[0:200])\n" elif .type == "text" then "agent: \(.text)\n" else empty end] | join("")) elif .type == "result" then "agent finished: \(.subtype)\n" else empty end'
 
 # A no-op agent still leaves the scaffold behind, and the scaffold publishes fine.
 if [ "$(jq -r '.origin' "$recap")" != "authored" ]; then
+    # publish records the run, and this path never reaches publish
+    if [ ${#trace_args[@]} -gt 0 ]; then
+        sieve --host "$SIEVE_HOST" run record "${trace_args[@]}" \
+            --repo "$repo" --branch "$branch" --outcome failed || true
+    fi
     echo "::error::the agent left the recap mechanical, so there is no review to publish"
     exit 1
 fi
 
-published=$(sieve --json --host "$SIEVE_HOST" publish --manifest "$recap" --redact)
+published=$(sieve --json --host "$SIEVE_HOST" publish --manifest "$recap" --redact \
+    "${trace_args[@]+"${trace_args[@]}"}")
 echo "Published $(jq -r '.url' <<<"$published")"
 sieve --host "$SIEVE_HOST" pr-comment "$(jq -r '.review.id' <<<"$published")"

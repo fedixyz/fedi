@@ -30,3 +30,9 @@ Run the gate for the surfaces the diff touches.
 ## Visual evidence
 
 Capture native screens with the `android-emulator` or `ios-emulator` skill driving the flow the diff touches. Web screens come from `agent-browser` or the Vercel preview linked on the PR.
+
+## Auditing a review that already published
+
+To work out why a review concluded what it did, read the run behind it rather than the CI log. `sieve versions <reviewId>` lists every published version, `sieve versions <reviewId> --version <n>` returns that version's content and its run, and `sieve run get <runId>` returns the ordered steps and the agent's closing message. The full guide is `docs/auditing.md` in `fedibtc/sieve`.
+
+Reviews published before run records existed have nothing stored. Only for those, fall back to `gh run view <id> --log` on `sieve-hub-review.yml` and grep for `agent> `.
