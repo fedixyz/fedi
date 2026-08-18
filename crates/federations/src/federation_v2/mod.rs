@@ -2691,7 +2691,9 @@ impl FederationV2 {
             .filter_map(|(k, v)| async move {
                 match v {
                     WalletV2AwaitingDeposit::Awaiting(created_at) => Some((k.0, created_at)),
-                    WalletV2AwaitingDeposit::Claimed => None,
+                    WalletV2AwaitingDeposit::Claimed | WalletV2AwaitingDeposit::ClaimedBy(_) => {
+                        None
+                    }
                 }
             })
             .collect::<Vec<_>>()
@@ -2722,55 +2724,57 @@ impl FederationV2 {
         }
     }
 
-    /// Handing the note over at render, not from the merge, is what covers a
-    /// claim older than the first page. Returns the note now on the claim.
+    /// Settling at render, not from the merge, is what covers a claim older
+    /// than the first page. Returns the pending entry's id for the claim that
+    /// settled the address, now or on an earlier render; a later claim on the
+    /// same address gets None and keeps its own id.
     async fn settle_walletv2_awaiting_deposit(
         &self,
         address: &str,
         claim_id: OperationId,
-    ) -> Option<String> {
+    ) -> Option<OperationId> {
         let key = WalletV2AwaitingDepositKey(address.to_owned());
+        let pending_id = Self::walletv2_awaiting_deposit_id(address);
         // every rendered onchain deposit reaches this, so don't make the
         // common case a write transaction
-        if !matches!(
-            self.dbtx().await.get_value(&key).await,
-            Some(WalletV2AwaitingDeposit::Awaiting(_))
-        ) {
-            return None;
+        match self.dbtx().await.get_value(&key).await {
+            Some(WalletV2AwaitingDeposit::Awaiting(_)) => {}
+            Some(WalletV2AwaitingDeposit::ClaimedBy(id)) if id == claim_id => {
+                return Some(pending_id);
+            }
+            _ => return None,
         }
-        let pending_id = Self::walletv2_awaiting_deposit_id(address);
-        let result = self
-            .client
+        self.client
             .db()
             .autocommit(
                 |dbtx, _| {
                     let key = key.clone();
                     Box::pin(async move {
-                        dbtx.insert_entry(&key, &WalletV2AwaitingDeposit::Claimed)
-                            .await;
-                        let Some(notes) = dbtx.remove_entry(&TransactionNotesKey(pending_id)).await
-                        else {
-                            return Ok::<Option<String>, anyhow::Error>(None);
-                        };
-                        if let Some(existing) = dbtx.get_value(&TransactionNotesKey(claim_id)).await
-                        {
-                            return Ok(Some(existing));
+                        // re-checked inside the boundary: a concurrent render
+                        // of another claim may have settled the address first
+                        match dbtx.get_value(&key).await {
+                            Some(WalletV2AwaitingDeposit::Awaiting(_)) => {
+                                dbtx.insert_entry(
+                                    &key,
+                                    &WalletV2AwaitingDeposit::ClaimedBy(claim_id),
+                                )
+                                .await;
+                                Ok::<_, anyhow::Error>(Some(pending_id))
+                            }
+                            Some(WalletV2AwaitingDeposit::ClaimedBy(id)) if id == claim_id => {
+                                Ok(Some(pending_id))
+                            }
+                            _ => Ok(None),
                         }
-                        dbtx.insert_entry(&TransactionNotesKey(claim_id), &notes)
-                            .await;
-                        Ok(Some(notes))
                     })
                 },
                 Some(100),
             )
-            .await;
-        match result {
-            Ok(notes) => notes,
-            Err(error) => {
+            .await
+            .unwrap_or_else(|error| {
                 warn!("failed to settle walletv2 awaiting deposit: {error:?}");
                 None
-            }
-        }
+            })
     }
 
     fn entry_created_at(entry: &Result<RpcTransactionListEntry, String>) -> u64 {
@@ -2919,11 +2923,20 @@ impl FederationV2 {
             ref onchain_address,
             ..
         } = transaction.kind
-            && let Some(notes) = self
+            && let Some(pending_id) = self
                 .settle_walletv2_awaiting_deposit(onchain_address, operation_id)
                 .await
         {
-            transaction.txn_notes.get_or_insert(notes);
+            // updateTransactionNotes writes against whatever id was rendered
+            transaction.id = pending_id.fmt_full().to_string();
+            if let Some(notes) = self
+                .dbtx()
+                .await
+                .get_value(&TransactionNotesKey(pending_id))
+                .await
+            {
+                transaction.txn_notes = Some(notes);
+            }
         }
         Ok(Some(transaction))
     }

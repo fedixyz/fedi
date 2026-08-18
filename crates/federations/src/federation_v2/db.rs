@@ -269,7 +269,15 @@ pub enum WalletV2AwaitingDeposit {
     /// walletv2 hands the same address back until its scanner advances the
     /// index, so the row has to outlive the claim: a fresh pending entry there
     /// would attach to the deposit already claimed to it.
+    ///
+    /// Settled without recording the claim op: that claim rendered under its
+    /// own operation id and must keep it, since re-keying it would strand the
+    /// id UIs already hold.
     Claimed,
+    /// The claim operation that settled this address. It renders under the
+    /// pending entry's address-derived id, so the awaiting entry and the
+    /// claim stay one transaction.
+    ClaimedBy(OperationId),
 }
 
 impl_db_record!(

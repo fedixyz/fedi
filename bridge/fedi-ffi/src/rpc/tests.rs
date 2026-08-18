@@ -1678,7 +1678,7 @@ async fn test_walletv2_awaiting_deposit(_dev_fed: DevFed) -> anyhow::Result<()> 
         })
     );
 
-    // the pending entry's id is address-derived, the claim's is not
+    // the pending entry's id is address-derived
     let pending_id = match &listTransactions(federation.clone(), None, None).await?[0] {
         Ok(entry) => entry.transaction.id.clone(),
         Err(e) => bail!("expected an awaiting deposit entry: {e}"),
@@ -1724,7 +1724,8 @@ async fn test_walletv2_awaiting_deposit(_dev_fed: DevFed) -> anyhow::Result<()> 
         )
         .await;
     };
-    assert_ne!(claim.id, pending_id);
+    // a UI keyed by id updates the awaiting row in place
+    assert_eq!(claim.id, pending_id);
     assert_eq!(claim.txn_notes.as_deref(), Some("coffee money"));
 
     // the claim issues the credited notes asynchronously, so the balance
@@ -1759,8 +1760,44 @@ async fn test_walletv2_awaiting_deposit(_dev_fed: DevFed) -> anyhow::Result<()> 
         })
         .collect();
     assert_eq!(deposits.len(), 1);
-    assert_ne!(deposits[0].id, pending_id);
+    assert_eq!(deposits[0].id, pending_id);
     assert_eq!(deposits[0].txn_notes.as_deref(), Some("coffee money"));
+
+    updateTransactionNotes(federation.clone(), pending_id.clone(), "rent".to_owned()).await?;
+    assert_eq!(
+        listTransactions(federation.clone(), None, None)
+            .await?
+            .into_iter()
+            .flatten()
+            .find(|entry| entry.transaction.id == pending_id)
+            .and_then(|entry| entry.transaction.txn_notes),
+        Some("rent".to_owned()),
+    );
+
+    // only the claim that settled the address inherits the pending id
+    bitcoin_cli_send_to_address(&address, "0.05").await?;
+    let second_claim = devimint::util::poll("second deposit to the same address", || async {
+        let txns = listTransactions(federation.clone(), None, None)
+            .await
+            .map_err(|e| ControlFlow::Continue(anyhow!(e)))?;
+        txns.into_iter()
+            .flatten()
+            .find(|entry| {
+                entry.transaction.id != pending_id
+                    && matches!(
+                        &entry.transaction.kind,
+                        RpcTransactionKind::OnchainDeposit {
+                            onchain_address,
+                            state: Some(RpcOnchainDepositState::Claimed(_)),
+                            ..
+                        } if onchain_address == &address
+                    )
+            })
+            .map(|entry| entry.transaction)
+            .ok_or_else(|| ControlFlow::Continue(anyhow!("second claim not visible")))
+    })
+    .await?;
+    assert_eq!(second_claim.txn_notes, None);
 
     // walletv2 only advances its receive address after the scanner claims,
     // and that search lags, so asking again can hand back the used address
@@ -1776,7 +1813,7 @@ async fn test_walletv2_awaiting_deposit(_dev_fed: DevFed) -> anyhow::Result<()> 
             )
         })
         .count();
-    assert_eq!(onchain_rows, if reissued == address { 1 } else { 2 });
+    assert_eq!(onchain_rows, if reissued == address { 2 } else { 3 });
 
     Ok(())
 }
