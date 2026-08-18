@@ -6,7 +6,7 @@ name: 'Sieve hub sweep'
 on:
     schedule:
         # Sweep latency is the review latency.
-        - cron: '*/15 * * * *'
+        - cron: '*/30 * * * *'
     workflow_dispatch:
         inputs:
             repos:
