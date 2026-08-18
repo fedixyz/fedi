@@ -47,6 +47,11 @@ for target in "${TARGETS[@]}"; do
   env "${cpu_pin[@]}" cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}" --package fedi-ffi ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} --target $target $CARGO_FLAGS
 done
 
+for target in "${TARGETS[@]}"; do
+  "$REPO_ROOT/scripts/bridge/check-ios-min-version-imports.sh" \
+    "$CARGO_BUILD_TARGET_DIR/$target/${CARGO_PROFILE_DIR}/libfediffi.a"
+done
+
 # make sure build artifacts are available to the fedi-swift Xcode package
 cd $BRIDGE_ROOT/fedi-swift
 mv Sources/Fedi/fedi.swift Sources/Fedi/Fedi.swift || true

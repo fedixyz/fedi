@@ -244,3 +244,5 @@ uniffi = { git = "https://github.com/mozilla/uniffi-rs", rev = "f5fc9d7e9aa08889
 iroh = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }
 iroh-base = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }
 iroh-relay = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }
+# drop once netwatch requires netdev 0.46, https://github.com/n0-computer/net-tools/issues/207
+netdev = { git = "https://github.com/fedibtc/netdev", rev = "acc3a9d0c9b8768f20bca7bcfc3b3546946995e7" }
