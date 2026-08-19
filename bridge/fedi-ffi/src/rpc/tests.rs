@@ -31,7 +31,7 @@ use nostr::nips::nip44;
 use rpc_types::communities::{CommunityInvite, CommunityInviteV1};
 use rpc_types::event::TransactionEvent;
 use rpc_types::{
-    RpcLightningGatewayId, RpcLnPayState, RpcLnReceiveState, RpcOOBReissueState,
+    RpcEcashInfo, RpcLightningGatewayId, RpcLnPayState, RpcLnReceiveState, RpcOOBReissueState,
     RpcOnchainDepositState, RpcOnchainWithdrawState, RpcReturningMemberStatus,
     RpcSPV2TransferInState, RpcTransactionDirection, RpcTransactionKind,
 };
@@ -308,6 +308,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_backup_and_recovery,
         test_backup_and_recovery_from_scratch,
         test_parse_ecash,
+        test_parse_ecash_v2_embeds_invite,
         test_social_backup_and_recovery,
         test_stability_pool,
         test_stability_pool_external_transfer_in,
@@ -2157,6 +2158,58 @@ async fn test_parse_ecash(_dev_fed: DevFed) -> anyhow::Result<()> {
     let bridge = td.bridge_full().await?;
     let v2_ecash = "AgEEsuFO5gD3AwQBmW/h68gy6W5cgnl93aTdduN1OnnFofSCqjth03Q6CA+fXnKlVXQSIVSLqcHzsbhozAuo2q5jPMsO6XMZZZXaYvZyIdXzCUIuDNhdCHkGJWAgAa9M5zsSPPVWDVeCWgkerg0Z+Xv8IQGMh7rsgpLh77NCSVRKA2i4fBYNwPglSbkGs42Yllmz6HJtgmmtl/tdjcyVSR30Nc2cfkZYTJcEEnRjQAGC8ZX5eLYQB8rCAZiX5/gQX2QtjasZMy+BJ67kJ0klVqsS9G1IVWhea6ILISOd9H1MJElma8aHBiWBaWeGjrCXru8Ns7Lz4J18CbxFdHyWEQ==";
     parseEcash(&bridge.federations, v2_ecash.into()).await?;
+    Ok(())
+}
+
+/// Ecash generated with `include_invite` on a kind-two federation must carry
+/// the federation invite so a non-member device can join and claim from the
+/// ecash string alone.
+async fn test_parse_ecash_v2_embeds_invite(_dev_fed: DevFed) -> anyhow::Result<()> {
+    if !devimint::util::supports_mint_v2() {
+        info!("Skipping kind-two ecash invite test on a kind-one federation");
+        return Ok(());
+    }
+
+    let td = TestDevice::new().await?;
+    let federation = td.join_default_fed().await?;
+    let fund = cli_generate_ecash(fedimint_core::Amount::from_msats(200_000)).await?;
+    federation
+        .receive_ecash(fund, FrontendMetadata::default())
+        .await?;
+    wait_for_ecash_reissue(federation).await?;
+
+    // a multiple of 512 msats, so the sent notes sum to exactly this amount
+    let send_amount = fedimint_core::Amount::from_msats(102_400);
+    let send_ecash = generateEcash(
+        federation.clone(),
+        RpcAmount(send_amount),
+        true,
+        FrontendMetadata::default(),
+    )
+    .await?
+    .ecash;
+
+    let td2 = TestDevice::new().await?;
+    let bridge2 = td2.bridge_full().await?;
+    let RpcEcashInfo::NotJoined {
+        federation_invite: Some(invite),
+        amount,
+    } = parseEcash(&bridge2.federations, send_ecash.clone()).await?
+    else {
+        bail!("v2 ecash parsed on a non-member device must carry the federation invite");
+    };
+    assert_eq!(amount.0, send_amount);
+
+    let fed2_rpc = joinFederation(bridge2, invite, false).await?;
+    assert_eq!(fed2_rpc.id, federation.rpc_federation_id());
+    let federation2 = bridge2
+        .federations
+        .get_federation_maybe_recovering(&fed2_rpc.id.0)?;
+    federation2
+        .receive_ecash(send_ecash, FrontendMetadata::default())
+        .await?;
+    wait_for_ecash_reissue(&federation2).await?;
+    balance_after_receiving_ecash(&federation2, send_amount).await;
     Ok(())
 }
 

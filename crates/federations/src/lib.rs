@@ -285,7 +285,9 @@ impl Federations {
                 }
             }
             return Ok(RpcEcashInfo::NotJoined {
-                federation_invite: None,
+                federation_invite: v2_ecash
+                    .federation_invite()
+                    .map(|invite| invite.to_string()),
                 amount,
             });
         }

@@ -186,9 +186,6 @@ impl MintOps for MintOpsV2 {
     ) -> Result<RpcGenerateEcashResponse> {
         let _guard = fed.generate_ecash_lock.lock().await;
         let mintv2 = fed.client.mintv2()?;
-        // v2 ecash has no invite-code embedding. "Cancel" is implemented as
-        // receiving the notes back to self, recorded as a separate reclaim tx.
-        let _ = include_invite;
         let fees_by_stream = fed
             .get_fee_amounts_by_stream(
                 fedimint_mint_client::KIND,
@@ -219,10 +216,12 @@ impl MintOps for MintOpsV2 {
         // spend guard indefinitely. v1 instead releases the guard around its
         // change round, but mintv2's send interleaves selection and
         // change-making behind one call, so bounding is what the bridge can do.
-        let (operation_id, ecash) =
-            timeout(REISSUE_ECASH_TIMEOUT, mintv2.send(amount, custom_meta))
-                .await
-                .context(ErrorCode::OfflineExactEcashFailed)??;
+        let (operation_id, ecash) = timeout(
+            REISSUE_ECASH_TIMEOUT,
+            mintv2.send(amount, custom_meta, include_invite),
+        )
+        .await
+        .context(ErrorCode::OfflineExactEcashFailed)??;
         let sent_amount = ecash.amount();
         let ecash = encode_prefixed(FEDIMINT_PREFIX, &ecash);
         let settled_fees_by_stream = fed
