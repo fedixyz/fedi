@@ -179,7 +179,9 @@ for repo in $repos; do
     done <<<"$prs"
 done
 
-echo "Dispatched $dispatched review(s); skipped $skipped_reviewed already reviewed, $skipped_not_ready not green, $skipped_stale reviewable before the cutoff"
+report="dispatched $dispatched review(s), skipped $skipped_reviewed already reviewed, $skipped_not_ready not green, $skipped_stale reviewable before the cutoff"
+echo "::notice::$report"
+echo "$report" >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
 if [ ${#failures[@]} -gt 0 ]; then
     echo "::error::sweep failed for: ${failures[*]}"
     exit 1

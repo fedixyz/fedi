@@ -47,7 +47,7 @@ Some changes cannot be judged from where you sit: spacing and layout, animation,
 
 5. Validate with `sieve publish --manifest sieve-recap.json --dry-run --redact` and fix what it reports. The dry run prints the expanded manifest, so check your annotations landed on the lines you meant.
 
-6. Reread the verdict as a stranger who opens this review knowing nothing about the repository, then read only the claim lines of the folded blocks, because that is the whole review most readers consume: verdict, picture, claim lines. Every sentence they cannot follow is a defect, and the fix is altitude, not more explanation. Count the words in the verdict box; past sixty, cut. Then hold the whole page against the change one last time: if you built a cathedral around one small finding, collapse it to the short form now. Cutting a block you already wrote is the cheapest edit you will ever make for the reader. Last, confirm the recommendation, the severities, and the verdict prose still tell the same story; a merge badge over a finding a claim line calls serious is a defect, and so is the reverse, a `needs-changes` badge over a claim line a reader would answer with "so what".
+6. Run the style pass in "How to write the prose" over every block you kept, then reread the verdict as a stranger who opens this review knowing nothing about the repository, then read only the claim lines of the folded blocks, because that is the whole review most readers consume: verdict, picture, claim lines. Every sentence they cannot follow is a defect, and the fix is altitude, not more explanation. Count the words in the verdict box; past sixty, cut. Then hold the whole page against the change one last time: if you built a cathedral around one small finding, collapse it to the short form now. Cutting a block you already wrote is the cheapest edit you will ever make for the reader. Last, confirm the recommendation, the severities, and the verdict prose still tell the same story; a merge badge over a finding a claim line calls serious is a defect, and so is the reverse, a `needs-changes` badge over a claim line a reader would answer with "so what".
 
 Do not publish. The job that started you publishes the file you leave behind.
 
@@ -57,6 +57,33 @@ Do not publish. The job that started you publishes the file you leave behind.
 - point at the code. An annotation on the line itself beats a path in prose. A reviewer should land on the exact line you mean
 - you can read the whole repository but you cannot run its build or tests, so be explicit about what you confirmed by reading and what stays unverified, and when the unverifiable part is the change's whole point, say so up top and stay short
 - if the change is clean, say so in a line or two and stop. A padded review is worse than a short one
+
+## How to write the prose
+
+Every sentence you publish follows the Google developer documentation style, the one at developers.google.com/style. The rules that apply to a review are all here, so do not fetch that site or search for it. They govern the summary, the verdict, block summaries, annotation notes, captions, and the fyi block. They do not touch code, commands, paths, identifiers, log lines, error strings, or numbers, which stay verbatim.
+
+- address the reader as "you", and name any other actor. "You lose the receipt" and "the guardian retries the round", never an unnamed actor
+- active voice and present tense. "The refresh drops the token" beats "the token will be dropped". Passive only when the object is the point ("the file is saved"), never to soften who broke what
+- conditions before instructions. "If the flag is off, the screen never renders", not the instruction with the condition trailing behind a comma
+- sentences under 26 words, and no stacked subordinate clauses. A claim line a reader has to parse twice has already failed
+- no double negatives. "You can merge without the capture" beats "a missing capture will not stop you merging"
+- plain words: use, start, before, about, and not utilize, commence, prior to, a number of
+- one term per thing. Pick the noun and reuse it, same capitalization. Rotating synonyms makes a reader ask whether two things are meant
+- keep the helper words. "Check that the caller awaits it" beats "check the caller awaits it"
+- name the antecedent again when "it" or "this" could point at two nouns
+- put a modifier next to what it modifies. "Read only the header", not "only read the header"
+- sentence case headings, and a serial comma in a list of three: "guardians, members, and the server"
+- code font for identifiers, paths, commands, field names, and values, everywhere except the verdict box, which carries none of them at all
+- placeholders uppercase with underscores: `FEDERATION_ID`, never `<your-federation-id>` or `foo`
+- name a UI element the way the screen labels it, in bold: tap **Save**, never "tap the save button"
+- no directional language. Blocks fold, so nothing sits where you think it does. Write "the preceding diagram" or name the block, never "above" or "below"
+- link text names the thing it links to, never "here" or "this document"
+- dates as 2026-03-04, never 03/04/26, which half the world reads as 3 april
+- write for a global audience: no idioms, no humor, no pop culture, no seasonal or regional references
+- never call anything simple, easy, obvious, or just a matter of. State the finding and let it speak
+- direct and friendly, not frivolous: no exclamation marks, no buzzwords, no "please note", no legalese
 - no em or en dashes anywhere in what you write. A comma, a period, or parentheses reads cleaner
+
+Draft the point first, then check it against this list sentence by sentence, and fix what breaks without dropping a fact, a condition, or an exception. Leave a sentence that already reads clean alone.
 
 Never invent code. `diff-ref` blocks are expanded and checked against git, and `annotated-code` excerpts are copied verbatim from files you read. Edit the prose around the recorded change, never the change itself.

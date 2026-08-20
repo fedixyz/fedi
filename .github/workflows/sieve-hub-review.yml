@@ -52,43 +52,12 @@ jobs:
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-            - name: Check the comment calls sieve by name
-              id: trigger
-              if: github.event_name == 'issue_comment'
+            - name: Capture and publish the review
+              id: review
               env:
-                  COMMENT_BODY: ${{ github.event.comment.body }}
-              run: ./scripts/ci/sieve-comment-trigger.sh
-
-            - name: Resolve the deployed sieve release
-              id: sieve-release
-              if: steps.trigger.outputs.matched != 'false'
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  # Avoid anonymous GitHub API rate limits during the Nix fetch.
-                  NIX_CONFIG: access-tokens = github.com=${{ github.token }}
-              # The runner has no gh on PATH.
-              run: nix shell nixpkgs#gh --command ./scripts/ci/sieve-latest-release.sh >> "$GITHUB_OUTPUT"
-
-            - name: Capture UI screenshots on an emulator
-              if: steps.trigger.outputs.matched != 'false'
-              # A capture failure must never cost the review itself.
-              continue-on-error: true
-              env:
-                  # capture never leaves this repo
-                  GH_TOKEN: ${{ github.token }}
-                  # Avoid anonymous GitHub API rate limits during the Nix fetch.
-                  NIX_CONFIG: access-tokens = github.com=${{ github.token }}
                   REPO: ${{ inputs.repo || github.repository }}
                   PR_NUMBER: ${{ inputs.pr_number || github.event.issue.number }}
-                  OUT_DIR: ${{ github.workspace }}/sieve-screenshots
-              # The dev shell carries the emulator and app toolchain; the
-              # runner has no gh, jq, or imagemagick on PATH.
-              run: nix develop -c nix shell nixpkgs#gh nixpkgs#jq nixpkgs#imagemagick --command ./scripts/ci/sieve-hub-capture.sh
-
-            - name: Publish review and sticky PR comment
-              if: steps.trigger.outputs.matched != 'false'
-              env:
-                  SIEVE_REV: ${{ steps.sieve-release.outputs.rev }}
+                  COMMENT_BODY: ${{ github.event.comment.body }}
                   SIEVE_TOKEN: ${{ secrets.SIEVE_TOKEN }}
                   # Either credential runs the agent; with neither the job
                   # falls back to a mechanical recap.
@@ -98,10 +67,32 @@ jobs:
                   GH_TOKEN: ${{ secrets.GH_PAT_FEDIBTC_READ_ONLY || github.token }}
                   # Avoid anonymous GitHub API rate limits during the Nix fetch.
                   NIX_CONFIG: access-tokens = github.com=${{ github.token }}
-                  # claude-code is unfree; nix only honors this when the eval is --impure.
-                  NIXPKGS_ALLOW_UNFREE: '1'
-                  REPO: ${{ inputs.repo || github.repository }}
-                  PR_NUMBER: ${{ inputs.pr_number || github.event.issue.number }}
-                  SIEVE_SCREENSHOTS_DIR: ${{ github.workspace }}/sieve-screenshots
-              # The generic Linux binary does not run on NixOS.
-              run: nix shell --impure "github:fedibtc/sieve/${SIEVE_REV}#sieve" nixpkgs#claude-code nixpkgs#gh nixpkgs#jq nixpkgs#git --command ./scripts/ci/sieve-hub-review.sh "$REPO" "$PR_NUMBER"
+              run: ./scripts/ci/sieve-hub-review.sh
+
+            # installation tokens expire after an hour, and the review step
+            # alone often runs longer
+            - name: Mint the app token the comment posts under
+              id: comment-token
+              if: steps.review.outputs.review_id != '' && vars.SIEVE_HUB_APP_ID != ''
+              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              with:
+                  app-id: ${{ vars.SIEVE_HUB_APP_ID }}
+                  private-key: ${{ secrets.SIEVE_HUB_APP_PRIVATE_KEY }}
+                  owner: fedibtc
+
+            # this step also deletes the checkout, so it runs even on failure
+            - name: Post the sticky PR comment
+              if: always() && steps.review.outputs.workdir != ''
+              env:
+                  SIEVE_REV: ${{ steps.review.outputs.rev }}
+                  SIEVE_TOKEN: ${{ secrets.SIEVE_TOKEN }}
+                  SIEVE_REVIEW_ID: ${{ steps.review.outputs.review_id }}
+                  SIEVE_WORKDIR: ${{ steps.review.outputs.workdir }}
+                  # a comment from a person re-triggers this workflow, since
+                  # the job's bot check only skips a Bot author
+                  GH_TOKEN: ${{ steps.comment-token.outputs.token || secrets.GH_PAT_FEDIBTC_READ_ONLY || github.token }}
+                  # the app is installed on selected repos only
+                  SIEVE_FALLBACK_GH_TOKEN: ${{ secrets.GH_PAT_FEDIBTC_READ_ONLY || github.token }}
+                  # Avoid anonymous GitHub API rate limits during the Nix fetch.
+                  NIX_CONFIG: access-tokens = github.com=${{ github.token }}
+              run: ./scripts/ci/sieve-hub-pr-comment.sh
