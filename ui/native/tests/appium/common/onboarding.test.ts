@@ -1,4 +1,6 @@
 /* eslint-disable no-console */
+import { BIP39_WORD_LIST } from '@fedi/common/constants/bip39'
+
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 import { setupOnboarded } from '../fixtures/setupOnboarded'
 
@@ -85,8 +87,9 @@ export class OnboardingTest extends AppiumTestBase {
         await new Promise(resolve => setTimeout(resolve, 1000))
         await this.scrollToElement('Personal Backup')
         await this.clickElementByKey('Personal Backup')
+        await this.waitForElementDisplayed('SeedWord12')
+        await assertPersonalBackupSeedPhrase(this)
         await this.clickElementByKey('ContinueButton')
-        // TODO: validate backup here
         // TODO: test pin access
         // TODO: test nostr details
         await this.scrollToElement('FediGlobal(Nightly)CommAccordionButton')
@@ -109,5 +112,21 @@ export class OnboardingTest extends AppiumTestBase {
     }
     catch(error: unknown) {
         console.error('Onboarding test failed:', error)
+    }
+}
+
+async function assertPersonalBackupSeedPhrase(
+    t: AppiumTestBase,
+): Promise<void> {
+    const words: string[] = []
+    for (let i = 1; i <= 12; i++) {
+        words.push((await t.getTextByKey(`SeedWord${i}`)).trim().toLowerCase())
+    }
+
+    const invalidWords = words.filter(word => !BIP39_WORD_LIST.includes(word))
+    if (invalidWords.length > 0) {
+        throw new Error(
+            `Personal backup rendered invalid seed words: ${invalidWords.join(', ')}`,
+        )
     }
 }
