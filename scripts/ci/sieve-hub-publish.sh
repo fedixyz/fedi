@@ -75,7 +75,7 @@ hand_off_comment() {
     echo "::notice::published $url"
     echo "[sieve review for $repo#$number]($url)" >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
     if [ -z "${GITHUB_OUTPUT:-}" ]; then
-        sieve --host "$SIEVE_HOST" pr-comment "$review_id"
+        sieve --host "$SIEVE_HOST" pr-comment -- "$review_id"
         return
     fi
     {
@@ -112,7 +112,7 @@ fi
 feedback=sieve-prior-feedback.json
 prior=$(sieve --json --host "$SIEVE_HOST" list --repo "$repo" 2>/dev/null |
     jq -r --arg key "$repo#$branch" 'first(.reviews[]? | select(.idempotencyKey == $key) | .id) // empty') || prior=""
-if [ -n "$prior" ] && sieve --json --host "$SIEVE_HOST" feedback "$prior" >"$feedback" 2>/dev/null; then
+if [ -n "$prior" ] && sieve --json --host "$SIEVE_HOST" feedback -- "$prior" >"$feedback" 2>/dev/null; then
     echo "prior review $prior carries $(jq '[.actionableThreads[]?, .fyiThreads[]?, .resolvedThreads[]?] | length' "$feedback") human thread(s)"
 else
     rm -f "$feedback"

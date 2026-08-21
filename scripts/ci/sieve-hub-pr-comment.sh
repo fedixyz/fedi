@@ -38,7 +38,7 @@ fi
 
 cd "$workdir/repo"
 
-if "${sieve[@]}" pr-comment "$review_id"; then
+if "${sieve[@]}" pr-comment -- "$review_id"; then
     exit 0
 fi
 
@@ -49,4 +49,4 @@ if [ -z "${SIEVE_FALLBACK_GH_TOKEN:-}" ] || [ "${SIEVE_FALLBACK_GH_TOKEN}" = "${
     exit 1
 fi
 echo "::warning::the app could not post the sticky comment, so it posts under the fallback credential; check that fedi-sieve is installed on this repo and can edit the comment already there"
-GH_TOKEN=$SIEVE_FALLBACK_GH_TOKEN "${sieve[@]}" pr-comment "$review_id"
+GH_TOKEN=$SIEVE_FALLBACK_GH_TOKEN "${sieve[@]}" pr-comment -- "$review_id"
