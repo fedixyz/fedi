@@ -281,6 +281,16 @@
                 git diff --check HEAD
                 treefmt -q --fail-on-change
             '';
+            just.rules.final-check.content = lib.mkForce ''
+              # run all checks recommended before opening a PR
+              final-check: lint clippy
+                #!/usr/bin/env bash
+                set -euo pipefail
+                if [ ! -f Cargo.toml ]; then
+                  cd {{invocation_directory()}}
+                fi
+                just test-bridge
+            '';
             # Keep the checked-in skill project-owned; Flakebox should not refresh it
             # as a side effect of unrelated toolchain updates.
             rootDir.".agents/skills/agent-browser".source = ./.agents/skills/agent-browser;

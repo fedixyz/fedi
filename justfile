@@ -28,7 +28,7 @@ final-check: lint clippy
   if [ ! -f Cargo.toml ]; then
     cd {{invocation_directory()}}
   fi
-  just test
+  just test-bridge
 
 
 # run code formatters
