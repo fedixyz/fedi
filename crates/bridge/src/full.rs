@@ -8,9 +8,18 @@ use communities::Communities;
 use device_registration::DeviceRegistrationService;
 use federations::Federations;
 use federations::federation_v2::FederationV2;
+use fedi_decentralized_push_gateway_types::FcmRegistrationToken;
 use fedimint_core::core::ModuleKind;
 use multispend::services::MultispendServices;
 use nostril::Nostril;
+use rpc_types::fi_client::{
+    RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiEligiblePayersResult,
+    RpcFiFederationMetadataUpdate, RpcFiFormationIntent, RpcFiLiquidityDiscoveryResult,
+    RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult, RpcFiLiquidityOperationResult,
+    RpcFiLiquidityRequestIntent, RpcFiOperationError, RpcFiOperationResult, RpcFiPushPlatform,
+    RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest,
+    RpcFiSelectionPreviewResult,
+};
 use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
 use runtime::storage::state::{DeviceIdentifier, ModuleFediFeeSchedule};
@@ -21,6 +30,12 @@ use tracing::error;
 use ts_rs::TS;
 
 use crate::bg_matrix::BgMatrix;
+use crate::fi_client::{
+    BridgeFiClient, BridgeFiDriver, FiFederationHandoffLocks, fi_client_status_to_rpc,
+    fi_error_to_rpc, fi_push_error_to_rpc, open_fi_client, start_fi_driver,
+    start_fi_federation_auto_join, suppress_fi_federation_auto_join,
+};
+use crate::fi_push::{BridgeFiPushGateway, FiPushError, FiPushPlatform};
 use crate::providers::{
     FederationProviderWrapper, MultispendNotificationsProvider, SptFederationProviderWrapper,
     SptNotificationsProvider,
@@ -41,6 +56,15 @@ pub struct BridgeFull {
     pub sp_transfers_services: Arc<SptServices>,
     pub device_registration_service: Arc<DeviceRegistrationService>,
     pub nostril: Arc<Nostril>,
+    /// Dormant FI service. Initialization errors are retained without
+    /// offboarding an otherwise healthy wallet.
+    fi_client: std::result::Result<Arc<BridgeFiClient>, Arc<fi_client::FiError>>,
+    /// Seed- and installation-bound client for Manifold's push gateway.
+    fi_push_gateway: std::result::Result<Arc<BridgeFiPushGateway>, Arc<FiPushError>>,
+    /// The sole owner of long-running FI formation, liquidity, and maintenance
+    /// operations.
+    pub(crate) fi_driver: Option<BridgeFiDriver>,
+    fi_federation_handoff_locks: Arc<FiFederationHandoffLocks>,
 }
 
 #[derive(Debug, TS, Serialize, PartialEq)]
@@ -72,6 +96,270 @@ impl Display for BridgeOffboardingReason {
 }
 
 impl BridgeFull {
+    pub async fn leave_federation(&self, federation_id: &str) -> anyhow::Result<()> {
+        let _handoff_guard = self.fi_federation_handoff_locks.lock(federation_id).await;
+        suppress_fi_federation_auto_join(&self.runtime, federation_id).await;
+        self.federations.leave_federation(federation_id).await
+    }
+
+    pub fn fi_status_receiver(
+        &self,
+    ) -> Result<tokio::sync::watch::Receiver<fi_client::FiStatus>, RpcFiOperationError> {
+        self.fi_client
+            .as_ref()
+            .map(|client| client.observe())
+            .map_err(|_| self.fi_initialization_error())
+    }
+
+    pub fn fi_client_status(&self) -> RpcFiClientStatus {
+        fi_client_status_to_rpc(&self.fi_client)
+    }
+
+    pub async fn fi_eligible_payers(&self) -> RpcFiEligiblePayersResult {
+        match &self.fi_driver {
+            Some(driver) => driver.eligible_payers().await,
+            None => RpcFiEligiblePayersResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_register_push_installation(
+        &self,
+        fcm_token: String,
+        platform: RpcFiPushPlatform,
+    ) -> RpcFiPushRegistrationResult {
+        let gateway = match &self.fi_push_gateway {
+            Ok(gateway) => gateway,
+            Err(error) => {
+                return RpcFiPushRegistrationResult::Error {
+                    error: fi_push_error_to_rpc(error),
+                };
+            }
+        };
+        let platform = match platform {
+            RpcFiPushPlatform::Android => FiPushPlatform::Android,
+            RpcFiPushPlatform::Ios => FiPushPlatform::Ios,
+        };
+        match gateway
+            .register_installation(FcmRegistrationToken(fcm_token), platform)
+            .await
+        {
+            Ok(()) => RpcFiPushRegistrationResult::Registered {
+                installation_id: gateway.installation_id().to_owned(),
+            },
+            Err(error) => RpcFiPushRegistrationResult::Error {
+                error: fi_push_error_to_rpc(&error),
+            },
+        }
+    }
+
+    pub async fn fi_unregister_push_installation(&self) -> RpcFiPushRegistrationResult {
+        let gateway = match &self.fi_push_gateway {
+            Ok(gateway) => gateway,
+            Err(error) => {
+                return RpcFiPushRegistrationResult::Error {
+                    error: fi_push_error_to_rpc(error),
+                };
+            }
+        };
+        match gateway.unregister_installation().await {
+            Ok(()) => RpcFiPushRegistrationResult::Unregistered {
+                installation_id: gateway.installation_id().to_owned(),
+            },
+            Err(error) => RpcFiPushRegistrationResult::Error {
+                error: fi_push_error_to_rpc(&error),
+            },
+        }
+    }
+
+    pub async fn fi_liquidity_discover(
+        &self,
+        intent: RpcFiLiquidityRequestIntent,
+        network: RpcFiLiquidityNetwork,
+    ) -> RpcFiLiquidityDiscoveryResult {
+        match &self.fi_driver {
+            Some(driver) => driver.discover_liquidity(intent, network).await,
+            None => RpcFiLiquidityDiscoveryResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_liquidity_start(
+        &self,
+        formation_id: String,
+        provider_pubkey: String,
+        intent: RpcFiLiquidityRequestIntent,
+    ) -> RpcFiLiquidityOperationResult {
+        match &self.fi_driver {
+            Some(driver) => {
+                driver
+                    .start_liquidity(formation_id, provider_pubkey, intent)
+                    .await
+            }
+            None => RpcFiLiquidityOperationResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_liquidity_resume(&self, operation_id: String) -> RpcFiLiquidityOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.resume_liquidity(operation_id).await,
+            None => RpcFiLiquidityOperationResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_liquidity_status(&self, operation_id: String) -> RpcFiLiquidityOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.liquidity_status(operation_id).await,
+            None => RpcFiLiquidityOperationResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_liquidity_current(&self) -> RpcFiCurrentLiquidityOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.current_liquidity_operation().await,
+            None => RpcFiCurrentLiquidityOperationResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_liquidity_list(
+        &self,
+        after: Option<String>,
+    ) -> RpcFiLiquidityOperationPageResult {
+        match &self.fi_driver {
+            Some(driver) => driver.list_liquidity_operations(after).await,
+            None => RpcFiLiquidityOperationPageResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_update_federation_metadata(
+        &self,
+        update: RpcFiFederationMetadataUpdate,
+    ) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.update_federation_metadata(update).await,
+            None => self.fi_initialization_failure(),
+        }
+    }
+
+    pub async fn fi_set_guardian_fee(&self, guardian_fee_ppm: u32) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.set_guardian_fee(guardian_fee_ppm).await,
+            None => self.fi_initialization_failure(),
+        }
+    }
+    pub async fn fi_create_pinned(
+        &self,
+        intent: RpcFiFormationIntent,
+        locators: Vec<String>,
+    ) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.create_pinned(intent, locators).await,
+            None => self.fi_initialization_failure(),
+        }
+    }
+
+    pub async fn fi_preview_selection(
+        &self,
+        request: RpcFiSelectionPreviewRequest,
+    ) -> RpcFiSelectionPreviewResult {
+        match &self.fi_driver {
+            Some(driver) => driver.preview_selection(request).await,
+            None => RpcFiSelectionPreviewResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_pay_and_create(
+        &self,
+        preview_id: String,
+        intent: RpcFiFormationIntent,
+        payment_federation_id: String,
+        max_total_msats: u64,
+    ) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => {
+                driver
+                    .pay_and_create(preview_id, intent, payment_federation_id, max_total_msats)
+                    .await
+            }
+            None => self.fi_initialization_failure(),
+        }
+    }
+
+    pub async fn fi_preview_replacements(&self) -> RpcFiReplacementPreviewResult {
+        match &self.fi_driver {
+            Some(driver) => driver.preview_replacements().await,
+            None => RpcFiReplacementPreviewResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_apply_replacements(
+        &self,
+        preview_id: String,
+        max_total_msats: u64,
+    ) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.apply_replacements(preview_id, max_total_msats).await,
+            None => self.fi_initialization_failure(),
+        }
+    }
+
+    pub async fn fi_resume(&self) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.resume().await,
+            None => self.fi_initialization_failure(),
+        }
+    }
+
+    pub async fn fi_abandon(&self) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.abandon().await,
+            None => self.fi_initialization_failure(),
+        }
+    }
+
+    pub async fn fi_authorize_replacement_payments(
+        &self,
+        authorization_id: String,
+    ) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => {
+                driver
+                    .authorize_replacement_payments(authorization_id)
+                    .await
+            }
+            None => self.fi_initialization_failure(),
+        }
+    }
+
+    fn fi_initialization_failure(&self) -> RpcFiOperationResult {
+        RpcFiOperationResult::Error {
+            error: self.fi_initialization_error(),
+        }
+    }
+
+    fn fi_initialization_error(&self) -> rpc_types::fi_client::RpcFiOperationError {
+        let Err(error) = &self.fi_client else {
+            unreachable!("an FI driver is absent only when FI client initialization failed");
+        };
+        fi_error_to_rpc(error)
+    }
+
     pub async fn new(
         runtime: Arc<Runtime>,
         device_identifier: DeviceIdentifier,
@@ -107,10 +395,10 @@ impl BridgeFull {
         let multispend_notifications =
             Arc::new(MultispendNotificationsProvider(multispend_services.clone()));
 
-        let nostril = Arc::new(Nostril::new(&runtime).await);
-
-        // Load communities and federations services
-        let communities = Communities::init(runtime.clone(), nostril.clone()).await;
+        // The federations service is constructed before the FI client so the
+        // FI payment adapter can hold it; joined federations still load in
+        // the background below, and an FI payment against a still-loading
+        // federation fails with a retryable error.
         let spt_notifier = Arc::new(SptTransferCompleteNotifier::new(runtime.clone()));
         let spt_notifications = Arc::new(SptNotificationsProvider(spt_notifier.clone()));
         let federations = Arc::new(Federations::new(
@@ -119,10 +407,50 @@ impl BridgeFull {
             spt_notifications,
             device_registration_service.clone(),
         ));
+
+        let nostril = Arc::new(Nostril::new(&runtime).await);
+        let push_root_secret = runtime.app_state.root_secret().await;
+        let fi_push_gateway = BridgeFiPushGateway::from_parts(
+            &push_root_secret,
+            runtime.feature_catalog.runtime_env,
+            &device_identifier,
+            runtime
+                .feature_catalog
+                .fi_push_gateway
+                .as_ref()
+                .map(|config| config.api_base_url.clone()),
+        )
+        .map(Arc::new)
+        .map_err(Arc::new);
+        let fi_client = open_fi_client(&runtime, federations.clone())
+            .await
+            .map(Arc::new)
+            .map_err(Arc::new);
+        let fi_driver = fi_client.as_ref().ok().map(|client| {
+            start_fi_driver(
+                &runtime,
+                client.clone(),
+                federations.clone(),
+                fi_push_gateway.clone(),
+            )
+        });
+
+        // Load communities and federations services
+        let communities = Communities::init(runtime.clone(), nostril.clone()).await;
         federations.load_joined_federations_in_background().await;
 
         let spt_provider = Arc::new(SptFederationProviderWrapper(federations.clone()));
         let sp_transfers_services = SptServices::new(runtime.clone(), spt_provider, spt_notifier);
+        let fi_federation_handoff_locks = Arc::new(FiFederationHandoffLocks::default());
+        if let Ok(client) = &fi_client {
+            start_fi_federation_auto_join(
+                &runtime,
+                client.observe(),
+                federations.clone(),
+                sp_transfers_services.clone(),
+                fi_federation_handoff_locks.clone(),
+            );
+        }
 
         let nostr_pubkey = nostril.get_pub_key().await.unwrap().npub;
 
@@ -142,6 +470,10 @@ impl BridgeFull {
             multispend_services,
             sp_transfers_services,
             nostril,
+            fi_client,
+            fi_push_gateway,
+            fi_driver,
+            fi_federation_handoff_locks,
         };
 
         bridge.start_bg().await;

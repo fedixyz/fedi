@@ -82,3 +82,7 @@ rusqlite = { version = "*", features = ["bundled"] }
 
 [build-dependencies]
 fedimint-build = { workspace = true }
+
+[dev-dependencies]
+fedimint-cursed-redb = { workspace = true }
+tempfile = { workspace = true }

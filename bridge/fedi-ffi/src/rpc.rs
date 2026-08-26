@@ -11,6 +11,7 @@ use anyhow::{Context, bail};
 use bitcoin::Amount;
 use bitcoin::secp256k1::Message;
 use bridge::bg_matrix::BgMatrix;
+use bridge::fi_client::fi_client_status_stream;
 use bridge::onboarding::BridgeOnboarding;
 use bridge::providers::FederationProviderWrapper;
 use bridge::{Bridge, BridgeFull, RpcBridgeStatus, RuntimeExt as _};
@@ -46,6 +47,14 @@ use multispend::{
 use rpc_types::communities::RpcCommunity;
 use rpc_types::error::{ErrorCode, RpcError};
 use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
+use rpc_types::fi_client::{
+    RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiEligiblePayersResult,
+    RpcFiFederationMetadataUpdate, RpcFiFormationIntent, RpcFiLiquidityDiscoveryResult,
+    RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult, RpcFiLiquidityOperationResult,
+    RpcFiLiquidityRequestIntent, RpcFiMsats, RpcFiOperationResult, RpcFiPushPlatform,
+    RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest,
+    RpcFiSelectionPreviewResult,
+};
 use rpc_types::matrix::{
     RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession, RpcMatrixInitializeStatus,
     RpcMatrixUploadResult, RpcMatrixUserDirectorySearchResponse, RpcPublicRoomInfo, RpcRoomId,
@@ -361,10 +370,10 @@ async fn listFederations(
 
 #[macro_rules_derive(rpc_method!)]
 async fn leaveFederation(
-    federations: &Federations,
+    bridge: &BridgeFull,
     federation_id: RpcFederationId,
 ) -> anyhow::Result<()> {
-    federations.leave_federation(&federation_id.0).await
+    bridge.leave_federation(&federation_id.0).await
 }
 
 // TODO: generateInvoice should return OperationId
@@ -1404,6 +1413,174 @@ async fn onboardTransferExistingDeviceRegistration(
 #[macro_rules_derive(rpc_method!)]
 async fn bridgeStatus(bridge: &Bridge) -> anyhow::Result<RpcBridgeStatus> {
     bridge.bridge_status().await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientStatus(bridge: &BridgeFull) -> anyhow::Result<RpcFiClientStatus> {
+    Ok(bridge.fi_client_status())
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientEligiblePayers(bridge: &BridgeFull) -> anyhow::Result<RpcFiEligiblePayersResult> {
+    Ok(bridge.fi_eligible_payers().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientRegisterPushInstallation(
+    bridge: &BridgeFull,
+    fcm_token: String,
+    platform: RpcFiPushPlatform,
+) -> anyhow::Result<RpcFiPushRegistrationResult> {
+    Ok(bridge
+        .fi_register_push_installation(fcm_token, platform)
+        .await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientUnregisterPushInstallation(
+    bridge: &BridgeFull,
+) -> anyhow::Result<RpcFiPushRegistrationResult> {
+    Ok(bridge.fi_unregister_push_installation().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientPreviewSelection(
+    bridge: &BridgeFull,
+    request: RpcFiSelectionPreviewRequest,
+) -> anyhow::Result<RpcFiSelectionPreviewResult> {
+    Ok(bridge.fi_preview_selection(request).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientPayAndCreate(
+    bridge: &BridgeFull,
+    preview_id: String,
+    intent: RpcFiFormationIntent,
+    payment_federation_id: String,
+    max_total_msats: RpcFiMsats,
+) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge
+        .fi_pay_and_create(preview_id, intent, payment_federation_id, max_total_msats.0)
+        .await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientPreviewReplacements(
+    bridge: &BridgeFull,
+) -> anyhow::Result<RpcFiReplacementPreviewResult> {
+    Ok(bridge.fi_preview_replacements().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientApplyReplacements(
+    bridge: &BridgeFull,
+    preview_id: String,
+    max_total_msats: RpcFiMsats,
+) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge
+        .fi_apply_replacements(preview_id, max_total_msats.0)
+        .await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientAuthorizeReplacementPayments(
+    bridge: &BridgeFull,
+    authorization_id: String,
+) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge
+        .fi_authorize_replacement_payments(authorization_id)
+        .await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientResume(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge.fi_resume().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientAbandon(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge.fi_abandon().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientLiquidityDiscover(
+    bridge: &BridgeFull,
+    intent: RpcFiLiquidityRequestIntent,
+    network: RpcFiLiquidityNetwork,
+) -> anyhow::Result<RpcFiLiquidityDiscoveryResult> {
+    Ok(bridge.fi_liquidity_discover(intent, network).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientLiquidityStart(
+    bridge: &BridgeFull,
+    formation_id: String,
+    provider_pubkey: String,
+    intent: RpcFiLiquidityRequestIntent,
+) -> anyhow::Result<RpcFiLiquidityOperationResult> {
+    Ok(bridge
+        .fi_liquidity_start(formation_id, provider_pubkey, intent)
+        .await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientLiquidityResume(
+    bridge: &BridgeFull,
+    operation_id: String,
+) -> anyhow::Result<RpcFiLiquidityOperationResult> {
+    Ok(bridge.fi_liquidity_resume(operation_id).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientLiquidityStatus(
+    bridge: &BridgeFull,
+    operation_id: String,
+) -> anyhow::Result<RpcFiLiquidityOperationResult> {
+    Ok(bridge.fi_liquidity_status(operation_id).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientLiquidityCurrent(
+    bridge: &BridgeFull,
+) -> anyhow::Result<RpcFiCurrentLiquidityOperationResult> {
+    Ok(bridge.fi_liquidity_current().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientLiquidityList(
+    bridge: &BridgeFull,
+    after: Option<String>,
+) -> anyhow::Result<RpcFiLiquidityOperationPageResult> {
+    Ok(bridge.fi_liquidity_list(after).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientUpdateFederationMetadata(
+    bridge: &BridgeFull,
+    update: RpcFiFederationMetadataUpdate,
+) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge.fi_update_federation_metadata(update).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientSetGuardianFee(
+    bridge: &BridgeFull,
+    guardian_fee_ppm: u32,
+) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge.fi_set_guardian_fee(guardian_fee_ppm).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn fiClientSubscribe(
+    bridge: &BridgeFull,
+    stream_id: RpcStreamId<RpcFiClientStatus>,
+) -> anyhow::Result<()> {
+    let stream = fi_client_status_stream(bridge.fi_status_receiver());
+    bridge
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
+        .await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2575,6 +2752,11 @@ macro_rules! rpc_methods {
         }
 
         impl $name {
+            #[cfg(test)]
+            const METHOD_NAMES: &'static [&'static str] = &[
+                $(stringify!($method)),*
+            ];
+
             pub async fn handle(bridge: Arc<Bridge>, method: &str, payload: String) -> anyhow::Result<String> {
                 let future = match method {
                 $(
@@ -2596,6 +2778,27 @@ rpc_methods!(RpcMethods {
     onAppForeground,
     fedimintVersion,
     getFeatureCatalog,
+    // Federation Initiator
+    fiClientStatus,
+    fiClientEligiblePayers,
+    fiClientRegisterPushInstallation,
+    fiClientUnregisterPushInstallation,
+    fiClientPreviewSelection,
+    fiClientPayAndCreate,
+    fiClientPreviewReplacements,
+    fiClientApplyReplacements,
+    fiClientAuthorizeReplacementPayments,
+    fiClientResume,
+    fiClientAbandon,
+    fiClientLiquidityDiscover,
+    fiClientLiquidityStart,
+    fiClientLiquidityResume,
+    fiClientLiquidityStatus,
+    fiClientLiquidityCurrent,
+    fiClientLiquidityList,
+    fiClientUpdateFederationMetadata,
+    fiClientSetGuardianFee,
+    fiClientSubscribe,
     // Federations
     joinFederation,
     federationPreview,

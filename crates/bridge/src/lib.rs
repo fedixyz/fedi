@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 // Fedi's WASM runtime is single-threaded; retain `Arc` to keep shared
 // native/WASM APIs uniform.
 #![cfg_attr(target_family = "wasm", allow(clippy::arc_with_non_send_sync))]
@@ -31,9 +32,12 @@ use serde::Serialize;
 use ts_rs::TS;
 
 pub mod bg_matrix;
+pub mod fi_client;
 pub mod onboarding;
 pub mod providers;
 
+mod fi_payments;
+mod fi_push;
 mod full;
 
 /// This is instantiated once as a global. When RPC commands come in, this

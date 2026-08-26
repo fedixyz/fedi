@@ -47,6 +47,7 @@ type StreamRpcArgs<Method extends keyof bindings.RpcMethods> = Omit<
     'streamId'
 > & {
     callback: (data: ExtractStreamData<Method>) => void
+    onError?: (error: BridgeError) => void
 }
 
 export class FedimintBridge {
@@ -98,6 +99,163 @@ export class FedimintBridge {
 
     async onAppForeground() {
         return this.rpcTyped('onAppForeground', {})
+    }
+
+    /** Authoritative current FI state, including typed initialization failure. */
+    async fiClientStatus() {
+        return this.rpcTyped('fiClientStatus', {})
+    }
+
+    /** Joined federations whose wallets are ready to fund FI formation. */
+    async fiClientEligiblePayers() {
+        return this.rpcTyped('fiClientEligiblePayers', {})
+    }
+
+    async fiClientRegisterPushInstallation(
+        fcmToken: string,
+        platform: bindings.RpcFiPushPlatform,
+    ) {
+        return this.rpcTyped('fiClientRegisterPushInstallation', {
+            fcmToken,
+            platform,
+        })
+    }
+
+    async fiClientUnregisterPushInstallation() {
+        return this.rpcTyped('fiClientUnregisterPushInstallation', {})
+    }
+
+    /** Informational verified estimate only; this does not reserve guardians. */
+    async fiClientPreviewSelection(
+        request: bindings.RpcFiSelectionPreviewRequest,
+    ) {
+        return this.rpcTyped('fiClientPreviewSelection', { request })
+    }
+
+    /**
+     * Seal a preview, select its explicit payer, and start formation under the
+     * caller-approved spend cap. Current FI status remains authoritative.
+     */
+    async fiClientPayAndCreate(
+        previewId: string,
+        intent: bindings.RpcFiFormationIntent,
+        paymentFederationId: string,
+        maxTotalMsats: bindings.RpcFiMsats,
+    ) {
+        return this.rpcTyped('fiClientPayAndCreate', {
+            previewId,
+            intent,
+            paymentFederationId,
+            maxTotalMsats,
+        })
+    }
+
+    async fiClientPreviewReplacements() {
+        return this.rpcTyped('fiClientPreviewReplacements', {})
+    }
+
+    async fiClientApplyReplacements(
+        previewId: string,
+        maxTotalMsats: bindings.RpcFiMsats,
+    ) {
+        return this.rpcTyped('fiClientApplyReplacements', {
+            previewId,
+            maxTotalMsats,
+        })
+    }
+
+    async fiClientAuthorizeReplacementPayments(authorizationId: string) {
+        return this.rpcTyped('fiClientAuthorizeReplacementPayments', {
+            authorizationId,
+        })
+    }
+
+    /** Attempt durable reconciliation; read/subscribe to status for the outcome. */
+    async fiClientResume() {
+        return this.rpcTyped('fiClientResume', {})
+    }
+
+    /** Abandon only while Manifold proves no payment output has been armed. */
+    async fiClientAbandon() {
+        return this.rpcTyped('fiClientAbandon', {})
+    }
+
+    /**
+     * Fresh, uncached FLIP discovery. No invite is disclosed by this call.
+     * Empty approvedProviderPubkeys means any provider admitted by Manifold.
+     * At least one source minimum must be positive; SP is administrative
+     * post-formation work and is not part of the Fedi formation flow.
+     */
+    async fiClientLiquidityDiscover(
+        intent: bindings.RpcFiLiquidityRequestIntent,
+        network: bindings.RpcFiLiquidityNetwork,
+    ) {
+        return this.rpcTyped('fiClientLiquidityDiscover', { intent, network })
+    }
+
+    /**
+     * Start one durable post-formation request against a freshly admitted
+     * provider. The private invite crosses the boundary only after trust and
+     * endpoint checks. Treat a lost response as recoverable, not as permission
+     * to create a second request.
+     */
+    async fiClientLiquidityStart(
+        formationId: string,
+        providerPubkey: string,
+        intent: bindings.RpcFiLiquidityRequestIntent,
+    ) {
+        return this.rpcTyped('fiClientLiquidityStart', {
+            formationId,
+            providerPubkey,
+            intent,
+        })
+    }
+
+    /**
+     * Resume the same semantic request with provider network reconciliation.
+     * Do not invoke automatically for an actionRequired item: that state
+     * requires an operator decision.
+     */
+    async fiClientLiquidityResume(operationId: string) {
+        return this.rpcTyped('fiClientLiquidityResume', { operationId })
+    }
+
+    /**
+     * Read the local durable projection; this performs no fresh discovery.
+     * Item state/evidence is provider-authored and must be checked through the
+     * joined federation before the app presents liquidity as ready. GatewayId
+     * is FLIP-opaque and is not a listGateways identity.
+     */
+    async fiClientLiquidityStatus(operationId: string) {
+        return this.rpcTyped('fiClientLiquidityStatus', { operationId })
+    }
+
+    /** Canonical non-terminal liquidity operation for the active formation. */
+    async fiClientLiquidityCurrent() {
+        return this.rpcTyped('fiClientLiquidityCurrent', {})
+    }
+
+    /**
+     * Bounded, read-only durable recovery page; pass nextAfter back unchanged
+     * until null. Listing performs no provider network work.
+     */
+    async fiClientLiquidityList(after: string | null = null) {
+        return this.rpcTyped('fiClientLiquidityList', { after })
+    }
+
+    async fiClientUpdateFederationMetadata(
+        update: bindings.RpcFiFederationMetadataUpdate,
+    ) {
+        return this.rpcTyped('fiClientUpdateFederationMetadata', { update })
+    }
+
+    async fiClientSetGuardianFee(guardianFeePpm: number) {
+        return this.rpcTyped('fiClientSetGuardianFee', { guardianFeePpm })
+    }
+
+    /** Emit current state first, then changes; initialization failure is a value. */
+    fiClientSubscribe(args: StreamRpcArgs<'fiClientSubscribe'>): UnsubscribeFn {
+        return this.rpcStream('fiClientSubscribe', args)
     }
 
     async federationPreview(inviteCode: string) {
@@ -1326,14 +1484,19 @@ export class FedimintBridge {
             if (handler) {
                 handler(streamData)
                 if (isDev())
-                    log.debug(
-                        'Received stream update',
-                        JSON.stringify(streamData),
-                    )
+                    log.debug('Received stream update', {
+                        streamId: streamData.stream_id,
+                        sequence: streamData.sequence,
+                        handlerPresent: true,
+                    })
             } else {
                 log.warn(
                     'Received stream update without associated stream handler',
-                    JSON.stringify(streamData),
+                    {
+                        streamId: streamData.stream_id,
+                        sequence: streamData.sequence,
+                        handlerPresent: false,
+                    },
                 )
             }
         }
@@ -1348,29 +1511,46 @@ export class FedimintBridge {
         method: Method,
         args: StreamRpcArgs<Method>,
     ): UnsubscribeFn {
-        const { callback, ...rpcArgs } = args
+        const { callback, onError, ...rpcArgs } = args
         const id = this.streamId++
         const streamId = id as bindings.RpcStreamId<ExtractStreamData<Method>>
+
+        // prevent calling the callback if unsubscribe was called
+        let cancelled = false
+        let initializationFailed = false
 
         const initPromise = this.rpcTyped(method, {
             ...rpcArgs,
             streamId,
         }).catch(err => {
-            log.error('rpcStream init error', { method, id, err })
+            initializationFailed = true
+            this.streamHandlers.delete(id)
+            const error =
+                err instanceof BridgeError
+                    ? err
+                    : new BridgeError(
+                          {
+                              errorCode: null,
+                              error: 'Stream initialization failed',
+                              detail: 'Stream initialization failed',
+                          },
+                          err,
+                      )
+            if (!cancelled) onError?.(error)
+            log.error('rpcStream init error', { method, id })
         })
-
-        // prevent calling the callback if unsubscribe was called
-        let cancelled = false
 
         const unsubscribe = () => {
             cancelled = true
             const deleted = this.streamHandlers.delete(id)
-            if (!deleted) {
+            if (!deleted && !initializationFailed) {
                 log.warn('Tried to delete a handler that does not exist')
             }
             initPromise.then(() => {
-                // no need to await, it will happen in background
-                this.streamCancel({ streamId: id })
+                if (!initializationFailed) {
+                    // no need to await, it will happen in background
+                    this.streamCancel({ streamId: id })
+                }
             })
         }
 

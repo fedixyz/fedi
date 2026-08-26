@@ -130,6 +130,11 @@ pub struct FeatureCatalog {
     /// Configuration regarding the remittance of Fedi fee
     pub fedi_fee: FediFeeConfig,
 
+    /// Manifold push gateway used for installation registration and FI
+    /// formation-completion hooks. Absence is an explicit fail-closed state;
+    /// end-user devices never supply an override.
+    pub fi_push_gateway: Option<FiPushGatewayFeatureConfig>,
+
     /// SP Transfers Matrix feature flag.
     /// When enabled, allows stability pool transfers via Matrix messaging.
     pub sp_transfers_matrix: Option<SpTransfersMatrixFeatureConfig>,
@@ -264,6 +269,15 @@ pub struct FediFeeConfig {
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct FiPushGatewayFeatureConfig {
+    /// Public HTTPS management origin. Callback bearer paths are returned by
+    /// the service at runtime and are never stored in this catalog.
+    #[ts(type = "string")]
+    pub api_base_url: Url,
+}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct CommunityV2MigrationFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -378,6 +392,8 @@ impl FeatureCatalog {
                 guardian_remittance_jitter_max_secs: 0,     // no jitter in dev
                 guardian_remittance_poll_interval_secs: 60, // 1 minute
             },
+            // Deployment has not assigned the public gateway origin yet.
+            fi_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
@@ -434,6 +450,8 @@ impl FeatureCatalog {
                 guardian_remittance_jitter_max_secs: 0,    // no jitter for tests
                 guardian_remittance_poll_interval_secs: 5, // fast polling for tests
             },
+            // Tests inject a loopback gateway at the bridge adapter boundary.
+            fi_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
@@ -482,6 +500,8 @@ impl FeatureCatalog {
                 guardian_remittance_jitter_max_secs: 0,     // no jitter in staging
                 guardian_remittance_poll_interval_secs: 60, // 1 minute
             },
+            // Fail closed until the staging deployment publishes its origin.
+            fi_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
@@ -540,6 +560,8 @@ impl FeatureCatalog {
                 guardian_remittance_jitter_max_secs: 6 * 60 * 60, // 6 hours
                 guardian_remittance_poll_interval_secs: 60 * 10, // 10 minutes
             },
+            // Fail closed until the production deployment publishes its origin.
+            fi_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 3 * 24 * 60 * 60, // 3 days for prod
             }),

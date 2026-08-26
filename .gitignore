@@ -15,6 +15,7 @@ bridge/fedi-android/plugins/bin/
 # Nix
 /result
 /.direnv
+/.nix-deps
 
 # Vercel
 .vercel

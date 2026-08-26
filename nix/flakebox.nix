@@ -7,6 +7,7 @@
   profiles,
   craneMultiBuild,
   androidSdk,
+  linkExternalDeps,
 }:
 let
   system = pkgs.system;
@@ -20,6 +21,8 @@ let
     ".clippy.toml"
     "bridge"
     "crates"
+    # Shared producer/consumer contract compiled by the FI push Rust tests.
+    "ui/common/tests/fixtures/fiFormationPushRoute.json"
   ];
 
   root = builtins.path {
@@ -184,6 +187,7 @@ in
           ]
           ++ [
             (lib.hiPrio pkgs.cargo-deluxe)
+            linkExternalDeps
 
             # add a command that can be used to lower both CPU and IO priority
             # of a command to help make it more friendly to other things
@@ -242,13 +246,16 @@ in
       ];
     };
 
-    craneLib =
+    craneLibBase =
       (craneLib'.overrideArgs (
         commonArgs
         // {
           pname = "fedi";
           version = "0.1.0";
           src = rustSrc;
+          postPatch = ''
+            link-external-deps .
+          '';
 
           FEDIMINT_BUILD_FORCE_GIT_HASH = gitHashPlaceholderValue;
 
@@ -265,6 +272,23 @@ in
           # pkgs.lib.optionalAttrs (builtins.elem (craneLib.cargoProfile or "") [ "dev" "ci" ]) commonEnvsShellRocksdbLink);
           commonEnvsShellRocksdbLink
         );
+
+    preservePatchedProtocolSource = {
+      # Manifold is an external path dependency, but its protocol crates use
+      # our patched stability-pool-common package. Crane normally replaces
+      # workspace sources with empty stubs while caching dependencies, which
+      # would hide the Account protocol types from Manifold. Preserve this
+      # one library's real source in dependency-only builds.
+      extraDummyScript = ''
+        rm -rf $out/crates/modules/stability-pool/common/src
+        cp -R ${rustSrc}/crates/modules/stability-pool/common/src \
+          $out/crates/modules/stability-pool/common/
+      '';
+    };
+
+    craneLib = craneLibBase.overrideArgsDepsOnly preservePatchedProtocolSource;
+
+    androidCraneLib = toolchains."all".craneLib.overrideArgsDepsOnly preservePatchedProtocolSource;
 
     fediBuildPackageGroup =
       args:
@@ -487,13 +511,17 @@ in
       ];
     };
 
-    fedi-android-bridge-libs-depsOnly = toolchains."all".craneLib.buildDepsOnly {
+    fedi-android-bridge-libs-depsOnly = androidCraneLib.buildDepsOnly {
       pname = "fedi-android-bridge-libs-deps";
       version = "0.1.0";
 
       src = rustSrc;
 
       nativeBuildInputs = commonArgs.nativeBuildInputs;
+
+      postPatch = ''
+        link-external-deps .
+      '';
 
       # Set up Android environment variables
       ANDROID_SDK_ROOT = "${androidSdk}/share/android-sdk";
@@ -524,6 +552,10 @@ in
         src = rustSrc;
 
         nativeBuildInputs = commonArgs.nativeBuildInputs;
+
+        postPatch = ''
+          link-external-deps .
+        '';
 
         # Set up Android environment variables
         ANDROID_SDK_ROOT = "${androidSdk}/share/android-sdk";

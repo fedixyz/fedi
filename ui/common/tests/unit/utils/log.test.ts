@@ -1,4 +1,9 @@
+import type { bindings } from '../../../types'
+import { isDev } from '../../../utils/environment'
+import { FedimintBridge } from '../../../utils/fedimint'
 import type { LogFileApi } from '../../../utils/log'
+
+jest.unmock('../../../utils/log')
 
 // Import actual implementation for testing log functionality
 // since it is mocked in jest.setup.ts
@@ -14,6 +19,7 @@ const {
 
 // Mock isDev to control console logging behavior
 jest.mock('../../../utils/environment', () => ({
+    ...jest.requireActual('../../../utils/environment'),
     isDev: jest.fn(() => false), // Default to production mode
 }))
 
@@ -109,6 +115,7 @@ describe('log utilities', () => {
         // Clear all timers and mocks first
         jest.clearAllTimers()
         jest.clearAllMocks()
+        jest.mocked(isDev).mockReturnValue(false)
 
         // Reset logging state to ensure clean state
         resetLogging()
@@ -123,6 +130,64 @@ describe('log utilities', () => {
     afterEach(() => {
         jest.clearAllTimers()
         jest.useRealTimers()
+    })
+
+    it('never persists FI stream payloads while delivering them to subscribers', async () => {
+        jest.mocked(isDev).mockReturnValue(true)
+        const sentinel = 'private-fi-invite-sentinel'
+        const rpc = jest.fn().mockResolvedValue(undefined)
+        const bridge = new FedimintBridge(rpc)
+        const callback = jest.fn()
+        const status: bindings.RpcFiClientStatus = {
+            type: 'ready',
+            status: {
+                type: 'formation',
+                formation: {
+                    formationId: 'formation',
+                    phase: 'formed',
+                    intent: {
+                        federationName: 'Private Federation',
+                        federationSize: 7,
+                        guardianFeePpm: 0,
+                        plan: 'infiniteBestEffort',
+                        fedimintdVersion: '0.11.1',
+                        maxTotalMsats: null,
+                    },
+                    seats: [],
+                    freshness: 'fresh',
+                    actionRequired: null,
+                    paymentOutputsStarted: true,
+                    milestones: {
+                        ecashSent: true,
+                        guardiansConfirmed: true,
+                        walletServiceCreated: true,
+                    },
+                    inviteCode: sentinel,
+                    lastError: null,
+                },
+            },
+        }
+
+        const unsubscribe = bridge.fiClientSubscribe({ callback })
+        bridge.emit('streamUpdate', {
+            stream_id: 0,
+            sequence: 0,
+            data: status,
+        })
+        expect(callback).toHaveBeenCalledWith(status)
+
+        unsubscribe()
+        await Promise.resolve()
+        bridge.emit('streamUpdate', {
+            stream_id: 0,
+            sequence: 1,
+            data: status,
+        })
+
+        const exported = await exportUiLogs()
+        expect(exported).not.toContain(sentinel)
+        expect(exported).toContain('Received stream update')
+        expect(callback).toHaveBeenCalledTimes(1)
     })
 
     describe('makeLog and innerLog behavior', () => {

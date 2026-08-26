@@ -186,6 +186,12 @@ export type FeatureCatalog = {
    */
   fedi_fee: FediFeeConfig;
   /**
+   * Manifold push gateway used for installation registration and FI
+   * formation-completion hooks. Absence is an explicit fail-closed state;
+   * end-user devices never supply an override.
+   */
+  fi_push_gateway: FiPushGatewayFeatureConfig | null;
+  /**
    * SP Transfers Matrix feature flag.
    * When enabled, allows stability pool transfers via Matrix messaging.
    */
@@ -258,6 +264,14 @@ export type FediFeeConfig = {
    * How long to wait between guardian fee remittance scheduler polls
    */
   guardian_remittance_poll_interval_secs: number;
+};
+
+export type FiPushGatewayFeatureConfig = {
+  /**
+   * Public HTTPS management origin. Callback bearer paths are returned by
+   * the service at runtime and are never stored in this catalog.
+   */
+  api_base_url: string;
 };
 
 export type FiatFXInfo = {
@@ -626,6 +640,547 @@ export type RpcFeeDetails = {
   federationFee: RpcAmount;
 };
 
+export type RpcFiAbandonUnavailableReason =
+  | "paymentOutputsStarted"
+  | "alreadyFormed";
+
+export type RpcFiClientStatus =
+  | { type: "ready"; status: RpcFiStatus }
+  | { type: "failed"; error: RpcFiOperationError };
+
+/**
+ * Canonical live liquidity operation for the active formation.
+ *
+ * `operation` is absent when no active formation has a non-terminal request.
+ * Reading this value performs no provider or guardian network work.
+ */
+export type RpcFiCurrentLiquidityOperationResult =
+  | { type: "current"; operation: RpcFiLiquidityOperation | null }
+  | { type: "error"; error: RpcFiOperationError };
+
+export type RpcFiEligiblePayer = {
+  /**
+   * A federation is eligible only when Manifold's authenticated setup-
+   * payment policy admits it and Fedi has the joined wallet fully loaded in
+   * `Ready` state. Joined zero-balance wallets remain present so callers can
+   * route through the existing refill flow; loading, recovering, and
+   * unadmitted federations are omitted.
+   */
+  federationId: string;
+  /**
+   * Current joined-wallet balance. Zero does not remove an admitted payer.
+   */
+  balanceMsats: RpcFiMsats;
+};
+
+export type RpcFiEligiblePayersResult =
+  | { type: "payers"; payers: Array<RpcFiEligiblePayer> }
+  | { type: "error"; error: RpcFiOperationError };
+
+export type RpcFiErrorCode =
+  | "invalidIntent"
+  | "invalidOptions"
+  | "storage"
+  | "identity"
+  | "busy"
+  | "noActiveFormation"
+  | "abandonUnavailable"
+  | "registry"
+  | "selection"
+  | "selectionReauthorizationRequired"
+  | "capabilityUnavailable"
+  | "invalidFleetManagers"
+  | "fleetManager"
+  | "payment"
+  | "liquidity"
+  | "maintenanceWrongState"
+  | "maintenanceRejected"
+  | "maintenanceConsensusTooLarge"
+  | "maintenanceConsensusInvalid"
+  | "maintenanceConvergence"
+  | "pushNotifications"
+  | "timeout";
+
+/**
+ * One FI-authorized, post-formation federation metadata mutation.
+ *
+ * Values are validated again by Manifold before any guardian is contacted.
+ * `WelcomeMessage` is also the federation description shown by Fedi.
+ * `TermsOfService` selects Guardianito's fixed approved document; callers
+ * cannot provide an arbitrary terms URL.
+ */
+export type RpcFiFederationMetadataUpdate =
+  | { type: "name"; value: string }
+  | { type: "iconUrl"; value: string }
+  | { type: "welcomeMessage"; value: string }
+  | { type: "termsOfService" };
+
+export type RpcFiFormationActionRequired =
+  | { type: "authorizePayments"; requirements: RpcFiPaymentRequirements }
+  | {
+      type: "authorizeReplacementPayments";
+      requirements: RpcFiPaymentRequirements;
+    }
+  | {
+      type: "replaceGuardians";
+      requirements: RpcFiGuardianReplacementRequirements;
+    };
+
+export type RpcFiFormationFreshness = "fresh" | "unsynced";
+
+export type RpcFiFormationIntent = {
+  federationName: string | null;
+  federationSize: number;
+  plan: RpcFiPlanPreference;
+  fedimintdVersion: string;
+};
+
+export type RpcFiFormationMilestones = {
+  ecashSent: boolean;
+  guardiansConfirmed: boolean;
+  walletServiceCreated: boolean;
+};
+
+export type RpcFiFormationPhase =
+  | "preparing"
+  | "awaitingPaymentReadiness"
+  | "acquiringSeats"
+  | "preparingDkg"
+  | "dkgUnderway"
+  | "publishingSeatBindings"
+  | "formed";
+
+export type RpcFiFormationSnapshot = {
+  formationId: string;
+  phase: RpcFiFormationPhase;
+  intent: RpcFiResolvedFormationIntent;
+  seats: Array<RpcFiSeatProgress>;
+  freshness: RpcFiFormationFreshness;
+  actionRequired: RpcFiFormationActionRequired | null;
+  paymentOutputsStarted: boolean;
+  milestones: RpcFiFormationMilestones;
+  inviteCode: string | null;
+  lastError: RpcFiErrorCode | null;
+};
+
+export type RpcFiGuardianReplacementRequirements = {
+  /**
+   * Opaque binding to exactly the durable rows proven safe to replace.
+   */
+  replacementId: string;
+  seats: Array<RpcFiGuardianReplacementSeat>;
+};
+
+export type RpcFiGuardianReplacementSeat = {
+  index: number;
+  /**
+   * Badge-vouched identity of the outgoing FMan; absent for pinned FMans.
+   */
+  previousFmanId: string | null;
+  /**
+   * Two-word display name derived from `previous_fman_id`.
+   */
+  previousFmanName: string | null;
+  previousQuoteId: string;
+  /**
+   * Canonical versioned Fleet Manager locator JSON retained for audit.
+   */
+  previousLocator: string;
+};
+
+/**
+ * Exact source bounds for one post-formation liquidity request.
+ *
+ * At least one minimum must be positive. A source with a zero minimum must
+ * have no maximum; when present, a maximum must be at least its minimum.
+ * Gateway-only is the Fedi MVP flow. Stability-pool amounts are retained for
+ * a separately authorized administrative operation, never formation itself.
+ */
+export type RpcFiLiquidityAmountBounds = {
+  gatewayMinSats: number;
+  gatewayMaxSats: number | null;
+  stabilityMinSats: number;
+  stabilityMaxSats: number | null;
+};
+
+/**
+ * Provider-authored completion evidence for independent federation checks.
+ *
+ * Presence is not proof that the app-visible gateway or stability balance is
+ * ready. Consumers must verify the claimed result through the joined
+ * federation before presenting completion to the user.
+ */
+export type RpcFiLiquidityCompletionEvidence =
+  | {
+      type: "gateway";
+      gatewayId: string;
+      fulfilledSats: number;
+      observedGatewayBalanceSats: number;
+      observedAt: number;
+      withdrawalTxid: string | null;
+      walletOperationId: string | null;
+    }
+  | {
+      type: "stabilityPool";
+      fulfilledSats: number;
+      observedProvidedSats: number;
+      observedAt: number;
+      pegInOperationId: string | null;
+      stabilityPoolDepositOperationId: string | null;
+    };
+
+/**
+ * Result of fresh, uncached, no-private-data provider discovery.
+ *
+ * Re-entering a flow should discover again. Rejected candidates are safe
+ * policy diagnostics; no federation invite has been disclosed at this point.
+ */
+export type RpcFiLiquidityDiscoveryResult =
+  | {
+      type: "discovery";
+      providers: Array<RpcFiLiquidityProvider>;
+      rejected: Array<RpcFiLiquidityProviderRejection>;
+    }
+  | { type: "error"; error: RpcFiOperationError };
+
+/**
+ * Provider-authoritative progress for one requested source.
+ *
+ * Consumers may derive ready only after every requested item is `Completed`
+ * and its evidence has been independently checked through the federation.
+ * `ActionRequired` remains visible for an operator decision and is not an
+ * automatic-retry signal.
+ */
+export type RpcFiLiquidityItemPhase =
+  | "pending"
+  | "running"
+  | "actionRequired"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+/**
+ * Latest provider-authoritative state for one requested item.
+ *
+ * `ActionRequired` is an operator decision point. Do not automatically retry
+ * it: the provider may be reconciling an irreversible send-once operation.
+ */
+export type RpcFiLiquidityItemStatus = {
+  target: RpcFiLiquidityItemTarget;
+  phase: RpcFiLiquidityItemPhase;
+  fulfilledSats: number | null;
+  completionEvidence: RpcFiLiquidityCompletionEvidence | null;
+  failureCode: string | null;
+  updatedAt: number;
+};
+
+/**
+ * Provider allocation target.
+ *
+ * A gateway id is the provider protocol's opaque allocation identity. It is
+ * not the identity returned by the app's existing `listGateways` RPC; verify
+ * the resulting gateway independently through the joined federation.
+ */
+export type RpcFiLiquidityItemTarget =
+  | {
+      type: "gateway";
+      itemId: string;
+      gatewayId: string;
+      gatewayName: string;
+      amountSats: number;
+    }
+  | { type: "stabilityPool"; itemId: string; amountSats: number };
+
+export type RpcFiLiquidityNetwork =
+  | "bitcoin"
+  | "testnet"
+  | "signet"
+  | "regtest";
+
+/**
+ * Durable snapshot of one semantic post-formation liquidity request.
+ *
+ * `status` reads this local durable projection; it does not perform fresh
+ * discovery. The semantic id and payload hash must be resumed as-is after a
+ * lost response rather than replaced with a new request.
+ */
+export type RpcFiLiquidityOperation = {
+  operationId: string;
+  formationId: string;
+  providerPubkey: string;
+  endpointHint: string;
+  detailsPayloadHash: string;
+  amounts: RpcFiLiquidityAmountBounds;
+  phase: RpcFiLiquidityOperationPhase;
+  itemStatuses: Array<RpcFiLiquidityItemStatus>;
+  rejectionCode: string | null;
+  /**
+   * True only after FI has found the completed FLIP gateway in a fresh,
+   * threshold-aggregated LNv2 gateway view from the formed federation.
+   */
+  gatewayViewVerified: boolean;
+};
+
+/**
+ * Bounded, read-only page of durable operations used after a crash or lost
+ * start response.
+ *
+ * Pages are ordered by opaque semantic id. Pass `next_after` unchanged as the
+ * exclusive cursor for the next page. A missing cursor means enumeration is
+ * complete. Listing performs no provider network work.
+ */
+export type RpcFiLiquidityOperationPage = {
+  operations: Array<RpcFiLiquidityOperation>;
+  nextAfter: string | null;
+};
+
+/**
+ * Result of bounded durable-operation enumeration.
+ */
+export type RpcFiLiquidityOperationPageResult =
+  | { type: "page"; page: RpcFiLiquidityOperationPage }
+  | { type: "error"; error: RpcFiOperationError };
+
+/**
+ * Provider decision for this exact semantic request.
+ *
+ * `Prepared` is durable and recoverable, `Accepted` exposes per-item progress,
+ * and `Rejected` is terminal for this exact intent but never a formation
+ * failure.
+ */
+export type RpcFiLiquidityOperationPhase = "prepared" | "accepted" | "rejected";
+
+/**
+ * Result of a mutating start or resume reconciliation.
+ *
+ * A returned error can follow a durable checkpoint. Callers recover by
+ * listing/status and resuming the same semantic operation, never by assuming
+ * the original request did not exist.
+ */
+export type RpcFiLiquidityOperationResult =
+  | { type: "operation"; operation: RpcFiLiquidityOperation }
+  | { type: "error"; error: RpcFiOperationError };
+
+export type RpcFiLiquidityProvider = {
+  providerPubkey: string;
+  supportedSources: Array<RpcFiLiquiditySource>;
+  supportedNetworks: Array<RpcFiLiquidityNetwork>;
+  displayName: string | null;
+  website: string | null;
+  contact: string | null;
+  issuedAt: number;
+  expiresAt: number;
+};
+
+export type RpcFiLiquidityProviderRejection = {
+  providerPubkey: string | null;
+  code: string;
+};
+
+/**
+ * Consumer policy for fresh provider discovery and one exact request.
+ *
+ * Provider keys are canonical Nostr public keys. An empty allowlist permits
+ * any provider admitted by the selected Manifold environment; a non-empty
+ * list adds an application policy restriction after Manifold's trust checks.
+ */
+export type RpcFiLiquidityRequestIntent = {
+  amounts: RpcFiLiquidityAmountBounds;
+  approvedProviderPubkeys: Array<string>;
+};
+
+export type RpcFiLiquiditySource = "gateway" | "stabilityPool";
+
+/**
+ * Exact millisatoshi quantity at the JSON/JavaScript boundary.
+ *
+ * The bridge serializes every FI monetary value as a base-10 string so values
+ * above JavaScript's safe integer limit cannot be rounded before a consumer
+ * converts them to `bigint`.
+ */
+export type RpcFiMsats = string;
+
+export type RpcFiOperationError = {
+  code: RpcFiErrorCode;
+  message: string;
+  detail: RpcFiOperationErrorDetail | null;
+};
+
+export type RpcFiOperationErrorDetail =
+  | {
+      type: "insufficientFmanSeats";
+      requested: number;
+      selected: number;
+      seen: number;
+      eligible: number;
+    }
+  | {
+      type: "selectionReauthorizationRequired";
+      reason: RpcFiSelectionReauthorizationReason;
+    }
+  | { type: "abandonUnavailable"; reason: RpcFiAbandonUnavailableReason };
+
+export type RpcFiOperationResult =
+  | { type: "success" }
+  | { type: "error"; error: RpcFiOperationError };
+
+export type RpcFiPaymentRequirements = {
+  authorizationId: string;
+  totalMsats: RpcFiMsats;
+  maxTotalMsats: RpcFiMsats | null;
+  seats: Array<RpcFiSeatPaymentRequirement>;
+};
+
+export type RpcFiPlanPreference = "infiniteBestEffort";
+
+/**
+ * Native FCM platform attached to one installation registration.
+ */
+export type RpcFiPushPlatform = "android" | "ios";
+
+/**
+ * Result of an FI push-gateway installation lifecycle operation.
+ */
+export type RpcFiPushRegistrationResult =
+  | { type: "registered"; installationId: string }
+  | { type: "unregistered"; installationId: string }
+  | { type: "error"; error: RpcFiOperationError };
+
+export type RpcFiReplacementPreview = {
+  /**
+   * Opaque process-local handle to this fresh verified replacement subset.
+   */
+  previewId: string;
+  requirements: RpcFiGuardianReplacementRequirements;
+  totalAdvertisedMsats: RpcFiMsats;
+  seats: Array<RpcFiReplacementPreviewSeat>;
+};
+
+export type RpcFiReplacementPreviewResult =
+  | { type: "preview"; preview: RpcFiReplacementPreview }
+  | { type: "error"; error: RpcFiOperationError };
+
+export type RpcFiReplacementPreviewSeat = {
+  /**
+   * Stable formation row this verified FMan will replace.
+   */
+  index: number;
+  fmanId: string;
+  /**
+   * Two-word display name derived from `fman_id`; names can collide and
+   * never substitute for the id.
+   */
+  fmanName: string;
+  advertisedPriceMsats: RpcFiMsats;
+  provenance: string;
+};
+
+export type RpcFiResolvedFormationIntent = {
+  federationName: string;
+  federationSize: number;
+  guardianFeePpm: number;
+  plan: RpcFiPlanPreference;
+  fedimintdVersion: string;
+  maxTotalMsats: RpcFiMsats | null;
+};
+
+export type RpcFiSeatPaymentRequirement = {
+  index: number;
+  /**
+   * Badge-vouched identity of the FMan the quote pays; absent for pinned
+   * FMans.
+   */
+  fmanId: string | null;
+  /**
+   * Two-word display name derived from `fman_id`.
+   */
+  fmanName: string | null;
+  quoteId: string;
+  paymentFederationId: string;
+  amountMsats: RpcFiMsats;
+};
+
+export type RpcFiSeatPhase =
+  | "selected"
+  | "replacementRequired"
+  | "quoteReady"
+  | "acquiring"
+  | "created"
+  | "guardianCodeReady"
+  | "dkgUnderway"
+  | "running";
+
+export type RpcFiSeatProgress = {
+  index: number;
+  /**
+   * Badge-vouched identity of the currently assigned FMan; absent for
+   * pinned FMans.
+   */
+  fmanId: string | null;
+  /**
+   * Two-word display name derived from `fman_id`; names can collide and
+   * never substitute for the id.
+   */
+  fmanName: string | null;
+  /**
+   * Canonical versioned Fleet Manager locator JSON.
+   */
+  locator: string;
+  seatId: string | null;
+  guardianCode: string | null;
+  phase: RpcFiSeatPhase;
+  freshness: RpcFiFormationFreshness;
+};
+
+export type RpcFiSelectionPreview = {
+  /**
+   * Opaque, process-local handle to the sealed verified selection.
+   */
+  previewId: string;
+  selected: number;
+  totalAdvertisedMsats: RpcFiMsats;
+  seen: number;
+  eligible: number;
+  validUntil: number;
+  seats: Array<RpcFiSelectionPreviewSeat>;
+};
+
+export type RpcFiSelectionPreviewRequest = {
+  federationSize: number;
+  plan: RpcFiPlanPreference;
+  fedimintdVersion: string;
+};
+
+export type RpcFiSelectionPreviewResult =
+  | { type: "preview"; preview: RpcFiSelectionPreview }
+  | { type: "error"; error: RpcFiOperationError };
+
+export type RpcFiSelectionPreviewSeat = {
+  fmanId: string;
+  /**
+   * Two-word display name derived from `fman_id`; names can collide and
+   * never substitute for the id.
+   */
+  fmanName: string;
+  advertisedPriceMsats: RpcFiMsats;
+  provenance: string;
+};
+
+export type RpcFiSelectionReauthorizationReason =
+  | "previewExpired"
+  | "advertisementEstimateExceedsLimit"
+  | "selectedFmanUnavailable"
+  | "quoteTotalExceedsLimit"
+  | "quoteTermsChanged"
+  | "selectedPayerUnavailable"
+  | "selectedPayerInsufficientFunds"
+  | "verifierEnvironmentChanged"
+  | "paymentFederationRequired";
+
+export type RpcFiStatus =
+  | { type: "idle" }
+  | { type: "formation"; formation: RpcFiFormationSnapshot };
+
 export type RpcFiatAmount = number;
 
 export type RpcFiatAndBtcAmount = { fiat: RpcFiatAmount; btc: RpcAmount };
@@ -851,6 +1406,62 @@ export type RpcMethods = {
   onAppForeground: [onAppForeground, null];
   fedimintVersion: [fedimintVersion, string];
   getFeatureCatalog: [getFeatureCatalog, FeatureCatalog];
+  fiClientStatus: [fiClientStatus, RpcFiClientStatus];
+  fiClientEligiblePayers: [fiClientEligiblePayers, RpcFiEligiblePayersResult];
+  fiClientRegisterPushInstallation: [
+    fiClientRegisterPushInstallation,
+    RpcFiPushRegistrationResult,
+  ];
+  fiClientUnregisterPushInstallation: [
+    fiClientUnregisterPushInstallation,
+    RpcFiPushRegistrationResult,
+  ];
+  fiClientPreviewSelection: [
+    fiClientPreviewSelection,
+    RpcFiSelectionPreviewResult,
+  ];
+  fiClientPayAndCreate: [fiClientPayAndCreate, RpcFiOperationResult];
+  fiClientPreviewReplacements: [
+    fiClientPreviewReplacements,
+    RpcFiReplacementPreviewResult,
+  ];
+  fiClientApplyReplacements: [fiClientApplyReplacements, RpcFiOperationResult];
+  fiClientAuthorizeReplacementPayments: [
+    fiClientAuthorizeReplacementPayments,
+    RpcFiOperationResult,
+  ];
+  fiClientResume: [fiClientResume, RpcFiOperationResult];
+  fiClientAbandon: [fiClientAbandon, RpcFiOperationResult];
+  fiClientLiquidityDiscover: [
+    fiClientLiquidityDiscover,
+    RpcFiLiquidityDiscoveryResult,
+  ];
+  fiClientLiquidityStart: [
+    fiClientLiquidityStart,
+    RpcFiLiquidityOperationResult,
+  ];
+  fiClientLiquidityResume: [
+    fiClientLiquidityResume,
+    RpcFiLiquidityOperationResult,
+  ];
+  fiClientLiquidityStatus: [
+    fiClientLiquidityStatus,
+    RpcFiLiquidityOperationResult,
+  ];
+  fiClientLiquidityCurrent: [
+    fiClientLiquidityCurrent,
+    RpcFiCurrentLiquidityOperationResult,
+  ];
+  fiClientLiquidityList: [
+    fiClientLiquidityList,
+    RpcFiLiquidityOperationPageResult,
+  ];
+  fiClientUpdateFederationMetadata: [
+    fiClientUpdateFederationMetadata,
+    RpcFiOperationResult,
+  ];
+  fiClientSetGuardianFee: [fiClientSetGuardianFee, RpcFiOperationResult];
+  fiClientSubscribe: [fiClientSubscribe, null];
   joinFederation: [joinFederation, RpcFederation];
   federationPreview: [federationPreview, RpcFederationPreview];
   leaveFederation: [leaveFederation, null];
@@ -1603,6 +2214,11 @@ export type RpcTransaction = {
   outcomeTime: number | null;
 } & (
   | {
+      kind: "fiFormationPayment";
+      seats_paid: number;
+      seats_total: number;
+    }
+  | {
       kind: "lnPay";
       ln_invoice: string;
       lightning_fees: RpcAmount;
@@ -1654,6 +2270,11 @@ export type RpcTransactionDirection = "receive" | "send";
 export type RpcTransactionId = string;
 
 export type RpcTransactionKind =
+  | {
+      kind: "fiFormationPayment";
+      seats_paid: number;
+      seats_total: number;
+    }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -1714,6 +2335,11 @@ export type RpcTransactionListEntry = {
    */
   outcomeTime: number | null;
 } & (
+  | {
+      kind: "fiFormationPayment";
+      seats_paid: number;
+      seats_total: number;
+    }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2084,6 +2710,68 @@ export type federationPreview = { inviteCode: string };
 export type fedimintVersion = {};
 
 export type fetchRegisteredDevices = {};
+
+export type fiClientAbandon = {};
+
+export type fiClientApplyReplacements = {
+  previewId: string;
+  maxTotalMsats: RpcFiMsats;
+};
+
+export type fiClientAuthorizeReplacementPayments = { authorizationId: string };
+
+export type fiClientEligiblePayers = {};
+
+export type fiClientLiquidityCurrent = {};
+
+export type fiClientLiquidityDiscover = {
+  intent: RpcFiLiquidityRequestIntent;
+  network: RpcFiLiquidityNetwork;
+};
+
+export type fiClientLiquidityList = { after: string | null };
+
+export type fiClientLiquidityResume = { operationId: string };
+
+export type fiClientLiquidityStart = {
+  formationId: string;
+  providerPubkey: string;
+  intent: RpcFiLiquidityRequestIntent;
+};
+
+export type fiClientLiquidityStatus = { operationId: string };
+
+export type fiClientPayAndCreate = {
+  previewId: string;
+  intent: RpcFiFormationIntent;
+  paymentFederationId: string;
+  maxTotalMsats: RpcFiMsats;
+};
+
+export type fiClientPreviewReplacements = {};
+
+export type fiClientPreviewSelection = {
+  request: RpcFiSelectionPreviewRequest;
+};
+
+export type fiClientRegisterPushInstallation = {
+  fcmToken: string;
+  platform: RpcFiPushPlatform;
+};
+
+export type fiClientResume = {};
+
+export type fiClientSetGuardianFee = { guardianFeePpm: number };
+
+export type fiClientStatus = {};
+
+export type fiClientSubscribe = { streamId: RpcStreamId<RpcFiClientStatus> };
+
+export type fiClientUnregisterPushInstallation = {};
+
+export type fiClientUpdateFederationMetadata = {
+  update: RpcFiFederationMetadataUpdate;
+};
 
 export type generateAddress = {
   federationId: RpcFederationId;

@@ -6,11 +6,25 @@ edition = "2024"
 [dependencies]
 fedimint-core = { workspace = true }
 fedimint-connectors = { workspace = true }
+fedimint-client = { workspace = true }
+fedimint-client-module = { workspace = true }
 fedimint-mint-client = { workspace = true }
+fedimint-mintv2-client = { workspace = true }
 fedimint-api-client = { workspace = true }
+fedimint-tbs = { workspace = true }
 fedi-social-client = { workspace = true }
+fi-client = { workspace = true }
+fedi-decentralized-federation-preview = { workspace = true }
+fedi-decentralized-manifold-environment = { workspace = true }
+fedi-decentralized-nostr-clients = { workspace = true }
+fedi-decentralized-peer-badge-verifier = { workspace = true }
+fedi-decentralized-push-gateway-types = { workspace = true }
+fedi-decentralized-service-fleet-manager = { workspace = true }
+fedi-decentralized-service-liquidity-manager = { workspace = true }
+fedi-iroh-rpc = { workspace = true }
 bug-report = { workspace = true }
 fedimint-derive-secret = { workspace = true }
+bls12_381 = { workspace = true }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -22,6 +36,10 @@ futures = "0.3"
 tracing = { workspace = true }
 hex = { workspace = true }
 nostr = { workspace = true }
+base64 = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+thiserror = { workspace = true }
 ts-rs = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
@@ -42,3 +60,8 @@ zip = { version = "4", default-features = false, features = [
   "deflate",
   "time",
 ] }
+
+[dev-dependencies]
+# Verify the Fedi-derived signature through the exact secp256k1 type exposed by
+# Manifold's protocol boundary, not only through Fedi's bitcoin re-export.
+manifold-secp256k1 = { package = "secp256k1", version = "0.30" }

@@ -72,6 +72,14 @@ export function makeTestTxnEntry<T extends TransactionListEntry['kind']>(
     }
 
     switch (kind) {
+        case 'fiFormationPayment':
+            return {
+                kind,
+                seats_paid: 0,
+                seats_total: 4,
+                ...baseFields,
+                ...overrides,
+            }
         case 'lnPay':
             return {
                 kind,

@@ -1,0 +1,7 @@
+{
+    "kind": "fi_formation_update",
+    "pg.open_behavior": "open_workflow",
+    "pg.privacy": "display_text",
+    "pg.workflow": "federation_creation",
+    "pg.action": "resume"
+}

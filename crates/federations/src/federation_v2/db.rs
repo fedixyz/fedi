@@ -145,11 +145,259 @@ pub enum BridgeDbPrefix {
     // defaulting it to the log's start.
     FedimintEventLogCursor = 0xcd,
 
+    // Tagged Federation Initiator seat-payment records: payment journals and
+    // reverse refund claims. Master owns 0xcc/0xcd, so the unreleased FI
+    // records share one disjoint namespace instead of reusing those bytes.
+    FiSeatPayment = 0xce,
+
+    // Tagged FI funding records: per-reservation state and the O(1) reserved
+    // total used by ordinary balance reads.
+    FiFunding = 0xcf,
+
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
     #[allow(dead_code)]
     FedimintInternalReservedStart = 0xd0,
 }
+
+#[derive(Clone, Copy, Debug, Decodable, Encodable, Eq, Ord, PartialEq, PartialOrd)]
+pub struct FiFundingReservationToken([u8; 32]);
+
+impl FiFundingReservationToken {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn to_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Decodable, Encodable, Eq, Ord, PartialEq, PartialOrd)]
+pub struct FiFundingFingerprint([u8; 32]);
+
+impl FiFundingFingerprint {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn to_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Decodable, Encodable, Eq, Ord, PartialEq, PartialOrd)]
+pub struct FiFundingQuoteId([u8; 32]);
+
+impl FiFundingQuoteId {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn to_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Decodable, Encodable, Eq, PartialEq)]
+pub struct FiFundingReservationKey {
+    record_type: u8,
+    token: FiFundingReservationToken,
+}
+
+impl FiFundingReservationKey {
+    pub const fn new(token: FiFundingReservationToken) -> Self {
+        Self {
+            record_type: 0,
+            token,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Decodable, Encodable, Eq, PartialEq)]
+pub struct FiFundingReservation {
+    /// Hash of the exact signed aggregate preflight. A deterministic token
+    /// presented with different quotes or wallet fee plans fails closed.
+    fingerprint: FiFundingFingerprint,
+    /// Unix seconds when the hold was installed; transaction history shows
+    /// the formation payment at this time.
+    created_at_secs: u64,
+    /// Per-seat holds remain independently replayable across replacement.
+    /// Entries are retained as tombstones after consumption/release so an old
+    /// aggregate can never silently authorize a different quote after restart.
+    members: Vec<FiFundingReservationMember>,
+}
+
+impl FiFundingReservation {
+    pub fn new(
+        fingerprint: FiFundingFingerprint,
+        created_at_secs: u64,
+        members: Vec<FiFundingReservationMember>,
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(!members.is_empty(), "FI funding reservation has no seats");
+        anyhow::ensure!(
+            members
+                .iter()
+                .all(|member| member.state == FiFundingReservationMemberState::Held),
+            "new FI funding reservation member is not held"
+        );
+        let mut unique_quote_ids = members
+            .iter()
+            .map(|member| member.quote_id)
+            .collect::<Vec<_>>();
+        unique_quote_ids.sort_unstable();
+        unique_quote_ids.dedup();
+        anyhow::ensure!(
+            unique_quote_ids.len() == members.len(),
+            "FI funding reservation repeats a quote"
+        );
+        Ok(Self {
+            fingerprint,
+            created_at_secs,
+            members,
+        })
+    }
+
+    pub const fn created_at_secs(&self) -> u64 {
+        self.created_at_secs
+    }
+
+    pub const fn fingerprint(&self) -> FiFundingFingerprint {
+        self.fingerprint
+    }
+
+    pub fn members(&self) -> &[FiFundingReservationMember] {
+        &self.members
+    }
+
+    pub(crate) fn members_mut(&mut self) -> &mut [FiFundingReservationMember] {
+        &mut self.members
+    }
+}
+
+#[derive(Clone, Copy, Debug, Decodable, Encodable, Eq, PartialEq)]
+pub enum FiFundingReservationMemberState {
+    Held,
+    Consumed { debit_msats: u64 },
+    ReleasedUnstarted,
+}
+
+#[derive(Clone, Copy, Debug, Decodable, Encodable, Eq, PartialEq)]
+pub struct FiFundingReservationMember {
+    quote_id: FiFundingQuoteId,
+    /// Exact debit proved by the authorization-time dry run against the
+    /// wallet's actual notes. Wallet-private: not part of the signed plan
+    /// fingerprint, and this stored row is its sole authority.
+    reserved_msats: u64,
+    /// How much of a paid seat came back as a refund, once one is
+    /// credited; transaction history subtracts it.
+    refunded_msats: Option<u64>,
+    state: FiFundingReservationMemberState,
+}
+
+impl FiFundingReservationMember {
+    pub fn new(quote_id: FiFundingQuoteId, reserved_msats: u64) -> anyhow::Result<Self> {
+        anyhow::ensure!(reserved_msats > 0, "FI funding member reserves no value");
+        Ok(Self {
+            quote_id,
+            reserved_msats,
+            refunded_msats: None,
+            state: FiFundingReservationMemberState::Held,
+        })
+    }
+
+    pub const fn refunded_msats(&self) -> Option<u64> {
+        self.refunded_msats
+    }
+
+    /// Record the credited refund for a paid seat. Replaying the same
+    /// amount is fine; changing it or refunding an unpaid seat is not.
+    pub(crate) fn set_refunded_msats(&mut self, refunded_msats: u64) -> anyhow::Result<()> {
+        let FiFundingReservationMemberState::Consumed { debit_msats } = self.state else {
+            anyhow::bail!("cannot record a refund for a seat that was never paid");
+        };
+        anyhow::ensure!(
+            refunded_msats <= debit_msats,
+            "FI seat refund exceeds what the seat paid"
+        );
+        anyhow::ensure!(
+            self.refunded_msats
+                .is_none_or(|existing| existing == refunded_msats),
+            "FI seat refund was replayed with a different amount"
+        );
+        self.refunded_msats = Some(refunded_msats);
+        Ok(())
+    }
+
+    pub const fn quote_id(&self) -> FiFundingQuoteId {
+        self.quote_id
+    }
+
+    pub const fn reserved_msats(&self) -> u64 {
+        self.reserved_msats
+    }
+
+    pub const fn state(&self) -> FiFundingReservationMemberState {
+        self.state
+    }
+
+    pub(crate) fn set_state(&mut self, state: FiFundingReservationMemberState) {
+        self.state = state;
+    }
+}
+
+impl_db_record!(
+    key = FiFundingReservationKey,
+    value = FiFundingReservation,
+    db_prefix = BridgeDbPrefix::FiFunding,
+);
+
+/// Scans every reservation row. `record_type` is the sub-namespace byte
+/// inside the shared FiFunding prefix: reservations are 0, the running
+/// total row is 1, so this prefix must lead with the same 0.
+#[derive(Clone, Copy, Debug, Default, Encodable, Decodable)]
+pub struct FiFundingReservationKeyPrefix {
+    record_type: u8,
+}
+
+impl FiFundingReservationKeyPrefix {
+    pub const fn new() -> Self {
+        Self { record_type: 0 }
+    }
+}
+
+impl_db_lookup!(
+    key = FiFundingReservationKey,
+    query_prefix = FiFundingReservationKeyPrefix
+);
+
+#[derive(Clone, Copy, Debug, Decodable, Encodable, Eq, PartialEq)]
+pub struct FiFundingReservedTotalKey {
+    record_type: u8,
+}
+
+impl FiFundingReservedTotalKey {
+    pub const fn new() -> Self {
+        Self { record_type: 1 }
+    }
+}
+
+impl Default for FiFundingReservedTotalKey {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Decodable, Encodable, Eq, PartialEq)]
+pub struct FiFundingReservedTotal {
+    pub(crate) amount_msats: u64,
+}
+
+impl_db_record!(
+    key = FiFundingReservedTotalKey,
+    value = FiFundingReservedTotal,
+    db_prefix = BridgeDbPrefix::FiFunding,
+);
 
 #[derive(Debug, Decodable, Encodable)]
 pub struct LnurlReceivePendingKey(pub OperationId);

@@ -59,6 +59,45 @@ use crate::test_device::{MockFediApi, TestDevice, use_lnd_gateway};
 
 static INIT_TRACING: Once = Once::new();
 
+#[test]
+fn raw_fi_rpc_allowlist_excludes_formation_orchestration() {
+    let mut methods = RpcMethods::METHOD_NAMES
+        .iter()
+        .copied()
+        .filter(|method| method.starts_with("fiClient"))
+        .collect::<Vec<_>>();
+    methods.sort_unstable();
+
+    assert_eq!(
+        methods,
+        [
+            "fiClientAbandon",
+            "fiClientApplyReplacements",
+            "fiClientAuthorizeReplacementPayments",
+            "fiClientEligiblePayers",
+            "fiClientLiquidityCurrent",
+            "fiClientLiquidityDiscover",
+            "fiClientLiquidityList",
+            "fiClientLiquidityResume",
+            "fiClientLiquidityStart",
+            "fiClientLiquidityStatus",
+            "fiClientPayAndCreate",
+            "fiClientPreviewReplacements",
+            "fiClientPreviewSelection",
+            "fiClientRegisterPushInstallation",
+            "fiClientResume",
+            "fiClientSetGuardianFee",
+            "fiClientStatus",
+            "fiClientSubscribe",
+            "fiClientUnregisterPushInstallation",
+            "fiClientUpdateFederationMetadata",
+        ]
+    );
+    for forbidden in ["fiClientCreatePinned", "fiClientAuthorizePayments"] {
+        assert!(!RpcMethods::METHOD_NAMES.contains(&forbidden));
+    }
+}
+
 fn get_fixture_dir() -> PathBuf {
     std::env::current_dir().unwrap().join("../fixtures")
 }
@@ -436,7 +475,7 @@ async fn test_join_and_leave_and_join(_dev_fed: DevFed) -> anyhow::Result<()> {
     assert_eq!(env_invite_code.clone(), rpc_federation.invite_code);
 
     // leaveFederation works
-    leaveFederation(&bridge.federations, rpc_federation.id.clone()).await?;
+    leaveFederation(bridge, rpc_federation.id.clone()).await?;
     assert_eq!(listFederations(&bridge.federations).await?.len(), 0);
 
     // rejoin without any rocksdb locking problems
@@ -2892,7 +2931,7 @@ async fn test_federation_preview(_dev_fed: DevFed) -> anyhow::Result<()> {
 
     // extract mnemonic, leave federation and drop bridge
     let mnemonic = getMnemonic(bridge.runtime.clone()).await?;
-    leaveFederation(&bridge.federations, federation_id.clone()).await?;
+    leaveFederation(bridge, federation_id.clone()).await?;
     td.shutdown().await?;
 
     // query preview again w/ new bridge (recovered using mnemonic), it should be

@@ -355,7 +355,10 @@ describe('common/hooks/receive', () => {
             )
 
             expect(lnPayTxn).toBeTruthy()
-            expect(lnPayTxn?.state?.type).toBe('success')
+            expect(lnPayTxn?.kind).toBe('lnPay')
+            expect(
+                lnPayTxn?.kind === 'lnPay' ? lnPayTxn.state?.type : undefined,
+            ).toBe('success')
             expect(lnurlClaimedTxn).toBeTruthy()
         })
     })

@@ -1,5 +1,6 @@
 pub mod client;
 pub mod db;
+mod fi_funding;
 mod guardian_remittance;
 mod ln_ops;
 mod lnurl_receives_service;
@@ -105,8 +106,8 @@ use rpc_types::{
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
     ECASH_INTERNAL_CHANGE_TIMEOUT_MAINNET, ECASH_INTERNAL_CHANGE_TIMEOUT_MUTINYNET,
-    LIGHTNING_OPERATION_TYPE, LIGHTNINGV2_OPERATION_TYPE, MILLION, MINT_OPERATION_TYPE,
-    MINTV2_OPERATION_TYPE, RECURRINGD_API_META, REISSUE_ECASH_TIMEOUT,
+    FI_SEAT_PAYMENT_OPERATION_TYPE, LIGHTNING_OPERATION_TYPE, LIGHTNINGV2_OPERATION_TYPE, MILLION,
+    MINT_OPERATION_TYPE, MINTV2_OPERATION_TYPE, RECURRINGD_API_META, REISSUE_ECASH_TIMEOUT,
     STABILITY_POOL_OPERATION_TYPE, STABILITY_POOL_V2_OPERATION_TYPE, WALLET_OPERATION_TYPE,
     WALLETV2_OPERATION_TYPE,
 };
@@ -417,6 +418,9 @@ impl FederationKind {
         if has_v1 { Self::One } else { Self::Two }
     }
 }
+
+use db::FiFundingReservationMemberState;
+pub use fi_funding::{FiFundingBalanceChange, FiFundingSpendGuard, FiSeatPaymentOperationMeta};
 
 /// Federation is a wrapper of "client ng" to assist with handling RPC commands
 pub struct FederationV2 {
@@ -1511,8 +1515,13 @@ impl FederationV2 {
         if self.recovering() {
             return Amount::ZERO;
         }
-        self.balance_after_mint_fees(self.mint_ops.get_raw_balance(self).await)
-            .await
+        let after_fees = self
+            .balance_after_mint_fees(self.mint_ops.get_raw_balance(self).await)
+            .await;
+        fi_funding::balance_after_fi_funding_holds(
+            after_fees,
+            self.fi_funding_reserved_total().await,
+        )
     }
 
     pub async fn guardian_status_no_cache(&self) -> anyhow::Result<Vec<GuardianStatus>> {
@@ -2825,6 +2834,72 @@ impl FederationV2 {
         entries.truncate(limit);
     }
 
+    /// One history row per formation payment, built from the funding
+    /// reservation (the source of truth for every seat's hold, payment,
+    /// and refund). First page only, like awaiting deposits.
+    async fn merge_fi_formation_payments(
+        &self,
+        entries: &mut Vec<Result<RpcTransactionListEntry, String>>,
+        limit: usize,
+        oldest_op_time: Option<u64>,
+    ) {
+        let reservations = self.list_fi_funding_reservations().await;
+        if reservations.is_empty() {
+            return;
+        }
+        for reservation in reservations {
+            let mut amount_msats = 0u64;
+            let mut seats_paid = 0u32;
+            let mut seats_total = 0u32;
+            let mut live = false;
+            for member in reservation.members() {
+                seats_total += 1;
+                match member.state() {
+                    FiFundingReservationMemberState::Held => {
+                        live = true;
+                        amount_msats = amount_msats.saturating_add(member.reserved_msats());
+                    }
+                    FiFundingReservationMemberState::Consumed { debit_msats } => {
+                        live = true;
+                        seats_paid += 1;
+                        amount_msats = amount_msats.saturating_add(
+                            debit_msats.saturating_sub(member.refunded_msats().unwrap_or(0)),
+                        );
+                    }
+                    FiFundingReservationMemberState::ReleasedUnstarted => {}
+                }
+            }
+            // Fully released without a single payment: the user never spent
+            // anything, so history shows nothing.
+            if !live {
+                continue;
+            }
+            let created_at = reservation.created_at_secs();
+            if oldest_op_time.is_some_and(|oldest| created_at < oldest) {
+                continue;
+            }
+            entries.push(Ok(RpcTransactionListEntry {
+                created_at,
+                transaction: RpcTransaction {
+                    id: reservation.fingerprint().consensus_encode_to_hex(),
+                    amount: RpcAmount(Amount::from_msats(amount_msats)),
+                    fedi_app_fee_status: None,
+                    fedi_guardian_fee_status: None,
+                    txn_notes: None,
+                    tx_date_fiat_info: None,
+                    frontend_metadata: Default::default(),
+                    kind: RpcTransactionKind::FiFormationPayment {
+                        seats_paid,
+                        seats_total,
+                    },
+                    outcome_time: None,
+                },
+            }));
+        }
+        entries.sort_by(|a, b| Self::entry_created_at(b).cmp(&Self::entry_created_at(a)));
+        entries.truncate(limit);
+    }
+
     /// Return all transactions via operation log
     pub async fn list_transactions(
         &self,
@@ -2868,6 +2943,8 @@ impl FederationV2 {
 
         if start_after.is_none() {
             self.merge_walletv2_awaiting_deposits(&mut entries, limit, oldest_op_time)
+                .await;
+            self.merge_fi_formation_payments(&mut entries, limit, oldest_op_time)
                 .await;
         }
         entries
@@ -3374,6 +3451,11 @@ impl FederationV2 {
                 frontend_metadata = transaction.frontend_metadata;
                 transaction_kind = transaction.kind;
             }
+            FI_SEAT_PAYMENT_OPERATION_TYPE => {
+                // Individual seat payments stay hidden; history shows one
+                // formation-payment row built from the funding reservation.
+                return Ok(None);
+            }
             _ => {
                 bail!(
                     "Found unimplemented for module with operation type = {}",
@@ -3717,11 +3799,20 @@ impl FederationV2 {
     pub async fn spv2_guardian_remittance_account_info(
         &self,
     ) -> anyhow::Result<RpcGuardianRemittanceAccountInfo> {
-        let spv2 = self.client.spv2()?;
-        let account = spv2.our_account(AccountType::BtcDepositor);
+        let account = self.spv2_our_btc_depositor_account()?;
         Ok(RpcGuardianRemittanceAccountInfo {
             serialized_account: serde_json::to_string(&account)?,
         })
+    }
+
+    /// Return this joined client's own SPv2 BTC-depositor account.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when this federation has no SPv2 client module.
+    pub fn spv2_our_btc_depositor_account(&self) -> anyhow::Result<Account> {
+        let spv2 = self.client.spv2()?;
+        Ok(spv2.our_account(AccountType::BtcDepositor))
     }
 
     pub async fn spv2_withdraw_guardian_remittance_all(&self) -> Result<()> {

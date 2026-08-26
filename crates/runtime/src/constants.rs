@@ -9,6 +9,13 @@ pub const ECASH_INTERNAL_CHANGE_TIMEOUT_MAINNET: Duration = Duration::from_secs(
 /// 10 minutes
 pub const ECASH_INTERNAL_CHANGE_TIMEOUT_MUTINYNET: Duration = Duration::from_secs(60 * 10);
 pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+// Child-id namespace map: the child ids in this file are NOT one flat
+// sequence. Ids 10-15, 17, and 19 are children of the app's GLOBAL root secret.
+// Ids 16 (fedi-social's `SOCIAL_RECOVERY_SECRET_CHILD_ID`, declared in that
+// crate) and 18 are children of PER-FEDERATION secrets, a separate
+// derivation namespace that never collides with the global one — which is
+// why 16 looks "skipped" here and 18 can sit beside global ids without
+// conflict.
 pub const LNURL_CHILD_ID: u64 = 11;
 pub const XMPP_CHILD_ID: u64 = 10;
 pub const XMPP_PASSWORD: u64 = 0;
@@ -18,6 +25,15 @@ pub const MILLION: u64 = 1_000_000;
 pub const MATRIX_CHILD_ID: u64 = 13;
 pub const DEVICE_REGISTRATION_CHILD_ID: ChildId = ChildId(14);
 pub const FEDI_GIFT_CHILD_ID: ChildId = ChildId(15);
+/// Stable root-secret child reserved for the Federation Initiator identity.
+pub const FI_CLIENT_CHILD_ID: ChildId = ChildId(17);
+/// Stable global root-secret child reserved for the environment-separated
+/// push-gateway recipient authentication identity.
+pub const FI_PUSH_RECIPIENT_CHILD_ID: ChildId = ChildId(19);
+/// Child of a federation's auxiliary secret reserved for deriving FI
+/// seat-payment refund issuance keys. Changing this value breaks refund
+/// recovery for any in-flight paid formation.
+pub const FI_SEAT_REFUND_CHILD_ID: ChildId = ChildId(18);
 
 // Desired length for device identifier string before encrypting and uploading
 // to Fedi's device registration servers. We add padding as desired. Having a
@@ -49,6 +65,9 @@ pub const WALLET_OPERATION_TYPE: &str = "wallet";
 pub const WALLETV2_OPERATION_TYPE: &str = "walletv2";
 pub const STABILITY_POOL_OPERATION_TYPE: &str = "stability_pool";
 pub const STABILITY_POOL_V2_OPERATION_TYPE: &str = "multi_sig_stability_pool";
+/// Log label for paying a federation-formation seat. Not a module kind:
+/// these transactions are assembled by the bridge itself.
+pub const FI_SEAT_PAYMENT_OPERATION_TYPE: &str = "fedi-fi-seat-payment";
 
 // URL for Fedi fee schedule API
 pub const FEDI_FEE_API_URL_MUTINYNET: &str =

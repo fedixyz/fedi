@@ -27,6 +27,7 @@ describe('getTxnDirection', () => {
             sPV2TransferIn: TransactionDirection.receive,
             multispendDeposit: TransactionDirection.receive,
             multispendWithdrawal: TransactionDirection.send,
+            fiFormationPayment: TransactionDirection.send,
         }
 
         const entries = Object.entries(expectedDirections) as Array<

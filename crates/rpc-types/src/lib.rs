@@ -31,6 +31,7 @@ use crate::error::RpcError;
 pub mod communities;
 pub mod error;
 pub mod event;
+pub mod fi_client;
 pub mod matrix;
 pub mod multispend;
 pub mod nostril;
@@ -523,6 +524,12 @@ pub struct RpcTransactionListEntry {
 #[serde(tag = "kind")]
 #[ts(export)]
 pub enum RpcTransactionKind {
+    /// Paying for a federation being formed: one row for the whole
+    /// formation, pending until every seat is paid.
+    FiFormationPayment {
+        seats_paid: u32,
+        seats_total: u32,
+    },
     LnPay {
         ln_invoice: String,
         lightning_fees: RpcAmount,
@@ -986,6 +993,8 @@ pub enum EcashReceiveReason {
     #[default]
     Receive,
     Cancel,
+    /// Refund of an FI Fleet Manager seat-setup payment.
+    FiSeatPaymentRefund,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

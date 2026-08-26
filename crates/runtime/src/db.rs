@@ -27,6 +27,10 @@ pub enum BridgeDbPrefix {
     SpTransfersPrefix = 0x05,
     // Remote features last fetched value
     RemoteFeaturesLastFetched = 0x06,
+    // Prefix for consumer-neutral Federation Initiator client state
+    FiClientPrefix = 0x07,
+    // Federation IDs whose FI handoff must not run again after join or leave
+    FiFederationAutoJoinCompleted = 0x08,
 }
 
 #[derive(Debug, Decodable, Encodable)]
@@ -69,6 +73,17 @@ impl_db_record!(
     key = RemoteFeaturesLastFetchedKey,
     value = RemoteFeatures,
     db_prefix = BridgeDbPrefix::RemoteFeaturesLastFetched,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct FiFederationAutoJoinCompletedKey {
+    pub federation_id: String,
+}
+
+impl_db_record!(
+    key = FiFederationAutoJoinCompletedKey,
+    value = (),
+    db_prefix = BridgeDbPrefix::FiFederationAutoJoinCompleted,
 );
 
 #[allow(async_fn_in_trait)]

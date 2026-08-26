@@ -9,7 +9,7 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.11.0-fedi0";
+      url = "github:fedibtc/fedimint?ref=v0.11.1";
     };
 
     fenix = {
@@ -34,6 +34,18 @@
     cargo-deluxe = {
       url = "github:rustshop/cargo-deluxe?rev=3e9bb6051a6461dd841d5e415de9c3f315c3be81";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # FI sources are fetched by Nix, then exposed to Cargo as a local path
+    # dependency. Keep these revisions aligned with Manifold's fi-client and
+    # credential-sdk input.
+    manifold-src = {
+      url = "github:fedibtc/manifold/d090989b0696150c477a880fd1f1557a44a38efa";
+      flake = false;
+    };
+    credential-sdk-src = {
+      url = "github:fedibtc/credential-sdk/3be33fc6d8c5b40073934bad2cbe649d1646e440";
+      flake = false;
     };
 
     android-nixpkgs = {
@@ -72,6 +84,8 @@
       wild,
       andy,
       llm-agents,
+      manifold-src,
+      credential-sdk-src,
       sieve,
       ...
     }:
@@ -145,6 +159,36 @@
 
         vercelCli = pkgs.writeShellScriptBin "vercel" ''
           exec ${pkgs.nodejs_22}/bin/npm exec --yes --package vercel@51.6.1 -- vercel "$@"
+        '';
+
+        # Manifold's workspace uses a Nix-provided credential-sdk path. Build
+        # the same source layout here so Cargo uses the pinned input.
+        manifoldSource = pkgs.runCommand "manifold-fi-client-source" { } ''
+          cp -a ${manifold-src} "$out"
+          chmod -R u+w "$out"
+          mkdir -p "$out/.nix-deps"
+          ln -s ${credential-sdk-src} "$out/.nix-deps/credential-sdk"
+        '';
+
+        linkExternalDeps = pkgs.writeShellScriptBin "link-external-deps" ''
+          set -eu
+
+          root=$1
+          parent="$root/.nix-deps"
+          link="$parent/manifold"
+          mkdir -p "$parent"
+
+          if [ -e "$link" ] && [ ! -L "$link" ]; then
+            echo "refusing to replace non-symlink: $link" >&2
+            exit 1
+          fi
+
+          tmp_dir="$(${pkgs.coreutils}/bin/mktemp -d "$parent/.link-external-deps.XXXXXX")"
+          trap '${pkgs.coreutils}/bin/rm -rf "$tmp_dir"' EXIT HUP INT TERM
+          ln -s ${manifoldSource} "$tmp_dir/manifold"
+          ${pkgs.coreutils}/bin/mv -Tf "$tmp_dir/manifold" "$link"
+          ${pkgs.coreutils}/bin/rmdir "$tmp_dir"
+          trap - EXIT HUP INT TERM
         '';
 
         fmLib = fedimint-pkgs.lib.${system};
@@ -440,6 +484,7 @@
             androidSdk
             replaceGitHash
             craneMultiBuild
+            linkExternalDeps
             ;
           toolchains = stdToolchains // {
             "default" = toolchainDefault;
@@ -546,6 +591,7 @@
               export ESLINT_USE_FLAT_CONFIG=false
 
               export REPO_ROOT="$(git rev-parse --show-toplevel)"
+              link-external-deps "$REPO_ROOT"
               source "$REPO_ROOT/scripts/fd-limit.sh"
               ensure_fd_limit 10000 dev-shell
 
@@ -655,7 +701,12 @@
           # TODO: this is overriden just to fix semgrep on MacOS,
           # which will be fixed upstream as well. Then this whole section
           # can be removed
-          lint = flakeboxLib.mkDevShell { };
+          lint = flakeboxLib.mkDevShell {
+            packages = [ linkExternalDeps ];
+            shellHook = ''
+              link-external-deps "$(git rev-parse --show-toplevel)"
+            '';
+          };
 
           # nix develop .#xcode is used for running commands that depend on an
           # existing underlying Xcode installation that cannot be nixified

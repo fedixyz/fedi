@@ -87,6 +87,12 @@ impl Runtime {
         ])
     }
 
+    /// DB for consumer-neutral Federation Initiator client state.
+    pub fn fi_client_db(&self) -> Database {
+        self.global_db
+            .with_prefix(vec![BRIDGE_DB_PREFIX, BridgeDbPrefix::FiClientPrefix as u8])
+    }
+
     /// Enable logging of potentially sensitive information.
     pub async fn sensitive_log(&self) -> bool {
         self.app_state

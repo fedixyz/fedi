@@ -63,6 +63,7 @@ export const getTxnDirection = (
         case 'sPV2Deposit':
         case 'sPV2TransferOut':
         case 'multispendWithdrawal':
+        case 'fiFormationPayment':
             return TransactionDirection.send
         default:
             txn.kind satisfies
@@ -163,6 +164,8 @@ export const makeTxnTypeText = (
             return t('words.deposit')
         case 'multispendWithdrawal':
             return t('words.withdrawal')
+        case 'fiFormationPayment':
+            return t('words.federation')
         default:
             txn satisfies never
             return t('words.unknown')
@@ -259,6 +262,8 @@ export const makeTxnDetailTitleText = (
             return t('feature.stabilitypool.you-deposited')
         case 'multispendWithdrawal':
             return t('feature.stabilitypool.you-withdrew')
+        case 'fiFormationPayment':
+            return t('feature.send.you-sent')
         default:
             txn satisfies never
             return t('words.unknown')
@@ -459,6 +464,11 @@ export const makeTxnStatusText = (
 ): string => {
     // same rule as makeTxnStatusBadge: a missing state is a not-yet-terminal
     // operation, not an unknown outcome
+    // formation rows are pending until every seat is paid
+    if (txn.kind === 'fiFormationPayment')
+        return txn.seats_paid === txn.seats_total
+            ? t('words.complete')
+            : t('words.pending')
     if (!txn.state) return t('words.pending')
 
     switch (txn.kind) {
@@ -659,6 +669,8 @@ export const makeTxnStatusBadge = (
 ): TransactionStatusBadge => {
     // A missing state means the operation is not terminal yet: terminal
     // outcomes always carry one, a fresh operation's state can just lag
+    if (txn.kind === 'fiFormationPayment')
+        return txn.seats_paid === txn.seats_total ? 'outgoing' : 'pending'
     if (!txn.state) return 'pending'
 
     switch (txn.kind) {
@@ -1359,6 +1371,7 @@ export const isMultispendTransfer = (txn: TransactionListEntry) => {
 
 export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
     // Show the "Ask Fedi" button if the txn has no state (should not happen)
+    if (txn.kind === 'fiFormationPayment') return false
     if (!txn.state) return true
 
     switch (txn.kind) {
