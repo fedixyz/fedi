@@ -5,7 +5,6 @@
 import { screen, userEvent, waitFor } from '@testing-library/react-native'
 
 import { createIntegrationTestBuilder } from '@fedi/common/tests/utils/remote-bridge-setup'
-import i18n from '@fedi/native/localization/i18n'
 
 import JoinFederation from '../../screens/JoinFederation'
 import PublicFederations from '../../screens/PublicFederations'
@@ -81,9 +80,13 @@ describe('federations', () => {
 
             await user.press(createTab)
 
+            // the jest preset hard-sets __DEV__ and isDev() alone enables
+            // the wallet service entry, so the legacy create label never
+            // renders. Its "Create" label collides with the tab text, so
+            // assert the testID
             await waitFor(async () => {
-                const createButton = await screen.findByText(
-                    i18n.t('feature.onboarding.create-button-label'),
+                const createButton = await screen.findByTestId(
+                    'WalletServiceEntryButton',
                 )
                 expect(createButton).toBeOnTheScreen()
             })

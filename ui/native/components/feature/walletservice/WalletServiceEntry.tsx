@@ -53,6 +53,7 @@ export const WalletServiceEntry: React.FC = () => {
             <WalletServiceFooter>
                 <Button
                     fullWidth
+                    testID="WalletServiceEntryButton"
                     // a user may only ever have one Wallet Service, so once one
                     // is formed this CTA manages it rather than offering to
                     // create a second. `handleCreate` already routes to the
