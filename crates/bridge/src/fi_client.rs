@@ -85,7 +85,8 @@ use rpc_types::fi_client::{
     RpcFiReplacementPreviewResult, RpcFiReplacementPreviewSeat, RpcFiResolvedFormationIntent,
     RpcFiSeatPaymentRequirement, RpcFiSeatPhase, RpcFiSeatProgress, RpcFiSelectionPreview,
     RpcFiSelectionPreviewRequest, RpcFiSelectionPreviewResult, RpcFiSelectionPreviewSeat,
-    RpcFiSelectionReauthorizationReason, RpcFiStatus,
+    RpcFiSelectionReauthorizationReason, RpcFiSetupPaymentFederation,
+    RpcFiSetupPaymentFederationsResult, RpcFiStatus,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::FI_CLIENT_CHILD_ID;
@@ -594,22 +595,34 @@ struct FormationLocalState {
     replacement: Mutex<Option<StoredReplacement>>,
 }
 
+/// Best-effort: a missing or failing push gateway must not block formation.
+/// Launch reconciliation already resumes an active formation without a push,
+/// so the only cost of `None` is the "ready" notification while the app is
+/// closed — never correctness or funds.
 async fn ensure_formation_push_hook(
     stored_hook: &mut Option<FiDkgPushHook>,
     push_gateway: &FormationPushGatewayHandle,
-) -> Result<FiDkgPushHook, RpcFiOperationError> {
+) -> Option<FiDkgPushHook> {
     if let Some(hook) = stored_hook {
-        return Ok(hook.clone());
+        return Some(hook.clone());
     }
-    let gateway = push_gateway
-        .as_ref()
-        .map_err(|error| fi_push_error_to_rpc(error))?;
-    let hook = gateway
-        .create_formation_hook()
-        .await
-        .map_err(|error| fi_push_error_to_rpc(&error))?;
-    *stored_hook = Some(hook.clone());
-    Ok(hook)
+    let gateway = match push_gateway {
+        Ok(gateway) => gateway,
+        Err(error) => {
+            tracing::info!(%error, "formation proceeds without a push hook");
+            return None;
+        }
+    };
+    match gateway.create_formation_hook().await {
+        Ok(hook) => {
+            *stored_hook = Some(hook.clone());
+            Some(hook)
+        }
+        Err(error) => {
+            tracing::warn!(%error, "formation proceeds without a push hook");
+            None
+        }
+    }
 }
 
 async fn discard_formation_push_if_unowned(
@@ -638,7 +651,9 @@ enum FiDriverOperation {
         intent: FormationIntent,
         approval: FmanSelectionApproval,
         payment_federation_id: FederationId,
-        completion_callback: DkgCompletionCallback,
+        /// `None` when no push hook could be arranged; the formation then
+        /// relies on launch reconciliation instead of a completion push.
+        completion_callback: Option<DkgCompletionCallback>,
     },
     ApplyReplacements {
         approval: FmanReplacementApproval,
@@ -840,7 +855,7 @@ impl FormationPushCoordinator {
         formation_started: FormationStarted,
     ) -> RpcFiOperationResult
     where
-        Dispatch: FnOnce(DkgCompletionCallback) -> DispatchFuture,
+        Dispatch: FnOnce(Option<DkgCompletionCallback>) -> DispatchFuture,
         DispatchFuture: Future<
             Output = Result<(FiDriverResponse, FiDriverOperationClaim), RpcFiOperationError>,
         >,
@@ -857,10 +872,9 @@ impl FormationPushCoordinator {
                     "The selection preview callback is no longer available",
                 );
             };
-            match ensure_formation_push_hook(&mut stored.hook, &self.gateway).await {
-                Ok(hook) => hook.callback,
-                Err(error) => return RpcFiOperationResult::Error { error },
-            }
+            ensure_formation_push_hook(&mut stored.hook, &self.gateway)
+                .await
+                .map(|hook| hook.callback)
         };
 
         let dispatched = dispatch(callback).await;
@@ -1029,6 +1043,42 @@ impl BridgeFiDriver {
             });
         }
         RpcFiEligiblePayersResult::Payers { payers }
+    }
+
+    /// Manifold's authenticated setup-payment set, with join material.
+    ///
+    /// `eligible_payers` answers "which of my wallets may pay". This answers
+    /// the prior question — "which federations may pay at all, and am I in
+    /// one" — which a caller offering a join needs and cannot derive from ids.
+    pub(crate) async fn setup_payment_federations(&self) -> RpcFiSetupPaymentFederationsResult {
+        let admitted = match self
+            .client
+            .admitted_setup_payment_federations(FormationRunOptions::default())
+            .await
+        {
+            Ok(admitted) => admitted,
+            Err(error) => {
+                return RpcFiSetupPaymentFederationsResult::Error {
+                    error: fi_error_to_rpc(&error),
+                };
+            }
+        };
+        let federations = admitted
+            .into_iter()
+            .map(|member| RpcFiSetupPaymentFederation {
+                // Deliberately looser than `eligible_payers`, which needs a
+                // fully loaded Ready wallet to read a balance. Here a wallet
+                // that exists at all is joined: offering to join a federation
+                // the user is already in would be wrong even while it loads.
+                joined: self
+                    .federations
+                    .get_federation(&member.federation_id().0)
+                    .is_ok(),
+                federation_id: member.federation_id().0.clone(),
+                invite_code: member.invite_code().0.clone(),
+            })
+            .collect();
+        RpcFiSetupPaymentFederationsResult::Federations { federations }
     }
 
     pub(crate) async fn discover_liquidity(
@@ -1438,16 +1488,7 @@ impl BridgeFiDriver {
             )
             .await;
         let formation_started = matches!(self.client.status(), FiStatus::Formation(_));
-        let push_setup_may_retry = matches!(
-            &result,
-            RpcFiOperationResult::Error {
-                error: RpcFiOperationError {
-                    code: RpcFiErrorCode::PushNotifications,
-                    ..
-                }
-            }
-        );
-        if (!may_retry_payer(&result) && !push_setup_may_retry) || formation_started {
+        if !may_retry_payer(&result) || formation_started {
             let mut selection = self.formation_state.selection.lock().await;
             if selection
                 .as_ref()
@@ -1682,16 +1723,29 @@ impl FiDriverBackend for BridgeFiClient {
                 approval,
                 payment_federation_id,
                 completion_callback,
-            } => FiDriverResponse::Formation(operation_result(
-                self.pay_and_create_with_callback(
-                    intent,
-                    approval,
-                    payment_federation_id,
-                    completion_callback,
-                    FormationRunOptions::default(),
-                )
-                .await,
-            )),
+            } => FiDriverResponse::Formation(operation_result(match completion_callback {
+                Some(completion_callback) => {
+                    self.pay_and_create_with_callback(
+                        intent,
+                        approval,
+                        payment_federation_id,
+                        completion_callback,
+                        FormationRunOptions::default(),
+                    )
+                    .await
+                }
+                // no hook could be arranged: the fi-cli path, which watches
+                // formation in the foreground and resumes on launch
+                None => {
+                    self.pay_and_create(
+                        intent,
+                        approval,
+                        payment_federation_id,
+                        FormationRunOptions::default(),
+                    )
+                    .await
+                }
+            })),
             FiDriverOperation::ApplyReplacements { approval } => {
                 FiDriverResponse::Formation(operation_result(
                     self.apply_fman_replacements(approval, FormationRunOptions::default())

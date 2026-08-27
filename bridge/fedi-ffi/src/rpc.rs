@@ -53,7 +53,7 @@ use rpc_types::fi_client::{
     RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult, RpcFiLiquidityOperationResult,
     RpcFiLiquidityRequestIntent, RpcFiMsats, RpcFiOperationResult, RpcFiPushPlatform,
     RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest,
-    RpcFiSelectionPreviewResult,
+    RpcFiSelectionPreviewResult, RpcFiSetupPaymentFederationsResult,
 };
 use rpc_types::matrix::{
     RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession, RpcMatrixInitializeStatus,
@@ -1426,6 +1426,13 @@ async fn fiClientEligiblePayers(bridge: &BridgeFull) -> anyhow::Result<RpcFiElig
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn fiClientSetupPaymentFederations(
+    bridge: &BridgeFull,
+) -> anyhow::Result<RpcFiSetupPaymentFederationsResult> {
+    Ok(bridge.fi_setup_payment_federations().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn fiClientRegisterPushInstallation(
     bridge: &BridgeFull,
     fcm_token: String,
@@ -2781,6 +2788,7 @@ rpc_methods!(RpcMethods {
     // Federation Initiator
     fiClientStatus,
     fiClientEligiblePayers,
+    fiClientSetupPaymentFederations,
     fiClientRegisterPushInstallation,
     fiClientUnregisterPushInstallation,
     fiClientPreviewSelection,

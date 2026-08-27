@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { Provider as ReduxProvider } from 'react-redux'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
+import WalletServiceMonitor from '@fedi/common/components/WalletServiceMonitor'
 
 import Router from './Router'
 import FediBridgeInitializer from './components/FediBridgeInitializer'
@@ -48,6 +49,13 @@ const App = () => {
                                             NotificationContextProvider,
                                         ]}>
                                         {<Router />}
+                                        {/*
+                                            Mounted above the navigator so the
+                                            fi status subscription survives the
+                                            stack resets the wallet service
+                                            flow performs.
+                                        */}
+                                        <WalletServiceMonitor />
                                         <InternetIsUnreachableBadge />
                                     </ProviderComposer>
                                 </ToastScopeProvider>

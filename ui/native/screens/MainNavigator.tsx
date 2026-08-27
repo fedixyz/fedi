@@ -56,6 +56,7 @@ import StabilitySendHeader from '../components/feature/stabilitypool/StabilitySe
 import WithdrawInitiatedHeader from '../components/feature/stabilitypool/WithdrawInitiatedHeader'
 import HelpCentreHeader from '../components/feature/support/HelpCentreHeader'
 import TransactionsHeader from '../components/feature/transaction-history/TransactionsHeader'
+import { WalletServiceSettingsHeader } from '../components/feature/walletservice/WalletServiceDashboardHeader'
 import { CenteredHeader } from '../components/ui/CenteredHeader'
 import Header from '../components/ui/Header'
 import { useAppSelector } from '../state/hooks'
@@ -95,10 +96,12 @@ import ConfirmSendChatPayment from './ConfirmSendChatPayment'
 import ConfirmSendEcash from './ConfirmSendEcash'
 import ConfirmSendLightning from './ConfirmSendLightning'
 import ConfirmSendOnChain from './ConfirmSendOnChain'
+import ConfirmWalletService from './ConfirmWalletService'
 import CreateGroup from './CreateGroup'
 import CreateMultispend from './CreateMultispend'
 import CreatePinInstructions from './CreatePinInstructions'
 import CreatePoll from './CreatePoll'
+import CreateWalletService from './CreateWalletService'
 import CreatedPin from './CreatedPin'
 import DeveloperSettings from './DeveloperSettings'
 import EcashSendCancelled from './EcashSendCancelled'
@@ -188,6 +191,12 @@ import TabsNavigator from './TabsNavigator'
 import Transactions from './Transactions'
 import UpdateApp from './UpdateApp'
 import UploadAvatarImage from './UploadAvatarImage'
+import WalletServiceDashboard from './WalletServiceDashboard'
+import WalletServiceFee from './WalletServiceFee'
+import WalletServiceLightningProvider from './WalletServiceLightningProvider'
+import WalletServiceProgress from './WalletServiceProgress'
+import WalletServiceReplaceReview from './WalletServiceReplaceReview'
+import WalletServiceSettings from './WalletServiceSettings'
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
@@ -886,6 +895,71 @@ export const MainNavigator = () => {
                                     header: () => <CommunityInviteHeader />,
                                 })}
                             />
+                            {/* Wallet service creation */}
+                            <Stack.Group>
+                                <Stack.Screen
+                                    name="CreateWalletService"
+                                    component={CreateWalletService}
+                                    options={{
+                                        headerShown: false,
+                                    }}
+                                />
+                                <Stack.Screen
+                                    name="ConfirmWalletService"
+                                    component={ConfirmWalletService}
+                                    options={{
+                                        headerShown: false,
+                                    }}
+                                />
+                                <Stack.Screen
+                                    name="WalletServiceProgress"
+                                    component={WalletServiceProgress}
+                                    options={{
+                                        headerShown: false,
+                                        gestureEnabled: false,
+                                    }}
+                                />
+                                <Stack.Screen
+                                    name="WalletServiceReplaceReview"
+                                    component={WalletServiceReplaceReview}
+                                    options={{
+                                        headerShown: false,
+                                    }}
+                                />
+                                <Stack.Screen
+                                    name="WalletServiceDashboard"
+                                    component={WalletServiceDashboard}
+                                    options={{
+                                        // the screen renders the header itself,
+                                        // so the tour can measure the settings
+                                        // control in the same coordinate space
+                                        headerShown: false,
+                                    }}
+                                />
+                                <Stack.Screen
+                                    name="WalletServiceFee"
+                                    component={WalletServiceFee}
+                                    options={{
+                                        headerShown: false,
+                                    }}
+                                />
+                                <Stack.Screen
+                                    name="WalletServiceLightningProvider"
+                                    component={WalletServiceLightningProvider}
+                                    options={{
+                                        headerShown: false,
+                                    }}
+                                />
+                                <Stack.Screen
+                                    name="WalletServiceSettings"
+                                    component={WalletServiceSettings}
+                                    options={() => ({
+                                        header: () => (
+                                            <WalletServiceSettingsHeader />
+                                        ),
+                                    })}
+                                />
+                            </Stack.Group>
                             {/* Deeplink screen */}
                             <Stack.Screen
                                 name="ClaimEcash"

@@ -237,6 +237,10 @@ export type FeatureCatalog = {
    */
   personal_backup_reminder: PersonalBackupReminderFeatureConfig | null;
   /**
+   * Gates the create-your-own wallet service flow built on the fi client.
+   */
+  wallet_service_creation: WalletServiceCreationFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -496,6 +500,11 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   personalBackupReminder: boolean;
+  /**
+   * `#[serde(default)]` so the new bridge stays deserializable against any
+   * cached/older payload that omits the field.
+   */
+  walletServiceCreation: boolean;
 };
 
 export type RpcAccountId = string;
@@ -1177,6 +1186,37 @@ export type RpcFiSelectionReauthorizationReason =
   | "verifierEnvironmentChanged"
   | "paymentFederationRequired";
 
+export type RpcFiSetupPaymentFederation = {
+  /**
+   * Canonical id Manifold derived from `invite_code` when it admitted the
+   * signed setup-payment publication.
+   */
+  federationId: string;
+  /**
+   * The signed public invite this federation is admitted under. Present for
+   * every member, joined or not, because a caller offering an unjoined
+   * federation needs join material and an id cannot be turned back into one.
+   */
+  inviteCode: string;
+  /**
+   * Whether Fedi already holds a wallet for this federation. A joined member
+   * is a payer candidate; an unjoined one is a join candidate. Joined here
+   * says nothing about balance — use `fiClientEligiblePayers` for that.
+   */
+  joined: boolean;
+};
+
+/**
+ * Manifold's authenticated setup-payment federation set.
+ *
+ * `Federations` may be empty and that is a valid authenticated answer: it is
+ * the publisher stopping all new paid setup, not a failure. Callers must not
+ * substitute any other federation list when it is empty.
+ */
+export type RpcFiSetupPaymentFederationsResult =
+  | { type: "federations"; federations: Array<RpcFiSetupPaymentFederation> }
+  | { type: "error"; error: RpcFiOperationError };
+
 export type RpcFiStatus =
   | { type: "idle" }
   | { type: "formation"; formation: RpcFiFormationSnapshot };
@@ -1408,6 +1448,10 @@ export type RpcMethods = {
   getFeatureCatalog: [getFeatureCatalog, FeatureCatalog];
   fiClientStatus: [fiClientStatus, RpcFiClientStatus];
   fiClientEligiblePayers: [fiClientEligiblePayers, RpcFiEligiblePayersResult];
+  fiClientSetupPaymentFederations: [
+    fiClientSetupPaymentFederations,
+    RpcFiSetupPaymentFederationsResult,
+  ];
   fiClientRegisterPushInstallation: [
     fiClientRegisterPushInstallation,
     RpcFiPushRegistrationResult,
@@ -2213,11 +2257,7 @@ export type RpcTransaction = {
    */
   outcomeTime: number | null;
 } & (
-  | {
-      kind: "fiFormationPayment";
-      seats_paid: number;
-      seats_total: number;
-    }
+  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2270,11 +2310,7 @@ export type RpcTransactionDirection = "receive" | "send";
 export type RpcTransactionId = string;
 
 export type RpcTransactionKind =
-  | {
-      kind: "fiFormationPayment";
-      seats_paid: number;
-      seats_total: number;
-    }
+  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2335,11 +2371,7 @@ export type RpcTransactionListEntry = {
    */
   outcomeTime: number | null;
 } & (
-  | {
-      kind: "fiFormationPayment";
-      seats_paid: number;
-      seats_total: number;
-    }
+  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2631,6 +2663,8 @@ export type VectorDiff<T> =
       };
     };
 
+export type WalletServiceCreationFeatureConfig = Record<string, never>;
+
 /**
  * Withdrawal request with extra data accumulated over events.
  */
@@ -2762,6 +2796,8 @@ export type fiClientRegisterPushInstallation = {
 export type fiClientResume = {};
 
 export type fiClientSetGuardianFee = { guardianFeePpm: number };
+
+export type fiClientSetupPaymentFederations = {};
 
 export type fiClientStatus = {};
 

@@ -18,7 +18,7 @@ use rpc_types::fi_client::{
     RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult, RpcFiLiquidityOperationResult,
     RpcFiLiquidityRequestIntent, RpcFiOperationError, RpcFiOperationResult, RpcFiPushPlatform,
     RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest,
-    RpcFiSelectionPreviewResult,
+    RpcFiSelectionPreviewResult, RpcFiSetupPaymentFederationsResult,
 };
 use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
@@ -119,6 +119,15 @@ impl BridgeFull {
         match &self.fi_driver {
             Some(driver) => driver.eligible_payers().await,
             None => RpcFiEligiblePayersResult::Error {
+                error: self.fi_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fi_setup_payment_federations(&self) -> RpcFiSetupPaymentFederationsResult {
+        match &self.fi_driver {
+            Some(driver) => driver.setup_payment_federations().await,
+            None => RpcFiSetupPaymentFederationsResult::Error {
                 error: self.fi_initialization_error(),
             },
         }

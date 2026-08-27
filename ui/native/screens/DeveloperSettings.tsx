@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
     Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     TextInput,
@@ -24,6 +25,7 @@ import {
     clearAutojoinedCommunitiesAndNotices,
     listGateways,
     refreshStabilityPool,
+    resetNuxStep,
     resetNuxSteps,
     selectFediModShowClearCacheButton,
     selectFediModCacheEnabled,
@@ -51,6 +53,9 @@ import {
     selectBackupReminderCountdownStartedAt,
     selectBackupReminderDismissedThisSession,
     selectHasReachedThresholds,
+    upsertFederation,
+    setFederations,
+    selectFederationIds,
 } from '@fedi/common/redux'
 import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
@@ -70,8 +75,18 @@ import {
 } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getGuardianStatuses } from '@fedi/common/utils/FederationUtils'
+import {
+    DEFAULT_FI_SCENARIO,
+    FI_SCENARIO_GROUPS,
+    FI_SCENARIO_STORYBOARD_FRAMES,
+    FiScenarioName,
+    makeMockPayerFederation,
+    MOCK_PAYER_FEDERATIONS,
+    MOCK_PAYER_FEDERATION_IDS,
+} from '@fedi/common/utils/fi'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fiSimulator } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import CheckBox from '../components/ui/CheckBox'
 import SvgImage from '../components/ui/SvgImage'
@@ -103,6 +118,14 @@ const getGatewayIdValue = (gatewayId: RpcLightningGatewayId) => {
         : `lnv2:${gatewayId.url}`
 }
 
+/** The simulator's own actions, which are not a scenario to choose between. */
+const SIMULATOR_TOOLS_GROUP = 'Simulator tools'
+
+const groupTitleFor = (scenario: FiScenarioName): string | undefined =>
+    FI_SCENARIO_GROUPS.find(group =>
+        (group.scenarios as ReadonlyArray<FiScenarioName>).includes(scenario),
+    )?.title
+
 const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
@@ -133,12 +156,24 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         useState<FeesMap>({})
     const [isSharingState, setIsSharingState] = useState(false)
     const [isSensitiveLogging, setIsSensitiveLogging] = useState<boolean>(false)
+    const [fiScenario, setFiScenario] =
+        useState<FiScenarioName>(DEFAULT_FI_SCENARIO)
+    // opens on whichever group holds the active scenario, so the screen starts
+    // showing where you already are rather than fully closed
+    const [openFiGroup, setOpenFiGroup] = useState<string | null>(
+        () => groupTitleFor(DEFAULT_FI_SCENARIO) ?? null,
+    )
     const [guardianOnlineStatus, setGuardianOnlineStatus] = useState<
         GuardianStatus[]
     >([])
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const selectedFiatCurrency = useAppSelector(s =>
         selectCurrency(s, paymentFederation?.id),
+    )
+    const federations = useAppSelector(s => s.federation.federations)
+    const joinedFederationIds = useAppSelector(selectFederationIds)
+    const isMockPayerAdded = MOCK_PAYER_FEDERATION_IDS.some(id =>
+        joinedFederationIds.includes(id),
     )
     const fediModDebugMode = useAppSelector(selectFediModDebugMode)
     const fediModCacheEnabled = useAppSelector(selectFediModCacheEnabled)
@@ -360,6 +395,25 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         }
     }
 
+    // A formation that cannot finish also cannot be left: the entry guard sends
+    // every wallet service screen back to the progress screen while one is
+    // live, and the bridge rejects new quotes as `busy`. The abandon RPC is the
+    // only way out, and nothing else calls it, so surface it here rather than
+    // leaving the flow wedged with no lever at all.
+    const handleAbandonFormation = async () => {
+        try {
+            const result = await fedimint.fiClientAbandon()
+            log.info('fiClientAbandon', result)
+            toast.show({
+                content: `Abandon: ${JSON.stringify(result)}`,
+                status: 'success',
+            })
+        } catch (e) {
+            log.error('fiClientAbandon failed', e)
+            toast.show({ content: `Abandon failed: ${e}`, status: 'error' })
+        }
+    }
+
     const handleClearGatewayOverride = async () => {
         if (!paymentFederation?.id) return
 
@@ -545,6 +599,11 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     containerStyle={style.buttonContainer}
                     onPress={fetchAndShowFCMToken}
                 />
+                <Button
+                    title="Abandon wallet service formation"
+                    containerStyle={style.buttonContainer}
+                    onPress={handleAbandonFormation}
+                />
                 <View style={style.switchWrapper}>
                     <View style={style.switchLabelContainer}>
                         <Text caption style={style.switchLabel}>
@@ -564,6 +623,149 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         }}
                     />
                 </View>
+            </SettingsSection>
+            <SettingsSection title="Wallet Service simulator">
+                <Text small style={style.switchLabel}>
+                    The FI backend cannot complete a formation in dev, so the
+                    fiClient* RPCs resolve from an in-memory simulator. Pick the
+                    environment the wallet service flow should see. The
+                    storyboard frames each scenario reaches are named in the
+                    toast, so screen and storyboard can be matched without
+                    guessing.
+                </Text>
+                {fiSimulator ? (
+                    FI_SCENARIO_GROUPS.map(group => (
+                        <CollapsibleSection
+                            key={group.title}
+                            title={group.title}
+                            count={group.scenarios.length}
+                            isOpen={openFiGroup === group.title}
+                            // one open at a time: these are alternatives, and
+                            // the list is only long because it is all of them
+                            onToggle={() =>
+                                setOpenFiGroup(current =>
+                                    current === group.title
+                                        ? null
+                                        : group.title,
+                                )
+                            }>
+                            {group.scenarios.map(name => (
+                                <Button
+                                    key={name}
+                                    title={
+                                        name === fiScenario
+                                            ? `\u2713 ${name}`
+                                            : name
+                                    }
+                                    day={name !== fiScenario}
+                                    containerStyle={style.buttonContainer}
+                                    onPress={() => {
+                                        fiSimulator?.setScenario(name)
+                                        setFiScenario(name)
+                                        toast.show({
+                                            content: `Wallet Service scenario: ${name}${
+                                                FI_SCENARIO_STORYBOARD_FRAMES[
+                                                    name
+                                                ]
+                                                    ? ` \u2014 ${FI_SCENARIO_STORYBOARD_FRAMES[name]}`
+                                                    : ''
+                                            }`,
+                                            status: 'info',
+                                        })
+                                    }}
+                                />
+                            ))}
+                        </CollapsibleSection>
+                    ))
+                ) : (
+                    <Text small style={style.switchLabel}>
+                        Not a dev build \u2014 the real bridge is in use.
+                    </Text>
+                )}
+                {fiSimulator && (
+                    <CollapsibleSection
+                        title="Simulator tools"
+                        count={2}
+                        isOpen={openFiGroup === SIMULATOR_TOOLS_GROUP}
+                        onToggle={() =>
+                            setOpenFiGroup(current =>
+                                current === SIMULATOR_TOOLS_GROUP
+                                    ? null
+                                    : SIMULATOR_TOOLS_GROUP,
+                            )
+                        }>
+                        <Text small style={style.switchLabel}>
+                            The confirm step can only offer a wallet the app
+                            actually holds, and dev cannot always join one.
+                            Seeds the story 04 payer set: two funded wallets, a
+                            zero-balance one and one holding less than a single
+                            setup, so the picker, the happy path, the shortfall
+                            banner and the top-up From list are all reachable.
+                            Transfers between these wallets are simulated too.
+                        </Text>
+                        <Button
+                            title={
+                                isMockPayerAdded
+                                    ? 'Remove mock payer federations'
+                                    : 'Add mock payer federations'
+                            }
+                            day={!isMockPayerAdded}
+                            containerStyle={style.buttonContainer}
+                            onPress={() => {
+                                if (isMockPayerAdded) {
+                                    reduxDispatch(
+                                        setFederations(
+                                            federations.filter(
+                                                f =>
+                                                    !MOCK_PAYER_FEDERATION_IDS.includes(
+                                                        f.id,
+                                                    ),
+                                            ),
+                                        ),
+                                    )
+                                    fiSimulator?.clearMockPayers()
+                                } else {
+                                    MOCK_PAYER_FEDERATIONS.forEach(mock => {
+                                        reduxDispatch(
+                                            upsertFederation(
+                                                makeMockPayerFederation(mock),
+                                            ),
+                                        )
+                                        fiSimulator?.addMockPayer(
+                                            mock.id,
+                                            mock.balanceSats,
+                                        )
+                                    })
+                                }
+                                toast.show({
+                                    content: isMockPayerAdded
+                                        ? 'Mock payer federations removed'
+                                        : `Added ${MOCK_PAYER_FEDERATIONS.length} mock payer federations`,
+                                    status: 'info',
+                                })
+                            }}
+                        />
+                        <Text small style={style.switchLabel}>
+                            The external-deposit branch of the top-up sheet
+                            waits for a Lightning payment nobody in dev can
+                            make. This settles every invoice the simulator has
+                            handed out, which is what the storyboard's A6 to A7
+                            step is.
+                        </Text>
+                        <Button
+                            day
+                            title="Settle open simulated deposits"
+                            containerStyle={style.buttonContainer}
+                            onPress={() => {
+                                fiSimulator?.settleOpenDeposits()
+                                toast.show({
+                                    content: 'Simulated deposits settled',
+                                    status: 'info',
+                                })
+                            }}
+                        />
+                    </CollapsibleSection>
+                )}
             </SettingsSection>
             <SettingsSection title="Log spike simulator">
                 <Text small style={style.switchLabel}>
@@ -870,6 +1072,27 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     onPress={() => {
                         reduxDispatch(resetNuxSteps())
                         toast.show('NUX reset!')
+                    }}
+                />
+                {/* the Lightning step is the last of five, so reaching it
+                    normally means paying for a whole formation first */}
+                <Button
+                    title="Open Wallet Service Lightning step"
+                    containerStyle={style.buttonContainer}
+                    onPress={() =>
+                        navigation.navigate('WalletServiceLightningProvider')
+                    }
+                />
+                <Button
+                    title="Replay Wallet Service tour"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(resetNuxStep('hasSeenWalletServiceTour'))
+                        toast.show({
+                            content:
+                                'Wallet Service tour will show on your next visit to the dashboard',
+                            status: 'success',
+                        })
                     }}
                 />
                 <Button
@@ -1243,6 +1466,53 @@ const SettingsSection: React.FC<{
     )
 }
 
+/**
+ * A section inside a section, collapsed until asked for.
+ *
+ * The scenario list is thirty entries and every one of them is a button, so
+ * shown flat it buries every other developer setting under a wall of them.
+ * Local to this screen: nothing else has enough rows to need it.
+ */
+const CollapsibleSection: React.FC<{
+    title: string
+    /** Rows inside, shown in the header so a closed group still counts. */
+    count: number
+    isOpen: boolean
+    onToggle: () => void
+    children: React.ReactNode
+}> = ({ title, count, isOpen, onToggle, children }) => {
+    const { theme } = useTheme()
+    const style = styles(theme)
+
+    return (
+        <View style={style.collapsible}>
+            <Pressable
+                onPress={onToggle}
+                style={style.collapsibleHeader}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isOpen }}>
+                <SvgImage
+                    name="ChevronRight"
+                    size={16}
+                    color={theme.colors.grey}
+                    svgProps={{
+                        style: {
+                            transform: [{ rotate: isOpen ? '90deg' : '0deg' }],
+                        },
+                    }}
+                />
+                <Text medium style={style.collapsibleTitle}>
+                    {title}
+                </Text>
+                <Text small style={style.collapsibleCount}>
+                    {count}
+                </Text>
+            </Pressable>
+            {isOpen && <View>{children}</View>}
+        </View>
+    )
+}
+
 const styles = (theme: Theme) =>
     StyleSheet.create({
         modalContent: {
@@ -1276,6 +1546,22 @@ const styles = (theme: Theme) =>
         },
         sectionTitle: {
             marginVertical: theme.spacing.md,
+        },
+        collapsible: {
+            borderBottomColor: theme.colors.extraLightGrey,
+            borderBottomWidth: 1,
+        },
+        collapsibleHeader: {
+            alignItems: 'center',
+            flexDirection: 'row',
+            gap: theme.spacing.sm,
+            paddingVertical: theme.spacing.md,
+        },
+        collapsibleTitle: {
+            flex: 1,
+        },
+        collapsibleCount: {
+            color: theme.colors.grey,
         },
         checkboxContainer: {
             margin: 0,

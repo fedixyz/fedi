@@ -3,7 +3,6 @@ import React, { useRef } from 'react'
 import {
     Animated,
     Pressable,
-    ScaledSize,
     StyleSheet,
     useWindowDimensions,
 } from 'react-native'
@@ -17,9 +16,21 @@ interface Props {
     btn: NumpadButtonValue
     disabled?: boolean
     onPress: () => void
+    /**
+     * Row height in points, for a keypad whose space is decided by its
+     * container rather than by the window — a bottom sheet, say. Left unset,
+     * the button keeps sizing itself off the window height, which is right for
+     * a keypad that owns a whole screen.
+     */
+    height?: number
 }
 
-export const NumpadButton: React.FC<Props> = ({ btn, disabled, onPress }) => {
+export const NumpadButton: React.FC<Props> = ({
+    btn,
+    disabled,
+    onPress,
+    height,
+}) => {
     const { theme } = useTheme()
     const dimensions = useWindowDimensions()
     const backgroundOpacity = useRef(new Animated.Value(0)).current
@@ -31,7 +42,12 @@ export const NumpadButton: React.FC<Props> = ({ btn, disabled, onPress }) => {
         ],
     })
 
-    const style = styles(dimensions)
+    // a short row gets the smaller glyphs, whether it is short because the
+    // window is small or because a container handed it less room
+    const resolvedHeight = height ?? (dimensions.height < 600 ? 52 : 68)
+    const isCompact = resolvedHeight < 60
+
+    const style = styles(resolvedHeight, isCompact)
     return (
         <Animated.View style={[style.container, { backgroundColor }]}>
             <Pressable
@@ -54,10 +70,7 @@ export const NumpadButton: React.FC<Props> = ({ btn, disabled, onPress }) => {
                 }
                 disabled={btn === null || disabled}>
                 {btn === 'backspace' ? (
-                    <SvgImage
-                        name="ArrowLeft"
-                        size={dimensions.height < 600 ? 20 : 24}
-                    />
+                    <SvgImage name="ArrowLeft" size={isCompact ? 20 : 24} />
                 ) : (
                     <Text medium style={style.text}>
                         {btn}
@@ -68,7 +81,7 @@ export const NumpadButton: React.FC<Props> = ({ btn, disabled, onPress }) => {
     )
 }
 
-const styles = (dimensions: ScaledSize) =>
+const styles = (rowHeight: number, isCompact: boolean) =>
     StyleSheet.create({
         container: {
             width: '33.333333%',
@@ -76,11 +89,11 @@ const styles = (dimensions: ScaledSize) =>
         },
         pressable: {
             width: '100%',
-            height: dimensions.height < 600 ? 52 : 68,
+            height: rowHeight,
             alignItems: 'center',
             justifyContent: 'center',
         },
         text: {
-            fontSize: dimensions.height < 600 ? 16 : 20,
+            fontSize: isCompact ? 16 : 20,
         },
     })

@@ -195,9 +195,96 @@ jest.mock('@fedi/common/utils/log', () => ({
     }),
 }))
 
+type AppStateStatus = 'active' | 'background' | 'inactive'
+type AppStateListener = (status: AppStateStatus) => void
+
+// `mock`-prefixed: jest forbids a mock factory from touching any other
+// out-of-scope binding, however it is declared
+const mockAppStateListeners = new Set<AppStateListener>()
+const mockAppStateValue = { current: 'active' as AppStateStatus }
+
+/**
+ * Drives `AppState` as the OS would, for code that recovers on resume.
+ *
+ * Backgrounding is not something a test can provoke by rendering, and it is
+ * exactly the condition that breaks event-driven screens — a suspended JS
+ * thread misses the one event it was waiting for. So it is drivable here,
+ * rather than left to a component that fakes being asleep.
+ */
+export const mockAppState = {
+    background() {
+        mockAppStateValue.current = 'background'
+        mockAppStateListeners.forEach(listener => listener('background'))
+    },
+    foreground() {
+        mockAppStateValue.current = 'active'
+        mockAppStateListeners.forEach(listener => listener('active'))
+    },
+    /** Every suite starts in the foreground, with nobody listening. */
+    reset() {
+        mockAppStateValue.current = 'active'
+        mockAppStateListeners.clear()
+    },
+}
+
+type BackHandlerListener = () => boolean
+
+// `mock`-prefixed: jest forbids a mock factory from touching any other
+// out-of-scope binding, however it is declared
+const mockBackHandlerListeners: BackHandlerListener[] = []
+
+/**
+ * Presses Android's hardware back button, as the OS would.
+ *
+ * A screen can bind this to something other than popping the stack, and no
+ * amount of rendering provokes it, so it is drivable here. Listeners run
+ * newest first and stop at the first one that claims the press — the same
+ * order `BackHandler` uses, which is what lets a focused screen override the
+ * one beneath it.
+ *
+ * Returns whether any listener handled it.
+ */
+export const mockHardwareBack = {
+    press() {
+        for (let i = mockBackHandlerListeners.length - 1; i >= 0; i--) {
+            if (mockBackHandlerListeners[i]()) return true
+        }
+        return false
+    },
+    /** Every suite starts with nobody listening. */
+    reset() {
+        mockBackHandlerListeners.length = 0
+    },
+}
+
 // mocks for commonly used react native components
 // add more here as needed
 jest.mock('react-native', () => ({
+    BackHandler: {
+        addEventListener: (event: string, listener: BackHandlerListener) => {
+            if (event === 'hardwareBackPress')
+                mockBackHandlerListeners.push(listener)
+            return {
+                remove: () => {
+                    const at = mockBackHandlerListeners.indexOf(listener)
+                    if (at !== -1) mockBackHandlerListeners.splice(at, 1)
+                },
+            }
+        },
+    },
+    AppState: {
+        get currentState() {
+            return mockAppStateValue.current
+        },
+        addEventListener: (event: string, listener: AppStateListener) => {
+            if (event === 'change') mockAppStateListeners.add(listener)
+            return { remove: () => mockAppStateListeners.delete(listener) }
+        },
+    },
+    // react-redux calls this to batch subscriber notifications; without it any
+    // dispatch after mount throws "batch is not a function"
+    unstable_batchedUpdates:
+        jest.requireActual('react-native').unstable_batchedUpdates,
     ActivityIndicator: jest.requireActual('react-native').ActivityIndicator,
     Alert: {
         alert: jest.fn(),
@@ -258,17 +345,55 @@ jest.mock('react-native-gesture-handler', () => ({
 }))
 
 jest.mock('react-native-reanimated', () => ({
-    useSharedValue: jest.fn(),
+    // return a writable object so components that assign `.value` in effects
+    // (e.g. success animations that always run) don't crash under test
+    useSharedValue: jest.fn(initial => ({ value: initial })),
     useAnimatedStyle: jest.fn(),
     withSequence: jest.fn(),
-    withTiming: jest.fn(),
+    withTiming: jest.fn(value => value),
+    withDelay: jest.fn((_delay, value) => value),
+    withRepeat: jest.fn(value => value),
+    FadeIn: {},
+    FadeOut: {},
     View: jest.requireActual('react-native').View,
+    Easing: jest.requireActual('react-native').Easing,
 }))
 
 // mock a theme object with values for colors, spacing, etc
 export const mockTheme = {
     ...themeDefaults,
-    components: { Header: {} },
+    // mirrors the `Header` block in `ui/native/styles/theme.ts`. The real shape
+    // is needed rather than `{}` because screens that render the shared
+    // `Header` themselves read these back — `containerStyle.borderBottomColor`
+    // in particular — instead of only ever getting it from the navigator
+    components: {
+        Header: {
+            containerStyle: {
+                paddingHorizontal: themeDefaults.spacing.lg,
+                borderBottomColor: themeDefaults.colors.secondary,
+                paddingVertical: 0,
+            },
+            leftContainerStyle: {
+                flex: 1,
+                flexDirection: 'row',
+                justifyContent: 'flex-start',
+                alignItems: 'center',
+            },
+            centerContainerStyle: {
+                flex: 0,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 36,
+            },
+            rightContainerStyle: {
+                flex: 1,
+                flexDirection: 'row',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+            },
+        },
+    },
 }
 
 jest.mock('@rneui/themed', () => ({
@@ -307,10 +432,43 @@ export const mockNavigation = {
     addListener: jest.fn(() => {}),
 }
 export const mockRoute = {}
+
+type FocusEffectCallback = () => void | (() => void)
+const mockFocusEffectEntries = new Map<
+    FocusEffectCallback,
+    void | (() => void)
+>()
+/** Drives useFocusEffect callbacks as a navigation container would. */
+export const mockScreenFocus = {
+    blur() {
+        mockFocusEffectEntries.forEach((cleanup, callback) => {
+            if (typeof cleanup === 'function') cleanup()
+            mockFocusEffectEntries.set(callback, undefined)
+        })
+    },
+    focus() {
+        mockFocusEffectEntries.forEach((_, callback) => {
+            mockFocusEffectEntries.set(callback, callback())
+        })
+    },
+}
+
 jest.mock('@react-navigation/native', () => ({
     useNavigation: jest.fn(() => mockNavigation),
     useRoute: jest.fn(() => mockRoute),
     useIsFocused: jest.fn(() => true),
+    // behaves as focused-on-mount / blurred-on-unmount; tests can also drive
+    // an explicit blur/refocus through mockScreenFocus without remounting,
+    // which the test renderer does not tolerate twice in one test
+    useFocusEffect: (callback: () => void | (() => void)) =>
+        jest.requireActual('react').useEffect(() => {
+            mockFocusEffectEntries.set(callback, callback())
+            return () => {
+                const cleanup = mockFocusEffectEntries.get(callback)
+                mockFocusEffectEntries.delete(callback)
+                if (typeof cleanup === 'function') cleanup()
+            }
+        }, [callback]),
     CommonActions: jest.requireActual('@react-navigation/native').CommonActions,
 }))
 
@@ -434,6 +592,19 @@ jest.mock('react-native-gesture-handler', () => ({
     ScrollView: jest.requireActual('react-native').ScrollView,
 }))
 
+// the qrcode package reaches for node's zlib through pngjs, which the RN
+// test environment has no shim for; screens only need a value to render
+jest.mock('@fedi/common/utils/qrcode', () => ({
+    renderStyledQrSvg: jest.fn(() => '<svg />'),
+}))
+
+// native module with no JS fallback; screens only need it to render
+jest.mock('react-native-view-shot', () => ({
+    __esModule: true,
+    default: 'ViewShot',
+    captureRef: jest.fn(),
+}))
+
 jest.mock('react-native-modal', () => jest.requireActual('react-native').Modal)
 
 jest.mock('@react-navigation/elements', () => ({
@@ -509,6 +680,16 @@ jest.mock('react-native-video', () => {
 jest.mock('react-native-svg', () => ({
     SvgXml: jest.requireActual('react-native-svg').SvgXml,
     Svg: jest.requireActual('react-native-svg').Svg,
+    // the wallet service progress spinner's ring
+    Circle: jest.requireActual('react-native-svg').Circle,
+    // masking primitives, used to cut the spotlight hole in the wallet service
+    // tour's scrim
+    Defs: jest.requireActual('react-native-svg').Defs,
+    Mask: jest.requireActual('react-native-svg').Mask,
+    Rect: jest.requireActual('react-native-svg').Rect,
+    // the band that pans across a loading skeleton bar
+    LinearGradient: jest.requireActual('react-native-svg').LinearGradient,
+    Stop: jest.requireActual('react-native-svg').Stop,
 }))
 
 jest.mock('react-native-progress', () => ({

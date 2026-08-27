@@ -3,7 +3,13 @@ import { useNavigation } from '@react-navigation/native'
 import { useEffect, useMemo, useRef } from 'react'
 import { Platform } from 'react-native'
 import DeviceInfo from 'react-native-device-info'
-import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux'
+import {
+    TypedUseSelectorHook,
+    useDispatch,
+    useSelector,
+    useStore,
+} from 'react-redux'
+import { Store } from 'redux'
 
 import { usePublishNotificationToken } from '@fedi/common/hooks/chat'
 import { usePushNotificationToken } from '@fedi/common/hooks/matrix'
@@ -28,6 +34,13 @@ export const useAppDispatch: () => AppDispatch = useDispatch
  * Provides application state from redux, given a selector.
  */
 export const useAppSelector: TypedUseSelectorHook<AppState> = useSelector
+
+/**
+ * Provides the redux store, for reading state outside of render — after an
+ * awaited dispatch, where a selector's value would still be the pre-dispatch
+ * one captured at the last render.
+ */
+export const useAppStore: () => Store<AppState> = useStore
 
 export const usePrevious = <T = unknown>(value: T): T | undefined => {
     const ref = useRef<T | undefined>(undefined)

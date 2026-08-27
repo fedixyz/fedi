@@ -1,5 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
     Pressable,
@@ -52,7 +52,24 @@ export type Props = {
     content?: React.ReactNode | null
     preHeader?: React.ReactNode | null
     federationId?: Federation['id']
+    /**
+     * Size the keypad to the room this component was actually given, instead
+     * of to the window.
+     *
+     * `NumpadButton` defaults to a 68pt row off the window height, which is
+     * right on a screen the keypad owns. In a bottom sheet it is a fixed 272pt
+     * claim against a box that may be shorter, and the bottom row — `0` and
+     * backspace — ends up behind the sheet's pinned button. Set this and the
+     * rows divide up what is left below the amount instead.
+     */
+    fitNumpadToSpace?: boolean
 }
+
+const NUMPAD_ROWS = 4
+/** Below this a row is too small to hit reliably; the sheet must grow instead. */
+const NUMPAD_MIN_ROW_HEIGHT = 44
+/** The full-screen row height, which is also the most a fitted keypad takes. */
+const NUMPAD_MAX_ROW_HEIGHT = 68
 
 const AmountInput: React.FC<Props> = ({
     amount,
@@ -73,6 +90,7 @@ const AmountInput: React.FC<Props> = ({
     content = null,
     preHeader = null,
     federationId,
+    fitNumpadToSpace = false,
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -97,6 +115,21 @@ const AmountInput: React.FC<Props> = ({
     )
     const inputRef = useRef<TextInput>(null)
     const { height, width } = useWindowDimensions()
+
+    // Both are measured rather than assumed: the amount block's height depends
+    // on the currency switcher, the error line and whatever `content` a caller
+    // passed, none of which this component can predict. Only read while
+    // `fitNumpadToSpace` is set.
+    const [boxHeight, setBoxHeight] = useState(0)
+    const [amountsHeight, setAmountsHeight] = useState(0)
+    const numpadButtonHeight = useMemo(() => {
+        if (!fitNumpadToSpace || !boxHeight || !amountsHeight) return undefined
+        const perRow = Math.floor((boxHeight - amountsHeight) / NUMPAD_ROWS)
+        return Math.max(
+            NUMPAD_MIN_ROW_HEIGHT,
+            Math.min(NUMPAD_MAX_ROW_HEIGHT, perRow),
+        )
+    }, [fitNumpadToSpace, boxHeight, amountsHeight])
 
     // For some reason the TextInput inside InvisibleInput does not
     // automatically blur the input when the keyboard is dismissed
@@ -178,8 +211,28 @@ const AmountInput: React.FC<Props> = ({
     }))
 
     return (
-        <Column grow align="center" fullWidth>
-            <Column center gap="sm" grow style={style.amounts}>
+        <Column
+            grow
+            align="center"
+            fullWidth
+            onLayout={
+                fitNumpadToSpace
+                    ? e => setBoxHeight(e.nativeEvent.layout.height)
+                    : undefined
+            }>
+            {/* when fitting, the amount block keeps its natural height so the
+                keypad can have the remainder; stretching both leaves nothing
+                to divide */}
+            <Column
+                center
+                gap="sm"
+                grow={!fitNumpadToSpace}
+                style={style.amounts}
+                onLayout={
+                    fitNumpadToSpace
+                        ? e => setAmountsHeight(e.nativeEvent.layout.height)
+                        : undefined
+                }>
                 <Column fullWidth>{preHeader}</Column>
                 <Animated.View style={animatedStyle}>
                     <Pressable
@@ -269,6 +322,7 @@ const AmountInput: React.FC<Props> = ({
                                 }
                             }}
                             disabled={isSubmitting}
+                            height={numpadButtonHeight}
                         />
                     ))}
                 </Row>

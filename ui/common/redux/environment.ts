@@ -32,6 +32,7 @@ import {
     fetchGithubRelease,
     lookupIosAppMetadata,
 } from '../utils/release'
+import { refreshHistoricalCurrencyRates } from './currency'
 import { loadFromStorage } from './storage'
 
 const log = makeLog('redux/environment')
@@ -341,6 +342,19 @@ export const refreshOnboardingStatus = createAsyncThunk<
         dispatch(setOnboardingMethod(status.onboarding_method))
         // navigate to home
         dispatch(setOnboardingCompleted(true))
+        // Store setup fires the first rate fetch before the bridge has reported
+        // its status, so `onboardingCompleted` is still false there and the
+        // fetch returns early without one. Nothing retries it, which leaves
+        // every fiat conversion reading a rate of 0 — "0.00 USD" that never
+        // moves — until the app happens to be backgrounded and foregrounded.
+        // Onboarding completing is the first moment the fetch can succeed.
+        dispatch(refreshHistoricalCurrencyRates({ fedimint }))
+            .unwrap()
+            .catch(() => {
+                log.warn(
+                    'Failed to refresh currency rates after onboarding completed',
+                )
+            })
         // check the survey condition only when onboarding is complete
         dispatch(checkSurveyCondition())
     } else if (status.type === 'onboarding') {

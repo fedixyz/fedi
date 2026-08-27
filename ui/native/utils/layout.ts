@@ -17,7 +17,10 @@ export const getOverlayBottomPadding = (
     basePadding: number = 0,
     insetBottom: number = 0,
 ): number => {
-    if (Platform.OS !== 'android') return basePadding
+    // iOS: the base padding is smaller than the home indicator inset, so an
+    // overlay's last button used to sit on the indicator. Devices without one
+    // report a zero inset and are unaffected.
+    if (Platform.OS !== 'android') return Math.max(basePadding, insetBottom)
     if (Platform.Version >= 30) {
         const minPadding = Math.max(basePadding, insetBottom)
         const needsCushion = insetBottom === 0

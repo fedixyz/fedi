@@ -3,11 +3,14 @@ import {
     ActivityIndicator,
     GestureResponderEvent,
     Pressable,
+    StyleProp,
     StyleSheet,
+    TextStyle,
     View,
+    ViewStyle,
 } from 'react-native'
 
-import { Row } from '../../ui/Flex'
+import { Column, Row } from '../../ui/Flex'
 import NotificationDot from '../../ui/NotificationDot'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
@@ -23,6 +26,11 @@ export type SettingsItemProps = {
     onPress: (event: GestureResponderEvent) => void
     color?: string
     testID?: string
+    /** Secondary line under the label. */
+    description?: string
+    /** Override row padding, e.g. to sit flush inside a bordered card. */
+    style?: StyleProp<ViewStyle>
+    labelStyle?: StyleProp<TextStyle>
 }
 
 const SettingsItem = ({
@@ -37,6 +45,9 @@ const SettingsItem = ({
     showNotificationDot = false,
     color,
     testID,
+    description,
+    style: styleOverride,
+    labelStyle,
 }: SettingsItemProps) => {
     const { theme } = useTheme()
     const style = styles(theme)
@@ -45,6 +56,7 @@ const SettingsItem = ({
             testID={testID}
             style={({ pressed }) => [
                 style.container,
+                styleOverride,
                 // dont react to presses if disabled
                 disabled
                     ? style.disabled
@@ -68,13 +80,20 @@ const SettingsItem = ({
                             <NotificationDot style={style.iconDot} />
                         )}
                     </View>
-                    <Text
-                        color={color || theme.colors.primary}
-                        style={style.text}
-                        numberOfLines={2}
-                        ellipsizeMode="tail">
-                        {label}
-                    </Text>
+                    <Column gap="xxs" style={style.text}>
+                        <Text
+                            color={color || theme.colors.primary}
+                            style={labelStyle}
+                            numberOfLines={2}
+                            ellipsizeMode="tail">
+                            {label}
+                        </Text>
+                        {description ? (
+                            <Text small color={theme.colors.darkGrey}>
+                                {description}
+                            </Text>
+                        ) : null}
+                    </Column>
                     {adornment ? <>{adornment}</> : null}
                 </Row>
                 {isLoading ? (

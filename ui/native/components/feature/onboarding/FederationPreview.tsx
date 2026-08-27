@@ -25,6 +25,12 @@ type Props = {
     onJoin: (recoverFromScratch?: boolean) => void | Promise<void>
     onBack: () => void
     isJoining: boolean
+    /**
+     * Whether this screen may drive the stack header. Defaults on, which is
+     * the onboarding behaviour. The wallet service flow renders its own
+     * journey header above this and must not have a second bar appear.
+     */
+    withNavigationHeader?: boolean
 }
 
 const FederationPreview: React.FC<Props> = ({
@@ -32,6 +38,7 @@ const FederationPreview: React.FC<Props> = ({
     onJoin,
     onBack,
     isJoining,
+    withNavigationHeader = true,
 }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
@@ -48,11 +55,12 @@ const FederationPreview: React.FC<Props> = ({
         federation.returningMemberStatus.type === 'returningMember'
 
     useLayoutEffect(() => {
+        if (!withNavigationHeader) return
         navigation.setOptions({ headerShown: !isJoining })
         return () => {
             navigation.setOptions({ headerShown: true })
         }
-    }, [navigation, isJoining])
+    }, [navigation, isJoining, withNavigationHeader])
 
     const s = styles(theme)
 

@@ -1,5 +1,6 @@
 export {
     fedimint,
+    fiSimulator,
     subscribeToBridgeEvents,
     unsubscribeFromBridgeEvents,
     getAppFlavor,

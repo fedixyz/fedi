@@ -13,9 +13,12 @@ import { PressableIcon } from './PressableIcon'
 export default function HelpTooltip({
     children,
     svgProps,
+    svgName = 'Help',
     ...rest
 }: {
     svgProps?: React.ComponentProps<typeof PressableIcon>['svgProps']
+    /** Defaults to the "?" icon; use "Info" where the design shows an ⓘ. */
+    svgName?: React.ComponentProps<typeof PressableIcon>['svgName']
     children: React.ReactNode
 } & PressableProps) {
     const [open, setOpen] = useState(false)
@@ -41,7 +44,7 @@ export default function HelpTooltip({
                 containerStyle={{ padding: 0 }}
                 popover={<View style={style.contentWrapper}>{children}</View>}>
                 <PressableIcon
-                    svgName="Help"
+                    svgName={svgName}
                     onPress={e => {
                         e.stopPropagation()
                         setOpen(true)

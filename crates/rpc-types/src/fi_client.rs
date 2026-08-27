@@ -192,6 +192,44 @@ pub enum RpcFiEligiblePayersResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFiSetupPaymentFederation {
+    /// Canonical id Manifold derived from `invite_code` when it admitted the
+    /// signed setup-payment publication.
+    pub federation_id: String,
+    /// The signed public invite this federation is admitted under. Present for
+    /// every member, joined or not, because a caller offering an unjoined
+    /// federation needs join material and an id cannot be turned back into one.
+    pub invite_code: String,
+    /// Whether Fedi already holds a wallet for this federation. A joined member
+    /// is a payer candidate; an unjoined one is a join candidate. Joined here
+    /// says nothing about balance — use `fiClientEligiblePayers` for that.
+    pub joined: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+/// Manifold's authenticated setup-payment federation set.
+///
+/// `Federations` may be empty and that is a valid authenticated answer: it is
+/// the publisher stopping all new paid setup, not a failure. Callers must not
+/// substitute any other federation list when it is empty.
+pub enum RpcFiSetupPaymentFederationsResult {
+    Federations {
+        federations: Vec<RpcFiSetupPaymentFederation>,
+    },
+    Error {
+        error: RpcFiOperationError,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",

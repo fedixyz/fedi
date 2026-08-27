@@ -272,6 +272,15 @@ export type RootStackParamList = {
         | undefined
     Transactions: { federationId: Federation['id'] }
     UploadAvatarImage: undefined
+    CreateWalletService: undefined
+    ConfirmWalletService: undefined
+    WalletServiceProgress: undefined
+    WalletServiceReplaceReview: undefined
+    WalletServiceDashboard: undefined
+    // `onboarding` continues to the Lightning step; `edit` returns to settings
+    WalletServiceFee: { mode: 'onboarding' | 'edit' }
+    WalletServiceLightningProvider: undefined
+    WalletServiceSettings: undefined
     DeveloperSettings: undefined
     SetPin: undefined
     CreatedPin: undefined

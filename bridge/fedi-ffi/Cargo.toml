@@ -90,6 +90,10 @@ rusqlite = { version = "*" }
 # so we enable bundled feature when compiling for it
 [target.'cfg(target_os = "android")'.dependencies]
 rusqlite = { version = "*", features = ["bundled"] }
+# publishes the VM + Context that hickory-resolver, iroh-dns and netdev read
+# through `ndk_context::android_context()`; see src/android_context.rs
+jni = "0.21.1"
+ndk-context = "0.1.1"
 
 [build-dependencies]
 uniffi = { version = "0.25.3", features = ["build"] }

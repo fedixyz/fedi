@@ -17,6 +17,7 @@ export type Props = {
     formattedAmount?: string
     formattedTotalAmount?: string
     isLoading?: boolean
+    isDisabled?: boolean
     notesText?: string
 }
 
@@ -80,6 +81,7 @@ const SendPreviewDetails: React.FC<Props> = ({
     formattedTotalAmount,
     showTotalFee = false,
     isLoading = false,
+    isDisabled = false,
     notesText,
 }) => {
     const { theme } = useTheme()
@@ -201,7 +203,7 @@ const SendPreviewDetails: React.FC<Props> = ({
                     fullWidth
                     containerStyle={[style.button]}
                     onPress={onSend}
-                    disabled={isLoading}
+                    disabled={isLoading || isDisabled}
                     loading={isLoading}
                     title={
                         <Text medium style={style.buttonText}>

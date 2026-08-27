@@ -36,6 +36,7 @@ import {
     upsertCommunity,
     upsertFederation,
 } from './federation'
+import { fiSlice } from './fi'
 import {
     checkForReceivablePayments,
     handleMatrixRoomTimelineStreamUpdates,
@@ -63,6 +64,7 @@ const log = makeLog('common/redux/index')
 export * from './currency'
 export * from './environment'
 export * from './federation'
+export * from './fi'
 export * from './matrix'
 export * from './nux'
 export * from './personal-backup-reminder/personalBackupReminderSlice'
@@ -78,6 +80,7 @@ export const commonReducers = {
     currency: currencySlice.reducer,
     environment: environmentSlice.reducer,
     federation: federationSlice.reducer,
+    fi: fiSlice.reducer,
     matrix: matrixSlice.reducer,
     mod: modSlice.reducer,
     nux: nuxSlice.reducer,

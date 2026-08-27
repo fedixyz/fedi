@@ -7,6 +7,7 @@ import {
     Platform,
     ScrollView,
     StyleSheet,
+    View,
     useWindowDimensions,
 } from 'react-native'
 import Animated, {
@@ -22,7 +23,7 @@ import { getOverlayBottomPadding } from '../../utils/layout'
 import { Column, Row } from './Flex'
 import SvgImage, { SvgImageName } from './SvgImage'
 
-type CustomOverlayButton = {
+export type CustomOverlayButton = {
     text: string
     primary?: boolean
     warning?: boolean
@@ -49,6 +50,17 @@ type CustomOverlayProps = {
     loading?: boolean
     noHeaderPadding?: boolean
     stackButtons?: boolean
+    /**
+     * For a sheet whose body must not scroll — the wallet service top-up
+     * keypad loses its bottom row behind the pinned button otherwise.
+     *
+     * Reserves one `xl` of backdrop above the sheet instead of two, tightens
+     * the gaps between title, body and button, and swaps the body's ScrollView
+     * for a shrinking box so the body is handed the height that is free rather
+     * than taking its natural height and overflowing. The backdrop stays
+     * tappable; it is just shorter.
+     */
+    tall?: boolean
 }
 
 const CustomOverlay: React.FC<CustomOverlayProps> = ({
@@ -58,6 +70,7 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
     loading,
     noHeaderPadding = false,
     stackButtons = false,
+    tall = false,
 }) => {
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
@@ -203,8 +216,11 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                             viewportHeight -
                             insets.top -
                             insets.bottom -
-                            theme.spacing.xl * 2,
+                            theme.spacing.xl * (tall ? 1 : 2),
                     },
+                    // every point between the title, the body and the button is
+                    // a point the keypad does not get
+                    tall && { gap: theme.spacing.lg },
                     noHeaderPadding && {
                         paddingTop: 0,
                         paddingHorizontal: 0,
@@ -232,13 +248,20 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                 {description && (
                     <Text style={style.overlayDescription}>{description}</Text>
                 )}
-                {body && (
-                    <ScrollView
-                        alwaysBounceVertical={false}
-                        style={style.bodyContainer}>
-                        {body}
-                    </ScrollView>
-                )}
+                {body &&
+                    (tall ? (
+                        // A `tall` body must not scroll — see the prop. It gets
+                        // a plain shrinking box instead of a ScrollView so its
+                        // contents are handed the height that is actually free,
+                        // rather than their natural height inside a scroller.
+                        <View style={style.tallBodyContainer}>{body}</View>
+                    ) : (
+                        <ScrollView
+                            alwaysBounceVertical={false}
+                            style={style.bodyContainer}>
+                            {body}
+                        </ScrollView>
+                    ))}
                 {buttons?.length > 0 &&
                     (stackButtons ? (
                         <Column fullWidth justify="between" gap="md" reverse>
@@ -295,6 +318,12 @@ const styles = (theme: Theme, insets: Insets) =>
         },
         bodyContainer: {
             width: '100%',
+        },
+        tallBodyContainer: {
+            width: '100%',
+            // RN defaults flexShrink to 0, so without this the body keeps its
+            // natural height and overflows the sheet's maxHeight
+            flexShrink: 1,
         },
         overlayTitle: {
             textAlign: 'center',

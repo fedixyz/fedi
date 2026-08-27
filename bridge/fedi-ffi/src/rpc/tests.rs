@@ -87,6 +87,7 @@ fn raw_fi_rpc_allowlist_excludes_formation_orchestration() {
             "fiClientRegisterPushInstallation",
             "fiClientResume",
             "fiClientSetGuardianFee",
+            "fiClientSetupPaymentFederations",
             "fiClientStatus",
             "fiClientSubscribe",
             "fiClientUnregisterPushInstallation",

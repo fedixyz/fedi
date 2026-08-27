@@ -17,6 +17,7 @@ const initialState = {
         hasSeenMultispendIntro: false,
         pwaHasDismissedInstallPrompt: false, // pwa only
         hasRequestedReferrer: false,
+        hasSeenWalletServiceTour: false,
     },
 }
 
@@ -37,6 +38,14 @@ export const nuxSlice = createSlice({
         resetNuxSteps(state) {
             state.steps = { ...initialState.steps }
         },
+        // one step at a time, so a developer can replay a single feature
+        // introduction without discarding every other step they have passed
+        resetNuxStep(state, action: PayloadAction<keyof NuxState['steps']>) {
+            state.steps = {
+                ...state.steps,
+                [action.payload]: false,
+            }
+        },
     },
     extraReducers: builder => {
         builder.addCase(loadFromStorage.fulfilled, (state, action) => {
@@ -55,7 +64,7 @@ export const nuxSlice = createSlice({
 
 /*** Basic actions ***/
 
-export const { completeNuxStep, resetNuxSteps } = nuxSlice.actions
+export const { completeNuxStep, resetNuxStep, resetNuxSteps } = nuxSlice.actions
 
 /*** Selectors ***/
 

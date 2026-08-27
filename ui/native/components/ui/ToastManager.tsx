@@ -136,7 +136,7 @@ export default function ToastManager() {
                                                 adjustsFontSizeToFit>
                                                 {cachedToast?.status ===
                                                 'success'
-                                                    ? '👍'
+                                                    ? '✅'
                                                     : cachedToast?.status ===
                                                         'info'
                                                       ? '👀'

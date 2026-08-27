@@ -107,6 +107,10 @@ export class FedimintBridge {
     }
 
     /** Joined federations whose wallets are ready to fund FI formation. */
+    async fiClientSetupPaymentFederations() {
+        return this.rpcTyped('fiClientSetupPaymentFederations', {})
+    }
+
     async fiClientEligiblePayers() {
         return this.rpcTyped('fiClientEligiblePayers', {})
     }

@@ -148,23 +148,23 @@ impl FiDriverBackend for BlockingAbandonBackend {
 }
 
 #[tokio::test]
-async fn production_coordinator_fails_before_paid_dispatch_when_hook_creation_fails() {
+async fn production_coordinator_dispatches_without_callback_when_hook_creation_fails() {
     let (gateway, handle) = fake_push_gateway(true, false, false);
     let coordinator = FormationPushCoordinator::new(handle);
     coordinator
         .install_preview("preview".to_owned(), false)
         .await;
-    let paid_dispatches = Arc::new(AtomicUsize::new(0));
+    let callbacks = Arc::new(StdMutex::new(Vec::new()));
     let active = Arc::new(AtomicBool::new(false));
 
     let result = coordinator
         .dispatch_paid_formation(
             "preview",
             {
-                let paid_dispatches = paid_dispatches.clone();
+                let callbacks = callbacks.clone();
                 let active = active.clone();
-                move |_| async move {
-                    paid_dispatches.fetch_add(1, Ordering::AcqRel);
+                move |callback| async move {
+                    callbacks.lock().unwrap().push(callback);
                     successful_dispatch(&active)
                 }
             },
@@ -172,17 +172,44 @@ async fn production_coordinator_fails_before_paid_dispatch_when_hook_creation_fa
         )
         .await;
 
-    assert!(matches!(
-        result,
-        RpcFiOperationResult::Error {
-            error: RpcFiOperationError {
-                code: RpcFiErrorCode::PushNotifications,
-                ..
-            }
-        }
-    ));
+    // the hook is best-effort: its failure must not block the payment
+    assert!(matches!(result, RpcFiOperationResult::Success));
     assert_eq!(gateway.create_calls.load(Ordering::Acquire), 1);
-    assert_eq!(paid_dispatches.load(Ordering::Acquire), 0);
+    let callbacks = callbacks.lock().unwrap();
+    assert_eq!(callbacks.len(), 1);
+    assert!(callbacks[0].is_none());
+    assert!(!active.load(Ordering::Acquire));
+}
+
+#[tokio::test]
+async fn production_coordinator_dispatches_without_callback_when_gateway_is_undeployed() {
+    let handle: FormationPushGatewayHandle = Err(Arc::new(FiPushError::Unavailable));
+    let coordinator = FormationPushCoordinator::new(handle);
+    coordinator
+        .install_preview("preview".to_owned(), false)
+        .await;
+    let callbacks = Arc::new(StdMutex::new(Vec::new()));
+    let active = Arc::new(AtomicBool::new(false));
+
+    let result = coordinator
+        .dispatch_paid_formation(
+            "preview",
+            {
+                let callbacks = callbacks.clone();
+                let active = active.clone();
+                move |callback| async move {
+                    callbacks.lock().unwrap().push(callback);
+                    successful_dispatch(&active)
+                }
+            },
+            || false,
+        )
+        .await;
+
+    assert!(matches!(result, RpcFiOperationResult::Success));
+    let callbacks = callbacks.lock().unwrap();
+    assert_eq!(callbacks.len(), 1);
+    assert!(callbacks[0].is_none());
     assert!(!active.load(Ordering::Acquire));
 }
 

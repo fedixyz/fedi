@@ -75,6 +75,10 @@ pub struct RemoteFeatures {
     /// cached/older payload that omits the field.
     #[serde(default)]
     pub personal_backup_reminder: bool,
+    /// `#[serde(default)]` so the new bridge stays deserializable against any
+    /// cached/older payload that omits the field.
+    #[serde(default)]
+    pub wallet_service_creation: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -168,6 +172,9 @@ pub struct FeatureCatalog {
     /// only controls whether the reminder is allowed to surface, so it can be
     /// rolled out remotely without an app release.
     pub personal_backup_reminder: Option<PersonalBackupReminderFeatureConfig>,
+
+    /// Gates the create-your-own wallet service flow built on the fi client.
+    pub wallet_service_creation: Option<WalletServiceCreationFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -306,6 +313,10 @@ pub struct PersonalBackupReminderFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct WalletServiceCreationFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -362,6 +373,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.wallet_service_creation = if remote_features.wallet_service_creation {
+            Some(WalletServiceCreationFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -407,6 +423,7 @@ impl FeatureCatalog {
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
+            wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -465,6 +482,7 @@ impl FeatureCatalog {
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
+            wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -500,8 +518,14 @@ impl FeatureCatalog {
                 guardian_remittance_jitter_max_secs: 0,     // no jitter in staging
                 guardian_remittance_poll_interval_secs: 60, // 1 minute
             },
-            // Fail closed until the staging deployment publishes its origin.
-            fi_push_gateway: None,
+            // Deployed by k8s-devops argo/apps/manifold-staging: an
+            // internet-facing NLB with NIP-98 auth per route, no SSO.
+            fi_push_gateway: Some(FiPushGatewayFeatureConfig {
+                api_base_url: Url::parse(
+                    "https://manifold-push-gateway.internal.k8s.us.dev.fedibtc.com",
+                )
+                .expect("fi push gateway url must be valid"),
+            }),
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
@@ -515,6 +539,7 @@ impl FeatureCatalog {
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
+            wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -575,6 +600,7 @@ impl FeatureCatalog {
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: None,
+            wallet_service_creation: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -688,5 +714,6 @@ mod tests {
         assert!(!remote_features.private_room_knocking);
         assert!(!remote_features.message_reactions);
         assert!(!remote_features.personal_backup_reminder);
+        assert!(!remote_features.wallet_service_creation);
     }
 }

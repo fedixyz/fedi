@@ -1,4 +1,4 @@
-import { ThemeProvider } from '@rneui/themed'
+import { type CreateThemeOptions, ThemeProvider } from '@rneui/themed'
 import {
     render,
     renderHook,
@@ -32,7 +32,12 @@ const makeWrapperWithStore = (
         return (
             <SafeAreaProvider>
                 <I18nProvider>
-                    <ThemeProvider theme={mockTheme}>
+                    {/* the mock theme mirrors the real shape but its style
+                        literals widen (flexDirection: string, not 'row'), and
+                        re-typing the whole fixture buys nothing in a test
+                        harness */}
+                    <ThemeProvider
+                        theme={mockTheme as unknown as CreateThemeOptions}>
                         <Provider store={store}>
                             <FedimintProvider fedimint={fedimint}>
                                 {children}

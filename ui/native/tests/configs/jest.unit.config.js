@@ -46,6 +46,17 @@ module.exports = {
             ')/',
     ],
 
+    // Resolve the workspace aliases from this tree rather than through the
+    // `ui/node_modules/@fedi` symlinks. Identical to the symlink target in a
+    // normal checkout, and the only thing that makes a git worktree see its
+    // own `ui/common` instead of the main checkout's.
+    moduleNameMapper: {
+        '^@fedi/common$': '<rootDir>/../common',
+        '^@fedi/common/(.*)$': '<rootDir>/../common/$1',
+        '^@fedi/native$': '<rootDir>',
+        '^@fedi/native/(.*)$': '<rootDir>/$1',
+    },
+
     // Don’t error if no tests are found (so CI won’t fail on empty dirs)
     passWithNoTests: true,
 

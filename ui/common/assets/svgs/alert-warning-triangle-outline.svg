@@ -1,0 +1,25 @@
+<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <g id="alert warning triangle outline">
+        <path
+            id="Triangle"
+            d="M12 3.5C12.4813 3.5 12.9257 3.75521 13.1655 4.17L21.5945 18.239C21.8367 18.6572 21.8367 19.1728 21.5945 19.591C21.3523 20.0092 20.9057 20.2667 20.4225 20.2667H3.5775C3.09427 20.2667 2.64774 20.0092 2.40551 19.591C2.16328 19.1728 2.16328 18.6572 2.40551 18.239L10.8345 4.17C11.0743 3.75521 11.5187 3.5 12 3.5Z"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linejoin="round"
+        />
+        <path
+            id="Stem"
+            d="M12 9.5V13.5"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+        />
+        <path
+            id="Dot"
+            d="M12 16.75H12.01"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+        />
+    </g>
+</svg>

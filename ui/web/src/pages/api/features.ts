@@ -11,6 +11,7 @@ const prodRemoteFeatures: RemoteFeatures = {
     privateRoomKnocking: true,
     messageReactions: true,
     personalBackupReminder: false,
+    walletServiceCreation: false,
 }
 // Edge-only overrides go here; with none, edge tracks production.
 const edgeRemoteFeatures: RemoteFeatures = {
@@ -22,6 +23,7 @@ const devRemoteFeatures: RemoteFeatures = {
     privateRoomKnocking: true,
     messageReactions: true,
     personalBackupReminder: true,
+    walletServiceCreation: true,
 }
 const isProduction = process.env.VERCEL_ENV === 'production'
 

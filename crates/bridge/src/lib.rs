@@ -1,3 +1,7 @@
+// The setup-payment-federations fetch nests another async layer inside the
+// `FiDriverBackend::execute` future, which tips proving its `Send` bound past
+// rustc's default limit of 128. `fedi-ffi`, `fedi-wasm` and `remote-server`
+// already raise it for the same reason.
 #![recursion_limit = "256"]
 // Fedi's WASM runtime is single-threaded; retain `Arc` to keep shared
 // native/WASM APIs uniform.
