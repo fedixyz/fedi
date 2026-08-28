@@ -7,6 +7,8 @@
 // native/WASM APIs uniform.
 #![cfg_attr(target_family = "wasm", allow(clippy::arc_with_non_send_sync))]
 
+// CI timing probe; remove after the benchmark run.
+
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
