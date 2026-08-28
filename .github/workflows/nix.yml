@@ -141,21 +141,43 @@ jobs:
               timeout-minutes: ${{ matrix.test-timeout }}
               run: nix build -L .#ci.${{ matrix.test }}
 
-            # Clippy/check fingerprints cannot reuse cargo build artifacts, so
-            # this uses a separate source-independent dependency cache.
-            - name: Clippy (WASM)
-              timeout-minutes: 10
-              run: nix build -L .#wasm32-unknown.ci.workspaceWasmClippy
-
-            - name: Build wasm
-              timeout-minutes: 10
-              run: nix build -L .#wasm32-unknown.ci.fedi-wasm-pack
-
             - name: Cleanup build folder
               run: |
                 pwd
                 rm -Rf "$(pwd)"
                 mkdir -p "$(pwd)"
+
+    build-wasm:
+        name: 'Build - wasm'
+        needs: precheck
+        if: >
+            needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_MASTER == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_TAG == '1'
+        runs-on: [self-hosted, linux]
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+            - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            # Clippy/check fingerprints cannot reuse cargo build artifacts, so
+            # this uses a separate source-independent dependency cache.
+            - name: Clippy
+              timeout-minutes: 10
+              run: nix build -L .#wasm32-unknown.ci.workspaceWasmClippy
+
+            - name: Build library
+              run: nix build -L .#wasm32-unknown.ci.fedi-wasm
+
+            - name: Build package
+              timeout-minutes: 10
+              run: nix build -L .#wasm32-unknown.ci.fedi-wasm-pack
 
     build-linux:
         name: 'Build - linux'
@@ -190,9 +212,6 @@ jobs:
 
             - name: Build fedi-ffi
               run: nix build -L .#ci.fedi-ffi
-
-            - name: Build fedi-wasm
-              run: nix build -L .#wasm32-unknown.ci.fedi-wasm
 
             - name: Build gateway-pkgs
               run: nix build -L .#gateway-pkgs
@@ -229,9 +248,6 @@ jobs:
 
             - name: Install Android bridge Kotlin artifacts
               run: nix develop -c env FM_BUILD_BRIDGE_ANDROID_LIBS_OUT=./result/share/fedi-android ./scripts/bridge/install-bridge-android.sh
-
-            - name: Build fedi-ffi
-              run: nix build -L .#aarch64-android.ci.fedi-ffi
 
     build-ios:
         name: 'Build - macos'
@@ -585,7 +601,7 @@ jobs:
 
     status:
       name: Status
-      needs: [lint, build-workspace, build-linux, build-android, build-ios, shell]
+      needs: [lint, build-workspace, build-wasm, build-linux, build-android, build-ios, shell]
       if: ${{ always() }}
       runs-on: [self-hosted, linux ]
       steps:
