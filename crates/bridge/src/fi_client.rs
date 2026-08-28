@@ -45,7 +45,9 @@ use fedi_decentralized_service_liquidity_manager::{
 use fedi_iroh_rpc::iroh::Endpoint;
 use fedi_iroh_rpc::iroh::endpoint::presets;
 use fedimint_connectors::ConnectorRegistry;
-use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped as _};
+use fedimint_core::db::{
+    Database, IDatabaseTransactionOpsCore as _, IDatabaseTransactionOpsCoreTyped as _,
+};
 use fedimint_core::invite_code::InviteCode as FedimintInviteCode;
 use fedimint_core::module::serde_json;
 use fedimint_core::task::{MaybeSend, MaybeSync};
@@ -109,6 +111,7 @@ pub(crate) type BridgeFiClient = FiClient<
 
 const FI_DRIVER_QUEUE_CAPACITY: usize = 1;
 const FI_LIQUIDITY_PAGE_SIZE: usize = FI_LIQUIDITY_OPERATION_PAGE_MAX;
+const FI_ACTIVE_FORMATION_KEY: &[u8] = &[0x00];
 const FI_RESUME_INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const FI_RESUME_MAX_BACKOFF: Duration = Duration::from_secs(5 * 60);
 const FMAN_TRANSPORT_INITIALIZATION_ERROR: &str = "Fleet Manager transport initialization failed";
@@ -122,6 +125,8 @@ pub(crate) async fn open_fi_client(
     runtime: &Runtime,
     federations: Arc<Federations>,
 ) -> FiResult<BridgeFiClient> {
+    let database = runtime.fi_client_db();
+    migrate_fi_guardian_fee_field(&database).await?;
     let root_secret = runtime.app_state.root_secret().await;
     let identity = BridgeFiIdentity::from_root_secret(&root_secret);
     let environment = manifold_environment(runtime.feature_catalog.runtime_env);
@@ -137,7 +142,7 @@ pub(crate) async fn open_fi_client(
     // Paid formation and guardian-fee policy both depend on deployment-owned
     // authorities from this exact Manifold profile.
     FiClient::open_with_manifold_profile(
-        runtime.fi_client_db(),
+        database,
         identity,
         BridgeFiPayments::new(federations.clone()),
         registry,
@@ -148,6 +153,44 @@ pub(crate) async fn open_fi_client(
         profile,
     )
     .await
+}
+
+/// Repair formations written before Manifold renamed its guardian-fee field.
+///
+/// TODO: Remove after nightly installations have opened a build containing
+/// this migration.
+async fn migrate_fi_guardian_fee_field(database: &Database) -> FiResult<()> {
+    let mut dbtx = database.begin_transaction().await;
+    let Some(bytes) = dbtx
+        .raw_get_bytes(FI_ACTIVE_FORMATION_KEY)
+        .await
+        .map_err(|_| FiError::Storage("reading the FI formation migration failed".to_owned()))?
+    else {
+        return Ok(());
+    };
+    let mut formation: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|_| FiError::Storage("decoding the FI formation migration failed".to_owned()))?;
+    let Some(target) = formation
+        .get_mut("formation_meta_target")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return Ok(());
+    };
+    if target.contains_key("guardian_verification_fee_account") {
+        return Ok(());
+    }
+    let Some(account) = target.remove("fedi_fee_account") else {
+        return Ok(());
+    };
+    target.insert("guardian_verification_fee_account".to_owned(), account);
+    let bytes = serde_json::to_vec(&formation)
+        .map_err(|_| FiError::Storage("encoding the FI formation migration failed".to_owned()))?;
+    dbtx.raw_insert_bytes(FI_ACTIVE_FORMATION_KEY, &bytes)
+        .await
+        .map_err(|_| FiError::Storage("writing the FI formation migration failed".to_owned()))?;
+    dbtx.commit_tx_result()
+        .await
+        .map_err(|_| FiError::Storage("committing the FI formation migration failed".to_owned()))
 }
 
 #[derive(Clone)]

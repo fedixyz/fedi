@@ -4,7 +4,8 @@ use std::sync::atomic::{AtomicBool as TestAtomicBool, AtomicUsize, Ordering as A
 
 use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::{
-    Database, DatabaseValue, DecodingError, IDatabaseTransactionOpsCoreTyped, IRawDatabaseExt,
+    Database, DatabaseValue, DecodingError, IDatabaseTransactionOpsCore,
+    IDatabaseTransactionOpsCoreTyped, IRawDatabaseExt,
 };
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::impl_db_record;
@@ -234,6 +235,84 @@ async fn seed_identity_bound_formation(database: &Database, fi_id: FiId) {
     )
     .await;
     dbtx.commit_tx().await;
+}
+
+#[tokio::test]
+async fn old_guardian_fee_field_is_migrated_before_manifold_opens() {
+    let root = DerivableSecret::new_root(&[1; 32], b"fi-client-migration-test");
+    let identity = BridgeFiIdentity::from_root_secret(&root);
+    let fi_id = identity.public_key().expect("valid derived key");
+    let development = ManifoldEnvironment::Development
+        .profile()
+        .expect("development profile is valid");
+    let staging = ManifoldEnvironment::Staging
+        .profile()
+        .expect("staging profile is valid");
+    let database = MemDatabase::new().into_database();
+    seed_identity_bound_formation(&database, fi_id).await;
+    let mut dbtx = database.begin_transaction().await;
+    let bytes = dbtx
+        .raw_get_bytes(FI_ACTIVE_FORMATION_KEY)
+        .await
+        .unwrap()
+        .expect("test formation exists");
+    let mut formation: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    formation["schema_version"] = serde_json::json!(10);
+    formation["formation_meta_target"] = serde_json::json!({
+        "seat_bindings": "[]",
+        "binding_entries": [],
+        "fi_fee_account": staging.guardian_verification_fee_account(),
+        "fedi_fee_account": development.guardian_verification_fee_account(),
+        "send_ppm": 0,
+        "recipients": "[]",
+        "confirmed": false,
+    });
+    formation["dkg_completion_callback"] = serde_json::Value::Null;
+    dbtx.raw_insert_bytes(
+        FI_ACTIVE_FORMATION_KEY,
+        &serde_json::to_vec(&formation).unwrap(),
+    )
+    .await
+    .unwrap();
+    dbtx.commit_tx().await;
+
+    migrate_fi_guardian_fee_field(&database)
+        .await
+        .expect("the old field migrates");
+    open_test_fi_client(database, identity)
+        .await
+        .expect("Manifold reopens the migrated formation");
+}
+
+#[tokio::test]
+async fn guardian_fee_migration_leaves_current_and_absent_records_alone() {
+    let database = MemDatabase::new().into_database();
+    migrate_fi_guardian_fee_field(&database)
+        .await
+        .expect("an absent formation needs no migration");
+
+    let current = serde_json::json!({
+        "formation_meta_target": {
+            "guardian_verification_fee_account": "current"
+        }
+    });
+    let current_bytes = serde_json::to_vec(&current).unwrap();
+    let mut dbtx = database.begin_transaction().await;
+    dbtx.raw_insert_bytes(FI_ACTIVE_FORMATION_KEY, &current_bytes)
+        .await
+        .unwrap();
+    dbtx.commit_tx().await;
+
+    migrate_fi_guardian_fee_field(&database)
+        .await
+        .expect("a current formation needs no migration");
+    let saved = database
+        .begin_transaction_nc()
+        .await
+        .raw_get_bytes(FI_ACTIVE_FORMATION_KEY)
+        .await
+        .unwrap();
+    assert_eq!(saved.as_deref(), Some(current_bytes.as_slice()));
 }
 
 #[tokio::test]
