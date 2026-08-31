@@ -55,6 +55,7 @@ const bridgeErrorMap: Partial<Record<StringBridgeErrorCodes, ResourceKey>> = {
     matrixReactionLimitExceeded: 'errors.chat-reaction-limit-exceeded',
     payLnInvoiceAlreadyPaid: 'errors.invoice-already-paid',
     ecashAlreadySpent: 'errors.receive-ecash-failed-claimed',
+    ecashCancelFailed: 'errors.cancel-ecash-failed-claimed',
 }
 
 export const formatBridgeError = (

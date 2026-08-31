@@ -331,6 +331,7 @@
         "bad-connection": "Your network connection may be unstable. Please try again later or connect to another network.",
         "browser-feature-not-supported": "Your browser does not support this feature.",
         "camera-unavailable": "Failed to access your camera.",
+        "cancel-ecash-failed-claimed": "This ecash can't be canceled. It was already claimed.",
         "chat-connection-unhealthy": "Chat connection is unstable or offline. Please try again later or restart the app.",
         "chat-list-render-error": "Encountered an error rendering your chats",
         "chat-member-not-found": "Could not find this user",
