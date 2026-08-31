@@ -353,7 +353,11 @@ export class FiSimulator {
         // and a mock id reaching the real bridge fails the whole join
         if (method === 'getGuardianStatus')
             return this.isMockPayer(payload.federationId as string)
-        return method.startsWith('fiClient')
+        // This developer action must reach the real bridge so it can write the
+        // startup marker outside the simulated FI state.
+        return (
+            method !== 'fiClientScheduleReset' && method.startsWith('fiClient')
+        )
     }
 
     async handle(method: string, payload: Record<string, unknown>) {

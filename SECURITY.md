@@ -51,6 +51,16 @@ formation caller or the abandonment caller has disconnected. A durable
 driver-lease release reports an error, so that error cannot retain stale local
 authorization.
 
+Internal dev, test, and staging builds have one explicit test-only exception.
+Developer Settings may schedule the entire consumer-owned FI namespace for
+deletion on the next launch, before `fi-client` or its driver opens. The reset
+marker lives outside that namespace and the marker plus namespace are cleared
+atomically. Edge and production builds must neither schedule nor apply it. This
+is a destructive test wipe, not abandonment or remote cleanup: in-flight Fleet
+Manager or liquidity work may continue, and payer-wallet holds and journals in
+joined federation databases are deliberately left untouched and may remain
+unavailable. The UI must say so and direct testers to disposable wallets.
+
 FI status snapshots are sensitive application state. They can contain Fleet
 Manager locators, guardian/DKG codes, invite codes, quote-bound authorization
 details, and exact payment terms. Neither handled nor orphaned stream payloads

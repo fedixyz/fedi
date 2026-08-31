@@ -40,11 +40,12 @@ describe('FiSimulator', () => {
     })
 
     describe('routing', () => {
-        it('should claim every fiClient method', () => {
+        it('should claim simulated fiClient methods', () => {
             const simulator = new FiSimulator()
 
             expect(simulator.handles('fiClientStatus', {})).toBe(true)
             expect(simulator.handles('fiClientPayAndCreate', {})).toBe(true)
+            expect(simulator.handles('fiClientScheduleReset', {})).toBe(false)
         })
 
         it('should not claim unrelated bridge methods', () => {

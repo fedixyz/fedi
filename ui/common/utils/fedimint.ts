@@ -184,6 +184,11 @@ export class FedimintBridge {
         return this.rpcTyped('fiClientAbandon', {})
     }
 
+    /** Wipe all local FI protocol state when an internal build next starts. */
+    async fiClientScheduleReset() {
+        return this.rpcTyped('fiClientScheduleReset', {})
+    }
+
     /**
      * Fresh, uncached FLIP discovery. No invite is disclosed by this call.
      * Empty approvedProviderPubkeys means any provider admitted by Manifold.

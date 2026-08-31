@@ -14,11 +14,12 @@ use multispend::services::MultispendServices;
 use nostril::Nostril;
 use rpc_types::fi_client::{
     RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiEligiblePayersResult,
-    RpcFiFederationMetadataUpdate, RpcFiFormationIntent, RpcFiLiquidityDiscoveryResult,
-    RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult, RpcFiLiquidityOperationResult,
-    RpcFiLiquidityRequestIntent, RpcFiOperationError, RpcFiOperationResult, RpcFiPushPlatform,
-    RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest,
-    RpcFiSelectionPreviewResult, RpcFiSetupPaymentFederationsResult,
+    RpcFiErrorCode, RpcFiFederationMetadataUpdate, RpcFiFormationIntent,
+    RpcFiLiquidityDiscoveryResult, RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult,
+    RpcFiLiquidityOperationResult, RpcFiLiquidityRequestIntent, RpcFiOperationError,
+    RpcFiOperationResult, RpcFiPushPlatform, RpcFiPushRegistrationResult,
+    RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest, RpcFiSelectionPreviewResult,
+    RpcFiSetupPaymentFederationsResult,
 };
 use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
@@ -342,6 +343,26 @@ impl BridgeFull {
         }
     }
 
+    pub async fn fi_schedule_reset(&self) -> RpcFiOperationResult {
+        match self.runtime.schedule_fi_client_reset().await {
+            Ok(()) => RpcFiOperationResult::Success,
+            Err(error) => {
+                tracing::warn!(%error, "failed to schedule FI client reset");
+                RpcFiOperationResult::Error {
+                    error: RpcFiOperationError {
+                        code: if self.runtime.fi_client_reset_is_allowed() {
+                            RpcFiErrorCode::Storage
+                        } else {
+                            RpcFiErrorCode::CapabilityUnavailable
+                        },
+                        message: "Wallet-service test reset could not be scheduled".to_owned(),
+                        detail: None,
+                    },
+                }
+            }
+        }
+    }
+
     pub async fn fi_authorize_replacement_payments(
         &self,
         authorization_id: String,
@@ -396,6 +417,12 @@ impl BridgeFull {
         if runtime.app_state.is_device_index_conflict().await {
             error!("Device index conflict previously detected");
             return Err(BridgeOffboardingReason::DeviceIndexConflict);
+        }
+
+        match runtime.apply_scheduled_fi_client_reset().await {
+            Ok(true) => tracing::warn!("cleared scheduled FI client test state"),
+            Ok(false) => {}
+            Err(error) => tracing::error!(%error, "failed to clear scheduled FI client test state"),
         }
 
         let device_registration_service = DeviceRegistrationService::new(runtime.clone()).await;

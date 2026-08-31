@@ -1526,6 +1526,11 @@ async fn fiClientAbandon(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationRe
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn fiClientScheduleReset(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge.fi_schedule_reset().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn fiClientLiquidityDiscover(
     bridge: &BridgeFull,
     intent: RpcFiLiquidityRequestIntent,
@@ -2814,6 +2819,7 @@ rpc_methods!(RpcMethods {
     fiClientAuthorizeReplacementPayments,
     fiClientResume,
     fiClientAbandon,
+    fiClientScheduleReset,
     fiClientLiquidityDiscover,
     fiClientLiquidityStart,
     fiClientLiquidityResume,

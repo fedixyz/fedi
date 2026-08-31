@@ -1490,6 +1490,7 @@ export type RpcMethods = {
   ];
   fiClientResume: [fiClientResume, RpcFiOperationResult];
   fiClientAbandon: [fiClientAbandon, RpcFiOperationResult];
+  fiClientScheduleReset: [fiClientScheduleReset, RpcFiOperationResult];
   fiClientLiquidityDiscover: [
     fiClientLiquidityDiscover,
     RpcFiLiquidityDiscoveryResult,
@@ -2810,6 +2811,8 @@ export type fiClientRegisterPushInstallation = {
 };
 
 export type fiClientResume = {};
+
+export type fiClientScheduleReset = {};
 
 export type fiClientSetGuardianFee = { guardianFeePpm: number };
 

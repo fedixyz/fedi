@@ -31,6 +31,8 @@ pub enum BridgeDbPrefix {
     FiClientPrefix = 0x07,
     // Federation IDs whose FI handoff must not run again after join or leave
     FiFederationAutoJoinCompleted = 0x08,
+    // Internal-build request to clear the FI client namespace on next launch
+    FiClientResetPending = 0x09,
 }
 
 #[derive(Debug, Decodable, Encodable)]
@@ -84,6 +86,15 @@ impl_db_record!(
     key = FiFederationAutoJoinCompletedKey,
     value = (),
     db_prefix = BridgeDbPrefix::FiFederationAutoJoinCompleted,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct FiClientResetPendingKey;
+
+impl_db_record!(
+    key = FiClientResetPendingKey,
+    value = (),
+    db_prefix = BridgeDbPrefix::FiClientResetPending,
 );
 
 #[allow(async_fn_in_trait)]

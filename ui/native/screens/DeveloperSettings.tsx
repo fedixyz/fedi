@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
+    Alert,
     Platform,
     Pressable,
     ScrollView,
@@ -75,6 +76,7 @@ import {
 } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getGuardianStatuses } from '@fedi/common/utils/FederationUtils'
+import { isDev } from '@fedi/common/utils/environment'
 import {
     DEFAULT_FI_SCENARIO,
     FI_SCENARIO_GROUPS,
@@ -93,6 +95,7 @@ import SvgImage from '../components/ui/SvgImage'
 import { version } from '../package.json'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
+import { isExperimental } from '../utils/device-info'
 import { useShareNativeLogs } from '../utils/hooks/export'
 import { shareReduxState } from '../utils/log'
 import {
@@ -225,6 +228,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         paymentFederation?.id,
     )
     const fedimint = useFedimint()
+    const canResetFi = isDev() || isExperimental()
 
     // This is a partial refactor of state management from context to redux
     const reduxDispatch = useAppDispatch()
@@ -412,6 +416,40 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             log.error('fiClientAbandon failed', e)
             toast.show({ content: `Abandon failed: ${e}`, status: 'error' })
         }
+    }
+
+    const handleScheduleFiReset = () => {
+        Alert.alert(
+            'Wipe all wallet-service test state?',
+            'Restart immediately after scheduling. Any later wallet-service activity will also be erased. Remote work may continue, and funds reserved by an unfinished formation may remain unavailable. Use only with disposable test wallets.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Schedule wipe',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const result =
+                                await fedimint.fiClientScheduleReset()
+                            if (result.type === 'error') {
+                                throw new Error(result.error.message)
+                            }
+                            toast.show({
+                                content:
+                                    'Wallet-service reset scheduled. Restart the app now.',
+                                status: 'success',
+                            })
+                        } catch (error) {
+                            log.error('fiClientScheduleReset failed', error)
+                            toast.show({
+                                content: `Reset failed: ${error}`,
+                                status: 'error',
+                            })
+                        }
+                    },
+                },
+            ],
+        )
     }
 
     const handleClearGatewayOverride = async () => {
@@ -604,6 +642,13 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     containerStyle={style.buttonContainer}
                     onPress={handleAbandonFormation}
                 />
+                {canResetFi && (
+                    <Button
+                        title="Wipe all wallet-service test state"
+                        containerStyle={style.buttonContainer}
+                        onPress={handleScheduleFiReset}
+                    />
+                )}
                 <View style={style.switchWrapper}>
                     <View style={style.switchLabelContainer}>
                         <Text caption style={style.switchLabel}>

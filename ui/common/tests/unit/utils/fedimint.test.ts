@@ -95,6 +95,9 @@ describe('FedimintBridge FI client', () => {
         await expect(fedimint.fiClientAbandon()).resolves.toEqual(
             operationResult,
         )
+        await expect(fedimint.fiClientScheduleReset()).resolves.toEqual(
+            operationResult,
+        )
 
         expect(rpc).toHaveBeenNthCalledWith(1, 'fiClientStatus', {})
         expect(rpc).toHaveBeenNthCalledWith(2, 'fiClientEligiblePayers', {})
@@ -123,6 +126,7 @@ describe('FedimintBridge FI client', () => {
         )
         expect(rpc).toHaveBeenNthCalledWith(8, 'fiClientResume', {})
         expect(rpc).toHaveBeenNthCalledWith(9, 'fiClientAbandon', {})
+        expect(rpc).toHaveBeenNthCalledWith(10, 'fiClientScheduleReset', {})
         expect(
             (fedimint as unknown as Record<string, unknown>)
                 .fiClientCreatePinned,
