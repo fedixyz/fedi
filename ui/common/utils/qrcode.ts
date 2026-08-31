@@ -145,7 +145,7 @@ function renderQrDots(
     moduleSize: number,
     options: QRCodeStyleOptions,
 ) {
-    const moduleShape = size > 60 ? 'square' : options.moduleShape || 'dot'
+    const moduleShape = options.moduleShape || (size > 60 ? 'square' : 'dot')
     let pathString = ''
 
     for (let i = 0; i < dataArr.length; i++) {
