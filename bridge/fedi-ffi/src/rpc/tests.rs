@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 use std::panic;
 use std::path::Path;
 use std::str::{self, FromStr};
-use std::sync::Once;
+use std::sync::{Arc, Once};
 use std::thread::available_parallelism;
 use std::time::Duration;
 
@@ -20,7 +20,8 @@ use federations::federation_v2::db::{FedimintEventLogCursorKey, LnurlReceivePend
 use federations::fedi_fee::{FediFeeStream, parse_fedi_guardian_fee_config};
 use fedi_social_client::common::VerificationDocument;
 use fedimint_core::Amount;
-use fedimint_core::db::{IDatabaseTransactionOpsCore, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::db::mem_impl::MemDatabase;
+use fedimint_core::db::{Database, IDatabaseTransactionOpsCore, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::Encodable;
 use fedimint_core::task::sleep_in_test;
 use fedimint_core::util::backoff_util::aggressive_backoff;
@@ -40,6 +41,7 @@ use runtime::constants::{
 };
 use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
+use runtime::features::{FeatureCatalog, MiniAppSeedFeatureConfig, RuntimeEnvironment};
 use runtime::storage::BRIDGE_DB_PREFIX;
 use runtime::storage::state::CommunityJson;
 use stability_pool_client::common::Account;
@@ -372,6 +374,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         nostr_tests::test_nostr_community_deletion,
         test_existing_device_identifier_v2_migration,
         test_nip44_encrypt_and_decrypt,
+        test_get_mini_app_seed,
     ];
 
     let mut tests_set = JoinSet::new();
@@ -4473,6 +4476,50 @@ async fn test_nip44_encrypt_and_decrypt(_dev_fed: DevFed) -> anyhow::Result<()> 
     // We decrypt other's message
     let our_decrypted = nostrDecrypt(bridge, other_npub.to_string(), ciphertext).await?;
     assert_eq!(other_plaintext, our_decrypted);
+
+    Ok(())
+}
+
+async fn test_get_mini_app_seed(_dev_fed: DevFed) -> anyhow::Result<()> {
+    // Flag off (Tests default): the bridge-side kill switch must reject.
+    {
+        let td = TestDevice::new().await?;
+        let bridge = td.bridge_full().await?;
+        let err = getMiniAppSeed(bridge, "https://app.example.com/page".to_owned())
+            .await
+            .expect_err("mini_app_seed flag is off in the Tests catalog");
+        assert!(
+            err.to_string().contains("disabled"),
+            "unexpected error: {err}"
+        );
+    }
+
+    // Flag on: canonicalizes the page URL and derives a 16-byte hex seed.
+    let mut td = TestDevice::new().await?;
+    let mut catalog = FeatureCatalog::new(
+        &Database::new(MemDatabase::new(), Default::default()),
+        RuntimeEnvironment::Tests,
+    )
+    .await;
+    catalog.mini_app_seed = Some(MiniAppSeedFeatureConfig {});
+    td.with_feature_catalog(Arc::new(catalog));
+    let bridge = td.bridge_full().await?;
+
+    let seed = getMiniAppSeed(bridge, "https://app.example.com/some/page?q=1".to_owned()).await?;
+    assert_eq!(seed.seed.len(), 32);
+    assert!(
+        seed.seed
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+    );
+
+    // Same origin through a different page URL and casing: same seed.
+    let same = getMiniAppSeed(bridge, "HTTPS://APP.EXAMPLE.COM/other".to_owned()).await?;
+    assert_eq!(seed.seed, same.seed);
+
+    // Different origin: different seed.
+    let other = getMiniAppSeed(bridge, "https://other.example.com/".to_owned()).await?;
+    assert_ne!(seed.seed, other.seed);
 
     Ok(())
 }

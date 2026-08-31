@@ -1394,6 +1394,7 @@ dependencies = [
  "fedi-iroh-rpc",
  "fedi-social-client",
  "fedimint-api-client",
+ "fedimint-bip39",
  "fedimint-client",
  "fedimint-client-module",
  "fedimint-connectors",
@@ -1422,6 +1423,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "ts-rs",
+ "url",
  "zip",
 ]
 

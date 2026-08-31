@@ -24,6 +24,7 @@ fedi-decentralized-service-liquidity-manager = { workspace = true }
 fedi-iroh-rpc = { workspace = true }
 bug-report = { workspace = true }
 fedimint-derive-secret = { workspace = true }
+fedimint-bip39 = { workspace = true }
 bls12_381 = { workspace = true }
 
 anyhow = { workspace = true }
@@ -54,6 +55,7 @@ rpc-types = { workspace = true }
 stability-pool-client = { workspace = true }
 device-registration = { workspace = true }
 either = "1.15.0"
+url = "2.3.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 zip = { version = "4", default-features = false, features = [

@@ -12,6 +12,7 @@ use bitcoin::Amount;
 use bitcoin::secp256k1::Message;
 use bridge::bg_matrix::BgMatrix;
 use bridge::fi_client::fi_client_status_stream;
+use bridge::mini_app_seed::{canonicalize_origin, derive_mini_app_seed};
 use bridge::onboarding::BridgeOnboarding;
 use bridge::providers::FederationProviderWrapper;
 use bridge::{Bridge, BridgeFull, RpcBridgeStatus, RuntimeExt as _};
@@ -61,6 +62,7 @@ use rpc_types::matrix::{
     RpcRoomMember, RpcRoomNotificationMode, RpcRoomPreview, RpcSerializedRoomInfo,
     RpcSyncIndicator, RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
 };
+use rpc_types::mini_app::RpcMiniAppSeed;
 use rpc_types::nostril::{RpcNostrPubkey, RpcNostrSecret};
 use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferState, SpMatrixTransferId};
 use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
@@ -797,6 +799,20 @@ async fn fedimintVersion(_bridge: &Bridge) -> anyhow::Result<String> {
 #[macro_rules_derive(rpc_method!)]
 async fn getNostrSecret(bridge: &BridgeFull) -> anyhow::Result<RpcNostrSecret> {
     bridge.nostril.get_secret_key().await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn getMiniAppSeed(bridge: &BridgeFull, url: String) -> anyhow::Result<RpcMiniAppSeed> {
+    // Bridge-side kill switch; the UI gate alone must not guard key material.
+    if bridge.runtime.feature_catalog.mini_app_seed.is_none() {
+        bail!("mini_app_seed feature is disabled");
+    }
+    let canonical_origin = canonicalize_origin(&url, bridge.runtime.feature_catalog.runtime_env)?;
+    let root_mnemonic = bridge.runtime.app_state.root_mnemonic().await;
+    let seed = derive_mini_app_seed(&root_mnemonic, &canonical_origin);
+    Ok(RpcMiniAppSeed {
+        seed: hex::encode(seed),
+    })
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2872,6 +2888,7 @@ rpc_methods!(RpcMethods {
     // Nostr
     getNostrPubkey,
     getNostrSecret,
+    getMiniAppSeed,
     guardianitoGetOrCreateBot,
     signNostrEvent,
     nostrEncrypt,
@@ -3019,6 +3036,23 @@ rpc_methods!(RpcMethods {
     evilSpamAddress,
 });
 
+/// Methods whose payload can contain seed material (the root mnemonic or a
+/// derived mini app seed). Sensitive-log mode intentionally includes secrets
+/// (explicit user opt-in); this list only prevents payload fragments from
+/// reaching DEFAULT logs through the unconditional rpc_error line, where
+/// serde errors echo offending values.
+const SEED_REVEALING_METHODS: &[&str] = &[
+    "getMiniAppSeed",
+    "getMnemonic",
+    "checkMnemonic",
+    "restoreMnemonic",
+    "getNostrSecret",
+];
+
+fn is_seed_revealing_method(method: &str) -> bool {
+    SEED_REVEALING_METHODS.contains(&method)
+}
+
 #[instrument(
     name = "fedimint_rpc_request",
     skip(bridge, payload),
@@ -3058,7 +3092,54 @@ pub async fn fedimint_rpc_async(bridge: Arc<Bridge>, method: String, payload: St
     }
 
     result.unwrap_or_else(|error| {
-        error!(%error, "rpc_error");
+        if is_seed_revealing_method(&method) {
+            // This line logs even with sensitive logging OFF, and the error
+            // can echo payload fragments (serde invalid-type errors include
+            // the offending value). The instrument span still records the
+            // method; the returned error JSON is unchanged.
+            error!("rpc_error (contents redacted)");
+        } else {
+            error!(%error, "rpc_error");
+        }
         rpc_error_json(&error)
     })
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::{RpcMethods, SEED_REVEALING_METHODS, is_seed_revealing_method};
+
+    #[test]
+    fn seed_revealing_methods_are_redacted() {
+        for method in [
+            "getMiniAppSeed",
+            "getMnemonic",
+            "checkMnemonic",
+            "restoreMnemonic",
+            "getNostrSecret",
+        ] {
+            assert!(
+                is_seed_revealing_method(method),
+                "{method} must be redacted"
+            );
+        }
+        for method in ["getNostrPubkey", "getFeatureCatalog", "signNostrEvent"] {
+            assert!(
+                !is_seed_revealing_method(method),
+                "{method} must not be redacted"
+            );
+        }
+    }
+
+    /// Catches rename drift: a method renamed in the rpc_methods! registry
+    /// would leave a stale string here silently redacting nothing.
+    #[test]
+    fn seed_revealing_methods_exist_in_rpc_registry() {
+        for method in SEED_REVEALING_METHODS {
+            assert!(
+                RpcMethods::METHOD_NAMES.contains(method),
+                "{method} is not a registered RPC method; update SEED_REVEALING_METHODS"
+            );
+        }
+    }
 }

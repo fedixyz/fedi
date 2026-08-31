@@ -241,6 +241,13 @@ export type FeatureCatalog = {
    */
   wallet_service_creation: WalletServiceCreationFeatureConfig | null;
   /**
+   * Gates the mini app seed feature: `window.fediInternal.getSeed` in the
+   * mod browser, backed by the `getMiniAppSeed` RPC. Acts as a remote kill
+   * switch for future requests; it cannot revoke seeds that already left
+   * the app.
+   */
+  mini_app_seed: MiniAppSeedFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -345,6 +352,8 @@ export type LogEvent = { log: string };
 export type MatrixFeatureConfig = { home_server: string };
 
 export type MessageReactionsFeatureConfig = Record<string, never>;
+
+export type MiniAppSeedFeatureConfig = Record<string, never>;
 
 /**
  * Collected details for a given event id.
@@ -505,6 +514,11 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   walletServiceCreation: boolean;
+  /**
+   * `#[serde(default)]` so the new bridge stays deserializable against any
+   * cached/older payload that omits the field.
+   */
+  miniAppSeed: boolean;
 };
 
 export type RpcAccountId = string;
@@ -1571,6 +1585,7 @@ export type RpcMethods = {
   getRecurringdLnurl: [getRecurringdLnurl, string];
   getNostrPubkey: [getNostrPubkey, RpcNostrPubkey];
   getNostrSecret: [getNostrSecret, RpcNostrSecret];
+  getMiniAppSeed: [getMiniAppSeed, RpcMiniAppSeed];
   guardianitoGetOrCreateBot: [guardianitoGetOrCreateBot, GuardianitoBot];
   signNostrEvent: [signNostrEvent, string];
   nostrEncrypt: [nostrEncrypt, string];
@@ -1778,6 +1793,13 @@ export type RpcMethods = {
   listCommunities: [listCommunities, Array<RpcCommunity>];
   evilSpamInvoices: [evilSpamInvoices, null];
   evilSpamAddress: [evilSpamAddress, null];
+};
+
+export type RpcMiniAppSeed = {
+  /**
+   * Lowercase hex of the 16 seed bytes.
+   */
+  seed: string;
 };
 
 export type RpcModuleFediFeeSchedule = { sendPpm: number; receivePpm: number };
@@ -2851,6 +2873,8 @@ export type getGuardianPassword = {
 };
 
 export type getGuardianStatus = { federationId: RpcFederationId };
+
+export type getMiniAppSeed = { url: string };
 
 export type getMnemonic = {};
 

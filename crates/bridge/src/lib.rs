@@ -37,6 +37,7 @@ use ts_rs::TS;
 
 pub mod bg_matrix;
 pub mod fi_client;
+pub mod mini_app_seed;
 pub mod onboarding;
 pub mod providers;
 

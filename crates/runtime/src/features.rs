@@ -79,6 +79,10 @@ pub struct RemoteFeatures {
     /// cached/older payload that omits the field.
     #[serde(default)]
     pub wallet_service_creation: bool,
+    /// `#[serde(default)]` so the new bridge stays deserializable against any
+    /// cached/older payload that omits the field.
+    #[serde(default)]
+    pub mini_app_seed: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -175,6 +179,11 @@ pub struct FeatureCatalog {
 
     /// Gates the create-your-own wallet service flow built on the fi client.
     pub wallet_service_creation: Option<WalletServiceCreationFeatureConfig>,
+    /// Gates the mini app seed feature: `window.fediInternal.getSeed` in the
+    /// mod browser, backed by the `getMiniAppSeed` RPC. Acts as a remote kill
+    /// switch for future requests; it cannot revoke seeds that already left
+    /// the app.
+    pub mini_app_seed: Option<MiniAppSeedFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -317,6 +326,10 @@ pub struct WalletServiceCreationFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct MiniAppSeedFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -378,6 +391,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.mini_app_seed = if remote_features.mini_app_seed {
+            Some(MiniAppSeedFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -424,6 +442,7 @@ impl FeatureCatalog {
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
+            mini_app_seed: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -483,6 +502,7 @@ impl FeatureCatalog {
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
+            mini_app_seed: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -540,6 +560,7 @@ impl FeatureCatalog {
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
+            mini_app_seed: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -601,6 +622,7 @@ impl FeatureCatalog {
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: None,
             wallet_service_creation: None,
+            mini_app_seed: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -715,5 +737,6 @@ mod tests {
         assert!(!remote_features.message_reactions);
         assert!(!remote_features.personal_backup_reminder);
         assert!(!remote_features.wallet_service_creation);
+        assert!(!remote_features.mini_app_seed);
     }
 }

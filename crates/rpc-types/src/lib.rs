@@ -33,6 +33,7 @@ pub mod error;
 pub mod event;
 pub mod fi_client;
 pub mod matrix;
+pub mod mini_app;
 pub mod multispend;
 pub mod nostril;
 pub mod sp_transfer;

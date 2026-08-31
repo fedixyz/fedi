@@ -10,7 +10,8 @@ pub const ECASH_INTERNAL_CHANGE_TIMEOUT_MAINNET: Duration = Duration::from_secs(
 pub const ECASH_INTERNAL_CHANGE_TIMEOUT_MUTINYNET: Duration = Duration::from_secs(60 * 10);
 pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 // Child-id namespace map: the child ids in this file are NOT one flat
-// sequence. Ids 10-15, 17, and 19 are children of the app's GLOBAL root secret.
+// sequence. Ids 10-15, 17, 19, and 20 are children of the app's GLOBAL root
+// secret.
 // Ids 16 (fedi-social's `SOCIAL_RECOVERY_SECRET_CHILD_ID`, declared in that
 // crate) and 18 are children of PER-FEDERATION secrets, a separate
 // derivation namespace that never collides with the global one — which is
@@ -34,6 +35,9 @@ pub const FI_PUSH_RECIPIENT_CHILD_ID: ChildId = ChildId(19);
 /// seat-payment refund issuance keys. Changing this value breaks refund
 /// recovery for any in-flight paid formation.
 pub const FI_SEAT_REFUND_CHILD_ID: ChildId = ChildId(18);
+/// Stable global root-secret child for mini app seed derivation (see
+/// bridge::mini_app_seed).
+pub const MINI_APP_SEED_CHILD_ID: ChildId = ChildId(20);
 
 // Desired length for device identifier string before encrypting and uploading
 // to Fedi's device registration servers. We add padding as desired. Having a
