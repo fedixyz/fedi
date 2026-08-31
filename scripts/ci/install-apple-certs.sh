@@ -41,7 +41,8 @@ echo "Checking App Store Connect distribution certificates have not expired..."
 pushd "$REPO_ROOT"/ui/native/ios
 LANE_SUFFIX=""
 if [ -n "${FLAVOR:-}" ]; then
-  LANE_SUFFIX="_nightly"
+  # a wrong suffix points the renew fallback at another flavor's certs repo
+  LANE_SUFFIX="_$FLAVOR"
 fi
 
 CHECK_RESULT=0
