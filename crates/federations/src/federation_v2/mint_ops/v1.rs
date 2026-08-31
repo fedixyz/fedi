@@ -2,9 +2,11 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
+use bitcoin::hashes::{Hash, HashEngine, sha256, sha256t};
 use bug_report::reused_ecash_proofs::{self, SerializedReusedEcashProofs};
 use fedimint_client::module::oplog::OperationLogEntry;
 use fedimint_core::core::OperationId;
+use fedimint_core::encoding::Encodable;
 use fedimint_core::task::timeout;
 use fedimint_core::{Amount, apply, async_trait_maybe_send};
 use fedimint_mint_client::{
@@ -16,7 +18,8 @@ use futures::StreamExt;
 use rpc_types::error::ErrorCode;
 use rpc_types::{
     EcashReceiveMetadata, EcashReceiveReason, EcashSendMetadata, FrontendMetadata, RpcAmount,
-    RpcGenerateEcashResponse, RpcOperationId, RpcTransactionDirection, RpcTransactionKind,
+    RpcGenerateEcashResponse, RpcOOBSpendState, RpcOperationId, RpcTransactionDirection,
+    RpcTransactionKind,
 };
 use tracing::warn;
 
@@ -272,6 +275,13 @@ impl MintOps for MintOpsV1 {
         if use_legacy_cancel {
             // Legacy timed sends still have a Fedimint auto-refund state machine.
             // Keep using it so in-flight pre-fedi5 ecash can be canceled/reclaimed.
+            // a Success outcome means the recipient claimed the notes; the
+            // subscription below would replay it as a successful cancel
+            if let Some(op) = fed.client.operation_log().get_operation(op_id).await
+                && let Ok(Some(SpendOOBState::Success)) = op.try_outcome::<SpendOOBState>()
+            {
+                return Err(anyhow!(ErrorCode::EcashCancelFailed));
+            }
             mint.try_cancel_spend_notes(op_id).await;
             fed.subscribe_oob_spend(op_id).await?;
             return Ok(());
@@ -290,7 +300,9 @@ impl MintOps for MintOpsV1 {
             .await
             .context(ErrorCode::EcashCancelFailed)?;
         let _ = fed.record_tx_date_fiat_info(operation_id, amount).await;
-        fed.subscribe_to_ecash_reissue(operation_id, amount).await?;
+        fed.subscribe_to_ecash_reissue(operation_id, amount)
+            .await
+            .context(ErrorCode::EcashCancelFailed)?;
         Ok(())
     }
 
@@ -441,15 +453,19 @@ impl MintOps for MintOpsV1 {
                 if extra_meta.internal {
                     return Ok(None);
                 }
+                let state = match reclaimed_send_state(fed, &oob_notes).await {
+                    Some(state) => Some(state),
+                    None => fed
+                        .get_client_operation_outcome(operation_id, entry, |op_id| async move {
+                            fed.client.mint()?.subscribe_spend_notes(op_id).await
+                        })
+                        .await?
+                        .map(SpendOOBState::into),
+                };
                 Ok(Some(FederationTransactionParts {
                     amount: RpcAmount(requested_amount + Amount::from_msats(fedi_fee_msats)),
                     kind: RpcTransactionKind::OobSend {
-                        state: fed
-                            .get_client_operation_outcome(operation_id, entry, |op_id| async move {
-                                fed.client.mint()?.subscribe_spend_notes(op_id).await
-                            })
-                            .await?
-                            .map(SpendOOBState::into),
+                        state,
                         // No-timeout v1 sends have no auto-refund state
                         // machine, so history must preserve the reclaim blob.
                         oob_notes: Some(oob_notes.to_string()),
@@ -458,5 +474,48 @@ impl MintOps for MintOpsV1 {
                 }))
             }
         }
+    }
+}
+
+/// Mirrors the private `OOBReissueTag` in fedimint-mint-client; the tag
+/// feeds operation id derivation, which upstream cannot change without
+/// orphaning every in-flight reissue.
+struct OobReissueTag;
+
+impl sha256t::Tag for OobReissueTag {
+    fn engine() -> sha256::HashEngine {
+        let mut engine = sha256::HashEngine::default();
+        engine.input(b"oob-reissue");
+        engine
+    }
+}
+
+/// A cancel reissues the notes back to the sender, and that reissue op is
+/// the only durable record of the outcome; the send reports its state from
+/// it whenever one exists.
+async fn reclaimed_send_state(
+    fed: &FederationV2,
+    oob_notes: &OOBNotes,
+) -> Option<RpcOOBSpendState> {
+    let reissue_op_id = OperationId(
+        oob_notes
+            .notes()
+            .consensus_hash::<sha256t::Hash<OobReissueTag>>()
+            .to_byte_array(),
+    );
+    let entry = fed
+        .client
+        .operation_log()
+        .get_operation(reissue_op_id)
+        .await?;
+    match entry.try_outcome::<ReissueExternalNotesState>() {
+        Ok(Some(ReissueExternalNotesState::Done)) => Some(RpcOOBSpendState::UserCanceledSuccess),
+        // the federation rejecting the reissue means the recipient claimed
+        // the notes first
+        Ok(Some(ReissueExternalNotesState::Failed(_))) => {
+            Some(RpcOOBSpendState::UserCanceledFailure)
+        }
+        Ok(Some(_)) | Ok(None) => Some(RpcOOBSpendState::UserCanceledProcessing),
+        Err(_) => None,
     }
 }

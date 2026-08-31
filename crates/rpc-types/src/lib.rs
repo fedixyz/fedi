@@ -557,10 +557,8 @@ pub enum RpcTransactionKind {
     },
     OobSend {
         state: Option<RpcOOBSpendState>,
-        /// The ecash string handed out by this send. Surfaced for v2 ecash
-        /// so the user can copy, reclaim, or re-share it from the tx detail.
-        /// `None` for v1 ecash, which already carries the notes through the
-        /// existing cancel UX.
+        /// The ecash string handed out by this send. Surfaced for no-timeout
+        /// sends so the user can reclaim the notes from transaction history.
         oob_notes: Option<String>,
     },
     OobReceive {

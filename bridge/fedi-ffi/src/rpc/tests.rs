@@ -33,7 +33,7 @@ use rpc_types::communities::{CommunityInvite, CommunityInviteV1};
 use rpc_types::event::TransactionEvent;
 use rpc_types::{
     RpcEcashInfo, RpcLightningGatewayId, RpcLnPayState, RpcLnReceiveState, RpcOOBReissueState,
-    RpcOnchainDepositState, RpcOnchainWithdrawState, RpcReturningMemberStatus,
+    RpcOOBSpendState, RpcOnchainDepositState, RpcOnchainWithdrawState, RpcReturningMemberStatus,
     RpcSPV2TransferInState, RpcTransactionDirection, RpcTransactionKind,
 };
 use runtime::constants::{
@@ -2062,9 +2062,61 @@ async fn test_ecash_cancel(_dev_fed: DevFed) -> anyhow::Result<()> {
     )
     .await?
     .ecash;
+    let send_ecash_amount = amount_from_ecash(send_ecash.clone()).await?;
+    let balance_after_send = federation.get_balance().await;
 
-    // if you notice this flake in CI, revert this change
+    let oob_send_state = |entry: &_| match entry {
+        Ok(RpcTransactionListEntry {
+            transaction:
+                RpcTransaction {
+                    kind:
+                        RpcTransactionKind::OobSend {
+                            state, oob_notes, ..
+                        },
+                    ..
+                },
+            ..
+        }) => Some((state.clone(), oob_notes.clone())),
+        _ => None,
+    };
+    let transactions = listTransactions(federation.clone(), None, None).await?;
+    let (_, oob_notes) = transactions
+        .iter()
+        .find_map(oob_send_state)
+        .context("send transaction not found")?;
+    assert_eq!(oob_notes.as_deref(), Some(send_ecash.as_str()));
+
     cancelEcash(federation.clone(), send_ecash).await?;
+
+    let cancel_operation_id = listTransactions(federation.clone(), None, None)
+        .await?
+        .into_iter()
+        .find_map(|entry| match entry {
+            Ok(RpcTransactionListEntry {
+                transaction:
+                    RpcTransaction {
+                        id,
+                        kind: RpcTransactionKind::OobCancel { .. },
+                        ..
+                    },
+                ..
+            }) => Some(id),
+            _ => None,
+        })
+        .context("cancel transaction not found")?
+        .parse()?;
+    wait_for_operation_settlement(federation.as_ref(), cancel_operation_id).await;
+    // Cancel reclaims the ecash notes. The original send fee stays charged.
+    assert_balance_close_enough(
+        balance_after_send + send_ecash_amount,
+        federation.get_balance().await,
+    );
+    let (send_state, _) = listTransactions(federation.clone(), None, None)
+        .await?
+        .iter()
+        .find_map(oob_send_state)
+        .context("send transaction not found")?;
+    assert_matches!(send_state, Some(RpcOOBSpendState::UserCanceledSuccess));
     Ok(())
 }
 

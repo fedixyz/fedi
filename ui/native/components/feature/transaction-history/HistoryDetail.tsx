@@ -2,6 +2,7 @@ import { Text, Theme, useTheme, Button } from '@rneui/themed'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+    Alert,
     Keyboard,
     Pressable,
     StyleSheet,
@@ -15,10 +16,12 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useTransactionHistory } from '@fedi/common/hooks/transactions'
 import {
+    cancelEcash,
     selectTransactionDisplayType,
     setTransactionDisplayType,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { getCancellableEcash } from '@fedi/common/utils/transaction'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { Federation, TransactionListEntry } from '../../../types'
@@ -66,6 +69,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     const [notes, setNotes] = useState<string>(propsNotes || '')
     const [checkLoading, setCheckLoading] = useState(false)
     const [reclaimLoading, setReclaimLoading] = useState(false)
+    const [cancelLoading, setCancelLoading] = useState(false)
     const toast = useToast()
     const transactionDisplayType = useAppSelector(selectTransactionDisplayType)
     const dispatch = useAppDispatch()
@@ -188,6 +192,56 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
         (txn.kind === 'lnReceive' || txn.kind === 'lnRecurringdReceive') &&
         txn.state?.type === 'canceled'
 
+    const ecashToCancel = txn ? getCancellableEcash(txn) : undefined
+
+    const handleCancelEcash = useCallback(async () => {
+        if (!ecashToCancel) return
+
+        setCancelLoading(true)
+        try {
+            await dispatch(
+                cancelEcash({ fedimint, ecash: ecashToCancel }),
+            ).unwrap()
+            toast.show({
+                status: 'success',
+                content: t('phrases.canceled-ecash-send'),
+            })
+            handleClose()
+        } catch (e) {
+            log.error('Failed to cancel ecash send', e)
+            toast.error(t, e)
+        } finally {
+            setCancelLoading(false)
+            // a failed cancel also updates the send's state: it proves the
+            // recipient claimed the notes
+            fetchTransactions().catch(err =>
+                log.error('Failed to refresh transactions after cancel', err),
+            )
+        }
+    }, [
+        dispatch,
+        ecashToCancel,
+        fedimint,
+        fetchTransactions,
+        handleClose,
+        t,
+        toast,
+    ])
+
+    const handleCancelSend = useCallback(() => {
+        Alert.alert(
+            t('phrases.please-confirm'),
+            t('feature.send.cancel-notes-warning'),
+            [
+                { text: t('phrases.go-back') },
+                {
+                    text: t('words.continue'),
+                    onPress: handleCancelEcash,
+                },
+            ],
+        )
+    }, [handleCancelEcash, t])
+
     const style = styles(theme)
 
     // we show uneditable notes if we don't have a save function (like for multispend txns)
@@ -282,8 +336,21 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                     />
                 )}
             </Column>
+            {ecashToCancel && (
+                <View style={style.actionContainer}>
+                    <Button
+                        testID="HistoryDetailCancelEcashButton"
+                        title={t('feature.send.cancel-send')}
+                        type="clear"
+                        titleStyle={style.cancelSendText}
+                        onPress={handleCancelSend}
+                        loading={cancelLoading}
+                        disabled={cancelLoading}
+                    />
+                </View>
+            )}
             {txn?.kind === 'onchainDeposit' && (
-                <View style={style.checkFundsContainer}>
+                <View style={style.actionContainer}>
                     <Button
                         title={
                             checkLoading
@@ -296,7 +363,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                 </View>
             )}
             {isReclaimableLnReceive && (
-                <View style={style.checkFundsContainer}>
+                <View style={style.actionContainer}>
                     <Button
                         title={
                             reclaimLoading
@@ -321,9 +388,12 @@ const styles = (theme: Theme) =>
         closeIconContainer: {
             alignSelf: 'flex-end',
         },
-        checkFundsContainer: {
+        actionContainer: {
             width: '100%',
             paddingTop: theme.spacing.lg,
+        },
+        cancelSendText: {
+            color: theme.colors.red,
         },
         detailItemsContainer: {
             marginTop: theme.spacing.xl,

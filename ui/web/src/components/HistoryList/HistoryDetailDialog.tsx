@@ -1,13 +1,21 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
-import type { FeeItem } from '@fedi/common/hooks/transactions'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useToast } from '@fedi/common/hooks/toast'
 import {
+    type FeeItem,
+    useTransactionHistory,
+} from '@fedi/common/hooks/transactions'
+import {
+    cancelEcash,
     selectTransactionDisplayType,
     setTransactionDisplayType,
 } from '@fedi/common/redux'
 import type { TransactionListEntry } from '@fedi/common/types'
+import { makeLog } from '@fedi/common/utils/log'
+import { getCancellableEcash } from '@fedi/common/utils/transaction'
 
 import {
     useAppDispatch,
@@ -15,11 +23,15 @@ import {
     useAutosizeTextArea,
 } from '../../hooks'
 import { styled, theme } from '../../styles'
+import { Button } from '../Button'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { Dialog } from '../Dialog'
 import { Icon } from '../Icon'
 import { Text } from '../Text'
 import { TourTip } from '../TourTip'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
+
+const log = makeLog('web/components/HistoryList/HistoryDetailDialog')
 
 const FEE_TOOLTIP_WIDTH = 260
 const FEE_TOOLTIP_MAX_WIDTH = 300
@@ -49,11 +61,17 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
     onSaveNotes,
     onClose,
     txn,
+    federationId = '',
 }) => {
     const [notes, setNotes] = useState(propsNotes || '')
     const [inputEl, setInputEl] = useState<HTMLTextAreaElement | null>(null)
     const [feeTooltipOpen, setFeeTooltipOpen] = useState(false)
+    const [confirmingCancel, setConfirmingCancel] = useState(false)
+    const [cancelLoading, setCancelLoading] = useState(false)
     const { t } = useTranslation()
+    const fedimint = useFedimint()
+    const toast = useToast()
+    const { fetchTransactions } = useTransactionHistory(federationId)
     const { makeFormattedAmountsFromTxn } = useAmountFormatter()
     const totalFeeItem = feeItems?.find(
         item => item.label === t('phrases.total-fees'),
@@ -82,16 +100,53 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
         setNotes(ev.target.value)
     }
 
-    const handleSaveNotes = () => {
+    const handleSaveNotes = useCallback(() => {
         if (onSaveNotes && notes !== propsNotes) {
             onSaveNotes(notes)
         }
-    }
+    }, [notes, onSaveNotes, propsNotes])
 
-    const handleClose = () => {
+    const handleClose = useCallback(() => {
         handleSaveNotes()
         onClose()
-    }
+    }, [handleSaveNotes, onClose])
+
+    const ecashToCancel = txn ? getCancellableEcash(txn) : undefined
+
+    const handleCancelEcash = useCallback(async () => {
+        if (!ecashToCancel) return
+
+        setCancelLoading(true)
+        try {
+            await dispatch(
+                cancelEcash({ fedimint, ecash: ecashToCancel }),
+            ).unwrap()
+            toast.show({
+                status: 'success',
+                content: t('phrases.canceled-ecash-send'),
+            })
+            handleClose()
+        } catch (e) {
+            log.error('Failed to cancel ecash send', e)
+            toast.error(t, e)
+        } finally {
+            setCancelLoading(false)
+            setConfirmingCancel(false)
+            // a failed cancel also updates the send's state: it proves the
+            // recipient claimed the notes
+            fetchTransactions().catch(err =>
+                log.error('Failed to refresh transactions after cancel', err),
+            )
+        }
+    }, [
+        dispatch,
+        ecashToCancel,
+        fedimint,
+        fetchTransactions,
+        handleClose,
+        t,
+        toast,
+    ])
 
     return (
         <Dialog open onOpenChange={handleClose}>
@@ -161,6 +216,27 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
                         />
                     )}
                 </Details>
+                {ecashToCancel && (
+                    <>
+                        <CancelButton
+                            width="full"
+                            variant="tertiary"
+                            loading={cancelLoading}
+                            disabled={cancelLoading}
+                            onClick={() => setConfirmingCancel(true)}>
+                            {t('feature.send.cancel-send')}
+                        </CancelButton>
+                        <ConfirmDialog
+                            open={confirmingCancel}
+                            title={t('phrases.please-confirm')}
+                            description={t('feature.send.cancel-notes-warning')}
+                            primaryButtonLabel={t('words.continue')}
+                            secondaryButtonLabel={t('phrases.go-back')}
+                            onConfirm={handleCancelEcash}
+                            onClose={() => setConfirmingCancel(false)}
+                        />
+                    </>
+                )}
             </Container>
         </Dialog>
     )
@@ -241,6 +317,11 @@ const Details = styled('div', {
     flexDirection: 'column',
     width: '100%',
     marginTop: 16,
+})
+
+const CancelButton = styled(Button, {
+    color: theme.colors.red,
+    marginTop: theme.spacing.lg,
 })
 
 const NotesInput = styled('textarea', {

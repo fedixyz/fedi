@@ -359,16 +359,24 @@ impl MintOps for MintOpsV2 {
                 if extra_meta.internal {
                     return Ok(None);
                 }
-                let amount = decode_prefixed::<MintV2ECash>(FEDIMINT_PREFIX, &ecash)
+                let decoded = decode_prefixed::<MintV2ECash>(FEDIMINT_PREFIX, &ecash).ok();
+                let amount = decoded
+                    .as_ref()
                     .map(|ecash| ecash.amount())
                     .unwrap_or(Amount::ZERO);
                 // v2 Send is atomic: notes leave the local db immediately, so there is
-                // no spend state machine to map onto. Report the send as Success and
-                // surface the ecash string so the tx detail can reclaim or re-share it.
+                // no spend state machine to map onto. Surface the ecash string so the
+                // tx detail can reclaim or re-share it.
+                let state = match &decoded {
+                    Some(decoded) => reclaimed_send_state(fed, decoded)
+                        .await
+                        .unwrap_or(RpcOOBSpendState::Success),
+                    None => RpcOOBSpendState::Success,
+                };
                 Ok(Some(FederationTransactionParts {
                     amount: RpcAmount(amount + Amount::from_msats(fedi_fee_msats)),
                     kind: RpcTransactionKind::OobSend {
-                        state: Some(RpcOOBSpendState::Success),
+                        state: Some(state),
                         oob_notes: Some(ecash),
                     },
                     frontend_metadata: extra_meta.frontend_metadata,
@@ -461,5 +469,28 @@ impl MintOps for MintOpsV2 {
             // Internal change-making op — hide from the tx list.
             MintV2OperationMeta::Reissue { .. } => Ok(None),
         }
+    }
+}
+
+/// A cancel is a receive of the sender's own ecash, keyed by
+/// `OperationId::from_encodable(ecash)`; that receive is the only durable
+/// record of the outcome, so the send reports its state from it.
+async fn reclaimed_send_state(fed: &FederationV2, ecash: &MintV2ECash) -> Option<RpcOOBSpendState> {
+    let entry = fed
+        .client
+        .operation_log()
+        .get_operation(OperationId::from_encodable(ecash))
+        .await?;
+    match entry.try_outcome::<MintV2FinalReceiveOperationState>() {
+        Ok(Some(MintV2FinalReceiveOperationState::Success)) => {
+            Some(RpcOOBSpendState::UserCanceledSuccess)
+        }
+        // the federation rejecting the receive means the recipient claimed
+        // the notes first
+        Ok(Some(MintV2FinalReceiveOperationState::Rejected)) => {
+            Some(RpcOOBSpendState::UserCanceledFailure)
+        }
+        Ok(None) => Some(RpcOOBSpendState::UserCanceledProcessing),
+        Err(_) => None,
     }
 }

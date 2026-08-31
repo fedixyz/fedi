@@ -80,6 +80,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
             })}
             makeDetailProps={txn => ({
                 txn,
+                federationId,
                 title: makeTxnDetailTitleText(t, txn),
                 items: isStabilityPool
                     ? makeStabilityTxnDetailItems(txn)

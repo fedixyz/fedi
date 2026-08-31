@@ -1353,6 +1353,23 @@ export const makeTransactionAmountState = (txn: TransactionListEntry) => {
     return TransactionAmountStateMap[badge] satisfies TransactionAmountState
 }
 
+/**
+ * The sender cannot know whether the recipient claimed the notes, so
+ * `created` and `success` are both cancelable and the federation arbitrates
+ * on press. The other states record a known outcome. Chat payments cancel
+ * from the chat timeline, which also updates the message for the recipient.
+ */
+export const getCancellableEcash = (
+    txn: TransactionListEntry,
+): string | undefined => {
+    if (txn.kind !== 'oobSend' || !txn.oob_notes) return undefined
+    if (txn.frontendMetadata?.recipientMatrixId) return undefined
+    const state = txn.state?.type
+    return state === undefined || state === 'created' || state === 'success'
+        ? txn.oob_notes
+        : undefined
+}
+
 // temporary type helper until RpcTransaction and RpcTransactionListEntry are reconciled bridge-side
 export const coerceTxn = (txn: RpcTransaction): TransactionListEntry => {
     return {
