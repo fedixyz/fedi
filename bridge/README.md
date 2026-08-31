@@ -84,7 +84,8 @@ profile, which is `dev` raised to `opt-level = 1` to work around an issue with u
 In CI the first step is replaced by `nix build .#fedi-android-bridge-libs`.
 
 The iOS build is simpler: `build-bridge-ios.sh` generates the Swift glue, builds `libfediffi.a` per
-target, and copies the headers and binaries into `fedi-swift/fediFFI.xcframework`.
+target, rejects imports of Apple symbols newer than the deployment target, and copies the headers
+and binaries into `fedi-swift/fediFFI.xcframework`.
 
 ## Why `ffi-bindgen` exists
 
