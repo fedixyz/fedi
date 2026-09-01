@@ -6,6 +6,10 @@
 # reviewed head sha into each PR's sticky comment; that stamp is the only
 # state, so an unchanged PR is skipped and a push gets a fresh review.
 #
+# A second pass picks up PRs that already merged, because a PR that opens,
+# goes green, and merges between two ticks is never open when this runs and
+# would otherwise ship unreviewed.
+#
 # Env:
 #   GH_TOKEN         cross-repo credential (GitHub App installation token or
 #                    PAT) that can read the org's repos and PR comments
@@ -14,12 +18,19 @@
 #   SWEEP_REPOS      space-separated owner/name list; empty sweeps every
 #                    non-archived non-fork repo in the org
 #   MAX_AGE_HOURS    how recently a PR must have become reviewable (default 24)
+#   MERGED_MAX_AGE_HOURS
+#                    how recently a PR must have merged for the merged pass
+#                    to review it (default 3)
 
 set -euo pipefail
 
 ORG=fedibtc
 HUB_REPO=fedibtc/fedi
 max_age_hours=${MAX_AGE_HOURS:-24}
+# Deliberately much shorter than the open window. This one reaches back over
+# PRs that already merged, so widening it walks into a backlog and dispatches
+# a deluge of reviews nobody asked for.
+merged_max_age_hours=${MERGED_MAX_AGE_HOURS:-3}
 
 if [ -z "${GH_TOKEN:-}" ]; then
     echo "::error::no cross-repo credential: set the SIEVE_HUB_APP_ID variable + SIEVE_HUB_APP_PRIVATE_KEY secret, or the SIEVE_HUB_TOKEN secret"
@@ -38,9 +49,13 @@ else
         --jq '.[] | select((.archived or .fork) | not) | .full_name')
 fi
 
-cutoff=$(date -u -d "$max_age_hours hours ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null ||
-    date -u -v-"${max_age_hours}"H +%Y-%m-%dT%H:%M:%SZ)
-echo "Reviewing PRs that became reviewable since $cutoff"
+iso_hours_ago() {
+    date -u -d "$1 hours ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null ||
+        date -u -v-"$1"H +%Y-%m-%dT%H:%M:%SZ
+}
+cutoff=$(iso_hours_ago "$max_age_hours")
+merged_cutoff=$(iso_hours_ago "$merged_max_age_hours")
+echo "Reviewing PRs that became reviewable since $cutoff, and PRs merged since $merged_cutoff"
 
 # the github api returns transient 5xx, and a 15-minute cron amplifies it
 gh_retry() {
@@ -111,6 +126,29 @@ skipped_reviewed=0
 skipped_not_ready=0
 skipped_stale=0
 
+# Dispatches a review unless this exact head was already reviewed.
+dispatch_review() {
+    local repo=$1 number=$2 head=$3 why=$4 comments
+    # `sieve review-pr` stamps the reviewed sha into the sticky comment.
+    # A failed fetch dispatches a duplicate review, which is harmless.
+    comments=$(gh_retry api "repos/$repo/issues/$number/comments" --paginate \
+        --jq '.[].body' || true)
+    case "$comments" in
+    *"sieve-head:$head"*)
+        skipped_reviewed=$((skipped_reviewed + 1))
+        return 0
+        ;;
+    esac
+    echo "Dispatching review for $repo#$number (${head:0:12}, $why)"
+    if GH_TOKEN=$DISPATCH_TOKEN gh workflow run sieve-hub-review.yml \
+        --repo "$HUB_REPO" -f "repo=$repo" -f "pr_number=$number"; then
+        dispatched=$((dispatched + 1))
+    else
+        failures+=("$repo#$number (dispatch)")
+    fi
+    return 0
+}
+
 for repo in $repos; do
     # A failing repo must not starve the ones after it: the same repo would
     # fail at the same point every sweep. Checks are fetched per PR below:
@@ -159,24 +197,33 @@ for repo in $repos; do
             continue
         fi
         head=$(jq -r '.headRefOid' <<<"$pr")
-        # `sieve review-pr` stamps the reviewed sha into the sticky comment.
-        # A failed fetch dispatches a duplicate review, which is harmless.
-        comments=$(gh_retry api "repos/$repo/issues/$number/comments" --paginate \
-            --jq '.[].body' || true)
-        case "$comments" in
-        *"sieve-head:$head"*)
-            skipped_reviewed=$((skipped_reviewed + 1))
-            continue
-            ;;
-        esac
-        echo "Dispatching review for $repo#$number (${head:0:12}, reviewable since $reviewable_at)"
-        if GH_TOKEN=$DISPATCH_TOKEN gh workflow run sieve-hub-review.yml \
-            --repo "$HUB_REPO" -f "repo=$repo" -f "pr_number=$number"; then
-            dispatched=$((dispatched + 1))
-        else
-            failures+=("$repo#$number (dispatch)")
-        fi
+        dispatch_review "$repo" "$number" "$head" "reviewable since $reviewable_at"
     done <<<"$prs"
+
+    # A PR that opens, goes green, and merges between two ticks is never open
+    # when this runs, so the pass above cannot see it. There is no green check
+    # here because a merged PR has already passed whatever gate it had.
+    if ! merged=$(gh_retry pr list --repo "$repo" --state merged \
+        --search "merged:>=$merged_cutoff sort:updated-desc" --limit 50 \
+        --json number,isCrossRepository,headRefOid,changedFiles \
+        --jq '.[] | @json'); then
+        failures+=("$repo (merged pr list)")
+        continue
+    fi
+    while IFS= read -r pr; do
+        [ -z "$pr" ] && continue
+        # Same two refusals as above: the hub will not review a fork, and an
+        # empty diff gets no review and so never earns a head stamp.
+        if [ "$(jq -r '.isCrossRepository' <<<"$pr")" = "true" ]; then
+            continue
+        fi
+        if [ "$(jq -r '.changedFiles == 0' <<<"$pr")" = "true" ]; then
+            continue
+        fi
+        number=$(jq -r '.number' <<<"$pr")
+        head=$(jq -r '.headRefOid' <<<"$pr")
+        dispatch_review "$repo" "$number" "$head" "merged since $merged_cutoff"
+    done <<<"$merged"
 done
 
 report="dispatched $dispatched review(s), skipped $skipped_reviewed already reviewed, $skipped_not_ready not green, $skipped_stale reviewable before the cutoff"

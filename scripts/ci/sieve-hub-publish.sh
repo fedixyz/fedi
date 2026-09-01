@@ -32,19 +32,18 @@ fi
 
 sieve --version
 
+# Merged and closed PRs are reviewed too. The sweep decides which ones are
+# worth dispatching, and a hand dispatch has to be able to reach any of them.
 pr=$(gh pr view "$number" --repo "$repo" --json state,headRefName,headRefOid,isCrossRepository)
 branch=$(jq -r '.headRefName' <<<"$pr")
 head=$(jq -r '.headRefOid' <<<"$pr")
-if [ "$(jq -r '.state' <<<"$pr")" != "OPEN" ]; then
-    echo "$repo#$number is not open; nothing to review"
-    exit 0
-fi
+state=$(jq -r '.state' <<<"$pr")
 if [ "$(jq -r '.isCrossRepository' <<<"$pr")" = "true" ]; then
     echo "::error::$repo#$number is a fork PR; the hub only reviews branches the org owns"
     exit 1
 fi
 
-echo "Reviewing $repo#$number ($branch @ ${head:0:12})"
+echo "Reviewing $repo#$number ($branch @ ${head:0:12}, $state)"
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/sieve-review.XXXXXX")
 find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'sieve-review.*' -not -path "$workdir" -mmin +180 -exec rm -rf {} + 2>/dev/null || true
 # the comment step runs in this checkout, so a published review keeps it
@@ -56,9 +55,14 @@ trap 'exit 129' HUP INT TERM
 export SIEVE_AGENT_SCRATCH="$workdir/scratch"
 mkdir -p "$SIEVE_AGENT_SCRATCH"
 # `review-pr` needs authenticated base fetches for private repos.
-git clone --quiet --branch "$branch" \
+git clone --quiet --no-checkout \
     "https://x-access-token:${GH_TOKEN}@github.com/${repo}.git" "$workdir/repo"
 cd "$workdir/repo"
+# The head branch is deleted on merge, so the pull ref is the only thing that
+# still resolves it. `scaffold` keys the review off the checked-out branch
+# name, so the local branch keeps the name the PR was opened from.
+git fetch --quiet --no-tags origin "refs/pull/$number/head"
+git checkout --quiet -B "$branch" FETCH_HEAD
 
 # the agent prompt looks for screenshots/ by that exact name
 if [ -n "${SIEVE_SCREENSHOTS_DIR:-}" ] && [ -d "$SIEVE_SCREENSHOTS_DIR" ]; then
@@ -91,7 +95,15 @@ if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
 fi
 
 recap=sieve-recap.json
-scaffold=$(sieve --json --host "$SIEVE_HOST" review-pr --manifest-out "$recap")
+# A PR that landed as a merge commit has its head in the base branch's
+# history, so the default diff against the branch tip comes back empty. The
+# base sha is the commit it was built on, which is what GitHub diffs against.
+review_args=()
+if [ "$state" = "MERGED" ]; then
+    review_args=(--base "$(gh api "repos/$repo/pulls/$number" --jq '.base.sha')")
+fi
+scaffold=$(sieve --json --host "$SIEVE_HOST" review-pr --manifest-out "$recap" \
+    "${review_args[@]+"${review_args[@]}"}")
 if [ "$(jq -r '.skipped // false' <<<"$scaffold")" = "true" ]; then
     jq -r '.reason' <<<"$scaffold"
     exit 0

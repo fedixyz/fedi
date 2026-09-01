@@ -2,7 +2,8 @@ name: 'Sieve hub sweep'
 
 # Dispatches a sieve hub review for every open PR that is out of draft, has
 # passed CI, and whose head has not been reviewed yet, so the reviewed repos
-# add no workflow files and hold no secrets.
+# add no workflow files and hold no secrets. A second pass catches PRs that
+# merged between two ticks, which are never open when this runs.
 on:
     schedule:
         # Sweep latency is the review latency.
@@ -14,6 +15,9 @@ on:
                 required: false
             max_age_hours:
                 description: 'Only review PRs whose checks went green this recently (default 24)'
+                required: false
+            merged_max_age_hours:
+                description: 'Also review PRs merged this recently, for ones that merged between ticks (default 3)'
                 required: false
 
 permissions:
@@ -56,5 +60,6 @@ jobs:
                   DISPATCH_TOKEN: ${{ github.token }}
                   SWEEP_REPOS: ${{ github.event_name == 'workflow_dispatch' && inputs.repos || env.CRON_REPOS }}
                   MAX_AGE_HOURS: ${{ inputs.max_age_hours }}
+                  MERGED_MAX_AGE_HOURS: ${{ inputs.merged_max_age_hours }}
               # gh and jq are not on the runner's bare PATH.
               run: nix shell nixpkgs#gh nixpkgs#jq --command ./scripts/ci/sieve-hub-sweep.sh
