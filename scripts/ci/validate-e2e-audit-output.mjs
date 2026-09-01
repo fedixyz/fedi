@@ -698,6 +698,25 @@ function runSelfTests() {
     if (!reportsStaticCheckFailure('failed eslint, then eslint passed')) {
         throw new Error('accepted failed check stated before its tool name')
     }
+
+    const acceptedNoops = [
+        'coverage_gaps=none. coverage_gap_keys=none',
+        'coverage_gaps=No new issue or PR emitted. Implementable tracked gaps already have coverage in the current checkout or an open coverage PR: chat_polls has open PR #11900. Remaining tracked gaps are blocked: wallet_service #12000 needs fixture state. No untracked concrete full-codebase gap was identified. coverage_gap_keys=chat_polls,wallet_service',
+        'coverage_gaps=No PR was opened because the smallest tracked gaps have open coverage PRs (#11900, #11949). Remaining concrete gaps are blocked and tracked: receive_onchain needs a funding endpoint (#11703). coverage_gap_keys=receive_onchain',
+    ]
+    const rejectedNoops = [
+        'coverage_gaps=scanner deep link is an untracked concrete gap similar to #11890. coverage_gap_keys=scanner',
+        'coverage_gaps=payments send flow has no e2e coverage and no issue tracks it. coverage_gap_keys=payments',
+        'coverage_gaps=tbd. coverage_gap_keys=none',
+    ]
+    for (const text of acceptedNoops) {
+        if (!noopStatesNoConcreteGaps(text))
+            throw new Error(`rejected valid noop: ${text}`)
+    }
+    for (const text of rejectedNoops) {
+        if (noopStatesNoConcreteGaps(text))
+            throw new Error(`accepted untracked-gap noop: ${text}`)
+    }
     console.log('E2E audit validator self-tests passed')
 }
 
@@ -744,20 +763,29 @@ function noopStatesNoConcreteGaps(text) {
         ) ||
         /^no (new |untracked |remaining )*(concrete |implementable |meaningful )*(coverage )?gaps?(\b|$)/i.test(
             value,
+        ) ||
+        /\bno (?:(?:new|other|further|remaining|additional) )?untracked (?:[\w-]+ ){0,3}gaps?\b/i.test(
+            value,
         )
     ) {
         return true
     }
 
+    // The prompt licenses a noop when every remaining gap is blocked and
+    // tracked or has an open coverage PR, so the bar is that claim plus a
+    // cited number, not one fixed sentence. Keep the \b: it excludes "untracked".
+    const citesNumber = /#\d+/.test(value)
     if (
         /^(all )?(concrete )?(coverage )?gaps? (are )?already tracked\b/i.test(
             value,
         ) ||
         (/\balready tracked\b/i.test(value) &&
             /(\bopen\b.*\bissues?\b|\bissues?\b|#\d+)/i.test(value)) ||
+        (citesNumber && /\btracked\b/i.test(value)) ||
+        (citesNumber &&
+            /\bopen (?:coverage )?(?:prs?|pull requests?)\b/i.test(value)) ||
         (/\bmap(?:s|ped)?\s+to\b/i.test(value) &&
-            /\b(existing|open)\b.*\bissues?\b.*#\d+/i.test(value)) ||
-        /\bno new untracked (concrete )?(coverage )?gaps?\b/i.test(value)
+            /\b(existing|open)\b.*\bissues?\b.*#\d+/i.test(value))
     ) {
         return true
     }
