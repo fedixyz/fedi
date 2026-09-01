@@ -1,9 +1,14 @@
 name: Deploy Public APK
 on:
     workflow_dispatch:
+        inputs:
+            release_id:
+                description: 'id of the release to deploy, defaults to the test release'
+                required: false
+                type: string
     release:
         # will not fire for draft releases
-        types: [published, edited]
+        types: [published]
 
 permissions:
   contents: read
@@ -19,7 +24,7 @@ jobs:
               uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
               id: prepare-apk
               env:
-                  RELEASE_ID: ${{ github.event.release.id || vars.TEST_RELEASE_ID }}
+                  RELEASE_ID: ${{ github.event.release.id || inputs.release_id || vars.TEST_RELEASE_ID }}
                   SOURCE_FEDI_ORG: ${{ vars.SOURCE_FEDI_ORG }}
                   SOURCE_FEDI_REPO: ${{ vars.SOURCE_FEDI_REPO }}
               with:
