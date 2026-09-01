@@ -1281,9 +1281,22 @@ export const selectWalletServiceMaxTotalMsats = (s: CommonState) =>
  * answer away again. See {@link CreationHighWaterMark.hasFormed}.
  *
  * The live phase is still the truth for the *bridge* — a save attempted during
- * such a re-run is rejected — but that rejection belongs in a toast against an
- * action the user took, not in a banner over a screen that was already settled.
+ * such a re-run is rejected — so screens that submit maintenance calls must
+ * gate the action on {@link selectIsWalletServiceMaintenanceReady} and use
+ * this only for progress, routing, and settled visuals.
  */
 export const selectIsWalletServiceFormed = (s: CommonState) =>
     selectFiFormation(s)?.phase === 'formed' ||
     Boolean(s.fi.creationHighWaterMark?.hasFormed)
+
+/**
+ * Ready for a maintenance call like `set_guardian_fee` right now.
+ *
+ * Live phase only, no high-water mark: the bridge reports `formed` only once
+ * launch reconciliation has finished (`formed` + `unsynced` is republished as
+ * `publishingSeatBindings`), which is exactly when it stops rejecting
+ * maintenance calls. The status stream pushes the flip, so a gated button
+ * enables without polling or a restart.
+ */
+export const selectIsWalletServiceMaintenanceReady = (s: CommonState) =>
+    selectFiFormation(s)?.phase === 'formed'

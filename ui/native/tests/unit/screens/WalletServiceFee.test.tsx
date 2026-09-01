@@ -46,12 +46,29 @@ const makeFormedFormation = (): RpcFiFormationSnapshot => ({
     lastError: null,
 })
 
+// what the bridge republishes while launch reconciliation still holds the FI
+// operation lock: the formed phase is downgraded and freshness is unsynced
+const makeReconcilingFormation = (): RpcFiFormationSnapshot => ({
+    ...makeFormedFormation(),
+    phase: 'publishingSeatBindings',
+    freshness: 'unsynced',
+    milestones: {
+        ecashSent: true,
+        guardiansConfirmed: true,
+        walletServiceCreated: false,
+    },
+})
+
 const renderFee = ({
     mode = 'onboarding',
     setGuardianFeeResult,
+    formation = makeFormedFormation(),
+    hasFormedBefore = false,
 }: {
     mode?: 'onboarding' | 'edit'
     setGuardianFeeResult?: RpcFiOperationResult
+    formation?: RpcFiFormationSnapshot
+    hasFormedBefore?: boolean
 } = {}) => {
     const user = userEvent.setup()
     const fedimint = createMockFedimintBridge({
@@ -61,9 +78,16 @@ const renderFee = ({
     })
     const store = setupStore({
         fi: {
-            status: { type: 'formation', formation: makeFormedFormation() },
+            status: { type: 'formation', formation },
             clientError: null,
-            creationHighWaterMark: null,
+            creationHighWaterMark: hasFormedBefore
+                ? {
+                      formationId: formation.formationId,
+                      stage: 3,
+                      isComplete: true,
+                      hasFormed: true,
+                  }
+                : null,
             draft: { name: '', size: 7 },
             selectionPreview: null,
             eligiblePayers: null,
@@ -249,6 +273,40 @@ describe('WalletServiceFee screen', () => {
             i18n.t('feature.wallet-service.fee-saved', { rate: '0.5%' }),
         )
         expect(mockNavigation.navigate).not.toHaveBeenCalled()
+    })
+
+    // regression for #12005: after an interrupted formation resumes, the
+    // sticky "has formed before" flag must not enable the fee CTA while the
+    // bridge is still reconciling and would reject with "already in progress"
+    it('should disable the CTA and explain while the resumed formation is still reconciling', async () => {
+        renderFee({
+            formation: makeReconcilingFormation(),
+            hasFormedBefore: true,
+        })
+
+        expect(await findCtaButton()).toBeDisabled()
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.fee-finishing-setup'),
+            ),
+        ).toBeOnTheScreen()
+        // the never-formed warning is the wrong message for this state
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.error-maintenance-wrong-state'),
+            ),
+        ).not.toBeOnTheScreen()
+    })
+
+    it('should enable the CTA without a banner once the formation is live and fresh', async () => {
+        renderFee({ hasFormedBefore: true })
+
+        expect(await findCtaButton()).toBeEnabled()
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.fee-finishing-setup'),
+            ),
+        ).not.toBeOnTheScreen()
     })
 
     it('should stay on the screen and toast when the bridge rejects the fee', async () => {

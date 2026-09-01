@@ -12,6 +12,7 @@ import {
     guardianFeePpmToPercent,
     selectFiFormation,
     selectIsWalletServiceFormed,
+    selectIsWalletServiceMaintenanceReady,
     setWalletServiceGuardianFee,
 } from '@fedi/common/redux'
 import { RpcFiOperationError } from '@fedi/common/types/bindings'
@@ -48,6 +49,9 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
     const fedimint = useFedimint()
     const toast = useToast()
     const isFormed = useAppSelector(selectIsWalletServiceFormed)
+    const isMaintenanceReady = useAppSelector(
+        selectIsWalletServiceMaintenanceReady,
+    )
     const guardianCount =
         useAppSelector(selectFiFormation)?.intent.federationSize ?? 0
 
@@ -58,7 +62,10 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
     const [isSaving, setIsSaving] = useState(false)
 
     const { guardianFeePpm } = selection
-    const canSave = isFormed && selection.isValid
+    // gate on live readiness, not the sticky isFormed: after an interrupted
+    // formation resumes, the bridge is still reconciling and rejects the fee
+    // with "already in progress" (#12005)
+    const canSave = isMaintenanceReady && selection.isValid
 
     const handleSave = useCallback(async () => {
         setIsSaving(true)
@@ -119,13 +126,22 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
                         : 'feature.wallet-service.fee-title',
                 )}
                 step={mode === 'onboarding' ? STEP_INDEX : undefined}>
-                {!isFormed && (
+                {!isFormed ? (
                     <WarningBanner
                         message={t(
                             'feature.wallet-service.error-maintenance-wrong-state',
                         )}
                     />
-                )}
+                ) : !isMaintenanceReady ? (
+                    // formed before, but the bridge is still reconciling that
+                    // formation; the status stream removes this on its own
+                    <WarningBanner
+                        level="info"
+                        message={t(
+                            'feature.wallet-service.fee-finishing-setup',
+                        )}
+                    />
+                ) : null}
             </WalletServiceScreenHeader>
             <SafeScrollArea edges="notop" padding="lg">
                 <Column gap="lg" grow>

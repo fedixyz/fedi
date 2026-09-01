@@ -1623,6 +1623,7 @@
             "fee-breakdown-your-share": "Your share",
             "fee-custom": "Custom",
             "fee-custom-placeholder": "Your fee (min {{min}}%)",
+            "fee-finishing-setup": "Finishing setup… You can set your fee in a moment.",
             "fee-max-error": "Use no more than {{max}}%",
             "fee-min-error": "Use at least {{min}}%",
             "fee-onboarding-title": "Set your service fee",
