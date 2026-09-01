@@ -13,6 +13,8 @@ export USE_STABILITY_POOL_TEST_PARAMS=1
 export FEDI_STABILITY_POOL_MODULE_TEST_PARAMS=1
 export FEDI_SOCIAL_RECOVERY_MODULE_ENABLE=1
 export FM_DISABLE_BASE_FEES=1
+# Fedi's DKG version carries this exact build-metadata vendor identity.
+export FM_EXPECTED_FEDIMINTD_VENDOR=fedi
 export RUST_BACKTRACE=full
 
 # upstream's devimint tests skip their lnv2 parts when lnv2 is absent, which is

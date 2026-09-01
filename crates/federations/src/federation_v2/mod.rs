@@ -5189,6 +5189,13 @@ fn is_gateway_availability_error(error: &anyhow::Error) -> bool {
 }
 
 fn handle_pay_bolt11_invoice_error(error: anyhow::Error) -> Result<OutgoingLightningPayment> {
+    if matches!(
+        error.downcast_ref::<IncomingSmError>(),
+        Some(IncomingSmError::ContractAlreadyExists { .. })
+    ) {
+        bail!(ErrorCode::PayLnInvoiceAlreadyInProgress);
+    }
+
     match error.downcast::<PayBolt11InvoiceError>()? {
         PayBolt11InvoiceError::PreviousPaymentAttemptStillInProgress { .. }
         // FundedContractAlreadyExists is also same but with less information.
@@ -5476,6 +5483,40 @@ mod tests {
         let error = anyhow!(PayBolt11InvoiceError::NoLnGatewayAvailable);
 
         assert!(!is_gateway_availability_error(&error));
+    }
+
+    #[test]
+    fn contract_already_exists_is_not_a_gateway_availability_error() {
+        let error = anyhow!(IncomingSmError::ContractAlreadyExists {
+            payment_hash: sha256::Hash::all_zeros(),
+        });
+
+        assert!(!is_gateway_availability_error(&error));
+    }
+
+    #[test]
+    fn contract_already_exists_has_a_sanitized_name() {
+        let error = IncomingSmError::ContractAlreadyExists {
+            payment_hash: sha256::Hash::all_zeros(),
+        };
+
+        assert_eq!(
+            incoming_sm_error_variant_name(&error),
+            "ContractAlreadyExists"
+        );
+    }
+
+    #[test]
+    fn contract_already_exists_is_already_in_progress() {
+        let error = anyhow!(IncomingSmError::ContractAlreadyExists {
+            payment_hash: sha256::Hash::all_zeros(),
+        });
+        let error = handle_pay_bolt11_invoice_error(error).unwrap_err();
+
+        assert_eq!(
+            error.downcast_ref::<ErrorCode>(),
+            Some(&ErrorCode::PayLnInvoiceAlreadyInProgress)
+        );
     }
 
     #[test]
