@@ -3611,6 +3611,7 @@ dependencies = [
  "fedimintd",
  "stability-pool-server",
  "stability-pool-server-old",
+ "tikv-jemallocator",
  "tokio",
  "tracing",
 ]

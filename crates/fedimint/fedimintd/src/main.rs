@@ -9,7 +9,23 @@ use fedi_social_server::FediSocialInit;
 use fedimint_core::Amount;
 use fedimint_core::envs::is_env_var_set;
 use fedimint_server_core::ServerModuleInitRegistry;
+#[cfg(feature = "jemalloc")]
+use tikv_jemallocator::Jemalloc;
 use tracing::warn;
+
+// This wrapper crate builds the fedimintd binary that Fedi actually ships, so
+// the allocator has to be selected here. Upstream's own fedimintd bin sets it
+// in fedimintd/src/bin/main.rs, which is not a bin this workspace builds.
+//
+// Without it the process uses glibc malloc, whose arena pool is sized from
+// sysconf(_SC_NPROCESSORS_ONLN) -- the HOST core count, ignoring the cgroup --
+// with each secondary arena reserving a 64MiB heap that is never returned. A
+// guardian therefore costs more memory on a bigger node for identical work.
+// See fedibtc/fedi#11800.
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+// rocksdb suffers from memory fragmentation when using the standard allocator
+static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

@@ -5,6 +5,11 @@ authors = ["The Fedi Developers"]
 edition = "2024"
 description = "fedimintd with custom fedi modules"
 
+[features]
+# On by default so the shipped binary gets it without any build-flag ceremony.
+default = ["jemalloc"]
+jemalloc = ["dep:tikv-jemallocator"]
+
 [[bin]]
 name = "fedimintd"
 path = "src/main.rs"
@@ -21,6 +26,9 @@ fedimint-server-core = { workspace = true }
 stability-pool-server-old = { workspace = true }
 stability-pool-server = { workspace = true }
 tracing = { workspace = true }
+
+[target.'cfg(not(any(target_env = "msvc", target_os = "ios", target_os = "android")))'.dependencies]
+tikv-jemallocator = { workspace = true, optional = true }
 
 [build-dependencies]
 fedimint-build = { workspace = true }
