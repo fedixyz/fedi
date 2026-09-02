@@ -44,6 +44,7 @@ const EditNotesOverlay = ({
                 ),
                 body: (
                     <Input
+                        testID="EditNotesInput"
                         value={notes}
                         onChangeText={setNotes}
                         numberOfLines={5}

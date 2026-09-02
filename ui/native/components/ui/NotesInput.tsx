@@ -36,7 +36,10 @@ export default function NotesInput({
 
     return (
         <>
-            <Pressable style={style.container} onPress={handlePressEdit}>
+            <Pressable
+                testID="NotesInputButton"
+                style={style.container}
+                onPress={handlePressEdit}>
                 <Column
                     align="stretch"
                     justify="center"

@@ -70,6 +70,7 @@ export class Payments extends AppiumTestBase {
             statuses: ['Complete'],
             sats: FUND_SATS,
         })
+        await assertNewestTransactionNotesCanBeEdited(alice, 'e2e funding note')
         console.log('[phase1] alice funded, history entry checked')
 
         // Phase 2: alice generates an on-chain receive address.
@@ -348,6 +349,30 @@ async function assertNewestTransaction(
         )
     }
 
+    await t.clickElementByKey('HistoryDetailCloseButton')
+    await t.clickElementByKey('HeaderBackButton')
+    await waitForWalletReceive(t)
+}
+
+async function assertNewestTransactionNotesCanBeEdited(
+    t: AppiumTestBase,
+    note: string,
+): Promise<void> {
+    await goToWallet(t)
+    await t.clickElementByKey('BalanceCard__TransactionHistory')
+    await t.waitForElementDisplayed('transaction-item', 30000)
+    await t.clickElementByKey('transaction-item')
+    await t.waitForElementDisplayed('NotesInputButton', 30000)
+    await t.clickElementByKey('NotesInputButton')
+    await t.waitForElementDisplayed('EditNotesInput', 10000)
+    await t.typeIntoElementByKey('EditNotesInput', note)
+    await t.dismissKeyboard()
+    await t.clickOnText('Save', 0, true)
+    await t.waitForText(note, 0, true, 10000)
+    await t.clickElementByKey('HistoryDetailCloseButton')
+    await t.waitForText(note, 0, false, 30000)
+    await t.clickElementByKey('transaction-item')
+    await t.waitForText(note, 0, true, 10000)
     await t.clickElementByKey('HistoryDetailCloseButton')
     await t.clickElementByKey('HeaderBackButton')
     await waitForWalletReceive(t)
