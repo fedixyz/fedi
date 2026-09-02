@@ -437,7 +437,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                             roomId: id,
                                         })
                                     }}
-                                    hitSlop={10}>
+                                    hitSlop={10}
+                                    testID="MessageInput-PollButton">
                                     <SvgImage name="Poll" />
                                 </Pressable>
                             )}

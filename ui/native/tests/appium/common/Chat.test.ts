@@ -65,6 +65,7 @@ export class Chat extends AppiumTestBase {
             await assertKeyboardStaysOpenAfterSend(alice, PUBLIC_GROUP)
             await assertLongPressOpensActionsWithKeyboardUp(alice, PUBLIC_GROUP)
         }
+        await assertPollCanBeCreatedAndVotedOn(alice, PUBLIC_GROUP)
 
         // Phase 2: bob knocks both private rooms.
         for (const group of KNOCKABLE_GROUPS) {
@@ -213,6 +214,43 @@ async function assertKeyboardStaysOpenAfterSend(
         throw new Error('Keyboard was dismissed after sending a message')
     }
     await t.waitForText(message, 0, false, MATRIX_TIMEOUT)
+    await t.clickElementByKey('HeaderBackButton')
+}
+
+async function assertPollCanBeCreatedAndVotedOn(
+    t: AppiumTestBase,
+    group: Group,
+): Promise<void> {
+    const question = 'Best e2e poll option?'
+    const firstOption = 'Coffee'
+    const secondOption = 'Tea'
+    const thirdOption = 'Water'
+    await openRoomByName(t, group.name)
+    await t.clickElementByKey('MessageInput-PollButton')
+    await t.waitForElementDisplayed('CreatePollQuestionInput')
+    await t.typeIntoElementByKey('CreatePollQuestionInput', question)
+    await t.typeIntoElementByKey('CreatePollOptionInput-0', firstOption)
+    await t.typeIntoElementByKey('CreatePollOptionInput-1', secondOption)
+    // The form opens with three option rows and only submits once every row
+    // has text.
+    await t.typeIntoElementByKey('CreatePollOptionInput-2', thirdOption)
+    await t.dismissKeyboard()
+    // iOS has no done key on this keyboard, so hideKeyboard is a no-op there
+    // and the submit tap would land on the keyboard; a tap on the form's own
+    // label blurs the input instead.
+    await t.clickOnText('Options', 0, true)
+    await t.scrollToElement('CreatePollSubmitButton')
+    await t.clickElementByKey('CreatePollSubmitButton')
+    // The question and options are also visible on the create form, so wait
+    // for the timeline's vote control before asserting on them.
+    await t.waitForElementDisplayed('ChatPollVoteButton', MATRIX_TIMEOUT)
+    await t.waitForText(question, 0, true, MATRIX_TIMEOUT)
+    await t.waitForText(firstOption, 0, true, MATRIX_TIMEOUT)
+    await t.waitForText(secondOption, 0, true, MATRIX_TIMEOUT)
+    await t.waitForText(thirdOption, 0, true, MATRIX_TIMEOUT)
+    await t.clickOnText(firstOption, 0, true, MATRIX_TIMEOUT)
+    await t.clickElementByKey('ChatPollVoteButton')
+    await t.waitForText('100%', 0, true, MATRIX_TIMEOUT)
     await t.clickElementByKey('HeaderBackButton')
 }
 

@@ -98,6 +98,7 @@ const CreatePoll: React.FC<Props> = ({
                 label={t('words.question')}
                 value={question}
                 onChangeText={setQuestion}
+                testID="CreatePollQuestionInput"
             />
             <Column gap="sm">
                 <Text small style={style.optionsLabel}>
@@ -112,6 +113,7 @@ const CreatePoll: React.FC<Props> = ({
                                     onChangeText={text =>
                                         handleOptionChange(option, text)
                                     }
+                                    testID={`CreatePollOptionInput-${option.id}`}
                                 />
                             </Column>
                             <PressableIcon
@@ -164,6 +166,7 @@ const CreatePoll: React.FC<Props> = ({
                 onPress={handleCreatePoll}
                 disabled={!canSubmit || isLoading}
                 containerStyle={style.submitButton}
+                testID="CreatePollSubmitButton"
             />
         </SafeScrollArea>
     )

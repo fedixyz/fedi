@@ -154,6 +154,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                                 }
                                 disabled={isVoteDisabled}
                                 onPress={handleRespondToPoll}
+                                testID="ChatPollVoteButton"
                             />
                         )}
                     </>
