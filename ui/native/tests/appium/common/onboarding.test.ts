@@ -13,6 +13,14 @@ export class OnboardingTest extends AppiumTestBase {
         //TODO: validate the seed here
         await this.clickElementByKey('ChatTabButton')
         await this.clickElementByKey('ModsTabButton')
+        await this.clickOnText('Bitrefill', 0, true)
+        await this.waitForElementDisplayed('CloseMiniAppButton')
+        if (
+            (await this.isTextPresent('bitrefill.com', false, 5000)) === false
+        ) {
+            throw new Error('Bitrefill mini app browser did not open')
+        }
+        await this.clickElementByKey('CloseMiniAppButton')
         await this.clickElementByKey('WalletTabButton')
         await this.clickElementByKey('ScanTabButton')
         if ((await this.elementIsDisplayed('Continue')) === true) {
