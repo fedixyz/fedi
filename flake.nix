@@ -67,7 +67,8 @@
 
     sieve = {
       url = "github:fedibtc/sieve";
-      inputs.nixpkgs.follows = "nixpkgs-unstable";
+      # a nixpkgs follows here breaks the vendor step: the repo pin's
+      # fetch-cargo-vendor sends no user agent and crates.io 403s it
       inputs.flake-utils.follows = "flake-utils";
     };
   };

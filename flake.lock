@@ -1500,6 +1500,22 @@
         "type": "github"
       }
     },
+    "nixpkgs_9": {
+      "locked": {
+        "lastModified": 1788179007,
+        "narHash": "sha256-hn1oU2rue2SYK8dAr8+WNZWtbsz1S2W5mnHlSEuh3bo=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "34ab99075ac4f7e40cf037eef32cb1c360bb85e9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "android-nixpkgs": "android-nixpkgs",
@@ -1609,16 +1625,14 @@
         "flake-utils": [
           "flake-utils"
         ],
-        "nixpkgs": [
-          "nixpkgs-unstable"
-        ]
+        "nixpkgs": "nixpkgs_9"
       },
       "locked": {
-        "lastModified": 1784542943,
-        "narHash": "sha256-EHm3Ao90p69vdtBU0PeDZo0tPXsurciWOfZFjJlGs4k=",
+        "lastModified": 1787003235,
+        "narHash": "sha256-t/NRSg5GGiumL9yGuBqMB0+WxUrrkuz7zhgRWmsON/Q=",
         "owner": "fedibtc",
         "repo": "sieve",
-        "rev": "9ee2215b7e4b7860e9e6d7dda53c8e766c37e778",
+        "rev": "c3e4e3eae2dcd74b5b5923f35ea6019414edaf51",
         "type": "github"
       },
       "original": {
