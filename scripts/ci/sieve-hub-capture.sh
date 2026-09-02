@@ -3,11 +3,18 @@
 # review, under $OUT_DIR ({before,after,diff}/NN-name.png). Needs the fedi
 # dev shell and a runner that can boot an android emulator. Best-effort:
 # every failure exits 0 so the review still publishes, just without images.
+# A second leg per side joins a dev fed the script boots itself, for the
+# screens only a funded wallet has. coverage.txt maps changed files to stations.
 set -uo pipefail
 
 repo=${REPO:?REPO (owner/name) is required}
 number=${PR_NUMBER:?PR_NUMBER is required}
 out_dir=${OUT_DIR:-$PWD/sieve-screenshots}
+# any name the nightly list carries works, including the real federations
+federation=${CAPTURE_FEDERATION:-Fedi Testnet}
+fed_key=${federation// /}
+fund_sats=10000
+send_sats=1000
 
 # the emulator rig only knows how to build and drive the fedi app
 if [ "$repo" != "fedibtc/fedi" ]; then
@@ -33,10 +40,26 @@ fi
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/sieve-capture.XXXXXX")
 find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'sieve-capture.*' -not -path "$workdir" -mmin +180 -exec rm -rf {} + 2>/dev/null || true
 emu_pid=""
+devfed_pid=""
+devfed_dir="$workdir/devfed"
+# a kill would orphan devimint's daemons; the parked command's exit is the
+# clean shutdown, and the group kill is for a fed that never got that far
+stop_devfed() {
+    [ -n "$devfed_pid" ] || return 0
+    touch "$devfed_dir/done"
+    local waited=0
+    while kill -0 "$devfed_pid" 2>/dev/null && [ "$waited" -lt 90 ]; do
+        sleep 3
+        waited=$((waited + 3))
+    done
+    kill -- "-$devfed_pid" 2>/dev/null || true
+    git -C "$REPO_ROOT_CLONE" worktree remove --force "$devfed_dir/src" 2>/dev/null || true
+}
 # Six runner slots share this host's adb server, so kill only our own
 # processes and never adb itself.
 cleanup() {
     [ -n "$emu_pid" ] && kill "$emu_pid" 2>/dev/null
+    stop_devfed
     # persistent runners would otherwise collect one throwaway avd per run
     if [ -n "${avd_path:-}" ]; then
         rm -rf "$avd_path" "${avd_path%/*}/${avd}.ini"
@@ -62,6 +85,9 @@ cd "$REPO_ROOT_CLONE" || exit 0
 # the dev shell's REPO_ROOT names its own checkout, and install-wasm and
 # build-bridge-android install their outputs into whatever it points at
 export REPO_ROOT="$REPO_ROOT_CLONE"
+# only the nightly list carries Fedi Testnet, and it carries every
+# production federation too
+echo "FEDI_ENV=nightly" >>ui/native/.env
 
 head_sha=$(git rev-parse HEAD)
 base_sha=$(git merge-base "origin/$base_branch" HEAD)
@@ -72,6 +98,34 @@ fail_soft() {
 }
 
 section() { printf '\n===== %s =====\n' "$1"; }
+
+# its own worktree: the side builds check the clone back and forth
+start_devfed() {
+    local src=$devfed_dir/src bin=${CAPTURE_DEVFED_BIN:-}
+    git worktree add -q --detach "$src" "$base_sha" || return 1
+    cd "$src" || return 1
+    # cargo resolves the manifold crates through .nix-deps, which the dev
+    # shell only links into its own checkout
+    link-external-deps "$src" || return 1
+    if [ -z "$bin" ]; then
+        bin=$devfed_dir/bin
+        # the payments e2e's cache key, so its runners already hold this build
+        DEVFED_BIN_DIR=$bin ./scripts/ci/run-in-fs-dir-cache.sh e2e-devfed \
+            ./scripts/bridge/build-remote.sh || return 1
+    fi
+    # REMOTE_BRIDGE_PORT exists only in the trailing command's environment,
+    # and that command's exit is what shuts the fed down
+    DEVFED_BIN_DIR=$bin ./scripts/bridge/launch-remote.sh --with-devfed --port 0 \
+        bash -c 'echo "$REMOTE_BRIDGE_PORT" >"$1/port"; while [ ! -e "$1/done" ]; do sleep 2; done' _ "$devfed_dir"
+}
+section "start dev fed"
+mkdir -p "$devfed_dir"
+# set -m gives the fed its own process group for stop_devfed
+set -m
+start_devfed >"$devfed_dir/log" 2>&1 &
+devfed_pid=$!
+set +m
+echo "dev fed building and booting in the background (pid $devfed_pid, log in $devfed_dir/log)"
 
 # One full apk per side: production-debug is not in the react native
 # plugin's debuggableVariants, so gradle embeds the js bundle and the app
@@ -154,32 +208,53 @@ if [ -f "$avd_path/config.ini" ]; then
         echo "hw.keyboard=yes"
     } >>"$avd_path/config.ini"
 fi
-# quickboot's file-backed ram image segfaults qemu under the linux
-# runner units
-emulator -avd "$avd" -port "$emu_port" \
-    -no-snapshot -no-boot-anim -no-audio -no-window \
-    -gpu swiftshader_indirect -accel auto \
-    >"$workdir/emulator.log" 2>&1 &
-emu_pid=$!
-
 export ANDROID_SERIAL="emulator-$emu_port"
 echo "device: $ANDROID_SERIAL"
-if ! timeout 180 adb wait-for-device; then
-    tail -30 "$workdir/emulator.log" || true
-    fail_soft "emulator never registered with adb"
-fi
 
+# a screencap with no framebuffer returns an error string, and a blank screen
+# is still a png, so test the signature and not the size
+is_png() { [ "$(head -c 8 | od -An -tx1 | tr -d ' \n')" = "89504e470d0a1a0a" ]; }
+
+# quickboot's file-backed ram image segfaults qemu under the linux
+# runner units
+boot_once() {
+    emulator -avd "$avd" -port "$emu_port" \
+        -no-snapshot -no-boot-anim -no-audio -no-window \
+        -gpu swiftshader_indirect -accel auto \
+        >"$workdir/emulator.log" 2>&1 &
+    emu_pid=$!
+    sleep 10
+    timeout 180 adb wait-for-device || return 1
+    for _ in $(seq 1 30); do
+        if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+            # sys.boot_completed says nothing about the framebuffer
+            adb exec-out screencap -p >"$workdir/boot-check.png"
+            is_png <"$workdir/boot-check.png" && return 0
+            echo "::warning::emulator booted with no framebuffer"
+            return 1
+        fi
+        sleep 10
+    done
+    return 1
+}
+
+# the first boot of a new avd on the linux runners can fail or come up with
+# no framebuffer, and a second boot of the same avd is reliable
 booted=false
-for _ in $(seq 1 30); do
-    if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+for attempt in 1 2 3; do
+    if boot_once; then
         booted=true
         break
     fi
-    sleep 10
+    echo "::warning::emulator boot attempt $attempt failed"
+    cat "$workdir/emulator.log" || true
+    kill "$emu_pid" 2>/dev/null
+    sleep 5
 done
 if [ "$booted" != "true" ]; then
-    tail -30 "$workdir/emulator.log" || true
-    fail_soft "emulator did not boot"
+    emulator -accel-check 2>&1 || true
+    ls -l /dev/kvm 2>&1 || true
+    fail_soft "emulator never booted"
 fi
 
 # Freeze the status bar (clock, battery) so before/after diffs only show
@@ -204,14 +279,15 @@ dump_ui() {
 }
 
 # Prints "x y" center of the first node whose content-desc, resource-id, or
-# text equals the key, or fails.
+# text equals the key, or fails. A node clipped by the screen edge reports
+# inverted bounds and counts as not found, so the caller scrolls.
 find_key() {
     local key=$1 xml node
     xml=$(dump_ui)
     node=$(grep -oE "<node[^>]*(content-desc=\"$key\"|resource-id=\"$key\"|text=\"$key\")[^>]*>" <<<"$xml" | head -1)
     [ -n "$node" ] || return 1
     sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' <<<"$node" |
-        awk '{ printf "%d %d", ($1+$3)/2, ($2+$4)/2 }'
+        awk '{ if ($3 <= $1 || $4 <= $2) exit 1; printf "%d %d", ($1+$3)/2, ($2+$4)/2 }'
 }
 
 # Taps the key, polling up to $2 seconds for it to appear. Scrolls up a bit
@@ -231,7 +307,8 @@ ui_tap() {
             adb shell input swipe 360 900 360 500 300
         fi
     done
-    echo "::warning::ui_tap: $key not found after ${timeout}s"
+    echo "::warning::ui_tap: $key not found after ${timeout}s; visible keys were:"
+    dump_ui | grep -oE '(content-desc|resource-id)="[^"]+"' | sort -u | head -40
     return 1
 }
 
@@ -262,10 +339,16 @@ wait_idle() {
 }
 
 shoot() {
-    local side=$1 name=$2
+    local side=$1 name=$2 bytes
     mkdir -p "$out_dir/$side"
     wait_idle
     adb exec-out screencap -p >"$out_dir/$side/$name.png"
+    if ! is_png <"$out_dir/$side/$name.png"; then
+        bytes=$(wc -c <"$out_dir/$side/$name.png" | tr -d ' ')
+        echo "::warning::discarding $side/$name.png, not a png ($bytes bytes)"
+        rm -f "$out_dir/$side/$name.png"
+        return 0
+    fi
     echo "captured $side/$name.png"
 }
 
@@ -306,6 +389,11 @@ tour_stations() {
     fi
     reanchor
 
+    if ui_tap "WalletTabButton" 30 && ui_tap "${fed_key}DetailsButton" 20; then
+        shoot "$side" "07b-federation-details"
+    fi
+    reanchor
+
     ui_tap "ModsTabButton" 30 && shoot "$side" "08-mods"
     reanchor
 
@@ -317,6 +405,115 @@ tour_stations() {
             shoot "$side" "10-app-settings"
         fi
     fi
+    reanchor
+}
+
+key_text() {
+    dump_ui | grep -oE "<node[^>]*resource-id=\"$1\"[^>]*>" | head -1 |
+        sed -E 's/.* text="([^"]*)".*/\1/'
+}
+
+# the backup reminder pops a beat after the wallet renders, so a one-shot
+# dismiss races it
+wait_for_wallet() {
+    local waited=0
+    while [ "$waited" -lt 45 ]; do
+        find_key "Receive" >/dev/null && return 0
+        ui_tap "BackupReminderDismissButton" 3 >/dev/null 2>&1 || true
+        waited=$((waited + 3))
+    done
+    return 1
+}
+
+# a cold build on a fresh runner can still be going when the first tour starts
+devfed_port() {
+    local waited=0
+    while [ ! -s "$devfed_dir/port" ]; do
+        if ! kill -0 "$devfed_pid" 2>/dev/null; then
+            echo "::warning::the dev fed exited before it was ready; the funded stations are skipped" >&2
+            tail -40 "$devfed_dir/log" >&2 || true
+            return 1
+        fi
+        if [ "$waited" -ge 900 ]; then
+            echo "::warning::the dev fed was not ready after ${waited}s; the funded stations are skipped" >&2
+            return 1
+        fi
+        sleep 15
+        waited=$((waited + 15))
+    done
+    cat "$devfed_dir/port"
+}
+
+# the overlay ignores BACK, and on older builds the card is one
+# accessibility node, so the fallback taps the backdrop
+close_history_detail() {
+    ui_tap "HistoryDetailCloseButton" 10 >/dev/null 2>&1 || adb shell input tap 360 120
+    sleep 1
+}
+
+# one deep link delivers the invite and the notes: adb has no clipboard
+tour_funded() {
+    local side=$1 port invite ecash p digit
+    port=$(devfed_port) || return 0
+    # the fed binds to the host loopback, which the emulator cannot see
+    for p in $(curl -sf "http://127.0.0.1:$port/ports" | jq -r '.ports[]'); do
+        adb reverse "tcp:$p" "tcp:$p" >/dev/null || return 0
+    done
+    invite=$(curl -sf "http://127.0.0.1:$port/invite_code" | jq -r '.invite_code // empty')
+    ecash=$(curl -sf "http://127.0.0.1:$port/generate_ecash/$((fund_sats * 1000))" | jq -r '.ecash // empty')
+    if [ -z "$invite" ] || [ -z "$ecash" ]; then
+        echo "::warning::the dev fed gave no invite or ecash; the funded stations are skipped"
+        return 0
+    fi
+    reanchor
+    adb shell "am start -a android.intent.action.VIEW -d 'fedi://join-then-ecash?invite=$invite&ecash=$ecash' com.fedi" >/dev/null 2>&1
+    wait_for_key "JoinFederationButton" 90 || return 0
+    ui_tap "JoinFederationButton" 30 || return 0
+    wait_for_key "claim-ecash-button" 120 || return 0
+    shoot "$side" "11-claim-ecash"
+    ui_tap "claim-ecash-button" 30 || return 0
+    wait_for_key "Go to wallet" 120 || return 0
+    shoot "$side" "12-ecash-claimed"
+    ui_tap "Go to wallet" 30 || return 0
+    wait_for_wallet || return 0
+    shoot "$side" "13-wallet-funded"
+
+    ui_tap "BalanceCard__TransactionHistory" 30 || return 0
+    wait_for_key "transaction-item" 60 || return 0
+    shoot "$side" "14-history"
+    ui_tap "transaction-item" 15 || return 0
+    shoot "$side" "15-history-detail-receive"
+    close_history_detail
+    ui_tap "HeaderBackButton" 15 || return 0
+    wait_for_wallet || return 0
+
+    ui_tap "Send" 30 || return 0
+    ui_tap "ecashTab" 30 || return 0
+    # the keypad starts in fiat on a fresh install
+    for _ in 1 2 3; do
+        case "$(key_text AmountInputLabel)" in *SATS*) break ;; esac
+        ui_tap "AmountUnitSwitcher" 15 || return 0
+    done
+    for digit in $(sed 's/./& /g' <<<"$send_sats"); do
+        ui_tap "NumpadButton-$digit" 15 || return 0
+    done
+    shoot "$side" "16-send-ecash-amount"
+    ui_tap "Next" 15 || return 0
+    wait_for_key "SendConfirmButton" 60 || return 0
+    shoot "$side" "17-send-ecash-confirm"
+    ui_tap "SendConfirmButton" 15 || return 0
+    # the offline-send alert's positive button, by id rather than its label
+    ui_tap "android:id/button1" 15 >/dev/null 2>&1 || true
+    wait_for_key "Copy" 60 || return 0
+    shoot "$side" "18-send-ecash-qr"
+    ui_tap "HeaderCloseButton" 15 || return 0
+    wait_for_wallet || return 0
+
+    # newest first, so the top row is the send nobody has claimed
+    ui_tap "BalanceCard__TransactionHistory" 30 || return 0
+    ui_tap "transaction-item" 30 || return 0
+    shoot "$side" "19-history-detail-send"
+    close_history_detail
     reanchor
 }
 
@@ -336,7 +533,7 @@ tour() {
     ui_tap "No" 60 || return 0
     ui_tap "ManualSetupButton" 60 || return 0
     shoot "$side" "02-federation-list"
-    ui_tap "FediTestnetJoinButton" 90 || return 0
+    ui_tap "${fed_key}JoinButton" 90 || return 0
     # the preview renders a loading placeholder until the federation
     # metadata arrives; shooting early diffs the two loading states
     wait_for_key "JoinFederationButton" 90 || true
@@ -344,6 +541,7 @@ tour() {
     ui_tap "JoinFederationButton" 60 || return 0
     wait_for_key "HomeTabButton" 120 || return 0
     tour_stations "$side"
+    tour_funded "$side"
     return 0
 }
 
@@ -367,13 +565,75 @@ for after_png in "$out_dir"/after/*.png; do
     name=$(basename "$after_png" .png)
     before_png="$out_dir/before/$name.png"
     [ -f "$before_png" ] || continue
-    # compare exits 1 on any difference; the AE metric goes to stderr.
-    # The crop drops the status bar (clock and signal icons churn) from
-    # the 720x1280 frames this script's avd produces.
-    ae=$(compare -metric AE "${before_png}[720x1220+0+60]" "${after_png}[720x1220+0+60]" \
-        -highlight-color red "$out_dir/diff/$name.png" 2>&1 || true)
-    echo "$name: ${ae:-?} differing pixels" | tee -a "$manifest"
+    # each side installs from scratch, so the account screen's display name
+    # and the qr of the user link differ on every run
+    [ "$name" = "09-account" ] && continue
+    # compare exits 1 on any difference. The crop drops the status bar (clock
+    # and signal icons churn) from the 720x1280 frames this script's avd
+    # produces.
+    compare -metric AE "${before_png}[720x1220+0+60]" "${after_png}[720x1220+0+60]" \
+        -highlight-color red "$out_dir/diff/$name.png" 2>/dev/null || true
+    # what -metric AE prints varies by imagemagick build, so count the changed
+    # pixels here: max across the channel differences, then threshold to 1
+    pixels=$(magick "${before_png}[720x1220+0+60]" "${after_png}[720x1220+0+60]" \
+        -compose difference -composite -separate -evaluate-sequence max \
+        -threshold 0 -format '%[fx:mean*w*h]' info: 2>/dev/null)
+    if [ -z "$pixels" ]; then
+        echo "::warning::could not diff $name"
+    else
+        echo "$name: $(awk -v p="$pixels" 'BEGIN { print (p + 0 > 0) ? "changed" : "unchanged" }')" |
+            tee -a "$manifest"
+    fi
 done
+
+section "coverage"
+# a missed station, or a file no station names, is a screen the review never saw
+station_sources() {
+    cat <<'EOF'
+01-welcome screens/Splash
+02-federation-list screens/PublicFederations|feature/federations/(FederationCompactTile|CommunityTile)
+03-federation-preview screens/JoinFederation|feature/onboarding/FederationPreview|feature/federations/(JoinFederationHeader|FederationInviteHeader)
+04-home screens/Home|feature/home/
+05-chat screens/ChatScreen|feature/chat/
+06-wallet screens/Wallet|feature/federations/BalanceCard|feature/wallet/
+07-receive screens/Receive|feature/receive/
+07b-federation-details screens/FederationDetails|feature/federations/FederationDetail
+08-mods screens/Mods|feature/fedimods/
+09-account screens/Settings|feature/settings/
+10-app-settings screens/AppSettings|feature/settings/GeneralSettings
+11-claim-ecash screens/ClaimEcash
+12-ecash-claimed screens/ClaimEcash
+13-wallet-funded screens/Wallet|feature/federations/BalanceCard|feature/backup/PersonalBackupReminder
+14-history screens/Transactions|feature/transaction-history/
+15-history-detail-receive feature/transaction-history/HistoryDetail|hooks/transactions|utils/transaction
+16-send-ecash-amount screens/SendOfflineAmount|components/ui/(AmountInput|Numpad|InvisibleInput)|hooks/amount
+17-send-ecash-confirm screens/ConfirmSendEcash|feature/send/(SendPreviewDetails|FeeBreakdown|SendAmounts)
+18-send-ecash-qr screens/SendOfflineQr|feature/send/
+19-history-detail-send feature/transaction-history/HistoryDetail|utils/transaction
+EOF
+}
+coverage="$out_dir/coverage.txt"
+: >"$coverage"
+covered=0
+changed=0
+while IFS= read -r path; do
+    changed=$((changed + 1))
+    hits=""
+    while read -r station pattern; do
+        grep -qE "$pattern" <<<"$path" || continue
+        if [ -f "$out_dir/before/$station.png" ] && [ -f "$out_dir/after/$station.png" ]; then
+            hits="$hits $station:captured"
+        else
+            hits="$hits $station:missed"
+        fi
+    done < <(station_sources)
+    case "$hits" in *:captured*) covered=$((covered + 1)) ;; esac
+    echo "$path:${hits:- no station}" >>"$coverage"
+done < <(jq -r '.files[].path' <<<"$pr" | grep -E '^ui/(native|common)/' | grep -vE '/tests?/')
+echo "changed ui files photographed by a station: $covered of $changed" | tee -a "$coverage"
+if [ "$covered" -eq 0 ] && [ "$changed" -gt 0 ]; then
+    echo "::warning::the capture reached none of the screens this PR changes (see coverage.txt)"
+fi
 
 echo "capture complete: $(find "$out_dir" -name '*.png' | wc -l | tr -d ' ') images in $out_dir"
 exit 0

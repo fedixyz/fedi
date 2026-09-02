@@ -46,7 +46,7 @@ export OUT_DIR=$screenshots SIEVE_SCREENSHOTS_DIR=$screenshots
 # the dev shell carries the emulator and app toolchain, and a capture
 # failure must never cost the review itself
 echo '::group::capture'
-nix develop -c nix shell nixpkgs#gh nixpkgs#jq nixpkgs#imagemagick \
+nix develop -c nix shell nixpkgs#gh nixpkgs#jq nixpkgs#imagemagick nixpkgs#curl \
     --command "$script_dir/sieve-hub-capture.sh" ||
     echo "::warning::screenshot capture failed, so this review carries no images"
 echo '::endgroup::'
