@@ -21,6 +21,7 @@ import {
 const FUND_SATS = 10000
 const LN_P2P_SATS = 2000
 const ECASH_SATS = 1000
+const ECASH_CANCEL_SATS = 500
 const ONCHAIN_SEND_SATS = 1000
 const CHAT_PAYMENT_SATS = 500
 const DIRECT_CHAT_MESSAGE = 'Direct chat setup for payment'
@@ -154,8 +155,14 @@ export class Payments extends AppiumTestBase {
         })
         console.log('[phase5] chat payment confirmed')
 
-        // Phase 6: alice pegs out on-chain to a static regtest address.
-        console.log('[phase6] alice on-chain send')
+        // Phase 6: bob cancels an unclaimed ecash send from transaction history.
+        console.log('[phase6] bob cancels unclaimed ecash from history')
+        await sendEcash(bob, ECASH_CANCEL_SATS)
+        await cancelNewestEcashSendFromHistory(bob, ECASH_CANCEL_SATS)
+        console.log('[phase6] ecash cancellation confirmed')
+
+        // Phase 7: alice pegs out on-chain to a static regtest address.
+        console.log('[phase7] alice on-chain send')
         await alice.clickOnText('Send', 0, true)
         await acceptCameraPermissionIfPresent(alice)
         await alice.setClipboard(REGTEST_DESTINATION_ADDRESS)
@@ -200,7 +207,7 @@ export class Payments extends AppiumTestBase {
             statuses: ['Sent', 'Pending'],
             sats: ONCHAIN_SEND_SATS,
         })
-        console.log('[phase6] on-chain send confirmed')
+        console.log('[phase7] on-chain send confirmed')
     }
 }
 
@@ -391,6 +398,69 @@ async function assertNewestTransactionNotesCanBeEdited(
     await t.waitForText(note, 0, false, 30000)
     await t.clickElementByKey('transaction-item')
     await t.waitForText(note, 0, true, 10000)
+    await t.clickElementByKey('HistoryDetailCloseButton')
+    await t.clickElementByKey('HeaderBackButton')
+    await waitForWalletReceive(t)
+}
+
+async function cancelNewestEcashSendFromHistory(
+    t: AppiumTestBase,
+    sats: number,
+): Promise<void> {
+    // sendEcash leaves the device on the animated QR screen; closing it is the
+    // only way to exercise the separate HistoryDetail cancellation path.
+    await t.clickElementByKey('HeaderCloseButton')
+    await goToWallet(t)
+    await t.clickElementByKey('BalanceCard__TransactionHistory')
+    await t.waitForElementDisplayed('transaction-item', 30000)
+    await t.clickElementByKey('transaction-item')
+
+    for (const line of ['You sent', 'ecash', 'Sent']) {
+        if (!(await t.isTextPresent(line, true, 5000))) {
+            throw new Error(`uncanceled ecash history detail missing "${line}"`)
+        }
+    }
+
+    const satsText = (
+        await t.getTextByKey('HistoryDetailSecondaryAmount')
+    ).trim()
+    const shownSats = parseInt(satsText.replace(/[^0-9]/g, ''), 10)
+    // At-least note selection can overspend by a sat or two, so allow the
+    // same fee margin as assertNewestTransaction.
+    const feeAllowance = Math.max(10, Math.ceil(sats * 0.01))
+    if (
+        Number.isNaN(shownSats) ||
+        shownSats < sats ||
+        shownSats > sats + feeAllowance
+    ) {
+        throw new Error(
+            `uncanceled ecash history detail shows "${satsText}", expected ${sats} sats plus at most ${feeAllowance} in fees`,
+        )
+    }
+
+    await t.clickElementByKey('HistoryDetailCancelEcashButton')
+    await t.acceptAlert('Continue')
+    // The list row folds its texts into one accessibility label, so only a
+    // substring match sees the new entry from the list.
+    await t.waitForText('Canceled Ecash Send', 0, false, 60000)
+
+    let canceledStateSeen = false
+    for (let attempt = 1; attempt <= 5 && !canceledStateSeen; attempt++) {
+        await t.clickElementByKey('transaction-item')
+        const canceledTitleSeen =
+            (await t.isTextPresent('Canceled Ecash Send', true, 3000)) ||
+            (await t.isTextPresent('You sent', true, 3000))
+        const canceledStatusSeen = await t.isTextPresent('Canceled', true, 3000)
+        canceledStateSeen = canceledTitleSeen && canceledStatusSeen
+        if (!canceledStateSeen) {
+            await t.clickElementByKey('HistoryDetailCloseButton')
+            await new Promise(r => setTimeout(r, 2000))
+        }
+    }
+    if (!canceledStateSeen) {
+        throw new Error('ecash cancel result did not show a canceled state')
+    }
+
     await t.clickElementByKey('HistoryDetailCloseButton')
     await t.clickElementByKey('HeaderBackButton')
     await waitForWalletReceive(t)
