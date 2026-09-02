@@ -85,7 +85,9 @@ use futures::{FutureExt, Stream, StreamExt};
 use guardian_remittance::GuardianRemittanceAccount;
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
 use lnurl_receives_service::LnurlReceivesService;
-use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries};
+use meta::{
+    LegacyMetaSourceWithExternalUrl, MetaEntries, meta_entries_from_values, meta_value_to_string,
+};
 use rand::Rng;
 use rpc_types::error::ErrorCode;
 use rpc_types::event::{Event, RecoveryProgressEvent, TypedEventExt};
@@ -298,6 +300,7 @@ fn incoming_sm_error_variant_name(error: &IncomingSmError) -> &'static str {
         IncomingSmError::InvalidPreimage { .. } => "InvalidPreimage",
         IncomingSmError::FailedToFundContract { .. } => "FailedToFundContract",
         IncomingSmError::AmountError { .. } => "AmountError",
+        IncomingSmError::ContractAlreadyExists { .. } => "ContractAlreadyExists",
     }
 }
 
@@ -1019,7 +1022,7 @@ impl FederationV2 {
             .await?
             .values
             .into_iter()
-            .map(|(k, v)| (k.0, v.0.to_string()))
+            .map(|(k, v)| (k.0, meta_value_to_string(v.0)))
             .collect();
 
         Ok(RpcFederationPreview {
@@ -1267,7 +1270,7 @@ impl FederationV2 {
         )
         .await
         {
-            Ok(Some(entries)) => entries,
+            Ok(Some(entries)) => meta_entries_from_values(entries),
             Ok(None) => cfg_fetcher.await,
             Err(_) => {
                 warn!(
@@ -1275,7 +1278,7 @@ impl FederationV2 {
                     self.federation_id()
                 );
                 match self.client.meta_service().entries(self.client.db()).await {
-                    Some(entries) => entries,
+                    Some(entries) => meta_entries_from_values(entries),
                     None => cfg_fetcher.await,
                 }
             }

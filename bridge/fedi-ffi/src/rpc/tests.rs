@@ -251,7 +251,7 @@ async fn bitcoin_cli_send_to_address(address: &str, amount: &str) -> anyhow::Res
     cmd!(
         BitcoinCli,
         "-rpcport={btc_port}",
-        "-rpcwallet=",
+        "-rpcwallet=default",
         "sendtoaddress",
         address,
         amount
@@ -262,7 +262,7 @@ async fn bitcoin_cli_send_to_address(address: &str, amount: &str) -> anyhow::Res
     cmd!(
         BitcoinCli,
         "-rpcport={btc_port}",
-        "-rpcwallet=",
+        "-rpcwallet=default",
         "-generate",
         "11"
     )
@@ -277,7 +277,7 @@ async fn bitcoin_cli_new_address() -> anyhow::Result<String> {
     cmd!(
         BitcoinCli,
         "-rpcport={btc_port}",
-        "-rpcwallet=",
+        "-rpcwallet=default",
         "getnewaddress"
     )
     .out_string()

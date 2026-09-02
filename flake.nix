@@ -8,8 +8,10 @@
 
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    # Keep this stock upstream tag aligned with the Fedimint version used by
+    # devimint in Cargo.toml; a mismatch makes the upstream bridge test time out during setup.
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.11.1";
+      url = "github:fedimint/fedimint?ref=v0.11.2";
     };
 
     fenix = {
@@ -40,7 +42,7 @@
     # dependency. Keep these revisions aligned with Manifold's fi-client and
     # credential-sdk input.
     manifold-src = {
-      url = "github:fedibtc/manifold/67cb5437d697f83ef4dcba312378f6534a7b3fdc";
+      url = "github:fedibtc/manifold/3b0849f0e71f2d300cfc0d969f006ed966016f3b";
       flake = false;
     };
     credential-sdk-src = {
