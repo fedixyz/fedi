@@ -22,6 +22,8 @@ const FUND_SATS = 10000
 const LN_P2P_SATS = 2000
 const ECASH_SATS = 1000
 const ONCHAIN_SEND_SATS = 1000
+const CHAT_PAYMENT_SATS = 500
+const DIRECT_CHAT_MESSAGE = 'Direct chat setup for payment'
 // bitcoin-address-validation accepts legacy testnet addresses, whose version
 // bytes are also valid for regtest on-chain payments in the local dev fed.
 const REGTEST_DESTINATION_ADDRESS = 'mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn'
@@ -136,8 +138,24 @@ export class Payments extends AppiumTestBase {
         })
         console.log('[phase4] ecash transfer confirmed')
 
-        // Phase 5: alice pegs out on-chain to a static regtest address.
-        console.log('[phase5] alice on-chain send')
+        // Phase 5: alice sends bob an ecash chat payment.
+        console.log('[phase5] alice -> bob chat payment')
+        const bobUserLink = await readUserInviteLink(bob)
+        await createDirectChat(alice, bobUserLink)
+        await sendChatPayment(alice, CHAT_PAYMENT_SATS)
+        await assertChatPaymentEvent(alice, 'You sent')
+        // The room screen has no tab bar, so leave it before the wallet walk.
+        await alice.clickElementByKey('HeaderBackButton')
+        await assertNewestTransaction(alice, {
+            title: 'You sent',
+            type: 'ecash',
+            statuses: ['Sent'],
+            sats: CHAT_PAYMENT_SATS,
+        })
+        console.log('[phase5] chat payment confirmed')
+
+        // Phase 6: alice pegs out on-chain to a static regtest address.
+        console.log('[phase6] alice on-chain send')
         await alice.clickOnText('Send', 0, true)
         await acceptCameraPermissionIfPresent(alice)
         await alice.setClipboard(REGTEST_DESTINATION_ADDRESS)
@@ -182,7 +200,7 @@ export class Payments extends AppiumTestBase {
             statuses: ['Sent', 'Pending'],
             sats: ONCHAIN_SEND_SATS,
         })
-        console.log('[phase5] on-chain send confirmed')
+        console.log('[phase6] on-chain send confirmed')
     }
 }
 
@@ -506,6 +524,62 @@ async function redeemEcash(t: AppiumTestBase, token: string): Promise<void> {
     await t.clickOnText('Continue', 0, true)
     await t.waitForElementDisplayed('claim-ecash-button', 30000)
     await t.clickElementByKey('claim-ecash-button')
+}
+
+async function readUserInviteLink(t: AppiumTestBase): Promise<string> {
+    await t.clickElementByKey('HomeTabButton')
+    await t.clickElementByKey('AvatarButton')
+    await t.waitForElementDisplayed('TrueUsername', 60000)
+    const userLink = (await t.getTextByKey('TrueUsername')).trim()
+    if (!/screen=user/i.test(userLink)) {
+        throw new Error(
+            `profile QR text is not a user invite link: ${userLink}`,
+        )
+    }
+    await t.clickElementByKey('HeaderCloseButton')
+    return userLink
+}
+
+async function createDirectChat(
+    t: AppiumTestBase,
+    userLink: string,
+): Promise<void> {
+    await t.clickElementByKey('ChatTabButton')
+    await t.waitForElementDisplayed('SearchButton')
+    await t.clickElementByKey('PlusButton')
+    await t.clickOnText('Scan or paste', 0, true)
+    await acceptCameraPermissionIfPresent(t)
+    await t.setClipboard(userLink)
+    await t.clickElementByKey('PasteButton')
+    await allowPasteIfPrompted(t)
+    await t.waitForElementDisplayed('MessageInput-TextInput', 60000)
+    await t.typeIntoElementByKey('MessageInput-TextInput', DIRECT_CHAT_MESSAGE)
+    await t.waitForElementDisplayed('MessageInput-SendButton')
+    await t.clickElementByKey('MessageInput-SendButton')
+    // The first chat message raises the iOS notification permission prompt,
+    // which swallows every tap until it is answered and outlives an app reset.
+    await t.acceptIosNotificationPromptIfPresent()
+    await t.waitForElementDisplayed('ChatWalletButton', 120000)
+}
+
+async function sendChatPayment(t: AppiumTestBase, sats: number): Promise<void> {
+    await t.clickElementByKey('ChatWalletButton')
+    await ensureSatsMode(t)
+    await enterAmount(t, sats)
+    await t.clickOnText('Send', 0, true)
+    await t.waitForText('Total', 0, true, 30000)
+    await t.clickOnText('Send', 0, true)
+}
+
+async function assertChatPaymentEvent(
+    t: AppiumTestBase,
+    paymentText: string,
+): Promise<void> {
+    await t.waitForText(paymentText, 0, false, 120000)
+    // At-least note selection can overspend by a sat or two, so 500 sats can
+    // read as 501 here; the amount is asserted with a fee margin on the
+    // transaction history entry instead.
+    await t.waitForText('SATS)', 0, false, 5000)
 }
 
 async function dismissReceiveSuccess(t: AppiumTestBase): Promise<void> {
