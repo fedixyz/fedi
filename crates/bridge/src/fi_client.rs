@@ -56,17 +56,18 @@ use fedimint_derive_secret::DerivableSecret;
 use fi_client::{
     AbandonUnavailableReason, FI_LIQUIDITY_OPERATION_PAGE_MAX, FederationConsensusError,
     FederationConsensusReader, FederationConsensusSnapshot, FederationMetadataUpdate,
-    FederationName, FederationSize, FedimintFederationId, FiClient, FiError, FiErrorCode,
-    FiFeeAccountError, FiFeeAccountProvider, FiId, FiIdentity, FiResult, FiSignature, FiStatus,
-    FleetManagerCallError, FleetManagerConnector, FleetManagerConnectorError, FmanDiscoveryOptions,
-    FmanReplacementApproval, FmanReplacementPreview, FmanSelectionApproval, FmanSelectionPreview,
-    FmanSelectionRequest, FormationActionRequired, FormationFreshness, FormationId,
-    FormationIntent, FormationPhase, FormationRunOptions, FormationSnapshot, GatewayApiUrl,
-    GuardianFeeAccount, GuardianFeePpm, GuardianReplacementRequirements, LiquidityDiscovery,
-    LiquidityOperationId, LiquidityOperationPage, LiquidityOperationPhase,
-    LiquidityOperationSnapshot, LiquidityProviderConnector, LiquidityProviderConnectorError,
-    LiquidityRequestIntent, MAX_GUARDIAN_FEE_PPM, MaintenanceRunOptions, PaymentAuthorizationId,
-    PlanPreference, ResolvedFormationIntent, SeatPhase, SelectionReauthorizationReason,
+    FederationName, FederationSize, FedimintFederationId, FedimintdVersion, FedimintdVersionRange,
+    FiClient, FiError, FiErrorCode, FiFeeAccountError, FiFeeAccountProvider, FiId, FiIdentity,
+    FiResult, FiSignature, FiStatus, FleetManagerCallError, FleetManagerConnector,
+    FleetManagerConnectorError, FmanDiscoveryOptions, FmanReplacementApproval,
+    FmanReplacementPreview, FmanSelectionApproval, FmanSelectionPreview, FmanSelectionRequest,
+    FormationActionRequired, FormationFreshness, FormationId, FormationIntent, FormationPhase,
+    FormationRunOptions, FormationSnapshot, GatewayApiUrl, GuardianFeeAccount, GuardianFeePpm,
+    GuardianReplacementRequirements, LiquidityDiscovery, LiquidityOperationId,
+    LiquidityOperationPage, LiquidityOperationPhase, LiquidityOperationSnapshot,
+    LiquidityProviderConnector, LiquidityProviderConnectorError, LiquidityRequestIntent,
+    MAX_GUARDIAN_FEE_PPM, MaintenanceRunOptions, PaymentAuthorizationId, PlanPreference,
+    ResolvedFormationIntent, SeatPhase, SelectionReauthorizationReason,
 };
 use futures::StreamExt as _;
 use futures::stream::{self, BoxStream};
@@ -686,13 +687,14 @@ async fn discard_formation_push_if_unowned(
 }
 
 enum FiDriverOperation {
+    #[cfg(feature = "dev-pinned-formation")]
     CreatePinned {
         intent: FormationIntent,
         locators: Vec<Locator>,
     },
     PayAndCreate {
         intent: FormationIntent,
-        approval: FmanSelectionApproval,
+        approval: Box<FmanSelectionApproval>,
         payment_federation_id: FederationId,
         /// `None` when no push hook could be arranged; the formation then
         /// relies on launch reconciliation instead of a completion push.
@@ -1434,17 +1436,30 @@ impl BridgeFiDriver {
         intent: RpcFiFormationIntent,
         locators: Vec<String>,
     ) -> RpcFiOperationResult {
-        let intent = match formation_intent_from_rpc(intent) {
-            Ok(intent) => intent,
-            Err(error) => return RpcFiOperationResult::Error { error },
-        };
-        let locators = match parse_fman_locators(locators) {
-            Ok(locators) => locators,
-            Err(error) => return RpcFiOperationResult::Error { error },
-        };
-        self.commands
-            .request(FiDriverOperation::CreatePinned { intent, locators })
-            .await
+        #[cfg(feature = "dev-pinned-formation")]
+        {
+            let intent = match formation_intent_from_rpc(intent) {
+                Ok(intent) => intent,
+                Err(error) => return RpcFiOperationResult::Error { error },
+            };
+            let locators = match parse_fman_locators(locators) {
+                Ok(locators) => locators,
+                Err(error) => return RpcFiOperationResult::Error { error },
+            };
+            return self
+                .commands
+                .request(FiDriverOperation::CreatePinned { intent, locators })
+                .await;
+        }
+
+        #[cfg(not(feature = "dev-pinned-formation"))]
+        {
+            let _ = (intent, locators);
+            operation_error_result(
+                RpcFiErrorCode::CapabilityUnavailable,
+                "Pinned formation is available only in diagnostic builds",
+            )
+        }
     }
 
     pub(crate) async fn pay_and_create(
@@ -1519,7 +1534,7 @@ impl BridgeFiDriver {
                         .request_claimed_retaining(
                             FiDriverOperation::PayAndCreate {
                                 intent,
-                                approval,
+                                approval: Box::new(approval),
                                 payment_federation_id: FederationId(payment_federation_id),
                                 completion_callback,
                             },
@@ -1755,6 +1770,7 @@ impl FiDriverBackend for BridgeFiClient {
         liquidity_connector: &BridgeLiquidityConnector,
     ) -> FiDriverResponse {
         match operation {
+            #[cfg(feature = "dev-pinned-formation")]
             FiDriverOperation::CreatePinned { intent, locators } => {
                 FiDriverResponse::Formation(operation_result(
                     self.create_with_pinned_fmans(intent, locators, FormationRunOptions::default())
@@ -1770,7 +1786,7 @@ impl FiDriverBackend for BridgeFiClient {
                 Some(completion_callback) => {
                     self.pay_and_create_with_callback(
                         intent,
-                        approval,
+                        *approval,
                         payment_federation_id,
                         completion_callback,
                         FormationRunOptions::default(),
@@ -1782,7 +1798,7 @@ impl FiDriverBackend for BridgeFiClient {
                 None => {
                     self.pay_and_create(
                         intent,
-                        approval,
+                        *approval,
                         payment_federation_id,
                         FormationRunOptions::default(),
                     )
@@ -2126,22 +2142,28 @@ pub fn parse_fman_locators(locators: Vec<String>) -> Result<Vec<Locator>, RpcFiO
 pub fn formation_intent_from_rpc(
     intent: RpcFiFormationIntent,
 ) -> Result<FormationIntent, RpcFiOperationError> {
-    let fedimintd_version = intent
-        .fedimintd_version
-        .parse()
-        .map_err(|_| RpcFiOperationError {
-            code: RpcFiErrorCode::InvalidIntent,
-            message: "fedimintd version is invalid".to_owned(),
-            detail: None,
-        })?;
+    let fedimintd_versions = fedimintd_versions_from_rpc(&intent.fedimintd_version)?;
 
     FormationIntent::new(
         intent.federation_name.map(FederationName),
         FederationSize(intent.federation_size),
         PlanPreference::InfiniteBestEffort,
-        fedimintd_version,
+        fedimintd_versions,
     )
     .map_err(|error| fi_error_to_rpc(&error))
+}
+
+fn fedimintd_versions_from_rpc(
+    version: &str,
+) -> Result<FedimintdVersionRange, RpcFiOperationError> {
+    let version = version
+        .parse::<FedimintdVersion>()
+        .map_err(|_| RpcFiOperationError {
+            code: RpcFiErrorCode::InvalidIntent,
+            message: "fedimintd version is invalid".to_owned(),
+            detail: None,
+        })?;
+    FedimintdVersionRange::one_core(version.core()).map_err(|error| fi_error_to_rpc(&error))
 }
 
 fn metadata_update_from_rpc(
@@ -2205,20 +2227,13 @@ fn formed_federation_id(status: &FiStatus) -> Result<String, RpcFiOperationError
 fn selection_request_from_rpc(
     request: RpcFiSelectionPreviewRequest,
 ) -> Result<FmanSelectionRequest, RpcFiOperationError> {
-    let fedimintd_version = request
-        .fedimintd_version
-        .parse()
-        .map_err(|_| RpcFiOperationError {
-            code: RpcFiErrorCode::InvalidIntent,
-            message: "fedimintd version is invalid".to_owned(),
-            detail: None,
-        })?;
+    let fedimintd_versions = fedimintd_versions_from_rpc(&request.fedimintd_version)?;
     let plan = match request.plan {
         RpcFiPlanPreference::InfiniteBestEffort => PlanPreference::InfiniteBestEffort,
     };
     FmanSelectionRequest::new(
         FederationSize(request.federation_size),
-        fedimintd_version,
+        fedimintd_versions,
         plan,
     )
     .map_err(|error| fi_error_to_rpc(&error))
@@ -2658,7 +2673,13 @@ fn resolved_formation_intent_to_rpc(
         plan: match intent.plan {
             PlanPreference::InfiniteBestEffort => RpcFiPlanPreference::InfiniteBestEffort,
         },
-        fedimintd_version: intent.fedimintd_version.to_string(),
+        // Fedi's stable RPC accepts one release, so every formation it creates
+        // persists exactly one release core.
+        fedimintd_version: intent
+            .fedimintd_versions
+            .only_core()
+            .expect("Fedi only creates single-release FI version ranges")
+            .to_string(),
         max_total_msats: intent.max_total_msats.map(RpcFiMsats::from),
     }
 }

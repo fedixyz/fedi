@@ -46,6 +46,23 @@ fn payment_authorization_id(byte: u8) -> PaymentAuthorizationId {
         .expect("valid payment authorization digest")
 }
 
+fn fedimintd_version_range(version: &str) -> FedimintdVersionRange {
+    FedimintdVersionRange::one_core(
+        version
+            .parse::<FedimintdVersion>()
+            .expect("test Fedimint version is valid")
+            .core(),
+    )
+    .expect("test Fedimint version can form a range")
+}
+
+fn fedimintd_dkg_version(version: &str) -> fi_client::FedimintdDkgVersion {
+    version
+        .parse::<FedimintdVersion>()
+        .expect("test Fedimint version is valid")
+        .dkg_version()
+}
+
 #[repr(u8)]
 enum TestFiDbPrefix {
     ActiveFormation = 0x00,
@@ -220,7 +237,8 @@ async fn seed_identity_bound_formation(database: &Database, fi_id: FiId) {
                 // private seat schema into the consumer regression.
                 federation_size: FederationSize(0),
                 plan: PlanPreference::InfiniteBestEffort,
-                fedimintd_version: "0.11.1-fedi10".parse().expect("fixed version is valid"),
+                fedimintd_versions: fedimintd_version_range("0.11.1-fedi10"),
+                fedimintd_dkg_version: fedimintd_dkg_version("0.11.1-fedi10"),
                 max_total_msats: Some(100_000),
             },
             seat_count: 0,
@@ -316,7 +334,7 @@ async fn guardian_fee_migration_leaves_current_and_absent_records_alone() {
 }
 
 #[tokio::test]
-async fn fi_identity_has_a_golden_vector_and_reopens_only_for_the_same_root() {
+async fn fi_identity_has_a_golden_vector_and_resets_legacy_formation_before_owner_checks() {
     let first_root = DerivableSecret::new_root(&[1; 32], b"fi-client-test");
     let second_root = DerivableSecret::new_root(&[2; 32], b"fi-client-test");
 
@@ -352,21 +370,14 @@ async fn fi_identity_has_a_golden_vector_and_reopens_only_for_the_same_root() {
         BridgeFiIdentity::from_root_secret(&first_root),
     )
     .await
-    .expect("the same app root reopens its persisted FI formation");
-    assert!(matches!(
-        reopened.status(),
-        FiStatus::Formation(FormationSnapshot {
-            freshness: FormationFreshness::Unsynced,
-            ..
-        })
-    ));
+    .expect("the same app root resets incompatible pre-production FI state");
+    assert!(matches!(reopened.status(), FiStatus::Idle));
 
-    let wrong_root =
-        open_test_fi_client(database, BridgeFiIdentity::from_root_secret(&second_root)).await;
-    assert!(matches!(
-        wrong_root,
-        Err(FiError::Storage(message)) if message.contains("different identity")
-    ));
+    let different_root =
+        open_test_fi_client(database, BridgeFiIdentity::from_root_secret(&second_root))
+            .await
+            .expect("the reset runs before an incompatible legacy owner is checked");
+    assert!(matches!(different_root.status(), FiStatus::Idle));
 }
 
 #[test]
@@ -380,6 +391,33 @@ fn paid_formation_uses_zero_fee_before_post_formation_maintenance() {
     .expect("paid setup is supported before separate fee maintenance");
 
     assert_eq!(intent.plan(), PlanPreference::InfiniteBestEffort);
+    assert_eq!(
+        intent
+            .fedimintd_versions()
+            .only_core()
+            .expect("Fedi requests one release")
+            .to_string(),
+        "0.11.1"
+    );
+}
+
+#[test]
+fn selection_preview_uses_one_release_range_from_rpc() {
+    let request = selection_request_from_rpc(RpcFiSelectionPreviewRequest {
+        federation_size: 7,
+        plan: RpcFiPlanPreference::InfiniteBestEffort,
+        fedimintd_version: "0.11.1".to_owned(),
+    })
+    .expect("selection request is valid");
+
+    assert_eq!(
+        request
+            .fedimintd_versions()
+            .only_core()
+            .expect("Fedi requests one release")
+            .to_string(),
+        "0.11.1"
+    );
 }
 
 #[test]
@@ -972,7 +1010,8 @@ fn replacement_state_projects_stable_rows_and_narrow_payment_action() {
             federation_name: FederationName("Federation".to_owned()),
             federation_size: FederationSize(7),
             plan: PlanPreference::InfiniteBestEffort,
-            fedimintd_version: "0.11.1".parse().expect("valid version"),
+            fedimintd_versions: fedimintd_version_range("0.11.1"),
+            fedimintd_dkg_version: fedimintd_dkg_version("0.11.1"),
             max_total_msats: Some(100_000),
         },
         phase: FormationPhase::Preparing,
@@ -1038,7 +1077,8 @@ fn supervisor_retries_only_unattended_nonterminal_formation() {
             federation_name: fi_client::FederationName("Federation".to_owned()),
             federation_size: FederationSize(7),
             plan: PlanPreference::InfiniteBestEffort,
-            fedimintd_version: "0.11.1".parse().expect("valid version"),
+            fedimintd_versions: fedimintd_version_range("0.11.1"),
+            fedimintd_dkg_version: fedimintd_dkg_version("0.11.1"),
             max_total_msats: Some(100_000),
         },
         phase: FormationPhase::Preparing,
@@ -1162,7 +1202,8 @@ async fn fi_status_stream_emits_current_formation_and_typed_init_failure() {
             federation_name: fi_client::FederationName("Current Federation".to_owned()),
             federation_size: FederationSize(7),
             plan: PlanPreference::InfiniteBestEffort,
-            fedimintd_version: "0.11.1".parse().unwrap(),
+            fedimintd_versions: fedimintd_version_range("0.11.1"),
+            fedimintd_dkg_version: fedimintd_dkg_version("0.11.1"),
             max_total_msats: Some((1_u64 << 53) + 1),
         },
         phase: FormationPhase::DkgUnderway,
@@ -1319,7 +1360,8 @@ fn test_formation(phase: FormationPhase, freshness: FormationFreshness) -> FiSta
             federation_name: fi_client::FederationName("Federation".to_owned()),
             federation_size: FederationSize(7),
             plan: PlanPreference::InfiniteBestEffort,
-            fedimintd_version: "0.11.1-fedi10".parse().expect("valid version"),
+            fedimintd_versions: fedimintd_version_range("0.11.1-fedi10"),
+            fedimintd_dkg_version: fedimintd_dkg_version("0.11.1-fedi10"),
             max_total_msats: Some(100_000),
         },
         phase,
