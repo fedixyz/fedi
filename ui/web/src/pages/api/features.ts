@@ -25,6 +25,12 @@ const devRemoteFeatures: RemoteFeatures = {
     messageReactions: true,
     personalBackupReminder: true,
     walletServiceCreation: true,
+    miniAppSeed: true,
+}
+// edge has always been served the dev values here; swapping this for
+// edgeRemoteFeatures would flip several live edge flags at once
+const edgeDevRemoteFeatures: RemoteFeatures = {
+    ...devRemoteFeatures,
     miniAppSeed: false,
 }
 const isProduction = process.env.VERCEL_ENV === 'production'
@@ -48,7 +54,9 @@ export default async function handler(
         ? isEdge
             ? edgeRemoteFeatures
             : prodRemoteFeatures
-        : devRemoteFeatures
+        : isEdge
+          ? edgeDevRemoteFeatures
+          : devRemoteFeatures
 
     res.status(200).json(remoteFeatures)
 }

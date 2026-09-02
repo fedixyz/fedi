@@ -15,8 +15,12 @@ import { InjectionMessageResponseMap, InjectionMessageType } from '../types'
 import { sendInjectorMessage } from '../utils'
 
 class InjectionFediProvider {
-    public version: FediInternalVersion = 3
+    public version: FediInternalVersion = 4
     private lastMessageId = 0
+
+    async getSeed(): Promise<{ seed: string }> {
+        return this.sendMessage(InjectionMessageType.fedi_getSeed, undefined)
+    }
 
     async generateEcash(
         ecashRequest: EcashRequest,

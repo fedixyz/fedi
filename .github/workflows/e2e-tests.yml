@@ -22,6 +22,7 @@ on:
                     - joinLeaveFederations
                     - chat
                     - communityChatJoin
+                    - miniAppSeed
                     - payments
                     - backupRestore
                     - pinProtection

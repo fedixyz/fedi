@@ -3,6 +3,7 @@ import { Platform } from '../configs/appium/types'
 import { Chat } from './common/Chat.test'
 import { CommunityChatJoin } from './common/CommunityChatJoin.test'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
+import { MiniAppSeed } from './common/MiniAppSeed.test'
 import { PinProtection } from './common/PinProtection.test'
 import { Settings } from './common/Settings.test'
 import { BackupRestore } from './common/backupRestore.test'
@@ -26,6 +27,7 @@ export const availableTests: Record<string, TestClass> = {
     joinLeaveFederations: JoinLeaveFederation,
     chat: Chat,
     communityChatJoin: CommunityChatJoin,
+    miniAppSeed: MiniAppSeed,
     payments: Payments,
     backupRestore: BackupRestore,
     pinProtection: PinProtection,

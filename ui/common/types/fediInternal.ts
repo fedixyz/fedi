@@ -40,7 +40,7 @@ export type JoinedFederationSummary = {
     iconUrl?: string
 }
 
-export type FediInternalVersion = 3
+export type FediInternalVersion = 4
 
 export type InstallMiniAppRequest = Omit<FediMod, 'color'>
 

@@ -1,5 +1,16 @@
 /* eslint-disable no-console */
+import { resources } from '@fedi/common/localization'
+
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
+
+const en = resources.en.translation
+
+export async function openCommunityTool(t: AppiumTestBase): Promise<void> {
+    await t.clickElementByKey('HomeTabButton')
+    await t.clickElementByKey('PlusButton')
+    await t.clickElementByKey('createTab')
+    await t.clickOnText(en.phrases['create-my-space'], 0, true)
+}
 
 // Publishes a Space (community) whose default chats are the named groups, and
 // returns its invite code. Mirrors the web e2e's CommunityToolPage.createSpace
@@ -18,12 +29,7 @@ export async function createSpaceWithChats(
 ): Promise<string> {
     console.log(`[${t.handle}] Creating Space "${name}" with [${chatNames}]`)
 
-    // Native entry: Spaces header add -> create tab -> Create my Space, which
-    // opens the community tool in the in-app browser.
-    await t.clickElementByKey('HomeTabButton')
-    await t.clickElementByKey('PlusButton')
-    await t.clickElementByKey('createTab')
-    await t.clickOnText('Create my Space', 0, true)
+    await openCommunityTool(t)
 
     // Drive the tool's DOM in the WebView context.
     await t.switchToWebviewContext()

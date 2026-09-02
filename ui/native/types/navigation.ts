@@ -234,6 +234,7 @@ export type RootStackParamList = {
     ShareLogs: { ticketNumber: string } | undefined
     OmniScanner: undefined
     FediModBrowser: { url?: string } | undefined
+    MiniAppSeedLock: { url?: string } | undefined
     Splash: undefined
     StabilitySend: {
         federationId: Federation['id']

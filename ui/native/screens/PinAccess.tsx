@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 
 import {
     ProtectedFeatures,
+    selectFeatureFlag,
     selectProtectedFeatures,
     setFeatureUnlocked,
     setProtectedFeature,
@@ -24,12 +25,16 @@ const protectedFeatureToi18nKey: Record<keyof ProtectedFeatures, ResourceKey> =
         changePin: 'feature.pin.change-pin',
         nostrSettings: 'feature.nostr.nostr-settings',
         personalBackup: 'feature.backup.personal-backup',
+        miniAppSeed: 'feature.fedimods.mini-app-seed',
     } as const
 
 const PinAccess: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const protectedFeatures = useAppSelector(selectProtectedFeatures)
+    const miniAppSeedEnabled = useAppSelector(s =>
+        Boolean(selectFeatureFlag(s, 'mini_app_seed')),
+    )
     const dispatch = useAppDispatch()
 
     const style = styles(theme)
@@ -39,6 +44,8 @@ const PinAccess: React.FC<Props> = ({ navigation }) => {
             {Object.entries(protectedFeatures)
                 // The user is always required to enter their current PIN before changing it
                 .filter(([key]) => key !== 'changePin')
+                // flag-off builds must look like builds without the feature
+                .filter(([key]) => key !== 'miniAppSeed' || miniAppSeedEnabled)
                 .map(([key, value]) => (
                     <View style={style.item} key={key}>
                         <Text>

@@ -36,6 +36,7 @@ export enum InjectionMessageType {
     nostr_encrypt04 = 'nostr_encrypt04',
     nostr_decrypt04 = 'nostr_decrypt04',
     fedi_generateEcash = 'fedi_generateEcash',
+    fedi_getSeed = 'fedi_getSeed',
     fedi_receiveEcash = 'fedi_receiveEcash',
     fedi_getAuthenticatedMember = 'fedi_getAuthenticatedMember',
     fedi_getCurrencyCode = 'fedi_getCurrencyCode',
@@ -122,6 +123,10 @@ export type InjectionMessageResponseMap = {
             ciphertext: string
         }
         response: string
+    }
+    [InjectionMessageType.fedi_getSeed]: {
+        message: void
+        response: { seed: string }
     }
     [InjectionMessageType.fedi_generateEcash]: {
         message: EcashRequest
@@ -232,13 +237,22 @@ export interface InjectionResponseError {
     type: InjectionMessageType
     error: { message: string }
 }
+export const DROP_INJECTION_RESPONSE = Symbol('DROP_INJECTION_RESPONSE')
 
 export type InjectionMessageHandler<T extends InjectionMessageType> = (
     data: InjectionRequestMessage<T>['data'],
 ) =>
     | InjectionResponseMessage<T>['data']
-    | Promise<InjectionResponseMessage<T>['data']>
+    | typeof DROP_INJECTION_RESPONSE
+    | Promise<
+          InjectionResponseMessage<T>['data'] | typeof DROP_INJECTION_RESPONSE
+      >
 
 export type InjectionMessageHandlers = {
-    [T in InjectionMessageType]: InjectionMessageHandler<T>
+    [T in Exclude<
+        InjectionMessageType,
+        InjectionMessageType.fedi_getSeed
+    >]: InjectionMessageHandler<T>
+} & {
+    [InjectionMessageType.fedi_getSeed]?: InjectionMessageHandler<InjectionMessageType.fedi_getSeed>
 }

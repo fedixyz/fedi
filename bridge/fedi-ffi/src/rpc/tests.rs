@@ -41,7 +41,7 @@ use runtime::constants::{
 };
 use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
-use runtime::features::{FeatureCatalog, MiniAppSeedFeatureConfig, RuntimeEnvironment};
+use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use runtime::storage::BRIDGE_DB_PREFIX;
 use runtime::storage::state::CommunityJson;
 use stability_pool_client::common::Account;
@@ -4534,28 +4534,29 @@ async fn test_nip44_encrypt_and_decrypt(_dev_fed: DevFed) -> anyhow::Result<()> 
 }
 
 async fn test_get_mini_app_seed(_dev_fed: DevFed) -> anyhow::Result<()> {
-    // Flag off (Tests default): the bridge-side kill switch must reject.
+    // Explicitly disabled: the bridge-side kill switch must reject even though
+    // the feature is enabled by default in Tests.
     {
-        let td = TestDevice::new().await?;
+        let mut td = TestDevice::new().await?;
+        let mut catalog = FeatureCatalog::new(
+            &Database::new(MemDatabase::new(), Default::default()),
+            RuntimeEnvironment::Tests,
+        )
+        .await;
+        catalog.mini_app_seed = None;
+        td.with_feature_catalog(Arc::new(catalog));
         let bridge = td.bridge_full().await?;
         let err = getMiniAppSeed(bridge, "https://app.example.com/page".to_owned())
             .await
-            .expect_err("mini_app_seed flag is off in the Tests catalog");
+            .expect_err("mini_app_seed flag is explicitly disabled");
         assert!(
             err.to_string().contains("disabled"),
             "unexpected error: {err}"
         );
     }
 
-    // Flag on: canonicalizes the page URL and derives a 16-byte hex seed.
-    let mut td = TestDevice::new().await?;
-    let mut catalog = FeatureCatalog::new(
-        &Database::new(MemDatabase::new(), Default::default()),
-        RuntimeEnvironment::Tests,
-    )
-    .await;
-    catalog.mini_app_seed = Some(MiniAppSeedFeatureConfig {});
-    td.with_feature_catalog(Arc::new(catalog));
+    // Tests default: canonicalizes the page URL and derives a 16-byte hex seed.
+    let td = TestDevice::new().await?;
     let bridge = td.bridge_full().await?;
 
     let seed = getMiniAppSeed(bridge, "https://app.example.com/some/page?q=1".to_owned()).await?;

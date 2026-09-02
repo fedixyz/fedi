@@ -27,6 +27,7 @@ import NewMemberAvatarImageHeader from '../components/feature/onboarding/NewMemb
 import NewMemberHeader from '../components/feature/onboarding/NewMemberHeader'
 import ChangePinLockScreenHeader from '../components/feature/pin/ChangePinLockScreenHeader'
 import CreatePinInstructionsHeader from '../components/feature/pin/CreatePinInstructionsHeader'
+import MiniAppSeedLockScreen from '../components/feature/pin/MiniAppSeedLockScreen'
 import NostrSettingsLockScreen from '../components/feature/pin/NostrSettingsLockScreen'
 import PersonalBackupLockScreen from '../components/feature/pin/PersonalBackupLockScreen'
 import PinAccessHeader from '../components/feature/pin/PinAccessHeader'
@@ -438,6 +439,13 @@ export const MainNavigator = () => {
                                 component={FediModBrowser}
                                 options={{
                                     headerShown: false,
+                                }}
+                            />
+                            <Stack.Screen
+                                name="MiniAppSeedLock"
+                                component={MiniAppSeedLockScreen}
+                                options={{
+                                    header: () => <ChangePinLockScreenHeader />,
                                 }}
                             />
                             {/* Federation Onboarding */}

@@ -442,7 +442,7 @@ impl FeatureCatalog {
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
-            mini_app_seed: None,
+            mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -502,7 +502,7 @@ impl FeatureCatalog {
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
-            mini_app_seed: None,
+            mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -560,7 +560,7 @@ impl FeatureCatalog {
             message_reactions: Some(MessageReactionsFeatureConfig {}),
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
-            mini_app_seed: None,
+            mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),

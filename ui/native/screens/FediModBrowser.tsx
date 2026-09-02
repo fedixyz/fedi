@@ -1,6 +1,6 @@
-import { useNavigation } from '@react-navigation/native'
+import { useFocusEffect } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -50,6 +50,7 @@ import {
     refreshCommunities,
     selectRequestedPermission,
     selectCurrentUrl,
+    selectFeatureFlag,
     setCurrentUrl,
     commitUrlToHistory,
     selectMatrixRooms,
@@ -85,6 +86,7 @@ import ExitFedimodOverlay from '../components/feature/fedimods/ExitFedimodOverla
 import FediModBrowserHeader from '../components/feature/fedimods/FediModBrowserHeader'
 import { GenerateEcashOverlay } from '../components/feature/fedimods/GenerateEcashoverlay'
 import { MakeInvoiceOverlay } from '../components/feature/fedimods/MakeInvoiceOverlay'
+import { MiniAppSeedOverlay } from '../components/feature/fedimods/MiniAppSeedOverlay'
 import { NostrSignOverlay } from '../components/feature/fedimods/NostrSignOverlay'
 import { ReceiveEcashOverlay } from '../components/feature/fedimods/ReceiveEcashOverlay'
 import { SelectPublicChatsOverlay } from '../components/feature/fedimods/SelectPublicChats'
@@ -99,6 +101,8 @@ import {
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
+import { useIsFeatureUnlocked } from '../utils/hooks/security'
+import { MiniAppSeedRequestController } from '../utils/miniAppSeed'
 
 const log = makeLog('FediModBrowser')
 
@@ -133,7 +137,7 @@ type FediModResponse =
 
 type FediModResolver<T> = (value: T | PromiseLike<T>) => void
 
-const FediModBrowser: React.FC<Props> = ({ route }) => {
+const FediModBrowser: React.FC<Props> = ({ route, navigation }) => {
     const url = route?.params?.url
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
@@ -158,13 +162,28 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
     const currentUrl = useAppSelector(selectCurrentUrl)
     const chats = useAppSelector(selectMatrixRooms)
+    const miniAppSeedEnabled = Boolean(
+        useAppSelector(s => selectFeatureFlag(s, 'mini_app_seed')),
+    )
+    const isMiniAppSeedUnlocked = useIsFeatureUnlocked('miniAppSeed')
 
     const webview = useRef<WebView | null>(null)
+    const currentUrlRef = useRef(currentUrl)
     const overlayResolveRef = useRef<
         FediModResolver<FediModResponse> | undefined
     >(undefined)
     const overlayRejectRef = useRef<((reason: Error) => void) | undefined>(
         undefined,
+    )
+    const pinGateResolveRef = useRef<(() => void) | undefined>(undefined)
+    const pinGateRejectRef = useRef<((reason: Error) => void) | undefined>(
+        undefined,
+    )
+    const seedConsentResolveRef = useRef<
+        ((approved: boolean) => void) | undefined
+    >(undefined)
+    const [seedRequestController] = useState(
+        () => new MiniAppSeedRequestController(),
     )
 
     const [isParsingLink, setIsParsingLink] = useState(false)
@@ -172,11 +191,47 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const [isBrowserLoading, setIsBrowserLoading] = useState(true)
     const [browserLoadProgress, setBrowserLoadProgress] = useState(0)
     const [isSelectingPublicChats, setIsSelectingPublicChats] = useState(false)
+    const [miniAppSeedRequest, setMiniAppSeedRequest] = useState<{
+        origin: string
+    } | null>(null)
 
     const [showRecoveryInProgress, setShowRecoveryInProgress] =
         useState<boolean>(false)
     const { setParsedLink } = useOmniLinkContext()
-    const navigation = useNavigation()
+    useEffect(() => {
+        if (!currentUrl || currentUrl === currentUrlRef.current) return
+        currentUrlRef.current = currentUrl
+    }, [currentUrl])
+
+    useEffect(() => {
+        if (!isMiniAppSeedUnlocked || !pinGateResolveRef.current) return
+
+        const resolve = pinGateResolveRef.current
+        pinGateResolveRef.current = undefined
+        pinGateRejectRef.current = undefined
+        resolve()
+    }, [isMiniAppSeedUnlocked])
+
+    useFocusEffect(
+        useCallback(() => {
+            if (isMiniAppSeedUnlocked || !pinGateRejectRef.current) return
+
+            const reject = pinGateRejectRef.current
+            pinGateResolveRef.current = undefined
+            pinGateRejectRef.current = undefined
+            reject(new Error('Mini app seed PIN entry canceled'))
+        }, [isMiniAppSeedUnlocked]),
+    )
+
+    useEffect(() => {
+        return () => {
+            pinGateResolveRef.current = undefined
+            pinGateRejectRef.current?.(
+                new Error('Mini app seed request canceled'),
+            )
+            pinGateRejectRef.current = undefined
+        }
+    }, [])
 
     const handleParsedLink = (parsedLink: AnyParsedData) => {
         switch (parsedLink.type) {
@@ -414,6 +469,33 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                     ciphertext,
                 )
                 return decrypted
+            },
+            [InjectionMessageType.fedi_getSeed]: async data => {
+                return seedRequestController.handle(data, {
+                    getCurrentUrl: () => {
+                        if (!currentUrlRef.current) {
+                            throw new Error('Mini app URL is unavailable')
+                        }
+                        return currentUrlRef.current
+                    },
+                    isEnabled: () => miniAppSeedEnabled,
+                    requirePin: async () => {
+                        if (isMiniAppSeedUnlocked) return
+
+                        await new Promise<void>((resolve, reject) => {
+                            pinGateResolveRef.current = resolve
+                            pinGateRejectRef.current = reject
+                            navigation.navigate('MiniAppSeedLock', route.params)
+                        })
+                    },
+                    requestConsent: request =>
+                        new Promise<boolean>(resolve => {
+                            seedConsentResolveRef.current = resolve
+                            setMiniAppSeedRequest(request)
+                        }),
+                    getSeed: request =>
+                        fedimint.rpcTyped('getMiniAppSeed', request),
+                })
             },
             [InjectionMessageType.fedi_generateEcash]:
                 async ecashRequestArgs => {
@@ -737,6 +819,11 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         dispatch(resetBrowserOverlayState())
         setShowRecoveryInProgress(false)
     }
+    const handleMiniAppSeedConsent = (approved: boolean) => {
+        seedConsentResolveRef.current?.(approved)
+        seedConsentResolveRef.current = undefined
+        setMiniAppSeedRequest(null)
+    }
 
     const overlayProps = {
         onReject: (err: Error) => {
@@ -801,6 +888,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                     eruda: fediModDebugMode,
                     nostr: true,
                     fediInternal: true,
+                    miniAppSeed: miniAppSeedEnabled,
                 })}
                 allowsInlineMediaPlayback
                 onMessage={onMessage}
@@ -833,9 +921,10 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 }}
                 onNavigationStateChange={e => {
                     // Skip if URL hasn't changed
-                    if (e.url === currentUrl) {
+                    if (e.url === currentUrlRef.current) {
                         return
                     }
+                    currentUrlRef.current = e.url
                     dispatch(setCurrentUrl({ url: e.url }))
                 }}
                 onOpenWindow={e => {
@@ -863,6 +952,11 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             <SendPaymentOverlay {...overlayProps} />
             <AuthOverlay {...overlayProps} />
             <NostrSignOverlay {...overlayProps} />
+            <MiniAppSeedOverlay
+                origin={miniAppSeedRequest?.origin ?? null}
+                onApprove={() => handleMiniAppSeedConsent(true)}
+                onDeny={() => handleMiniAppSeedConsent(false)}
+            />
             <RecoveryInProgressOverlay
                 show={showRecoveryInProgress}
                 onDismiss={overlayProps.onAccept}

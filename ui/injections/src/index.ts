@@ -3,6 +3,7 @@ import {
     InjectionMessageHandler,
     InjectionMessageHandlers,
     InjectionMessageType,
+    DROP_INJECTION_RESPONSE,
 } from './types'
 
 export * from './types'
@@ -19,6 +20,7 @@ export function generateInjectionJs(config: {
     eruda?: boolean
     nostr?: boolean
     fediInternal?: boolean
+    miniAppSeed?: boolean
 }) {
     const injections: string[] = []
 
@@ -36,6 +38,11 @@ export function generateInjectionJs(config: {
 
     if (config.fediInternal) {
         injections.push(process.env.INJECTION_FEDI_INTERNAL as string)
+        if (!config.miniAppSeed) {
+            injections.push(
+                'delete Object.getPrototypeOf(window.fediInternal).getSeed',
+            )
+        }
     }
 
     return injections.join('\n')
@@ -102,6 +109,7 @@ export function makeWebViewMessageHandler(
             const response = await handler(
                 data as Parameters<typeof handler>[0],
             )
+            if (response === DROP_INJECTION_RESPONSE) return
             const detail = {
                 id,
                 type,
