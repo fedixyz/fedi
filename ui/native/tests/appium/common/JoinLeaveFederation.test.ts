@@ -66,13 +66,10 @@ export class JoinLeaveFederation extends AppiumTestBase {
         )
     }
 
-    // Stops at the join preview on purpose: completing the join here would
-    // turn the walk's later first-time E-Cash Club join into a recovery
-    // rejoin. The join tap itself is covered by the list path, which lands
-    // on this same screen.
-    private async previewFederationByPastedInvite(
+    private async joinFederationByPastedInvite(
         invite: string,
         federationName: string,
+        detailsButtonKey: string,
     ): Promise<void> {
         await this.clickElementByKey('PlusButton')
         await this.clickElementByKey('joinTab')
@@ -87,34 +84,27 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 `Failed - pasted invite preview does not show "${federationName}"`,
             )
         }
-        // The paste path pushes the join screen directly over the wallet,
-        // so a single back lands home.
-        await this.clickElementByKey('HeaderBackButton')
-        await this.waitForElementDisplayed('PlusButton', 10000)
+        await this.clickElementByKey('JoinFederationButton')
+        await this.waitForElementDisplayed(detailsButtonKey, 45000)
     }
 
     async execute(): Promise<void> {
         console.log('Starting Joining Public Federation Test')
         await this.clickElementByKey('WalletTabButton')
         await this.waitForElementDisplayed('FediTestnetDetailsButton', 2000)
-        await this.previewFederationByPastedInvite(
+        await this.joinFederationByPastedInvite(
             getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
             INVITE_PREVIEW_FEDERATION_NAME,
+            'E-CashClubDetailsButton',
         )
-        // END of the process of previewing a Federation by pasted invite code
-        await this.clickElementByKey('PlusButton')
-        await this.scrollToElement('E-CashClubJoinButton')
-        await this.clickElementByKey('E-CashClubJoinButton')
-        await this.waitForElementDisplayed('JoinFederationButton')
-        await this.clickElementByKey('JoinFederationButton')
         if (
             (await this.elementIsDisplayed('E-CashClubDetailsButton')) === false
         ) {
             throw new Error(
-                `Failed - E-Cash Club Federation is not present in the Federations drawer after joining it for the first time`,
+                `Failed - E-Cash Club Federation is not present in the Federations drawer after joining it by pasted invite code`,
             )
         }
-        // END of the process of joining a Public Federation without TOS
+        // END of the process of joining a Public Federation by pasted invite code
         await this.clickElementByKey('PlusButton')
         await this.scrollToElement('BitcoinPrinciplesJoinButton')
         await this.clickElementByKey('BitcoinPrinciplesJoinButton')
