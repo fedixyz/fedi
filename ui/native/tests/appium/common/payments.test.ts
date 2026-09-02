@@ -79,10 +79,10 @@ export class Payments extends AppiumTestBase {
             `[phase2] on-chain address copied (${onchainAddress.slice(0, 8)}...)`,
         )
 
-        // Phase 3: alice -> bob over lightning (send + receive across devices).
-        console.log('[phase3] alice -> bob lightning')
+        // Phase 3: alice -> bob over external lightning URI.
+        console.log('[phase3] alice -> bob external lightning URI')
         const bobInvoice = await generateLightningInvoice(bob, LN_P2P_SATS)
-        await payLightningInvoice(alice, bobInvoice)
+        await payLightningInvoiceByDeepLink(alice, bobInvoice)
         await alice.waitForText('You sent', 0, true, 60000)
         await bob.waitForText('You received', 0, true, 120000)
         await dismissSendSuccess(alice)
@@ -99,7 +99,9 @@ export class Payments extends AppiumTestBase {
             statuses: ['Received'],
             sats: LN_P2P_SATS,
         })
-        console.log('[phase3] lightning transfer confirmed on both devices')
+        console.log(
+            '[phase3] external lightning URI transfer confirmed on both devices',
+        )
 
         // Phase 4: bob -> alice over ecash (offline send + claim).
         console.log('[phase4] bob -> alice ecash')
@@ -419,17 +421,19 @@ function isBitcoinAddress(value: string): boolean {
     )
 }
 
-async function payLightningInvoice(
+async function payLightningInvoiceByDeepLink(
     t: AppiumTestBase,
     invoice: string,
 ): Promise<void> {
     await goToWallet(t)
-    await t.clickOnText('Send', 0, true)
-    // Send opens on the lightning tab with the omni input (scan + paste).
-    await acceptCameraPermissionIfPresent(t)
-    await t.setClipboard(invoice)
-    await t.clickElementByKey('PasteButton')
-    await allowPasteIfPrompted(t)
+    await t.openDeepLink(`lightning:${invoice}`)
+    await t.waitForText(
+        'This is a lightning payment request, do you want to pay it?',
+        0,
+        true,
+        30000,
+    )
+    await t.clickOnText('Continue', 0, true)
     await t.waitForElementDisplayed('SendConfirmButton', 30000)
     await t.clickElementByKey('SendConfirmButton')
 }
