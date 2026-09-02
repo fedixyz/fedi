@@ -56,8 +56,7 @@ export class Payments extends AppiumTestBase {
         await redeemEcash(alice, fundEcash)
         await alice.waitForText('Ecash claimed', 0, true, 120000)
         await alice.clickOnText('Go to wallet', 0, true)
-        // Funding alice past the reminder threshold raises the backup reminder
-        // overlay over the wallet, which hides Receive until dismissed.
+        await assertBackupReminderAction(alice)
         await waitForWalletReceive(alice)
         const aliceFunded = await readWalletSats(alice)
         if (aliceFunded !== FUND_SATS) {
@@ -494,6 +493,18 @@ async function dismissBackupReminderIfPresent(
     if (await t.elementIsDisplayed('BackupReminderDismissButton', timeout)) {
         await t.clickElementByKey('BackupReminderDismissButton')
     }
+}
+
+async function assertBackupReminderAction(t: AppiumTestBase): Promise<void> {
+    await t.waitForText(
+        'Backup your account to protect your money and data.',
+        0,
+        true,
+        30000,
+    )
+    await t.clickOnText('Backup Now', 0, true)
+    await t.waitForElementDisplayed('SeedWord1', 30000)
+    await t.clickElementByKey('HeaderBackButton')
 }
 
 // Wait until the wallet's Receive button is on screen. The backup reminder
