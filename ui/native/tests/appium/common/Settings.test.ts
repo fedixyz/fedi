@@ -115,6 +115,19 @@ export class Settings extends AppiumTestBase {
         await this.clickElementByKey('HeaderBackButton')
         await this.waitForElementDisplayed('UserQrContainer')
 
+        await this.openDrawerAtTop()
+        await this.scrollToElement('Nostr Details')
+        await this.clickElementByKey('Nostr Details')
+        for (const label of ['Nostr Public Key', 'Nostr Secret Key']) {
+            if ((await this.isTextPresent(label)) === false) {
+                throw new Error(
+                    `Failed - Nostr Details screen did not render the ${label} section`,
+                )
+            }
+        }
+        await this.clickElementByKey('HeaderBackButton')
+        await this.waitForElementDisplayed('UserQrContainer')
+
         await this.scrollToElement('FediTestnetFedAccordionButton')
         await this.clickElementByKey('FediTestnetFedAccordionButton')
 
