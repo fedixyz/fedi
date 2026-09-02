@@ -38,6 +38,19 @@ export class Settings extends AppiumTestBase {
         }
     }
 
+    private async changeLanguage(
+        currentLanguageLabel: string,
+        targetLanguageKey: string,
+        translatedProfileLabel: string,
+    ): Promise<void> {
+        await this.scrollToElement(currentLanguageLabel)
+        await this.clickElementByKey(currentLanguageLabel)
+        await this.waitForElementDisplayed(targetLanguageKey)
+        await this.clickElementByKey(targetLanguageKey)
+        await this.clickElementByKey('HeaderBackButton')
+        await this.waitForText(translatedProfileLabel, 0, true)
+    }
+
     async execute(): Promise<void> {
         console.log('Starting Settings Test')
 
@@ -60,6 +73,11 @@ export class Settings extends AppiumTestBase {
         // the original name has to come back
         await this.changeDisplayName(originalDisplayName)
         await this.assertDisplayedName(originalDisplayName)
+
+        await this.changeLanguage('Language', 'es', 'Editar perfil')
+        // later assertions use English labels, so restore the locale before
+        // walking the rest of the settings drawer
+        await this.changeLanguage('Idioma', 'en', 'Edit profile')
 
         await this.scrollToElement('App Settings')
         await this.clickElementByKey('App Settings')
