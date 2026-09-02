@@ -89,6 +89,32 @@ export class Settings extends AppiumTestBase {
         await this.clickElementByKey('HeaderBackButton')
         await this.waitForElementDisplayed('UserQrContainer')
 
+        // The App Settings leg leaves the drawer scrolled past this row and
+        // scrollToElement only searches downward.
+        await this.openDrawerAtTop()
+        await this.scrollToElement('Display currency')
+        await this.clickElementByKey('Display currency')
+        await this.waitForElementDisplayed('USD')
+        await this.scrollToElement('EUR')
+        await this.clickElementByKey('EUR')
+        await this.clickElementByKey('HeaderBackButton')
+        await this.clickElementByKey('HeaderCloseButton')
+        await this.clickElementByKey('WalletTabButton')
+        if (!(await this.isTextPresent('EUR', true, 10000))) {
+            throw new Error(
+                'Failed - Wallet balance did not use the selected global currency',
+            )
+        }
+        await this.clickElementByKey('HomeTabButton')
+        await this.clickElementByKey('AvatarButton')
+        await this.openDrawerAtTop()
+        await this.scrollToElement('Display currency')
+        await this.clickElementByKey('Display currency')
+        // iOS folds the row's globe glyph into its label, so exact text misses.
+        await this.clickOnText('Federation default', 0, false)
+        await this.clickElementByKey('HeaderBackButton')
+        await this.waitForElementDisplayed('UserQrContainer')
+
         await this.scrollToElement('FediTestnetFedAccordionButton')
         await this.clickElementByKey('FediTestnetFedAccordionButton')
 
