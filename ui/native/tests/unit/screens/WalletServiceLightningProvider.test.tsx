@@ -107,7 +107,6 @@ const formedStore = (
                         federationSize: 7,
                         guardianFeePpm: 5000,
                         plan: 'infiniteBestEffort',
-                        fedimintdVersion: '0.11.1-fedi13',
                         maxTotalMsats: null,
                     },
                     seats: [],

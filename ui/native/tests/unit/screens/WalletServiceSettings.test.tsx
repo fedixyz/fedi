@@ -56,7 +56,6 @@ const makeFormation = (
         // The applied rate comes from federation consensus metadata.
         guardianFeePpm: 0,
         plan: 'infiniteBestEffort',
-        fedimintdVersion: '0.11.1-fedi13',
         maxTotalMsats: null,
     },
     seats: [],

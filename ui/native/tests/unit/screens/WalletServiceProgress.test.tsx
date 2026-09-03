@@ -40,7 +40,6 @@ const makeFormation = (
         federationSize: 7,
         guardianFeePpm: 0,
         plan: 'infiniteBestEffort',
-        fedimintdVersion: '0.11.1-fedi13',
         maxTotalMsats: null,
     },
     seats: [],

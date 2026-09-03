@@ -37,9 +37,6 @@ export const RECOMMENDED_WALLET_SERVICE_SIZE = 10
 export const MIN_WALLET_SERVICE_SIZE = WALLET_SERVICE_SIZE_OPTIONS[0]
 export const MAX_WALLET_SERVICE_SIZE =
     WALLET_SERVICE_SIZE_OPTIONS[WALLET_SERVICE_SIZE_OPTIONS.length - 1]
-// staging FMans currently advertise only 0.11.1-fedi15 — an exact-match
-// version check rejects every ad if this drifts from what guardians run
-export const DEFAULT_FEDIMINTD_VERSION = '0.11.1-fedi15'
 
 /** Rejected by `guardian_fee_from_rpc` in the bridge above this value. */
 export const MAX_GUARDIAN_FEE_PPM = 210_000
@@ -543,7 +540,6 @@ export const prepareWalletServicePayment = createAsyncThunk<
             fedimint.fiClientPreviewSelection({
                 federationSize: size,
                 plan: WALLET_SERVICE_PLAN,
-                fedimintdVersion: DEFAULT_FEDIMINTD_VERSION,
             }),
             fedimint.fiClientEligiblePayers(),
         ])
@@ -637,7 +633,6 @@ export const createWalletService = createAsyncThunk<
                 federationName: name || null,
                 federationSize: size,
                 plan: WALLET_SERVICE_PLAN,
-                fedimintdVersion: DEFAULT_FEDIMINTD_VERSION,
             },
             paymentFederationId,
             preview.totalAdvertisedMsats,

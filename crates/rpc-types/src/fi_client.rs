@@ -54,7 +54,6 @@ pub struct RpcFiFormationIntent {
     pub federation_name: Option<String>,
     pub federation_size: u16,
     pub plan: RpcFiPlanPreference,
-    pub fedimintd_version: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -63,7 +62,6 @@ pub struct RpcFiFormationIntent {
 pub struct RpcFiSelectionPreviewRequest {
     pub federation_size: u16,
     pub plan: RpcFiPlanPreference,
-    pub fedimintd_version: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -770,7 +768,6 @@ pub struct RpcFiResolvedFormationIntent {
     pub federation_size: u16,
     pub guardian_fee_ppm: u32,
     pub plan: RpcFiPlanPreference,
-    pub fedimintd_version: String,
     pub max_total_msats: Option<RpcFiMsats>,
 }
 

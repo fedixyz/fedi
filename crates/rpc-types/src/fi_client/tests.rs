@@ -37,7 +37,6 @@ fn fi_msat_values_are_exact_decimal_strings_in_every_fi_output_shape() {
                     federation_size: 1,
                     guardian_fee_ppm: 0,
                     plan: RpcFiPlanPreference::InfiniteBestEffort,
-                    fedimintd_version: "0.11.1".to_owned(),
                     max_total_msats: Some(RpcFiMsats(value)),
                 },
                 seats: Vec::new(),

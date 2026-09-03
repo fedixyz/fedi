@@ -67,7 +67,6 @@ const formation: RpcFiFormationSnapshot = {
         federationSize: 7,
         guardianFeePpm: 1_000,
         plan: 'infiniteBestEffort',
-        fedimintdVersion: '0.11.1',
         maxTotalMsats: null,
     },
     seats: [],

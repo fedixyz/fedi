@@ -755,7 +755,6 @@ export type RpcFiFormationIntent = {
   federationName: string | null;
   federationSize: number;
   plan: RpcFiPlanPreference;
-  fedimintdVersion: string;
 };
 
 export type RpcFiFormationMilestones = {
@@ -1103,7 +1102,6 @@ export type RpcFiResolvedFormationIntent = {
   federationSize: number;
   guardianFeePpm: number;
   plan: RpcFiPlanPreference;
-  fedimintdVersion: string;
   maxTotalMsats: RpcFiMsats | null;
 };
 
@@ -1171,7 +1169,6 @@ export type RpcFiSelectionPreview = {
 export type RpcFiSelectionPreviewRequest = {
   federationSize: number;
   plan: RpcFiPlanPreference;
-  fedimintdVersion: string;
 };
 
 export type RpcFiSelectionPreviewResult =

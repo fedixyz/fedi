@@ -1,5 +1,4 @@
 import {
-    DEFAULT_FEDIMINTD_VERSION,
     FiState,
     RECOMMENDED_WALLET_SERVICE_SIZE,
     WalletServiceCreationStage,
@@ -68,7 +67,6 @@ const makeFormation = (
         federationSize: 7,
         guardianFeePpm: 0,
         plan: 'infiniteBestEffort',
-        fedimintdVersion: DEFAULT_FEDIMINTD_VERSION,
         maxTotalMsats: null,
     },
     seats: [],
@@ -302,7 +300,6 @@ describe('common/redux/fi › prepareWalletServicePayment', () => {
         expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledWith({
             federationSize: 7,
             plan: 'infiniteBestEffort',
-            fedimintdVersion: DEFAULT_FEDIMINTD_VERSION,
         })
         expect(store.getState().fi.selectionPreview).toEqual(preview)
         expect(store.getState().fi.eligiblePayers).toEqual(payers)
@@ -455,7 +452,6 @@ describe('common/redux/fi › createWalletService', () => {
                 federationName: 'Neighborhood',
                 federationSize: 7,
                 plan: 'infiniteBestEffort',
-                fedimintdVersion: DEFAULT_FEDIMINTD_VERSION,
             },
             '1',
             '21000',

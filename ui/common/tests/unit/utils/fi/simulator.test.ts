@@ -13,7 +13,6 @@ import { FiSimulator } from '../../../../utils/fi/simulator'
 const PREVIEW_REQUEST = {
     federationSize: 10,
     plan: 'infiniteBestEffort' as const,
-    fedimintdVersion: '0.11.1-fedi13',
 }
 
 const preview = (simulator: FiSimulator, federationSize = 10) =>
@@ -764,7 +763,6 @@ const intentFor = (federationSize: number) => ({
     federationName: 'Test Service',
     federationSize,
     plan: 'infiniteBestEffort' as const,
-    fedimintdVersion: '0.11.1-fedi13',
 })
 
 async function payWithFreshPreview(

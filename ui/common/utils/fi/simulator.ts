@@ -223,7 +223,6 @@ export class FiSimulator {
                 federationName: 'My Wallet Service',
                 federationSize: size,
                 plan: 'infiniteBestEffort',
-                fedimintdVersion: '0.11.1-fedi13',
             },
             maxTotalMsats: String(size * BASE_SEAT_PRICE_MSATS),
             phase: seed === 'formed' ? 'formed' : 'acquiringSeats',
@@ -880,7 +879,6 @@ export class FiSimulator {
             federationName: string | null
             federationSize: number
             plan: 'infiniteBestEffort'
-            fedimintdVersion: string
         }
         const maxTotalMsats = payload.maxTotalMsats as string
 
@@ -1287,7 +1285,6 @@ export class FiSimulator {
             federationName: string | null
             federationSize: number
             plan: 'infiniteBestEffort'
-            fedimintdVersion: string
         }
         maxTotalMsats: string
         phase: FormationPhaseName
@@ -1300,7 +1297,6 @@ export class FiSimulator {
                 federationSize: intent.federationSize,
                 guardianFeePpm: 0,
                 plan: intent.plan,
-                fedimintdVersion: intent.fedimintdVersion,
                 maxTotalMsats,
             },
             seats: preview.seats.map((seat, index) => ({

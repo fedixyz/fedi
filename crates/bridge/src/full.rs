@@ -269,16 +269,6 @@ impl BridgeFull {
             None => self.fi_initialization_failure(),
         }
     }
-    pub async fn fi_create_pinned(
-        &self,
-        intent: RpcFiFormationIntent,
-        locators: Vec<String>,
-    ) -> RpcFiOperationResult {
-        match &self.fi_driver {
-            Some(driver) => driver.create_pinned(intent, locators).await,
-            None => self.fi_initialization_failure(),
-        }
-    }
 
     pub async fn fi_preview_selection(
         &self,

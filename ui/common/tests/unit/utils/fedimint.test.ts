@@ -60,12 +60,10 @@ describe('FedimintBridge FI client', () => {
             federationName: 'My federation',
             federationSize: 7,
             plan: 'infiniteBestEffort',
-            fedimintdVersion: '0.11.1',
         }
         const request: bindings.RpcFiSelectionPreviewRequest = {
             federationSize: 7,
             plan: 'infiniteBestEffort',
-            fedimintdVersion: '0.11.1',
         }
 
         await expect(fedimint.fiClientStatus()).resolves.toEqual(clientStatus)
@@ -269,7 +267,6 @@ describe('FedimintBridge FI client', () => {
                         federationSize: 7,
                         guardianFeePpm: 0,
                         plan: 'infiniteBestEffort',
-                        fedimintdVersion: '0.11.1',
                         maxTotalMsats: '9007199254740993',
                     },
                     seats: [],

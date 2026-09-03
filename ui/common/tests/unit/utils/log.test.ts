@@ -150,7 +150,6 @@ describe('log utilities', () => {
                         federationSize: 7,
                         guardianFeePpm: 0,
                         plan: 'infiniteBestEffort',
-                        fedimintdVersion: '0.11.1',
                         maxTotalMsats: null,
                     },
                     seats: [],

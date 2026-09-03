@@ -113,6 +113,9 @@ pub(crate) type BridgeFiClient = FiClient<
 const FI_DRIVER_QUEUE_CAPACITY: usize = 1;
 const FI_LIQUIDITY_PAGE_SIZE: usize = FI_LIQUIDITY_OPERATION_PAGE_MAX;
 const FI_ACTIVE_FORMATION_KEY: &[u8] = &[0x00];
+// Fedi supports compatible 0.11 patches from the first approved 0.11.2 release.
+const FEDIMINTD_MINIMUM: &str = "0.11.2";
+const FEDIMINTD_MAXIMUM_EXCLUSIVE: &str = "0.12.0";
 const FI_RESUME_INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const FI_RESUME_MAX_BACKOFF: Duration = Duration::from_secs(5 * 60);
 const FMAN_TRANSPORT_INITIALIZATION_ERROR: &str = "Fleet Manager transport initialization failed";
@@ -687,11 +690,6 @@ async fn discard_formation_push_if_unowned(
 }
 
 enum FiDriverOperation {
-    #[cfg(feature = "dev-pinned-formation")]
-    CreatePinned {
-        intent: FormationIntent,
-        locators: Vec<Locator>,
-    },
     PayAndCreate {
         intent: FormationIntent,
         approval: Box<FmanSelectionApproval>,
@@ -1431,37 +1429,6 @@ impl BridgeFiDriver {
         result
     }
 
-    pub(crate) async fn create_pinned(
-        &self,
-        intent: RpcFiFormationIntent,
-        locators: Vec<String>,
-    ) -> RpcFiOperationResult {
-        #[cfg(feature = "dev-pinned-formation")]
-        {
-            let intent = match formation_intent_from_rpc(intent) {
-                Ok(intent) => intent,
-                Err(error) => return RpcFiOperationResult::Error { error },
-            };
-            let locators = match parse_fman_locators(locators) {
-                Ok(locators) => locators,
-                Err(error) => return RpcFiOperationResult::Error { error },
-            };
-            return self
-                .commands
-                .request(FiDriverOperation::CreatePinned { intent, locators })
-                .await;
-        }
-
-        #[cfg(not(feature = "dev-pinned-formation"))]
-        {
-            let _ = (intent, locators);
-            operation_error_result(
-                RpcFiErrorCode::CapabilityUnavailable,
-                "Pinned formation is available only in diagnostic builds",
-            )
-        }
-    }
-
     pub(crate) async fn pay_and_create(
         &self,
         preview_id: String,
@@ -1770,13 +1737,6 @@ impl FiDriverBackend for BridgeFiClient {
         liquidity_connector: &BridgeLiquidityConnector,
     ) -> FiDriverResponse {
         match operation {
-            #[cfg(feature = "dev-pinned-formation")]
-            FiDriverOperation::CreatePinned { intent, locators } => {
-                FiDriverResponse::Formation(operation_result(
-                    self.create_with_pinned_fmans(intent, locators, FormationRunOptions::default())
-                        .await,
-                ))
-            }
             FiDriverOperation::PayAndCreate {
                 intent,
                 approval,
@@ -2125,45 +2085,27 @@ fn operation_result(result: FiResult<()>) -> RpcFiOperationResult {
     }
 }
 
-pub fn parse_fman_locators(locators: Vec<String>) -> Result<Vec<Locator>, RpcFiOperationError> {
-    locators
-        .into_iter()
-        .enumerate()
-        .map(|(index, locator)| {
-            Locator::parse(&locator).map_err(|_| RpcFiOperationError {
-                code: RpcFiErrorCode::InvalidFleetManagers,
-                message: format!("Fleet Manager locator {index} is invalid"),
-                detail: None,
-            })
-        })
-        .collect()
-}
-
 pub fn formation_intent_from_rpc(
     intent: RpcFiFormationIntent,
 ) -> Result<FormationIntent, RpcFiOperationError> {
-    let fedimintd_versions = fedimintd_versions_from_rpc(&intent.fedimintd_version)?;
-
     FormationIntent::new(
         intent.federation_name.map(FederationName),
         FederationSize(intent.federation_size),
         PlanPreference::InfiniteBestEffort,
-        fedimintd_versions,
+        supported_fedimintd_versions(),
     )
     .map_err(|error| fi_error_to_rpc(&error))
 }
 
-fn fedimintd_versions_from_rpc(
-    version: &str,
-) -> Result<FedimintdVersionRange, RpcFiOperationError> {
-    let version = version
+fn supported_fedimintd_versions() -> FedimintdVersionRange {
+    let minimum = FEDIMINTD_MINIMUM
         .parse::<FedimintdVersion>()
-        .map_err(|_| RpcFiOperationError {
-            code: RpcFiErrorCode::InvalidIntent,
-            message: "fedimintd version is invalid".to_owned(),
-            detail: None,
-        })?;
-    FedimintdVersionRange::one_core(version.core()).map_err(|error| fi_error_to_rpc(&error))
+        .expect("the supported minimum is a valid Fedimint version");
+    let maximum = FEDIMINTD_MAXIMUM_EXCLUSIVE
+        .parse::<FedimintdVersion>()
+        .expect("the supported maximum is a valid Fedimint version");
+    FedimintdVersionRange::new(minimum, maximum)
+        .expect("the supported Fedimint version range is valid")
 }
 
 fn metadata_update_from_rpc(
@@ -2227,13 +2169,12 @@ fn formed_federation_id(status: &FiStatus) -> Result<String, RpcFiOperationError
 fn selection_request_from_rpc(
     request: RpcFiSelectionPreviewRequest,
 ) -> Result<FmanSelectionRequest, RpcFiOperationError> {
-    let fedimintd_versions = fedimintd_versions_from_rpc(&request.fedimintd_version)?;
     let plan = match request.plan {
         RpcFiPlanPreference::InfiniteBestEffort => PlanPreference::InfiniteBestEffort,
     };
     FmanSelectionRequest::new(
         FederationSize(request.federation_size),
-        fedimintd_versions,
+        supported_fedimintd_versions(),
         plan,
     )
     .map_err(|error| fi_error_to_rpc(&error))
@@ -2673,13 +2614,6 @@ fn resolved_formation_intent_to_rpc(
         plan: match intent.plan {
             PlanPreference::InfiniteBestEffort => RpcFiPlanPreference::InfiniteBestEffort,
         },
-        // Fedi's stable RPC accepts one release, so every formation it creates
-        // persists exactly one release core.
-        fedimintd_version: intent
-            .fedimintd_versions
-            .only_core()
-            .expect("Fedi only creates single-release FI version ranges")
-            .to_string(),
         max_total_msats: intent.max_total_msats.map(RpcFiMsats::from),
     }
 }

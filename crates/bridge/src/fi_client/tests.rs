@@ -381,42 +381,40 @@ async fn fi_identity_has_a_golden_vector_and_resets_legacy_formation_before_owne
 }
 
 #[test]
-fn paid_formation_uses_zero_fee_before_post_formation_maintenance() {
+fn formation_uses_the_bridge_release_range() {
     let intent = formation_intent_from_rpc(RpcFiFormationIntent {
         federation_name: Some("Paid federation".to_owned()),
         federation_size: 7,
         plan: RpcFiPlanPreference::InfiniteBestEffort,
-        fedimintd_version: "0.11.1".to_owned(),
     })
     .expect("paid setup is supported before separate fee maintenance");
 
     assert_eq!(intent.plan(), PlanPreference::InfiniteBestEffort);
     assert_eq!(
-        intent
-            .fedimintd_versions()
-            .only_core()
-            .expect("Fedi requests one release")
-            .to_string(),
-        "0.11.1"
+        intent.fedimintd_versions().minimum().to_string(),
+        FEDIMINTD_MINIMUM
+    );
+    assert_eq!(
+        intent.fedimintd_versions().maximum_exclusive().to_string(),
+        FEDIMINTD_MAXIMUM_EXCLUSIVE
     );
 }
 
 #[test]
-fn selection_preview_uses_one_release_range_from_rpc() {
+fn selection_preview_uses_the_bridge_release_range() {
     let request = selection_request_from_rpc(RpcFiSelectionPreviewRequest {
         federation_size: 7,
         plan: RpcFiPlanPreference::InfiniteBestEffort,
-        fedimintd_version: "0.11.1".to_owned(),
     })
     .expect("selection request is valid");
 
     assert_eq!(
-        request
-            .fedimintd_versions()
-            .only_core()
-            .expect("Fedi requests one release")
-            .to_string(),
-        "0.11.1"
+        request.fedimintd_versions().minimum().to_string(),
+        FEDIMINTD_MINIMUM
+    );
+    assert_eq!(
+        request.fedimintd_versions().maximum_exclusive().to_string(),
+        FEDIMINTD_MAXIMUM_EXCLUSIVE
     );
 }
 
