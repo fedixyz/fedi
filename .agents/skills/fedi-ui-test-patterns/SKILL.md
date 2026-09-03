@@ -114,7 +114,10 @@ ui/native/tests/
 │   ├── screens/         # Screen integration tests
 │   └── *.test.tsx       # Feature integration tests
 └── appium/
-    └── common/          # Appium E2E test classes
+    ├── common/          # Appium E2E test classes, plus the shared drivers
+    │                    #   wallet.ts - wallet nav, amounts, send/receive, history
+    │                    #   devfed.ts - host-side dev fed control (invite, ecash, ports)
+    └── fixtures/        # Prerequisite-state setup the runner replays
 
 ui/web/tests/
 ├── e2e/                 # Playwright e2e specs (onboarding, deep links, chat)
