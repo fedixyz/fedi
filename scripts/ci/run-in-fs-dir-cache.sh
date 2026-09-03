@@ -22,7 +22,7 @@ export FS_DIR_CACHE_LOCK_TIMEOUT_SECS="$((60 * 60))" # unlock after timeout in c
 
 log_file="$FS_DIR_CACHE_ROOT/log"
 
-fs-dir-cache gc unused --seconds "$((2 * 24 * 60 * 60))" # delete caches not used in more than a 2 days
+fs-dir-cache gc unused --seconds "$((24 * 60 * 60))" # delete caches not used in more than a day
 
 export log_file
 export job_name
