@@ -16,12 +16,14 @@ default_web_e2e_port() {
 WEB_E2E_PORT="${WEB_E2E_PORT:-$(default_web_e2e_port)}"
 E2E_SCRIPT="test:e2e"
 EXTRA_ARGS=()
+WITH_DEVFED="${WEB_E2E_WITH_DEVFED:-}"
 
 usage() {
   echo "Usage: $0 [options]"
   echo ""
   echo "Options:"
   echo "  --headed     Run tests with a visible browser window"
+  echo "  --with-devfed  Start a local devimint federation the payment specs fund from"
   echo "  --debug      Run in Playwright debug mode (PWDEBUG inspector)"
   echo "  -h, --help   Show this help message"
   echo ""
@@ -38,6 +40,10 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --headed)
       E2E_SCRIPT="test:e2e:headed"
+      shift
+      ;;
+    --with-devfed)
+      WITH_DEVFED=1
       shift
       ;;
     --debug)
@@ -86,6 +92,13 @@ echo "Port: $WEB_E2E_PORT"
 echo ""
 
 export WEB_E2E_PORT
+
+# run-remote.sh builds the fed then execs the trailing command with
+# REMOTE_BRIDGE_PORT set, which is how the payment specs reach it.
+if [[ -n "$WITH_DEVFED" ]]; then
+  CMD_ARGS=("$REPO_ROOT/scripts/bridge/run-remote.sh" --with-devfed --port 0 "${CMD_ARGS[@]}")
+fi
+
 set +e
 "${CMD_ARGS[@]}"
 EXIT_CODE=$?

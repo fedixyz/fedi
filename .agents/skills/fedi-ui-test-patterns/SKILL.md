@@ -120,7 +120,8 @@ ui/native/tests/
     └── fixtures/        # Prerequisite-state setup the runner replays
 
 ui/web/tests/
-├── e2e/                 # Playwright e2e specs (onboarding, deep links, chat)
+├── e2e/                 # Playwright e2e specs (onboarding, deep links, chat,
+│                     #   payments against the local dev fed)
 │   └── fixtures/        # Page objects, shared fixtures, chat group constants
 ├── unit/
 │   ├── components/      # Web component tests

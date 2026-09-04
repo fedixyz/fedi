@@ -73,7 +73,9 @@ export const WalletBalanceCard: React.FC<Props> = ({ federationId }) => {
 
     return (
         <BalanceCard>
-            <BalanceHeader onClick={handleOnTransactionsClick}>
+            <BalanceHeader
+                data-testid="BalanceCard__TransactionHistory"
+                onClick={handleOnTransactionsClick}>
                 <Row gap="sm" align="center">
                     <Icon icon={iconName} color={iconColor} />
                     <Text weight="bold">{walletLabel}</Text>
@@ -91,13 +93,18 @@ export const WalletBalanceCard: React.FC<Props> = ({ federationId }) => {
                     </Column>
                 ) : (
                     <>
-                        <Text weight="bold" variant="h1">
+                        <Text
+                            weight="bold"
+                            variant="h1"
+                            data-testid="WalletBalancePrimary">
                             {balanceDisplay === 'hidden'
                                 ? HIDDEN_AMOUNT_MASK
                                 : primaryAmount}
                         </Text>
                         {secondaryAmount && (
-                            <Text css={{ color: theme.colors.grey }}>
+                            <Text
+                                css={{ color: theme.colors.grey }}
+                                data-testid="WalletBalanceSats">
                                 {balanceDisplay === 'hidden'
                                     ? HIDDEN_AMOUNT_MASK
                                     : secondaryAmount}
