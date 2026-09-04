@@ -24,6 +24,7 @@ on:
                     - communityChatJoin
                     - miniAppSeed
                     - payments
+                    - chatPayments
                     - ecashLifecycle
                     - stableBalance
                     - backupRestore

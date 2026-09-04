@@ -162,6 +162,7 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
                 </Column>
             </Column>
             <Button
+                testID="SendConfirmButton"
                 title={t('words.send')}
                 onPress={onSend}
                 disabled={isProcessing}
