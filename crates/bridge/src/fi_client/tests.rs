@@ -30,14 +30,11 @@ fn test_locator() -> Locator {
             .x_only_public_key()
             .0
             .to_string();
-    Locator::parse(
-        &serde_json::json!({
-            "version": 1,
-            "endpoint_addr": endpoint_addr,
-            "service_pubkey": service_pubkey,
-        })
-        .to_string(),
-    )
+    serde_json::from_value(serde_json::json!({
+        "version": 1,
+        "endpoint_addr": endpoint_addr,
+        "service_pubkey": service_pubkey,
+    }))
     .expect("valid test locator")
 }
 
@@ -1190,7 +1187,7 @@ fn fi_rpc_errors_do_not_expose_internal_or_remote_details() {
 
 #[tokio::test]
 async fn fi_status_stream_emits_current_formation_and_typed_init_failure() {
-    let locator = Locator::parse(
+    let locator: Locator = serde_json::from_str(
         r#"{"version":1,"endpoint_addr":{"id":"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c","addrs":[]},"service_pubkey":"4d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766"}"#,
     )
     .unwrap();

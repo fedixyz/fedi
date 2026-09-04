@@ -42,7 +42,7 @@
     # dependency. Keep these revisions aligned with Manifold's fi-client and
     # credential-sdk input.
     manifold-src = {
-      url = "github:fedibtc/manifold/af81a01ac53d2b22843ec6170a21e1c0268b461e";
+      url = "github:fedibtc/manifold/1bd22f38e2a17519742c12fd449aa8e87ffb48f2";
       flake = false;
     };
     credential-sdk-src = {
