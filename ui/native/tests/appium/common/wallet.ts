@@ -222,6 +222,12 @@ export async function assertEcashFeeDetailsVisible(
     await t.clickElementByKey('fee-breakdown-close')
 }
 
+// The cancel control has no testID, and its label is unique on that screen.
+export async function cancelEcashSend(t: AppiumTestBase): Promise<void> {
+    await t.clickOnText('Cancel Send', 0, true)
+    await t.acceptAlert('Continue')
+}
+
 export async function redeemEcash(
     t: AppiumTestBase,
     token: string,
@@ -268,7 +274,10 @@ export async function assertNewestTransaction(
         }
     }
     if (!titleSeen) {
-        throw new Error(`newest transaction never showed "${expected.title}"`)
+        const seen = await t.getTextByKey('HistoryDetailSecondaryAmount')
+        throw new Error(
+            `newest transaction never showed "${expected.title}"; the entry on screen reads ${seen}`,
+        )
     }
 
     if (!(await t.isTextPresent(expected.type, true, 5000))) {

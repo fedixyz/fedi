@@ -7,6 +7,7 @@ import { MiniAppSeed } from './common/MiniAppSeed.test'
 import { PinProtection } from './common/PinProtection.test'
 import { Settings } from './common/Settings.test'
 import { BackupRestore } from './common/backupRestore.test'
+import { EcashLifecycle } from './common/ecashLifecycle.test'
 import { OnboardingTest } from './common/onboarding.test'
 import { Payments } from './common/payments.test'
 
@@ -29,6 +30,7 @@ export const availableTests: Record<string, TestClass> = {
     communityChatJoin: CommunityChatJoin,
     miniAppSeed: MiniAppSeed,
     payments: Payments,
+    ecashLifecycle: EcashLifecycle,
     backupRestore: BackupRestore,
     pinProtection: PinProtection,
 }
