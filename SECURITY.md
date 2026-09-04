@@ -134,14 +134,11 @@ federation's client database (tag `0` under prefix `0xce`, `FiSeatPayment`;
 `0xcc` and `0xcd` remain owned by the LNURL event consumer) commits in the same
 database transaction as the funding transaction's submission state machines, so
 recoverability is durable strictly before any network submission; an absent
-record is proof that no funding began — but only in a client database that
-has been continuously operated since before the quote. A database that began
-life via recovery (federation rejoin from backup or scratch, device restore
-from seed) may simply be missing a pre-recovery journal row, so paid
-formation must not resume across such a boundary: the recovery probe refuses
-to report "not started" when the client's persisted init mode is a recovery
-(`ClientInitStateKey`). After a restart, the adapter has to work out where a payment got to
-before letting anything move forward. The rules:
+record is proof that no funding began once the exact reservation member has
+been found. This remains true for a client created through recovery because
+reservation consumption and journal creation commit together. After a restart,
+the adapter has to work out where a payment got to before letting anything move
+forward. The rules:
 
 - Accepted by the federation: replay the saved evidence.
 - Rejected: not final yet. The notes the payment tried to spend are
@@ -153,11 +150,10 @@ before letting anything move forward. The rules:
 - Accepted isn't "done" either: we also wait for the payment's own
   change to be back and spendable before reporting the payment prepared.
 
-Two saved records must agree: the journal (which quote, what was bought,
-which transaction) and the operation metadata (which outputs of that
-transaction are our change). If either is missing or they disagree, we
-stop rather than guess — recomputing the change range after a restart
-could point at the wrong transaction.
+Once a journal exists, it must agree with the operation metadata about the
+quote, transaction, and which outputs are our change. Missing or conflicting
+operation metadata stops recovery rather than guessing — recomputing the change
+range after a restart could point at the wrong transaction.
 
 Refund tracking only uses the wallet's own transaction history, matched
 by transaction id because updates can repeat or arrive out of order. The
@@ -191,13 +187,13 @@ The row binds the exact signed quote/output plans and conservative fee ceilings
 and retains one settlement tombstone per quote. Each submitted quote consumes
 only its own member and removes that member from the active hold total in the
 same transaction as its payment journal. Only a still-`Held` member may be
-released for replacement, after the wallet proves no journal exists in a
-continuously operated database. Consensus rejection or a settled signed refund
-may authorize Manifold to replace a submitted seat, but the local member stays
+released for replacement after the wallet proves the exact reservation member
+exists and no journal exists. Consensus rejection or a settled signed refund may
+authorize Manifold to replace a submitted seat, but the local member stays
 `Consumed`; terminal release validates that tombstone and never restores held
-value. A rejected funding transaction's automatic input refunds and an
-FMan-signed payment refund are separate deterministic wallet credits, and both
-must be spendable before their respective terminal proof exists. Dropping
+value. A rejected funding transaction's automatic input refunds and an FMan-signed
+payment refund are separate deterministic wallet credits, and both must be spendable
+before their respective terminal proof exists. Dropping
 Manifold's id/capability never releases funds, and accepted, pending, ambiguous,
 and sibling members remain untouched. Authorization does not pick notes or build transactions; it only
 reserves each seat's amount plus a fee allowance. That's deliberate: one
@@ -239,13 +235,13 @@ that unreleased layout require a coordinated reset before using this encoding.
 An ordinary process restart reopens the same payer database and must retain the
 hold, active total, and every terminal member state. A seed restore, backup
 restore, or federation rejoin can produce a new local payer database without
-those rows even when restored FI state remembers the formation. Missing local
-hold or journal evidence after such a recovery is ambiguous, never proof that
-payment did not start: the paid adapter must fail closed and require an
-explicit recovery path. `Consumed` and `ReleasedUnstarted` members are durable
-replay tombstones. They must not be deleted or compacted unless a coordinated
-rule proves that no surviving FI state, quote, journal, or refund can refer to
-their aggregate token.
+those rows even when restored FI state remembers the formation. A missing local
+hold remains ambiguous, so `fi-client` fails before seat recovery. Once the
+exact hold and member exist, a missing journal proves that member has not
+started because consumption and journal creation are atomic. `Consumed` and
+`ReleasedUnstarted` members are durable replay tombstones. They must not be
+deleted or compacted unless a coordinated rule proves that no surviving FI
+state, quote, journal, or refund can refer to their aggregate token.
 
 All balance checks and hold transitions are serialized by the funding
 federation's spend lock. FI APIs accept a federation-branded guard so a lock

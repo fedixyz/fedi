@@ -17,15 +17,13 @@
 //!   until every payer change output is spendable before returning
 //!   [`PreparedSeatPayment`].
 //! - [`FiPayments::recover_seat_payment`] therefore treats an absent journal
-//!   record as proof that no funding began (`NotStarted`) — but only in a
-//!   client database that never went through a recovery path; a recovered
-//!   database refuses the absence proof outright. A present record is probed
-//!   with a BOUNDED wait: consensus acceptance replays the exact evidence
-//!   (`Prepared`), while consensus rejection becomes terminal (`Rejected`) only
-//!   after exact automatic input refunds are accepted and spendable. A timeout
-//!   is a retryable error — a timeout is NEVER mapped to `Rejected`, because
-//!   misreading a pending spend or refund as terminal would let `fi-client`
-//!   replace the quote before the wallet owns the value again.
+//!   record as proof that no funding began (`NotStarted`). A present record is
+//!   probed with a BOUNDED wait: consensus acceptance replays the exact
+//!   evidence (`Prepared`), while consensus rejection becomes terminal
+//!   (`Rejected`) only after exact automatic input refunds are accepted and
+//!   spendable. A timeout is a retryable error — a timeout is NEVER mapped to
+//!   `Rejected`, because misreading a pending spend or refund as terminal would
+//!   let `fi-client` replace the quote before the wallet owns the value again.
 //!
 //! Refund issuance ([`FiPayments::prepare_quote_refund`]) is derived
 //! deterministically from the paying federation's auxiliary secret and the
@@ -69,7 +67,6 @@ use fedi_decentralized_service_fleet_manager::{
 use fedimint_api_client::api::{FederationApiExt as _, ServerError};
 use fedimint_api_client::query::FilterMapThreshold;
 use fedimint_client::ClientHandle;
-use fedimint_client::db::{ClientInitStateKey, InitMode, InitModeComplete, InitState};
 use fedimint_client_module::TransactionUpdates;
 use fedimint_client_module::module::ClientModule as _;
 use fedimint_client_module::transaction::{ClientOutput, ClientOutputBundle, TransactionBuilder};
@@ -573,21 +570,6 @@ impl FiPayments for BridgeFiPayments {
             .map_err(|error| payment_error("seat payment reservation is invalid", error))?;
 
         let Some(journal) = read_journal(&federation, &quote_id).await else {
-            // The journal record and the funding transaction's submission
-            // state machines commit in one database transaction, and the
-            // state-machine executor only observes committed state. An
-            // absent record therefore proves no funding operation for this
-            // quote ever began — but ONLY in a client database that has
-            // been continuously operated since before the quote. A database
-            // that began life via recovery (rejoin from backup or scratch,
-            // device restore from seed) may simply be missing the row the
-            // pre-recovery database held, so reporting `NotStarted` from it
-            // would let `fi-client` replace the quote and double-spend.
-            if federation_client_began_via_recovery(&federation).await {
-                return Err(FiPaymentError::new(
-                    "payment federation was restored via recovery; absence of a seat payment cannot be proven",
-                ));
-            }
             return Ok(SeatPaymentRecovery::NotStarted);
         };
         validate_journal(&journal, &parsed)
@@ -774,9 +756,9 @@ use quote::{denomination_from_amount, parse_paid_quote, plan_price_msats};
 
 mod journal;
 use journal::{
-    federation_client_began_via_recovery, guard_refund_settlement, persist_journal_signatures,
-    read_journal, record_refund_credit_completed, seat_payment_change_range,
-    seat_payment_operation_id, validate_journal,
+    guard_refund_settlement, persist_journal_signatures, read_journal,
+    record_refund_credit_completed, seat_payment_change_range, seat_payment_operation_id,
+    validate_journal,
 };
 #[cfg(test)]
 use journal::{

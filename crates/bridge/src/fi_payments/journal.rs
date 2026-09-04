@@ -76,26 +76,6 @@ pub(super) fn validate_payment_operation_meta(
     Ok(metadata.change_range)
 }
 
-/// True when the paying federation's client database began life via any
-/// recovery path (rejoin with a backup snapshot, recover-from-scratch, or a
-/// device restore from seed). fedimint persists its init mode forever under
-/// [`ClientInitStateKey`], so this is a cheap durable marker.
-///
-/// A missing init state is treated as recovered: fedimint's own
-/// `load_init_state` assumes `Complete(Fresh)` there for backward
-/// compatibility, but this gate exists to *prove* continuous operation, and
-/// a database that cannot attest its origin cannot prove absence.
-pub(super) async fn federation_client_began_via_recovery(federation: &FederationV2) -> bool {
-    let mut dbtx = federation.client.db().begin_transaction_nc().await;
-    match dbtx.get_value(&ClientInitStateKey).await {
-        Some(InitState::Pending(InitMode::Fresh))
-        | Some(InitState::Complete(InitModeComplete::Fresh)) => false,
-        Some(InitState::Pending(InitMode::Recover { .. }))
-        | Some(InitState::Complete(InitModeComplete::Recover))
-        | None => true,
-    }
-}
-
 pub(super) fn validate_journal(
     journal: &FiSeatPaymentJournal,
     parsed: &ParsedPaidQuote,
