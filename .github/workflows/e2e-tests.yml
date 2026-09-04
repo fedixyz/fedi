@@ -25,6 +25,7 @@ on:
                     - miniAppSeed
                     - payments
                     - ecashLifecycle
+                    - stableBalance
                     - backupRestore
                     - pinProtection
                 default: all

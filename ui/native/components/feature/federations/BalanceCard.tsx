@@ -98,7 +98,7 @@ export default function WalletBalanceCard({
                     <RecoveryInProgress federationId={federationId} size={40} />
                 ) : (
                     <>
-                        <Text bold h1>
+                        <Text bold h1 testID="WalletBalancePrimary">
                             {balanceDisplay === 'hidden'
                                 ? HIDDEN_AMOUNT_MASK
                                 : primaryAmount}

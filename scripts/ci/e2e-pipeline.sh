@@ -271,7 +271,7 @@ _required_actor_count() {
 # Usage: _tests_need_devfed "<tests>"  (e.g. "all" or "onboarding payments")
 _tests_need_devfed() {
     case " $1 " in
-        *" all "* | *" payments "* | *" ecashLifecycle "*) return 0 ;;
+        *" all "* | *" payments "* | *" ecashLifecycle "* | *" stableBalance "*) return 0 ;;
         *) return 1 ;;
     esac
 }

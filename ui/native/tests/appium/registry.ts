@@ -10,6 +10,7 @@ import { BackupRestore } from './common/backupRestore.test'
 import { EcashLifecycle } from './common/ecashLifecycle.test'
 import { OnboardingTest } from './common/onboarding.test'
 import { Payments } from './common/payments.test'
+import { StableBalance } from './common/stableBalance.test'
 
 export type TestClass = (new () => AppiumTestBase) & {
     prerequisites: readonly string[]
@@ -31,6 +32,7 @@ export const availableTests: Record<string, TestClass> = {
     miniAppSeed: MiniAppSeed,
     payments: Payments,
     ecashLifecycle: EcashLifecycle,
+    stableBalance: StableBalance,
     backupRestore: BackupRestore,
     pinProtection: PinProtection,
 }

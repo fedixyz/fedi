@@ -54,13 +54,20 @@ export async function readWalletSats(t: AppiumTestBase): Promise<number> {
     return sats
 }
 
-export async function dismissSendSuccess(t: AppiumTestBase): Promise<void> {
-    await t.clickOnText('Done', 0, true)
-    // The first successful send can raise a rate-federation overlay that
-    // intercepts navigation; close it if present so we land on the wallet.
+// The first successful payment on a federation raises a rate-federation
+// overlay that intercepts navigation, so every success screen has to clear it
+// before the wallet is reachable.
+export async function dismissRateFederationIfPresent(
+    t: AppiumTestBase,
+): Promise<void> {
     if (await t.elementIsDisplayed('RateFederationCloseButton', 4000)) {
         await t.clickElementByKey('RateFederationCloseButton')
     }
+}
+
+export async function dismissSendSuccess(t: AppiumTestBase): Promise<void> {
+    await t.clickOnText('Done', 0, true)
+    await dismissRateFederationIfPresent(t)
     await waitForWalletReceive(t)
 }
 
@@ -242,6 +249,82 @@ export async function redeemEcash(
     await t.clickElementByKey('claim-ecash-button')
 }
 
+export type WalletMode = 'bitcoin' | 'stable-balance'
+
+// The switcher builds each tab's testID from the option value.
+export async function switchWalletTo(
+    t: AppiumTestBase,
+    mode: WalletMode,
+): Promise<void> {
+    await goToWallet(t)
+    await t.clickElementByKey(`${mode}Tab`)
+}
+
+// The balance card's headline figure: the stable total in stable mode, the
+// fiat value of the sats in bitcoin mode.
+export async function readWalletPrimary(t: AppiumTestBase): Promise<number> {
+    const raw = await t.getTextByKey('WalletBalancePrimary')
+    const value = parseFloat(raw.replace(/[^0-9.]/g, ''))
+    if (Number.isNaN(value)) {
+        throw new Error(`could not read the balance headline, got "${raw}"`)
+    }
+    return value
+}
+
+// The stability screens lock the input to fiat and hide the unit switcher, so
+// there is no sats mode to flip into. Digits are whole units, so three taps of
+// 1 is 111 dollars.
+export async function enterFiatAmount(
+    t: AppiumTestBase,
+    dollars: number,
+): Promise<void> {
+    await t.waitForElementDisplayed('AmountInputLabel')
+    for (const digit of String(dollars)) {
+        await t.clickElementByKey(`NumpadButton-${digit}`)
+    }
+    const entered = parseFloat(
+        (await t.getTextByKey('AmountInputValue')).replace(/[^0-9.]/g, ''),
+    )
+    if (entered !== dollars) {
+        throw new Error(
+            `fiat input shows "${entered}" after typing ${dollars} dollars`,
+        )
+    }
+}
+
+export async function depositToStableBalance(
+    t: AppiumTestBase,
+    dollars: number,
+): Promise<void> {
+    await switchWalletTo(t, 'stable-balance')
+    await t.clickOnText('Receive', 0, true)
+    await enterFiatAmount(t, dollars)
+    await t.clickOnText('Next', 0, true)
+    // The confirmation keeps its sats and dollar figures behind a details
+    // toggle, so the Deposit action is the only thing reliably on screen.
+    await t.clickOnText('Deposit', 0, true, 30000)
+    await t.waitForText('Deposited!', 0, true, 120000)
+    // The stability success screen acknowledges with OK, unlike the send one.
+    await t.clickOnText('OK', 0, true)
+    await dismissRateFederationIfPresent(t)
+    await waitForWalletReceive(t)
+}
+
+export async function withdrawFromStableBalance(
+    t: AppiumTestBase,
+    dollars: number,
+): Promise<void> {
+    await switchWalletTo(t, 'stable-balance')
+    await t.clickOnText('Send', 0, true)
+    await enterFiatAmount(t, dollars)
+    await t.clickOnText('Send', 0, true)
+    await t.waitForText('Withdraw', 0, true, 30000)
+    await t.clickOnText('Withdraw', 0, true)
+    await t.clickOnText('Okay', 0, true)
+    await dismissRateFederationIfPresent(t)
+    await waitForWalletReceive(t)
+}
+
 // Assert against the detail overlay's secondary amount: with the default
 // fiat display it renders the raw sats ("2,000 SATS"), while the primary
 // amount and the list rows go through the exchange rate and aren't
@@ -251,9 +334,13 @@ export async function assertNewestTransaction(
     t: AppiumTestBase,
     expected: {
         title: string
-        type: string
+        // Omit for a stability entry. That detail overlay is built without a
+        // type field, unlike the wallet one.
+        type?: string
         statuses: string[]
-        sats: number
+        // Omit when the amount is not known up front, as with a stable
+        // balance deposit entered in fiat at the live rate.
+        sats?: number
     },
 ): Promise<void> {
     await goToWallet(t)
@@ -280,7 +367,10 @@ export async function assertNewestTransaction(
         )
     }
 
-    if (!(await t.isTextPresent(expected.type, true, 5000))) {
+    if (
+        expected.type !== undefined &&
+        !(await t.isTextPresent(expected.type, true, 5000))
+    ) {
         throw new Error(
             `newest transaction is not typed "${expected.type}" after ${expected.title}`,
         )
@@ -292,19 +382,21 @@ export async function assertNewestTransaction(
     // the bound trivially. Read the amount by key: a text search for
     // " SATS" matches the whole overlay on ios, where the accessibility
     // tree concatenates child labels.
-    const satsText = (
-        await t.getTextByKey('HistoryDetailSecondaryAmount')
-    ).trim()
-    const shownSats = parseInt(satsText.replace(/[^0-9]/g, ''), 10)
-    const feeAllowance = Math.max(10, Math.ceil(expected.sats * 0.01))
-    if (
-        Number.isNaN(shownSats) ||
-        shownSats < expected.sats ||
-        shownSats > expected.sats + feeAllowance
-    ) {
-        throw new Error(
-            `newest transaction shows "${satsText}", expected ${expected.sats} sats plus at most ${feeAllowance} in fees`,
-        )
+    if (expected.sats !== undefined) {
+        const satsText = (
+            await t.getTextByKey('HistoryDetailSecondaryAmount')
+        ).trim()
+        const shownSats = parseInt(satsText.replace(/[^0-9]/g, ''), 10)
+        const feeAllowance = Math.max(10, Math.ceil(expected.sats * 0.01))
+        if (
+            Number.isNaN(shownSats) ||
+            shownSats < expected.sats ||
+            shownSats > expected.sats + feeAllowance
+        ) {
+            throw new Error(
+                `newest transaction shows "${satsText}", expected ${expected.sats} sats plus at most ${feeAllowance} in fees`,
+            )
+        }
     }
 
     let statusSeen = false
