@@ -351,7 +351,7 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                     }}>
                                     <Text caption>
                                         {t(
-                                            'feature.wallet-service.verification-help',
+                                            'feature.wallet-service.fee-breakdown-peerbadge-info',
                                         )}
                                     </Text>
                                 </HelpTooltip>
