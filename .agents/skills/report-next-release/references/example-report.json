@@ -1,0 +1,270 @@
+{
+ "repo": "fedibtc/fedi",
+ "generated_at": "2026-06-26",
+ "next_release": "26.7",
+ "full_title": "Fedi 26.7 release report",
+ "window": {
+  "from_tag": "26.6.0",
+  "from_sha": "49efba7a",
+  "to": "master"
+ },
+ "intro": "26.7 will be cut directly off master. This is everything merged since 26.6.0 was tagged, minus the patch and the release commits.",
+ "tracks": {
+  "native": {
+   "current": "26.6.1, GitHub release published 14 July",
+   "next": "26.7.0, not cut yet (no release/26.7 branch)",
+   "baseline": "26.6.0 tag, 6 June (merge-base of master and release/26.6)",
+   "in_window": "119 PRs merged to master",
+   "milestone": "26.7.0, 16 open issues",
+   "note": "release/26.6 is what is in production: master at the cut plus the 26.6.1 backport. App store approval is not visible in git, so the published GitHub release is the strongest in-repo signal.",
+   "glance": {
+    "live": "26.6.1",
+    "live_note": "out since 14 July",
+    "waiting": "15 user-facing changes",
+    "waiting_note": "merged over 51 days",
+    "next": "26.7.0",
+    "next_note": "not cut yet",
+    "in_flight": "26.7.0",
+    "in_flight_note": "in app store review, 12 days",
+    "emph": "in_flight"
+   }
+  },
+  "web": {
+   "current": "web/26.6.2, deployed 13 July",
+   "next": "web/26.7.0, tagged off master when ready",
+   "baseline": "web/26.6.0, 5 June (newest web tag that is on master)",
+   "in_window": "16 user-facing web PRs merged to master",
+   "milestone": "web-26.7, 5 open issues",
+   "note": "web/26.6.1 and web/26.6.2 are cherry-pick lineages, each carrying one feature-flag flip. app.fedi.xyz serves /api/features to both apps, so a flag deploy is a web deploy. They are not the baseline; web/26.6.0 is.",
+   "glance": {
+    "live": "web/26.6.2",
+    "live_note": "a feature flag flip, 13 July",
+    "waiting": "16 user-facing changes",
+    "waiting_note": "no code deploy in 52 days",
+    "next": "web/26.7.0",
+    "next_note": "not tagged yet"
+   }
+  },
+  "focus": "none"
+ },
+ "backport": {
+  "in_progress": true,
+  "version": "26.6.1",
+  "pr": 11593,
+  "base_branch": "release/26.6",
+  "items": [
+   {
+    "number": 11484,
+    "title": "fix(native): wrap on-chain deposit info"
+   },
+   {
+    "number": 11382,
+    "title": "fedimint 0.11"
+   }
+  ],
+  "headline": "Patch 26.6.1 is going out first with 2 fixes, and those are not counted here.",
+  "note": "PR #11593 cherry-picks these onto release/26.6. They are on master too, but they reach users as the patch rather than as part of 26.7."
+ },
+ "summary": {
+  "title": "Group chats you can ask to join, emoji reactions, and a nudge to back up your wallet",
+  "lede": "The web app catches up on chat: reactions, message actions and requesting to join a private group. The native app gets a backup reminder and a run of crash and layout fixes.",
+  "features": [
+   {
+    "headline": "Request to join private and community groups",
+    "kind": "New feature",
+    "status": "Pending release",
+    "badge": "",
+    "summary": "People will be able to ask to join a private group, and admins can review those requests.",
+    "track": "Native"
+   },
+   {
+    "headline": "Personal backup reminder",
+    "kind": "New feature",
+    "status": "Pending release",
+    "badge": "Feature flagged",
+    "summary": "A reminder that nudges people to back up their wallet. Built and ready, held behind a feature flag.",
+    "track": "Native",
+    "platforms": [
+     "ios",
+     "android"
+    ]
+   }
+  ],
+  "fixes": [
+   {
+    "headline": "Send button greys out when funds are short",
+    "kind": "Fix",
+    "status": "Pending release",
+    "badge": "",
+    "summary": "The confirm button is disabled when the balance is too low.",
+    "track": "Native"
+   },
+   {
+    "headline": "Crash fix for older iPhones (iOS 15)",
+    "kind": "Fix",
+    "status": "In progress",
+    "badge": "",
+    "summary": "A fix is in review and not yet on master.",
+    "track": "Native",
+    "platforms": [
+     "ios"
+    ]
+   }
+  ],
+  "planned_keep": {
+   "title": "Separate history entries for reused on-chain addresses",
+   "detail": "Each deposit to a reused address gets its own line in history."
+  },
+  "planned_park": [
+   "Default to your most-used federation",
+   "Show LNURL payments in history"
+  ]
+ },
+ "user_facing": [
+  {
+   "theme": "Chat: groups",
+   "prs": [
+    {
+     "number": 11115,
+     "title": "feat(web): request to join group",
+     "author": "otech47",
+     "date": "2026-06-16",
+     "issue": "#10097 (no milestone)"
+    }
+   ]
+  }
+ ],
+ "non_user_facing": [
+  {
+   "theme": "Tests",
+   "prs": [
+    {
+     "number": 11501,
+     "title": "test(e2e): two-actor payments test",
+     "author": "otech47",
+     "date": "2026-06-12",
+     "issue": "-"
+    }
+   ]
+  }
+ ],
+ "milestones": {
+  "next_major": {
+   "name": "26.7.0",
+   "number": 100,
+   "issues": [
+    {
+     "number": 11111,
+     "title": "Sent messages displayed again as drafts",
+     "status": "done",
+     "board": {
+      "dev": "Ready for Prod",
+      "qa": "Passed Test"
+     }
+    },
+    {
+     "number": 11601,
+     "title": "App crashes for iOS 15 versions",
+     "status": "inprogress",
+     "board": {
+      "dev": "Needs Triage",
+      "qa": "All Issues"
+     }
+    },
+    {
+     "number": 9187,
+     "title": "Burmese translations broken",
+     "status": "pending",
+     "board": {
+      "dev": "Code Review",
+      "qa": "All Issues"
+     }
+    }
+   ]
+  },
+  "next_web": {
+   "name": "web-26.7",
+   "number": 102,
+   "issues": [
+    {
+     "number": 11420,
+     "title": "(Web) View stable balance transactions",
+     "status": "done",
+     "board": {
+      "dev": "Ready for Prod",
+      "qa": "Passed Test"
+     }
+    },
+    {
+     "number": 11458,
+     "title": "(Web) Stable balance QR code",
+     "status": "pending",
+     "board": {
+      "dev": "Queue",
+      "qa": "All Issues"
+     }
+    }
+   ]
+  }
+ },
+ "needs_milestone": [
+  {
+   "number": 10097,
+   "title": "Implement knocking / request to join a group chat",
+   "resolved_by": [
+    11115
+   ],
+   "suggested": "web-26.7",
+   "board": {
+    "dev": "Code Review",
+    "qa": "All Issues"
+   }
+  },
+  {
+   "number": 11477,
+   "title": "On iPhone, Fedi sends you to the Settings app",
+   "resolved_by": [
+    11441
+   ],
+   "suggested": "26.7.0",
+   "board": {
+    "dev": "Needs Triage",
+    "qa": "All Issues"
+   }
+  }
+ ],
+ "earlier_milestone": [
+  {
+   "number": 11469,
+   "title": "(Web) Install banner on wrong page",
+   "resolved_by": [
+    11470
+   ],
+   "milestone": "web-26.6"
+  }
+ ],
+ "all_prs": [
+  {
+   "number": 11115,
+   "title": "feat(web): request to join group",
+   "category": "user",
+   "theme": "Chat: groups",
+   "issue": "#10097",
+   "author": "otech47",
+   "date": "2026-06-16"
+  },
+  {
+   "number": 11501,
+   "title": "test(e2e): two-actor payments test",
+   "category": "non",
+   "theme": "Tests",
+   "issue": "-",
+   "author": "otech47",
+   "date": "2026-06-12"
+  }
+ ],
+ "prepared_commands": [
+  "gh issue edit 10097 --repo fedibtc/fedi --milestone \"web-26.7\"",
+  "gh issue edit 11477 --repo fedibtc/fedi --milestone \"26.7.0\""
+ ]
+}

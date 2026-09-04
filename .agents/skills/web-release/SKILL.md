@@ -107,3 +107,5 @@ Land that as a normal PR to `master`, then release it via the steps above. The f
 - Deploy script: `scripts/ci/vercel-prod.sh`
 - Production env policy: `gh api repos/fedibtc/fedi/environments/Production/deployment-branch-policies`
 - Live flags endpoint: `https://app.fedi.xyz/api/features`
+- app store tracks: separate processes, see the `ios-release` and `android-release` skills
+- what the next release carries, and the raw material for release notes: the `report-next-release` skill
