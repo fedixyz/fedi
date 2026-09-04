@@ -36,10 +36,12 @@ pub struct MintOpsV1;
 #[apply(async_trait_maybe_send!)]
 impl MintOps for MintOpsV1 {
     async fn get_raw_balance(&self, fed: &FederationV2) -> Amount {
-        let mint_client = fed
-            .client
-            .mint()
-            .expect("mint selected in FederationV2::new");
+        // api-version negotiation can skip a module the config lists (e.g. a
+        // version set cached by an older app), so the mint can be unregistered
+        let Ok(mint_client) = fed.client.mint() else {
+            warn!("mint module not registered; reporting zero balance");
+            return Amount::ZERO;
+        };
         let mut dbtx = mint_client.db.begin_transaction_nc().await;
         mint_client
             .get_note_counts_by_denomination(&mut dbtx)

@@ -131,10 +131,12 @@ impl MintOpsV2 {
 #[apply(async_trait_maybe_send!)]
 impl MintOps for MintOpsV2 {
     async fn get_raw_balance(&self, fed: &FederationV2) -> Amount {
-        let mintv2 = fed
-            .client
-            .mintv2()
-            .expect("mintv2 selected in FederationV2::new");
+        // api-version negotiation can skip a module the config lists (e.g. a
+        // version set cached by an older app), so the mint can be unregistered
+        let Ok(mintv2) = fed.client.mintv2() else {
+            warn!("mintv2 module not registered; reporting zero balance");
+            return Amount::ZERO;
+        };
         mintv2
             .get_count_by_denomination()
             .await

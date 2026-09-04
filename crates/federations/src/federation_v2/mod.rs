@@ -37,14 +37,19 @@ use fedi_social_client::{
 use fedimint_api_client::api::{DynGlobalApi, DynModuleApi, FederationApiExt as _, StatusResponse};
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::backup::ClientBackup;
-use fedimint_client::db::{CachedApiVersionSetKey, ChronologicalOperationLogKey};
+use fedimint_client::db::{
+    CachedApiVersionSet, CachedApiVersionSetKey, ChronologicalOperationLogKey,
+    PeerLastApiVersionsSummaryKey,
+};
 use fedimint_client::meta::MetaService;
 use fedimint_client::module::ClientModule;
 use fedimint_client::module::meta::{FetchKind, MetaSource};
 use fedimint_client::module::module::recovery::RecoveryProgress;
 use fedimint_client::module::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
+use fedimint_client::module_init::ClientModuleInitRegistry;
 use fedimint_client::secret::RootSecretStrategy;
 use fedimint_client::{Client, ClientBuilder, ClientHandle};
+use fedimint_client_module::api_version_discovery::discover_common_api_versions_set;
 use fedimint_connectors::ConnectorRegistry;
 use fedimint_connectors::error::ServerError;
 use fedimint_core::config::{ClientConfig, FederationId};
@@ -62,7 +67,7 @@ use fedimint_core::timing::TimeReporter;
 use fedimint_core::util::backoff_util::{aggressive_backoff, background_backoff};
 use fedimint_core::util::{SafeUrl, retry};
 use fedimint_core::{
-    Amount, PeerId, TransactionId, apply, async_trait_maybe_send, maybe_add_send_sync,
+    Amount, NumPeers, PeerId, TransactionId, apply, async_trait_maybe_send, maybe_add_send_sync,
 };
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use fedimint_eventlog::DBTransactionEventLogExt;
@@ -137,7 +142,7 @@ use stability_pool_client::{
 };
 use stability_pool_client_old::ClientAccountInfo;
 use tokio::sync::{Mutex, OnceCell};
-use tracing::{Level, error, info, instrument, warn};
+use tracing::{Level, debug, error, info, instrument, warn};
 
 use self::backup_service::BackupService;
 #[allow(deprecated)]
@@ -483,25 +488,87 @@ pub struct FederationPrefetchedInfo {
 }
 
 impl FederationV2 {
+    fn module_inits() -> ClientModuleInitRegistry {
+        let mut inits = ClientModuleInitRegistry::default();
+        inits.attach(MintClientInit);
+        inits.attach(fedimint_mintv2_client::MintClientInit);
+        inits.attach(LightningClientInit::default());
+        inits.attach(fedimint_lnv2_client::LightningClientInit::default());
+        inits.attach(WalletClientInit(None));
+        inits.attach(fedimint_walletv2_client::WalletClientInit);
+        inits.attach(FediSocialClientInit);
+        inits.attach(StabilityPoolClientInit::default());
+        inits.attach(stability_pool_client_old::StabilityPoolClientInit);
+        inits
+    }
+
     /// Instantiate Federation from FediConfig
     async fn build_client_builder() -> anyhow::Result<ClientBuilder> {
         let mut client_builder = fedimint_client::Client::builder().await?;
         client_builder.with_meta_service(MetaService::new(MetaModuleMetaSourceWithFallback::new(
             LegacyMetaSourceWithExternalUrl::default(),
         )));
-        client_builder.with_module(MintClientInit);
-        client_builder.with_module(fedimint_mintv2_client::MintClientInit);
-        client_builder.with_module(LightningClientInit::default());
-        client_builder.with_module(fedimint_lnv2_client::LightningClientInit::default());
-        client_builder.with_module(WalletClientInit(None));
-        client_builder.with_module(fedimint_walletv2_client::WalletClientInit);
-        client_builder.with_module(FediSocialClientInit);
-        client_builder.with_module(StabilityPoolClientInit::default());
-        client_builder.with_module(stability_pool_client_old::StabilityPoolClientInit);
+        client_builder.with_module_inits(Self::module_inits());
         let client_builder = client_builder
             .with_iroh_enable_dht(false)
             .with_iroh_enable_next(false);
         Ok(client_builder)
+    }
+
+    /// The client skips every config module missing from the api version set
+    /// it cached at join, so a set cached by an app without a module's client
+    /// init (e.g. one predating the v2 modules) leaves that module
+    /// unregistered forever, long after an upgrade taught the client about
+    /// it. The per-peer version summaries that set was computed from stay in
+    /// the db and don't depend on the client's modules, so when the cached
+    /// set lacks a module the current client supports, recompute it before
+    /// the client opens -- no network needed.
+    ///
+    /// Best-effort: without stored peer summaries the set can't be recomputed
+    /// here, and the federation loads degraded (module calls error, balance
+    /// reads zero) until the client's background api-version refresh rewrites
+    /// the cache over the network.
+    async fn heal_cached_api_version_set(db: &Database, config: &ClientConfig) {
+        let client_versions =
+            Client::supported_api_versions_summary_static(config, &Self::module_inits());
+        let mut dbtx = db.begin_transaction().await;
+        let Some(cached) = dbtx.get_value(&CachedApiVersionSetKey).await else {
+            return;
+        };
+        if client_versions
+            .modules
+            .keys()
+            .all(|instance_id| cached.0.modules.contains_key(instance_id))
+        {
+            return;
+        }
+        let mut peer_versions = BTreeMap::new();
+        for peer_id in NumPeers::from(config.global.api_endpoints.len()).peer_ids() {
+            if let Some(summary) = dbtx
+                .get_value(&PeerLastApiVersionsSummaryKey(peer_id))
+                .await
+            {
+                peer_versions.insert(peer_id, summary.0);
+            }
+        }
+        match discover_common_api_versions_set(&client_versions, &peer_versions) {
+            // A module can be un-negotiable even with full peer summaries
+            // (e.g. an api-major mismatch); recomputing then reproduces the
+            // cached set, and rewriting it every load would log a heal that
+            // never happened.
+            Ok(healed) if healed.core == cached.0.core && healed.modules == cached.0.modules => {
+                debug!(?healed, "recomputed api version set matches the cached one");
+            }
+            Ok(healed) => {
+                info!(stale = ?cached.0, ?healed, "rewrote the cached api version set");
+                dbtx.insert_entry(&CachedApiVersionSetKey, &CachedApiVersionSet(healed))
+                    .await;
+                dbtx.commit_tx().await;
+            }
+            Err(error) => {
+                warn!(%error, "could not recompute the cached api version set");
+            }
+        }
     }
 
     /// Initializes the bridge's lnv2 lnurl-receives event-log cursor
@@ -574,24 +641,14 @@ impl FederationV2 {
         // `client.wallet().ok()`. Keying the guard off registration looks
         // stricter and is simply wrong -- it rejected every federation in CI.
         //
-        // Only mint is fatal when the config lists neither generation's module.
-        // `MintOps::get_raw_balance` reaches for its module with `.expect()`
-        // (mint_ops/v1.rs, mint_ops/v2.rs) and the startup balance event calls
-        // it almost immediately, so selecting an absent mint would panic rather
-        // than degrade. `LnOps` and `WalletOps` access their modules fallibly
-        // throughout -- `?`, `.ok()?`, let-else -- so a federation carrying
-        // neither lightning module or neither wallet module stays loadable,
-        // with only those calls erroring. Failing construction there would turn
-        // a degraded federation into an unloadable one.
+        // All three ops access their modules fallibly -- `?`, `.ok()?`,
+        // let-else -- so a federation missing any module, mint included, stays
+        // loadable with only the affected calls erroring and `get_raw_balance`
+        // reporting zero. Failing construction instead would turn a degraded
+        // federation into an unloadable one.
         //
-        // That leaves the case #11863 describes, where API-version negotiation
-        // skips a module the config lists, unguarded: the op gets selected and
-        // its `.expect()` fires on first use. That panic predates this commit
-        // and is not made worse by it -- the old code selected the same op from
-        // the same config -- and it cannot be caught here, because at this point
-        // nothing has been registered either way. Fixing it means making the
-        // ops' module access fallible, which is #11863's lineage, not this
-        // refactor's.
+        // Negotiation can also leave a selected op without its module even
+        // when the config lists it (#11863); the ops degrade the same way.
         let has_ln_v1 = kinds.contains(&LnV1ClientModule::kind());
         let has_ln_v2 = kinds.contains(&fedimint_lnv2_client::LightningClientModule::kind());
         let ln_ops: Box<dyn ln_ops::LnOps> = match (federation_kind, has_ln_v1, has_ln_v2) {
@@ -651,10 +708,20 @@ impl FederationV2 {
                 );
                 Box::new(MintOpsV1)
             }
-            (_, false, false) => bail!(
-                "federation config lists no mint module -- neither mint nor mintv2 -- \
-                 only {kinds:?}"
-            ),
+            (FederationKind::One, false, false) => {
+                warn!(
+                    ?kinds,
+                    "federation lists no mint module; ecash calls will fail"
+                );
+                Box::new(MintOpsV1)
+            }
+            (FederationKind::Two, false, false) => {
+                warn!(
+                    ?kinds,
+                    "federation lists no mint module; ecash calls will fail"
+                );
+                Box::new(MintOpsV2)
+            }
         };
 
         let has_wallet_v1 = kinds.contains(&WalletClientModule::kind());
@@ -960,6 +1027,7 @@ impl FederationV2 {
             .context("config not found in database")?;
         let federation_id = config.calculate_federation_id();
         Self::init_event_log_cursor_if_absent(&federation_db).await?;
+        Self::heal_cached_api_version_set(&federation_db, &config).await;
 
         let client = {
             info!("started federation loading");

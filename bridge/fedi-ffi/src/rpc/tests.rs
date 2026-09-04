@@ -19,6 +19,7 @@ use federations::federation_v2::FederationV2;
 use federations::federation_v2::db::{FedimintEventLogCursorKey, LnurlReceivePendingKey};
 use federations::fedi_fee::{FediFeeStream, parse_fedi_guardian_fee_config};
 use fedi_social_client::common::VerificationDocument;
+use fedimint_client::db::{CachedApiVersionSetKey, PeerLastApiVersionsSummaryKey};
 use fedimint_core::Amount;
 use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCore, IDatabaseTransactionOpsCoreTyped};
@@ -43,7 +44,7 @@ use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use runtime::storage::BRIDGE_DB_PREFIX;
-use runtime::storage::state::CommunityJson;
+use runtime::storage::state::{CommunityJson, DatabaseInfo};
 use stability_pool_client::common::Account;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -350,6 +351,8 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_ecash_cancel,
         test_backup_and_recovery,
         test_backup_and_recovery_from_scratch,
+        test_stale_api_version_cache_heals_on_load,
+        test_unhealable_api_version_cache_loads_degraded,
         test_parse_ecash,
         test_parse_ecash_v2_embeds_invite,
         test_social_backup_and_recovery,
@@ -1445,6 +1448,141 @@ async fn wait_for_ecash_reissue(federation: &FederationV2) -> Result<(), anyhow:
         }
     })
     .await
+}
+
+async fn federation_db_prefix(bridge: &BridgeFull, federation_id: &str) -> anyhow::Result<Vec<u8>> {
+    let federation_info = bridge
+        .runtime
+        .app_state
+        .with_read_lock(|state| state.joined_federations.get(federation_id).cloned())
+        .await
+        .context("joined federation must be in app state")?;
+    let DatabaseInfo::DatabasePrefix(prefix) = federation_info.database else {
+        bail!("test federations live under a db prefix");
+    };
+    Ok(prefix.consensus_encode_to_vec())
+}
+
+/// Holds the redb lock, so drop it before the bridge starts again
+async fn open_federation_db(td: &TestDevice, db_prefix: &[u8]) -> anyhow::Result<Database> {
+    let global_db = td.storage().await?.federation_database_v2("global").await?;
+    Ok(global_db.with_prefix(db_prefix.to_vec()))
+}
+
+/// The shape of cache an app without newer client modules leaves behind;
+/// the client trusts it and skips every config module missing from it.
+/// Clearing all modules is a strict superset of the real shape (an old
+/// app's cache keeps entries for the modules it did know).
+async fn clear_cached_api_version_modules(federation_db: &Database) -> anyhow::Result<()> {
+    let mut dbtx = federation_db.begin_transaction().await;
+    let mut cached = dbtx
+        .get_value(&CachedApiVersionSetKey)
+        .await
+        .context("api version set must be cached after joining")?;
+    cached.0.modules.clear();
+    dbtx.insert_entry(&CachedApiVersionSetKey, &cached).await;
+    dbtx.commit_tx().await;
+    Ok(())
+}
+
+async fn test_stale_api_version_cache_heals_on_load(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let mut td = TestDevice::new().await?;
+    let (federation_id, db_prefix, balance_before);
+    {
+        let bridge = td.bridge_full().await?;
+        let federation = td.join_default_fed().await?;
+        federation_id = federation.rpc_federation_id().0;
+        let ecash = cli_generate_ecash(Amount::from_msats(200_000)).await?;
+        let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
+        federation
+            .receive_ecash(ecash, FrontendMetadata::default())
+            .await?;
+        wait_for_ecash_reissue(federation).await?;
+        balance_before = balance_after_receiving_ecash(federation, ecash_receive_amount).await;
+        db_prefix = federation_db_prefix(bridge, &federation_id).await?;
+        td.shutdown().await?;
+    }
+    {
+        let federation_db = open_federation_db(&td, &db_prefix).await?;
+        clear_cached_api_version_modules(&federation_db).await?;
+    }
+
+    let bridge = td.bridge_full().await?;
+    let federation = fedimint_core::task::timeout(
+        Duration::from_secs(60),
+        wait_for_federation_loading(bridge, &federation_id),
+    )
+    .await
+    .context("a federation with a stale cached api version set must still load")??;
+    assert_eq!(
+        federation.get_balance().await,
+        balance_before,
+        "the healed cached api version set must register the mint again"
+    );
+    let cached = federation
+        .client
+        .db()
+        .begin_transaction_nc()
+        .await
+        .get_value(&CachedApiVersionSetKey)
+        .await
+        .context("api version set must stay cached")?;
+    assert!(
+        !cached.0.modules.is_empty(),
+        "the load must rewrite the stale cached api version set"
+    );
+    Ok(())
+}
+
+/// Without the stored peer summaries the stale set cannot be recomputed;
+/// the federation must still load, degraded to a zero balance, instead of
+/// panicking the bridge.
+async fn test_unhealable_api_version_cache_loads_degraded(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let mut td = TestDevice::new().await?;
+    let (federation_id, db_prefix);
+    {
+        let bridge = td.bridge_full().await?;
+        let federation = td.join_default_fed().await?;
+        federation_id = federation.rpc_federation_id().0;
+        let ecash = cli_generate_ecash(Amount::from_msats(200_000)).await?;
+        let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
+        federation
+            .receive_ecash(ecash, FrontendMetadata::default())
+            .await?;
+        wait_for_ecash_reissue(federation).await?;
+        // pin the nonzero balance so the zero assertion below can't pass
+        // because nothing was ever credited
+        balance_after_receiving_ecash(federation, ecash_receive_amount).await;
+        db_prefix = federation_db_prefix(bridge, &federation_id).await?;
+        td.shutdown().await?;
+    }
+    {
+        let federation_db = open_federation_db(&td, &db_prefix).await?;
+        clear_cached_api_version_modules(&federation_db).await?;
+        let config = fedimint_client::Client::get_config_from_db(&federation_db)
+            .await
+            .context("config must be in the federation db")?;
+        let mut dbtx = federation_db.begin_transaction().await;
+        for peer_id in fedimint_core::NumPeers::from(config.global.api_endpoints.len()).peer_ids() {
+            dbtx.remove_entry(&PeerLastApiVersionsSummaryKey(peer_id))
+                .await;
+        }
+        dbtx.commit_tx().await;
+    }
+
+    let bridge = td.bridge_full().await?;
+    let federation = fedimint_core::task::timeout(
+        Duration::from_secs(60),
+        wait_for_federation_loading(bridge, &federation_id),
+    )
+    .await
+    .context("a federation whose mint the client skipped must still load")??;
+    assert_eq!(
+        federation.get_balance().await,
+        Amount::ZERO,
+        "an unregistered mint must read as a zero balance, not a panic"
+    );
+    Ok(())
 }
 
 /// Regression test: receiving the same ecash notes a second time must fail
