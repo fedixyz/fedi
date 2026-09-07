@@ -1,5 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable as NativePressable, StyleSheet, View } from 'react-native'
 
@@ -53,6 +53,21 @@ export const formatFeePercent = (percent: number) => {
     return `${Number.isInteger(trimmed) ? trimmed.toFixed(1) : trimmed}%`
 }
 
+/**
+ * An applied rate that is not one of the presets can only be shown as a custom
+ * entry, so seeding from one has to pick the segment as well as the value.
+ */
+const isPresetPpm = (ppm: number) => GUARDIAN_FEE_PPM_OPTIONS.includes(ppm)
+
+const ppmToSelection = (ppm: number): FeeSelection =>
+    isPresetPpm(ppm) ? ppm : 'custom'
+
+/** Empty for a preset: the custom field is only rendered for a custom rate. */
+const ppmToCustomPercent = (ppm: number) =>
+    isPresetPpm(ppm)
+        ? ''
+        : String(parseFloat(guardianFeePpmToPercent(ppm).toFixed(4)))
+
 /** Which bridge-enforced bound a rate crosses, or null when it is acceptable. */
 const getOutOfRangeErrorKey = (ppm: number) => {
     if (ppm < MIN_GUARDIAN_FEE_PPM)
@@ -61,6 +76,14 @@ const getOutOfRangeErrorKey = (ppm: number) => {
         return 'feature.wallet-service.fee-max-error' as const
     return null
 }
+
+/**
+ * A published rate the picker cannot offer (0%, or anything outside the
+ * bridge bounds) seeds the default rather than a custom entry that opens on
+ * an error: 0% is not settable from the UI.
+ */
+const seedablePpm = (ppm: number) =>
+    getOutOfRangeErrorKey(ppm) ? DEFAULT_GUARDIAN_FEE_PPM : ppm
 
 /**
  * The prototype's share model: one share per guardian, one for PeerBadge,
@@ -117,8 +140,16 @@ export const ServiceFeePicker: React.FC<{
 }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const [feeSelection, setFeeSelection] = useState<FeeSelection>(initialPpm)
-    const [customPercent, setCustomPercent] = useState('')
+    const [feeSelection, setFeeSelection] = useState<FeeSelection>(() =>
+        ppmToSelection(seedablePpm(initialPpm)),
+    )
+    const [customPercent, setCustomPercent] = useState(() =>
+        ppmToCustomPercent(seedablePpm(initialPpm)),
+    )
+    // `initialPpm` can arrive after this mounts, so it re-seeds — but never
+    // once the control has been touched, or a late read would overwrite an
+    // entry in progress
+    const hasUserInteracted = useRef(false)
 
     const customPpm = guardianFeePercentToPpm(parseFloat(customPercent) || 0)
     const guardianFeePpm = feeSelection === 'custom' ? customPpm : feeSelection
@@ -135,9 +166,26 @@ export const ServiceFeePicker: React.FC<{
         onChange({ guardianFeePpm, isValid: !outOfRangeKey })
     }, [guardianFeePpm, outOfRangeKey, onChange])
 
+    useEffect(() => {
+        if (hasUserInteracted.current) return
+        setFeeSelection(ppmToSelection(seedablePpm(initialPpm)))
+        setCustomPercent(ppmToCustomPercent(seedablePpm(initialPpm)))
+    }, [initialPpm])
+
+    const selectFee = (next: FeeSelection) => {
+        hasUserInteracted.current = true
+        setFeeSelection(next)
+    }
+
+    const changeCustomPercent = (next: string) => {
+        hasUserInteracted.current = true
+        setCustomPercent(next)
+    }
+
     // mirrors the prototype's number-input spinner: an empty field starts at
     // the floor, and stepping never leaves the accepted range
     const stepCustomFee = (direction: 1 | -1) => {
+        hasUserInteracted.current = true
         const current = parseFloat(customPercent)
         const next = Number.isNaN(current)
             ? MIN_FEE_PERCENT
@@ -203,14 +251,14 @@ export const ServiceFeePicker: React.FC<{
                         },
                     ]}
                     selectedValue={feeSelection}
-                    onChange={setFeeSelection}
+                    onChange={selectFee}
                 />
                 {feeSelection === 'custom' && (
                     <Column style={style.customFieldWrap}>
                         <FieldInput
                             keyboardType="decimal-pad"
                             value={customPercent}
-                            onChangeText={setCustomPercent}
+                            onChangeText={changeCustomPercent}
                             placeholder={t(
                                 'feature.wallet-service.fee-custom-placeholder',
                                 { min: MIN_FEE_PERCENT },

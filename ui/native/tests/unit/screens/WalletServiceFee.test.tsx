@@ -1,4 +1,5 @@
 import {
+    act,
     cleanup,
     screen,
     userEvent,
@@ -58,22 +59,43 @@ const makeReconcilingFormation = (): RpcFiFormationSnapshot => ({
     },
 })
 
+/** An invite code is what `useAppliedGuardianFeePpm` reads the rate through. */
+const makeFormedFormationWithInvite = (): RpcFiFormationSnapshot => ({
+    ...makeFormedFormation(),
+    inviteCode: 'fed11invite',
+})
+
+/** The applied guardian fee as the federation publishes it: a ppm string. */
+const GUARDIAN_FEE_META_KEY = 'fedi:guardian_fee_send_ppm'
+
+const makeAppliedFeePreview = (ppm: string) => ({
+    id: 'fed-1',
+    name: 'My Wallet Service',
+    meta: { [GUARDIAN_FEE_META_KEY]: ppm },
+    inviteCode: 'fed11invite',
+    returningMemberStatus: { type: 'newMember' },
+})
+
 const renderFee = ({
     mode = 'onboarding',
     setGuardianFeeResult,
     formation = makeFormedFormation(),
     hasFormedBefore = false,
+    federationPreview,
 }: {
     mode?: 'onboarding' | 'edit'
     setGuardianFeeResult?: RpcFiOperationResult
     formation?: RpcFiFormationSnapshot
     hasFormedBefore?: boolean
+    /** How the federation's metadata answers, when a test cares. */
+    federationPreview?: () => Promise<unknown>
 } = {}) => {
     const user = userEvent.setup()
     const fedimint = createMockFedimintBridge({
         fiClientSetGuardianFee: Promise.resolve(
             setGuardianFeeResult ?? { type: 'success' },
         ),
+        ...(federationPreview ? { federationPreview } : {}),
     })
     const store = setupStore({
         fi: {
@@ -240,6 +262,110 @@ describe('WalletServiceFee screen', () => {
 
         await waitFor(() => {
             expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(1500)
+        })
+    })
+
+    it('should open on the applied rate rather than the default', async () => {
+        const { user, fedimint } = renderFee({
+            formation: makeFormedFormationWithInvite(),
+            federationPreview: () =>
+                Promise.resolve(makeAppliedFeePreview('2500')),
+        })
+
+        // an applied rate that is not a preset can only be shown as a custom
+        // entry, so the field carries it
+        expect(await screen.findByDisplayValue('0.25')).toBeOnTheScreen()
+
+        await user.press(await findCtaButton())
+
+        await waitFor(() => {
+            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(2500)
+        })
+    })
+
+    // 0% is not settable from the UI, so a federation publishing 0 must not
+    // open the picker on a custom entry that already fails the floor
+    it('should seed the default when the applied rate is not settable', async () => {
+        const { user, fedimint } = renderFee({
+            formation: makeFormedFormationWithInvite(),
+            federationPreview: () =>
+                Promise.resolve(makeAppliedFeePreview('0')),
+        })
+
+        await screen.findByTestId('fee-option-custom')
+        expect(
+            screen.queryByPlaceholderText(
+                i18n.t('feature.wallet-service.fee-custom-placeholder', {
+                    min: 0.15,
+                }),
+            ),
+        ).not.toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.fee-min-error', { min: 0.15 }),
+            ),
+        ).not.toBeOnTheScreen()
+
+        await user.press(await findCtaButton())
+
+        await waitFor(() => {
+            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(5000)
+        })
+    })
+
+    it('should keep a typed custom rate when the applied rate lands late', async () => {
+        let answerPreview: (preview: unknown) => void = () => undefined
+        const { user, fedimint } = renderFee({
+            formation: makeFormedFormationWithInvite(),
+            federationPreview: () =>
+                new Promise(resolve => {
+                    answerPreview = resolve
+                }),
+        })
+
+        await user.press(await screen.findByTestId('fee-option-custom'))
+        await user.type(getCustomInput(), '0.75')
+
+        await act(async () => {
+            answerPreview(makeAppliedFeePreview('10000'))
+        })
+
+        expect(getCustomInput()).toHaveDisplayValue('0.75')
+
+        await user.press(await findCtaButton())
+
+        await waitFor(() => {
+            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(7500)
+        })
+    })
+
+    // an applied rate that is a preset selects that segment and leaves the
+    // custom field unrendered, where a non-preset rate does the opposite
+    it('should select the matching preset when the applied rate is one', async () => {
+        const { user, fedimint } = renderFee({
+            formation: makeFormedFormationWithInvite(),
+            federationPreview: () =>
+                Promise.resolve(makeAppliedFeePreview('10000')),
+        })
+
+        // the CTA enables once the applied rate is read back
+        await waitFor(() => {
+            expect(
+                screen.getByRole('button', { name: i18n.t('words.continue') }),
+            ).toBeEnabled()
+        })
+        expect(
+            screen.queryByPlaceholderText(
+                i18n.t('feature.wallet-service.fee-custom-placeholder', {
+                    min: 0.15,
+                }),
+            ),
+        ).not.toBeOnTheScreen()
+
+        await user.press(await findCtaButton())
+
+        await waitFor(() => {
+            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(10000)
         })
     })
 

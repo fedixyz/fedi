@@ -1,4 +1,5 @@
 import {
+    act,
     cleanup,
     fireEvent,
     screen,
@@ -113,9 +114,16 @@ const renderScreen = ({
     liquidity,
     fedimint = makePreviewBridge(),
     formation = makeFormation(),
+    hasFormedBefore = false,
 }: {
     fedimint?: ReturnType<typeof createMockFedimintBridge>
     formation?: RpcFiFormationSnapshot
+    /**
+     * Whether this formation reached `formed` earlier in the session, which is
+     * what leaves the sticky high-water mark set while the live phase is
+     * something else.
+     */
+    hasFormedBefore?: boolean
     /**
      * What the app-wide monitor has already found.
      *
@@ -127,6 +135,13 @@ const renderScreen = ({
     liquidity?: RpcFiLiquidityOperation | null | false
 } = {}) => {
     const store = setupStore()
+    if (hasFormedBefore)
+        store.dispatch(
+            setFiStatus({
+                type: 'formation',
+                formation: { ...formation, phase: 'formed' },
+            }),
+        )
     store.dispatch(setFiStatus({ type: 'formation', formation }))
     // `hasRead: false` is the state before the monitor's durable read answers,
     // and is deliberately NOT the same as "nothing attached"
@@ -334,6 +349,118 @@ describe('screens/WalletServiceSettings', () => {
             expect(screen.getByTestId('settings-fee-row')).toBeOnTheScreen()
         })
         expect(mockToast.show).not.toHaveBeenCalled()
+    })
+
+    // #12005's gate reached the standalone fee screen but not this sheet, so
+    // Save called an rpc the bridge rejects outright while reconciling
+    it('should disable the sheet Save and explain while the formation is reconciling', async () => {
+        renderScreen({
+            formation: makeFormation({
+                phase: 'publishingSeatBindings',
+                freshness: 'unsynced',
+            }),
+            hasFormedBefore: true,
+        })
+
+        await user.press(screen.getByTestId('settings-fee-row'))
+
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.fee-finishing-setup'),
+            ),
+        ).toBeOnTheScreen()
+        expect(
+            screen.getByRole('button', { name: i18n.t('words.save') }),
+        ).toBeDisabled()
+    })
+
+    // the row is tappable before the applied rate is read back, and Save used
+    // to write the picker's 0.5% default over that rate (#12033)
+    it('should disable the sheet Save until the applied rate has been read back', async () => {
+        // the applied fee and the metadata are two hooks over one rpc, so both
+        // reads are held and both are answered
+        const pendingPreviews: ((preview: unknown) => void)[] = []
+        const fedimint = renderScreen({
+            fedimint: makePreviewBridge(
+                {},
+                {
+                    federationPreview: () =>
+                        new Promise(resolve => {
+                            pendingPreviews.push(resolve)
+                        }),
+                },
+            ),
+        })
+
+        await user.press(screen.getByTestId('settings-fee-row'))
+
+        const save = screen.getByRole('button', { name: i18n.t('words.save') })
+        expect(save).toBeDisabled()
+        fireEvent.press(save)
+        expect(fedimint.fiClientSetGuardianFee).not.toHaveBeenCalled()
+
+        await act(async () => {
+            for (const answer of pendingPreviews)
+                answer({
+                    id: 'fed-1',
+                    name: 'My Wallet Service',
+                    meta: { [GUARDIAN_FEE_META_KEY]: '2500' },
+                    inviteCode: 'fed11invite',
+                    returningMemberStatus: { type: 'newMember' },
+                })
+        })
+
+        await pressOverlayButton(i18n.t('words.save'))
+
+        expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(2500)
+    })
+
+    // a read that fails leaves the rate unknown for the life of the mount,
+    // and the hook never retries on its own, so Save would stay grey for good;
+    // the fee row is the only way back in, so opening the sheet is the retry
+    it('should retry the applied rate read when the fee sheet opens after a failed read', async () => {
+        let isBridgeDown = true
+        const fedimint = renderScreen({
+            fedimint: makePreviewBridge(
+                {},
+                {
+                    federationPreview: () =>
+                        isBridgeDown
+                            ? Promise.reject(new Error('bridge down'))
+                            : Promise.resolve({
+                                  id: 'fed-1',
+                                  name: 'My Wallet Service',
+                                  meta: { [GUARDIAN_FEE_META_KEY]: '2500' },
+                                  inviteCode: 'fed11invite',
+                                  returningMemberStatus: {
+                                      type: 'newMember',
+                                  },
+                              }),
+                },
+            ),
+        })
+
+        // the applied fee and the metadata are two hooks over one rpc, so the
+        // mount makes more than one read; the retry is the one call after them
+        await waitFor(() => {
+            expect(fedimint.federationPreview).toHaveBeenCalled()
+        })
+        const readsOnMount = fedimint.federationPreview.mock.calls.length
+        isBridgeDown = false
+
+        await user.press(screen.getByTestId('settings-fee-row'))
+
+        expect(fedimint.federationPreview).toHaveBeenCalledTimes(
+            readsOnMount + 1,
+        )
+        await waitFor(() => {
+            expect(
+                screen.getByRole('button', { name: i18n.t('words.save') }),
+            ).toBeEnabled()
+        })
+        await pressOverlayButton(i18n.t('words.save'))
+
+        expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(2500)
     })
 
     it('should choose a lightning provider in a sheet rather than leaving the screen', async () => {

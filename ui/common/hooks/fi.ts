@@ -127,6 +127,7 @@ export function useAppliedGuardianFeePpm() {
     const [consensusPpm, setConsensusPpm] = useState<number | null>(null)
     const [pendingPpm, setPendingPpm] = useState<number | null>(null)
     const [isLoading, setIsLoading] = useState(false)
+    const [hasReadRate, setHasReadRate] = useState(false)
 
     const refresh = useCallback(async () => {
         if (!inviteCode) return
@@ -138,6 +139,7 @@ export function useAppliedGuardianFeePpm() {
                     preview.meta[GUARDIAN_FEE_SEND_PPM_META_KEY],
                 ),
             )
+            setHasReadRate(true)
         } catch (error) {
             // a metadata read that fails leaves the last known value alone
             // rather than reporting the fee as unset
@@ -165,6 +167,12 @@ export function useAppliedGuardianFeePpm() {
         // guardians set it to stop new accrual — so callers must compare
         // against null, never test falsiness.
         feePpm: pendingPpm ?? consensusPpm,
+        /**
+         * Whether `feePpm` may be believed yet: true once a read has answered,
+         * false until then. A failed read leaves it false until a `refresh`
+         * succeeds. True with no invite code: there is no federation to read.
+         */
+        isSettled: !inviteCode || hasReadRate,
         isLoading,
         refresh,
         markApplied,

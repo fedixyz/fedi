@@ -21,6 +21,7 @@ import {
     selectFiFormationName,
     selectFiInviteCode,
     selectIsWalletServiceFormed,
+    selectIsWalletServiceMaintenanceReady,
     setWalletServiceGuardianFee,
     updateWalletServiceMetadata,
 } from '@fedi/common/redux'
@@ -161,6 +162,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
     // `intent.guardianFeePpm`, which is creation-time and always 0
     const {
         feePpm: guardianFeePpm,
+        isSettled: isAppliedFeeSettled,
         refresh: refreshAppliedFee,
         markApplied,
     } = useAppliedGuardianFeePpm()
@@ -170,6 +172,16 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
     // every metadata write is a guardian consensus change, which the bridge
     // only accepts once the wallet service is formed
     const isFormed = useAppSelector(selectIsWalletServiceFormed)
+    // the same gate the standalone fee screen uses: while the bridge is still
+    // reconciling a resumed formation it rejects `set_guardian_fee` outright
+    // (#12005), which is the error half of #12033
+    const isMaintenanceReady = useAppSelector(
+        selectIsWalletServiceMaintenanceReady,
+    )
+    // and not until the applied rate has been read back: until then the picker
+    // is still showing its default, and saving would write that over the rate
+    // the federation applies (#12033)
+    const canSetFee = isMaintenanceReady && isAppliedFeeSettled
 
     const [editing, setEditing] = useState<EditableField | null>(null)
     const [draftValue, setDraftValue] = useState('')
@@ -186,9 +198,9 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
     const [termsJustInstalled, setTermsJustInstalled] = useState(false)
     const [sheet, setSheet] = useState<OpenSheet>(null)
     // a placeholder only: the applied rate is fetched asynchronously, so it is
-    // not available on first render. `ServiceFeePicker` reports its own
-    // selection on mount, seeded from `initialPpm`, and that replaces this
-    // before the sheet's Save can be pressed.
+    // not available on first render. `ServiceFeePicker` re-seeds itself when
+    // that read lands, and Save is gated until it has, so this default is
+    // never what gets written.
     const [feeSelection, setFeeSelection] = useState<ServiceFeeSelection>({
         guardianFeePpm: DEFAULT_GUARDIAN_FEE_PPM,
         isValid: true,
@@ -215,6 +227,12 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
     const [isProviderSelected, setIsProviderSelected] = useState(true)
 
     const closeSheet = useCallback(() => setSheet(null), [])
+    // a failed applied-rate read stays unsettled for the life of the mount,
+    // so reopening the sheet is the retry
+    const openFeeSheet = useCallback(() => {
+        if (!isAppliedFeeSettled) refreshAppliedFee()
+        setSheet('fee')
+    }, [isAppliedFeeSettled, refreshAppliedFee])
 
     const showError = useCallback(
         (error: unknown) => {
@@ -478,7 +496,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
                         icon="Percent"
                         name={t('feature.wallet-service.settings-fee')}
                         detail={feeRateLabel}
-                        onPress={() => setSheet('fee')}
+                        onPress={openFeeSheet}
                         testID="settings-fee-row"
                     />
                     <ServiceSettingsDivider />
@@ -610,18 +628,24 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
                 onDismiss={closeSheet}
                 title={t('feature.wallet-service.fee-title')}
                 description={t('feature.wallet-service.settings-fee-help')}
+                // the fee row stays tappable in both windows, so the sheet has
+                // to say why Save is grey — the same message the standalone
+                // fee screen shows
+                note={
+                    canSetFee
+                        ? undefined
+                        : t('feature.wallet-service.fee-finishing-setup')
+                }
                 buttons={[
                     {
                         text: t('words.save'),
                         primary: true,
-                        disabled: !feeSelection.isValid,
+                        disabled: !canSetFee || !feeSelection.isValid,
                         onPress: handleSaveFee,
                     },
                 ]}>
                 <ServiceFeePicker
                     guardianCount={guardianCount}
-                    // `??`, not `||`: a published 0 must seed the picker as 0
-                    // rather than falling through to the default rate
                     initialPpm={guardianFeePpm ?? undefined}
                     onChange={setFeeSelection}
                     showBreakdown={false}

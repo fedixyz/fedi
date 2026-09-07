@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useAppliedGuardianFeePpm } from '@fedi/common/hooks/fi'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     DEFAULT_GUARDIAN_FEE_PPM,
@@ -54,6 +55,10 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
     )
     const guardianCount =
         useAppSelector(selectFiFormation)?.intent.federationSize ?? 0
+    // the rate the federation applies, so the screen opens on it rather than
+    // on the default; it is read asynchronously and the picker re-seeds when it
+    // lands
+    const { feePpm: appliedFeePpm } = useAppliedGuardianFeePpm()
 
     const [selection, setSelection] = useState<ServiceFeeSelection>({
         guardianFeePpm: DEFAULT_GUARDIAN_FEE_PPM,
@@ -65,6 +70,9 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
     // gate on live readiness, not the sticky isFormed: after an interrupted
     // formation resumes, the bridge is still reconciling and rejects the fee
     // with "already in progress" (#12005)
+    //
+    // the applied-rate read must not gate this: onboarding has no way back
+    // from this screen, so a failed read would strand the user here
     const canSave = isMaintenanceReady && selection.isValid
 
     const handleSave = useCallback(async () => {
@@ -133,8 +141,9 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
                         )}
                     />
                 ) : !isMaintenanceReady ? (
-                    // formed before, but the bridge is still reconciling that
-                    // formation; the status stream removes this on its own
+                    // the bridge is still reconciling a formation it formed
+                    // before; this clears on its own, and is why the CTA is
+                    // disabled
                     <WarningBanner
                         level="info"
                         message={t(
@@ -147,6 +156,7 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
                 <Column gap="lg" grow>
                     <ServiceFeePicker
                         guardianCount={guardianCount}
+                        initialPpm={appliedFeePpm ?? undefined}
                         onChange={setSelection}
                         onInfoPress={showPeerBadgeInfo}
                     />
