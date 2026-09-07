@@ -20,7 +20,12 @@ E2E tests are fully automated and integrated into the development environment. N
     - **s** - settings test
     - **j** - JoinLeaveFederation test
     - **c** - chat test
+    - **g** - communityChatJoin test
+    - **d** - miniAppSeed test
     - **p** - payments test
+    - **y** - chatPayments test
+    - **e** - ecashLifecycle test
+    - **t** - stableBalance test
     - **b** - backupRestore test
     - **n** - pinProtection test
     - **a** - all tests

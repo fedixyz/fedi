@@ -211,11 +211,12 @@ Useful options:
 
 ```bash
 ./scripts/ui/run-e2e-web.sh --headed
+./scripts/ui/run-e2e-web.sh --with-devfed
 ./scripts/ui/run-e2e-web.sh --debug
 ./scripts/ui/run-e2e-web.sh -- --grep 'onboarding'
 ```
 
-The default local port is `34157`. Set `WEB_E2E_PORT` to override it. In CI, the `End-to-end tests` workflow runs the web job with `platforms=web` or `platforms=all`, uploads `ui/web/test-results/`, and serves the app as a nightly production build because the bridge-backed web e2e flow depends on nightly feature behavior.
+The default local port is `34157`. Set `WEB_E2E_PORT` to override it. Use `--with-devfed` or set `WEB_E2E_WITH_DEVFED=1` when running payment specs that need a local devimint federation. In CI, the `End-to-end tests` workflow runs the web job with `platforms=web` or `platforms=all`, starts the wrapper with `--with-devfed`, uploads `ui/web/test-results/`, and serves the app as a nightly production build because the bridge-backed web e2e flow depends on nightly feature behavior.
 
 ## Test Configuration
 
