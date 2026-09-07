@@ -68,6 +68,18 @@ const STEP_INDEX = 0
 /** Filled surface behind the disclosure, a shade off the page white. */
 const DETAILS_CARD_BG = '#FAFAFA'
 
+/** The ⓘ every stat row shows, opening its explanation in a tooltip. */
+const StatHelp: React.FC<{ children: string }> = ({ children }) => {
+    const { theme } = useTheme()
+    return (
+        <HelpTooltip
+            svgName="Info"
+            svgProps={{ color: theme.colors.grey, size: 16 }}>
+            <Text caption>{children}</Text>
+        </HelpTooltip>
+    )
+}
+
 /**
  * Product copy for each guardian count, taken verbatim from the prototype's
  * `GUARDIAN_SCALE`. More guardians is more resilient but a smaller share each,
@@ -242,7 +254,8 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
         <Text
             caption
             medium
-            color={isSummaryStale ? theme.colors.grey : theme.colors.primary}>
+            color={isSummaryStale ? theme.colors.grey : theme.colors.primary}
+            style={style.summaryValue}>
             {value}
         </Text>
     )
@@ -343,18 +356,11 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                 {summaryValue(
                                     t('feature.wallet-service.all-verified'),
                                 )}
-                                <HelpTooltip
-                                    svgName="Info"
-                                    svgProps={{
-                                        color: theme.colors.grey,
-                                        size: 16,
-                                    }}>
-                                    <Text caption>
-                                        {t(
-                                            'feature.wallet-service.fee-breakdown-peerbadge-info',
-                                        )}
-                                    </Text>
-                                </HelpTooltip>
+                                <StatHelp>
+                                    {t(
+                                        'feature.wallet-service.fee-breakdown-peerbadge-info',
+                                    )}
+                                </StatHelp>
                             </Row>
                         </Row>
                         <Row align="center" style={style.statRow}>
@@ -375,6 +381,11 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                         },
                                     )}`,
                                 )}
+                                <StatHelp>
+                                    {t(
+                                        'feature.wallet-service.resilience-help',
+                                    )}
+                                </StatHelp>
                             </Row>
                         </Row>
                         <Row align="center" style={style.statRow}>
@@ -390,6 +401,9 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                         `feature.wallet-service.${scale.revenue}`,
                                     ),
                                 )}
+                                <StatHelp>
+                                    {t('feature.wallet-service.revenue-help')}
+                                </StatHelp>
                             </Row>
                         </Row>
                     </Column>
@@ -682,6 +696,10 @@ const styles = (theme: Theme) =>
         statValue: {
             flexShrink: 1,
             justifyContent: 'flex-end',
+        },
+        summaryValue: {
+            // wraps beside the help icon instead of pushing it off the edge
+            flexShrink: 1,
         },
         costCard: {
             backgroundColor: theme.colors.grey50,

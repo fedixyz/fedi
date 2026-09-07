@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Theme, useTheme } from '@rneui/themed'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
@@ -145,6 +145,10 @@ const WalletServiceLightningProvider: React.FC<Props> = ({ navigation }) => {
             />
             <SafeScrollArea edges="notop" padding="lg">
                 <Column gap="lg">
+                    {/* the choice is made here, so the settings-sheet explanation belongs here too */}
+                    <Text small color={theme.colors.darkGrey}>
+                        {t('feature.wallet-service.lightning-sheet-help')}
+                    </Text>
                     <LightningProviderPicker
                         isSelected={isAttachedAlready || isSelected}
                         // locked while the request runs, while the durable read

@@ -471,4 +471,17 @@ describe('screens/CreateWalletService', () => {
             ),
         ).not.toBeOnTheScreen()
     })
+
+    // these two strings shipped without a tooltip, so the rows explained nothing
+    it('should offer help copy on the resilience and revenue rows', async () => {
+        renderScreen(makeBridge())
+        await settlePreview()
+
+        for (const key of [
+            'feature.wallet-service.resilience-help',
+            'feature.wallet-service.revenue-help',
+        ] as const) {
+            expect(screen.getByText(i18n.t(key))).toBeOnTheScreen()
+        }
+    })
 })

@@ -205,6 +205,18 @@ describe('screens/WalletServiceLightningProvider', () => {
         cleanup()
     })
 
+    // the same sentence the settings sheet gives. This screen asks for the
+    // choice and shipped without saying what is being chosen
+    it('should explain what a Lightning provider is', async () => {
+        renderScreen()
+
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.lightning-sheet-help'),
+            ),
+        ).toBeOnTheScreen()
+    })
+
     it('should preselect the provider without claiming one is verified', async () => {
         renderScreen()
 
