@@ -84,6 +84,10 @@ export const useUpdateZendeskNotificationCount = () => {
     return null // Hook does not return anything
 }
 
+export type LaunchZendeskOptions = {
+    conversationTags?: string[]
+}
+
 export function useLaunchZendesk() {
     const dispatch = useAppDispatch()
     const navigation = useNavigation<NavigationHook>()
@@ -98,10 +102,14 @@ export function useLaunchZendesk() {
     }, [])
 
     const launchZendesk = useCallback(
-        async (newlyGranted = false) => {
+        async (newlyGranted = false, options: LaunchZendeskOptions = {}) => {
+            const { conversationTags } = options
             if (!supportPermissionGranted && !newlyGranted) {
+                // the tags ride along so the grant screen can open the same
+                // tagged conversation the caller asked for
                 return navigation.navigate('HelpCentre', {
                     fromOnboarding: false,
+                    conversationTags,
                 })
             }
 
@@ -115,7 +123,7 @@ export function useLaunchZendesk() {
                 )
             }
 
-            await zendeskOpenMessagingView({ onError })
+            await zendeskOpenMessagingView({ onError, conversationTags })
         },
         [
             zendeskInitialized,

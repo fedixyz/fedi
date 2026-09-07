@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native'
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
 import { Button, useTheme, Theme, Text } from '@rneui/themed'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,15 +9,22 @@ import SvgImage from '@fedi/native/components/ui/SvgImage'
 
 import { HELP_URL, PRIVACY_POLICY_URL } from '../../../constants'
 import { useAppDispatch } from '../../../state/hooks'
+import { RootStackParamList } from '../../../types/navigation'
 import { useLaunchZendesk } from '../../../utils/hooks/support'
 import { Column } from '../../ui/Flex'
 import HoloGuidance from '../../ui/HoloGuidance'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 
+type HelpCentreRouteProp = RouteProp<RootStackParamList, 'HelpCentre'>
+
 const SupportChat: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation()
+    // set when a tagged request (e.g. stable balance) was redirected here
+    // for the permission grant, so the grant opens that same conversation
+    const conversationTags =
+        useRoute<HelpCentreRouteProp>().params?.conversationTags
     const style = styles(theme)
     const dispatch = useAppDispatch()
 
@@ -29,10 +36,10 @@ const SupportChat: React.FC = () => {
 
     const grantPermission = useCallback(() => {
         dispatch(grantSupportPermission())
-        launchZendesk(true)
+        launchZendesk(true, { conversationTags })
         // Close the Permission screen while the modal opens
         navigation.goBack()
-    }, [dispatch, launchZendesk, navigation])
+    }, [dispatch, launchZendesk, navigation, conversationTags])
 
     const handleHelpCenterPress = () => {
         Linking.openURL(HELP_URL)

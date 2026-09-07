@@ -118,6 +118,9 @@ jest.mock('react-native-zendesk-messaging', () => ({
     initialize: jest.fn(),
     showMessaging: jest.fn(),
     closeMessaging: jest.fn(),
+    openMessagingView: jest.fn(),
+    setConversationTags: jest.fn(),
+    clearConversationTags: jest.fn(),
 }))
 
 jest.mock('@react-native-community/netinfo', () => ({

@@ -54,6 +54,7 @@ import { SafeScrollArea } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 import { useLaunchZendesk } from '../utils/hooks/support'
+import { makeStableBalanceRequestTags } from '../utils/support'
 
 const log = makeLog('WalletServiceSettings')
 
@@ -316,7 +317,9 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
     /**
      * There is still no entitlement rpc, so nothing here enables the feature.
      * What it does now is hand the request to a human: the confirm step opens
-     * the same support conversation the transaction detail overlay opens.
+     * the same support conversation the transaction detail overlay opens,
+     * tagged as a stable balance request for this wallet service so support
+     * sees what is being asked rather than an open-ended chat (#12037).
      *
      * That is the whole reason the row is back. Before, the confirm showed a
      * "the team will be in touch" toast and called nothing at all, so the
@@ -332,8 +335,15 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
      */
     const handleRequestStableBalance = useCallback(() => {
         closeSheet()
-        setTimeout(() => launchZendesk(), SUPPORT_LAUNCH_DELAY_MS)
-    }, [closeSheet, launchZendesk])
+        setTimeout(
+            () =>
+                launchZendesk(false, {
+                    conversationTags:
+                        makeStableBalanceRequestTags(federationId),
+                }),
+            SUPPORT_LAUNCH_DELAY_MS,
+        )
+    }, [closeSheet, launchZendesk, federationId])
 
     const handleUseReadyMadeTerms = useCallback(async () => {
         // this variant carries no value: it installs one fixed approved

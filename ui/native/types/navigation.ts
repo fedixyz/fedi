@@ -167,7 +167,7 @@ export type RootStackParamList = {
     FederationGreeting: undefined
     FederationAcceptTerms: { federation: RpcFederationPreview }
     FediModSettings: { type?: string; federationId?: Federation['id'] }
-    HelpCentre: { fromOnboarding: boolean }
+    HelpCentre: { fromOnboarding: boolean; conversationTags?: string[] }
     Initializing: undefined
     JoinFederation: {
         invite?: string

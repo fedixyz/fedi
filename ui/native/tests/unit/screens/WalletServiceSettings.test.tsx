@@ -378,6 +378,22 @@ describe('screens/WalletServiceSettings', () => {
         await waitFor(() => expect(mockLaunchZendesk).toHaveBeenCalledTimes(1))
     })
 
+    it('should tell support which wallet service wants stable balance', async () => {
+        renderScreen()
+
+        await requestStableBalance()
+
+        // an untagged open reproduces #12037: the bot has nothing to route on
+        await waitFor(() =>
+            expect(mockLaunchZendesk).toHaveBeenCalledWith(false, {
+                conversationTags: [
+                    'stable-balance-request',
+                    `wallet-service-${WALLET_SERVICE_FEDERATION_ID}`,
+                ],
+            }),
+        )
+    })
+
     it('should not claim the stable balance was enabled', async () => {
         renderScreen()
 

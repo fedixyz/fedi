@@ -106,12 +106,42 @@ export async function zendeskCloseMessagingView(): Promise<void> {
     }
 }
 
+export const STABLE_BALANCE_REQUEST_TAG = 'stable-balance-request'
+
+/**
+ * Tags a support conversation as a Stable Balance enablement request and
+ * names the Wallet Service it is for, so support has something to route on
+ * rather than an open-ended chat.
+ */
+export function makeStableBalanceRequestTags(
+    federationId: string | null,
+): string[] {
+    return federationId
+        ? [STABLE_BALANCE_REQUEST_TAG, `wallet-service-${federationId}`]
+        : [STABLE_BALANCE_REQUEST_TAG]
+}
+
+export type ZendeskOpenOptions = {
+    onError?: (error: Error) => void
+    /**
+     * Applied by the sdk to the next conversation the user starts, or to
+     * their next message in an existing one. The sdk keeps them until
+     * cleared, so an untagged open clears whatever an earlier one stored.
+     */
+    conversationTags?: string[]
+}
+
 export async function zendeskOpenMessagingView({
     onError,
-}: {
-    onError?: (error: Error) => void
-} = {}): Promise<void> {
+    conversationTags,
+}: ZendeskOpenOptions = {}): Promise<void> {
     try {
+        if (conversationTags?.length) {
+            log.info('Setting Zendesk conversation tags', conversationTags)
+            Zendesk.setConversationTags(conversationTags)
+        } else {
+            Zendesk.clearConversationTags()
+        }
         await Zendesk.openMessagingView()
         log.debug('Zendesk messaging shown successfully')
     } catch (error) {
