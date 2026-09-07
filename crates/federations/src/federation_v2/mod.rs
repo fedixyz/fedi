@@ -91,7 +91,8 @@ use guardian_remittance::GuardianRemittanceAccount;
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
 use lnurl_receives_service::LnurlReceivesService;
 use meta::{
-    LegacyMetaSourceWithExternalUrl, MetaEntries, meta_entries_from_values, meta_value_to_string,
+    LegacyMetaSourceWithExternalUrl, MetaEntries, get_meta_field, meta_entries_from_values,
+    meta_value_to_string,
 };
 use rand::Rng;
 use rpc_types::error::ErrorCode;
@@ -5171,11 +5172,7 @@ impl FederationV2 {
             return Some(url);
         }
 
-        self.client
-            .meta_service()
-            .get_field::<SafeUrl>(self.client.db(), RECURRINGD_API_META)
-            .await
-            .and_then(|x| x.value)
+        get_meta_field::<SafeUrl>(&self.client, RECURRINGD_API_META).await
     }
 
     /// v2 lightning's recurringd URL — always the Fedi-operated v2

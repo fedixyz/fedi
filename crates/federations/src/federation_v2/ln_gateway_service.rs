@@ -13,6 +13,7 @@ use tracing::warn;
 use super::FederationV2;
 use super::client::ClientExt;
 use super::db::{LightningGatewayOverride, LightningGatewayOverrideKey};
+use super::meta::get_meta_field;
 
 pub const META_VETTED_GATEWAYS_KEY: &str = "vetted_gateways";
 
@@ -51,11 +52,9 @@ impl LnGatewayService {
         client: &Client,
         gateways: Vec<LightningGatewayAnnouncement>,
     ) -> Vec<LightningGatewayAnnouncement> {
-        let meta_service = client.meta_service();
-        let vetted_gws = meta_service
-            .get_field::<Vec<String>>(client.db(), META_VETTED_GATEWAYS_KEY)
+        let vetted_gws = get_meta_field::<Vec<String>>(client, META_VETTED_GATEWAYS_KEY)
             .await
-            .map_or(Vec::new(), |v| v.value.unwrap_or_default())
+            .unwrap_or_default()
             .into_iter()
             .filter_map(|str| {
                 PublicKey::from_str(&str)

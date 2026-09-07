@@ -2,12 +2,15 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use fedimint_api_client::api::DynGlobalApi;
+use fedimint_client::Client;
 use fedimint_client_module::meta::{
     FetchKind, MetaFieldKey, MetaFieldValue, MetaSource, MetaValues, fetch_meta_overrides,
 };
 use fedimint_core::config::ClientConfig;
 use fedimint_core::util::{backoff_util, retry};
 use fedimint_core::{apply, async_trait_maybe_send};
+use serde::de::DeserializeOwned;
+use tracing::warn;
 
 pub type MetaEntries = BTreeMap<String, String>;
 
@@ -33,6 +36,20 @@ pub fn meta_entries_from_values(
         .into_iter()
         .map(|(key, value)| (key, meta_value_to_string(value)))
         .collect()
+}
+
+pub async fn get_meta_field<V: DeserializeOwned>(client: &Client, field: &str) -> Option<V> {
+    // reading as MetaFieldValue unwraps the json-in-a-string values the legacy
+    // meta path stores, which reading straight into V would reject
+    let value = client
+        .meta_service()
+        .get_field::<MetaFieldValue>(client.db(), field)
+        .await?
+        .value?
+        .0;
+    serde_json::from_value(value)
+        .inspect_err(|err| warn!(%field, %err, "failed to parse meta field"))
+        .ok()
 }
 
 /// Legacy non-meta module config source uses client config meta and
@@ -93,7 +110,13 @@ impl MetaSource for LegacyMetaSourceWithExternalUrl {
 mod tests {
     use serde_json::json;
 
-    use super::{meta_entries_from_values, meta_value_to_string};
+    use super::{MetaFieldValue, meta_entries_from_values, meta_value_to_string};
+
+    #[test]
+    fn meta_field_value_unwraps_string_wrapped_json() {
+        let MetaFieldValue(value) = serde_json::from_value(json!(r#"["02ab","03cd"]"#)).unwrap();
+        assert_eq!(value, json!(["02ab", "03cd"]));
+    }
 
     #[test]
     fn string_values_keep_their_text() {
