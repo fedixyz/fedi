@@ -215,7 +215,10 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                         maxHeight:
                             viewportHeight -
                             insets.top -
-                            insets.bottom -
+                            // a `tall` sheet's own paddingBottom already holds
+                            // the inset back; the other paths keep it in the
+                            // height so they do not shift
+                            (tall ? 0 : insets.bottom) -
                             theme.spacing.xl * (tall ? 1 : 2),
                     },
                     // every point between the title, the body and the button is

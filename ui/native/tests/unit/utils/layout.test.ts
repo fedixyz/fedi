@@ -1,6 +1,11 @@
 import { Platform } from 'react-native'
 
-import { getOverlayBottomPadding } from '../../../utils/layout'
+import {
+    NUMPAD_MAX_ROW_HEIGHT,
+    NUMPAD_MIN_ROW_HEIGHT,
+    getFittedNumpadRowHeight,
+    getOverlayBottomPadding,
+} from '../../../utils/layout'
 
 const setPlatform = (os: 'ios' | 'android', version?: number) => {
     Object.defineProperty(Platform, 'OS', { value: os, configurable: true })
@@ -51,5 +56,32 @@ describe('getOverlayBottomPadding', () => {
         setPlatform('android', 29)
 
         expect(getOverlayBottomPadding(24, 0)).toBe(12)
+    })
+})
+
+describe('getFittedNumpadRowHeight', () => {
+    it('should cap a roomy box at the full-screen row height', () => {
+        expect(getFittedNumpadRowHeight(600, 108)).toBe(NUMPAD_MAX_ROW_HEIGHT)
+    })
+
+    it('should divide up whatever is left below the amount', () => {
+        expect(getFittedNumpadRowHeight(340, 108)).toBe(58)
+    })
+
+    it('should take the preferred minimum when four of them still fit', () => {
+        expect(getFittedNumpadRowHeight(284, 108)).toBe(NUMPAD_MIN_ROW_HEIGHT)
+    })
+
+    it('should keep four rows inside a box too short for the minimum', () => {
+        const box = 260
+        const amount = 108
+        const row = getFittedNumpadRowHeight(box, amount)
+
+        expect(row).toBeLessThan(NUMPAD_MIN_ROW_HEIGHT)
+        expect(amount + row * 4).toBeLessThanOrEqual(box)
+    })
+
+    it('should never return a negative row height', () => {
+        expect(getFittedNumpadRowHeight(80, 108)).toBe(0)
     })
 })

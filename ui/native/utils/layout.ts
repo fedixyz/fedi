@@ -34,6 +34,31 @@ export const getOverlayBottomPadding = (
     return Math.max(reducedBase, insetBottom)
 }
 
+/** The keypad is three across and four down. */
+const NUMPAD_ROWS = 4
+/** Preferred smallest row, taken only when four of them fit the box. */
+export const NUMPAD_MIN_ROW_HEIGHT = 44
+/** The full-screen row height, which is also the most a fitted keypad takes. */
+export const NUMPAD_MAX_ROW_HEIGHT = 68
+
+/**
+ * Row height for a keypad that divides the box it was handed with whatever
+ * sits above it.
+ *
+ * Never returns more than a quarter of what is left over: rows that do not fit
+ * are still drawn, outside the box and under whatever the box's parent pins
+ * below it.
+ */
+export const getFittedNumpadRowHeight = (
+    boxHeight: number,
+    contentHeight: number,
+): number => {
+    const perRow = Math.floor((boxHeight - contentHeight) / NUMPAD_ROWS)
+    if (perRow >= NUMPAD_MIN_ROW_HEIGHT)
+        return Math.min(NUMPAD_MAX_ROW_HEIGHT, perRow)
+    return Math.max(0, perRow)
+}
+
 export const isAndroidAPI35Plus = () => {
     return Platform.OS === 'android' && Platform.Version >= 35
 }

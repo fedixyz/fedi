@@ -25,6 +25,7 @@ import { getCurrencyCode } from '@fedi/common/utils/currency'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { useForceBlurOnKeyboardHide } from '../../utils/hooks/keyboard'
+import { getFittedNumpadRowHeight } from '../../utils/layout'
 import { Row, Column } from './Flex'
 import InvisibleInput from './InvisibleInput'
 import NotesInput from './NotesInput'
@@ -64,12 +65,6 @@ export type Props = {
      */
     fitNumpadToSpace?: boolean
 }
-
-const NUMPAD_ROWS = 4
-/** Below this a row is too small to hit reliably; the sheet must grow instead. */
-const NUMPAD_MIN_ROW_HEIGHT = 44
-/** The full-screen row height, which is also the most a fitted keypad takes. */
-const NUMPAD_MAX_ROW_HEIGHT = 68
 
 const AmountInput: React.FC<Props> = ({
     amount,
@@ -124,11 +119,7 @@ const AmountInput: React.FC<Props> = ({
     const [amountsHeight, setAmountsHeight] = useState(0)
     const numpadButtonHeight = useMemo(() => {
         if (!fitNumpadToSpace || !boxHeight || !amountsHeight) return undefined
-        const perRow = Math.floor((boxHeight - amountsHeight) / NUMPAD_ROWS)
-        return Math.max(
-            NUMPAD_MIN_ROW_HEIGHT,
-            Math.min(NUMPAD_MAX_ROW_HEIGHT, perRow),
-        )
+        return getFittedNumpadRowHeight(boxHeight, amountsHeight)
     }, [fitNumpadToSpace, boxHeight, amountsHeight])
 
     // For some reason the TextInput inside InvisibleInput does not
@@ -213,6 +204,10 @@ const AmountInput: React.FC<Props> = ({
     return (
         <Column
             grow
+            // without this the measured box is this component's own natural
+            // height, so the keypad divides up the room it already claimed and
+            // the fit never moves off its starting row height
+            shrink={fitNumpadToSpace}
             align="center"
             fullWidth
             onLayout={
