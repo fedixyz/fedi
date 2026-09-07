@@ -875,8 +875,8 @@ const styles = (theme: Theme) =>
         },
         fixedNote: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
         externalLogo: {
             backgroundColor: theme.colors.grey100,
@@ -886,8 +886,8 @@ const styles = (theme: Theme) =>
         },
         sheetSubtitle: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
         // the shared box: the ring waits in it and the tick lands in it, so the
         // caption below sits at one height for both
@@ -920,8 +920,8 @@ const styles = (theme: Theme) =>
         },
         waitingText: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
     })
 

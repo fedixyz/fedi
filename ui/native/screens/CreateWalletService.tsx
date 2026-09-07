@@ -299,10 +299,10 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                             }}
                         />
                         <Row justify="between" gap="sm">
-                            <Text small color={theme.colors.darkGrey}>
+                            <Text caption color={theme.colors.darkGrey}>
                                 {t('feature.wallet-service.scale-revenue')}
                             </Text>
-                            <Text small color={theme.colors.darkGrey}>
+                            <Text caption color={theme.colors.darkGrey}>
                                 {t('feature.wallet-service.scale-resilience')}
                             </Text>
                         </Row>
@@ -422,7 +422,7 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                 <Column align="center" gap="xs">
                                     <Skeleton width={160} height={32} />
                                     <Skeleton width={120} height={14} />
-                                    <Text small color={theme.colors.darkGrey}>
+                                    <Text caption color={theme.colors.darkGrey}>
                                         {t(
                                             'feature.wallet-service.finding-guardians',
                                         )}
@@ -530,7 +530,7 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                             color={theme.colors.darkGrey}
                         />
                         <Text
-                            small
+                            caption
                             color={theme.colors.darkGrey}
                             style={style.grow}>
                             {t('feature.wallet-service.count-permanent-notice')}
@@ -719,8 +719,8 @@ const styles = (theme: Theme) =>
         },
         sheetSubtitle: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
     })
 

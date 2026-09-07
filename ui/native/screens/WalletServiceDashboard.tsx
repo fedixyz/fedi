@@ -385,7 +385,7 @@ const styles = (theme: Theme) =>
         },
         status: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
+            fontSize: fediTheme.fontSizes.caption,
         },
         qrButton: {
             alignItems: 'center',
@@ -422,7 +422,7 @@ const styles = (theme: Theme) =>
         },
         balanceEquiv: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
+            fontSize: fediTheme.fontSizes.caption,
             paddingTop: 2,
         },
         withdrawButton: {

@@ -276,7 +276,7 @@ const WalletServiceReplaceReview: React.FC<Props> = ({ navigation }) => {
                             fiat={formattedFiat}
                             testID="replacement-cost"
                         />
-                        <Text small color={theme.colors.darkGrey}>
+                        <Text caption color={theme.colors.darkGrey}>
                             {t('feature.wallet-service.replace-cost-note')}
                         </Text>
                     </Column>

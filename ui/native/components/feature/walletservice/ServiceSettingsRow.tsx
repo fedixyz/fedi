@@ -204,9 +204,9 @@ const styles = (theme: Theme) =>
         },
         infoValue: {
             color: theme.colors.primary,
-            fontSize: fediTheme.fontSizes.caption,
+            fontSize: fediTheme.fontSizes.body,
             fontWeight: '500',
-            lineHeight: 18,
+            lineHeight: 22,
         },
         thumbnail: {
             backgroundColor: theme.colors.grey100,
@@ -247,7 +247,7 @@ const styles = (theme: Theme) =>
         },
         actionName: {
             color: theme.colors.primary,
-            fontSize: fediTheme.fontSizes.caption,
+            fontSize: fediTheme.fontSizes.body,
             fontWeight: '600',
         },
         actionDetail: {

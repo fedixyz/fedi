@@ -368,8 +368,8 @@ const styles = (theme: Theme) =>
         noteText: {
             color: theme.colors.darkGrey,
             flex: 1,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 18,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
         stepUpIcon: {
             transform: [{ rotate: '180deg' }],

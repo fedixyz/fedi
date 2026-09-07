@@ -174,7 +174,7 @@ const styles = (theme: Theme) =>
         },
         sheetSubtitle: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
     })

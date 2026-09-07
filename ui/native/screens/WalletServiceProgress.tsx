@@ -393,7 +393,7 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
             )}`}
         />
     ) : isComplete ? null : (
-        <Text small color={theme.colors.darkGrey}>
+        <Text caption color={theme.colors.darkGrey}>
             {t('feature.wallet-service.progress-notice')}
         </Text>
     )
@@ -553,8 +553,8 @@ const styles = (theme: Theme) =>
         },
         reconnectingText: {
             color: WARNING_BANNER_AMBER,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
         readyMark: {
             alignItems: 'center',

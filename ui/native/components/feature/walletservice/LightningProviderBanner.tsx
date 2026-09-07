@@ -79,8 +79,8 @@ const styles = (theme: Theme) =>
         text: {
             color: theme.colors.darkGrey,
             flex: 1,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 17,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
         textError: {
             color: theme.colors.red,

@@ -180,9 +180,9 @@ const styles = (theme: Theme) =>
         byoTitle: {
             color: theme.colors.primary,
             flexShrink: 1,
-            fontSize: 14,
+            fontSize: fediTheme.fontSizes.body,
             fontWeight: '600',
-            lineHeight: 21,
+            lineHeight: 22,
         },
         byoBadge: {
             backgroundColor: theme.colors.grey100,
@@ -192,21 +192,21 @@ const styles = (theme: Theme) =>
         },
         byoBadgeText: {
             color: SERVICE_BADGE_GREY,
-            fontSize: 9,
+            fontSize: fediTheme.fontSizes.tiny,
             fontWeight: '700',
             letterSpacing: 0.5,
         },
         byoLink: {
             color: theme.colors.primary,
-            fontSize: fediTheme.fontSizes.small,
+            fontSize: fediTheme.fontSizes.caption,
             fontWeight: '500',
-            lineHeight: 18,
+            lineHeight: 20,
             textDecorationLine: 'underline',
         },
         noteText: {
             color: theme.colors.darkGrey,
             flex: 1,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 18,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
     })

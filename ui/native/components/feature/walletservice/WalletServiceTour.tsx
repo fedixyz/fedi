@@ -394,7 +394,7 @@ const styles = (theme: Theme) =>
         },
         eyebrow: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
+            fontSize: fediTheme.fontSizes.caption,
             fontWeight: '600',
             letterSpacing: 1.1,
             paddingBottom: 6,

@@ -138,15 +138,15 @@ const styles = (theme: Theme) =>
         },
         title: {
             color: theme.colors.primary,
-            fontSize: 20,
-            lineHeight: 28,
+            fontSize: fediTheme.fontSizes.h2,
+            lineHeight: 32,
             marginBottom: 4,
             textAlign: 'left',
         },
         description: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
             textAlign: 'left',
         },
         note: {
@@ -163,8 +163,8 @@ const styles = (theme: Theme) =>
         noteText: {
             color: theme.colors.darkGrey,
             flex: 1,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 17,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
         button: {
             borderRadius: 999,

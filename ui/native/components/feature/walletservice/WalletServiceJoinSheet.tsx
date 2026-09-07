@@ -143,7 +143,7 @@ const JoinSheetBody: React.FC<{
                 fullWidth
                 style={style.body}
                 testID="join-sheet-loading">
-                <Text small style={style.subtitle}>
+                <Text caption style={style.subtitle}>
                     {t('feature.wallet-service.join-sheet-body')}
                 </Text>
                 <Column gap="sm" fullWidth>
@@ -184,7 +184,7 @@ const JoinSheetBody: React.FC<{
 
     return (
         <Column gap="sm" fullWidth style={style.body}>
-            <Text small style={style.subtitle}>
+            <Text caption style={style.subtitle}>
                 {t('feature.wallet-service.join-sheet-body')}
             </Text>
             <Column gap="sm" fullWidth>
@@ -301,12 +301,12 @@ const styles = (theme: Theme) =>
         },
         subtitle: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
         welcome: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 16,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
     })
