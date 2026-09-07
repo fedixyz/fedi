@@ -1054,8 +1054,8 @@ describe('screens/ConfirmWalletService', () => {
         })
 
         // Reported from the simulator: wait on the invoice sheet, pay it, and
-        // the screen answers with "Another Wallet Service operation is in
-        // progress" for having done nothing but pay.
+        // the screen answers with the `busy` error for having done nothing
+        // but pay.
         //
         // The clock kept running behind the open sheet, so a lightning deposit
         // that outlived the 120s window fired the expiry refresh mid-payment.

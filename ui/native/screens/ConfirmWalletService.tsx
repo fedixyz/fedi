@@ -174,8 +174,8 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
      * The bridge serves one FI operation at a time and answers a second with
      * `busy`, so a refresh joins the one already running rather than racing it.
      *
-     * Two refreshes get asked for in the same tick on the path that produced
-     * "Another Wallet Service operation is in progress": a lightning top-up
+     * Two refreshes get asked for in the same tick on the path that surfaced
+     * the `busy` error to the user: a lightning top-up
      * outlives the 120s quote, so when the payment lands `handleTopUpFunded`
      * refreshes at the same moment the expiry effect does. `isRefreshingQuote`
      * cannot gate that — it is render state and is still false in that tick —
