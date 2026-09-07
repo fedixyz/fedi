@@ -52,6 +52,9 @@ describe('WalletServicePayerRow', () => {
         renderRow([mockFederation1], [mockFederation1.id])
 
         expect(await screen.findByText('test-federation')).toBeOnTheScreen()
+        expect(
+            screen.getByText(i18n.t('words.from').toUpperCase()),
+        ).toBeOnTheScreen()
     })
 
     it('should offer only the wallets the bridge admits', async () => {
@@ -59,12 +62,19 @@ describe('WalletServicePayerRow', () => {
 
         expect(await screen.findByText('test-federation-2')).toBeOnTheScreen()
         expect(screen.queryByText('test-federation')).not.toBeOnTheScreen()
+        expect(
+            screen.getByText(i18n.t('words.from').toUpperCase()),
+        ).toBeOnTheScreen()
     })
 
     it('should render nothing when no admitted wallet is held', () => {
         renderRow([mockFederation1], ['some-unheld-federation'])
 
         expect(screen.queryByTestId('wallet-service-payer-row')).toBeNull()
+        // the label lives under the same guard, so it must go with the row
+        expect(
+            screen.queryByText(i18n.t('words.from').toUpperCase()),
+        ).toBeNull()
     })
 
     it('should open the picker when more than one wallet is admitted', async () => {

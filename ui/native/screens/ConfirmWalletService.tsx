@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
@@ -37,6 +37,7 @@ import TopUpSheet from '../components/feature/walletservice/TopUpSheet'
 import { WalletServiceJoinSheet } from '../components/feature/walletservice/WalletServiceJoinSheet'
 import { WalletServicePayerRow } from '../components/feature/walletservice/WalletServicePayerRow'
 import { WalletServiceScreenHeader } from '../components/feature/walletservice/WalletServiceScreenHeader'
+import { Eyebrow } from '../components/ui/Eyebrow'
 import { Column, Row } from '../components/ui/Flex'
 import { SafeAreaContainer, SafeScrollArea } from '../components/ui/SafeArea'
 import { SummaryRow } from '../components/ui/SummaryRow'
@@ -698,9 +699,27 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
             </WalletServiceScreenHeader>
             <SafeScrollArea edges="notop" padding="lg">
                 <Column gap="lg" grow>
-                    <WalletServicePayerRow
-                        allowedFederationIds={eligiblePayerIds}
-                    />
+                    <Column gap="sm" fullWidth>
+                        <WalletServicePayerRow
+                            allowedFederationIds={eligiblePayerIds}
+                        />
+                        {/* no valid quote means nothing to send to, so the
+                            row hides rather than repeat a stale count */}
+                        {!insufficientSeats && (
+                            <Column fullWidth gap="xs">
+                                <Eyebrow>{t('words.to')}</Eyebrow>
+                                {/* a plain string, so the row's own emphasis
+                                    styling applies: bold key, right-aligned
+                                    value, no trailing icon */}
+                                <SummaryRow
+                                    isFirst
+                                    isEmphasised
+                                    label={t('feature.send.send-to')}
+                                    value={guardianCountLabel}
+                                />
+                            </Column>
+                        )}
+                    </Column>
 
                     {canOfferJoin && (
                         <Column gap="sm" align="center" style={style.joinCard}>
@@ -777,25 +796,6 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
                     </Column>
                 </Column>
             </SafeScrollArea>
-
-            {/* pinned rather than scrolled: the shortfall banner is tall enough
-                to push this off the bottom of the scroll area, and the design
-                keeps it sitting directly above the action bar. With no valid
-                quote there is nothing to send to, so the row hides rather than
-                repeat a stale count */}
-            {!insufficientSeats && (
-                <View style={style.summary}>
-                    {/* a plain string, so the row's own emphasis styling
-                        applies: bold key, right-aligned value, no trailing
-                        icon */}
-                    <SummaryRow
-                        isFirst
-                        isEmphasised
-                        label={t('feature.send.send-to')}
-                        value={guardianCountLabel}
-                    />
-                </View>
-            )}
 
             {/* pinned, so the commitment stays reachable without scrolling */}
             <WalletServiceFooter>
@@ -923,10 +923,6 @@ const styles = (theme: Theme) =>
         },
         payDisabledTitle: {
             color: theme.colors.white,
-        },
-        summary: {
-            paddingHorizontal: theme.spacing.lg,
-            paddingVertical: theme.spacing.sm,
         },
     })
 

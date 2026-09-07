@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { useBalance } from '@fedi/common/hooks/amount'
 import { useWalletFederationSelection } from '@fedi/common/hooks/federation'
 
+import { Eyebrow } from '../../ui/Eyebrow'
+import { Column } from '../../ui/Flex'
 import { FederationLogo } from '../federations/FederationLogo'
 import { WalletServiceFederationRow } from './WalletServiceFederationRow'
 import { WalletServicePayerSheet } from './WalletServicePayerSheet'
@@ -32,17 +34,26 @@ export const WalletServicePayerRow: React.FC<{
 
     return (
         <>
-            <WalletServiceFederationRow
-                testID="wallet-service-payer-row"
-                adornment={
-                    <FederationLogo federation={selectedFederation} size={40} />
-                }
-                name={selectedFederation?.name ?? ''}
-                detail={formattedBalance}
-                onPress={
-                    isLockedToSingle ? undefined : () => setIsPickerOpen(true)
-                }
-            />
+            {/* the label sits under the null guard above, so it never strands */}
+            <Column gap="xs" fullWidth>
+                <Eyebrow>{t('words.from')}</Eyebrow>
+                <WalletServiceFederationRow
+                    testID="wallet-service-payer-row"
+                    adornment={
+                        <FederationLogo
+                            federation={selectedFederation}
+                            size={40}
+                        />
+                    }
+                    name={selectedFederation?.name ?? ''}
+                    detail={formattedBalance}
+                    onPress={
+                        isLockedToSingle
+                            ? undefined
+                            : () => setIsPickerOpen(true)
+                    }
+                />
+            </Column>
 
             <WalletServicePayerSheet
                 show={isPickerOpen}

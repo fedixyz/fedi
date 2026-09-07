@@ -168,6 +168,9 @@ describe('screens/ConfirmWalletService', () => {
         )
 
         expect(
+            screen.getByText(i18n.t('words.to').toUpperCase()),
+        ).toBeOnTheScreen()
+        expect(
             screen.getByText(i18n.t('feature.send.send-to')),
         ).toBeOnTheScreen()
         expect(screen.getByText('2 guardians')).toBeOnTheScreen()
@@ -872,6 +875,8 @@ describe('screens/ConfirmWalletService', () => {
         expect(screen.queryByText(i18n.t('words.retry'))).toBeNull()
         // a lost-guardians quote is not payable; the send button is gone
         expect(screen.queryByTestId('SendConfirmButton')).toBeNull()
+        // the To label shares the row's guard, so it must not strand alone
+        expect(screen.queryByText(i18n.t('words.to').toUpperCase())).toBeNull()
 
         await user.press(changeGuardianCountButton)
         expect(mockNavigation.goBack).toHaveBeenCalledTimes(1)

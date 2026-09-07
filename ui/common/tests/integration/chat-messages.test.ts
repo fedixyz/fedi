@@ -293,34 +293,7 @@ describe('group chat interactions between 2 users', () => {
             )
         })
 
-        let bobRoom: MatrixRoom | undefined
-        await waitFor(() => {
-            const chatsListBob = selectMatrixChatsList(storeBob.getState())
-            bobRoom = chatsListBob.find(r => r.id === roomId)
-            expect(bobRoom).toBeDefined()
-        })
-
-        if (bobRoom?.roomState !== 'joined') {
-            await act(async () => {
-                await storeBob
-                    .dispatch(
-                        joinMatrixRoom({
-                            fedimint: bridgeBob.fedimint,
-                            roomId,
-                        }),
-                    )
-                    .unwrap()
-            })
-        }
-
-        await waitFor(() => {
-            const chatsListBob = selectMatrixChatsList(storeBob.getState())
-            expect(
-                chatsListBob.find(
-                    r => r.id === roomId && r.roomState === 'joined',
-                ),
-            ).toBeDefined()
-        })
+        await builder2.withRoomJoined(roomId)
 
         renderHookWithBridge(
             () => useObserveMatrixRoom(roomId),
