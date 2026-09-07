@@ -693,6 +693,10 @@ jest.mock('react-native-svg', () => ({
     // the band that pans across a loading skeleton bar
     LinearGradient: jest.requireActual('react-native-svg').LinearGradient,
     Stop: jest.requireActual('react-native-svg').Stop,
+    // a remote svg, e.g. the wallet service icon row's thumbnail. The real one
+    // fetches the document over the network, which a unit test should not do —
+    // a plain view keeps the uri and the handlers assertable.
+    SvgUri: jest.requireActual('react-native').View,
 }))
 
 jest.mock('react-native-progress', () => ({

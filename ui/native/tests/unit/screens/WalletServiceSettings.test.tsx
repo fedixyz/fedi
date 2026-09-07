@@ -802,6 +802,42 @@ describe('screens/WalletServiceSettings', () => {
         })
     })
 
+    it('should draw a published svg icon as the row thumbnail', async () => {
+        renderScreen({
+            fedimint: makePreviewBridge({
+                [GUARDIAN_FEE_META_KEY]: '5000',
+                'fedi:federation_icon_url': 'https://example.com/icon.svg',
+            }),
+        })
+
+        // react native's `Image` decodes no svg, so the svg url has to reach
+        // `SvgUri` instead — going through `Image` is what drew the letter
+        const thumbnail = await screen.findByTestId(
+            'settings-icon-thumbnail-svg',
+        )
+        expect(thumbnail.props.uri).toBe('https://example.com/icon.svg')
+        expect(screen.queryByTestId('settings-icon-thumbnail')).toBeNull()
+        // the initial is not drawn alongside it
+        expect(screen.queryByText('M')).toBeNull()
+    })
+
+    it('should fall back to the initial when an svg icon cannot be loaded', async () => {
+        renderScreen({
+            fedimint: makePreviewBridge({
+                [GUARDIAN_FEE_META_KEY]: '5000',
+                'fedi:federation_icon_url': 'https://example.com/missing.svg',
+            }),
+        })
+
+        const thumbnail = await screen.findByTestId(
+            'settings-icon-thumbnail-svg',
+        )
+        fireEvent(thumbnail, 'error')
+
+        expect(screen.queryByTestId('settings-icon-thumbnail-svg')).toBeNull()
+        expect(screen.getByText('M')).toBeOnTheScreen()
+    })
+
     it('should shorten a long icon url from the middle rather than wrapping', async () => {
         renderScreen({
             fedimint: makePreviewBridge({

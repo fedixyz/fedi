@@ -1431,10 +1431,19 @@ describe('ChatConversation', () => {
             type: ChatType.direct,
         })
 
-        await act(async () => {
-            await flushPendingScrollWork(2)
+        // The backfill hands off through macrotasks: a pagination is only
+        // observed once its page has landed in state, one tick later at the
+        // earliest, and only then does the next attempt go out. Pumping two
+        // fixed ticks matched that best case with no slack at all, so a
+        // pagination that took one tick longer to be observed left the chain
+        // still mid-backfill, with both pages requested but the scroll not yet
+        // reached. Wait for the scroll that ends the chain instead.
+        await waitFor(() => {
+            expectScrollToIndex(1)
         })
 
+        // Reaching that scroll means the target only arrived on the second
+        // page, and each request asked for a single page.
         expect(mockHandlePaginate).toHaveBeenCalledTimes(2)
         expect(mockHandlePaginate).toHaveBeenNthCalledWith(
             1,
@@ -1444,7 +1453,6 @@ describe('ChatConversation', () => {
             2,
             DEFAULT_PAGINATION_SIZE,
         )
-        expectScrollToIndex(1)
     })
 
     it('scrolls to a pinned-message request and reports completion', async () => {

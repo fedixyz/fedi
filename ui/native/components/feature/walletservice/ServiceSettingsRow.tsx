@@ -1,6 +1,7 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Image, StyleSheet, View } from 'react-native'
+import { SvgUri } from 'react-native-svg'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
@@ -8,6 +9,9 @@ import { Eyebrow } from '../../ui/Eyebrow'
 import { Column, Row } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
+
+/** Side of the square icon thumbnail. `SvgUri` needs it as a number. */
+const THUMBNAIL_SIZE = 42
 
 /**
  * The wallet icon as the federation publishes it: a remote image, falling back
@@ -28,17 +32,38 @@ export const ServiceIconThumbnail: React.FC<{
     // would keep the fallback showing for every url the operator tries next
     useEffect(() => setHasFailed(false), [url])
 
+    // `SvgUri` refetches whenever its `onError` identity changes, so the
+    // handler must not be recreated on every parent render
+    const handleError = useCallback(() => setHasFailed(true), [])
+
     const style = styles(theme)
 
     if (!url || hasFailed)
         return <Text style={style.thumbnailText}>{fallback}</Text>
+
+    // React Native's `Image` decodes no svg on either platform, so an svg url
+    // would always fail into `onError` and draw the letter. `SvgUri` renders
+    // it, the same way a remote fedi mod icon is drawn in `ShortcutTile`.
+    if (url.endsWith('svg'))
+        return (
+            <SvgUri
+                uri={url}
+                width={THUMBNAIL_SIZE}
+                height={THUMBNAIL_SIZE}
+                onError={handleError}
+                // `SvgUri` swallows a parse failure into `fallback` without
+                // calling `onError`, so the letter has to be repeated here
+                fallback={<Text style={style.thumbnailText}>{fallback}</Text>}
+                testID="settings-icon-thumbnail-svg"
+            />
+        )
 
     return (
         <Image
             style={style.thumbnailImage}
             source={{ uri: url }}
             resizeMode="cover"
-            onError={() => setHasFailed(true)}
+            onError={handleError}
             testID="settings-icon-thumbnail"
         />
     )
@@ -211,8 +236,8 @@ const styles = (theme: Theme) =>
         thumbnail: {
             backgroundColor: theme.colors.grey100,
             borderRadius: 10,
-            height: 42,
-            width: 42,
+            height: THUMBNAIL_SIZE,
+            width: THUMBNAIL_SIZE,
             // keeps a remote icon inside the rounded square
             overflow: 'hidden',
         },
