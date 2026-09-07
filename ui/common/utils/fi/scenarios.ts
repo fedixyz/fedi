@@ -77,6 +77,15 @@ export interface FiScenario {
      */
     admitNewlyJoined: boolean
     /**
+     * Seed the story 04 mock payer set when the scenario is chosen.
+     *
+     * The confirm step can only offer a wallet the app actually holds, and dev
+     * cannot always join a funded one, so without this the flow stops at the
+     * payer picker. Seeding on selection rather than at boot keeps a dev build
+     * with real wallets clean until a tester asks for the scenario.
+     */
+    seedMockPayers: boolean
+    /**
      * Seed the client with a formation already underway, so the post-payment
      * screens can be reached without spending. `formed` lands on the operator
      * screens directly.
@@ -164,6 +173,7 @@ const baseScenario: FiScenario = {
     noJoinableWalletServices: false,
     joinLookupLatencyMs: 400,
     admitNewlyJoined: false,
+    seedMockPayers: false,
     seedFormation: null,
     // the simulated federation is a dev one, so the provider advertises the
     // network a dev federation actually runs on
@@ -182,8 +192,14 @@ const scenario = (overrides: Partial<FiScenario>): FiScenario => ({
 })
 
 export const fiScenarios = {
-    /** Everything succeeds. The default for dogfooding the flow. */
-    happyPath: scenario({}),
+    /**
+     * Everything succeeds, end to end. The default for dogfooding the flow.
+     *
+     * Seeds the mock payer set so the payer picker, a top-up moved from a
+     * second wallet, formation, the fee step, the Lightning attach and the
+     * dashboard are all reachable without touching a real federation.
+     */
+    happyPath: scenario({ seedMockPayers: true }),
 
     /**
      * The lookup works and finds nothing: the user is in no trusted setup
@@ -472,7 +488,8 @@ export const FI_SCENARIO_STORYBOARD_FRAMES: Partial<
     joinLookupFails: 'A1 + join sheet failed-check state (Try again)',
     slowJoinLookup: 'A1 + join sheet loading state',
     insufficientBalance: 'B1, B2, A5-A7 (top up, external deposit)',
-    happyPath: 'the payable state the storyboard ends on',
+    happyPath:
+        'end to end: payer picker, top-up from a second wallet, formation, fee, Lightning, dashboard',
     lightningAttaches: 'step 5 attaching, then the dashboard',
     lightningFailsRetryable: 'step 5 error banner + Try again + Skip',
     lightningFailsTerminally: 'step 5 error banner, Skip the only exit',

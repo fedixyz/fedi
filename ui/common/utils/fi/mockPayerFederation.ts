@@ -1,4 +1,4 @@
-import type { Federation, MSats } from '../../types'
+import type { LoadedFederation, MSats } from '../../types'
 
 const SATS_TO_MSATS = 1000
 
@@ -101,7 +101,7 @@ export const MOCK_JOINABLE_WALLET_SERVICES: MockJoinableWalletService[] = [
  */
 export const makeMockPayerFederation = (
     mock: MockPayerFederation,
-): Federation => ({
+): LoadedFederation => ({
     status: 'online',
     init_state: 'ready',
     balance: (mock.balanceSats * SATS_TO_MSATS) as MSats,

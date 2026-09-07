@@ -1,5 +1,6 @@
-import type { Federation } from '../../types'
+import type { LoadedFederation } from '../../types'
 import {
+    GuardianStatus,
     RpcFederation,
     RpcFederationPreview,
     RpcFiClientStatus,
@@ -20,11 +21,13 @@ import {
     RpcFiSelectionPreviewResult,
     RpcFiSetupPaymentFederationsResult,
     RpcFiStatus,
+    RpcParseInviteCodeResult,
 } from '../../types/bindings'
 import { makeLog } from '../log'
 import {
     MOCK_JOINABLE_WALLET_SERVICES,
     MOCK_PAYER_FEDERATIONS,
+    MOCK_PAYER_FEDERATION_IDS,
     makeMockPayerFederation,
 } from './mockPayerFederation'
 import {
@@ -44,6 +47,14 @@ const BASE_SEAT_PRICE_MSATS = 2_100_000
 const MAX_GUARDIAN_FEE_PPM = 210_000
 
 const SATS_TO_MSATS = 1_000
+
+/**
+ * Where `propose_guardian_fees` publishes the applied rate. Mirrors
+ * `GUARDIAN_FEE_SEND_PPM_META_KEY` in `hooks/fi.ts`, which reads it back from
+ * `federationPreview`; the simulator publishes it the same way so the fee step
+ * and the settings row agree once a fee is set.
+ */
+const GUARDIAN_FEE_SEND_PPM_META_KEY = 'fedi:guardian_fee_send_ppm'
 
 /**
  * Delivers one `streamUpdate` to the bridge, which routes it to the handler
@@ -159,6 +170,12 @@ export class FiSimulator {
         balanceSats: number
         name?: string
     }> = []
+    /**
+     * The formed wallet service's own federation, once formation reaches
+     * `formed`. The real bridge auto-joins it at that point; nothing in dev
+     * can, so the simulator stands it up and announces it the same way.
+     */
+    private walletServiceFederation: LoadedFederation | null = null
     private nextId = 1
     /** The single live liquidity operation, if one exists. */
     private liquidityOperation: RpcFiLiquidityOperation | null = null
@@ -184,10 +201,39 @@ export class FiSimulator {
 
     /** Swap the environment mid-session, for the dev scenario picker. */
     setScenario(name: FiScenarioName) {
+        // a scenario's own seed leaves with it, so a funded wallet cannot
+        // follow the tester into a scenario that is about not having one.
+        // Payers added by hand from the dev screen stay, as they always have.
+        if (this.scenario.seedMockPayers)
+            this.mockPayers = this.mockPayers.filter(
+                p => !MOCK_PAYER_FEDERATION_IDS.includes(p.federationId),
+            )
         this.scenario = fiScenarios[name]
         this.reset()
         this.seedFromScenario()
+        // on selection only, never in the constructor: a dev build that boots
+        // with real wallets must not wake up holding invented ones. Re-adding
+        // an existing payer restores its balance, so choosing the scenario
+        // again also refunds what an earlier run spent.
+        if (this.scenario.seedMockPayers)
+            MOCK_PAYER_FEDERATIONS.forEach(mock =>
+                this.addMockPayer(mock.id, mock.balanceSats, mock.name),
+            )
         this.publish()
+    }
+
+    /**
+     * Forget everything the dev screen ever seeded: mock payers, mock joined
+     * services, the formed wallet service and the formation itself. The
+     * scenario stays selected; choosing it again is how it reseeds.
+     *
+     * Redux still holds the announced wallets until the caller drops them;
+     * `listMockFederations` is the list to drop. The ids observed from the
+     * real `listFederations` are kept, so real wallets stay admitted.
+     */
+    clearSimulatedState() {
+        this.mockPayers = []
+        this.reset()
     }
 
     /**
@@ -234,7 +280,7 @@ export class FiSimulator {
                 walletServiceCreated: true,
             }
             formation.paymentOutputsStarted = true
-            formation.inviteCode = `fed1${'sim'.padEnd(40, '0')}${formation.formationId}`
+            this.markFormed(formation)
             this.phaseIndex = FORMATION_PHASES.indexOf('formed')
         } else {
             formation.milestones.ecashSent = true
@@ -318,6 +364,7 @@ export class FiSimulator {
         this.pendingDeposits.clear()
         this.liquidityOperation = null
         this.liquidityPolls = 0
+        this.walletServiceFederation = null
         this.status = { type: 'idle' }
         this.publish()
     }
@@ -346,12 +393,25 @@ export class FiSimulator {
         // the join branch resolves each trusted invite through a preview and
         // then a join; a mock invite reaching the real bridge is rejected and
         // the candidate filtered out, which kept frames A1-A4 unreachable
-        if (method === 'federationPreview' || method === 'joinFederation')
+        if (method === 'joinFederation')
             return Boolean(this.mockJoinableFor(payload.inviteCode as string))
+        // the formed wallet service's invite code is invented, so the real
+        // bridge rejects it: the fee, settings and Lightning steps all resolve
+        // the federation through these and stall without them
+        if (method === 'federationPreview')
+            return (
+                Boolean(this.mockJoinableFor(payload.inviteCode as string)) ||
+                this.isWalletServiceInvite(payload.inviteCode as string)
+            )
+        if (method === 'parseInviteCode')
+            return this.isWalletServiceInvite(payload.inviteCode as string)
         // the join thunk resolves a status for the new wallet through this,
         // and a mock id reaching the real bridge fails the whole join
         if (method === 'getGuardianStatus')
-            return this.isMockPayer(payload.federationId as string)
+            return (
+                this.isMockPayer(payload.federationId as string) ||
+                this.isWalletServiceFederation(payload.federationId as string)
+            )
         // This developer action must reach the real bridge so it can write the
         // startup marker outside the simulated FI state.
         return (
@@ -367,12 +427,15 @@ export class FiSimulator {
             case 'payInvoice':
                 return this.payInvoice(payload)
             case 'federationPreview':
-                return this.mockFederationPreview(payload)
+                return this.isWalletServiceInvite(payload.inviteCode as string)
+                    ? this.walletServicePreview()
+                    : this.mockFederationPreview(payload)
+            case 'parseInviteCode':
+                return this.parseWalletServiceInvite()
             case 'joinFederation':
                 return this.joinMockFederation(payload)
             case 'getGuardianStatus':
-                // one healthy guardian is all the status coercion needs
-                return [{ online: { guardian: 'sim', latency_ms: 1 } }]
+                return this.guardianStatus(payload.federationId as string)
             case 'streamCancel':
                 return this.unsubscribe(payload.streamId as number)
             case 'fiClientStatus':
@@ -497,9 +560,28 @@ export class FiSimulator {
         )
         if (existing) {
             existing.balanceSats = balanceSats
+            this.emitBalance(federationId)
             return
         }
         this.mockPayers.push({ federationId, balanceSats, name })
+        // announce it the way the bridge announces a join, so redux holds the
+        // wallet before the next `listFederations` refresh rides it along
+        this.emitEvent?.(
+            'federation',
+            makeMockPayerFederation({
+                id: federationId,
+                name: this.mockPayerName(federationId, name),
+                balanceSats,
+            }),
+        )
+    }
+
+    private mockPayerName(federationId: string, name?: string): string {
+        return (
+            name ??
+            MOCK_PAYER_FEDERATIONS.find(m => m.id === federationId)?.name ??
+            federationId
+        )
     }
 
     /** Drop every mock payer, leaving only the wallets the app really holds. */
@@ -516,19 +598,17 @@ export class FiSimulator {
      * which left the payer picker and the top-up From list back to whatever
      * dev happened to have joined.
      */
-    listMockFederations(): Federation[] {
-        return this.mockPayers.map(payer =>
+    listMockFederations(): LoadedFederation[] {
+        const payers = this.mockPayers.map(payer =>
             makeMockPayerFederation({
                 id: payer.federationId,
-                name:
-                    payer.name ??
-                    MOCK_PAYER_FEDERATIONS.find(
-                        m => m.id === payer.federationId,
-                    )?.name ??
-                    payer.federationId,
+                name: this.mockPayerName(payer.federationId, payer.name),
                 balanceSats: payer.balanceSats,
             }),
         )
+        return this.walletServiceFederation
+            ? [...payers, this.walletServiceFederation]
+            : payers
     }
 
     private mockJoinableFor(inviteCode: string | undefined) {
@@ -585,6 +665,83 @@ export class FiSimulator {
 
     private isMockPayer(federationId: string | undefined): boolean {
         return this.mockPayers.some(p => p.federationId === federationId)
+    }
+
+    /*** The formed wallet service's own federation ***/
+
+    private isWalletServiceInvite(inviteCode: string | undefined): boolean {
+        return this.walletServiceFederation?.inviteCode === inviteCode
+    }
+
+    private isWalletServiceFederation(
+        federationId: string | undefined,
+    ): boolean {
+        return this.walletServiceFederation?.id === federationId
+    }
+
+    /**
+     * Stand the formed federation up and announce it, as the bridge does when
+     * it auto-joins the wallet service at `formed`.
+     *
+     * On `signet`, because that is the network a dev federation actually runs
+     * on and the network the simulated provider advertises by default: the
+     * Lightning step filters providers against the federation's own network,
+     * and a federation the app cannot see has no network at all.
+     */
+    private markFormed(formation: RpcFiFormationSnapshot) {
+        formation.milestones.walletServiceCreated = true
+        formation.inviteCode = `fed1${'sim'.padEnd(40, '0')}${formation.formationId}`
+        this.walletServiceFederation = {
+            ...makeMockPayerFederation({
+                id: `mock-wallet-service-${formation.formationId}`,
+                name: formation.intent.federationName,
+                balanceSats: 0,
+            }),
+            network: 'signet',
+            inviteCode: formation.inviteCode,
+        }
+        this.emitEvent?.('federation', this.walletServiceFederation)
+    }
+
+    private parseWalletServiceInvite(): RpcParseInviteCodeResult {
+        // `handles` admitted the code, so the federation cannot be missing
+        if (!this.walletServiceFederation)
+            throw new Error('no formed wallet service')
+        return { federationId: this.walletServiceFederation.id }
+    }
+
+    /**
+     * What `federationPreview` returns for the wallet service: its consensus
+     * metadata, which is where the applied guardian fee is read back from
+     * after the fee step saves it.
+     */
+    private walletServicePreview(): RpcFederationPreview {
+        const federation = this.walletServiceFederation
+        if (!federation) throw new Error('no formed wallet service')
+        return {
+            id: federation.id,
+            name: federation.name,
+            meta: { ...federation.meta },
+            inviteCode: federation.inviteCode,
+            returningMemberStatus: { type: 'newMember' },
+        }
+    }
+
+    private guardianStatus(federationId: string): GuardianStatus[] {
+        // a formed wallet service is never held without its formation
+        const formation = this.currentFormation()
+        if (this.isWalletServiceFederation(federationId) && formation)
+            // every seat healthy, so the dashboard's guardian row is honest
+            // about a formation that reached `formed`
+            return formation.seats.map(seat => ({
+                online: {
+                    guardian:
+                        seat.fmanName ?? seat.fmanId ?? `seat ${seat.index}`,
+                    latency_ms: 1,
+                },
+            }))
+        // one healthy guardian is all the status coercion needs
+        return [{ online: { guardian: 'sim', latency_ms: 1 } }]
     }
 
     /*** Money rails, for mock payers only ***/
@@ -1099,6 +1256,10 @@ export class FiSimulator {
             }
         }
         formation.intent.guardianFeePpm = guardianFeePpm
+        this.setWalletServiceMeta(
+            GUARDIAN_FEE_SEND_PPM_META_KEY,
+            String(guardianFeePpm),
+        )
         this.publish()
         return { type: 'success' }
     }
@@ -1115,6 +1276,12 @@ export class FiSimulator {
             }
         }
         return { type: 'success' }
+    }
+
+    private setWalletServiceMeta(key: string, value: string) {
+        const federation = this.walletServiceFederation
+        if (!federation) return
+        federation.meta = { ...federation.meta, [key]: value }
     }
 
     /*** Liquidity — the Lightning provider attach ***/
@@ -1367,10 +1534,7 @@ export class FiSimulator {
         if (nextIndex >= FORMATION_PHASES.indexOf('dkgUnderway')) {
             formation.milestones.guardiansConfirmed = true
         }
-        if (nextPhase === 'formed') {
-            formation.milestones.walletServiceCreated = true
-            formation.inviteCode = `fed1${'sim'.padEnd(40, '0')}${formation.formationId}`
-        }
+        if (nextPhase === 'formed') this.markFormed(formation)
 
         if (this.scenario.replaceGuardianAtPhase === nextPhase) {
             this.parkReplacement(formation)

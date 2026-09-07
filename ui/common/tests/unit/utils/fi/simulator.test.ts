@@ -1,4 +1,6 @@
 import {
+    GuardianStatus,
+    RpcFederationPreview,
     RpcFiClientStatus,
     RpcFiCurrentLiquidityOperationResult,
     RpcFiEligiblePayersResult,
@@ -7,7 +9,13 @@ import {
     RpcFiOperationResult,
     RpcFiSelectionPreviewResult,
     RpcFiStatus,
+    RpcParseInviteCodeResult,
 } from '../../../../types/bindings'
+import {
+    MOCK_PAYER_FEDERATION_IDS,
+    MOCK_PAYER_FEDERATIONS,
+} from '../../../../utils/fi/mockPayerFederation'
+import { FiScenarioName } from '../../../../utils/fi/scenarios'
 import { FiSimulator } from '../../../../utils/fi/simulator'
 
 const PREVIEW_REQUEST = {
@@ -753,6 +761,303 @@ describe('FiSimulator', () => {
             expect(current.type).toBe('current')
             if (current.type !== 'current') return
             expect(current.operation?.gatewayViewVerified).toBe(true)
+        })
+    })
+
+    describe('happy path, end to end', () => {
+        const GLOBAL = 'mock-payer-global-bitcoin'
+        const VICTORIA = 'mock-payer-victoria'
+        const SETUP_MSATS = 21_000_000
+
+        const payerIds = async (simulator: FiSimulator) => {
+            const result = (await simulator.handle(
+                'fiClientEligiblePayers',
+                {},
+            )) as RpcFiEligiblePayersResult
+            if (result.type !== 'payers') throw new Error('expected payers')
+            return result.payers
+        }
+
+        /** A simulator wired to a spy, so announced events can be asserted. */
+        const attached = (scenario?: FiScenarioName) => {
+            const simulator = new FiSimulator()
+            const emitEvent = jest.fn()
+            simulator.attach(jest.fn(), emitEvent)
+            if (scenario) simulator.setScenario(scenario)
+            return { simulator, emitEvent }
+        }
+
+        const formedInvite = async (simulator: FiSimulator) => {
+            await payWithFreshPreview(simulator)
+            await jest.advanceTimersByTimeAsync(30_000)
+            const formation = await currentFormation(simulator)
+            if (!formation.inviteCode) throw new Error('expected an invite')
+            return formation.inviteCode
+        }
+
+        it('should seed the story 04 payers when the happy path is chosen, not at boot', async () => {
+            const simulator = new FiSimulator('happyPath')
+            simulator.observeFederations(['real-fed'])
+
+            const atBoot = (await payerIds(simulator)).map(p => p.federationId)
+            expect(atBoot).toEqual(['real-fed'])
+
+            simulator.setScenario('happyPath')
+
+            const chosen = (await payerIds(simulator)).map(p => p.federationId)
+            expect(chosen).toEqual(['real-fed', ...MOCK_PAYER_FEDERATION_IDS])
+        })
+
+        it('should take the seeded payers away again when another scenario is chosen', async () => {
+            const { simulator } = attached('happyPath')
+            simulator.observeFederations(['real-fed'])
+
+            simulator.setScenario('insufficientBalance')
+
+            expect(simulator.listMockFederations()).toEqual([])
+            expect(
+                (await payerIds(simulator)).map(p => p.federationId),
+            ).toEqual(['real-fed'])
+        })
+
+        it('should keep a payer added by hand across a scenario change', () => {
+            const { simulator } = attached('happyPath')
+            simulator.addMockPayer('hand-added', 5_000)
+
+            simulator.setScenario('insufficientBalance')
+
+            expect(simulator.listMockFederations().map(f => f.id)).toEqual([
+                'hand-added',
+            ])
+        })
+
+        it('should name a seeded payer from its story, and prefer a name given by hand', () => {
+            const simulator = new FiSimulator()
+            simulator.addMockPayer(GLOBAL, 1)
+            simulator.addMockPayer(VICTORIA, 1, 'Renamed')
+
+            expect(simulator.listMockFederations().map(f => f.name)).toEqual([
+                'Global Bitcoin Federation',
+                'Renamed',
+            ])
+        })
+
+        it('should announce each seeded payer as a federation event, so redux holds it', () => {
+            const { emitEvent } = attached('happyPath')
+
+            const announced = emitEvent.mock.calls
+                .filter(([event]) => event === 'federation')
+                .map(([, federation]) => federation.id)
+            expect(announced).toEqual(MOCK_PAYER_FEDERATION_IDS)
+        })
+
+        it('should move a top-up between two seeded wallets and report it as a claimed receive', async () => {
+            const { simulator, emitEvent } = attached('happyPath')
+            const global = MOCK_PAYER_FEDERATIONS.find(m => m.id === GLOBAL)
+            if (!global) throw new Error('expected the global payer')
+
+            const invoice = (await simulator.handle('generateInvoice', {
+                federationId: VICTORIA,
+                amount: SETUP_MSATS,
+            })) as string
+            expect(simulator.handles('payInvoice', { invoice })).toBe(true)
+
+            const paying = simulator.handle('payInvoice', {
+                invoice,
+                federationId: GLOBAL,
+            })
+            await jest.advanceTimersByTimeAsync(1_000)
+            await paying
+
+            const payers = await payerIds(simulator)
+            expect(
+                payers.find(p => p.federationId === VICTORIA)?.balanceMsats,
+            ).toBe(String(SETUP_MSATS))
+            expect(
+                payers.find(p => p.federationId === GLOBAL)?.balanceMsats,
+            ).toBe(String(global.balanceSats * 1_000 - SETUP_MSATS))
+            expect(emitEvent).toHaveBeenCalledWith(
+                'balance',
+                expect.objectContaining({ federationId: VICTORIA }),
+            )
+            expect(emitEvent).toHaveBeenCalledWith(
+                'transaction',
+                expect.objectContaining({
+                    federationId: VICTORIA,
+                    transaction: expect.objectContaining({
+                        kind: 'lnReceive',
+                        ln_invoice: invoice,
+                        state: { type: 'claimed' },
+                    }),
+                }),
+            )
+        })
+
+        it('should refund a spent payer when the happy path is chosen again', async () => {
+            const { simulator, emitEvent } = attached('happyPath')
+            const invoice = (await simulator.handle('generateInvoice', {
+                federationId: VICTORIA,
+                amount: SETUP_MSATS,
+            })) as string
+            const paying = simulator.handle('payInvoice', {
+                invoice,
+                federationId: GLOBAL,
+            })
+            await jest.advanceTimersByTimeAsync(1_000)
+            await paying
+
+            emitEvent.mockClear()
+            simulator.setScenario('happyPath')
+
+            const payers = await payerIds(simulator)
+            expect(
+                payers.find(p => p.federationId === VICTORIA)?.balanceMsats,
+            ).toBe('0')
+            expect(simulator.listMockFederations()).toHaveLength(
+                MOCK_PAYER_FEDERATIONS.length,
+            )
+            expect(emitEvent).toHaveBeenCalledWith(
+                'federation',
+                expect.objectContaining({ id: VICTORIA, balance: 0 }),
+            )
+        })
+
+        it('should report the restored balance when a payer is added by hand twice', () => {
+            const { simulator, emitEvent } = attached()
+            simulator.addMockPayer(VICTORIA, 0)
+
+            simulator.addMockPayer(VICTORIA, 7)
+
+            expect(emitEvent).toHaveBeenCalledWith('balance', {
+                federationId: VICTORIA,
+                balance: 7_000,
+            })
+        })
+
+        it('should stand up the formed wallet service on signet and announce it', async () => {
+            const { simulator, emitEvent } = attached('happyPath')
+
+            const inviteCode = await formedInvite(simulator)
+
+            expect(emitEvent).toHaveBeenCalledWith(
+                'federation',
+                expect.objectContaining({
+                    name: 'Test Service',
+                    network: 'signet',
+                    inviteCode,
+                }),
+            )
+            const announced = emitEvent.mock.calls.find(
+                ([event, federation]) =>
+                    event === 'federation' &&
+                    federation.inviteCode === inviteCode,
+            )?.[1]
+            expect(simulator.listMockFederations().map(f => f.id)).toContain(
+                announced.id,
+            )
+            expect(simulator.handles('parseInviteCode', { inviteCode })).toBe(
+                true,
+            )
+            expect(
+                simulator.handles('parseInviteCode', {
+                    inviteCode: 'fed1other',
+                }),
+            ).toBe(false)
+            const parsed = (await simulator.handle('parseInviteCode', {
+                inviteCode,
+            })) as RpcParseInviteCodeResult
+            expect(parsed.federationId).toBe(announced.id)
+            expect(simulator.handles('federationPreview', { inviteCode })).toBe(
+                true,
+            )
+            const previewed = (await simulator.handle('federationPreview', {
+                inviteCode,
+            })) as RpcFederationPreview
+            expect(previewed).toMatchObject({
+                id: announced.id,
+                name: 'Test Service',
+                inviteCode,
+            })
+            expect(
+                simulator.handles('getGuardianStatus', {
+                    federationId: announced.id,
+                }),
+            ).toBe(true)
+            const statuses = (await simulator.handle('getGuardianStatus', {
+                federationId: announced.id,
+            })) as GuardianStatus[]
+            const { seats } = await currentFormation(simulator)
+            expect(statuses).toHaveLength(10)
+            expect(statuses[0]).toEqual({
+                online: { guardian: seats[0]?.fmanName, latency_ms: 1 },
+            })
+        })
+
+        it('should publish the applied guardian fee in the preview once it is set', async () => {
+            const { simulator } = attached('happyPath')
+            const inviteCode = await formedInvite(simulator)
+
+            const before = (await simulator.handle('federationPreview', {
+                inviteCode,
+            })) as RpcFederationPreview
+            expect(before.meta['fedi:guardian_fee_send_ppm']).toBeUndefined()
+
+            await simulator.handle('fiClientSetGuardianFee', {
+                guardianFeePpm: 5_000,
+            })
+
+            const after = (await simulator.handle('federationPreview', {
+                inviteCode,
+            })) as RpcFederationPreview
+            expect(after.meta['fedi:guardian_fee_send_ppm']).toBe('5000')
+        })
+
+        it('should attach the Lightning provider once formed, with no extra seeding', async () => {
+            const { simulator } = attached('happyPath')
+            await formedInvite(simulator)
+
+            const discovery = (await simulator.handle(
+                'fiClientLiquidityDiscover',
+                { network: 'signet' },
+            )) as RpcFiLiquidityDiscoveryResult
+            expect(discovery.type).toBe('discovery')
+            if (discovery.type !== 'discovery') return
+            expect(discovery.providers).toHaveLength(1)
+
+            const started = (await simulator.handle(
+                'fiClientLiquidityStart',
+                {},
+            )) as RpcFiLiquidityOperationResult
+            expect(started.type).toBe('operation')
+
+            await simulator.handle('fiClientLiquidityStatus', {})
+            const verified = (await simulator.handle(
+                'fiClientLiquidityStatus',
+                {},
+            )) as RpcFiLiquidityOperationResult
+            expect(verified.type).toBe('operation')
+            if (verified.type !== 'operation') return
+            expect(verified.operation.gatewayViewVerified).toBe(true)
+        })
+
+        it('should clear every seeded wallet and the formation', async () => {
+            const { simulator } = attached('happyPath')
+            simulator.observeFederations(['real-fed'])
+            const inviteCode = await formedInvite(simulator)
+
+            simulator.clearSimulatedState()
+
+            expect(simulator.listMockFederations()).toEqual([])
+            expect(await status(simulator)).toEqual({
+                type: 'ready',
+                status: { type: 'idle' },
+            })
+            expect(simulator.handles('parseInviteCode', { inviteCode })).toBe(
+                false,
+            )
+            expect(
+                (await payerIds(simulator)).map(p => p.federationId),
+            ).toEqual(['real-fed'])
         })
     })
 })

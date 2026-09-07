@@ -57,6 +57,9 @@ import {
     upsertFederation,
     setFederations,
     selectFederationIds,
+    setFiStatus,
+    clearFiLiquidity,
+    clearWalletServiceSelectionPreview,
 } from '@fedi/common/redux'
 import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
@@ -418,6 +421,30 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         }
     }
 
+    // Everything the simulator ever put in front of the app: seeded payers,
+    // mock joined services, the formed wallet service and its formation. Redux
+    // learned of them through the same events the bridge sends, so they are
+    // dropped here explicitly rather than waiting for the next wholesale
+    // refresh to stop riding them along.
+    const handleClearSimulatedState = () => {
+        if (!fiSimulator) return
+        const seededIds = [
+            ...fiSimulator.listMockFederations().map(f => f.id),
+            ...MOCK_PAYER_FEDERATION_IDS,
+        ]
+        fiSimulator.clearSimulatedState()
+        reduxDispatch(
+            setFederations(federations.filter(f => !seededIds.includes(f.id))),
+        )
+        reduxDispatch(setFiStatus({ type: 'idle' }))
+        reduxDispatch(clearFiLiquidity())
+        reduxDispatch(clearWalletServiceSelectionPreview())
+        toast.show({
+            content: 'Simulated wallet service state cleared',
+            status: 'info',
+        })
+    }
+
     const handleScheduleFiReset = () => {
         Alert.alert(
             'Wipe all wallet-service test state?',
@@ -730,7 +757,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 {fiSimulator && (
                     <CollapsibleSection
                         title="Simulator tools"
-                        count={2}
+                        count={3}
                         isOpen={openFiGroup === SIMULATOR_TOOLS_GROUP}
                         onToggle={() =>
                             setOpenFiGroup(current =>
@@ -808,6 +835,19 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                                     status: 'info',
                                 })
                             }}
+                        />
+                        <Text small style={style.switchLabel}>
+                            Removes every wallet and formation the simulator
+                            seeded, so a device holding real wallets can be
+                            checked with nothing invented in the way. Real
+                            wallet-service state on the bridge is untouched;
+                            that is "Wipe all wallet-service test state".
+                        </Text>
+                        <Button
+                            day
+                            title="Clear simulated wallet service state"
+                            containerStyle={style.buttonContainer}
+                            onPress={handleClearSimulatedState}
                         />
                     </CollapsibleSection>
                 )}
