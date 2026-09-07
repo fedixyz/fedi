@@ -328,9 +328,13 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                 </Column>
             </SafeScrollArea>
 
+            {/* seen the moment the last step is reached, not only when the
+                sheet closes: a finished walk-through stays finished however
+                it is left afterwards */}
             <WalletServiceTour
                 show={isTourOpen}
                 steps={tourSteps}
+                onLastStep={completeTour}
                 onDone={handleTourDone}
             />
 

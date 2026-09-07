@@ -220,6 +220,7 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
                 <WalletServiceTour
                     show={false}
                     steps={threeSteps()}
+                    onLastStep={jest.fn()}
                     onDone={jest.fn()}
                 />,
             )
@@ -231,6 +232,7 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
                 <WalletServiceTour
                     show
                     steps={threeSteps()}
+                    onLastStep={jest.fn()}
                     onDone={jest.fn()}
                 />,
             )
@@ -270,7 +272,12 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
                 },
             ]
             renderWithProviders(
-                <WalletServiceTour show steps={steps} onDone={jest.fn()} />,
+                <WalletServiceTour
+                    show
+                    steps={steps}
+                    onLastStep={jest.fn()}
+                    onDone={jest.fn()}
+                />,
             )
             expect(
                 await screen.findByText(i18n.t(WITHDRAW_STEP.titleKey)),
@@ -293,6 +300,7 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
                         { ...BALANCE_STEP, ref: mockTargetRef(null) },
                         { ...WITHDRAW_STEP, ref: mockTargetRef(null) },
                     ]}
+                    onLastStep={jest.fn()}
                     onDone={jest.fn()}
                 />,
             )
@@ -327,6 +335,7 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
                             }),
                         },
                     ]}
+                    onLastStep={jest.fn()}
                     onDone={jest.fn()}
                 />,
             )
@@ -349,7 +358,12 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
     // landed on the white tour card and the CTA read as a pale grey pill.
     it('should render the next button as ink, not as the bare sheen', async () => {
         renderWithProviders(
-            <WalletServiceTour show steps={threeSteps()} onDone={jest.fn()} />,
+            <WalletServiceTour
+                show
+                steps={threeSteps()}
+                onLastStep={jest.fn()}
+                onDone={jest.fn()}
+            />,
         )
         await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
 
@@ -371,6 +385,7 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
                 <WalletServiceTour
                     show
                     steps={threeSteps()}
+                    onLastStep={jest.fn()}
                     onDone={jest.fn()}
                 />,
             )
@@ -396,6 +411,7 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
                 <WalletServiceTour
                     show
                     steps={threeSteps()}
+                    onLastStep={jest.fn()}
                     onDone={jest.fn()}
                 />,
             )
@@ -416,7 +432,12 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
         it('should finish from the last step', async () => {
             const onDone = jest.fn()
             renderWithProviders(
-                <WalletServiceTour show steps={threeSteps()} onDone={onDone} />,
+                <WalletServiceTour
+                    show
+                    steps={threeSteps()}
+                    onLastStep={jest.fn()}
+                    onDone={onDone}
+                />,
             )
             await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
 
@@ -429,11 +450,102 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
         })
     })
 
+    describe('reaching the last step', () => {
+        it('should report the last step as soon as the operator arrives on it', async () => {
+            const onLastStep = jest.fn()
+            const onDone = jest.fn()
+            renderWithProviders(
+                <WalletServiceTour
+                    show
+                    steps={threeSteps()}
+                    onLastStep={onLastStep}
+                    onDone={onDone}
+                />,
+            )
+            await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
+
+            await user.press(screen.getByTestId('wallet-service-tour-next'))
+            expect(onLastStep).not.toHaveBeenCalled()
+
+            await user.press(screen.getByTestId('wallet-service-tour-next'))
+            expect(onLastStep).toHaveBeenCalledTimes(1)
+            // still open: reporting the last step is not closing the tour
+            expect(onDone).not.toHaveBeenCalled()
+            expect(
+                screen.getByText(i18n.t(SETTINGS_STEP.titleKey)),
+            ).toBeTruthy()
+        })
+
+        it('should report the last step once, not again on done', async () => {
+            const onLastStep = jest.fn()
+            renderWithProviders(
+                <WalletServiceTour
+                    show
+                    steps={threeSteps()}
+                    onLastStep={onLastStep}
+                    onDone={jest.fn()}
+                />,
+            )
+            await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
+
+            await user.press(screen.getByTestId('wallet-service-tour-next'))
+            await user.press(screen.getByTestId('wallet-service-tour-next'))
+            await user.press(screen.getByTestId('wallet-service-tour-next'))
+
+            expect(onLastStep).toHaveBeenCalledTimes(1)
+        })
+
+        it('should not report the last step when the tour is skipped before it', async () => {
+            const onLastStep = jest.fn()
+            renderWithProviders(
+                <WalletServiceTour
+                    show
+                    steps={threeSteps()}
+                    onLastStep={onLastStep}
+                    onDone={jest.fn()}
+                />,
+            )
+            await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
+
+            await user.press(screen.getByTestId('wallet-service-tour-next'))
+            await user.press(screen.getByTestId('wallet-service-tour-skip'))
+
+            expect(onLastStep).not.toHaveBeenCalled()
+        })
+
+        it('should count the last step from the steps that measured', async () => {
+            const onLastStep = jest.fn()
+            const steps = threeSteps()
+            steps[1] = { ...WITHDRAW_STEP, ref: mockTargetRef(null) }
+            renderWithProviders(
+                <WalletServiceTour
+                    show
+                    steps={steps}
+                    onLastStep={onLastStep}
+                    onDone={jest.fn()}
+                />,
+            )
+            await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
+
+            await user.press(screen.getByTestId('wallet-service-tour-next'))
+
+            expect(onLastStep).toHaveBeenCalledTimes(1)
+            expect(
+                screen.getByText(i18n.t(SETTINGS_STEP.titleKey)),
+            ).toBeTruthy()
+        })
+    })
+
     describe('leaving early', () => {
         it('should finish from skip on the first step', async () => {
             const onDone = jest.fn()
             renderWithProviders(
-                <WalletServiceTour show steps={threeSteps()} onDone={onDone} />,
+                <WalletServiceTour
+                    show
+                    steps={threeSteps()}
+                    onLastStep={jest.fn()}
+                    onDone={onDone}
+                />,
             )
             await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
 
@@ -445,7 +557,12 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
         it('should finish from skip part way through', async () => {
             const onDone = jest.fn()
             renderWithProviders(
-                <WalletServiceTour show steps={threeSteps()} onDone={onDone} />,
+                <WalletServiceTour
+                    show
+                    steps={threeSteps()}
+                    onLastStep={jest.fn()}
+                    onDone={onDone}
+                />,
             )
             await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
 
@@ -458,7 +575,12 @@ describe('components/feature/walletservice/WalletServiceTour', () => {
         it('should finish when the scrim is tapped', async () => {
             const onDone = jest.fn()
             renderWithProviders(
-                <WalletServiceTour show steps={threeSteps()} onDone={onDone} />,
+                <WalletServiceTour
+                    show
+                    steps={threeSteps()}
+                    onLastStep={jest.fn()}
+                    onDone={onDone}
+                />,
             )
             await screen.findByText(i18n.t(BALANCE_STEP.titleKey))
 

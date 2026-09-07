@@ -40,7 +40,11 @@ const mockTourRender = jest.fn()
 jest.mock(
     '../../../components/feature/walletservice/WalletServiceTour',
     () => ({
-        WalletServiceTour: (props: { show: boolean; onDone: () => void }) => {
+        WalletServiceTour: (props: {
+            show: boolean
+            onLastStep: () => void
+            onDone: () => void
+        }) => {
             mockTourRender(props)
             return null
         },
@@ -450,6 +454,22 @@ describe('screens/WalletServiceDashboard', () => {
                 true,
             )
             expect(lastTourProps().show).toBe(false)
+        })
+
+        it('should be seen once the last step is reached, before it closes', async () => {
+            const { store } = renderScreen({ hasSeenTour: false })
+            await waitFor(() => expect(lastTourProps().show).toBe(true), {
+                timeout: 2000,
+            })
+
+            await act(async () => lastTourProps().onLastStep())
+
+            // persisted while the sheet is still up, so a close that never
+            // reports back cannot bring the tour round again
+            expect(store.getState().nux.steps.hasSeenWalletServiceTour).toBe(
+                true,
+            )
+            expect(lastTourProps().show).toBe(true)
         })
 
         it('should lock the page while it is open, and release it after', async () => {

@@ -156,11 +156,23 @@ type Props = {
     show: boolean
     /** Must be a stable reference — a new array each render re-measures forever. */
     steps: WalletServiceTourStep[]
+    /**
+     * Called once, when the operator arrives on the final step. The tour is
+     * seen from this point, so the caller should persist that here rather than
+     * wait for `onDone`: a sheet torn down without a close call, or a write
+     * lost to an app kill, must not bring the tour back.
+     */
+    onLastStep: () => void
     /** Called once, when the tour ends by any route. */
     onDone: () => void
 }
 
-export const WalletServiceTour: React.FC<Props> = ({ show, steps, onDone }) => {
+export const WalletServiceTour: React.FC<Props> = ({
+    show,
+    steps,
+    onLastStep,
+    onDone,
+}) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const insets = useSafeAreaInsets()
@@ -236,8 +248,10 @@ export const WalletServiceTour: React.FC<Props> = ({ show, steps, onDone }) => {
 
     const handleNext = useCallback(() => {
         if (isLastStep) return onDone()
-        setStepIndex(i => i + 1)
-    }, [isLastStep, onDone])
+        const next = stepIndex + 1
+        if (next >= liveSteps.length - 1) onLastStep()
+        setStepIndex(next)
+    }, [isLastStep, onDone, onLastStep, stepIndex, liveSteps.length])
 
     const style = styles(theme)
 
