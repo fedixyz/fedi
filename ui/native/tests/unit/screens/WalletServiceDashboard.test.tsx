@@ -91,6 +91,10 @@ const renderScreen = ({
     // the federation the invite resolves to is joined and loaded, matching
     // the bridge's auto-join once formation reaches `formed`
     federationJoined = true,
+    // the joined federation is the wallet service, so it publishes the live
+    // name; that equals the creation-time intent until a rename
+    federationName = formation.intent.federationName,
+    renamedTo = null as string | null,
     balanceMsats = 0,
     guardianStatuses = null as GuardianStatus[] | null,
     hasSeenTour = true,
@@ -100,6 +104,8 @@ const renderScreen = ({
 }: {
     snapshot?: RpcFiFormationSnapshot
     federationJoined?: boolean
+    federationName?: string
+    renamedTo?: string | null
     balanceMsats?: number
     guardianStatuses?: GuardianStatus[] | null
     hasSeenTour?: boolean
@@ -128,6 +134,10 @@ const renderScreen = ({
                               {
                                   ...mockFederation1,
                                   id: WALLET_SERVICE_FEDERATION_ID,
+                                  name: federationName,
+                                  meta: renamedTo
+                                      ? { federation_name: renamedTo }
+                                      : mockFederation1.meta,
                                   balance: balanceMsats as MSats,
                               },
                           ]
@@ -213,6 +223,14 @@ describe('screens/WalletServiceDashboard', () => {
                 }),
             ),
         ).toBeOnTheScreen()
+    })
+
+    it('should show the name the federation publishes after a rename', async () => {
+        renderScreen({ renamedTo: 'Money Badger' })
+        await waitFor(() => {})
+
+        expect(screen.getByText('Money Badger')).toBeOnTheScreen()
+        expect(screen.queryByText('Test Wallet Service')).toBeNull()
     })
 
     it('should take the guardian total from the formation', async () => {

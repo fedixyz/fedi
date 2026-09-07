@@ -156,7 +156,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
     const toast = useToast()
     const { launchZendesk } = useLaunchZendesk()
 
-    const name = useAppSelector(selectFiFormationName)
+    const formationName = useAppSelector(selectFiFormationName)
     const inviteCode = useAppSelector(selectFiInviteCode)
     // the rate the federation applies, read from its consensus metadata — not
     // `intent.guardianFeePpm`, which is creation-time and always 0
@@ -185,15 +185,19 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
 
     const [editing, setEditing] = useState<EditableField | null>(null)
     const [draftValue, setDraftValue] = useState('')
-    // the icon, description and terms the federation publishes — read from its
-    // consensus metadata, not from the formation intent, which carries none of
-    // them. `markApplied` holds a just-saved value until consensus agrees.
+    // the name, icon, description and terms the federation publishes — read
+    // from its consensus metadata, not from the creation-time formation intent.
+    // `markApplied` holds a just-saved value until consensus agrees.
     const {
+        name: consensusName,
         iconUrl,
         description,
         termsUrl,
         markApplied: markMetadataApplied,
     } = useWalletServiceMetadata()
+    // the intent is the last resort: all there is before the first preview
+    // resolves, and on a fresh install of a pre-consensus service
+    const name = consensusName || formationName
     const [isSaving, setIsSaving] = useState(false)
     const [termsJustInstalled, setTermsJustInstalled] = useState(false)
     const [sheet, setSheet] = useState<OpenSheet>(null)
@@ -285,6 +289,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
         if (await saveMetadata(update)) {
             // consensus lags the save, so hold the new value on screen until a
             // read agrees with it
+            if (editing === 'name') markMetadataApplied({ name: value })
             if (editing === 'iconUrl') markMetadataApplied({ iconUrl: value })
             if (editing === 'welcomeMessage')
                 markMetadataApplied({ description: value })

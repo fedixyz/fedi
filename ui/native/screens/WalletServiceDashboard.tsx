@@ -55,7 +55,7 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const fedimint = useFedimint()
-    const name = useAppSelector(selectFiFormationName)
+    const formationName = useAppSelector(selectFiFormationName)
     const inviteCode = useAppSelector(selectFiInviteCode)
     const isUnsynced = useAppSelector(selectFiIsUnsynced)
     // watched app-wide by WalletServiceMonitor, so this reports a request the
@@ -77,6 +77,15 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const isFederationLoaded = useAppSelector(s =>
         federationId ? Boolean(selectLoadedFederation(s, federationId)) : false,
     )
+    // the live name, which a rename writes to federation consensus — not
+    // `intent.federationName`, which is creation-time and stands in only until
+    // the federation loads
+    const federationName = useAppSelector(s =>
+        federationId
+            ? (selectLoadedFederation(s, federationId)?.name ?? null)
+            : null,
+    )
+    const name = federationName || formationName
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance(
         t,
         federationId ?? '',

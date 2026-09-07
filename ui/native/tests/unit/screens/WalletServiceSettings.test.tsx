@@ -219,6 +219,48 @@ describe('screens/WalletServiceSettings', () => {
         })
     })
 
+    it('should show the name the federation publishes, not the intent', async () => {
+        renderScreen({
+            fedimint: makePreviewBridge(
+                { [GUARDIAN_FEE_META_KEY]: '5000' },
+                {
+                    federationPreview: () =>
+                        Promise.resolve({
+                            id: 'fed-1',
+                            name: 'My Wallet Service',
+                            meta: {
+                                [GUARDIAN_FEE_META_KEY]: '5000',
+                                federation_name: 'Money Badger',
+                            },
+                            inviteCode: 'fed11invite',
+                            returningMemberStatus: { type: 'newMember' },
+                        }),
+                },
+            ),
+        })
+
+        await waitFor(() =>
+            expect(screen.getByText('Money Badger')).toBeOnTheScreen(),
+        )
+        expect(screen.queryByText('My Wallet Service')).toBeNull()
+    })
+
+    it('should show a saved name before consensus reports it', async () => {
+        renderScreen()
+
+        await user.press(screen.getByTestId('settings-name-row'))
+        await user.clear(screen.getByTestId('settings-edit-input'))
+        await user.type(
+            screen.getByTestId('settings-edit-input'),
+            'Money Badger',
+        )
+        await pressOverlayButton(i18n.t('words.save'))
+
+        await waitFor(() =>
+            expect(screen.getByText('Money Badger')).toBeOnTheScreen(),
+        )
+    })
+
     it('should save the description as the welcomeMessage variant', async () => {
         const fedimint = renderScreen()
 

@@ -644,24 +644,27 @@ export function useWalletServiceLightningAttach(): WalletServiceLightningAttach 
 
 /** The metadata fields the wallet service settings screen reads back. */
 export type WalletServiceMetadata = {
+    name: string | null
     iconUrl: string | null
     description: string | null
     termsUrl: string | null
 }
 
 const EMPTY_METADATA: WalletServiceMetadata = {
+    name: null,
     iconUrl: null,
     description: null,
     termsUrl: null,
 }
 
 /**
- * The icon, description and terms the federation actually publishes.
+ * The name, icon, description and terms the federation actually publishes.
  *
  * `fiClientUpdateFederationMetadata` is a setter with no getter, and
  * `RpcFiResolvedFormationIntent` carries only the creation-time intent — no
- * metadata field at all. So none of these three rows could show their own
- * value: an edit was visible until the screen remounted and then vanished.
+ * metadata field at all. So none of the icon, description and terms rows
+ * could show their own value: an edit was visible until the screen remounted
+ * and then vanished.
  *
  * They are not write-only, though. Manifold publishes each one to the
  * federation's consensus metadata under `fedi:federation_icon_url`,
@@ -671,7 +674,8 @@ const EMPTY_METADATA: WalletServiceMetadata = {
  *
  * The reads go through the shared `FederationUtils` getters rather than raw key
  * lookups, because those already try the `fedi:` prefix before the bare key,
- * which is the form Manifold writes.
+ * which is the form Manifold writes. The name is the one exception: a rename
+ * lands under the bare `federation_name` key, with no `fedi:` prefix.
  *
  * `markApplied` holds just-saved values on screen until a fetch agrees with
  * them: every write is a guardian consensus vote and takes a moment to settle,
@@ -693,6 +697,11 @@ export function useWalletServiceMetadata() {
         try {
             const preview = await fedimint.federationPreview(inviteCode)
             setConsensus({
+                name:
+                    getMetaField(
+                        SupportedMetaFields.federation_name,
+                        preview.meta,
+                    ) || preview.name,
                 iconUrl: getFederationIconUrl(preview.meta),
                 description: getFederationWelcomeMessage(preview.meta),
                 termsUrl: getMetaField(
@@ -738,6 +747,7 @@ export function useWalletServiceMetadata() {
 
     return {
         // `null` means the federation publishes nothing for that field
+        name: pending.name ?? consensus.name,
         iconUrl: pending.iconUrl ?? consensus.iconUrl,
         description: pending.description ?? consensus.description,
         termsUrl: pending.termsUrl ?? consensus.termsUrl,
