@@ -5,9 +5,17 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 "$REPO_ROOT/scripts/enforce-nix.sh"
 
 E2E_DIR="$REPO_ROOT/ui/web"
+port_in_use() {
+  command -v ss >/dev/null 2>&1 && ss -Htan | awk '{print $4}' | grep -q ":$1$"
+}
+
 default_web_e2e_port() {
   if [[ -n "${CI:-}" && "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ ]]; then
-    echo $((30000 + (GITHUB_RUN_ID % 20000)))
+    local port=$((20000 + (GITHUB_RUN_ID % 12000)))
+    while port_in_use "$port"; do
+      port=$((port + 1))
+    done
+    echo "$port"
   else
     echo 34157
   fi
