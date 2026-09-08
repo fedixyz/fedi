@@ -99,6 +99,12 @@ const EDITOR_TITLE_KEYS = {
     iconUrl: 'feature.wallet-service.settings-icon',
 } as const satisfies Record<EditableField, string>
 
+const EDITOR_HELP_KEYS = {
+    name: 'feature.wallet-service.settings-name-help',
+    welcomeMessage: 'feature.wallet-service.settings-description-help',
+    iconUrl: 'feature.wallet-service.settings-icon-help',
+} as const satisfies Record<EditableField, string>
+
 const ICON_URL_ERROR_KEYS = {
     invalid: 'feature.wallet-service.settings-icon-invalid',
     nonPublicHost: 'feature.wallet-service.settings-icon-not-public',
@@ -590,6 +596,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
                 loading={isSaving}
                 onDismiss={() => setEditing(null)}
                 title={t(EDITOR_TITLE_KEYS[editing ?? 'name'])}
+                description={t(EDITOR_HELP_KEYS[editing ?? 'name'])}
                 buttons={[
                     {
                         text: t('words.save'),

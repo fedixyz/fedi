@@ -261,6 +261,26 @@ describe('screens/WalletServiceSettings', () => {
         )
     })
 
+    // the fee, Lightning, terms and stable balance sheets each explain
+    // themselves; this sheet shipped as the one sibling that did not
+    it.each([
+        ['settings-name-row', 'feature.wallet-service.settings-name-help'],
+        [
+            'settings-description-row',
+            'feature.wallet-service.settings-description-help',
+        ],
+        ['settings-icon-row', 'feature.wallet-service.settings-icon-help'],
+    ] as const)(
+        'should explain the field when %s opens its sheet',
+        async (rowTestId, helpKey) => {
+            renderScreen()
+
+            await user.press(screen.getByTestId(rowTestId))
+
+            expect(screen.getByText(i18n.t(helpKey))).toBeOnTheScreen()
+        },
+    )
+
     it('should save the description as the welcomeMessage variant', async () => {
         const fedimint = renderScreen()
 
