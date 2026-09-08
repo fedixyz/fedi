@@ -11,7 +11,7 @@ Android ships through two channels: the Google Play store release, driven throug
 
 ### The edit model
 
-All writes happen inside an edit: open one, stage any number of changes, then commit. Until the commit, nothing exists outside the edit, and an abandoned edit expires on its own or dies to a DELETE. This inverts the iOS shape, where every preparation call lands immediately and submission is the gate. On Play the staging is free and the single gate is `:commit`.
+All writes happen inside an edit: open one, stage any number of changes, then commit. Until the commit, nothing exists outside the edit, and an abandoned edit expires on its own or dies to a DELETE. An uncommitted edit is also invisible in the Play Console, so a promotion that only lives in an edit is not ready for anyone who works there. The prepared state this skill leaves behind is a committed draft release, which the console shows under Production, Releases, as Draft. The user's submission is the console's Review release and Start rollout on that draft. This inverts the iOS shape only in mechanics: on both stores every preparation step lands for real, and the one gate is sending the release to review.
 
 ### Boundary with CI
 
@@ -31,9 +31,9 @@ If no key exists on this machine, walk the user through creating one. In the Goo
 
 Fedi package names: `com.fedi` (production, the app users have), `com.fedi.nightly`, `com.fedi.nova`, `com.fedi.edge`. The production app's tracks include the four standard ones (`production`, `beta`, `alpha`, `internal`) plus closed tracks named `Fedi Inc` and `QA`. Production promotes directly from `internal`; the closed tracks are separate audiences, not stops on the way.
 
-### Staging a release
+### Preparing a release
 
-Everything before the commit stages changes inside the edit, so it needs no ceremony beyond the user's instruction to prepare the release. The commit is the hard gate below.
+Preparation ends with a committed draft release on the production track. A draft ships nothing and sends nothing to review, so the whole sequence below needs no ceremony beyond the user's instruction to prepare the release. Committing a `completed` or `inProgress` release is the submission, and that is the hard gate below.
 
 #### 0. Open an edit and read the state
 
@@ -45,7 +45,7 @@ scripts/gp.sh 'com.fedi/edits/<edit-id>/tracks'
 
 The tracks response answers everything preflight needs: the version code CI uploaded to `internal`, what `production` currently runs, and the current production release notes (the reuse source). Releases name builds by `versionCodes`; the human-readable version string is the release `name`. Edits expire (the insert response carries `expiryTimeSeconds`), so open a fresh one rather than reusing yesterday's id.
 
-#### 1. Stage the promotion to production
+#### 1. Stage the draft release on production
 
 Where the notes text comes from is the user's call, so ask: a feature release usually wants new copy, a patch often reuses the current production notes. When new copy is needed and none exists anywhere yet, the notes have not been distilled from the release contents: run the `report-next-release` skill, draft the copy from its summary cards, and get the user's sign-off before writing any locale. Non-English texts come from the user or the translation process, never improvised. The Play locale set is its own thing (`es-419` and `sw` exist here and not on the App Store), so port notes store-to-store by locale mapping the user confirms, not by assumption.
 
@@ -55,34 +55,31 @@ scripts/gp.sh 'com.fedi/edits/<edit-id>/tracks/production' -X PUT -H 'Content-Ty
   "releases": [ {
     "name": "26.X.Y",
     "versionCodes": ["<version-code>"],
-    "status": "completed",
+    "status": "draft",
     "releaseNotes": [
       { "language": "en-US", "text": "..." },
       { "language": "es-419", "text": "..." }
-    ] } ] }
+    ] },
+    { ...the current completed release, verbatim from the step 0 read... } ] }
 EOF
 ```
 
-`status: completed` ships to everyone at once. For a staged rollout use `"status": "inProgress", "userFraction": 0.1` instead (a fraction, so 0.1 is 10% of users). The PUT replaces the track's whole release list, so a staged rollout keeps the current `completed` release in `releases` as a second element; the step 0 read has it verbatim.
+The PUT replaces the track's whole release list, so the live `completed` release goes in as the second element or the track loses it. `status: draft` is the console's own draft: it serves nothing and is not sent to review.
 
-#### 2. Validate and read back
+#### 2. Validate, commit the draft, read back
 
 ```bash
 scripts/gp.sh 'com.fedi/edits/<edit-id>:validate' -X POST
-scripts/gp.sh 'com.fedi/edits/<edit-id>/tracks/production'
-```
-
-Confirm the staged release carries the right version code, status, and every locale's notes. Stop here. Staging is where this skill's autonomy ends.
-
-### Committing the edit (explicit user approval required)
-
-```bash
 scripts/gp.sh 'com.fedi/edits/<edit-id>:commit' -X POST
 ```
 
-This is the one call that makes the release real: it submits to Google's review, and once review passes the release goes live to users (at the staged fraction, if rolling out gradually) with no further gate. It happens only on an explicit, unambiguous instruction from the user to commit, given separately after they have seen what is staged. The go that authorized staging never covers it, no phrasing is close enough to infer from, and any doubt means stop and ask. There is no situation in which the commit happens as a side effect of something else.
+Committing a draft makes it visible in the console and nothing else. A committed edit is spent, so verify by opening a fresh edit and reading the production track: it must list the draft with the right version code and every locale's notes next to the live release. Report it as "draft 26.X.Y under Production, Releases, waiting for Review release and Start rollout". Stop here. Preparation is where this skill's autonomy ends.
 
-To abandon instead, `DELETE` the edit or let it expire. A committed edit is spent, so verify the result by opening a fresh edit and reading the production track. The promotion and commit flow is written from Google's API reference; the client, edit lifecycle, and track reads are proven against the live app.
+### Rolling out (explicit user approval required)
+
+Committing an edit whose production release has `status: completed` (everyone at once) or `"status": "inProgress", "userFraction": 0.1` (a fraction, so 0.1 is 10% of users, with the current completed release kept as the second element) is the submission. For `com.fedi` there is no API state between a draft and review: Google answers a commit sent with `?changesNotSentForReview=true` with "Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.", so the commit goes straight to review and, once review passes, live to users with no further gate. The user normally does this themselves in the console from the draft. Through the API it happens only on an explicit, unambiguous instruction from the user to roll out, given separately after they have seen the draft. The go that authorized preparation never covers it, no phrasing is close enough to infer from, and any doubt means stop and ask. There is no situation in which it happens as a side effect of something else.
+
+To abandon a staged edit instead, `DELETE` it or let it expire. The draft flow, the client, the edit lifecycle and the track reads are proven against the live app (26.8.2, 2026-09-08); the rollout commit is written from Google's API reference.
 
 ### Live rollouts (prohibited)
 
@@ -100,9 +97,9 @@ Publishing the release is the APK channel's release action and is never an agent
 
 ## Traps
 
-- nothing outside a committed edit is real, so experiment freely inside one and throw it away
+- nothing outside a committed edit is real, so experiment freely inside one and throw it away, and never report an uncommitted edit as a prepared release
 - the `:validate` call checks the staged shape for free inside the edit
-- a `:commit` rejected over changes not yet sent for review wants the `?changesNotSentForReview=true` query parameter; Google requires it for apps in certain review states
+- `?changesNotSentForReview=true` only exists for apps Google makes send changes explicitly; `com.fedi` rejects it, so a commit of a `completed` or `inProgress` release is a submission, and the draft status is the only pre-review state
 - `userFraction` is only valid with `inProgress`; `completed` with a fraction fails validation
 - a release note text over 500 characters fails validation
 - the API cannot roll back a live release; shipping a fix means a new version code through the whole pipeline
