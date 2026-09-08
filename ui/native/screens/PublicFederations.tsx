@@ -81,7 +81,11 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
         switcherOptions[0]
 
     return (
-        <SafeAreaContainer edges="none" style={style.screen}>
+        // only the create tab's pinned footer adds the home indicator inset
+        // itself, so the other two tabs still need it from the container
+        <SafeAreaContainer
+            edges={activeTab === 'create' ? 'none' : 'bottom'}
+            style={style.screen}>
             {/* HEADER */}
             <Column
                 align="center"
@@ -226,8 +230,6 @@ const styles = (theme: Theme) =>
         previewMessage: {
             color: theme.colors.primaryLight,
         },
-        // `WalletServiceFooter` owns the home indicator inset, so the container
-        // must not contribute one as well
         screen: {
             paddingBottom: 0,
         },
