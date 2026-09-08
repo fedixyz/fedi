@@ -88,7 +88,7 @@ const StatHelp: React.FC<{ children: string }> = ({ children }) => {
  */
 const GUARDIAN_SCALE = {
     7: { resilience: 'resilience-basic', revenue: 'revenue-highest' },
-    10: { resilience: 'resilience-balanced', revenue: 'revenue-high' },
+    10: { resilience: 'resilience-good', revenue: 'revenue-high' },
     13: { resilience: 'resilience-strong', revenue: 'revenue-medium' },
     16: { resilience: 'resilience-very-strong', revenue: 'revenue-lower' },
     19: { resilience: 'resilience-maximum', revenue: 'revenue-lowest' },
