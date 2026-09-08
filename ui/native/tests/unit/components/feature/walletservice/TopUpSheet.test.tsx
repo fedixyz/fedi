@@ -630,6 +630,7 @@ describe('components/feature/walletservice/TopUpSheet', () => {
         it('should stop polling once the sheet leaves the invoice view', async () => {
             const fedimint = createMockFedimintBridge({
                 generateInvoice: Promise.resolve('lnbc-top-up'),
+                listTransactions: Promise.resolve([]),
             })
             renderSheet([], fedimint)
 

@@ -110,6 +110,13 @@ const paymentError = {
     },
 }
 
+// with no eligible payer the screen looks for a joinable one on mount
+const makeNoJoinCandidateBridge = () =>
+    createMockFedimintBridge({
+        fiClientSetupPaymentFederations: () =>
+            Promise.resolve({ type: 'federations', federations: [] }),
+    })
+
 const reauthorizationError = {
     type: 'error' as const,
     error: {
@@ -486,7 +493,10 @@ describe('screens/ConfirmWalletService', () => {
                 navigation={mockNavigation as any}
                 route={{} as any}
             />,
-            { preloadedState: makePreloadedState([]) },
+            {
+                preloadedState: makePreloadedState([]),
+                fedimint: makeNoJoinCandidateBridge(),
+            },
         )
 
         expect(screen.getByTestId('total-setup-cost')).toBeOnTheScreen()
@@ -638,6 +648,7 @@ describe('screens/ConfirmWalletService', () => {
                         }),
                     },
                 },
+                fedimint: makeNoJoinCandidateBridge(),
             },
         )
 

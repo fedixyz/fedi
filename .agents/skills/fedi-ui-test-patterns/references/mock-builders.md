@@ -23,6 +23,16 @@ All mock data builders available for writing unit and integration tests in the F
 
 Creates a Jest-mocked `FedimintBridge` instance. The mock supports both `rpcResult`-based calls (used by Redux thunks and utility functions) and direct method calls (used by hooks and components).
 
+Only the methods you name exist on the result. There are no defaults, and the three call paths behave differently for a method you did not name:
+
+| how the code calls it | result when unmocked |
+|---|---|
+| `fedimint.someMethod()` | `TypeError: fedimint.someMethod is not a function` |
+| `fedimint.rpcResult('someMethod', ...)` | `ok(undefined)`, never throws |
+| `fedimint.rpc(...)` / `fedimint.rpcTyped(...)` | `undefined` |
+
+If a component calls an RPC on mount that your test is not about, name it anyway with a neutral value. Never add a default to the shared factory. It would answer for every other test in the repo, including the ones that meant to assert on that call.
+
 Best for basic unit tests that do not benefit from using the remote bridge for real RPC results.
 
 Should NOT be used for integration tests. Instead use Integration Test Builders detailed below.
