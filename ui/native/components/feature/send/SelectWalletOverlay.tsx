@@ -1,10 +1,11 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet } from 'react-native'
+import { ScrollView, StyleSheet, View } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import {
     selectCurrency,
@@ -39,6 +40,15 @@ export default function SelectWalletOverlay({
     const { theme } = useTheme()
 
     const loadedFederations = useAppSelector(selectLoadedFederationsByRecency)
+    // resolved once here, not per row: the id comes from an async invite-code
+    // parse, and a row-level call would run it once per federation
+    const walletServiceFederationId = useWalletServiceFederationId()
+    const ownWalletService = loadedFederations.find(
+        f => f.id === walletServiceFederationId,
+    )
+    const otherFederations = ownWalletService
+        ? loadedFederations.filter(f => f.id !== ownWalletService.id)
+        : loadedFederations
     const style = styles(theme)
 
     return (
@@ -54,8 +64,31 @@ export default function SelectWalletOverlay({
                             <Text h2 medium>
                                 {t('phrases.select-wallet-service')}
                             </Text>
+                            {ownWalletService && (
+                                <Column gap="md">
+                                    <Text caption color={theme.colors.darkGrey}>
+                                        {t(
+                                            'feature.wallet-service.list-your-wallet-service',
+                                        )}
+                                    </Text>
+                                    <WalletListItem
+                                        federation={ownWalletService}
+                                        onDismiss={onDismiss}
+                                        isFounder
+                                    />
+                                    {otherFederations.length > 0 && (
+                                        <Text
+                                            caption
+                                            color={theme.colors.darkGrey}>
+                                            {t(
+                                                'feature.wallet-service.list-other-wallet-service',
+                                            )}
+                                        </Text>
+                                    )}
+                                </Column>
+                            )}
                             <Column gap="lg">
-                                {loadedFederations.map(f => (
+                                {otherFederations.map(f => (
                                     <WalletListItem
                                         key={`wallet-list-item-${f.id}`}
                                         federation={f}
@@ -74,9 +107,11 @@ export default function SelectWalletOverlay({
 function WalletListItem({
     federation,
     onDismiss,
+    isFounder = false,
 }: {
     federation: LoadedFederation
     onDismiss: () => void
+    isFounder?: boolean
 }) {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -95,6 +130,11 @@ function WalletListItem({
         navigation.navigate('FederationInvite', {
             inviteLink: federation.inviteCode,
         })
+        onDismiss()
+    }
+
+    const handlePressSettings = () => {
+        navigation.navigate('WalletServiceSettings')
         onDismiss()
     }
 
@@ -117,9 +157,20 @@ function WalletListItem({
                 containerStyle={style.walletHeader}>
                 <FederationStatusAvatar federation={federation} size={40} />
                 <Column style={style.label}>
-                    <Text numberOfLines={2} bold>
-                        {federation.name}
-                    </Text>
+                    <View style={style.nameRow}>
+                        <Text numberOfLines={2} bold style={style.name}>
+                            {federation.name}
+                        </Text>
+                        {isFounder && (
+                            <View
+                                style={style.chip}
+                                testID={`FounderChip-${federation.id}`}>
+                                <Text small medium>
+                                    {t('feature.wallet-service.founder')}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
                     {recoveryInProgress && (
                         <Text caption color={theme.colors.darkGrey}>
                             {t('feature.federations.recovering-label')}
@@ -128,6 +179,13 @@ function WalletListItem({
                 </Column>
                 {shouldShowInvite && (
                     <PressableIcon svgName="Qr" onPress={handlePressQr} />
+                )}
+                {isFounder && (
+                    <PressableIcon
+                        svgName="Cog"
+                        onPress={handlePressSettings}
+                        testID={`WalletServiceSettingsButton-${federation.id}`}
+                    />
                 )}
             </Pressable>
             {!recoveryInProgress && (
@@ -248,6 +306,20 @@ const styles = (theme: Theme) =>
         label: {
             flexGrow: 1,
             flexShrink: 1,
+        },
+        nameRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.xs,
+        },
+        name: {
+            flexShrink: 1,
+        },
+        chip: {
+            backgroundColor: theme.colors.extraLightGrey,
+            borderRadius: 6,
+            paddingVertical: 2,
+            paddingHorizontal: theme.spacing.xs,
         },
         balanceText: {
             flexShrink: 1,

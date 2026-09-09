@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
 import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
     selectCurrency,
@@ -191,8 +192,13 @@ function SelectedWalletHeader({
     const navigation = useNavigation()
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const isOwnWalletService = useWalletServiceFederationId() === federation.id
 
-    const goToFederationDetails = () => {
+    const goToWalletDetails = () => {
+        if (isOwnWalletService) {
+            navigation.navigate('WalletServiceDashboard')
+            return
+        }
         navigation.navigate('FederationDetails', {
             federationId: federation.id,
         })
@@ -203,7 +209,7 @@ function SelectedWalletHeader({
     return (
         <Pressable
             containerStyle={style.paymentFederationHeader}
-            onPress={goToFederationDetails}
+            onPress={goToWalletDetails}
             testID={federation.name.concat('DetailsButton').replaceAll(' ', '')}
             // hitSlop is intentionally set to 9 to expand the hit area
             // but not cause accidental tab presses

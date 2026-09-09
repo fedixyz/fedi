@@ -6,6 +6,7 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
 import {
     fetchCurrencyPrices,
     setFederations,
@@ -35,6 +36,16 @@ jest.mock('@fedi/common/utils/FederationUtils', () => ({
     ...jest.requireActual('@fedi/common/utils/FederationUtils'),
     fetchAutoSelectFederations: jest.fn().mockResolvedValue([]),
 }))
+
+// the real hook parses the fi invite code through the bridge; the screen
+// only needs the id it produces
+jest.mock('@fedi/common/hooks/fi', () => ({
+    useWalletServiceFederationId: jest.fn(() => null),
+}))
+
+const mockUseWalletServiceFederationId = jest.mocked(
+    useWalletServiceFederationId,
+)
 
 const mockAutoSelectFed: PublicFederation = {
     id: 'auto-fed-1',
@@ -169,6 +180,31 @@ describe('Wallet screen', () => {
                     federationId: mockFederation1.id,
                 },
             )
+        })
+
+        it('pressing the wallet header should navigate to the wallet service dashboard when the selected wallet is the one this device created', async () => {
+            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(setSelectedFederationId(mockFederation1.id))
+            mockUseWalletServiceFederationId.mockReturnValue(mockFederation1.id)
+
+            renderWithProviders(
+                <Wallet
+                    route={walletRoute}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            await user.press(
+                screen.getByTestId(
+                    `${mockFederation1.name.replaceAll(' ', '')}DetailsButton`,
+                ),
+            )
+
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'WalletServiceDashboard',
+            )
+            expect(mockNavigation.navigate).toHaveBeenCalledTimes(1)
         })
 
         it('pressing the transaction history button should navigate to transactions screen', async () => {
