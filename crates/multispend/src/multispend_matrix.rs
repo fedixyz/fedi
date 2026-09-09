@@ -433,6 +433,10 @@ impl MultispendMatrix {
         let mut last_value = initial.clone();
 
         Ok(stream! {
+            // a subscriber has no other way to learn the state the event is
+            // already in, and an event that never changes again (a request
+            // the scanner refused) would otherwise never reach it
+            yield initial;
             let mut stream = pin!(this.rescanner.scan_complete_stream(&typed_room_id));
             while let Some(()) = stream.next().await {
                 let updated = this

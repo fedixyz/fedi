@@ -185,6 +185,21 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
     )
     .await?;
     assert_eq!(event_data1, event_data2);
+    {
+        use futures::StreamExt as _;
+        let mut stream = std::pin::pin!(
+            multispend_matrix2
+                .subscribe_multispend_event_data(
+                    RpcRoomId(room_id.to_string()),
+                    invitation_event_id.clone(),
+                )
+                .await?
+        );
+        let first = fedimint_core::task::timeout(Duration::from_secs(10), stream.next())
+            .await
+            .context("event stream sent nothing for an existing event")?;
+        assert_eq!(first, Some(event_data2.clone()));
+    }
 
     let event = MultispendEvent::GroupInvitationVote {
         invitation: invitation_event_id.clone(),
