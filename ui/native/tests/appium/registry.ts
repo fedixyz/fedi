@@ -4,6 +4,7 @@ import { Chat } from './common/Chat.test'
 import { CommunityChatJoin } from './common/CommunityChatJoin.test'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { MiniAppSeed } from './common/MiniAppSeed.test'
+import { Multispend } from './common/Multispend.test'
 import { PinProtection } from './common/PinProtection.test'
 import { Settings } from './common/Settings.test'
 import { BackupRestore } from './common/backupRestore.test'
@@ -35,6 +36,7 @@ export const availableTests: Record<string, TestClass> = {
     chatPayments: ChatPayments,
     ecashLifecycle: EcashLifecycle,
     stableBalance: StableBalance,
+    multispend: Multispend,
     backupRestore: BackupRestore,
     pinProtection: PinProtection,
 }

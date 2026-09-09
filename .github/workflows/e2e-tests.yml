@@ -27,6 +27,7 @@ on:
                     - chatPayments
                     - ecashLifecycle
                     - stableBalance
+                    - multispend
                     - backupRestore
                     - pinProtection
                 default: all

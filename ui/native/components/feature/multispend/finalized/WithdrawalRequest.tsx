@@ -76,7 +76,10 @@ const WithdrawalRequest: React.FC<{
     const style = styles(theme)
 
     return (
-        <Pressable onPress={onSelect} style={style.container}>
+        <Pressable
+            testID="MultispendWithdrawalRequestItem"
+            onPress={onSelect}
+            style={style.container}>
             {!haveIVoted && status === 'pending' && (
                 <View style={style.newBadge} />
             )}

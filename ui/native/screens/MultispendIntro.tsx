@@ -68,6 +68,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
 
             <Column style={style.footer}>
                 <Button
+                    testID="CreateMultispendButton"
                     style={style.button}
                     onPress={() =>
                         navigation.navigate('CreateMultispend', {

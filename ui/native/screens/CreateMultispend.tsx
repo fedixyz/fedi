@@ -229,6 +229,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
                                 </Text>
                             </View>
                             <Input
+                                testID="MultispendThresholdInput"
                                 keyboardType="number-pad"
                                 placeholder={t(
                                     'feature.multispend.choose-from-1-6',
@@ -255,6 +256,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
                     </Text>
                 )}
                 <Button
+                    testID="MultispendSubmitButton"
                     onPress={handleSubmit}
                     disabled={!canSubmit || isLoading}>
                     {t('words.submit')}

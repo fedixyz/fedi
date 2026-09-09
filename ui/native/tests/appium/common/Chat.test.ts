@@ -8,11 +8,14 @@ import { setupOnboarded } from '../fixtures/setupOnboarded'
 import {
     ALL_GROUPS,
     BROADCAST_GROUP,
-    createGroupAndSendMessage,
+    createGroupAndCaptureRoomId,
     Group,
+    knockOnRoom,
     KNOCKABLE_GROUPS,
+    openRoomByName,
     PRIVATE_GROUP,
     PUBLIC_GROUP,
+    respondToOnlyKnock,
     switchToChatTab,
 } from './chatGroups'
 
@@ -98,46 +101,6 @@ export class Chat extends AppiumTestBase {
         await bob.clickElementByKey('HeaderBackButton')
         await knockOnRoom(bob, roomIds[BROADCAST_GROUP.name])
     }
-}
-
-// Phase 1 needs the room id for deep-link knocking; capture it while
-// still inside the new room, before popping back to the chat list.
-async function createGroupAndCaptureRoomId(
-    t: AppiumTestBase,
-    group: Group,
-): Promise<string> {
-    await createGroupAndSendMessage(t, group)
-    const roomId = await captureRoomIdFromCurrentRoom(t)
-    await t.clickElementByKey('HeaderBackButton')
-    return roomId
-}
-
-async function captureRoomIdFromCurrentRoom(
-    t: AppiumTestBase,
-): Promise<string> {
-    await t.clickElementByKey('ChatRoomSettingsButton')
-    await t.clickOnText('Invite to group', 0, true, MATRIX_TIMEOUT)
-    // the shared QR component tags its text element "TrueUsername" on every
-    // screen it renders, including this invite screen, so that's the link here
-    const linkEl = await t.waitForElementDisplayed(
-        'TrueUsername',
-        MATRIX_TIMEOUT,
-    )
-    // The invite screen renders one of two forms depending on the
-    // share method: the universal link (`...?id={id}`) or the
-    // `fedi:room:{id}:::` form. iOS getText also sometimes pulls in
-    // sibling labels, so match a URL fragment rather than equality.
-    const raw = await linkEl.getText()
-    const match =
-        raw.match(/[#?&]id=([^&\s]+)/) ||
-        raw.match(/fedi(?::|:\/\/)room[:/](.+?)(?:::|$)/i)
-    if (!match) {
-        throw new Error(`Couldn't parse room id from "${raw}"`)
-    }
-    // Two back hops: invite -> RoomSettings -> conversation
-    await t.clickElementByKey('HeaderBackButton')
-    await t.clickElementByKey('HeaderBackButton')
-    return decodeURIComponent(match[1])
 }
 
 // iOS XCUITest exact-match doesn't reliably resolve chat tile text
@@ -285,117 +248,4 @@ async function waitForKeyboardShown(
 
 async function isKeyboardShown(t: AppiumTestBase): Promise<boolean> {
     return Boolean(await t.driver.executeScript('mobile: isKeyboardShown', []))
-}
-
-async function openRoomByName(t: AppiumTestBase, name: string): Promise<void> {
-    // Tap the chat tile via push navigation. Deep links route through
-    // ConfirmJoinPublicGroup which dispatches resetToGroupChat; on iOS
-    // the gear button onPress silently no-ops after that reset. Tile
-    // tap arrives at ChatRoomConversation via push and keeps the gear
-    // functional.
-    await acceptIosNotificationPromptIfPresent(t)
-    await t.clickElementByKey('ChatTabButton')
-    await t.waitForElementDisplayed('SearchButton')
-    await acceptIosNotificationPromptIfPresent(t)
-    // testID derived from room title in ChatTile.tsx. Partial-text
-    // scrolling on iOS resolved to the ScrollView root and the
-    // default-child tap took the user to the wrong room.
-    const tileKey = `ChatTile-${name}`
-    await t.scrollToElement(tileKey)
-    await t.clickElementByKey(tileKey)
-    await t.waitForElementDisplayed('MessageInput-TextInput', MATRIX_TIMEOUT)
-}
-
-// NotificationContext triggers requestNotifications when chatList
-// populates; the resulting Springboard prompt is owned by the OS (not
-// the app), so it doesn't show up in element finders. Poll mobile:alert
-// and tap the affirmative button.
-async function acceptIosNotificationPromptIfPresent(
-    t: AppiumTestBase,
-    maxWaitMs = 20000,
-): Promise<void> {
-    const deadline = Date.now() + maxWaitMs
-    while (Date.now() < deadline) {
-        let buttons: string[] | null = null
-        try {
-            buttons = (await t.driver.executeScript('mobile: alert', [
-                { action: 'getButtons' },
-            ])) as string[]
-        } catch {
-            /* no alert at the moment; poll again shortly */
-        }
-        if (Array.isArray(buttons) && buttons.length > 0) {
-            // Must anchor to start of label so "Don't Allow" is excluded:
-            // buttons.find on `/allow/i` would match it first and tap
-            // the wrong button.
-            const allowLabel = buttons.find(b => /^(allow|ok)/i.test(b))
-            if (allowLabel) {
-                await t.driver.executeScript('mobile: alert', [
-                    { action: 'accept', buttonLabel: allowLabel },
-                ])
-                // Settle for the dismiss animation before any subsequent
-                // element query.
-                await new Promise(r => setTimeout(r, 1500))
-            }
-            return
-        }
-        await new Promise(r => setTimeout(r, 500))
-    }
-}
-
-async function knockOnRoom(t: AppiumTestBase, roomId: string): Promise<void> {
-    // fedi:// scheme is registered directly in the manifest; the
-    // https:// universal link path would require Android App Links
-    // verification that emulators don't perform reliably.
-    const url = `fedi://room/${encodeURIComponent(roomId)}`
-    console.log(`[${t.handle}] Knocking via ${url}`)
-    await t.openDeepLink(url)
-    await t.waitForElementDisplayed(
-        'ConfirmJoinPublicGroupScreen',
-        MATRIX_TIMEOUT,
-    )
-    await t.clickElementByKey('ConfirmJoinButton')
-    await t.waitForElementDisplayed('KnockPendingView', MATRIX_TIMEOUT)
-    // KnockPendingView renders a "Go back" Button when invoked via
-    // ConfirmJoinPublicGroup, which is the case here.
-    await t.clickOnText('Go back', 0, true)
-}
-
-async function respondToOnlyKnock(
-    t: AppiumTestBase,
-    action: 'accept' | 'decline',
-): Promise<void> {
-    // The knocking member lags until matrix sync surfaces it, and
-    // ChatRoomMembers refetches members on mount, so re-enter the screen
-    // until the request appears on the Pending tab. Opening the members
-    // row with an unviewed request lands on Pending; tap the tab
-    // explicitly so the flow does not depend on that timing.
-    const button =
-        action === 'accept' ? 'KnockRequestAccept' : 'KnockRequestDecline'
-    let handled = false
-    for (let i = 0; i < 36 && !handled; i++) {
-        await t.clickElementByKey('ChatRoomSettingsButton')
-        await t.clickElementByKey('RoomMembersButton')
-        await t.clickElementByKey('pendingTab')
-        if (await t.elementIsDisplayed('KnockRequestTile', 3000)) {
-            await t.clickElementByKey('KnockRequestTile')
-            await t.waitForElementDisplayed(button, MATRIX_TIMEOUT)
-            await t.clickElementByKey(button)
-            handled = true
-            break
-        }
-        await t.clickElementByKey('HeaderBackButton') // members -> settings
-        await t.clickElementByKey('HeaderBackButton') // settings -> conversation
-    }
-    if (!handled) throw new Error('knock request never appeared')
-    // Best-effort wait for the empty-state. Decline (kick) is the slow
-    // path: matrix-rust-sdk only updates the local membership list after
-    // the homeserver confirms the leave. Phase 4 verifies the actual
-    // outcome from B's perspective, so a missing empty-state is not fatal.
-    await t.elementIsDisplayed('NoKnockRequestsEmpty', 20000)
-    // Pop back to the chat list so the bottom tab bar is visible again
-    // (it's hidden on stacked screens).
-    await t.clickElementByKey('HeaderBackButton') // members -> settings
-    await t.clickElementByKey('HeaderBackButton') // settings -> conversation
-    await t.clickElementByKey('HeaderBackButton') // conversation -> chat list
 }

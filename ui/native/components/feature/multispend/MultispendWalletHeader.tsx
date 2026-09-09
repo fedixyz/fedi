@@ -115,7 +115,10 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                     paddingHorizontal: theme.spacing.lg,
                 }}>
                 <Column grow basis={false}>
-                    <Pressable onPress={handleBack} hitSlop={12}>
+                    <Pressable
+                        testID="MultispendHeaderBackButton"
+                        onPress={handleBack}
+                        hitSlop={12}>
                         <SvgImage name="ChevronLeft" size={24} />
                     </Pressable>
                 </Column>
