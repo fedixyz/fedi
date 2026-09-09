@@ -85,58 +85,46 @@ ALWAYS use the top-level bash scripts to run tests. Further details are in the r
 
 ## File Locations & Naming
 
-If you ever introduce a new test file or directory, you MUST update this directory map.
+A test file mirrors its source file's path under the workspace's test root. The source root differs by workspace:
 
-```text
-ui/common/tests/
-├── unit/
-│   ├── hooks/           # Hook unit tests (amount.test.ts, federation.test.ts)
-│   ├── matrix/          # Matrix-specific unit tests
-│   ├── redux/           # Redux selector tests
-│   └── utils/           # Utility function tests
-│       └── transaction/ # Transaction utility tests (one file per function)
-├── integration/
-│   ├── hooks/           # Integration hook tests
-│   │   ├── amount/      # Amount-related hooks
-│   │   └── chat/        # Chat-related hooks
-│   └── utils/           # Integration utility tests
-└── mock-data/           # Shared mock data builders
+| workspace | source root | test root |
+|---|---|---|
+| `ui/common` | `ui/common/` | `ui/common/tests/unit/`, `ui/common/tests/integration/` |
+| `ui/native` | `ui/native/` | `ui/native/tests/unit/`, `ui/native/tests/integration/` |
+| `ui/web` | `ui/web/src/` | `ui/web/tests/unit/`, `ui/web/tests/integration/` |
 
-ui/native/tests/
-├── unit/
-│   ├── hooks/           # Native-specific hook tests
-│   ├── screens/         # Screen rendering tests
-│   ├── components/      # Component rendering tests
-│   ├── state/
-│   │   └── contexts/    # Context provider tests
-│   └── utils/           # Native utility tests
-├── integration/
-│   ├── screens/         # Screen integration tests
-│   └── *.test.tsx       # Feature integration tests
-└── appium/
-    ├── common/          # Appium E2E test classes, plus the shared drivers
-    │                    #   wallet.ts - wallet nav, amounts, send/receive, history
-    │                    #   devfed.ts - host-side dev fed control (invite, ecash, ports)
-    └── fixtures/        # Prerequisite-state setup the runner replays
+- `ui/native/components/feature/walletservice/TopUpSheet.tsx` goes to `ui/native/tests/unit/components/feature/walletservice/TopUpSheet.test.tsx`
+- `ui/web/src/components/Chat/ChatConversation.tsx` goes to `ui/web/tests/unit/components/Chat/ChatConversation.test.tsx`
+- `ui/common/utils/fi/simulator.ts` goes to `ui/common/tests/unit/utils/fi/simulator.test.ts`
+- `ui/native/utils/hooks/media.ts` goes to `ui/native/tests/unit/hooks/media.test.ts`, dropping the `utils/` segment for a hook
 
-ui/web/tests/
-├── e2e/                 # Playwright e2e specs (onboarding, deep links, chat,
-│                     #   payments against the local dev fed)
-│   └── fixtures/        # Page objects, shared fixtures, chat group constants
-├── unit/
-│   ├── components/      # Web component tests
-│   ├── pages/           # Next.js page tests
-│   ├── hooks/           # Web hook tests
-│   └── utils/           # Web utility tests
-├── integration/
-│   ├── pages/           # Page-level integration tests
-│   └── *.test.tsx       # Feature integration tests
-├── utils/
-│   └── render.tsx       # Web test render helpers
-└── configs/
-    ├── jest.unit.config.js
-    └── jest.integration.config.js
-```
+The mirror is the default. It does not always hold. It holds for about nine in ten native unit tests and three in four web tests. In `ui/common` it holds about half the time, because a test there often covers a finer or coarser unit than one source file:
+
+- one file per exported function, as in `ui/common/tests/unit/utils/transaction/`, which covers `ui/common/utils/transaction.ts`
+- one file per selector, as in `ui/common/tests/unit/redux/selectMatrixChatsList.test.ts`, which covers one selector out of `ui/common/redux/matrix.ts`
+- one file for a whole directory, as in `ui/common/tests/unit/hooks/amount.test.ts`, which covers the hooks in `ui/common/hooks/amount/`
+- named for the feature rather than a file, which is most of `ui/common/tests/integration/` and `ui/native/tests/integration/`
+
+Match the granularity of the nearest existing tests. Do not assume one test file per source file.
+
+To see what exists, run `find ui/*/tests -name '*.test.*' | sort`.
+
+Directories under `tests/` that hold something other than tests:
+
+| path | what lives there |
+|---|---|
+| `ui/common/tests/mock-data/` | shared domain fixtures, see `references/mock-builders.md` |
+| `ui/common/tests/fixtures/` | static json payloads the tests read |
+| `ui/common/tests/utils/`, `ui/native/tests/utils/`, `ui/web/tests/utils/` | harness helpers: the mock bridge, render wrappers, the integration builder |
+| `ui/*/tests/configs/`, `ui/native/tests/setup/` | jest configs and the shared setup mocks, see `references/shared-harness.md` |
+
+The end-to-end suites do not mirror source:
+
+| path | what lives there |
+|---|---|
+| `ui/native/tests/appium/` | Appium specs and the runner, plus `common/` test classes and shared drivers and `fixtures/` prerequisite state |
+| `ui/native/tests/detox/` | Detox specs |
+| `ui/web/tests/e2e/` | Playwright specs, with `fixtures/` page objects and shared constants |
 
 Naming: `<subject>.test.ts` for logic, `<Subject>.test.tsx` for components/screens.
 
@@ -150,6 +138,7 @@ Naming: `<subject>.test.ts` for logic, `<Subject>.test.tsx` for components/scree
 - `references/integration-common-patterns.md` — Shared integration-test patterns for `ui/common/tests/integration/`, including builder-driven, state-seeded, multi-user, and direct bridge/client shapes
 - `references/integration-native-patterns.md` — Native integration-test patterns for `ui/native/tests/integration/`
 - `references/integration-web-patterns.md` — Web integration-test patterns for `ui/web/tests/integration/`
+- `references/shared-harness.md` - Read before editing `jest.setup.mocks.ts`, a render helper, the mock bridge factory, or a jest config. These are consumed by every test in the workspace
 - `references/mock-builders.md` — Read when you need concrete mock factories (transactions, federation, matrix events, fedimint bridge) or helper utilities like translation/locale/storage mocks
 - `references/appium-writing.md` — Read when writing or editing an Appium e2e test, including the test class shape, element interaction API, dynamic testID patterns, and registering a new test
 - `references/appium-running-local.md` — Read when running an e2e test on your local machine via `scripts/ui/run-e2e.sh` and friends

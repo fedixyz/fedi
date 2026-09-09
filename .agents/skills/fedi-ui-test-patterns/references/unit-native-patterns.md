@@ -259,14 +259,17 @@ For full builder details, read `references/mock-builders.md`.
 
 `ui/native/tests/setup/jest.setup.mocks.ts` already gives you:
 
-- `mockNavigation`
-- `mockRoute`
-- `mockTheme`
-- `I18nProvider`
+- `mockNavigation`, `mockRoute` for screens that take navigation as a prop or read it from context
+- `mockTheme`, `I18nProvider`, `mockToast`
+- `mockAppState` drives foreground and background transitions
+- `mockHardwareBack` fires the android back press
+- `mockScreenFocus` blurs and refocuses a screen without remounting it, which the test renderer does not tolerate twice in one test
 - `global.fetch` override for `price-feed.dev.fedibtc.com`
-- many RN module mocks, including navigation, filesystem, permissions, camera roll, image picker, reanimated, safe area, and others
+- around forty react native and library module mocks, including navigation, filesystem, permissions, camera roll, image picker, reanimated, safe area, svg, video, view shot, vision camera, clipboard, netinfo, firebase messaging, notifee, zendesk and the shared qrcode util
 
-Do not re-mock these unless the test needs behavior different from the default.
+Do not re-mock these unless the test needs behavior different from the default. `unstable_batchedUpdates` is provided on the react native mock, so react-redux notifies through it and a store subscription in a hook or screen does not need stubbing out.
+
+If you add, remove, or change the behaviour of anything on this list, update this list in the same change. A stale entry is worse than a missing one: it tells the next author to skip work they still have to do. Read `references/shared-harness.md` before you edit that setup file at all.
 
 ---
 

@@ -597,6 +597,11 @@ await builder.withFederationJoined()
 await builder.withEcashReceived(100000)
 await builder.withChatReady()
 const roomId = await builder.withChatGroupCreated('my group', false, false)
+await builder.withRoomJoined(roomId)
 ```
 
 Builder methods are chainable and idempotent -- calling `withFederationJoined()` automatically calls `withOnboardingCompleted()` if not already done.
+
+`withRoomJoined(roomId)` waits for the invite to reach a state a join can act on, then joins. A room that is already joined counts as success, so it is safe to call after a flow that may have joined on its own.
+
+If you add a builder method or change what one does, update this section in the same change. A stale entry is worse than a missing one: it tells the next author to skip work they still have to do.

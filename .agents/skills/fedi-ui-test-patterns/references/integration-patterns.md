@@ -186,8 +186,11 @@ This is the default rendered pattern in `ui/native` and `ui/web`, and appears oc
 - `withFederationJoined()`
 - `withEcashReceived(amountMsats = 100000)`
 - `withChatGroupCreated(groupName?, isPublic?, broadcastOnly?)`
+- `withRoomJoined(roomId)`, which waits for the invite to land before joining and treats an already-joined room as success
 
 Use the environment guide plus nearby tests to decide which state builder is the closest fit.
+
+If you add a state builder or change what one does, update this list in the same change. A stale entry is worse than a missing one: it tells the next author to skip work they still have to do.
 
 ---
 
