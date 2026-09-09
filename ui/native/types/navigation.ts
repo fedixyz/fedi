@@ -281,7 +281,7 @@ export type RootStackParamList = {
     // `onboarding` continues to the Lightning step; `edit` returns to settings
     WalletServiceFee: { mode: 'onboarding' | 'edit' }
     WalletServiceLightningProvider: undefined
-    WalletServiceSettings: undefined
+    WalletServiceSettings: { openSheet?: 'provider' } | undefined
     DeveloperSettings: undefined
     SetPin: undefined
     CreatedPin: undefined

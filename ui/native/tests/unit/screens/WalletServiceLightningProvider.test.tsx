@@ -506,11 +506,30 @@ describe('screens/WalletServiceLightningProvider', () => {
 
         expect(
             await screen.findByText(
-                i18n.t('feature.wallet-service.lightning-still-setting-up'),
+                i18n.t('feature.wallet-service.lightning-takes-a-while'),
             ),
         ).toBeOnTheScreen()
         // being released is not a failed request
         expect(screen.queryByText(i18n.t('words.retry'))).not.toBeOnTheScreen()
+    })
+
+    // the second state replaces the first rather than stacking under it: a
+    // request exists, so a chooser would be offering a decision already made
+    it('should drop the picker once the request is in flight', async () => {
+        renderScreen()
+
+        await pressContinue(user)
+
+        await screen.findByTestId('lightning-stage-requested')
+        expect(
+            screen.queryByTestId('lightning-managed-option'),
+        ).not.toBeOnTheScreen()
+        expect(screen.queryByTestId('lightning-byo-link')).not.toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.lightning-sheet-help'),
+            ),
+        ).not.toBeOnTheScreen()
     })
 
     it('should neither navigate nor toast when the user leaves mid-poll', async () => {

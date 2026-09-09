@@ -1,7 +1,10 @@
 import { useNavigation } from '@react-navigation/native'
 import { useEffect } from 'react'
 
-import { selectWalletServiceFlowStatus } from '@fedi/common/redux'
+import {
+    selectHasWalletServiceCommitted,
+    selectWalletServiceFlowStatus,
+} from '@fedi/common/redux'
 
 import { useAppSelector } from '../../state/hooks'
 import { reset } from '../../state/navigation'
@@ -27,23 +30,28 @@ import { NavigationHook } from '../../types/navigation'
  *
  * `unknown` never routes: the first status is still in flight, and guessing
  * would bounce the user off a screen they legitimately opened.
+ *
+ * An uncommitted formation does not route: the record is written before the
+ * payment is attempted, and a failure wipes it back to idle.
  */
 export function useWalletServiceEntryGuard() {
     const navigation = useNavigation<NavigationHook>()
     const flowStatus = useAppSelector(selectWalletServiceFlowStatus)
+    const hasCommitted = useAppSelector(selectHasWalletServiceCommitted)
+    const isRoutingToProgress = flowStatus === 'inProgress' && hasCommitted
 
     useEffect(() => {
-        if (flowStatus === 'inProgress') {
+        if (isRoutingToProgress) {
             navigation.dispatch(reset('WalletServiceProgress'))
         } else if (flowStatus === 'formed') {
             navigation.dispatch(reset('WalletServiceDashboard'))
         }
-    }, [flowStatus, navigation])
+    }, [isRoutingToProgress, flowStatus, navigation])
 
     /**
-     * True while this screen is on its way out. Callers gate their quote RPC on
-     * it: the bridge rejects a quote as `busy` whenever a formation is live, and
-     * the resulting toast would land on a screen the user is already leaving.
+     * Callers gate their quote RPC on this: the bridge serves one FI operation
+     * at a time, so a live formation answers `fiClientPreviewSelection` with
+     * `busy` — including the uncommitted window this hook stays put for.
      */
     return flowStatus === 'inProgress' || flowStatus === 'formed'
 }

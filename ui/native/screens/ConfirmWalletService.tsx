@@ -82,7 +82,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
     const store = useAppStore()
     const fedimint = useFedimint()
     const toast = useToast()
-    useWalletServiceEntryGuard()
+    const hasLiveWalletService = useWalletServiceEntryGuard()
     const [showTopUp, setShowTopUp] = useState(false)
     const [isPaying, setIsPaying] = useState(false)
     const [isRefreshingQuote, setIsRefreshingQuote] = useState(false)
@@ -188,6 +188,13 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
      */
     const quoteRefreshInFlight = useRef<Promise<boolean> | null>(null)
     const refreshQuote = useCallback(async (): Promise<boolean> => {
+        // A live formation holds the bridge's one operation claim, so this
+        // would only be refused `busy`. If it fails back to idle the expiry
+        // path asks again.
+        if (hasLiveWalletService) {
+            log.info('quote refresh skipped, a formation holds the bridge')
+            return false
+        }
         if (quoteRefreshInFlight.current) return quoteRefreshInFlight.current
         const run = performQuoteRefresh()
         quoteRefreshInFlight.current = run
@@ -196,7 +203,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
         } finally {
             quoteRefreshInFlight.current = null
         }
-    }, [performQuoteRefresh])
+    }, [performQuoteRefresh, hasLiveWalletService])
 
     // a replaced guardian only changes the price, so stay on the screen with a
     // fresh quote; leaving is the fallback for when no quote can be fetched
@@ -231,14 +238,8 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
     )
     // one attempt per expiry, re-armed only by a quote that is actually valid.
     //
-    // Keying this on `preview.validUntil` looked equivalent and was not. The
-    // bridge stamps `validUntil` when selection *starts*
-    // (FMAN_SELECTION_PREVIEW_VALIDITY = 120s) and selection itself takes
-    // 30-60s, longer on a degraded fleet. So a slow selection returns a quote
-    // that is already expired — with a *new* validUntil, which the old guard
-    // read as a new deadline worth one more attempt. Every expired quote
-    // licensed the next one: an unbounded loop of the most expensive RPC there
-    // is, and the guardian-set flicker that came with it.
+    // Not keyed on `preview.validUntil`: an already-expired quote carries a
+    // new one, which would read as a fresh deadline worth another attempt.
     const hasAutoRefreshed = useRef(false)
     useEffect(() => {
         if (!preview || isRefreshingQuote) return
@@ -252,7 +253,15 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
         refreshQuote()
     }, [isExpired, preview, isRefreshingQuote, refreshQuote])
 
-    const handleOpenTopUp = useCallback(() => setShowTopUp(true), [])
+    /**
+     * The sheet takes its amount from the quote, and its invoice outlives that
+     * quote by hours. Refreshing on the way in prevents a wrong amount;
+     * `handleTopUpFunded` only reports one.
+     */
+    const handleOpenTopUp = useCallback(async () => {
+        if (isExpired && !(await refreshQuote())) return
+        setShowTopUp(true)
+    }, [isExpired, refreshQuote])
 
     // The terms screen is the onboarding one, unchanged: it already renders
     // the welcome text, the limits from meta, "I accept" / "I do not accept"
@@ -839,6 +848,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
                         fullWidth
                         testID="top-up-button"
                         title={t('feature.wallet-service.top-up-button')}
+                        loading={isRefreshingQuote}
                         onPress={handleOpenTopUp}
                     />
                 ) : isExpired ? (

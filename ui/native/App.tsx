@@ -6,11 +6,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { Provider as ReduxProvider } from 'react-redux'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import WalletServiceMonitor from '@fedi/common/components/WalletServiceMonitor'
 
 import Router from './Router'
 import FediBridgeInitializer from './components/FediBridgeInitializer'
 import { InternetIsUnreachableBadge } from './components/feature/environment/InternetIsUnreachableBadge'
+import { WalletServiceMonitorHost } from './components/feature/walletservice/WalletServiceMonitorHost'
 import { ErrorScreen } from './screens/ErrorScreen'
 import { BackupRecoveryProvider } from './state/contexts/BackupRecoveryContext'
 import { NotificationContextProvider } from './state/contexts/NotificationContext'
@@ -55,7 +55,7 @@ const App = () => {
                                             stack resets the wallet service
                                             flow performs.
                                         */}
-                                        <WalletServiceMonitor />
+                                        <WalletServiceMonitorHost />
                                         <InternetIsUnreachableBadge />
                                     </ProviderComposer>
                                 </ToastScopeProvider>

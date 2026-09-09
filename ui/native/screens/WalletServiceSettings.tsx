@@ -31,7 +31,7 @@ import {
 } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { LightningAttachProgress } from '../components/feature/walletservice/LightningAttachProgress'
+import { LightningAttaching } from '../components/feature/walletservice/LightningAttaching'
 import { LightningBanner } from '../components/feature/walletservice/LightningProviderBanner'
 import { LightningProviderPicker } from '../components/feature/walletservice/LightningProviderPicker'
 import {
@@ -154,7 +154,7 @@ type OpenSheet =
     | 'stableBalance'
     | null
 
-const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
+const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const dispatch = useAppDispatch()
@@ -206,7 +206,11 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
     const name = consensusName || formationName
     const [isSaving, setIsSaving] = useState(false)
     const [termsJustInstalled, setTermsJustInstalled] = useState(false)
-    const [sheet, setSheet] = useState<OpenSheet>(null)
+    // Initial state only: re-applying every render would reopen a sheet the
+    // user had just dismissed.
+    const [sheet, setSheet] = useState<OpenSheet>(
+        route.params?.openSheet ?? null,
+    )
     // a placeholder only: the applied rate is fetched asynchronously, so it is
     // not available on first render. `ServiceFeePicker` re-seeds itself when
     // that read lands, and Save is gated until it has, so this default is
@@ -431,16 +435,8 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
                       ? getWalletServiceRetryableError(t, gatewayErrorCode)
                       : t(getWalletServiceErrorKey(gatewayErrorCode)),
               }
-            : isAttachingGateway
-              ? {
-                    // the attach is watched app-wide, so it genuinely does
-                    // carry on without this sheet being open
-                    tone: 'warn',
-                    message: t(
-                        'feature.wallet-service.lightning-still-setting-up',
-                    ),
-                }
-              : null
+            : null
+    // no attaching branch: `LightningAttaching` carries its own banner
 
     const style = styles(theme)
 
@@ -678,12 +674,22 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
                    something they cannot act on. */
                 onDismiss={closeSheet}
                 title={t('feature.wallet-service.settings-lightning')}
-                description={t('feature.wallet-service.lightning-sheet-help')}
+                description={
+                    isAttachingGateway
+                        ? undefined
+                        : t('feature.wallet-service.lightning-sheet-help')
+                }
                 buttons={
-                    // one-way: once a provider is attached there is nothing to
-                    // request, which is what finally makes the note true
-                    hasGateway
-                        ? [{ text: t('words.done'), onPress: closeSheet }]
+                    // nothing to request against a request already running
+                    isAttachingGateway || hasGateway
+                        ? [
+                              {
+                                  text: t('words.done'),
+                                  // the only button, so it takes primary styling
+                                  primary: true,
+                                  onPress: closeSheet,
+                              },
+                          ]
                         : [
                               {
                                   text: t(
@@ -695,7 +701,6 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
                                   // nothing may be requested against a state we
                                   // have not read back yet
                                   disabled:
-                                      isAttachingGateway ||
                                       isGatewayUnknown ||
                                       isRequestingGateway ||
                                       !isProviderSelected,
@@ -707,24 +712,25 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation }) => {
                               },
                           ]
                 }>
-                {isAttachingGateway && gatewayStage && (
-                    <LightningAttachProgress stage={gatewayStage} />
+                {/* Opens in the attaching state when one is running: the state
+                    is read from the attach, not stored. */}
+                {isAttachingGateway && gatewayStage ? (
+                    <LightningAttaching stage={gatewayStage} />
+                ) : (
+                    <LightningProviderPicker
+                        isSelected={hasGateway || isProviderSelected}
+                        onToggle={
+                            hasGateway ||
+                            isGatewayUnknown ||
+                            isRequestingGateway
+                                ? undefined
+                                : () =>
+                                      setIsProviderSelected(current => !current)
+                        }
+                        isAttached={hasGateway}
+                        banner={providerBanner}
+                    />
                 )}
-                <LightningProviderPicker
-                    isSelected={hasGateway || isProviderSelected}
-                    // fixed once attached, and while a request runs there is
-                    // nothing to change until it answers
-                    onToggle={
-                        hasGateway ||
-                        isAttachingGateway ||
-                        isGatewayUnknown ||
-                        isRequestingGateway
-                            ? undefined
-                            : () => setIsProviderSelected(current => !current)
-                    }
-                    isAttached={hasGateway}
-                    banner={providerBanner}
-                />
             </ServiceSheet>
 
             {/* the design offers two routes; only the fixed document can be

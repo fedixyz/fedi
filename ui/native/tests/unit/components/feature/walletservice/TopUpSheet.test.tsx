@@ -46,7 +46,19 @@ const makeFederation = (
 
 const payerFederation = makeFederation('payer', 'Payer Wallet', 500_000)
 
-const makePreloadedState = (federations: LoadedFederation[]) => {
+/** The payer, charging `sendPpm` on every ecash spend out of it. */
+const payerChargingSendPpm = (sendPpm: number): LoadedFederation => ({
+    ...payerFederation,
+    fediFeeSchedule: {
+        ...payerFederation.fediFeeSchedule,
+        modules: { mint: { sendPpm, receivePpm: 0 } },
+    },
+})
+
+const makePreloadedState = (
+    federations: LoadedFederation[],
+    payer: LoadedFederation = payerFederation,
+) => {
     const state = setupStore().getState()
     return {
         environment: {
@@ -56,8 +68,8 @@ const makePreloadedState = (federations: LoadedFederation[]) => {
         },
         federation: {
             ...state.federation,
-            federations: [payerFederation, ...federations],
-            payFromFederationId: payerFederation.id,
+            federations: [payer, ...federations],
+            payFromFederationId: payer.id,
         },
     }
 }
@@ -91,6 +103,7 @@ const renderSheet = (
     fedimint = createMockFedimintBridge(),
     onFunded = jest.fn(),
     availableMsats = AVAILABLE_MSATS,
+    payer = payerFederation,
 ) => {
     const rendered = renderWithProviders(
         <TopUpSheet
@@ -99,10 +112,10 @@ const renderSheet = (
             onFunded={onFunded}
             totalMsats={TOTAL_MSATS}
             availableMsats={availableMsats}
-            payerFederationId={payerFederation.id}
-            payerFederationName={payerFederation.name}
+            payerFederationId={payer.id}
+            payerFederationName={payer.name}
         />,
-        { preloadedState: makePreloadedState(federations), fedimint },
+        { preloadedState: makePreloadedState(federations, payer), fedimint },
     )
     return { ...rendered, fedimint, onFunded }
 }
@@ -123,6 +136,52 @@ describe('components/feature/walletservice/TopUpSheet', () => {
 
     afterEach(() => {
         cleanup()
+    })
+
+    /**
+     * `selectCanPayForWalletService` unlocks the pay button at
+     * `balance >= total` exactly, so a wallet funded to the quoted total came
+     * up short on the spend that followed.
+     */
+    describe('the send fee on spending the deposit', () => {
+        // an 890 sat gap rounds to 1,000 alone; +18 for the fee leaves less
+        // than TOP_UP_MIN_HEADROOM_SATS under it, so the ask steps up
+        const AVAILABLE_WITH_SMALL_GAP_MSATS = '844000'
+
+        // the source picker names the exact ask
+        const expectAskToBe = async (sats: string) => {
+            await user.press(screen.getByTestId('topup-source'))
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-source-title', {
+                        amount: `${sats} SATS`,
+                    }),
+                ),
+            ).toBeOnTheScreen()
+        }
+
+        it('should ask for the shortfall alone when the payer charges nothing', async () => {
+            renderSheet(
+                [makeFederation('rich', 'Rich Wallet', 9_000_000)],
+                createMockFedimintBridge(),
+                jest.fn(),
+                AVAILABLE_WITH_SMALL_GAP_MSATS,
+            )
+
+            await expectAskToBe('1,000')
+        })
+
+        it('should add the payer send fee to the shortfall', async () => {
+            renderSheet(
+                [makeFederation('rich', 'Rich Wallet', 9_000_000)],
+                createMockFedimintBridge(),
+                jest.fn(),
+                AVAILABLE_WITH_SMALL_GAP_MSATS,
+                payerChargingSendPpm(10_000),
+            )
+
+            await expectAskToBe('2,000')
+        })
     })
 
     describe('roundUpTopUpSats', () => {

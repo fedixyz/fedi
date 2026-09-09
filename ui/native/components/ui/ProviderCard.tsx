@@ -1,6 +1,8 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { StyleSheet } from 'react-native'
+import { StyleSheet, View } from 'react-native'
+
+import { theme as fediTheme } from '@fedi/common/constants/theme'
 
 import {
     SERVICE_BADGE_GREY,
@@ -105,14 +107,24 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
                     <Text style={style.badgeText}>{badge.toUpperCase()}</Text>
                 </Row>
             )}
-            {/* a static card is presentational: there is nothing to check */}
-            {!action && isSelected && !isStatic && (
-                <SvgImage
-                    name="Check"
-                    size={22}
-                    containerStyle={style.check}
-                    svgProps={{ strokeWidth: 2.4 }}
-                />
+            {/*
+                Not gated on `isStatic`. That comes from `!onToggle`, which
+                every host clears once the choice is settled — so the tick
+                vanished exactly when the user most wanted to see what they had
+                picked. A tick is a statement, not an affordance; the undefined
+                `onPress` above is what prevents the press.
+            */}
+            {!action && isSelected && (
+                // wrapped for the testID: `SvgImage` takes none
+                <View
+                    testID={testID ? `${testID}-check` : undefined}
+                    style={style.check}>
+                    <SvgImage
+                        name="Check"
+                        size={22}
+                        svgProps={{ strokeWidth: 2.4 }}
+                    />
+                </View>
             )}
         </Pressable>
     )
@@ -180,8 +192,9 @@ const styles = (theme: Theme) =>
         },
         meta: {
             color: theme.colors.darkGrey,
-            fontSize: 12,
-            lineHeight: 17,
+            // `caption`, matching the 14/21 name above it
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 21,
         },
         metaWithCheckGutter: {
             // clears the absolutely positioned check

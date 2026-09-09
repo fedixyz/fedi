@@ -15,12 +15,10 @@ import {
     selectFiInviteCode,
     selectFiIsUnsynced,
     selectIsWalletServiceLightningRunning,
-    selectWalletServiceLightningStage,
     selectLoadedFederation,
 } from '@fedi/common/redux'
 import type { GuardianStatus } from '@fedi/common/types/bindings'
 
-import { LightningAttachProgress } from '../components/feature/walletservice/LightningAttachProgress'
 import { WalletServiceDashboardHeader } from '../components/feature/walletservice/WalletServiceDashboardHeader'
 import { WalletServiceInviteSheet } from '../components/feature/walletservice/WalletServiceInviteSheet'
 import {
@@ -63,7 +61,6 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const isAttachingLightning = useAppSelector(
         selectIsWalletServiceLightningRunning,
     )
-    const lightningStage = useAppSelector(selectWalletServiceLightningStage)
     const totalGuardians =
         useAppSelector(selectFiFormation)?.intent.federationSize ?? 0
 
@@ -169,17 +166,10 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                 padding="lg"
                 scrollEnabled={!isTourOpen}>
                 <Column>
-                    {/* an attach started in creation keeps running wherever the
-                        user goes, and this is where they land — so it is
-                        reported here rather than left invisible until someone
-                        opens settings */}
-                    {isAttachingLightning && lightningStage && (
-                        <Column gap="sm" style={style.attachProgress}>
-                            <LightningAttachProgress stage={lightningStage} />
-                        </Column>
-                    )}
                     {/* `.fed-home-hero`: icon, identity, invite action */}
-                    <Row align="center" gap={12} style={style.hero}>
+                    {/* top-aligned: centring floats the name above the tile
+                        once the attaching line makes this three rows */}
+                    <Row align="start" gap={12} style={style.hero}>
                         <Row center style={style.heroIcon}>
                             <SvgImage
                                 name="Wallet"
@@ -187,7 +177,7 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                                 color={theme.colors.white}
                             />
                         </Row>
-                        <Column gap={1} grow shrink>
+                        <Column gap={3} grow shrink>
                             <Row align="center" gap="xs">
                                 <Text style={style.name} numberOfLines={1}>
                                     {name ??
@@ -240,6 +230,34 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                                         )}
                                     </Text>
                                 </Row>
+                            )}
+                            {isAttachingLightning && (
+                                <Pressable
+                                    testID="wallet-service-lightning-status"
+                                    containerStyle={style.attachRow}
+                                    hitSlop={10}
+                                    onPress={() =>
+                                        navigation.navigate(
+                                            'WalletServiceSettings',
+                                            { openSheet: 'provider' },
+                                        )
+                                    }>
+                                    <Row align="center" gap={6}>
+                                        <Row style={style.attachDot} />
+                                        <Text
+                                            style={style.attachStatus}
+                                            numberOfLines={1}>
+                                            {t(
+                                                'feature.wallet-service.dashboard-lightning-attaching',
+                                            )}
+                                        </Text>
+                                        <SvgImage
+                                            name="ChevronRightSmall"
+                                            size={12}
+                                            color={theme.colors.orange}
+                                        />
+                                    </Row>
+                                </Pressable>
                             )}
                         </Column>
                         <Pressable
@@ -361,8 +379,24 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        attachProgress: {
-            marginBottom: theme.spacing.lg,
+        attachRow: {
+            alignSelf: 'flex-start',
+            // The shared Pressable's base padding beats a `padding` shorthand,
+            // so both axes are zeroed by name; hitSlop restores the tap target.
+            // Spacing comes from the column's gap, not a margin here.
+            paddingHorizontal: 0,
+            paddingVertical: 0,
+        },
+        attachDot: {
+            backgroundColor: theme.colors.orange,
+            borderRadius: 999,
+            height: 7,
+            width: 7,
+        },
+        attachStatus: {
+            color: theme.colors.orange,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 21,
         },
         hero: {
             paddingBottom: 18,

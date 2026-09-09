@@ -12,7 +12,6 @@ import {
     RpcFiSelectionPreviewResult,
 } from '@fedi/common/types/bindings'
 
-import { GUARDIAN_SEAT_SKELETON_ROWS } from '../../../components/feature/walletservice/GuardianSeatsSkeleton'
 import i18n from '../../../localization/i18n'
 import CreateWalletService from '../../../screens/CreateWalletService'
 import {
@@ -268,11 +267,11 @@ describe('screens/CreateWalletService', () => {
     /**
      * Selecting a count clears the quote at once but only arms the fetch, so
      * there is a whole debounce where there is no card and no search running.
-     * The placeholder rows have to stand across it: gated on the search
-     * instead, the slot was empty for that window while the cost card above was
-     * already in its loading shape, and the two started 350ms apart.
+     * The placeholder has to stand across it: gated on the search instead, the
+     * slot was empty for that window while the cost card above was already in
+     * its loading shape, and the two started 350ms apart.
      */
-    it('should stand the placeholder rows from the tap, not from the fetch', async () => {
+    it('should stand the placeholder from the tap, not from the fetch', async () => {
         const requested: number[] = []
         const fedimint = makeBridge(request => {
             requested.push(request.federationSize)
@@ -287,19 +286,19 @@ describe('screens/CreateWalletService', () => {
 
         fireEvent.press(screen.getByTestId('13Tab'))
 
-        // card gone, search not started — the rows are already standing, in
-        // step with the cost card's own placeholder
+        // card gone, search not started — the placeholder is already standing,
+        // in step with the cost card's own
         expect(screen.getByTestId('guardian-details-slot')).toBeOnTheScreen()
-        expect(screen.queryAllByTestId('guardian-seat-skeleton')).toHaveLength(
-            GUARDIAN_SEAT_SKELETON_ROWS,
-        )
+        expect(
+            screen.getByTestId('guardian-details-skeleton'),
+        ).toBeOnTheScreen()
 
-        // and they stay put across the search rather than restarting under it
+        // and it stays put across the search rather than restarting under it
         await settlePreview()
         expect(screen.getByTestId('guardian-details-slot')).toBeOnTheScreen()
-        expect(screen.queryAllByTestId('guardian-seat-skeleton')).toHaveLength(
-            GUARDIAN_SEAT_SKELETON_ROWS,
-        )
+        expect(
+            screen.getByTestId('guardian-details-skeleton'),
+        ).toBeOnTheScreen()
     })
 
     it('should list one row per seat with its verification state', async () => {
@@ -322,6 +321,10 @@ describe('screens/CreateWalletService', () => {
         expect(screen.getByText('fman_02')).toBeOnTheScreen()
         expect(screen.getByText('fman_03')).toBeOnTheScreen()
         expect(screen.queryByText('TBD GUARDIAN NAME')).toBeNull()
+        // each row is numbered by its place in the set, counting from 1
+        expect(screen.getByText('1')).toBeOnTheScreen()
+        expect(screen.getByText('2')).toBeOnTheScreen()
+        expect(screen.getByText('3')).toBeOnTheScreen()
     })
 
     // `fmanName` arrives with the stack rebase onto `shaurya/fi-client-init`.

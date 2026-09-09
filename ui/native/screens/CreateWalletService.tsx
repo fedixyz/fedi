@@ -26,7 +26,10 @@ import {
 } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { GuardianSeatsSkeleton } from '../components/feature/walletservice/GuardianSeatsSkeleton'
+import {
+    GUARDIAN_DETAILS_CARD_METRICS,
+    GuardianDetailsSkeleton,
+} from '../components/feature/walletservice/GuardianDetailsSkeleton'
 import { MilestoneSpinner } from '../components/feature/walletservice/MilestoneSpinner'
 import { WalletServiceScreenHeader } from '../components/feature/walletservice/WalletServiceScreenHeader'
 import CustomOverlay from '../components/ui/CustomOverlay'
@@ -68,6 +71,14 @@ const STEP_INDEX = 0
 /** Filled surface behind the disclosure, a shade off the page white. */
 const DETAILS_CARD_BG = '#FAFAFA'
 
+/**
+ * The setup cost line, stated rather than left to the font.
+ *
+ * The skeleton that stands in for it takes the same height, so the card is the
+ * same size before and after the quote lands.
+ */
+const TOTAL_COST_LINE_HEIGHT = 40
+
 /** The ⓘ every stat row shows, opening its explanation in a tooltip. */
 const StatHelp: React.FC<{ children: string }> = ({ children }) => {
     const { theme } = useTheme()
@@ -96,13 +107,6 @@ const GUARDIAN_SCALE = {
 
 const scaleFor = (size: number) =>
     GUARDIAN_SCALE[size as keyof typeof GUARDIAN_SCALE] ?? GUARDIAN_SCALE[10]
-
-/** Two-letter monogram standing in for the avatar the contract cannot supply. */
-const initialsFor = (fmanId: string) =>
-    fmanId
-        .replace(/[^a-z0-9]/gi, '')
-        .slice(0, 2)
-        .toUpperCase()
 
 /**
  * What to call a guardian in the set list.
@@ -415,12 +419,20 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                             <Eyebrow>
                                 {t('feature.wallet-service.total-setup-cost')}
                             </Eyebrow>
+                            {/* Both states are the same two lines tall: a
+                                number over a caption. The card cannot change
+                                height when the quote lands, so nothing above
+                                it moves. */}
                             {totalAmounts ? (
                                 <>
                                     {/* setup cost is quoted in sats regardless of
                                     the wallet's display preference, and the
                                     fiat line is the conversion, not the price */}
-                                    <Text h1 medium testID="total-setup-cost">
+                                    <Text
+                                        h1
+                                        medium
+                                        testID="total-setup-cost"
+                                        style={style.totalCost}>
                                         {totalAmounts.formattedSats}
                                     </Text>
                                     <Text caption color={theme.colors.darkGrey}>
@@ -433,15 +445,17 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                     </Text>
                                 </>
                             ) : (
-                                <Column align="center" gap="xs">
-                                    <Skeleton width={160} height={32} />
-                                    <Skeleton width={120} height={14} />
+                                <>
+                                    <Skeleton
+                                        width={160}
+                                        height={TOTAL_COST_LINE_HEIGHT}
+                                    />
                                     <Text caption color={theme.colors.darkGrey}>
                                         {t(
                                             'feature.wallet-service.finding-guardians',
                                         )}
                                     </Text>
-                                </Column>
+                                </>
                             )}
                         </Column>
                     )}
@@ -459,7 +473,7 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                         apart. On "no preview" they start together. */}
                     {!preview && !insufficientSeatsDetail && (
                         <Column testID="guardian-details-slot">
-                            <GuardianSeatsSkeleton />
+                            <GuardianDetailsSkeleton />
                         </Column>
                     )}
                     {preview && (
@@ -495,14 +509,17 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                         align="center"
                                         gap="md"
                                         style={style.seatRow}>
-                                        <Column
-                                            align="center"
-                                            justify="center"
-                                            style={style.avatar}>
-                                            <Text small bold>
-                                                {initialsFor(seat.fmanId)}
-                                            </Text>
-                                        </Column>
+                                        {/* the seat's place in the set, not an
+                                            identity: the contract supplies no
+                                            avatar and a monogram of the id
+                                            only looks like one */}
+                                        <Text
+                                            caption
+                                            medium
+                                            color={theme.colors.darkGrey}
+                                            style={style.seatNumber}>
+                                            {index + 1}
+                                        </Text>
                                         <Column gap="xxs" grow>
                                             {/* `fmanName` lands with the stack
                                                 rebase onto `shaurya/fi-client-init`
@@ -707,23 +724,25 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.lg,
             paddingVertical: theme.spacing.xl,
         },
+        // the box the placeholder stands in for, so the two cannot drift apart
         detailsCard: {
             backgroundColor: DETAILS_CARD_BG,
             borderColor: theme.colors.dividerGrey,
-            borderRadius: 14,
-            borderWidth: 1,
             paddingHorizontal: theme.spacing.lg,
-            paddingVertical: 14,
+            ...GUARDIAN_DETAILS_CARD_METRICS,
+        },
+        totalCost: {
+            lineHeight: TOTAL_COST_LINE_HEIGHT,
         },
         seatRow: {
             paddingHorizontal: theme.spacing.xs,
             paddingVertical: theme.spacing.sm,
         },
-        avatar: {
-            backgroundColor: theme.colors.extraLightGrey,
-            borderRadius: 999,
-            height: 36,
-            width: 36,
+        seatNumber: {
+            // a fixed column so every name starts at the same x, single or
+            // double digit
+            textAlign: 'center',
+            width: 20,
         },
         chevronOpen: {
             transform: [{ rotate: '180deg' }],

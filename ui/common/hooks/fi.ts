@@ -45,11 +45,20 @@ import { useCommonDispatch, useCommonSelector } from './redux'
 
 const log = makeLog('common/hooks/fi')
 
+/** Backoff for reopening the status stream. Short: it is a local RPC. */
+const FI_SUBSCRIBE_RETRY_INITIAL_MS = 1_000
+const FI_SUBSCRIBE_RETRY_MAX_MS = 30_000
+
 /**
  * One app-wide subscription (mounted by WalletServiceMonitor); screens read
  * the snapshot through selectors, never by opening their own stream.
+ *
+ * `isForeground` is passed in because `AppState` is a React Native API this
+ * shared module cannot import.
  */
-export function useMonitorFiClient() {
+export function useMonitorFiClient({
+    isForeground = true,
+}: { isForeground?: boolean } = {}) {
     const dispatch = useCommonDispatch()
     const fedimint = useFedimint()
     const isEnabled = useCommonSelector(selectIsWalletServiceCreationEnabled)
@@ -60,6 +69,12 @@ export function useMonitorFiClient() {
     // stays quiet
     const lastLoggedStatus = useRef<RpcFiClientStatus | null>(null)
 
+    /**
+     * A JS context restarting over a surviving bridge re-requests stream ids
+     * the bridge still holds, and the whole batch is rejected with
+     * `Duplicated stream id`. Without this retry redux keeps its last status
+     * for the life of the process.
+     */
     useEffect(() => {
         if (!isEnabled || !isOnboarded) {
             // a closed gate produces no fi lines at all, which reads exactly
@@ -70,22 +85,65 @@ export function useMonitorFiClient() {
             })
             return
         }
-        log.info('fi client monitor subscribing')
-        dispatch(refreshFiStatus({ fedimint }))
-        const unsubscribe = fedimint.fiClientSubscribe({
-            callback: status => {
-                lastLoggedStatus.current = logFiClientStatusChange(
-                    lastLoggedStatus.current,
-                    status,
-                )
-                dispatch(setFiClientStatus(status))
-            },
-        })
+        let isCancelled = false
+        let unsubscribe: (() => void) | null = null
+        let retryTimer: ReturnType<typeof setTimeout> | null = null
+        let retryDelay = FI_SUBSCRIBE_RETRY_INITIAL_MS
+
+        const subscribe = () => {
+            if (isCancelled) return
+            log.info('fi client monitor subscribing')
+            dispatch(refreshFiStatus({ fedimint }))
+            unsubscribe = fedimint.fiClientSubscribe({
+                callback: status => {
+                    // delivering again, so a later failure restarts the budget
+                    retryDelay = FI_SUBSCRIBE_RETRY_INITIAL_MS
+                    lastLoggedStatus.current = logFiClientStatusChange(
+                        lastLoggedStatus.current,
+                        status,
+                    )
+                    dispatch(setFiClientStatus(status))
+                },
+                onError: error => {
+                    if (isCancelled) return
+                    // the failed attempt already removed its own handler
+                    unsubscribe = null
+                    log.error(
+                        'fi client monitor subscribe failed, retrying',
+                        { retryInMs: retryDelay },
+                        error,
+                    )
+                    retryTimer = setTimeout(subscribe, retryDelay)
+                    retryDelay = Math.min(
+                        retryDelay * 2,
+                        FI_SUBSCRIBE_RETRY_MAX_MS,
+                    )
+                },
+            })
+        }
+        subscribe()
+
         return () => {
+            isCancelled = true
+            if (retryTimer) clearTimeout(retryTimer)
             log.info('fi client monitor unsubscribing')
-            unsubscribe()
+            unsubscribe?.()
         }
     }, [dispatch, fedimint, isEnabled, isOnboarded])
+
+    /**
+     * The retry above only fires when a subscribe *reports* failure. A stream
+     * that goes quiet leaves no trace — `rpcStream` logs the sequence gap and
+     * carries on — so returning to the app re-reads instead of trusting it.
+     */
+    const wasForeground = useRef(isForeground)
+    useEffect(() => {
+        const hasReturned = isForeground && !wasForeground.current
+        wasForeground.current = isForeground
+        if (!hasReturned || !isEnabled || !isOnboarded) return
+        log.info('fi client status re-read on foreground')
+        dispatch(refreshFiStatus({ fedimint }))
+    }, [dispatch, fedimint, isEnabled, isOnboarded, isForeground])
 }
 
 /**

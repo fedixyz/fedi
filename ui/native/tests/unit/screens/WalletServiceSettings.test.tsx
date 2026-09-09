@@ -817,12 +817,77 @@ describe('screens/WalletServiceSettings', () => {
         })
 
         await user.press(screen.getByTestId('settings-lightning-row'))
-        await screen.findByText(
-            i18n.t('feature.wallet-service.lightning-sheet-help'),
-        )
+        // a running attach opens the sheet in its second state
+        await screen.findByTestId('lightning-stage-requested')
 
         // nothing swallows the press, so the user leaves as they normally would
         expect(mockHardwareBack.press()).toBe(false)
+    })
+
+    // the state is read from the attach, not stored on a press, so coming back
+    // mid-attach lands on the progress
+    it('should open straight into the attaching state when one is running', async () => {
+        renderScreen({
+            liquidity: {
+                formationId: 'formation-1',
+                gatewayViewVerified: false,
+            } as never,
+        })
+
+        await user.press(screen.getByTestId('settings-lightning-row'))
+
+        expect(
+            await screen.findByTestId('lightning-stage-requested'),
+        ).toBeOnTheScreen()
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.lightning-takes-a-while'),
+            ),
+        ).toBeOnTheScreen()
+    })
+
+    it('should drop the picker while an attach is running', async () => {
+        renderScreen({
+            liquidity: {
+                formationId: 'formation-1',
+                gatewayViewVerified: false,
+            } as never,
+        })
+
+        await user.press(screen.getByTestId('settings-lightning-row'))
+        await screen.findByTestId('lightning-stage-requested')
+
+        expect(
+            screen.queryByTestId('lightning-managed-option'),
+        ).not.toBeOnTheScreen()
+        expect(screen.queryByTestId('lightning-byo-link')).not.toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.lightning-sheet-help'),
+            ),
+        ).not.toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.lightning-attach-action'),
+            ),
+        ).not.toBeOnTheScreen()
+    })
+
+    // an attached provider clears `onToggle` for good, so the tick must not
+    // be tied to pressability
+    it('should keep the tick on an attached provider that can no longer be changed', async () => {
+        renderScreen({
+            liquidity: {
+                formationId: 'formation-1',
+                gatewayViewVerified: true,
+            } as never,
+        })
+
+        await user.press(screen.getByTestId('settings-lightning-row'))
+
+        expect(
+            await screen.findByTestId('lightning-managed-option-check'),
+        ).toBeOnTheScreen()
     })
 
     it('should keep the verified card and note once a gateway is attached', async () => {

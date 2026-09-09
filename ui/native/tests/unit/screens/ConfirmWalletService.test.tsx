@@ -14,6 +14,7 @@ import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { MSats } from '@fedi/common/types'
 import type {
     RpcFiEligiblePayer,
+    RpcFiFormationSnapshot,
     RpcFiOperationError,
     RpcFiSelectionPreview,
 } from '@fedi/common/types/bindings'
@@ -52,6 +53,33 @@ const makePreview = (
             provenance: 'registry',
         },
     ],
+    ...overrides,
+})
+
+/** A live formation, for the cases that put one behind this screen. */
+const makeFormation = (
+    overrides: Partial<RpcFiFormationSnapshot> = {},
+): RpcFiFormationSnapshot => ({
+    formationId: 'formation-1',
+    phase: 'acquiringSeats',
+    intent: {
+        federationName: 'My Wallet Service',
+        federationSize: 7,
+        guardianFeePpm: 0,
+        plan: 'infiniteBestEffort',
+        maxTotalMsats: null,
+    },
+    seats: [],
+    freshness: 'fresh',
+    actionRequired: null,
+    paymentOutputsStarted: false,
+    milestones: {
+        ecashSent: false,
+        guardiansConfirmed: false,
+        walletServiceCreated: false,
+    },
+    inviteCode: null,
+    lastError: null,
     ...overrides,
 })
 
@@ -1137,21 +1165,13 @@ describe('screens/ConfirmWalletService', () => {
             jest.useRealTimers()
         })
 
-        // The other half of the same bug. Stopping the clock behind the sheet
-        // keeps the expiry refresh from starting *during* the payment, but a
-        // refresh already running when the sheet was opened is still running
-        // when the deposit lands — selection takes 30-60s, and the user can pay
-        // an invoice faster than that. `handleTopUpFunded` asking for its own
-        // refresh then is the second concurrent FI operation, which the bridge
-        // refuses as `busy`.
-        it('should join an in-flight refresh rather than asking the bridge for a second', async () => {
+        it('should not open the top up sheet until an expired quote has been replaced', async () => {
             let resolvePreview: (value: {
                 type: 'preview'
                 preview: RpcFiSelectionPreview
             }) => void = () => {}
             const fedimint = createMockFedimintBridge({
-                // stays in flight for the whole test, the way a slow selection
-                // walk does
+                // stays in flight until the test releases it
                 fiClientPreviewSelection: () =>
                     new Promise(resolve => {
                         resolvePreview = resolve
@@ -1164,7 +1184,7 @@ describe('screens/ConfirmWalletService', () => {
                 generateInvoice: () => Promise.resolve('lnbc1topup'),
             })
 
-            const { store } = renderWithProviders(
+            renderWithProviders(
                 <ConfirmWalletService
                     navigation={mockNavigation as any}
                     route={{} as any}
@@ -1193,19 +1213,22 @@ describe('screens/ConfirmWalletService', () => {
                 )
             })
 
-            await user.press(screen.getByTestId('top-up-button'))
-            await user.press(screen.getByText(i18n.t('words.continue')))
-            await fundPayer(store, RICH_BALANCE_MSATS)
+            // `fireEvent`: the handler does not settle until the replacement
+            // quote lands, and user-event would wait for it
+            await act(async () => {
+                fireEvent.press(screen.getByTestId('top-up-button'))
+            })
 
-            // still one: the funding refresh joined the running one instead of
-            // starting a second the bridge would refuse
+            expect(screen.queryByText(i18n.t('words.continue'))).toBeNull()
+            expect(fedimint.generateInvoice).not.toHaveBeenCalled()
+            // still one: the press joined the running refresh
             expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
             expect(mockToast.show).not.toHaveBeenCalled()
 
-            // let the pending selection settle so no promise is left hanging
-            resolvePreview({ type: 'preview', preview: makePreview() })
-            await waitFor(() => {
-                expect(screen.queryByTestId('quote-refreshing')).toBeNull()
+            // Not asserting the sheet then opens: settling a second preview in
+            // this file hangs every later RNTL traversal.
+            await act(async () => {
+                resolvePreview({ type: 'preview', preview: makePreview() })
             })
         })
 
@@ -1228,6 +1251,104 @@ describe('screens/ConfirmWalletService', () => {
             })
         })
     })
+
+    // the bridge serves one FI operation at a time, so a quote is refused
+    // `busy` while a formation holds the claim
+    describe('while a formation holds the bridge', () => {
+        const renderWithFormation = (
+            formation: Partial<RpcFiFormationSnapshot>,
+        ) => {
+            const fedimint = createMockFedimintBridge({
+                fiClientPreviewSelection: () =>
+                    Promise.resolve({
+                        type: 'preview' as const,
+                        preview: makePreview(),
+                    }),
+                fiClientEligiblePayers: () =>
+                    Promise.resolve({
+                        type: 'payers' as const,
+                        payers: [eligiblePayer],
+                    }),
+            })
+            renderWithProviders(
+                <ConfirmWalletService
+                    navigation={mockNavigation as any}
+                    route={{} as any}
+                />,
+                {
+                    preloadedState: {
+                        ...makePreloadedState(
+                            [eligiblePayer],
+                            BROKE_BALANCE_MSATS,
+                        ),
+                        fi: {
+                            ...setupStore().getState().fi,
+                            // expired, so the screen re-quotes on mount
+                            selectionPreview: makePreview({ validUntil: 1 }),
+                            eligiblePayers: [eligiblePayer],
+                            status: {
+                                type: 'formation' as const,
+                                formation: makeFormation(formation),
+                            },
+                        },
+                    },
+                    fedimint,
+                },
+            )
+            return fedimint
+        }
+
+        it('should not ask for a quote the bridge is certain to refuse', async () => {
+            const fedimint = renderWithFormation({
+                paymentOutputsStarted: true,
+            })
+
+            // long enough for the expiry effect to have run had it been allowed
+            await act(async () => {
+                await Promise.resolve()
+            })
+
+            expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+            expect(mockToast.show).not.toHaveBeenCalled()
+        })
+
+        // the record is written before the money moves, so a formation alone
+        // proves nothing about whether anything has been spent
+        it('should stay put while the formation has committed nothing', async () => {
+            renderWithFormation({ paymentOutputsStarted: false })
+
+            await act(async () => {
+                await Promise.resolve()
+            })
+
+            expect(mockNavigation.dispatch).not.toHaveBeenCalled()
+        })
+
+        it('should hand over once the payment has actually started', async () => {
+            renderWithFormation({ paymentOutputsStarted: true })
+
+            await waitFor(() => {
+                expect(mockNavigation.dispatch).toHaveBeenCalled()
+            })
+        })
+
+        // a parked decision is not progress, but the confirm screen has no way
+        // to present it and the progress screen does
+        it('should hand over for a parked action before any payment', async () => {
+            renderWithFormation({
+                paymentOutputsStarted: false,
+                actionRequired: {
+                    type: 'replaceGuardians',
+                    requirements: { replacementId: 'replacement-1', seats: [] },
+                },
+            })
+
+            await waitFor(() => {
+                expect(mockNavigation.dispatch).toHaveBeenCalled()
+            })
+        })
+    })
+
     // Flow A, storyboard row 1: the user is in no eligible wallet service.
     // The gate that used to block this flow is gone; the payment screen carries
     // the state and offers the way out of it.

@@ -7,7 +7,11 @@ import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
-import { refreshFederations, selectLoadedFederations } from '@fedi/common/redux'
+import {
+    refreshFederations,
+    selectEcashFeeSchedule,
+    selectLoadedFederations,
+} from '@fedi/common/redux'
 import { LoadedFederation, MSats, Sats } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 import { coerceTxn } from '@fedi/common/utils/transaction'
@@ -37,6 +41,8 @@ const TOP_UP_ROUNDING_SATS = 1_000
  * eat the whole margin and leave the wallet short. See `roundUpTopUpSats`.
  */
 const TOP_UP_MIN_HEADROOM_SATS = 100
+
+const PPM_DENOMINATOR = 1_000_000
 
 /** Sentinel for "deposit over Lightning", which is not one of the wallets. */
 const EXTERNAL_SOURCE = 'external' as const
@@ -119,18 +125,30 @@ export const roundUpTopUpSats = (sats: number): Sats => {
 /**
  * How much to ask for. msats are u64 decimal strings on the bridge, so the
  * subtraction has to happen in BigInt, not Number.
+ *
+ * The ask includes the fee on *spending* it: `selectCanPayForWalletService`
+ * unlocks the pay button at `balance >= total` exactly, and
+ * `TOP_UP_MIN_HEADROOM_SATS` only covers the lightning `receivePpm` inbound.
  */
-const useTopUpShortfall = (totalMsats: string, availableMsats: string) =>
+const useTopUpShortfall = (
+    totalMsats: string,
+    availableMsats: string,
+    sendPpm: number,
+) =>
     useMemo(() => {
         const total = BigInt(totalMsats)
         const available = BigInt(availableMsats)
         const missing = total > available ? total - available : BigInt(0)
         // round msats up to whole sats so we never ask for less than is owed
         const missingSats = Number((missing + BigInt(999)) / BigInt(1000))
+        // On the whole total, not the remaining gap — the gap would under-ask
+        // by whatever the wallet already held.
+        const totalSats = Number((total + BigInt(999)) / BigInt(1000))
+        const sendFeeSats = Math.ceil((totalSats * sendPpm) / PPM_DENOMINATOR)
         return {
-            suggestedSats: roundUpTopUpSats(missingSats),
+            suggestedSats: roundUpTopUpSats(missingSats + sendFeeSats),
         }
-    }, [totalMsats, availableMsats])
+    }, [totalMsats, availableMsats, sendPpm])
 
 /**
  * Other wallets that could fund the top-up in one move. A wallet that can only
@@ -174,7 +192,14 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
     const fedimint = useFedimint()
     const toast = useToast()
     const dispatch = useAppDispatch()
-    const { suggestedSats } = useTopUpShortfall(totalMsats, availableMsats)
+    const payerSendPpm = useAppSelector(
+        s => selectEcashFeeSchedule(s, payerFederationId)?.sendPpm ?? 0,
+    )
+    const { suggestedSats } = useTopUpShortfall(
+        totalMsats,
+        availableMsats,
+        payerSendPpm,
+    )
     const [amount, setAmount] = useState<Sats>(suggestedSats)
     const [view, setView] = useState<TopUpView>('amount')
 

@@ -12,7 +12,7 @@ import {
     getWalletServiceRetryableError,
 } from '@fedi/common/redux'
 
-import { LightningAttachProgress } from '../components/feature/walletservice/LightningAttachProgress'
+import { LightningAttaching } from '../components/feature/walletservice/LightningAttaching'
 import { LightningBanner } from '../components/feature/walletservice/LightningProviderBanner'
 import { LightningProviderPicker } from '../components/feature/walletservice/LightningProviderPicker'
 import { WalletServiceScreenHeader } from '../components/feature/walletservice/WalletServiceScreenHeader'
@@ -106,6 +106,7 @@ const WalletServiceLightningProvider: React.FC<Props> = ({ navigation }) => {
         start()
     }, [isSelected, isAttaching, isAttachedAlready, start, goToDashboard])
 
+    // failure only: `LightningAttaching` carries the attaching banner
     const banner: LightningBanner | null =
         status === 'failed'
             ? {
@@ -114,16 +115,7 @@ const WalletServiceLightningProvider: React.FC<Props> = ({ navigation }) => {
                       ? getWalletServiceRetryableError(t, errorCode)
                       : t(getWalletServiceErrorKey(errorCode)),
               }
-            : isAttaching
-              ? {
-                    // true the moment the request is accepted, not only after
-                    // some budget elapses — so it is said then
-                    tone: 'warn',
-                    message: t(
-                        'feature.wallet-service.lightning-still-setting-up',
-                    ),
-                }
-              : null
+            : null
 
     // a terminal failure has nothing to press: the provider cannot be attached
     // for this federation, so Skip is the only honest exit
@@ -145,30 +137,33 @@ const WalletServiceLightningProvider: React.FC<Props> = ({ navigation }) => {
             />
             <SafeScrollArea edges="notop" padding="lg">
                 <Column gap="lg">
-                    {/* the choice is made here, so the settings-sheet explanation belongs here too */}
-                    <Text small color={theme.colors.darkGrey}>
-                        {t('feature.wallet-service.lightning-sheet-help')}
-                    </Text>
-                    <LightningProviderPicker
-                        isSelected={isAttachedAlready || isSelected}
-                        // locked while the request runs, while the durable read
-                        // is outstanding, and once a provider is attached:
-                        // there is nothing to change in any of the three
-                        onToggle={
-                            isAttaching ||
-                            isCheckingGateway ||
-                            isRequesting ||
-                            isAttachedAlready
-                                ? undefined
-                                : () => setIsSelected(current => !current)
-                        }
-                        isAttached={isAttachedAlready}
-                        banner={banner}
-                    />
-                    {/* the wait is minutes, most of it in verification, so it
-                        says which minute it is on rather than spinning */}
-                    {isAttaching && stage && (
-                        <LightningAttachProgress stage={stage} />
+                    {/* read from the attach, never stored, so a relaunch
+                        mid-attach lands here too */}
+                    {isAttaching && stage ? (
+                        <LightningAttaching stage={stage} />
+                    ) : (
+                        <>
+                            {/* the choice is made here, so the settings-sheet
+                                explanation belongs here too */}
+                            <Text caption color={theme.colors.darkGrey}>
+                                {t(
+                                    'feature.wallet-service.lightning-sheet-help',
+                                )}
+                            </Text>
+                            <LightningProviderPicker
+                                isSelected={isAttachedAlready || isSelected}
+                                onToggle={
+                                    isCheckingGateway ||
+                                    isRequesting ||
+                                    isAttachedAlready
+                                        ? undefined
+                                        : () =>
+                                              setIsSelected(current => !current)
+                                }
+                                isAttached={isAttachedAlready}
+                                banner={banner}
+                            />
+                        </>
                     )}
                 </Column>
             </SafeScrollArea>

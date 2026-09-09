@@ -410,33 +410,62 @@ describe('screens/WalletServiceDashboard', () => {
         ).not.toBeOnTheScreen()
     })
 
-    // the attach carries on wherever the user goes, and this is where they
-    // land — so it is reported here rather than left invisible until someone
-    // opens settings
-    it('should report a running lightning attach', async () => {
+    // one line, not the checklist: that shifted the page when the attach
+    // completed, under the tour's spotlight
+    it('should report a running lightning attach as a single line', async () => {
         renderScreen({ liquidity: runningAttach() })
 
         expect(
-            await screen.findByTestId('lightning-stage-requested'),
+            await screen.findByText(
+                i18n.t('feature.wallet-service.dashboard-lightning-attaching'),
+            ),
         ).toBeOnTheScreen()
     })
 
-    it('should show no attach progress when none is running', async () => {
-        renderScreen()
+    it('should open the provider sheet when the attach status is pressed', async () => {
+        renderScreen({ liquidity: runningAttach() })
 
+        await user.press(
+            await screen.findByTestId('wallet-service-lightning-status'),
+        )
+
+        expect(mockNavigation.navigate).toHaveBeenCalledWith(
+            'WalletServiceSettings',
+            { openSheet: 'provider' },
+        )
+    })
+
+    it('should not put the attach checklist on the dashboard', async () => {
+        renderScreen({ liquidity: runningAttach() })
+
+        await screen.findByText(
+            i18n.t('feature.wallet-service.dashboard-lightning-attaching'),
+        )
         expect(
             screen.queryByTestId('lightning-stage-requested'),
         ).not.toBeOnTheScreen()
     })
 
+    it('should show no attach status when none is running', async () => {
+        renderScreen()
+
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.dashboard-lightning-attaching'),
+            ),
+        ).not.toBeOnTheScreen()
+    })
+
     // a finished attach is not progress to report
-    it('should show no attach progress once the gateway view verifies', async () => {
+    it('should show no attach status once the gateway view verifies', async () => {
         renderScreen({
             liquidity: runningAttach({ gatewayViewVerified: true }),
         })
 
         expect(
-            screen.queryByTestId('lightning-stage-requested'),
+            screen.queryByText(
+                i18n.t('feature.wallet-service.dashboard-lightning-attaching'),
+            ),
         ).not.toBeOnTheScreen()
     })
 

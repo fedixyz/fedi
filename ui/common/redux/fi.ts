@@ -1054,6 +1054,21 @@ export const selectWalletServiceFlowStatus = createSelector(
     },
 )
 
+/**
+ * Not "a formation exists": `pay_and_create` writes its record before it pays,
+ * and a payment that fails on funds is wiped back to idle.
+ * `paymentOutputsStarted` is the bridge's own commitment boundary.
+ */
+export const selectHasWalletServiceCommitted = createSelector(
+    selectFiFormation,
+    formation =>
+        Boolean(
+            formation &&
+                (formation.paymentOutputsStarted ||
+                    formation.actionRequired !== null),
+        ),
+)
+
 // both action types carry the same requirements and are satisfied by the
 // same authorize rpc, so they merge into one prompt
 export const selectFiPaymentRequirements = createSelector(
