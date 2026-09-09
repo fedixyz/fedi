@@ -10,6 +10,7 @@ import { renderHookWithProviders } from '../../utils/render'
 
 const makeFormation = (
     phase: RpcFiFormationSnapshot['phase'],
+    { paymentOutputsStarted = true } = {},
 ): RpcFiFormationSnapshot => ({
     formationId: 'formation-1',
     phase,
@@ -23,7 +24,7 @@ const makeFormation = (
     seats: [],
     freshness: 'fresh',
     actionRequired: null,
-    paymentOutputsStarted: false,
+    paymentOutputsStarted,
     milestones: {
         ecashSent: false,
         guardiansConfirmed: false,
@@ -77,6 +78,28 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
         expect(mockNavigation.dispatch).toHaveBeenCalledWith(
             reset('WalletServiceProgress'),
         )
+        expect(result.current).toBe(true)
+    })
+
+    // the record is written before the payment is attempted, and a failed
+    // payment wipes it back to idle, so routing on it would strand the user
+    it('should stay put while a formation is not yet committed', () => {
+        const store = setupStore()
+        store.dispatch(
+            setFiStatus({
+                type: 'formation',
+                formation: makeFormation('acquiringSeats', {
+                    paymentOutputsStarted: false,
+                }),
+            }),
+        )
+
+        const { result } = renderHookWithProviders(
+            () => useWalletServiceEntryGuard(),
+            { store },
+        )
+
+        expect(mockNavigation.dispatch).not.toHaveBeenCalled()
         expect(result.current).toBe(true)
     })
 
