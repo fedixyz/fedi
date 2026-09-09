@@ -844,11 +844,10 @@ describe('screens/ConfirmWalletService', () => {
             { preloadedState: makeExpiredPreloadedState(), fedimint },
         )
 
-        // give the effect every chance to re-fire on each new validUntil
-        for (let tick = 0; tick < 5; tick += 1) {
-            await act(async () => {
-                jest.advanceTimersByTime(1000)
-            })
+        // refresh responses drive this, not the clock. one flush per attempt
+        // a guard keyed on validUntil would have licensed
+        for (let attempt = 0; attempt < RUNAWAY_CAP + 2; attempt += 1) {
+            await act(async () => {})
         }
 
         // one attempt per mount, then it stops and lets the user retry. The
