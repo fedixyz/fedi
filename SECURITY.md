@@ -15,12 +15,13 @@ To report security issues send an email to security@fedi.xyz (not for support).
 
 ## Federation Initiator bridge boundary
 
-The bridge derives the stable FI signing key at child id 17 of the app root and
-opens `fi-client` inside the globally reserved database prefix `0x07`. Changing
-either value changes durable identity or storage ownership and requires an
-explicit migration. Secret key material remains in the bridge identity
-adapter; Manifold receives only the public `FiId` and library-constructed
-digest signatures.
+The bridge derives the stable FI key-family root at child id 17 of the app root
+and opens `fi-client` inside the globally reserved database prefix `0x07`.
+Manifold owns the protocol-signing, Nostr-author, and backup-encryption children
+below that scoped root. Changing either scope changes durable identity or
+storage ownership and requires an explicit migration. A restored-seed launch
+with no local FI state queries the canonical Manifold relays before allowing a
+new formation; absence of a backup is normal and does not fail bridge startup.
 
 Pinned Fleet Manager locators are untrusted dialing input plus the public key
 used to verify manager commitments. Parsing a locator is not a trust verdict.

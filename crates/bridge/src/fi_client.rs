@@ -18,7 +18,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
-use bitcoin::secp256k1::{Keypair, Message, Secp256k1, XOnlyPublicKey};
 use federations::Federations;
 use federations::federation_sm::FederationState;
 use fedi_decentralized_federation_preview::{read_consensus, read_lnv2_gateways};
@@ -53,25 +52,32 @@ use fedimint_core::module::serde_json;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{apply, async_trait_maybe_send};
 use fedimint_derive_secret::DerivableSecret;
+#[cfg(test)]
+use fi_client::FiId;
 use fi_client::{
     AbandonUnavailableReason, FI_LIQUIDITY_OPERATION_PAGE_MAX, FederationConsensusError,
     FederationConsensusReader, FederationConsensusSnapshot, FederationMetadataUpdate,
     FederationName, FederationSize, FedimintFederationId, FedimintdVersion, FedimintdVersionRange,
-    FiClient, FiError, FiErrorCode, FiFeeAccountError, FiFeeAccountProvider, FiId, FiIdentity,
-    FiResult, FiSignature, FiStatus, FleetManagerCallError, FleetManagerConnector,
-    FleetManagerConnectorError, FmanDiscoveryOptions, FmanReplacementApproval,
-    FmanReplacementPreview, FmanSelectionApproval, FmanSelectionPreview, FmanSelectionRequest,
-    FormationActionRequired, FormationFreshness, FormationId, FormationIntent, FormationPhase,
-    FormationRunOptions, FormationSnapshot, GatewayApiUrl, GuardianFeeAccount, GuardianFeePpm,
-    GuardianReplacementRequirements, LiquidityDiscovery, LiquidityOperationId,
-    LiquidityOperationPage, LiquidityOperationPhase, LiquidityOperationSnapshot,
-    LiquidityProviderConnector, LiquidityProviderConnectorError, LiquidityRequestIntent,
-    MAX_GUARDIAN_FEE_PPM, MaintenanceRunOptions, PaymentAuthorizationId, PlanPreference,
-    ResolvedFormationIntent, SeatPhase, SelectionReauthorizationReason,
+    FiClient, FiError, FiErrorCode, FiFeeAccountError, FiFeeAccountProvider, FiIdentity, FiResult,
+    FiStatus, FleetManagerCallError, FleetManagerConnector, FleetManagerConnectorError,
+    FmanDiscoveryOptions, FmanReplacementApproval, FmanReplacementPreview, FmanSelectionApproval,
+    FmanSelectionPreview, FmanSelectionRequest, FormationActionRequired, FormationFreshness,
+    FormationId, FormationIntent, FormationPhase, FormationRunOptions, FormationSnapshot,
+    GatewayApiUrl, GuardianFeeAccount, GuardianFeePpm, GuardianReplacementRequirements,
+    LiquidityDiscovery, LiquidityOperationId, LiquidityOperationPage, LiquidityOperationPhase,
+    LiquidityOperationSnapshot, LiquidityProviderConnector, LiquidityProviderConnectorError,
+    LiquidityRequestIntent, MAX_GUARDIAN_FEE_PPM, MaintenanceRunOptions, PaymentAuthorizationId,
+    PlanPreference, ResolvedFormationIntent, RestoredFormationSnapshot, SeatPhase,
+    SelectionReauthorizationReason,
 };
 use futures::StreamExt as _;
 use futures::stream::{self, BoxStream};
 use nostr::{Event, Keys, PublicKey};
+use rpc_types::RpcFederationId;
+use rpc_types::event::{
+    Event as BridgeEvent, EventSink, FiFederationJoinEvent, RpcFiFederationJoinState,
+    TypedEventExt as _,
+};
 use rpc_types::fi_client::{
     RpcFiAbandonUnavailableReason, RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult,
     RpcFiEligiblePayer, RpcFiEligiblePayersResult, RpcFiErrorCode, RpcFiFederationMetadataUpdate,
@@ -86,14 +92,14 @@ use rpc_types::fi_client::{
     RpcFiLiquiditySource, RpcFiMsats, RpcFiOperationError, RpcFiOperationErrorDetail,
     RpcFiOperationResult, RpcFiPaymentRequirements, RpcFiPlanPreference, RpcFiReplacementPreview,
     RpcFiReplacementPreviewResult, RpcFiReplacementPreviewSeat, RpcFiResolvedFormationIntent,
-    RpcFiSeatPaymentRequirement, RpcFiSeatPhase, RpcFiSeatProgress, RpcFiSelectionPreview,
-    RpcFiSelectionPreviewRequest, RpcFiSelectionPreviewResult, RpcFiSelectionPreviewSeat,
-    RpcFiSelectionReauthorizationReason, RpcFiSetupPaymentFederation,
-    RpcFiSetupPaymentFederationsResult, RpcFiStatus,
+    RpcFiRestoredFormationSnapshot, RpcFiRestoredSeat, RpcFiSeatPaymentRequirement, RpcFiSeatPhase,
+    RpcFiSeatProgress, RpcFiSelectionPreview, RpcFiSelectionPreviewRequest,
+    RpcFiSelectionPreviewResult, RpcFiSelectionPreviewSeat, RpcFiSelectionReauthorizationReason,
+    RpcFiSetupPaymentFederation, RpcFiSetupPaymentFederationsResult, RpcFiStatus,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::FI_CLIENT_CHILD_ID;
-use runtime::db::FiFederationAutoJoinCompletedKey;
+use runtime::db::{FederationPendingRejoinFromScratchKeyPrefix, FiFederationAutoJoinCompletedKey};
 use runtime::features::RuntimeEnvironment;
 use sp_transfer::services::SptServices;
 use tokio::sync::{Mutex, OnceCell, OwnedMutexGuard, mpsc, oneshot, watch};
@@ -239,14 +245,114 @@ impl FiFederationHandoffLocks {
     }
 }
 
+/// How often the auto-join task re-reads the federation state while it waits
+/// for the joined federation to become usable.
+const FI_FEDERATION_AUTO_JOIN_POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+/// The state of the FI's federation that the auto-join task acts on.
+///
+/// It mirrors [`FederationState`] without the client handles, so the join
+/// sequence can be driven by a test double.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AutoJoinFederationState {
+    Loading,
+    Ready,
+    Recovering,
+    Failed(String),
+}
+
+/// The federation service as the auto-join task uses it.
+#[apply(async_trait_maybe_send!)]
+trait AutoJoinTarget: MaybeSend + MaybeSync {
+    /// `Err` means the federation is not joined, or was left again.
+    fn state(&self, federation_id: &str) -> anyhow::Result<AutoJoinFederationState>;
+    async fn join(&self, invite_code: String) -> anyhow::Result<()>;
+}
+
+#[apply(async_trait_maybe_send!)]
+impl AutoJoinTarget for Arc<Federations> {
+    fn state(&self, federation_id: &str) -> anyhow::Result<AutoJoinFederationState> {
+        Ok(match self.get_federation_state(federation_id)? {
+            FederationState::Loading => AutoJoinFederationState::Loading,
+            FederationState::Ready(_) => AutoJoinFederationState::Ready,
+            FederationState::Recovering(_) => AutoJoinFederationState::Recovering,
+            FederationState::Failed(error) => AutoJoinFederationState::Failed(error.to_string()),
+        })
+    }
+
+    async fn join(&self, invite_code: String) -> anyhow::Result<()> {
+        Federations::join_federation(self, invite_code, false)
+            .await
+            .map(|_| ())
+    }
+}
+
+/// The last auto-join state the bridge reported, shared with the RPC handler.
+///
+/// The app can read the FI client status after the auto-join event was already
+/// delivered, so the status handler re-emits the retained state.
+#[derive(Clone, Default)]
+pub(crate) struct FiFederationJoinReport(Arc<std::sync::Mutex<Option<FiFederationJoinEvent>>>);
+
+impl FiFederationJoinReport {
+    fn record(&self, event: FiFederationJoinEvent) {
+        *self.0.lock().expect("join report lock is healthy") = Some(event);
+    }
+
+    pub(crate) fn last(&self) -> Option<FiFederationJoinEvent> {
+        self.0.lock().expect("join report lock is healthy").clone()
+    }
+
+    /// Forgets the retained state of one federation. Leaving that federation
+    /// makes the last reported state wrong; without this, every later status
+    /// read would re-announce a join the bridge no longer holds. Leaving any
+    /// other federation must not erase the FI federation's state.
+    pub(crate) fn clear(&self, federation_id: &str) {
+        let mut retained = self.0.lock().expect("join report lock is healthy");
+        if retained
+            .as_ref()
+            .is_some_and(|event| event.federation_id.0 == federation_id)
+        {
+            *retained = None;
+        }
+    }
+}
+
+/// Reports each new auto-join state once. Waiting for recovery re-reads the
+/// state every few seconds; the app must not see one event per read.
+struct JoinStateEmitter<'a, R: Fn(RpcFiFederationJoinState)> {
+    report: &'a R,
+    last: std::sync::Mutex<Option<RpcFiFederationJoinState>>,
+}
+
+impl<'a, R: Fn(RpcFiFederationJoinState)> JoinStateEmitter<'a, R> {
+    fn new(report: &'a R) -> Self {
+        Self {
+            report,
+            last: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn emit(&self, state: RpcFiFederationJoinState) {
+        let mut last = self.last.lock().expect("emitter lock is healthy");
+        if last.as_ref() == Some(&state) {
+            return;
+        }
+        (self.report)(state.clone());
+        *last = Some(state);
+    }
+}
+
 pub(crate) fn start_fi_federation_auto_join(
     runtime: &Runtime,
     mut status: watch::Receiver<FiStatus>,
     federations: Arc<Federations>,
     sp_transfers_services: Arc<SptServices>,
     handoff_locks: Arc<FiFederationHandoffLocks>,
+    join_report: FiFederationJoinReport,
 ) {
     let database = runtime.bridge_db();
+    let event_sink: EventSink = runtime.event_sink.clone();
     runtime
         .task_group
         .spawn_cancellable("fi-client::federation-auto-join", async move {
@@ -260,50 +366,250 @@ pub(crate) fn start_fi_federation_auto_join(
                     continue;
                 };
 
-                let _handoff_guard = handoff_locks.lock(&federation_id).await;
-                if fi_federation_auto_join_completed(&database, &federation_id).await {
-                    return;
-                }
-                match federations.get_federation_state(&federation_id) {
-                    Ok(FederationState::Loading) => return,
-                    Ok(
-                        FederationState::Ready(_)
-                        | FederationState::Recovering(_)
-                        | FederationState::Failed(_),
-                    ) => {
-                        complete_fi_federation_auto_join(&database, &federation_id).await;
-                        return;
-                    }
-                    Err(_) => {}
-                }
-
-                if federations
-                    .join_federation(invite_code, false)
-                    .await
-                    .is_ok()
-                {
-                    sp_transfers_services.account_id_responder.trigger();
-                    complete_fi_federation_auto_join(&database, &federation_id).await;
-                } else {
-                    tracing::warn!(
-                        %federation_id,
-                        "automatic FI federation join failed"
-                    );
-                }
+                let report = |state: RpcFiFederationJoinState| {
+                    let event = FiFederationJoinEvent {
+                        federation_id: RpcFederationId(federation_id.clone()),
+                        state,
+                    };
+                    join_report.record(event.clone());
+                    event_sink.typed_event(&BridgeEvent::FiFederationJoin(event));
+                };
+                let on_joined = || sp_transfers_services.account_id_responder.trigger();
+                run_fi_federation_auto_join(
+                    &federations,
+                    &database,
+                    &handoff_locks,
+                    invite_code,
+                    &federation_id,
+                    FI_FEDERATION_AUTO_JOIN_POLL_INTERVAL,
+                    &report,
+                    &on_joined,
+                )
+                .await;
                 return;
             }
         });
 }
 
-fn formed_federation_invite(status: &FiStatus) -> Option<(String, String)> {
-    let FiStatus::Formation(formation) = status else {
-        return None;
-    };
-    if formation.phase != FormationPhase::Formed || formation.freshness != FormationFreshness::Fresh
+/// Joins the FI's federation if needed, and reports how far it got.
+///
+/// The handoff lock only has to keep the join and its marker write apart from
+/// a concurrent `leave_federation`, which suppresses the auto-join under the
+/// same lock. Waiting for a joined federation to become usable takes minutes
+/// for a recovery and never ends for a stuck federation, so the wait itself
+/// holds no lock: a leave that arrives during the wait must be able to run.
+#[allow(clippy::too_many_arguments)]
+async fn run_fi_federation_auto_join(
+    target: &dyn AutoJoinTarget,
+    database: &Database,
+    handoff_locks: &FiFederationHandoffLocks,
+    invite_code: String,
+    federation_id: &str,
+    poll_interval: Duration,
+    report: &(impl Fn(RpcFiFederationJoinState) + MaybeSend + MaybeSync),
+    on_joined: &(impl Fn() + MaybeSend + MaybeSync),
+) {
+    let emitter = JoinStateEmitter::new(report);
     {
-        return None;
+        let _handoff_guard = handoff_locks.lock(federation_id).await;
+        // The marker alone cannot answer "is this federation joined". A
+        // deliberate `leave_federation` suppresses the auto-join by writing the
+        // same marker, so on the next launch a marker-only `Ready` would claim
+        // a federation the bridge is not in — which `event.rs` forbids. The
+        // live state decides; the marker only decides what an *absent*
+        // federation means.
+        let auto_join_suppressed = fi_federation_auto_join_completed(database, federation_id).await;
+        match target.state(federation_id) {
+            Ok(AutoJoinFederationState::Ready) => {
+                complete_fi_federation_auto_join(database, federation_id).await;
+                emitter.emit(RpcFiFederationJoinState::Ready);
+                return;
+            }
+            // `Loading` is also reported while the state lock is write-held, so
+            // it says nothing about this federation. Waiting decides it either
+            // way, and the app gets a state instead of silence.
+            Ok(AutoJoinFederationState::Recovering | AutoJoinFederationState::Loading) => {}
+            Ok(AutoJoinFederationState::Failed(message)) => {
+                emitter.emit(RpcFiFederationJoinState::Failed { message });
+                return;
+            }
+            // absent *and* marked: the user left this federation on purpose,
+            // and the marker is the record of that. Rejoining would undo the
+            // leave and any state would misdescribe it, so say nothing.
+            Err(_) if auto_join_suppressed => {
+                tracing::debug!(
+                    %federation_id,
+                    "FI federation auto-join is suppressed and the federation is absent; not rejoining"
+                );
+                return;
+            }
+            Err(_) => {
+                emitter.emit(RpcFiFederationJoinState::Joining);
+                match target.join(invite_code).await {
+                    Ok(()) => on_joined(),
+                    Err(error) => {
+                        tracing::warn!(
+                            %federation_id,
+                            %error,
+                            "automatic FI federation join failed"
+                        );
+                        emitter.emit(RpcFiFederationJoinState::Failed {
+                            message: error.to_string(),
+                        });
+                        return;
+                    }
+                }
+            }
+        }
     }
-    let invite_code = formation.invite_code.as_ref()?.0.clone();
+
+    mark_complete_once_ready(
+        target,
+        database,
+        handoff_locks,
+        federation_id,
+        poll_interval,
+        &emitter,
+    )
+    .await;
+}
+
+/// The completion marker means "this federation is joined and past its
+/// nonce-reuse check". Writing it any earlier lets a check that leaves the
+/// federation strand the Wallet Service behind a marker that says done.
+///
+/// The wait holds no handoff lock, so a `leave_federation` can run at any
+/// point of it. Only the marker write takes the lock, and it re-reads the live
+/// state under it: a leave that won the lock has already left the federation
+/// by the time the lock is free.
+async fn mark_complete_once_ready(
+    target: &dyn AutoJoinTarget,
+    database: &Database,
+    handoff_locks: &FiFederationHandoffLocks,
+    federation_id: &str,
+    poll_interval: Duration,
+    emitter: &JoinStateEmitter<'_, impl Fn(RpcFiFederationJoinState) + MaybeSend + MaybeSync>,
+) {
+    loop {
+        match target.state(federation_id) {
+            Ok(AutoJoinFederationState::Ready) => {
+                let _handoff_guard = handoff_locks.lock(federation_id).await;
+                match target.state(federation_id) {
+                    Ok(AutoJoinFederationState::Ready) => {
+                        complete_fi_federation_auto_join(database, federation_id).await;
+                        emitter.emit(RpcFiFederationJoinState::Ready);
+                        return;
+                    }
+                    // The federation went away while this task waited for the
+                    // lock.
+                    Err(_) => match absent_during_wait(database, federation_id, emitter).await {
+                        AbsentDuringWait::Stop => return,
+                        AbsentDuringWait::KeepWaiting => {}
+                    },
+                    Ok(AutoJoinFederationState::Failed(message)) => {
+                        emitter.emit(RpcFiFederationJoinState::Failed { message });
+                        return;
+                    }
+                    // It stopped being ready again; keep waiting for an answer.
+                    Ok(AutoJoinFederationState::Recovering | AutoJoinFederationState::Loading) => {
+                        emitter.emit(RpcFiFederationJoinState::Recovering);
+                    }
+                }
+            }
+            Ok(AutoJoinFederationState::Recovering | AutoJoinFederationState::Loading) => {
+                emitter.emit(RpcFiFederationJoinState::Recovering);
+            }
+            Ok(AutoJoinFederationState::Failed(message)) => {
+                emitter.emit(RpcFiFederationJoinState::Failed { message });
+                return;
+            }
+            Err(_) => match absent_during_wait(database, federation_id, emitter).await {
+                AbsentDuringWait::Stop => return,
+                AbsentDuringWait::KeepWaiting => {}
+            },
+        }
+        fedimint_core::task::sleep(poll_interval).await;
+    }
+}
+
+/// What the wait does after the federation it waits for went absent.
+enum AbsentDuringWait {
+    /// The federation is gone for good, or gone on purpose.
+    Stop,
+    /// The federation is expected back; keep polling for it.
+    KeepWaiting,
+}
+
+/// Decides how the wait reacts to an absent federation, and reports it.
+///
+/// Both places the wait can see the federation disappear — the poll itself, and
+/// the re-read under the handoff lock — must answer this the same way. A
+/// `Failed` here is retained by the join report and re-delivered to every later
+/// status read, so it must only be emitted when the recovery really did fail.
+async fn absent_during_wait(
+    database: &Database,
+    federation_id: &str,
+    emitter: &JoinStateEmitter<'_, impl Fn(RpcFiFederationJoinState) + MaybeSend + MaybeSync>,
+) -> AbsentDuringWait {
+    // A marker this task did not write is the record of a deliberate leave.
+    // `leave_federation` writes it and clears the retained report under the
+    // handoff lock, so a `Failed` after it would outlive the federation.
+    if fi_federation_auto_join_completed(database, federation_id).await {
+        tracing::debug!(
+            %federation_id,
+            "FI federation was left before the auto-join could mark it ready"
+        );
+        return AbsentDuringWait::Stop;
+    }
+    // The nonce-reuse check leaves the federation and records that it must be
+    // rejoined from scratch. The user did not leave it, and the app rejoins it,
+    // so this is still a recovery in progress.
+    if federation_pending_rejoin_from_scratch(database, federation_id).await {
+        tracing::debug!(
+            %federation_id,
+            "FI federation is pending a rejoin from scratch; the auto-join keeps waiting for it"
+        );
+        emitter.emit(RpcFiFederationJoinState::Recovering);
+        return AbsentDuringWait::KeepWaiting;
+    }
+    emitter.emit(RpcFiFederationJoinState::Failed {
+        message: "federation left during recovery".to_owned(),
+    });
+    AbsentDuringWait::Stop
+}
+
+/// True when the bridge recorded that this federation must be rejoined from
+/// scratch. The record is keyed by invite code, so the federation id it carries
+/// decides, not the exact string the FI holds.
+async fn federation_pending_rejoin_from_scratch(database: &Database, federation_id: &str) -> bool {
+    database
+        .begin_transaction_nc()
+        .await
+        .find_by_prefix(&FederationPendingRejoinFromScratchKeyPrefix)
+        .await
+        .any(|(key, ())| async move {
+            FedimintInviteCode::from_str(&key.invite_code_str)
+                .is_ok_and(|invite| invite.federation_id().to_string() == federation_id)
+        })
+        .await
+}
+
+fn formed_federation_invite(status: &FiStatus) -> Option<(String, String)> {
+    let invite_code = match status {
+        FiStatus::Formation(formation)
+            if formation.phase == FormationPhase::Formed
+                && formation.freshness == FormationFreshness::Fresh =>
+        {
+            formation.invite_code.as_ref()?.0.clone()
+        }
+        FiStatus::Restored(formation)
+            if formation.phase == FormationPhase::Formed
+                && formation.freshness == FormationFreshness::Fresh =>
+        {
+            formation.federation_invite.0.clone()
+        }
+        FiStatus::Idle | FiStatus::Formation(_) | FiStatus::Restored(_) => return None,
+    };
     let federation_id = FedimintInviteCode::from_str(&invite_code)
         .ok()?
         .federation_id()
@@ -578,35 +884,20 @@ struct StoredFormationPush {
 }
 
 pub(crate) struct BridgeFiIdentity {
-    keypair: Keypair,
+    scoped_root: DerivableSecret,
 }
 
 impl BridgeFiIdentity {
     fn from_root_secret(root_secret: &DerivableSecret) -> Self {
-        let secp = Secp256k1::new();
-        let keypair = root_secret.child_key(FI_CLIENT_CHILD_ID).to_secp_key(&secp);
-        Self { keypair }
+        Self {
+            scoped_root: root_secret.child_key(FI_CLIENT_CHILD_ID),
+        }
     }
 }
 
 impl FiIdentity for BridgeFiIdentity {
-    fn public_key(&self) -> Result<FiId, String> {
-        let (public_key, _) = XOnlyPublicKey::from_keypair(&self.keypair);
-        // Fedi and Manifold intentionally use their respective workspace
-        // secp256k1 versions. Serde crosses that crate-version boundary while
-        // preserving the canonical x-only public-key representation.
-        serde_json::from_value(serde_json::to_value(public_key).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())
-    }
-
-    fn sign_digest(&self, digest: [u8; 32]) -> Result<FiSignature, String> {
-        let secp = Secp256k1::new();
-        let message = Message::from_digest(digest);
-        let signature = secp.sign_schnorr_no_aux_rand(&message, &self.keypair);
-        // See `public_key`: this converts between semantically identical
-        // signature types from the two workspace dependency graphs.
-        serde_json::from_value(serde_json::to_value(signature).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())
+    fn scoped_root(&self) -> DerivableSecret {
+        self.scoped_root.clone()
     }
 }
 
@@ -1671,13 +1962,23 @@ pub(crate) fn start_fi_driver(
     client: Arc<BridgeFiClient>,
     federations: Arc<Federations>,
     push_gateway: Result<Arc<BridgeFiPushGateway>, Arc<FiPushError>>,
+    restore_on_launch: bool,
 ) -> BridgeFiDriver {
     let (sender, receiver) = mpsc::channel(FI_DRIVER_QUEUE_CAPACITY);
-    let operation_active = Arc::new(AtomicBool::new(false));
     let liquidity_connector = Arc::new(BridgeLiquidityConnector::default());
     let push_gateway: FormationPushGatewayHandle =
         push_gateway.map(|gateway| gateway as Arc<dyn FormationPushGateway>);
     let formation_state = Arc::new(FormationLocalState::new(push_gateway));
+    let restore_profile =
+        (restore_on_launch && matches!(client.status(), FiStatus::Idle)).then(|| {
+            manifold_environment(runtime.feature_catalog.runtime_env)
+                .profile()
+                .expect("the Manifold profile was validated when the FI client opened")
+        });
+    // Claim synchronously, before `BridgeFull` can expose the driver. The
+    // background task releases it whether relay lookup restores a backup or
+    // reports the normal no-backup result.
+    let operation_active = Arc::new(AtomicBool::new(restore_profile.is_some()));
     let driver = BridgeFiDriver {
         commands: FiCommandSender {
             sender,
@@ -1691,6 +1992,17 @@ pub(crate) fn start_fi_driver(
     runtime
         .task_group
         .spawn_cancellable("fi-client::operation-driver", async move {
+            if let Some(profile) = restore_profile {
+                // Relay lookup can take up to the profile timeout. It belongs
+                // to this runtime-owned driver, not bridge initialization, and
+                // holds the global FI mutation claim so a competing formation
+                // cannot start through the RPC queue while recovery is in
+                // flight. No backup is normal and leaves the client idle.
+                let _claim = FiDriverOperationClaim {
+                    operation_active: operation_active.clone(),
+                };
+                let _ = client.restore_from_manifold_profile(&profile).await;
+            }
             run_supervised_driver_loop(
                 client,
                 liquidity_connector,
@@ -1956,6 +2268,10 @@ async fn run_supervised_driver_loop<B: FiDriverBackend + 'static>(
 fn should_auto_resume(status: &FiStatus) -> bool {
     matches!(
         status,
+        FiStatus::Restored(formation)
+            if formation.freshness == FormationFreshness::Unsynced
+    ) || matches!(
+        status,
         FiStatus::Formation(formation)
             if (formation.phase == FormationPhase::Formed
                 && formation.freshness == FormationFreshness::Unsynced)
@@ -2138,25 +2454,37 @@ fn guardian_fee_from_rpc(value: u32) -> Result<GuardianFeePpm, RpcFiOperationErr
 }
 
 fn formed_federation_id(status: &FiStatus) -> Result<String, RpcFiOperationError> {
-    let FiStatus::Formation(formation) = status else {
-        return Err(operation_error(
-            RpcFiErrorCode::NoActiveFormation,
-            "No created FI federation is available for maintenance",
-        ));
+    let invite = match status {
+        FiStatus::Idle => {
+            return Err(operation_error(
+                RpcFiErrorCode::NoActiveFormation,
+                "No created FI federation is available for maintenance",
+            ));
+        }
+        FiStatus::Formation(formation)
+            if formation.phase == FormationPhase::Formed
+                && formation.freshness == FormationFreshness::Fresh =>
+        {
+            formation.invite_code.as_ref().ok_or_else(|| {
+                operation_error(
+                    RpcFiErrorCode::Storage,
+                    "The created federation has no persisted invite",
+                )
+            })?
+        }
+        FiStatus::Restored(formation)
+            if formation.phase == FormationPhase::Formed
+                && formation.freshness == FormationFreshness::Fresh =>
+        {
+            &formation.federation_invite
+        }
+        FiStatus::Formation(_) | FiStatus::Restored(_) => {
+            return Err(operation_error(
+                RpcFiErrorCode::InvalidIntent,
+                "Federation maintenance is available only after setup or recovery completes",
+            ));
+        }
     };
-    if formation.phase != FormationPhase::Formed || formation.freshness != FormationFreshness::Fresh
-    {
-        return Err(operation_error(
-            RpcFiErrorCode::InvalidIntent,
-            "Federation maintenance is available only after creation",
-        ));
-    }
-    let invite = formation.invite_code.as_ref().ok_or_else(|| {
-        operation_error(
-            RpcFiErrorCode::Storage,
-            "The created federation has no persisted invite",
-        )
-    })?;
     let invite = FedimintInviteCode::from_str(&invite.0).map_err(|_| {
         operation_error(
             RpcFiErrorCode::Storage,
@@ -2444,7 +2772,7 @@ fn liquidity_operation_to_rpc(snapshot: LiquidityOperationSnapshot) -> RpcFiLiqu
         operation_id: snapshot.operation_id.0,
         formation_id: snapshot.formation_id.0,
         provider_pubkey: snapshot.provider_pubkey.0,
-        endpoint_hint: snapshot.endpoint_hint.0,
+        endpoint_hint: snapshot.endpoint_hint.map(|url| url.0),
         details_payload_hash: hex::encode(snapshot.details_payload_hash.0),
         amounts: liquidity_amounts_to_rpc(snapshot.amounts),
         phase: match snapshot.phase {
@@ -2496,6 +2824,42 @@ pub fn fi_status_to_rpc(status: FiStatus) -> RpcFiStatus {
         FiStatus::Formation(formation) => RpcFiStatus::Formation {
             formation: Box::new(formation_snapshot_to_rpc(formation)),
         },
+        FiStatus::Restored(formation) => RpcFiStatus::Restored {
+            formation: Box::new(restored_formation_snapshot_to_rpc(formation)),
+        },
+    }
+}
+
+fn restored_formation_snapshot_to_rpc(
+    snapshot: RestoredFormationSnapshot,
+) -> RpcFiRestoredFormationSnapshot {
+    RpcFiRestoredFormationSnapshot {
+        snapshot_generation: snapshot.snapshot_generation,
+        formation_id: snapshot.formation_id.0,
+        federation_invite: snapshot.federation_invite.0,
+        federation_name: snapshot.federation_name.map(|name| name.0),
+        seats: snapshot
+            .seats
+            .into_iter()
+            .map(|seat| RpcFiRestoredSeat {
+                fman_id: seat.fman_identity.to_string(),
+                seat_id: seat.seat_id.to_string(),
+                locator: seat.locator.to_json(),
+            })
+            .collect(),
+        phase: match snapshot.phase {
+            FormationPhase::Preparing => RpcFiFormationPhase::Preparing,
+            FormationPhase::AwaitingPaymentReadiness => {
+                RpcFiFormationPhase::AwaitingPaymentReadiness
+            }
+            FormationPhase::AcquiringSeats => RpcFiFormationPhase::AcquiringSeats,
+            FormationPhase::PreparingDkg => RpcFiFormationPhase::PreparingDkg,
+            FormationPhase::DkgUnderway => RpcFiFormationPhase::DkgUnderway,
+            FormationPhase::PublishingSeatBindings => RpcFiFormationPhase::PublishingSeatBindings,
+            FormationPhase::Formed => RpcFiFormationPhase::Formed,
+        },
+        freshness: formation_freshness_to_rpc(snapshot.freshness),
+        backup_eligible: snapshot.backup_eligible,
     }
 }
 

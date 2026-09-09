@@ -62,8 +62,3 @@ zip = { version = "4", default-features = false, features = [
   "deflate",
   "time",
 ] }
-
-[dev-dependencies]
-# Verify the Fedi-derived signature through the exact secp256k1 type exposed by
-# Manifold's protocol boundary, not only through Fedi's bitcoin re-export.
-manifold-secp256k1 = { package = "secp256k1", version = "0.30" }

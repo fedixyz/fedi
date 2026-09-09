@@ -36,7 +36,7 @@ import {
     upsertCommunity,
     upsertFederation,
 } from './federation'
-import { fiSlice } from './fi'
+import { fiSlice, setFiFederationJoin } from './fi'
 import {
     checkForReceivablePayments,
     handleMatrixRoomTimelineStreamUpdates,
@@ -147,6 +147,11 @@ export function initializeCommonStore({
             )
         })
 
+    // The one-shot startup rejoin sweep is NOT dispatched here: this function
+    // runs before `initializeBridge`, so the underlying RPC has no bridge to
+    // answer it and the thunk rejects silently. The platform's bridge
+    // initializer owns it instead, once the bridge is up.
+
     // Update federation on bridge events
     const unsubscribeFederation = fedimint.addListener(
         'federation',
@@ -241,6 +246,15 @@ export function initializeCommonStore({
         'nonceReuseCheckFailed',
         () => {
             dispatch(tryRejoinFederationsPendingScratchRejoin({ fedimint }))
+        },
+    )
+
+    // Record the Wallet Service's federation join state as the bridge reports
+    // it, including the re-emit on every `fiClientStatus` read
+    const unsubscribeFiFederationJoin = fedimint.addListener(
+        'fiFederationJoin',
+        event => {
+            dispatch(setFiFederationJoin(event))
         },
     )
 
@@ -342,6 +356,7 @@ export function initializeCommonStore({
     return () => {
         unsubscribeFederation()
         unsubscribeNonceReuseCheckFailed()
+        unsubscribeFiFederationJoin()
         unsubscribeCommunities()
         unsubscribeCommunityMigration()
         unsubscribeBalance()

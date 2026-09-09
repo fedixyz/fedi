@@ -1414,7 +1414,6 @@ dependencies = [
  "reqwest 0.12.28",
  "rpc-types",
  "runtime",
- "secp256k1 0.30.0",
  "serde",
  "sp-transfer",
  "stability-pool-client",
@@ -5136,6 +5135,10 @@ dependencies = [
 name = "fi-client"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "bitcoin_hashes",
+ "chacha20poly1305",
+ "ciborium",
  "fedi-decentralized-domain",
  "fedi-decentralized-manifold-environment",
  "fedi-decentralized-nostr",
@@ -5145,6 +5148,7 @@ dependencies = [
  "fedi-decentralized-service-liquidity-manager",
  "fedi-iroh-rpc",
  "fedimint-core",
+ "fedimint-derive-secret",
  "futures",
  "hex",
  "iroh-base 0.35.0",
@@ -5153,6 +5157,7 @@ dependencies = [
  "secp256k1 0.30.0",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "stability-pool-common",
  "thiserror 2.0.18",
  "tokio",

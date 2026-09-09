@@ -18,6 +18,7 @@ export interface SkeletonProps {
     /** Bar width — a number of px or a percentage string. */
     width?: number | `${number}%`
     style?: ViewStyle
+    testID?: string
 }
 
 /** One pass of the highlight across the bar, edge to edge. */
@@ -46,6 +47,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     height = 16,
     width = '100%',
     style,
+    testID,
 }) => {
     const { theme } = useTheme()
     const [barWidth, setBarWidth] = useState(0)
@@ -80,6 +82,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     return (
         <View
             accessibilityRole="progressbar"
+            testID={testID}
             onLayout={handleLayout}
             style={[styles(theme).bar, { height, width }, style]}>
             {barWidth > 0 && (

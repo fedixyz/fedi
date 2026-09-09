@@ -13,6 +13,7 @@ import {
     setAppFlavor,
     setPlatform,
     setShouldLockDevice,
+    tryRejoinFederationsPendingScratchRejoin,
 } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
 import { TransactionEvent } from '@fedi/common/types'
@@ -71,6 +72,23 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 await dispatchRef
                     .current(refreshOnboardingStatus(fedimint))
                     .unwrap()
+
+                // One-shot startup sweep: rejoin any federation a previous run
+                // left pending a from-scratch rejoin — the same repair the
+                // nonce-reuse listener triggers mid-session. It runs here
+                // rather than in `initializeCommonStore`, which executes before
+                // the bridge exists, where the RPC could only ever reject.
+                //
+                // Not awaited into the ready path: the rejoins are background
+                // repair, and a slow or failing one must not hold the splash
+                // screen up. Its rejection is logged rather than swallowed.
+                dispatchRef
+                    .current(
+                        tryRejoinFederationsPendingScratchRejoin({ fedimint }),
+                    )
+                    .unwrap()
+                    .catch(err => log.warn('pending-rejoin sweep failed', err))
+
                 setBridgeIsReady(true)
             } catch (err) {
                 log.error(

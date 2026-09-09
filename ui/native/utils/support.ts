@@ -121,6 +121,22 @@ export function makeStableBalanceRequestTags(
         : [STABLE_BALANCE_REQUEST_TAG]
 }
 
+export const WALLET_SERVICE_RECOVERY_FAILED_TAG =
+    'wallet-service-recovery-failed'
+
+/**
+ * Tags a support conversation as a failed Wallet Service recovery and names
+ * the Wallet Service it is for, so support sees what is being asked rather
+ * than an open-ended chat.
+ */
+export function makeWalletServiceRecoveryFailedTags(
+    federationId: string | null,
+): string[] {
+    return federationId
+        ? [WALLET_SERVICE_RECOVERY_FAILED_TAG, `wallet-service-${federationId}`]
+        : [WALLET_SERVICE_RECOVERY_FAILED_TAG]
+}
+
 export type ZendeskOpenOptions = {
     onError?: (error: Error) => void
     /**

@@ -2,6 +2,7 @@ import * as Zendesk from 'react-native-zendesk-messaging'
 
 import {
     makeStableBalanceRequestTags,
+    makeWalletServiceRecoveryFailedTags,
     zendeskOpenMessagingView,
 } from '../../../utils/support'
 
@@ -58,6 +59,21 @@ describe('makeStableBalanceRequestTags', () => {
     it('should still name the request when the federation is unknown', () => {
         expect(makeStableBalanceRequestTags(null)).toEqual([
             'stable-balance-request',
+        ])
+    })
+})
+
+describe('makeWalletServiceRecoveryFailedTags', () => {
+    it('should name the failure and the wallet service', () => {
+        expect(makeWalletServiceRecoveryFailedTags('abc123')).toEqual([
+            'wallet-service-recovery-failed',
+            'wallet-service-abc123',
+        ])
+    })
+
+    it('should still name the failure when the federation is unknown', () => {
+        expect(makeWalletServiceRecoveryFailedTags(null)).toEqual([
+            'wallet-service-recovery-failed',
         ])
     })
 })

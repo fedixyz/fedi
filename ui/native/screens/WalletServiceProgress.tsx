@@ -13,17 +13,21 @@ import Animated, {
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useWalletServiceRecoveryStage } from '@fedi/common/hooks/fi'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     WalletServiceCreationStage,
+    WalletServiceRecoveryStage,
     authorizeWalletServicePayments,
     getWalletServiceErrorKey,
     getWalletServiceRetryableError,
     isTerminalWalletServiceError,
     selectFiClientError,
+    selectFiFederationJoinFailure,
     selectFiLastErrorCode,
     selectFiPaymentRequirements,
     selectFiReplacementRequirements,
+    selectFiStatus,
     selectFederationBalance,
     selectIsWalletServiceFormed,
     selectLoadedFederation,
@@ -36,6 +40,7 @@ import { RpcFiOperationError } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { MilestoneRow } from '../components/feature/walletservice/MilestoneRow'
+import { RecoveryProgress } from '../components/feature/walletservice/RecoveryProgress'
 import TopUpSheet from '../components/feature/walletservice/TopUpSheet'
 import { WalletServiceScreenHeader } from '../components/feature/walletservice/WalletServiceScreenHeader'
 import ConfettiBurst from '../components/ui/ConfettiBurst'
@@ -55,8 +60,15 @@ import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 import { useDampedValue } from '../utils/hooks/dampedValue'
+import { useLaunchZendesk } from '../utils/hooks/support'
+import { makeWalletServiceRecoveryFailedTags } from '../utils/support'
 
 const log = makeLog('WalletServiceProgress')
+
+// matches the beat `WalletServiceSettings` uses between closing a sheet and
+// launching Zendesk, so the messaging view doesn't fight this screen's own
+// transition
+const SUPPORT_LAUNCH_DELAY_MS = 300
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -73,6 +85,8 @@ const ERROR_DAMPING = {
     hideAfterMs: 1_500,
     minVisibleMs: 3_000,
 }
+
+const RECOVERY_LONG_WAIT_MS = 60_000
 
 const STAGES = [
     {
@@ -102,7 +116,16 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const toast = useToast()
+    const { launchZendesk } = useLaunchZendesk()
     const progress = useAppSelector(selectWalletServiceCreationProgress)
+    const {
+        stage: recoveryStage,
+        isUsable,
+        federationId,
+    } = useWalletServiceRecoveryStage()
+    const isRestoredService =
+        useAppSelector(selectFiStatus)?.type === 'restored'
+    const federationJoinFailure = useAppSelector(selectFiFederationJoinFailure)
     const reportedErrorCode = useAppSelector(selectFiLastErrorCode)
     const paymentRequirements = useAppSelector(selectFiPaymentRequirements)
     const replacementRequirements = useAppSelector(
@@ -168,6 +191,48 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
     const isComplete = Boolean(progress?.isComplete) && isFormed
     const isTerminalError = isTerminalWalletServiceError(reportedErrorCode)
 
+    useEffect(() => {
+        if (isRestoredService && isUsable) {
+            navigation.dispatch(reset('WalletServiceDashboard'))
+        }
+    }, [isRestoredService, isUsable, navigation])
+
+    // How far the recovery actually got, which is what the frozen checklist
+    // below reports. Remembered rather than read live: `recoveryStage` is
+    // derived from facts that keep moving after the join failed — a federation
+    // that goes absent, a snapshot that re-reconciles — and the account of a
+    // finished recovery must not be rewritten under the user. `verifying` is
+    // the first row, and so the honest answer for a recovery that never
+    // reported reaching one, and `useWalletServiceRecoveryStage` returns it
+    // when nothing else is known.
+    //
+    // Seeded from the live stage rather than the literal: this screen is not
+    // always here to watch the recovery. The dashboard hands a failed rejoin
+    // over, and a relaunch replays the bridge's retained report — in both the
+    // effect below never runs, and a literal seed would report `verifying` for
+    // a recovery the store already says reached further.
+    const reachedStageRef = useRef<WalletServiceRecoveryStage>(recoveryStage)
+    useEffect(() => {
+        if (!federationJoinFailure) reachedStageRef.current = recoveryStage
+    }, [federationJoinFailure, recoveryStage])
+
+    // bounded wait on the rejoining stage. A join that fails arrives as a
+    // `fiFederationJoin` `failed` report, and this screen answers it with its
+    // terminal state; this line is for the wait that has not been answered
+    // either way yet.
+    const [isTakingLonger, setIsTakingLonger] = useState(false)
+    useEffect(() => {
+        if (recoveryStage !== 'rejoining') {
+            setIsTakingLonger(false)
+            return
+        }
+        const timer = setTimeout(
+            () => setIsTakingLonger(true),
+            RECOVERY_LONG_WAIT_MS,
+        )
+        return () => clearTimeout(timer)
+    }, [recoveryStage])
+
     // Nothing retries a terminal failure away, so delaying it only delays the
     // truth: it reports at once. Everything else is damped, because the driver
     // republishes `lastError` as null at the top of each attempt and the first
@@ -198,6 +263,20 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
             reset('TabsNavigator', { initialRouteName: 'Home' }),
         )
     }, [navigation])
+
+    // beat before launching, matching WalletServiceSettings's handoff to
+    // Zendesk, since the two animations don't co-operate if they start
+    // together
+    const handleContactSupport = useCallback(() => {
+        setTimeout(
+            () =>
+                launchZendesk(false, {
+                    conversationTags:
+                        makeWalletServiceRecoveryFailedTags(federationId),
+                }),
+            SUPPORT_LAUNCH_DELAY_MS,
+        )
+    }, [launchZendesk, federationId])
 
     // a parked guardian replacement is the user's decision to make, on its
     // own screen; route there once per parked action, and keep a banner here
@@ -289,10 +368,56 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
     )
 
     if (!progress) {
+        // Nothing on this device can retry a rejoin the bridge has given up
+        // on, so this is a dead end, not another damped banner over the
+        // checklist: it freezes the rows already reached and hands off to
+        // support instead of a retry the client has no way to attempt.
+        if (isRestoredService && federationJoinFailure) {
+            return (
+                <>
+                    <WalletServiceScreenHeader
+                        title={t('feature.wallet-service.restore-title')}>
+                        <WarningBanner
+                            level="error"
+                            icon="AlertWarningTriangleOutline"
+                            title={t(
+                                'feature.wallet-service.recovery-failed-title',
+                            )}
+                            message={t(
+                                'feature.wallet-service.recovery-failed-body',
+                            )}
+                        />
+                    </WalletServiceScreenHeader>
+                    <SafeAreaContainer
+                        style={style.loadingContainer}
+                        edges="notop"
+                        padding="lg">
+                        <RecoveryProgress
+                            stage={reachedStageRef.current}
+                            frozenAt={reachedStageRef.current}
+                        />
+                    </SafeAreaContainer>
+                    <WalletServiceFooter>
+                        <Button
+                            fullWidth
+                            testID="contact-support-button"
+                            title={t('phrases.contact-fedi-support')}
+                            onPress={handleContactSupport}
+                        />
+                        {returnHomeButton}
+                    </WalletServiceFooter>
+                </>
+            )
+        }
+
         return (
             <>
                 <WalletServiceScreenHeader
-                    title={t('feature.wallet-service.progress-title')}>
+                    title={t(
+                        isRestoredService
+                            ? 'feature.wallet-service.restore-title'
+                            : 'feature.wallet-service.progress-title',
+                    )}>
                     {clientErrorBanner}
                 </WalletServiceScreenHeader>
                 {!clientErrorBanner && (
@@ -300,7 +425,23 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
                         style={style.loadingContainer}
                         edges="notop"
                         padding="lg">
-                        <ActivityIndicator />
+                        {isRestoredService ? (
+                            <>
+                                <RecoveryProgress stage={recoveryStage} />
+                                {isTakingLonger && (
+                                    <Text
+                                        center
+                                        caption
+                                        color={theme.colors.darkGrey}>
+                                        {t(
+                                            'feature.wallet-service.recovery-taking-longer',
+                                        )}
+                                    </Text>
+                                )}
+                            </>
+                        ) : (
+                            <ActivityIndicator />
+                        )}
                     </SafeAreaContainer>
                 )}
                 <WalletServiceFooter>{returnHomeButton}</WalletServiceFooter>

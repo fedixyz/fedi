@@ -1,9 +1,11 @@
 import {
+    FiFederationJoinEvent,
     GuardianStatus,
     RpcFederationPreview,
     RpcFiClientStatus,
     RpcFiCurrentLiquidityOperationResult,
     RpcFiEligiblePayersResult,
+    RpcFiFederationJoinState,
     RpcFiLiquidityDiscoveryResult,
     RpcFiLiquidityOperationResult,
     RpcFiOperationResult,
@@ -15,7 +17,7 @@ import {
     MOCK_PAYER_FEDERATION_IDS,
     MOCK_PAYER_FEDERATIONS,
 } from '../../../../utils/fi/mockPayerFederation'
-import { FiScenarioName } from '../../../../utils/fi/scenarios'
+import { FiScenarioName, fiScenarios } from '../../../../utils/fi/scenarios'
 import { FiSimulator } from '../../../../utils/fi/simulator'
 
 const PREVIEW_REQUEST = {
@@ -1058,6 +1060,163 @@ describe('FiSimulator', () => {
             expect(
                 (await payerIds(simulator)).map(p => p.federationId),
             ).toEqual(['real-fed'])
+        })
+    })
+
+    describe('restored backup scenarios', () => {
+        it('restoredBackup announces the federation only after freshness', () => {
+            const sim = new FiSimulator('restoredBackup')
+            const events: string[] = []
+            sim.attach(
+                () => {},
+                e => events.push(e),
+            )
+
+            jest.advanceTimersByTime(
+                fiScenarios.restoredBackup.restoreReconcileMs,
+            )
+            expect(events).not.toContain('federation')
+
+            const { restoreJoinMs } = fiScenarios.restoredBackup
+            if (restoreJoinMs === null) {
+                throw new Error('restoredBackup must define restoreJoinMs')
+            }
+            jest.advanceTimersByTime(restoreJoinMs)
+            expect(events).toContain('federation')
+        })
+
+        it('restoredBackupJoinFails never announces the federation', () => {
+            const sim = new FiSimulator('restoredBackupJoinFails')
+            const events: string[] = []
+            sim.attach(
+                () => {},
+                e => events.push(e),
+            )
+
+            jest.advanceTimersByTime(10 * 60_000)
+            expect(events).not.toContain('federation')
+        })
+
+        // The wallet list is what the recovery checklist reads to decide the
+        // `rejoining` and `restoringBalance` rows. A federation listed from the
+        // first render skips both of them, so the very window these scenarios
+        // exist to show never appears.
+        it('restoredBackupSlowJoin lists the federation only once the join lands', () => {
+            const sim = new FiSimulator('restoredBackupSlowJoin')
+            sim.attach(
+                () => {},
+                () => {},
+            )
+            const { restoreReconcileMs, restoreJoinMs } =
+                fiScenarios.restoredBackupSlowJoin
+            if (restoreJoinMs === null) {
+                throw new Error(
+                    'restoredBackupSlowJoin must define restoreJoinMs',
+                )
+            }
+
+            expect(sim.listMockFederations()).toEqual([])
+
+            jest.advanceTimersByTime(restoreReconcileMs)
+            expect(sim.listMockFederations()).toEqual([])
+            // the invite still resolves to the id: the backup carries it, and
+            // the real `parseInviteCode` answers offline too
+            expect(
+                sim.handles('parseInviteCode', {
+                    inviteCode: `fed1${'sim'.padEnd(40, '0')}restored_formation`,
+                }),
+            ).toBe(true)
+
+            jest.advanceTimersByTime(restoreJoinMs)
+            expect(sim.listMockFederations()).toHaveLength(1)
+        })
+
+        it('restoredBackupJoinFails never lists the federation', () => {
+            const sim = new FiSimulator('restoredBackupJoinFails')
+            sim.attach(
+                () => {},
+                () => {},
+            )
+
+            jest.advanceTimersByTime(10 * 60_000)
+
+            expect(sim.listMockFederations()).toEqual([])
+        })
+
+        it('restoredBackup reports the join as joining, then ready', () => {
+            const sim = new FiSimulator('restoredBackup')
+            const joinStates: RpcFiFederationJoinState[] = []
+            sim.attach(
+                () => {},
+                (name, payload) => {
+                    if (name === 'fiFederationJoin')
+                        joinStates.push(
+                            (payload as FiFederationJoinEvent).state,
+                        )
+                },
+            )
+
+            const { restoreReconcileMs, restoreJoinMs } =
+                fiScenarios.restoredBackup
+            if (restoreJoinMs === null) {
+                throw new Error('restoredBackup must define restoreJoinMs')
+            }
+
+            jest.advanceTimersByTime(restoreReconcileMs)
+            expect(joinStates).toEqual([{ type: 'joining' }])
+
+            jest.advanceTimersByTime(restoreJoinMs)
+            expect(joinStates).toEqual([{ type: 'joining' }, { type: 'ready' }])
+        })
+
+        it('restoredBackupJoinFails reports the join as failed and never ready', () => {
+            const sim = new FiSimulator('restoredBackupJoinFails')
+            const joinStates: RpcFiFederationJoinState[] = []
+            sim.attach(
+                () => {},
+                (name, payload) => {
+                    if (name === 'fiFederationJoin')
+                        joinStates.push(
+                            (payload as FiFederationJoinEvent).state,
+                        )
+                },
+            )
+
+            jest.advanceTimersByTime(10 * 60_000)
+
+            expect(joinStates).toEqual([
+                { type: 'joining' },
+                {
+                    type: 'failed',
+                    message: 'simulated: federation join failed',
+                },
+            ])
+        })
+
+        it('restoredBackup publishes restored/unsynced on attach and restored/fresh once reconciled', async () => {
+            const sim = new FiSimulator('restoredBackup')
+            const statuses: RpcFiStatus[] = []
+            sim.attach(update => {
+                if (update.data.type === 'ready')
+                    statuses.push(update.data.status)
+            })
+
+            await sim.handle('fiClientSubscribe', { streamId: 1 })
+            await jest.advanceTimersByTimeAsync(0)
+
+            expect(statuses[0]).toMatchObject({
+                type: 'restored',
+                formation: { freshness: 'unsynced' },
+            })
+
+            await jest.advanceTimersByTimeAsync(
+                fiScenarios.restoredBackup.restoreReconcileMs,
+            )
+
+            expect(statuses.at(-1)).toMatchObject({
+                type: 'restored',
+                formation: { freshness: 'fresh' },
+            })
         })
     })
 })

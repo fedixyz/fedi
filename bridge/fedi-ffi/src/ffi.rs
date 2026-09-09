@@ -201,6 +201,7 @@ pub fn fedimint_get_supported_events() -> Vec<String> {
         String::from("communityMetadataUpdated"),
         String::from("nonceReuseCheckFailed"),
         String::from("communityMigratedToV2"),
+        String::from("fiFederationJoin"),
     ]
 }
 

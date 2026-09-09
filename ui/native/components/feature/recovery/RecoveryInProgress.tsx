@@ -13,19 +13,21 @@ export type Props = {
     label?: string
     federationId?: Federation['id']
     size?: number
+    testID?: string
 }
 
 const RecoveryInProgress: React.FC<Props> = ({
     label,
     federationId = '',
     size = 100,
+    testID,
 }: Props) => {
     const { theme } = useTheme()
     const { progress, formattedPercent } = useRecoveryProgress(federationId)
 
     const style = styles(theme)
     return (
-        <Column grow center gap="lg" style={style.container}>
+        <Column grow center gap="lg" style={style.container} testID={testID}>
             {formattedPercent ? (
                 <>
                     <HoloProgressCircle size={size} progress={progress} />

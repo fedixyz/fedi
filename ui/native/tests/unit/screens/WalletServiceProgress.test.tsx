@@ -12,8 +12,10 @@ import React from 'react'
 import {
     setFederations,
     setFiClientStatus,
+    setFiFederationJoin,
     setFiStatus,
     setupStore,
+    upsertFederation,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
@@ -22,6 +24,7 @@ import {
     RpcFiFormationSnapshot,
     RpcFiOperationError,
     RpcFiSeatProgress,
+    RpcFiStatus,
 } from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
 
@@ -29,6 +32,18 @@ import WalletServiceProgress from '../../../screens/WalletServiceProgress'
 import { reset } from '../../../state/navigation'
 import { mockNavigation, mockRoute } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
+
+/**
+ * The support hook is mocked rather than the Zendesk module beneath it, same
+ * as `WalletServiceSettings.test.tsx`: this screen's contract is "the support
+ * action opens support", not how `useLaunchZendesk` gets there.
+ */
+const mockLaunchZendesk = jest.fn()
+jest.mock('../../../utils/hooks/support', () => ({
+    useLaunchZendesk: () => ({ launchZendesk: mockLaunchZendesk }),
+}))
+
+const WS_FED = 'ws-federation-1'
 
 const makeFormation = (
     overrides: Partial<RpcFiFormationSnapshot> = {},
@@ -56,19 +71,47 @@ const makeFormation = (
     ...overrides,
 })
 
+const makeRestoredStatus = (
+    freshness: 'unsynced' | 'fresh' = 'unsynced',
+): RpcFiStatus => ({
+    type: 'restored',
+    formation: {
+        snapshotGeneration: 3,
+        formationId: 'restored-formation',
+        federationInvite: 'private-invite',
+        federationName: 'Restored Federation',
+        seats: [],
+        phase: 'formed',
+        freshness,
+        backupEligible: false,
+    },
+})
+
 const renderProgress = ({
     formation = makeFormation(),
     clientError = null,
+    status,
+    joinFailedBeforeMount = false,
 }: {
     formation?: RpcFiFormationSnapshot
     clientError?: RpcFiOperationError | null
+    status?: RpcFiStatus
+    /**
+     * The failure is already in the store when the screen mounts — what the
+     * dashboard's hand-off produces, and what a relaunch replays from the
+     * bridge's retained report.
+     */
+    joinFailedBeforeMount?: boolean
 } = {}) => {
     const user = userEvent.setup()
-    const fedimint = createMockFedimintBridge({})
+    const fedimint = createMockFedimintBridge({
+        parseInviteCode: async () => ({ federationId: WS_FED }),
+    })
     const store = setupStore({
         fi: {
             status: null,
             clientError,
+            federationJoin: null,
             creationHighWaterMark: null,
             draft: { name: '', size: 7 },
             selectionPreview: null,
@@ -88,10 +131,17 @@ const renderProgress = ({
     // snapshot arrives this way, and it is the reducer that records how far
     // the formation has got. A client error arrives on the same stream, after
     // the status, which is why it cannot simply be preloaded either.
-    store.dispatch(setFiStatus({ type: 'formation', formation }))
+    store.dispatch(setFiStatus(status ?? { type: 'formation', formation }))
     if (clientError)
         store.dispatch(
             setFiClientStatus({ type: 'failed', error: clientError }),
+        )
+    if (joinFailedBeforeMount)
+        store.dispatch(
+            setFiFederationJoin({
+                federationId: WS_FED,
+                state: { type: 'failed', message: 'boom' },
+            }),
         )
 
     renderWithProviders(
@@ -124,6 +174,212 @@ describe('WalletServiceProgress screen', () => {
 
     afterEach(() => {
         cleanup()
+    })
+
+    it('should distinguish backup recovery from new service creation', async () => {
+        renderProgress({
+            status: makeRestoredStatus(),
+        })
+
+        await screen.findByText(i18n.t('feature.wallet-service.restore-title'))
+        await screen.findByTestId('recovery-stage-verifying')
+        expect(
+            screen.queryByText(i18n.t('feature.wallet-service.progress-title')),
+        ).toBeNull()
+    })
+
+    it('should open the dashboard when backup recovery completes', async () => {
+        const { store } = renderProgress({ status: makeRestoredStatus() })
+
+        await screen.findByText(i18n.t('feature.wallet-service.restore-title'))
+        act(() => {
+            store.dispatch(setFiStatus(makeRestoredStatus('fresh')))
+        })
+        act(() => {
+            store.dispatch(
+                upsertFederation({
+                    ...mockFederation1,
+                    id: WS_FED,
+                    init_state: 'ready',
+                    recovering: false,
+                }),
+            )
+        })
+
+        await waitFor(() =>
+            expect(mockNavigation.dispatch).toHaveBeenCalledWith(
+                reset('WalletServiceDashboard'),
+            ),
+        )
+    })
+
+    it('does not open the dashboard when the FI is fresh but the federation is not loaded', async () => {
+        renderProgress({ status: makeRestoredStatus('fresh') })
+        await screen.findByTestId('recovery-stage-rejoining')
+        expect(mockNavigation.dispatch).not.toHaveBeenCalled()
+    })
+
+    it('shows the terminal banner and support action when the join fails', async () => {
+        const { store } = renderProgress({
+            status: makeRestoredStatus('fresh'),
+        })
+
+        await screen.findByTestId('recovery-stage-rejoining')
+
+        act(() => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WS_FED,
+                    state: { type: 'failed', message: 'boom' },
+                }),
+            )
+        })
+
+        await screen.findByText(
+            i18n.t('feature.wallet-service.recovery-failed-title'),
+        )
+        expect(
+            screen.getByText(i18n.t('phrases.contact-fedi-support')),
+        ).toBeOnTheScreen()
+        // the checklist is frozen: nothing past the row the recovery reached
+        expect(
+            screen.queryByTestId('recovery-stage-restoringBalance'),
+        ).toBeNull()
+    })
+
+    // The checklist is the only account of how far the recovery got. Freezing
+    // it at the first row tells every failed recovery the same, wrong story.
+    it('freezes the checklist at the row the recovery reached', async () => {
+        const { store } = renderProgress({
+            status: makeRestoredStatus('fresh'),
+        })
+
+        await screen.findByTestId('recovery-stage-rejoining')
+
+        act(() => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WS_FED,
+                    state: { type: 'failed', message: 'boom' },
+                }),
+            )
+        })
+
+        await screen.findByText(
+            i18n.t('feature.wallet-service.recovery-failed-title'),
+        )
+        expect(screen.getByTestId('recovery-stage-verifying')).toBeOnTheScreen()
+        expect(screen.getByTestId('recovery-stage-rejoining')).toBeOnTheScreen()
+        expect(
+            screen.queryByTestId('recovery-stage-restoringBalance'),
+        ).toBeNull()
+        expect(screen.queryByTestId('recovery-stage-ready')).toBeNull()
+    })
+
+    // The screen is not always here to watch the recovery: the dashboard hands
+    // a failed rejoin over, and a relaunch replays the bridge's retained
+    // report. Mounting into the failure must still report the row the recovery
+    // had reached, not the first one.
+    it('freezes at the reached row when it mounts into the failure', async () => {
+        renderProgress({
+            status: makeRestoredStatus('fresh'),
+            joinFailedBeforeMount: true,
+        })
+
+        await screen.findByText(
+            i18n.t('feature.wallet-service.recovery-failed-title'),
+        )
+        expect(screen.getByTestId('recovery-stage-rejoining')).toBeOnTheScreen()
+        expect(
+            screen.queryByTestId('recovery-stage-restoringBalance'),
+        ).toBeNull()
+    })
+
+    // and a recovery that failed before it got anywhere still says so
+    it('freezes at the first row when no stage was ever reached', async () => {
+        const { store } = renderProgress({ status: makeRestoredStatus() })
+
+        await screen.findByTestId('recovery-stage-verifying')
+
+        act(() => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WS_FED,
+                    state: { type: 'failed', message: 'boom' },
+                }),
+            )
+        })
+
+        await screen.findByText(
+            i18n.t('feature.wallet-service.recovery-failed-title'),
+        )
+        expect(screen.getByTestId('recovery-stage-verifying')).toBeOnTheScreen()
+        expect(screen.queryByTestId('recovery-stage-rejoining')).toBeNull()
+    })
+
+    it('tells support which wallet service the recovery failed for', async () => {
+        const { user, store } = renderProgress({
+            status: makeRestoredStatus('fresh'),
+        })
+
+        await screen.findByTestId('recovery-stage-rejoining')
+
+        act(() => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WS_FED,
+                    state: { type: 'failed', message: 'boom' },
+                }),
+            )
+        })
+
+        await user.press(screen.getByTestId('contact-support-button'))
+
+        // an untagged open leaves support with an open-ended chat instead of
+        // knowing which wallet service to look at
+        await waitFor(() =>
+            expect(mockLaunchZendesk).toHaveBeenCalledWith(false, {
+                conversationTags: [
+                    'wallet-service-recovery-failed',
+                    `wallet-service-${WS_FED}`,
+                ],
+            }),
+        )
+    })
+
+    it('opens the dashboard once the federation is loaded and not recovering', async () => {
+        const { store } = renderProgress({
+            status: makeRestoredStatus('fresh'),
+        })
+        act(() => {
+            store.dispatch(
+                upsertFederation({
+                    ...mockFederation1,
+                    id: WS_FED,
+                    init_state: 'ready',
+                    recovering: false,
+                }),
+            )
+        })
+        await waitFor(() =>
+            expect(mockNavigation.dispatch).toHaveBeenCalledWith(
+                reset('WalletServiceDashboard'),
+            ),
+        )
+    })
+
+    it('shows the taking-longer line after 60s on the rejoining stage', async () => {
+        jest.useFakeTimers()
+        renderProgress({ status: makeRestoredStatus('fresh') })
+        act(() => {
+            jest.advanceTimersByTime(60_000)
+        })
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.recovery-taking-longer'),
+            ),
+        ).toBeOnTheScreen()
+        jest.useRealTimers()
     })
 
     it('should render every milestone detail line in every state', async () => {

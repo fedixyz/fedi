@@ -11,9 +11,9 @@ import {
     DEFAULT_GUARDIAN_FEE_PPM,
     getWalletServiceRetryableError,
     guardianFeePpmToPercent,
-    selectFiFormation,
     selectIsWalletServiceFormed,
     selectIsWalletServiceMaintenanceReady,
+    selectWalletServiceGuardianCount,
     setWalletServiceGuardianFee,
 } from '@fedi/common/redux'
 import { RpcFiOperationError } from '@fedi/common/types/bindings'
@@ -53,8 +53,7 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
     const isMaintenanceReady = useAppSelector(
         selectIsWalletServiceMaintenanceReady,
     )
-    const guardianCount =
-        useAppSelector(selectFiFormation)?.intent.federationSize ?? 0
+    const guardianCount = useAppSelector(selectWalletServiceGuardianCount)
     // the rate the federation applies, so the screen opens on it rather than
     // on the default; it is read asynchronously and the picker re-seeds when it
     // lands

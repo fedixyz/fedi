@@ -5,9 +5,9 @@ import {
     userEvent,
     waitFor,
 } from '@testing-library/react-native'
-import { ScrollView } from 'react-native'
+import { ScrollView, StyleSheet } from 'react-native'
 
-import { setupStore } from '@fedi/common/redux'
+import { setFiFederationJoin, setupStore } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { MSats } from '@fedi/common/types'
@@ -15,6 +15,7 @@ import type {
     GuardianStatus,
     RpcFiFormationSnapshot,
     RpcFiLiquidityOperation,
+    RpcFiStatus,
 } from '@fedi/common/types/bindings'
 
 import i18n from '../../../localization/i18n'
@@ -86,6 +87,24 @@ const formation: RpcFiFormationSnapshot = {
     lastError: null,
 }
 
+/** Matches the fixture in `common/tests/unit/hooks/fiRecoveryStage.test.ts`. */
+const restoredStatus = (
+    freshness: 'unsynced' | 'fresh',
+    backupEligible = false,
+): RpcFiStatus => ({
+    type: 'restored',
+    formation: {
+        snapshotGeneration: 3,
+        formationId: 'formation-1',
+        federationInvite: INVITE_CODE,
+        federationName: 'Restored Wallet Service',
+        seats: [],
+        phase: 'formed',
+        freshness,
+        backupEligible,
+    },
+})
+
 const renderScreen = ({
     snapshot = formation,
     // the federation the invite resolves to is joined and loaded, matching
@@ -101,6 +120,8 @@ const renderScreen = ({
     // what the app-wide monitor has found; the dashboard is where a user lands
     // after walking away from an attach, so it has to report one
     liquidity = null as RpcFiLiquidityOperation | null,
+    status = { type: 'formation', formation: snapshot } as RpcFiStatus,
+    recovering = false,
 }: {
     snapshot?: RpcFiFormationSnapshot
     federationJoined?: boolean
@@ -110,6 +131,8 @@ const renderScreen = ({
     guardianStatuses?: GuardianStatus[] | null
     hasSeenTour?: boolean
     liquidity?: RpcFiLiquidityOperation | null
+    status?: RpcFiStatus
+    recovering?: boolean
 } = {}) => {
     const state = setupStore().getState()
     const fedimint = createMockFedimintBridge({
@@ -139,13 +162,15 @@ const renderScreen = ({
                                       ? { federation_name: renamedTo }
                                       : mockFederation1.meta,
                                   balance: balanceMsats as MSats,
+                                  recovering,
                               },
                           ]
                         : [],
                 },
                 fi: {
-                    status: { type: 'formation', formation: snapshot },
+                    status,
                     clientError: null,
+                    federationJoin: null,
                     creationHighWaterMark: null,
                     draft: { name: '', size: 10 },
                     selectionPreview: null,
@@ -296,15 +321,208 @@ describe('screens/WalletServiceDashboard', () => {
         )
     })
 
-    it('should flag a stale snapshot as last known', async () => {
+    it('renders a skeleton in place of the guardian count while the FI is unsynced', async () => {
         renderScreen({ snapshot: { ...formation, freshness: 'unsynced' } })
         await waitFor(() => {})
 
         expect(
-            screen.getByText(
-                i18n.t('feature.wallet-service.showing-last-known'),
-            ),
+            screen.getByTestId('wallet-service-guardians-skeleton'),
         ).toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.dashboard-guardian-count', {
+                    total: 7,
+                }),
+            ),
+        ).toBeNull()
+    })
+
+    it('hides the balance and disables Withdraw while the federation is not loaded', async () => {
+        renderScreen({
+            status: restoredStatus('fresh'),
+            federationJoined: false,
+        })
+        await waitFor(() => {})
+        expect(screen.queryByTestId('wallet-service-balance-amount')).toBeNull()
+        expect(
+            screen.getByTestId('wallet-service-recovery-in-progress'),
+        ).toBeOnTheScreen()
+        expect(screen.getByTestId('wallet-service-withdraw')).toBeDisabled()
+    })
+
+    // A `backupEligible` restored service lands here before its federation is
+    // joined, so the join can still fail under a mounted dashboard. The
+    // terminal state — what went wrong, and the way out of it — lives on
+    // WalletServiceProgress, and the dashboard has only a spinner to offer.
+    it('should hand a failed rejoin to the terminal progress screen', async () => {
+        const { store } = renderScreen({
+            status: restoredStatus('fresh'),
+            federationJoined: false,
+        })
+        await waitFor(() => {})
+        expect(mockNavigation.replace).not.toHaveBeenCalled()
+
+        await act(async () => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'failed', message: 'guardian unreachable' },
+                }),
+            )
+        })
+
+        expect(mockNavigation.replace).toHaveBeenCalledWith(
+            'WalletServiceProgress',
+        )
+    })
+
+    // The bridge reports a failed `fiFederationJoin` on the created path too,
+    // where the flow status stays `formed` and this screen is where the user
+    // belongs. Handing that one to WalletServiceProgress lands it on the
+    // *creation* checklist — confetti, then Continue into fee onboarding —
+    // because the terminal state there only renders for a restored service.
+    it('should keep a created service on the dashboard when a join fails', async () => {
+        const { store } = renderScreen({ federationJoined: false })
+        await waitFor(() => {})
+
+        await act(async () => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'failed', message: 'guardian unreachable' },
+                }),
+            )
+        })
+
+        expect(mockNavigation.replace).not.toHaveBeenCalled()
+    })
+
+    it('should stay on the dashboard while the rejoin has not failed', async () => {
+        const { store } = renderScreen({
+            status: restoredStatus('fresh'),
+            federationJoined: false,
+        })
+        await waitFor(() => {})
+
+        await act(async () => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'recovering' },
+                }),
+            )
+        })
+
+        expect(mockNavigation.replace).not.toHaveBeenCalled()
+    })
+
+    it('hides the balance and disables Withdraw while the federation is recovering', async () => {
+        renderScreen({
+            status: restoredStatus('fresh'),
+            federationJoined: true,
+            recovering: true,
+        })
+        await waitFor(() => {})
+        expect(screen.getByTestId('wallet-service-withdraw')).toBeDisabled()
+    })
+
+    it('shows the balance and enables Withdraw once usable', async () => {
+        renderScreen({
+            status: restoredStatus('fresh'),
+            federationJoined: true,
+            balanceMsats: 21_000_000,
+        })
+        await waitFor(() =>
+            expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
+        )
+    })
+
+    // the wallet is federation-owned: an FI snapshot that is merely
+    // re-reconciling must not take the balance away
+    it('shows the balance for a created service whose FI snapshot is unsynced', async () => {
+        renderScreen({
+            snapshot: { ...formation, freshness: 'unsynced' },
+            federationJoined: true,
+            balanceMsats: 21_000_000,
+        })
+        await waitFor(() =>
+            expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
+        )
+
+        expect(
+            screen.getByTestId('wallet-service-balance-amount'),
+        ).toBeOnTheScreen()
+        expect(
+            screen.queryByTestId('wallet-service-recovery-in-progress'),
+        ).toBeNull()
+        // the FI caveat still shows, on the guardian line only
+        expect(
+            screen.getByTestId('wallet-service-guardians-skeleton'),
+        ).toBeOnTheScreen()
+    })
+
+    it('shows the balance for a backup-eligible restored service that is still unsynced', async () => {
+        renderScreen({
+            status: restoredStatus('unsynced', true),
+            federationJoined: true,
+            balanceMsats: 21_000_000,
+        })
+        await waitFor(() =>
+            expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
+        )
+
+        expect(
+            screen.getByTestId('wallet-service-balance-amount'),
+        ).toBeOnTheScreen()
+        expect(
+            screen.queryByTestId('wallet-service-recovery-in-progress'),
+        ).toBeNull()
+        expect(
+            screen.getByTestId('wallet-service-guardians-skeleton'),
+        ).toBeOnTheScreen()
+    })
+
+    // the tour spotlight is measured in window coordinates with scrolling
+    // locked — a card that grows or shrinks when recovery finishes moves the
+    // spotlight off its target
+    // Both branches share one wrapper style object (`style.balanceContent`),
+    // so pinning both assertions to the same literal is exactly "the two
+    // states report the same minHeight" — a single render can only ever be
+    // in one state, and two renders in one test corrupt the shared test
+    // renderer registry this harness uses.
+    const PINNED_BALANCE_CONTENT_MIN_HEIGHT = 49
+
+    it('keeps the balance card at its pinned height while not usable', async () => {
+        renderScreen({
+            status: restoredStatus('fresh'),
+            federationJoined: false,
+        })
+        await waitFor(() => {})
+
+        expect(
+            StyleSheet.flatten(
+                screen.getByTestId('wallet-service-balance-content').props
+                    .style,
+            ).minHeight,
+        ).toBe(PINNED_BALANCE_CONTENT_MIN_HEIGHT)
+    })
+
+    it('keeps the balance card at its pinned height once usable', async () => {
+        renderScreen({
+            status: restoredStatus('fresh'),
+            federationJoined: true,
+            balanceMsats: 21_000_000,
+        })
+        await waitFor(() =>
+            expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
+        )
+
+        expect(
+            StyleSheet.flatten(
+                screen.getByTestId('wallet-service-balance-content').props
+                    .style,
+            ).minHeight,
+        ).toBe(PINNED_BALANCE_CONTENT_MIN_HEIGHT)
     })
 
     it('should keep the balance hidden until it is tapped', async () => {

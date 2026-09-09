@@ -2,6 +2,7 @@ import {
     BalanceEvent,
     CommunityMetadataUpdatedEvent,
     DeviceRegistrationEvent,
+    FiFederationJoinEvent,
     LogEvent,
     NonceReuseCheckFailedEvent,
     PanicEvent,
@@ -366,6 +367,7 @@ export type FedimintBridgeEventMap = {
     communityMetadataUpdated: CommunityMetadataUpdatedEvent
     nonceReuseCheckFailed: NonceReuseCheckFailedEvent
     communityMigratedToV2: CommunityMigratedToV2Event
+    fiFederationJoin: FiFederationJoinEvent
 }
 
 export type StabilityPoolTxn = {

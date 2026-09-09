@@ -7,18 +7,24 @@ import { StyleSheet, View } from 'react-native'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useBalance } from '@fedi/common/hooks/amount'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
+import {
+    useWalletServiceFederationId,
+    useWalletServiceRecoveryStage,
+} from '@fedi/common/hooks/fi'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
-    selectFiFormation,
+    selectFiFederationJoinFailure,
     selectFiFormationName,
     selectFiInviteCode,
     selectFiIsUnsynced,
+    selectFiStatus,
     selectIsWalletServiceLightningRunning,
+    selectWalletServiceGuardianCount,
     selectLoadedFederation,
 } from '@fedi/common/redux'
 import type { GuardianStatus } from '@fedi/common/types/bindings'
 
+import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
 import { WalletServiceDashboardHeader } from '../components/feature/walletservice/WalletServiceDashboardHeader'
 import { WalletServiceInviteSheet } from '../components/feature/walletservice/WalletServiceInviteSheet'
 import {
@@ -29,8 +35,8 @@ import { Eyebrow } from '../components/ui/Eyebrow'
 import { Column, Row } from '../components/ui/Flex'
 import { Pressable } from '../components/ui/Pressable'
 import { SafeScrollArea } from '../components/ui/SafeArea'
+import { Skeleton } from '../components/ui/Skeleton'
 import SvgImage from '../components/ui/SvgImage'
-import { WarningBanner } from '../components/ui/WarningBanner'
 import { SERVICE_CARD_BG, SERVICE_GREEN } from '../constants/walletServiceTheme'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -61,10 +67,14 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const isAttachingLightning = useAppSelector(
         selectIsWalletServiceLightningRunning,
     )
-    const totalGuardians =
-        useAppSelector(selectFiFormation)?.intent.federationSize ?? 0
+    const totalGuardians = useAppSelector(selectWalletServiceGuardianCount)
 
     const federationId = useWalletServiceFederationId()
+    // federation-owned readiness, not `isUsable`: the balance and the withdraw
+    // path both come from Fedimint, so an FI snapshot that is merely
+    // re-reconciling must not replace them with a recovery loader. The FI
+    // caveat is carried by the guardian-line skeleton below.
+    const { isWalletReady } = useWalletServiceRecoveryStage()
     const [guardianStatuses, setGuardianStatuses] = useState<
         GuardianStatus[] | null
     >(null)
@@ -114,6 +124,32 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
         : null
     const isLive =
         onlineGuardians !== null && onlineGuardians === totalGuardians
+
+    // A `backupEligible` restored service reaches this screen before its
+    // federation is joined, so the join can still fail underneath it. The
+    // terminal state — the reason, the frozen checklist, and the way out — is
+    // WalletServiceProgress's, and this screen has only a spinner. `replace`,
+    // not `navigate`: the dashboard the user is being taken off has nothing
+    // left to come back to.
+    // the boolean, not the failure object: that one is rebuilt on every read,
+    // and an effect keyed on it would re-run for every unrelated store change.
+    const hasJoinFailed = useAppSelector(
+        s => selectFiFederationJoinFailure(s) !== null,
+    )
+    // Restored only — the same pair the terminal state on WalletServiceProgress
+    // renders for. The bridge reports a failed join on the created path too,
+    // where this screen is where the user belongs; handing that one over would
+    // put the creation checklist, its confetti and its fee onboarding in front
+    // of someone whose service was created long ago.
+    const isRestoredService =
+        useAppSelector(selectFiStatus)?.type === 'restored'
+    // No loop back: Progress only returns here once the service is usable,
+    // which means the wallet is ready — exactly the condition that makes a
+    // retained failure stale in `selectFiFederationJoinFailure`.
+    useEffect(() => {
+        if (isRestoredService && hasJoinFailed)
+            navigation.replace('WalletServiceProgress')
+    }, [isRestoredService, hasJoinFailed, navigation])
 
     const [hasSeenTour, completeTour] = useNuxStep('hasSeenWalletServiceTour')
     const [isTourOpen, setIsTourOpen] = useState(false)
@@ -201,7 +237,13 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                                     />
                                 </Pressable>
                             </Row>
-                            {onlineGuardians === null ? (
+                            {isUnsynced ? (
+                                <Skeleton
+                                    height={12}
+                                    width={112}
+                                    testID="wallet-service-guardians-skeleton"
+                                />
+                            ) : onlineGuardians === null ? (
                                 <Text style={style.status} numberOfLines={1}>
                                     {t(
                                         'feature.wallet-service.dashboard-guardian-count',
@@ -275,15 +317,6 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                         </Pressable>
                     </Row>
 
-                    {isUnsynced && (
-                        <WarningBanner
-                            level="info"
-                            message={t(
-                                'feature.wallet-service.showing-last-known',
-                            )}
-                        />
-                    )}
-
                     {/* `.fed-home-bal`: the balance is the screen's headline,
                         not another stat line. The wrapper is the tour's
                         highlight target — a composed component need not forward
@@ -316,20 +349,43 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                                         color={theme.colors.darkGrey}
                                     />
                                 </Row>
-                                <Text
-                                    testID="wallet-service-balance-amount"
-                                    style={style.balanceAmount}>
-                                    {isBalanceRevealed
-                                        ? formattedBalanceSats
-                                        : MASKED_BALANCE}
-                                </Text>
-                                <Text style={style.balanceEquiv}>
-                                    {isBalanceRevealed
-                                        ? `≈ ${formattedBalanceFiat}`
-                                        : t(
-                                              'feature.wallet-service.dashboard-tap-to-reveal',
-                                          )}
-                                </Text>
+                                {/* fixed height: the tour spotlight is measured
+                                    in window coordinates with scrolling locked,
+                                    so the card must not grow or shrink when
+                                    `isWalletReady` flips. Pinned to the amount line
+                                    (h2, lineHeight 29) plus the equiv caption
+                                    line under it (paddingTop 2 + its own
+                                    line), which is what the two `<Text>`s below
+                                    occupy — measured once and fixed here rather
+                                    than recomputed on every render. */}
+                                <View
+                                    testID="wallet-service-balance-content"
+                                    style={style.balanceContent}>
+                                    {isWalletReady ? (
+                                        <>
+                                            <Text
+                                                testID="wallet-service-balance-amount"
+                                                style={style.balanceAmount}>
+                                                {isBalanceRevealed
+                                                    ? formattedBalanceSats
+                                                    : MASKED_BALANCE}
+                                            </Text>
+                                            <Text style={style.balanceEquiv}>
+                                                {isBalanceRevealed
+                                                    ? `≈ ${formattedBalanceFiat}`
+                                                    : t(
+                                                          'feature.wallet-service.dashboard-tap-to-reveal',
+                                                      )}
+                                            </Text>
+                                        </>
+                                    ) : (
+                                        <RecoveryInProgress
+                                            federationId={federationId ?? ''}
+                                            size={40}
+                                            testID="wallet-service-recovery-in-progress"
+                                        />
+                                    )}
+                                </View>
                             </Column>
                         </Pressable>
                     </View>
@@ -342,9 +398,9 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                             fullWidth
                             testID="wallet-service-withdraw"
                             title={t('feature.wallet-service.withdraw-balance')}
-                            disabled={!federationId}
+                            disabled={!federationId || !isWalletReady}
                             onPress={() => {
-                                if (!federationId) return
+                                if (!federationId || !isWalletReady) return
                                 navigation.navigate('GuardianFees', {
                                     federationId,
                                 })
@@ -459,6 +515,14 @@ const styles = (theme: Theme) =>
         },
         balanceLabelRow: {
             paddingBottom: 4,
+        },
+        // amount line (h2, lineHeight 29) + equiv line (caption, paddingTop 2
+        // plus its own ~18 line height) — measured once from the usable
+        // state and pinned so the not-usable fallback renders at the same
+        // height; see the comment at the call site for why this matters.
+        balanceContent: {
+            justifyContent: 'center',
+            minHeight: 49,
         },
         balanceAmount: {
             color: theme.colors.primary,

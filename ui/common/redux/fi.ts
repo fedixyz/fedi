@@ -8,6 +8,7 @@ import { TFunction } from 'i18next'
 
 import type { CommonState } from '.'
 import {
+    FiFederationJoinEvent,
     RpcFiClientStatus,
     RpcFiEligiblePayer,
     RpcFiErrorCode,
@@ -25,7 +26,11 @@ import { isDev } from '../utils/environment'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { selectFeatureFlag } from './environment'
-import { selectFederationBalance } from './federation'
+import {
+    selectFederationBalance,
+    selectIsFederationRecovering,
+    selectLoadedFederation,
+} from './federation'
 
 const log = makeLog('common/redux/fi')
 
@@ -109,6 +114,10 @@ type CreationHighWaterMark = {
 const initialState = {
     status: null as RpcFiStatus | null,
     clientError: null as RpcFiOperationError | null,
+    // process-local: the bridge re-emits the last `fiFederationJoin` state on
+    // every `fiClientStatus` read, so a fresh subscribe or foreground refresh
+    // recovers this without needing it to survive rehydration
+    federationJoin: null as FiFederationJoinEvent | null,
     // process-local: the bridge re-reports the live formation on every launch,
     // so this rebuilds itself rather than needing to survive a restart
     creationHighWaterMark: null as CreationHighWaterMark | null,
@@ -215,6 +224,17 @@ const summarizeFiClientStatus = (status: RpcFiClientStatus) => {
             errorMessage: status.error.message,
         }
     if (status.status.type === 'idle') return { state: 'idle' as const }
+    if (status.status.type === 'restored') {
+        const { formation } = status.status
+        return {
+            state: 'restored' as const,
+            formationId: formation.formationId,
+            snapshotGeneration: formation.snapshotGeneration,
+            phase: formation.phase,
+            freshness: formation.freshness,
+            seatCount: formation.seats.length,
+        }
+    }
     const { formation } = status.status
     return {
         state: 'formation' as const,
@@ -290,7 +310,7 @@ export function logFiClientStatusChange(
 /** The formation a log line belongs to, absent until one exists. */
 const fiLogContext = (state: CommonState) => {
     const status = selectFiStatus(state)
-    return status?.type === 'formation'
+    return status?.type === 'formation' || status?.type === 'restored'
         ? { formationId: status.formation.formationId }
         : {}
 }
@@ -313,7 +333,18 @@ export const fiSlice = createSlice({
         setFiStatus(state, action: PayloadAction<RpcFiStatus>) {
             state.status = action.payload
             state.clientError = null
+            // idle means the client is not mid-join, so a stale failure would
+            // otherwise keep showing a terminal screen for a join that is no
+            // longer in flight
+            if (action.payload.type === 'idle') state.federationJoin = null
             recordCreationHighWaterMark(state)
+        },
+        /** Records the bridge's last-known state for a federation join. */
+        setFiFederationJoin(
+            state,
+            action: PayloadAction<FiFederationJoinEvent>,
+        ) {
+            state.federationJoin = action.payload
         },
         setWalletServiceDraft(
             state,
@@ -337,7 +368,8 @@ export const fiSlice = createSlice({
             action: PayloadAction<RpcFiLiquidityOperation>,
         ) {
             const currentFormationId =
-                state.status?.type === 'formation'
+                state.status?.type === 'formation' ||
+                state.status?.type === 'restored'
                     ? state.status.formation.formationId
                     : null
             if (
@@ -486,6 +518,7 @@ export const fiSlice = createSlice({
 export const {
     setFiClientStatus,
     setFiStatus,
+    setFiFederationJoin,
     setWalletServiceDraft,
     clearFiOperationError,
     clearWalletServiceSelectionPreview,
@@ -786,7 +819,44 @@ export const selectIsWalletServiceCreationEnabled = (s: CommonState) =>
 
 export const selectFiStatus = (s: CommonState) => s.fi.status
 
+export const selectIsFiRestoring = (s: CommonState) =>
+    s.fi.status?.type === 'restored' &&
+    s.fi.status.formation.freshness === 'unsynced'
+
+export const selectIsFiRecoveryComplete = (s: CommonState) =>
+    s.fi.status?.type === 'restored' &&
+    s.fi.status.formation.phase === 'formed' &&
+    s.fi.status.formation.freshness === 'fresh'
+
 export const selectFiClientError = (s: CommonState) => s.fi.clientError
+
+/**
+ * Whether a recorded join failure is no longer about anything.
+ *
+ * The bridge retains its last reported join state and re-emits it on every
+ * status read, and a restored service never returns to `idle` — so the
+ * reducer's idle clear never fires for one. The federation the failure names
+ * is what settles it: once it is joined, loaded and done recovering, the join
+ * the failure describes has since succeeded.
+ */
+const isJoinFailureStale = (s: CommonState) => {
+    const join = s.fi.federationJoin
+    return (
+        join !== null && selectIsWalletServiceWalletReady(s, join.federationId)
+    )
+}
+
+/**
+ * A join failure the bridge cannot retry, or `null` while joining, recovering,
+ * ready, or unknown. The message is the bridge's own, since nothing on this
+ * device can diagnose the cause further than it already has.
+ */
+export const selectFiFederationJoinFailure = (s: CommonState) => {
+    const join = s.fi.federationJoin
+    return join?.state.type === 'failed' && !isJoinFailureStale(s)
+        ? { message: join.state.message }
+        : null
+}
 
 export const selectFiOperationError = (s: CommonState) => s.fi.operationError
 
@@ -807,6 +877,21 @@ export const selectWalletServiceEligiblePayerIds = createSelector(
 
 export const selectFiFormation = (s: CommonState) =>
     s.fi.status?.type === 'formation' ? s.fi.status.formation : null
+
+export const selectWalletServiceFormationId = (s: CommonState) => {
+    const status = selectFiStatus(s)
+    return status?.type === 'formation' || status?.type === 'restored'
+        ? status.formation.formationId
+        : null
+}
+
+export const selectWalletServiceGuardianCount = (s: CommonState) => {
+    const status = selectFiStatus(s)
+    if (status?.type === 'formation')
+        return status.formation.intent.federationSize
+    if (status?.type === 'restored') return status.formation.seats.length
+    return 0
+}
 
 export const selectCanSubmitWalletServiceDraft = (s: CommonState) =>
     s.fi.draft.size >= MIN_WALLET_SERVICE_SIZE
@@ -1046,8 +1131,33 @@ export const selectIsWalletServiceLightningRunning = createSelector(
 
 export const selectWalletServiceFlowStatus = createSelector(
     selectFiStatus,
-    (status): 'unknown' | 'none' | 'inProgress' | 'formed' => {
+    // the raw event, not `selectFiFederationJoinFailure`: that one builds a
+    // fresh object on every read, which would defeat this selector's memo
+    (s: CommonState) => s.fi.federationJoin,
+    // the same staleness rule, as a boolean for the same reason
+    isJoinFailureStale,
+    (
+        status,
+        join,
+        isStaleFailure,
+    ): 'unknown' | 'none' | 'inProgress' | 'formed' => {
         if (!status) return 'unknown'
+        if (status.type === 'restored') {
+            const { phase, freshness, backupEligible } = status.formation
+            if (phase !== 'formed') return 'inProgress'
+            // A failed rejoin has to be reachable. The terminal screen lives on
+            // WalletServiceProgress, so routing a `backupEligible` service
+            // straight to the dashboard would strand the failure off-screen —
+            // with the dashboard showing an empty balance and no explanation.
+            // This check comes before the `formed` decision for that reason.
+            if (join?.state.type === 'failed' && !isStaleFailure)
+                return 'inProgress'
+            // verified on this device before: treat like a created service and let
+            // the guardian-line skeleton carry the caveat. Never verified: hold the loader.
+            return freshness === 'fresh' || backupEligible
+                ? 'formed'
+                : 'inProgress'
+        }
         if (status.type !== 'formation') return 'none'
         if (status.formation.phase === 'formed') return 'formed'
         return 'inProgress'
@@ -1060,13 +1170,16 @@ export const selectWalletServiceFlowStatus = createSelector(
  * `paymentOutputsStarted` is the bridge's own commitment boundary.
  */
 export const selectHasWalletServiceCommitted = createSelector(
-    selectFiFormation,
-    formation =>
-        Boolean(
-            formation &&
-                (formation.paymentOutputsStarted ||
-                    formation.actionRequired !== null),
-        ),
+    selectFiStatus,
+    status => {
+        // a restored service was paid for on some device already
+        if (status?.type === 'restored') return true
+        if (status?.type !== 'formation') return false
+        const { formation } = status
+        return (
+            formation.paymentOutputsStarted || formation.actionRequired !== null
+        )
+    },
 )
 
 // both action types carry the same requirements and are satisfied by the
@@ -1190,17 +1303,31 @@ export const isTerminalWalletServiceError = (
     code: RpcFiErrorCode | null | undefined,
 ) => (code ? TERMINAL_FI_ERROR_CODES.includes(code) : false)
 
-export const selectFiInviteCode = (s: CommonState) =>
-    selectFiFormation(s)?.inviteCode ?? null
+export const selectFiInviteCode = (s: CommonState) => {
+    const status = selectFiStatus(s)
+    if (status?.type === 'formation') return status.formation.inviteCode
+    if (status?.type === 'restored') return status.formation.federationInvite
+    return null
+}
 
-export const selectFiFormationName = (s: CommonState) =>
-    selectFiFormation(s)?.intent.federationName ?? null
+export const selectFiFormationName = (s: CommonState) => {
+    const status = selectFiStatus(s)
+    if (status?.type === 'formation')
+        return status.formation.intent.federationName
+    if (status?.type === 'restored') return status.formation.federationName
+    return null
+}
 
 export const selectFiLastErrorCode = (s: CommonState) =>
     selectFiFormation(s)?.lastError ?? null
 
-export const selectFiIsUnsynced = (s: CommonState) =>
-    selectFiFormation(s)?.freshness === 'unsynced'
+export const selectFiIsUnsynced = (s: CommonState) => {
+    const status = selectFiStatus(s)
+    return (
+        (status?.type === 'formation' || status?.type === 'restored') &&
+        status.formation.freshness === 'unsynced'
+    )
+}
 
 // typed as a full Record so a code the bridge adds is a compile error here
 // rather than an "unknown error" on screen; codes with nothing useful to say
@@ -1297,6 +1424,7 @@ export const selectWalletServiceMaxTotalMsats = (s: CommonState) =>
  */
 export const selectIsWalletServiceFormed = (s: CommonState) =>
     selectFiFormation(s)?.phase === 'formed' ||
+    selectIsFiRecoveryComplete(s) ||
     Boolean(s.fi.creationHighWaterMark?.hasFormed)
 
 /**
@@ -1308,5 +1436,79 @@ export const selectIsWalletServiceFormed = (s: CommonState) =>
  * maintenance calls. The status stream pushes the flip, so a gated button
  * enables without polling or a restart.
  */
-export const selectIsWalletServiceMaintenanceReady = (s: CommonState) =>
-    selectFiFormation(s)?.phase === 'formed'
+export const selectIsWalletServiceMaintenanceReady = (s: CommonState) => {
+    const status = selectFiStatus(s)
+    return (
+        (status?.type === 'formation' || status?.type === 'restored') &&
+        status.formation.phase === 'formed' &&
+        status.formation.freshness === 'fresh'
+    )
+}
+
+export type WalletServiceRecoveryStage =
+    | 'found'
+    | 'verifying'
+    | 'rejoining'
+    | 'restoringBalance'
+    | 'ready'
+
+export const WALLET_SERVICE_RECOVERY_STAGES = [
+    'found',
+    'verifying',
+    'rejoining',
+    'restoringBalance',
+    'ready',
+] as const satisfies readonly WalletServiceRecoveryStage[]
+
+/**
+ * The Wallet Service can be shown and acted on. Three facts from two
+ * subsystems: the FI snapshot is fresh (FI/Manifold), and the federation the
+ * invite resolves to is loaded and not mid-recovery (Fedimint). Every consumer
+ * that used `selectIsFiRecoveryComplete` as "usable" wants this.
+ *
+ * This is the *exit condition of the recovery checklist*, not a display gate:
+ * it waits for the FI snapshot on purpose, because the checklist claims the
+ * whole service has been verified on this device. A surface that only needs
+ * the wallet — balance, withdraw — wants
+ * {@link selectIsWalletServiceWalletReady} instead.
+ */
+export const selectIsWalletServiceUsable = (
+    s: CommonState,
+    federationId: string | null,
+) =>
+    selectIsWalletServiceMaintenanceReady(s) &&
+    Boolean(federationId) &&
+    Boolean(selectLoadedFederation(s, federationId ?? '')) &&
+    !selectIsFederationRecovering(s, federationId ?? '')
+
+/**
+ * The wallet behind the service can be read and spent from.
+ *
+ * Two facts, both owned by the *Fedimint federation* subsystem: the federation
+ * is loaded, and it is not mid-recovery. No FI term — balance, guardian status
+ * and withdraw all come from Fedimint, and a merely `unsynced` FI snapshot says
+ * nothing about them. Including FI freshness here is what made a created,
+ * fully-joined service show the recovery loader instead of its balance while
+ * its snapshot re-reconciled at launch. FI freshness gates maintenance
+ * separately, through {@link selectIsWalletServiceMaintenanceReady}, and the
+ * guardian line carries its own `selectFiIsUnsynced` skeleton.
+ */
+export const selectIsWalletServiceWalletReady = (
+    s: CommonState,
+    federationId: string | null,
+) =>
+    Boolean(federationId) &&
+    Boolean(selectLoadedFederation(s, federationId ?? '')) &&
+    !selectIsFederationRecovering(s, federationId ?? '')
+
+/** Which checklist row is live, derived on every read — never tallied. */
+export const selectWalletServiceRecoveryStage = (
+    s: CommonState,
+    federationId: string | null,
+): WalletServiceRecoveryStage => {
+    if (!selectIsWalletServiceMaintenanceReady(s)) return 'verifying'
+    if (!federationId || !selectLoadedFederation(s, federationId))
+        return 'rejoining'
+    if (selectIsFederationRecovering(s, federationId)) return 'restoringBalance'
+    return 'ready'
+}

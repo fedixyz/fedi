@@ -11,6 +11,7 @@ import {
 import type {
     RpcFiFormationSnapshot,
     RpcFiLiquidityOperation,
+    RpcFiStatus,
 } from '../../../types/bindings'
 import { createMockFedimintBridge } from '../../utils/fedimint'
 import { renderHookWithBridge } from '../../utils/render'
@@ -61,11 +62,30 @@ const formation = {
     lastError: null,
 } as unknown as RpcFiFormationSnapshot
 
+const formedStatus: RpcFiStatus = { type: 'formation', formation }
+
+const restoredStatus = (freshness: 'unsynced' | 'fresh'): RpcFiStatus => ({
+    type: 'restored',
+    formation: {
+        snapshotGeneration: 3,
+        formationId: FORMATION_ID,
+        federationInvite: 'fed11invite',
+        federationName: 'Restored Wallet Service',
+        seats: [],
+        phase: 'formed',
+        freshness,
+        backupEligible: false,
+    },
+})
+
 const emptyPage = { type: 'page', page: { operations: [], nextAfter: null } }
 
-const mount = (overrides: Record<string, unknown> = {}) => {
+const mount = (
+    overrides: Record<string, unknown> = {},
+    fiStatus: RpcFiStatus = formedStatus,
+) => {
     const store = setupStore()
-    store.dispatch(setFiStatus({ type: 'formation', formation }))
+    store.dispatch(setFiStatus(fiStatus))
     const fedimint = createMockFedimintBridge({
         fiClientLiquidityCurrent: () =>
             Promise.resolve({ type: 'current', operation: null }),
@@ -107,6 +127,27 @@ describe('common/hooks/fi useMonitorWalletServiceLiquidity', () => {
                 Promise.resolve({ type: 'current', operation: operation() }),
         })
 
+        await waitFor(() => expect(status(store)).toBe('attaching'))
+    })
+
+    it('should adopt restored liquidity after recovery completes', async () => {
+        const current = jest.fn(() =>
+            Promise.resolve({
+                type: 'current' as const,
+                operation: operation(),
+            }),
+        )
+        const { store } = mount(
+            {
+                fiClientLiquidityCurrent: current,
+            },
+            restoredStatus('unsynced'),
+        )
+
+        expect(current).not.toHaveBeenCalled()
+        act(() => {
+            store.dispatch(setFiStatus(restoredStatus('fresh')))
+        })
         await waitFor(() => expect(status(store)).toBe('attaching'))
     })
 

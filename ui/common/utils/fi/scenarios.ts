@@ -123,6 +123,38 @@ export interface FiScenario {
     liquidityAlreadyRunning: boolean
     /** Start with a verified gateway, so the attached settings state is reachable. */
     liquidityAlreadyAttached: boolean
+    /**
+     * Start from a Nostr backup found on a restored seed, as the bridge does
+     * when `restore_on_launch` finds one.
+     *
+     * The client opens `restored`/`unsynced`, reconciles against the Fleet
+     * Managers, and only then reports `fresh`. Nothing else reaches that
+     * status, so without this the recovery screens are unreachable in dev.
+     */
+    restoreOnLaunch: boolean
+    /** Milliseconds the restored backup spends reconciling before it is fresh. */
+    restoreReconcileMs: number
+    /**
+     * Milliseconds between `fresh` and the wallet service federation appearing.
+     *
+     * This is the bridge's auto-join. `formed_federation_invite` only yields an
+     * invite once the snapshot is fresh, so the join *starts* on the same edge
+     * that reports recovery complete. It is never instant, and on a restored
+     * seed it can include a nonce-reuse rejoin, so the gap is worth looking at.
+     *
+     * `null` means the federation is never announced — the silent-failure
+     * shape, where the checklist reports complete but the join never lands.
+     */
+    restoreJoinMs: number | null
+    /**
+     * Milliseconds after reconciliation before a `null` {@link restoreJoinMs}
+     * reports the join as failed.
+     *
+     * The bridge gives up by itself and emits `fiFederationJoin`/`failed`; the
+     * simulator has to as well, or the terminal failure screen is unreachable
+     * in dev. Unused when `restoreJoinMs` is set.
+     */
+    restoreJoinFailMs: number
 }
 
 export type FormationPhaseName =
@@ -184,6 +216,10 @@ const baseScenario: FiScenario = {
     liquidityRejectsOnStatus: false,
     liquidityAlreadyRunning: false,
     liquidityAlreadyAttached: false,
+    restoreOnLaunch: false,
+    restoreReconcileMs: 6_000,
+    restoreJoinMs: 8_000,
+    restoreJoinFailMs: 10_000,
 }
 
 const scenario = (overrides: Partial<FiScenario>): FiScenario => ({
@@ -384,6 +420,34 @@ export const fiScenarios = {
         seedFormation: 'formed',
         liquidityAlreadyAttached: true,
     }),
+
+    /**
+     * A restored seed finds a backup: the recovery screen, then the dashboard.
+     *
+     * Timings are deliberately generous enough to read on a device. The join
+     * is separate from reconciliation because the bridge separates them.
+     */
+    restoredBackup: scenario({ restoreOnLaunch: true }),
+
+    /**
+     * The same restore, slowed to human speed.
+     *
+     * Both windows are stretched: reconciliation, so the recovery screen can be
+     * read, and the auto-join, so the state the dashboard has to survive —
+     * recovery reported complete, federation not yet joined — stays on screen
+     * long enough to inspect. Real timings are in {@link restoredBackup}.
+     */
+    restoredBackupSlowJoin: scenario({
+        restoreOnLaunch: true,
+        restoreReconcileMs: 60_000,
+        restoreJoinMs: 60_000,
+    }),
+
+    /** The backup is verified but the federation never joins — the silent-failure shape. */
+    restoredBackupJoinFails: scenario({
+        restoreOnLaunch: true,
+        restoreJoinMs: null,
+    }),
 } satisfies Record<string, FiScenario>
 
 export type FiScenarioName = keyof typeof fiScenarios
@@ -435,6 +499,14 @@ export const FI_SCENARIO_GROUPS = [
             'formationFails',
             'formationFailsTerminally',
             'reconnecting',
+        ],
+    },
+    {
+        title: 'Restoring a backup',
+        scenarios: [
+            'restoredBackup',
+            'restoredBackupSlowJoin',
+            'restoredBackupJoinFails',
         ],
     },
     {
@@ -498,5 +570,10 @@ export const FI_SCENARIO_STORYBOARD_FRAMES: Partial<
     lightningRejected: 'step 5 error banner, provider refused the request',
     lightningNeverVerifies: 'step 5 "still setting up" banner',
     lightningAlreadyAttaching: 'settings sheet locked, row reads Attaching…',
+    restoredBackup: 'recovery progress screen, then the dashboard',
+    restoredBackupSlowJoin:
+        'the dashboard while the wallet service federation is still joining',
+    restoredBackupJoinFails:
+        'the recovery checklist stuck on rejoining; the terminal state once the bridge reports it',
     lightningAlreadyAttached: 'settings sheet VERIFIED, card fixed',
 }

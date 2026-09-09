@@ -13,7 +13,7 @@ use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::task::TaskGroup;
 use fi_client::{UnavailableFiFeeAccountProvider, UnavailablePayments};
 use futures::StreamExt as _;
-use manifold_secp256k1::Secp256k1 as ManifoldSecp256k1;
+use runtime::db::FederationPendingRejoinFromScratchKey;
 use tokio::sync::Notify;
 
 use super::*; // nosemgrep: ban-wildcard-imports -- split test module
@@ -58,6 +58,26 @@ fn fedimintd_dkg_version(version: &str) -> fi_client::FedimintdDkgVersion {
         .parse::<FedimintdVersion>()
         .expect("test Fedimint version is valid")
         .dkg_version()
+}
+
+fn test_restored_formation(freshness: FormationFreshness) -> RestoredFormationSnapshot {
+    let federation_id: fedimint_core::config::FederationId = "22".repeat(32).parse().unwrap();
+    let invite = FedimintInviteCode::new(
+        "wss://guardian.example.com".parse().unwrap(),
+        fedimint_core::PeerId::from(0),
+        federation_id,
+        None,
+    );
+    RestoredFormationSnapshot {
+        snapshot_generation: 3,
+        formation_id: FormationId("restored-formation".to_owned()),
+        federation_invite: InviteCode(invite.to_string()),
+        federation_name: Some(FederationName("Restored Federation".to_owned())),
+        seats: Vec::new(),
+        phase: FormationPhase::Formed,
+        freshness,
+        backup_eligible: false,
+    }
 }
 
 #[repr(u8)]
@@ -218,6 +238,14 @@ async fn open_test_fi_client(
     .await
 }
 
+fn bridge_fi_id(identity: &BridgeFiIdentity) -> FiId {
+    let keypair = identity
+        .scoped_root()
+        .child_key(fedimint_derive_secret::ChildId(0))
+        .to_secp_key(bitcoin::secp256k1::SECP256K1);
+    serde_json::from_value(serde_json::to_value(keypair.x_only_public_key().0).unwrap()).unwrap()
+}
+
 async fn seed_identity_bound_formation(database: &Database, fi_id: FiId) {
     let mut dbtx = database.begin_transaction().await;
     dbtx.insert_entry(
@@ -256,7 +284,7 @@ async fn seed_identity_bound_formation(database: &Database, fi_id: FiId) {
 async fn old_guardian_fee_field_is_migrated_before_manifold_opens() {
     let root = DerivableSecret::new_root(&[1; 32], b"fi-client-migration-test");
     let identity = BridgeFiIdentity::from_root_secret(&root);
-    let fi_id = identity.public_key().expect("valid derived key");
+    let fi_id = bridge_fi_id(&identity);
     let development = ManifoldEnvironment::Development
         .profile()
         .expect("development profile is valid");
@@ -336,29 +364,17 @@ async fn fi_identity_has_a_golden_vector_and_resets_legacy_formation_before_owne
     let second_root = DerivableSecret::new_root(&[2; 32], b"fi-client-test");
 
     let first_identity = BridgeFiIdentity::from_root_secret(&first_root);
-    let first = first_identity.public_key().expect("valid derived key");
-    let repeated = BridgeFiIdentity::from_root_secret(&first_root)
-        .public_key()
-        .expect("valid derived key");
-    let second = BridgeFiIdentity::from_root_secret(&second_root)
-        .public_key()
-        .expect("valid derived key");
+    let first = bridge_fi_id(&first_identity);
+    let repeated = bridge_fi_id(&BridgeFiIdentity::from_root_secret(&first_root));
+    let second = bridge_fi_id(&BridgeFiIdentity::from_root_secret(&second_root));
 
     assert_eq!(first, repeated);
     assert_ne!(first, second);
     assert_eq!(
         first.0.to_string(),
-        "615a1aca40d5090f62d0f734dbb8ea8b0e7d250c9ad0ca028fc659a7db7f818b"
+        "aa70a4ebfdb888b375e86f007873fae0f22118add2ca6f60309fc7ab8902e3bd"
     );
     assert_eq!(FI_CLIENT_CHILD_ID.0, 17);
-
-    let digest = [0x42; 32];
-    let signature = first_identity
-        .sign_digest(digest)
-        .expect("the derived identity signs");
-    ManifoldSecp256k1::verification_only()
-        .verify_schnorr(&signature.0, &digest, &first.0)
-        .expect("the signature verifies through Manifold's protocol types");
 
     let database = MemDatabase::new().into_database();
     seed_identity_bound_formation(&database, first).await;
@@ -460,6 +476,12 @@ fn maintenance_is_bound_to_the_exact_formed_invite() {
         expected.to_string()
     );
 
+    let restored = test_restored_formation(FormationFreshness::Fresh);
+    assert_eq!(
+        formed_federation_id(&FiStatus::Restored(restored)).unwrap(),
+        "22".repeat(32)
+    );
+
     let FiStatus::Formation(mut incomplete) =
         test_formation(FormationPhase::Preparing, FormationFreshness::Fresh)
     else {
@@ -484,6 +506,14 @@ fn maintenance_is_bound_to_the_exact_formed_invite() {
     formation.invite_code = Some(InviteCode(invite.to_string()));
     assert_eq!(
         formed_federation_id(&unsynced).unwrap_err().code,
+        RpcFiErrorCode::InvalidIntent
+    );
+    assert_eq!(
+        formed_federation_id(&FiStatus::Restored(test_restored_formation(
+            FormationFreshness::Unsynced
+        )))
+        .unwrap_err()
+        .code,
         RpcFiErrorCode::InvalidIntent
     );
 }
@@ -513,6 +543,19 @@ fn auto_join_uses_only_a_fresh_formed_invite() {
     };
     formation.freshness = FormationFreshness::Unsynced;
     assert!(formed_federation_invite(&unsynced).is_none());
+
+    let restored = test_restored_formation(FormationFreshness::Fresh);
+    let restored_invite = restored.federation_invite.0.clone();
+    assert_eq!(
+        formed_federation_invite(&FiStatus::Restored(restored)),
+        Some((restored_invite, "22".repeat(32)))
+    );
+    assert!(
+        formed_federation_invite(&FiStatus::Restored(test_restored_formation(
+            FormationFreshness::Unsynced
+        )))
+        .is_none()
+    );
 }
 
 #[tokio::test]
@@ -547,6 +590,542 @@ async fn auto_join_handoff_lock_is_scoped_by_federation_id() {
     );
 }
 
+/// Drives [`run_fi_federation_auto_join`] through a scripted sequence of
+/// federation states, so the order of the join, the reported states, and the
+/// completion marker can be checked without a real `Federations`.
+struct ScriptedAutoJoinTarget {
+    /// One entry per `state` call. `None` means "not joined". The last entry
+    /// is sticky, so a wait loop settles on it.
+    states: Mutex<VecDeque<Option<AutoJoinFederationState>>>,
+    join_error: Option<String>,
+    joins: AtomicUsize,
+    /// How often the script was read, so a test can tell that the driver
+    /// reached its wait loop.
+    state_calls: AtomicUsize,
+}
+
+impl ScriptedAutoJoinTarget {
+    fn new(join_error: Option<&str>, states: Vec<Option<AutoJoinFederationState>>) -> Self {
+        assert!(!states.is_empty(), "the state script must not be empty");
+        Self {
+            states: Mutex::new(states.into()),
+            join_error: join_error.map(ToOwned::to_owned),
+            joins: AtomicUsize::new(0),
+            state_calls: AtomicUsize::new(0),
+        }
+    }
+
+    /// Appends to the script while the driver runs, which ends the stickiness
+    /// of the last entry.
+    fn push_state(&self, state: Option<AutoJoinFederationState>) {
+        self.states
+            .lock()
+            .expect("script lock is healthy")
+            .push_back(state);
+    }
+}
+
+#[apply(async_trait_maybe_send!)]
+impl AutoJoinTarget for ScriptedAutoJoinTarget {
+    fn state(&self, _federation_id: &str) -> anyhow::Result<AutoJoinFederationState> {
+        self.state_calls.fetch_add(1, AtomicOrdering::SeqCst);
+        let mut states = self.states.lock().expect("script lock is healthy");
+        let next = if states.len() > 1 {
+            states.pop_front().expect("script is not empty")
+        } else {
+            states.front().cloned().expect("script is not empty")
+        };
+        next.ok_or_else(|| anyhow::anyhow!("federation is not joined"))
+    }
+
+    async fn join(&self, _invite_code: String) -> anyhow::Result<()> {
+        self.joins.fetch_add(1, AtomicOrdering::SeqCst);
+        match &self.join_error {
+            Some(error) => Err(anyhow::anyhow!(error.clone())),
+            None => Ok(()),
+        }
+    }
+}
+
+/// Runs the auto-join sequence and returns the states it reported.
+async fn drive_auto_join(
+    target: &ScriptedAutoJoinTarget,
+    database: &Database,
+) -> Vec<RpcFiFederationJoinState> {
+    let locks = FiFederationHandoffLocks::default();
+    drive_auto_join_with(
+        target,
+        database,
+        &locks,
+        "federation",
+        Duration::from_millis(1),
+    )
+    .await
+}
+
+/// The same drive, with the federation id, the handoff locks and the poll
+/// interval a test that watches the lock or the database needs to control.
+async fn drive_auto_join_with(
+    target: &ScriptedAutoJoinTarget,
+    database: &Database,
+    handoff_locks: &FiFederationHandoffLocks,
+    federation_id: &str,
+    poll_interval: Duration,
+) -> Vec<RpcFiFederationJoinState> {
+    let reported = Arc::new(Mutex::new(Vec::new()));
+    let sink = reported.clone();
+    let report = move |state: RpcFiFederationJoinState| {
+        sink.lock().expect("report lock is healthy").push(state);
+    };
+    let on_joined = || {};
+    run_fi_federation_auto_join(
+        target,
+        database,
+        handoff_locks,
+        "invite".to_owned(),
+        federation_id,
+        poll_interval,
+        &report,
+        &on_joined,
+    )
+    .await;
+    let reported = reported.lock().expect("report lock is healthy");
+    reported.clone()
+}
+
+/// Parks until the driver has read the state script `calls` times, which says
+/// it reached its wait loop.
+async fn wait_for_state_calls(target: &ScriptedAutoJoinTarget, calls: usize) {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while target.state_calls.load(AtomicOrdering::SeqCst) < calls {
+            fedimint_core::task::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the auto-join reaches its wait loop");
+}
+
+#[tokio::test]
+async fn auto_join_emits_failed_and_leaves_no_marker_when_join_errors() {
+    let database = MemDatabase::new().into_database();
+    let target = ScriptedAutoJoinTarget::new(Some("guardian unreachable"), vec![None]);
+
+    let states = drive_auto_join(&target, &database).await;
+
+    assert_eq!(
+        states,
+        vec![
+            RpcFiFederationJoinState::Joining,
+            RpcFiFederationJoinState::Failed {
+                message: "guardian unreachable".to_owned()
+            }
+        ]
+    );
+    assert!(!fi_federation_auto_join_completed(&database, "federation").await);
+}
+
+#[tokio::test]
+async fn auto_join_writes_marker_only_once_ready() {
+    let database = MemDatabase::new().into_database();
+    let target = ScriptedAutoJoinTarget::new(
+        None,
+        vec![
+            None,
+            Some(AutoJoinFederationState::Recovering),
+            Some(AutoJoinFederationState::Recovering),
+            Some(AutoJoinFederationState::Ready),
+        ],
+    );
+
+    let states = drive_auto_join(&target, &database).await;
+
+    // Recovering is reported once, not once per poll.
+    assert_eq!(
+        states,
+        vec![
+            RpcFiFederationJoinState::Joining,
+            RpcFiFederationJoinState::Recovering,
+            RpcFiFederationJoinState::Ready
+        ]
+    );
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 1);
+    assert!(fi_federation_auto_join_completed(&database, "federation").await);
+}
+
+#[tokio::test]
+async fn auto_join_leaves_no_marker_when_the_federation_is_left_during_recovery() {
+    let database = MemDatabase::new().into_database();
+    let target = ScriptedAutoJoinTarget::new(
+        None,
+        vec![None, Some(AutoJoinFederationState::Recovering), None],
+    );
+
+    let states = drive_auto_join(&target, &database).await;
+
+    assert_eq!(
+        states,
+        vec![
+            RpcFiFederationJoinState::Joining,
+            RpcFiFederationJoinState::Recovering,
+            RpcFiFederationJoinState::Failed {
+                message: "federation left during recovery".to_owned()
+            }
+        ]
+    );
+    assert!(!fi_federation_auto_join_completed(&database, "federation").await);
+}
+
+/// Waiting for a recovering federation can take minutes, and never ends for a
+/// stuck one. Holding the handoff lock for that wait would block
+/// `leave_federation`, which takes the same lock, so the user could not leave
+/// the federation the wait is stuck on.
+#[tokio::test]
+async fn auto_join_releases_the_handoff_lock_while_waiting() {
+    let database = MemDatabase::new().into_database();
+    let locks = Arc::new(FiFederationHandoffLocks::default());
+    // The last entry is sticky, so the driver stays in the wait loop until the
+    // test appends `Ready`.
+    let target = Arc::new(ScriptedAutoJoinTarget::new(
+        None,
+        vec![None, Some(AutoJoinFederationState::Recovering)],
+    ));
+
+    let driver = fedimint_core::task::spawn("auto-join handoff lock test", {
+        let target = target.clone();
+        let database = database.clone();
+        let locks = locks.clone();
+        async move {
+            drive_auto_join_with(
+                &target,
+                &database,
+                &locks,
+                "federation",
+                Duration::from_millis(10),
+            )
+            .await
+        }
+    });
+
+    // Park until the driver has polled the recovering federation twice.
+    wait_for_state_calls(&target, 3).await;
+
+    let guard = tokio::time::timeout(Duration::from_secs(1), locks.lock("federation"))
+        .await
+        .expect("the handoff lock is free while the auto-join waits");
+    drop(guard);
+
+    target.push_state(Some(AutoJoinFederationState::Ready));
+    let states = tokio::time::timeout(Duration::from_secs(10), driver)
+        .await
+        .expect("the auto-join finishes once the federation is ready")
+        .expect("the auto-join task does not panic");
+
+    assert_eq!(
+        states,
+        vec![
+            RpcFiFederationJoinState::Joining,
+            RpcFiFederationJoinState::Recovering,
+            RpcFiFederationJoinState::Ready
+        ]
+    );
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 1);
+    assert!(fi_federation_auto_join_completed(&database, "federation").await);
+}
+
+/// A leave during the wait removes the federation. The wait must then stop
+/// without writing the completion marker, and must leave the handoff lock free
+/// for the leave that follows it.
+#[tokio::test]
+async fn auto_join_does_not_mark_after_a_leave_during_recovery() {
+    let database = MemDatabase::new().into_database();
+    let locks = FiFederationHandoffLocks::default();
+    let target = ScriptedAutoJoinTarget::new(
+        None,
+        vec![None, Some(AutoJoinFederationState::Recovering), None],
+    );
+
+    let states = drive_auto_join_with(
+        &target,
+        &database,
+        &locks,
+        "federation",
+        Duration::from_millis(1),
+    )
+    .await;
+
+    assert_eq!(
+        states,
+        vec![
+            RpcFiFederationJoinState::Joining,
+            RpcFiFederationJoinState::Recovering,
+            RpcFiFederationJoinState::Failed {
+                message: "federation left during recovery".to_owned()
+            }
+        ]
+    );
+    assert!(!fi_federation_auto_join_completed(&database, "federation").await);
+    assert!(
+        tokio::time::timeout(Duration::from_secs(1), locks.lock("federation"))
+            .await
+            .is_ok(),
+        "the auto-join must not keep the handoff lock after it stops"
+    );
+}
+
+/// `leave_federation` suppresses the auto-join by writing the completion
+/// marker, and clears the retained join report under the same lock. A `Failed`
+/// emitted after that clear is retained forever, and the Wallet Service then
+/// shows a recovery failure for a federation the user left on purpose. The
+/// wait must stay silent for it, exactly like the marker check that runs after
+/// the federation was already `Ready`.
+#[tokio::test]
+async fn auto_join_says_nothing_when_a_leave_marks_the_federation_during_the_wait() {
+    let database = MemDatabase::new().into_database();
+    let locks = Arc::new(FiFederationHandoffLocks::default());
+    // The last entry is sticky, so the driver stays in the wait loop until the
+    // test appends the leave.
+    let target = Arc::new(ScriptedAutoJoinTarget::new(
+        None,
+        vec![None, Some(AutoJoinFederationState::Recovering)],
+    ));
+
+    let driver = fedimint_core::task::spawn("auto-join leave-during-wait test", {
+        let target = target.clone();
+        let database = database.clone();
+        let locks = locks.clone();
+        async move {
+            drive_auto_join_with(
+                &target,
+                &database,
+                &locks,
+                "federation",
+                Duration::from_millis(10),
+            )
+            .await
+        }
+    });
+
+    wait_for_state_calls(&target, 3).await;
+
+    // What `leave_federation` does: suppress the auto-join, then leave.
+    complete_fi_federation_auto_join(&database, "federation").await;
+    target.push_state(None);
+
+    let states = tokio::time::timeout(Duration::from_secs(10), driver)
+        .await
+        .expect("the auto-join stops once the federation is gone")
+        .expect("the auto-join task does not panic");
+
+    assert_eq!(
+        states,
+        vec![
+            RpcFiFederationJoinState::Joining,
+            RpcFiFederationJoinState::Recovering
+        ]
+    );
+}
+
+/// A failed nonce-reuse check leaves the federation and records that it must be
+/// rejoined from scratch. The federation is absent, but the user did not leave
+/// it and the app is about to rejoin it, so the wait keeps waiting instead of
+/// reporting a recovery failure.
+#[tokio::test]
+async fn auto_join_keeps_waiting_while_the_federation_is_pending_a_rejoin_from_scratch() {
+    let database = MemDatabase::new().into_database();
+    let federation_id: fedimint_core::config::FederationId = "33".repeat(32).parse().unwrap();
+    let invite = FedimintInviteCode::new(
+        "wss://guardian.example.com".parse().unwrap(),
+        fedimint_core::PeerId::from(0),
+        federation_id,
+        None,
+    );
+    let mut dbtx = database.begin_transaction().await;
+    dbtx.insert_entry(
+        &FederationPendingRejoinFromScratchKey {
+            invite_code_str: invite.to_string(),
+        },
+        &(),
+    )
+    .await;
+    dbtx.commit_tx().await;
+
+    let locks = Arc::new(FiFederationHandoffLocks::default());
+    // Sticky `None`: the federation stays absent until the test rejoins it.
+    let target = Arc::new(ScriptedAutoJoinTarget::new(None, vec![None]));
+
+    let driver = fedimint_core::task::spawn("auto-join rejoin-from-scratch test", {
+        let target = target.clone();
+        let database = database.clone();
+        let locks = locks.clone();
+        let federation_id = federation_id.to_string();
+        async move {
+            drive_auto_join_with(
+                &target,
+                &database,
+                &locks,
+                &federation_id,
+                Duration::from_millis(10),
+            )
+            .await
+        }
+    });
+
+    wait_for_state_calls(&target, 3).await;
+    target.push_state(Some(AutoJoinFederationState::Ready));
+
+    let states = tokio::time::timeout(Duration::from_secs(10), driver)
+        .await
+        .expect("the auto-join finishes once the federation is back and ready")
+        .expect("the auto-join task does not panic");
+
+    assert_eq!(
+        states,
+        vec![
+            RpcFiFederationJoinState::Joining,
+            RpcFiFederationJoinState::Recovering,
+            RpcFiFederationJoinState::Ready
+        ]
+    );
+    assert!(fi_federation_auto_join_completed(&database, &federation_id.to_string()).await);
+}
+
+#[tokio::test]
+async fn auto_join_reports_ready_without_rejoining_an_already_ready_federation() {
+    let database = MemDatabase::new().into_database();
+    let target = ScriptedAutoJoinTarget::new(None, vec![Some(AutoJoinFederationState::Ready)]);
+
+    let states = drive_auto_join(&target, &database).await;
+
+    assert_eq!(states, vec![RpcFiFederationJoinState::Ready]);
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 0);
+    assert!(fi_federation_auto_join_completed(&database, "federation").await);
+
+    // A later run still reports Ready, and still does not rejoin — but it is
+    // the live state that says so, not the marker.
+    let rerun = ScriptedAutoJoinTarget::new(None, vec![Some(AutoJoinFederationState::Ready)]);
+    assert_eq!(
+        drive_auto_join(&rerun, &database).await,
+        vec![RpcFiFederationJoinState::Ready]
+    );
+    assert_eq!(rerun.joins.load(AtomicOrdering::SeqCst), 0);
+}
+
+/// `leave_federation` writes the same completion marker to suppress the
+/// auto-join, so a marker plus an absent federation is a deliberate leave.
+/// Reporting `Ready` for it would claim a federation the bridge is not in.
+#[tokio::test]
+async fn auto_join_says_nothing_when_the_marker_outlives_a_left_federation() {
+    let database = MemDatabase::new().into_database();
+    complete_fi_federation_auto_join(&database, "federation").await;
+
+    let target = ScriptedAutoJoinTarget::new(None, vec![None]);
+    let states = drive_auto_join(&target, &database).await;
+
+    assert_eq!(states, vec![]);
+    // and it must not undo the leave by rejoining
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn auto_join_reports_ready_when_the_marker_matches_a_ready_federation() {
+    let database = MemDatabase::new().into_database();
+    complete_fi_federation_auto_join(&database, "federation").await;
+
+    let target = ScriptedAutoJoinTarget::new(None, vec![Some(AutoJoinFederationState::Ready)]);
+    let states = drive_auto_join(&target, &database).await;
+
+    assert_eq!(states, vec![RpcFiFederationJoinState::Ready]);
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn auto_join_waits_through_a_loading_federation_at_start() {
+    let database = MemDatabase::new().into_database();
+    let target = ScriptedAutoJoinTarget::new(
+        None,
+        vec![
+            Some(AutoJoinFederationState::Loading),
+            Some(AutoJoinFederationState::Loading),
+            Some(AutoJoinFederationState::Ready),
+        ],
+    );
+
+    let states = drive_auto_join(&target, &database).await;
+
+    // Loading is not an answer, so the task waits instead of going silent.
+    assert_eq!(
+        states,
+        vec![
+            RpcFiFederationJoinState::Recovering,
+            RpcFiFederationJoinState::Ready
+        ]
+    );
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 0);
+    assert!(fi_federation_auto_join_completed(&database, "federation").await);
+}
+
+#[tokio::test]
+async fn auto_join_reports_failed_and_leaves_no_marker_for_a_failed_federation_at_start() {
+    let database = MemDatabase::new().into_database();
+    let target = ScriptedAutoJoinTarget::new(
+        None,
+        vec![Some(AutoJoinFederationState::Failed(
+            "federation failed to load".to_owned(),
+        ))],
+    );
+
+    let states = drive_auto_join(&target, &database).await;
+
+    assert_eq!(
+        states,
+        vec![RpcFiFederationJoinState::Failed {
+            message: "federation failed to load".to_owned()
+        }]
+    );
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 0);
+    assert!(!fi_federation_auto_join_completed(&database, "federation").await);
+}
+
+#[tokio::test]
+async fn auto_join_report_re_delivers_the_last_state_to_every_status_read() {
+    let report = FiFederationJoinReport::default();
+    assert!(report.last().is_none());
+
+    report.record(FiFederationJoinEvent {
+        federation_id: RpcFederationId("federation".to_owned()),
+        state: RpcFiFederationJoinState::Failed {
+            message: "guardian unreachable".to_owned(),
+        },
+    });
+
+    for _ in 0..2 {
+        let retained = report.last().expect("a state was reported");
+        assert_eq!(retained.federation_id.0, "federation");
+        assert_eq!(
+            retained.state,
+            RpcFiFederationJoinState::Failed {
+                message: "guardian unreachable".to_owned()
+            }
+        );
+    }
+}
+
+#[tokio::test]
+async fn auto_join_report_stops_re_delivering_after_the_federation_is_left() {
+    let report = FiFederationJoinReport::default();
+    report.record(FiFederationJoinEvent {
+        federation_id: RpcFederationId("federation".to_owned()),
+        state: RpcFiFederationJoinState::Ready,
+    });
+
+    // Leaving another federation must not erase this state.
+    report.clear("other");
+    assert!(report.last().is_some());
+
+    report.clear("federation");
+    assert!(report.last().is_none());
+}
+
 #[test]
 fn guardian_fee_rpc_enforces_product_range_at_one_ppm_precision() {
     assert_eq!(guardian_fee_from_rpc(0).unwrap().value(), 0);
@@ -572,7 +1151,7 @@ fn liquidity_recovery_snapshot(
         operation_id: LiquidityOperationId(operation_id.to_owned()),
         formation_id: FormationId("formation".to_owned()),
         provider_pubkey: Pubkey(Keys::generate().public_key().to_string()),
-        endpoint_hint: Url("iroh://provider-endpoint".to_owned()),
+        endpoint_hint: Some(Url("iroh://provider-endpoint".to_owned())),
         details_payload_hash: Sha256Digest([0x2a; 32]),
         amounts: LiquidityAmountBounds {
             gateway_min_amount: Sats(0),
@@ -870,7 +1449,7 @@ fn liquidity_snapshot_projects_authoritative_evidence_without_private_failure_re
         operation_id: LiquidityOperationId("operation".to_owned()),
         formation_id: FormationId("formation".to_owned()),
         provider_pubkey: Pubkey(Keys::generate().public_key().to_string()),
-        endpoint_hint: Url("iroh://provider-endpoint".to_owned()),
+        endpoint_hint: Some(Url("iroh://provider-endpoint".to_owned())),
         details_payload_hash: Sha256Digest([0x2a; 32]),
         amounts: LiquidityAmountBounds {
             gateway_min_amount: Sats(10),
@@ -1086,6 +1665,12 @@ fn supervisor_retries_only_unattended_nonterminal_formation() {
     };
 
     assert!(!should_auto_resume(&FiStatus::Idle));
+    assert!(should_auto_resume(&FiStatus::Restored(
+        test_restored_formation(FormationFreshness::Unsynced)
+    )));
+    assert!(!should_auto_resume(&FiStatus::Restored(
+        test_restored_formation(FormationFreshness::Fresh)
+    )));
     assert!(should_auto_resume(&FiStatus::Formation(snapshot.clone())));
 
     let mut formed = snapshot.clone();
@@ -1249,6 +1834,25 @@ async fn fi_status_stream_emits_current_formation_and_typed_init_failure() {
         })
     );
     assert!(failed.next().await.is_none());
+}
+
+#[test]
+fn restored_status_projects_recovery_facts() {
+    let RpcFiStatus::Restored { formation } = fi_status_to_rpc(FiStatus::Restored(
+        test_restored_formation(FormationFreshness::Unsynced),
+    )) else {
+        panic!("restored status must remain distinguishable at the RPC boundary");
+    };
+
+    assert_eq!(formation.snapshot_generation, 3);
+    assert_eq!(formation.formation_id, "restored-formation");
+    assert_eq!(
+        formation.federation_name.as_deref(),
+        Some("Restored Federation")
+    );
+    assert_eq!(formation.phase, RpcFiFormationPhase::Formed);
+    assert_eq!(formation.freshness, RpcFiFormationFreshness::Unsynced);
+    assert!(formation.seats.is_empty());
 }
 
 struct TestDriverBackend {
@@ -1653,7 +2257,7 @@ async fn command_channel_preserves_typed_start_and_resume_liquidity_responses() 
             operation_id: "operation".to_owned(),
             formation_id: "formation".to_owned(),
             provider_pubkey: "provider".to_owned(),
-            endpoint_hint: "iroh://provider".to_owned(),
+            endpoint_hint: Some("iroh://provider".to_owned()),
             details_payload_hash: "2a".repeat(32),
             amounts: RpcFiLiquidityAmountBounds {
                 gateway_min_sats: 10,

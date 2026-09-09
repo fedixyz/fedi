@@ -8,17 +8,21 @@ import {
     logFiClientStatusChange,
     refreshFiStatus,
     selectFederationIds,
-    selectFiFormation,
     selectFiInviteCode,
     selectFiLiquidityErrorCode,
     selectFiLiquidityOperation,
     selectIsFiLiquidityRequesting,
+    selectIsWalletServiceMaintenanceReady,
     selectIsWalletServiceLightningRunning,
     selectWalletServiceLightningStage,
     selectWalletServiceLightningStatus,
+    selectWalletServiceFormationId,
     selectIsWalletServiceCreationEnabled,
+    selectIsWalletServiceUsable,
+    selectIsWalletServiceWalletReady,
     selectLoadedFederation,
     selectOnboardingCompleted,
+    selectWalletServiceRecoveryStage,
     setFiClientStatus,
     recordFiLiquidityAbsent,
     setFiLiquidityError,
@@ -273,6 +277,31 @@ export function useWalletServiceFederationId(): string | null {
 }
 
 /**
+ * The one readiness check every wallet-service screen otherwise ran by hand:
+ * which recovery checklist row is live, and whether the service can be shown
+ * and acted on yet. Wraps the Task 1 selectors together with the
+ * federation id they all need, so screens read one hook instead of deriving
+ * it three times over.
+ *
+ * `isUsable` is the checklist's exit condition (FI snapshot included).
+ * `isWalletReady` is the weaker, federation-only fact a balance or a withdraw
+ * needs. Screens must not substitute one for the other.
+ */
+export function useWalletServiceRecoveryStage() {
+    const federationId = useWalletServiceFederationId()
+    const stage = useCommonSelector(s =>
+        selectWalletServiceRecoveryStage(s, federationId),
+    )
+    const isUsable = useCommonSelector(s =>
+        selectIsWalletServiceUsable(s, federationId),
+    )
+    const isWalletReady = useCommonSelector(s =>
+        selectIsWalletServiceWalletReady(s, federationId),
+    )
+    return { stage, isUsable, isWalletReady, federationId }
+}
+
+/**
  * The gateway envelope every Wallet Service is attached with.
  *
  * `fiClientLiquidityDiscover` and `fiClientLiquidityStart` both demand exact
@@ -453,8 +482,10 @@ async function readDurableLiquidity(
 export function useMonitorWalletServiceLiquidity() {
     const dispatch = useCommonDispatch()
     const fedimint = useFedimint()
-    const formationId =
-        useCommonSelector(selectFiFormation)?.formationId ?? null
+    const formationId = useCommonSelector(selectWalletServiceFormationId)
+    const isFormationReady = useCommonSelector(
+        selectIsWalletServiceMaintenanceReady,
+    )
     const operation = useCommonSelector(selectFiLiquidityOperation)
     const isRunning = useCommonSelector(selectIsWalletServiceLightningRunning)
     const operationId = operation?.operationId ?? null
@@ -471,7 +502,7 @@ export function useMonitorWalletServiceLiquidity() {
     // the durable read, once per formation: this is what makes a relaunch
     // report the truth before any screen asks
     useEffect(() => {
-        if (!formationId) return
+        if (!formationId || !isFormationReady) return
         let cancelled = false
         readDurableLiquidity(fedimint, formationId, () => cancelled)
             .then(found => {
@@ -495,7 +526,7 @@ export function useMonitorWalletServiceLiquidity() {
         return () => {
             cancelled = true
         }
-    }, [fedimint, dispatch, formationId])
+    }, [fedimint, dispatch, formationId, isFormationReady])
 
     useEffect(() => {
         if (!operationId || !isRunning) return
@@ -575,7 +606,6 @@ export function useMonitorWalletServiceLiquidity() {
 export function useWalletServiceLightningAttach(): WalletServiceLightningAttach {
     const dispatch = useCommonDispatch()
     const fedimint = useFedimint()
-    const formation = useCommonSelector(selectFiFormation)
     const walletServiceFederationId = useWalletServiceFederationId()
     const network = useCommonSelector(s =>
         walletServiceFederationId
@@ -588,9 +618,10 @@ export function useWalletServiceLightningAttach(): WalletServiceLightningAttach 
     const stage = useCommonSelector(selectWalletServiceLightningStage)
     const errorCode = useCommonSelector(selectFiLiquidityErrorCode)
 
-    const formationId = formation?.formationId ?? null
-    const isFormedAndFresh =
-        formation?.phase === 'formed' && formation.freshness === 'fresh'
+    const formationId = useCommonSelector(selectWalletServiceFormationId)
+    const isFormedAndFresh = useCommonSelector(
+        selectIsWalletServiceMaintenanceReady,
+    )
     const liquidityNetwork = toLiquidityNetwork(network)
     const canAttach = Boolean(
         isFormedAndFresh && formationId && liquidityNetwork,

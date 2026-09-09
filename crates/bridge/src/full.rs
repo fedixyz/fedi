@@ -12,6 +12,7 @@ use fedi_decentralized_push_gateway_types::FcmRegistrationToken;
 use fedimint_core::core::ModuleKind;
 use multispend::services::MultispendServices;
 use nostril::Nostril;
+use rpc_types::event::TypedEventExt as _;
 use rpc_types::fi_client::{
     RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiEligiblePayersResult,
     RpcFiErrorCode, RpcFiFederationMetadataUpdate, RpcFiFormationIntent,
@@ -23,7 +24,7 @@ use rpc_types::fi_client::{
 };
 use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
-use runtime::storage::state::{DeviceIdentifier, ModuleFediFeeSchedule};
+use runtime::storage::state::{DeviceIdentifier, ModuleFediFeeSchedule, OnboardingMethod};
 use serde::Serialize;
 use sp_transfer::services::SptServices;
 use sp_transfer::services::transfer_complete_notifier::SptTransferCompleteNotifier;
@@ -32,9 +33,9 @@ use ts_rs::TS;
 
 use crate::bg_matrix::BgMatrix;
 use crate::fi_client::{
-    BridgeFiClient, BridgeFiDriver, FiFederationHandoffLocks, fi_client_status_to_rpc,
-    fi_error_to_rpc, fi_push_error_to_rpc, open_fi_client, start_fi_driver,
-    start_fi_federation_auto_join, suppress_fi_federation_auto_join,
+    BridgeFiClient, BridgeFiDriver, FiFederationHandoffLocks, FiFederationJoinReport,
+    fi_client_status_to_rpc, fi_error_to_rpc, fi_push_error_to_rpc, open_fi_client,
+    start_fi_driver, start_fi_federation_auto_join, suppress_fi_federation_auto_join,
 };
 use crate::fi_push::{BridgeFiPushGateway, FiPushError, FiPushPlatform};
 use crate::providers::{
@@ -66,6 +67,8 @@ pub struct BridgeFull {
     /// operations.
     pub(crate) fi_driver: Option<BridgeFiDriver>,
     fi_federation_handoff_locks: Arc<FiFederationHandoffLocks>,
+    /// Last reported progress of the automatic join of the FI's federation.
+    fi_federation_join_report: FiFederationJoinReport,
 }
 
 #[derive(Debug, TS, Serialize, PartialEq)]
@@ -100,6 +103,7 @@ impl BridgeFull {
     pub async fn leave_federation(&self, federation_id: &str) -> anyhow::Result<()> {
         let _handoff_guard = self.fi_federation_handoff_locks.lock(federation_id).await;
         suppress_fi_federation_auto_join(&self.runtime, federation_id).await;
+        self.fi_federation_join_report.clear(federation_id);
         self.federations.leave_federation(federation_id).await
     }
 
@@ -113,6 +117,13 @@ impl BridgeFull {
     }
 
     pub fn fi_client_status(&self) -> RpcFiClientStatus {
+        // A status read can happen after the join event was already delivered,
+        // so re-deliver the last reported join state with it.
+        if let Some(event) = self.fi_federation_join_report.last() {
+            self.runtime
+                .event_sink
+                .typed_event(&rpc_types::event::Event::FiFederationJoin(event));
+        }
         fi_client_status_to_rpc(&self.fi_client)
     }
 
@@ -452,12 +463,15 @@ impl BridgeFull {
             .await
             .map(Arc::new)
             .map_err(Arc::new);
+        let restore_fi_on_launch =
+            runtime.app_state.onboarding_method().await == Some(OnboardingMethod::Restored);
         let fi_driver = fi_client.as_ref().ok().map(|client| {
             start_fi_driver(
                 &runtime,
                 client.clone(),
                 federations.clone(),
                 fi_push_gateway.clone(),
+                restore_fi_on_launch,
             )
         });
 
@@ -468,6 +482,7 @@ impl BridgeFull {
         let spt_provider = Arc::new(SptFederationProviderWrapper(federations.clone()));
         let sp_transfers_services = SptServices::new(runtime.clone(), spt_provider, spt_notifier);
         let fi_federation_handoff_locks = Arc::new(FiFederationHandoffLocks::default());
+        let fi_federation_join_report = FiFederationJoinReport::default();
         if let Ok(client) = &fi_client {
             start_fi_federation_auto_join(
                 &runtime,
@@ -475,6 +490,7 @@ impl BridgeFull {
                 federations.clone(),
                 sp_transfers_services.clone(),
                 fi_federation_handoff_locks.clone(),
+                fi_federation_join_report.clone(),
             );
         }
 
@@ -500,6 +516,7 @@ impl BridgeFull {
             fi_push_gateway,
             fi_driver,
             fi_federation_handoff_locks,
+            fi_federation_join_report,
         };
 
         bridge.start_bg().await;

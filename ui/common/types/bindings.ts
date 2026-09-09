@@ -126,7 +126,8 @@ export type Event =
     }
   | { communityMetadataUpdated: CommunityMetadataUpdatedEvent }
   | { nonceReuseCheckFailed: NonceReuseCheckFailedEvent }
-  | { communityMigratedToV2: CommunityMigratedToV2Event };
+  | { communityMigratedToV2: CommunityMigratedToV2Event }
+  | { fiFederationJoin: FiFederationJoinEvent };
 
 /**
  * We represent the catalog of all the features for a given runtime as a
@@ -275,6 +276,17 @@ export type FediFeeConfig = {
    * How long to wait between guardian fee remittance scheduler polls
    */
   guardian_remittance_poll_interval_secs: number;
+};
+
+/**
+ * Notify front-end how the automatic join of the FI's federation is going.
+ *
+ * `Ready` means the federation is joined and has passed the checks that can
+ * still make the bridge leave it, so the wallet backed by it is usable.
+ */
+export type FiFederationJoinEvent = {
+  federationId: RpcFederationId;
+  state: RpcFiFederationJoinState;
 };
 
 export type FiPushGatewayFeatureConfig = {
@@ -725,6 +737,16 @@ export type RpcFiErrorCode =
   | "timeout";
 
 /**
+ * Progress of the bridge's automatic join of the federation that the
+ * Federation Initiator formed or restored.
+ */
+export type RpcFiFederationJoinState =
+  | { type: "joining" }
+  | { type: "recovering" }
+  | { type: "ready" }
+  | { type: "failed"; message: string };
+
+/**
  * One FI-authorized, post-formation federation metadata mutation.
  *
  * Values are validated again by Manifold before any guardian is contacted.
@@ -930,7 +952,7 @@ export type RpcFiLiquidityOperation = {
   operationId: string;
   formationId: string;
   providerPubkey: string;
-  endpointHint: string;
+  endpointHint: string | null;
   detailsPayloadHash: string;
   amounts: RpcFiLiquidityAmountBounds;
   phase: RpcFiLiquidityOperationPhase;
@@ -1105,6 +1127,26 @@ export type RpcFiResolvedFormationIntent = {
   maxTotalMsats: RpcFiMsats | null;
 };
 
+export type RpcFiRestoredFormationSnapshot = {
+  snapshotGeneration: number;
+  formationId: string;
+  federationInvite: string;
+  federationName: string | null;
+  seats: Array<RpcFiRestoredSeat>;
+  phase: RpcFiFormationPhase;
+  freshness: RpcFiFormationFreshness;
+  backupEligible: boolean;
+};
+
+export type RpcFiRestoredSeat = {
+  fmanId: string;
+  seatId: string;
+  /**
+   * Canonical versioned Fleet Manager locator JSON.
+   */
+  locator: string;
+};
+
 export type RpcFiSeatPaymentRequirement = {
   index: number;
   /**
@@ -1230,7 +1272,8 @@ export type RpcFiSetupPaymentFederationsResult =
 
 export type RpcFiStatus =
   | { type: "idle" }
-  | { type: "formation"; formation: RpcFiFormationSnapshot };
+  | { type: "formation"; formation: RpcFiFormationSnapshot }
+  | { type: "restored"; formation: RpcFiRestoredFormationSnapshot };
 
 export type RpcFiatAmount = number;
 

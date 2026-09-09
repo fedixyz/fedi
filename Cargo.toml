@@ -260,6 +260,7 @@ uniffi = { git = "https://github.com/mozilla/uniffi-rs", rev = "f5fc9d7e9aa08889
 fedimint-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi2" }
 fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi2" }
 fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi2" }
+fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi2" }
 fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi2" }
 fedimint-lnv2-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi2" }
 fedimint-logging = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi2" }

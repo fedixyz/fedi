@@ -17,11 +17,11 @@ import {
     getWalletServiceErrorKey,
     getWalletServiceRetryableError,
     guardianFeePpmToPercent,
-    selectFiFormation,
     selectFiFormationName,
     selectFiInviteCode,
     selectIsWalletServiceFormed,
     selectIsWalletServiceMaintenanceReady,
+    selectWalletServiceGuardianCount,
     setWalletServiceGuardianFee,
     updateWalletServiceMetadata,
 } from '@fedi/common/redux'
@@ -172,8 +172,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
         refresh: refreshAppliedFee,
         markApplied,
     } = useAppliedGuardianFeePpm()
-    const guardianCount =
-        useAppSelector(selectFiFormation)?.intent.federationSize ?? 0
+    const guardianCount = useAppSelector(selectWalletServiceGuardianCount)
     const federationId = useWalletServiceFederationId()
     // every metadata write is a guardian consensus change, which the bridge
     // only accepts once the wallet service is formed

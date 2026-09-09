@@ -531,7 +531,7 @@ pub struct RpcFiLiquidityOperation {
     pub operation_id: String,
     pub formation_id: String,
     pub provider_pubkey: String,
-    pub endpoint_hint: String,
+    pub endpoint_hint: Option<String>,
     pub details_payload_hash: String,
     pub amounts: RpcFiLiquidityAmountBounds,
     pub phase: RpcFiLiquidityOperationPhase,
@@ -797,6 +797,31 @@ pub struct RpcFiFormationSnapshot {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFiRestoredSeat {
+    pub fman_id: String,
+    pub seat_id: String,
+    /// Canonical versioned Fleet Manager locator JSON.
+    pub locator: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFiRestoredFormationSnapshot {
+    #[ts(type = "number")]
+    pub snapshot_generation: u64,
+    pub formation_id: String,
+    pub federation_invite: String,
+    pub federation_name: Option<String>,
+    pub seats: Vec<RpcFiRestoredSeat>,
+    pub phase: RpcFiFormationPhase,
+    pub freshness: RpcFiFormationFreshness,
+    pub backup_eligible: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -807,6 +832,9 @@ pub enum RpcFiStatus {
     Idle,
     Formation {
         formation: Box<RpcFiFormationSnapshot>,
+    },
+    Restored {
+        formation: Box<RpcFiRestoredFormationSnapshot>,
     },
 }
 

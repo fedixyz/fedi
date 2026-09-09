@@ -1,5 +1,6 @@
 import type { LoadedFederation } from '../../types'
 import {
+    FiFederationJoinEvent,
     GuardianStatus,
     RpcFederation,
     RpcFederationPreview,
@@ -7,6 +8,7 @@ import {
     RpcFiEligiblePayersResult,
     RpcFiErrorCode,
     RpcFiCurrentLiquidityOperationResult,
+    RpcFiFederationJoinState,
     RpcFiFormationSnapshot,
     RpcFiLiquidityDiscoveryResult,
     RpcFiLiquidityNetwork,
@@ -176,11 +178,23 @@ export class FiSimulator {
      * can, so the simulator stands it up and announces it the same way.
      */
     private walletServiceFederation: LoadedFederation | null = null
+    /**
+     * Whether that federation has been joined yet.
+     *
+     * The restore path knows the federation before it is joined — the backup
+     * carries the invite, so the id resolves offline — and the app must not
+     * see it in its wallet list until the join lands. The created path stands
+     * the federation up and joins it in the same step, so this is `true` from
+     * the moment it exists.
+     */
+    private isWalletServiceJoined = false
     private nextId = 1
     /** The single live liquidity operation, if one exists. */
     private liquidityOperation: RpcFiLiquidityOperation | null = null
     /** Status reads so far, which is what advances the verification. */
     private liquidityPolls = 0
+    /** Timers the restore path arms: reconciliation, then the auto-join. */
+    private restoreTimers: Array<ReturnType<typeof setTimeout>> = []
 
     constructor(scenarioName: FiScenarioName = DEFAULT_FI_SCENARIO) {
         this.scenario = fiScenarios[scenarioName]
@@ -243,6 +257,10 @@ export class FiSimulator {
      * from a real joined wallet, which dev cannot always provide.
      */
     private seedFromScenario() {
+        if (this.scenario.restoreOnLaunch) {
+            this.seedRestoredBackup()
+            return
+        }
         const seed = this.scenario.seedFormation
         if (!seed) return
         const size = 10
@@ -353,9 +371,111 @@ export class FiSimulator {
         }
     }
 
+    /**
+     * Open on a Nostr backup found for this seed, and let it settle.
+     *
+     * Three moments, because the bridge has three:
+     *
+     *   restored/unsynced ─(reconcile)─▶ restored/fresh ─(auto-join)─▶ federation
+     *
+     * The invite is known from the backup at moment one, which is why
+     * `parseInviteCode` answers straight away — the real one parses offline
+     * too. The federation itself is announced only at moment three, because
+     * `formed_federation_invite` refuses to hand the invite to the auto-join
+     * until the snapshot is fresh. Collapsing those two would hide the very
+     * window the dashboard has to survive.
+     */
+    private seedRestoredBackup() {
+        const formationId = 'restored_formation'
+        const inviteCode = `fed1${'sim'.padEnd(40, '0')}${formationId}`
+        this.status = {
+            type: 'restored',
+            formation: {
+                snapshotGeneration: 3,
+                formationId,
+                federationInvite: inviteCode,
+                federationName: 'My Wallet Service',
+                seats: Array.from({ length: 10 }, (_, index) => ({
+                    fmanId: `fman_${String(index + 1).padStart(2, '0')}_${this.hash(index)}`,
+                    seatId: `seat_${index}`,
+                    locator: '{"version":1}',
+                })),
+                phase: 'formed',
+                freshness: 'unsynced',
+                backupEligible: false,
+            },
+        }
+        // known, but not yet joined: the app can resolve the id and still
+        // have no client behind it, so it is neither announced nor listed
+        this.isWalletServiceJoined = false
+        this.walletServiceFederation = {
+            ...makeMockPayerFederation({
+                id: `mock-wallet-service-${formationId}`,
+                name: 'My Wallet Service',
+                balanceSats: 21_000,
+            }),
+            network: 'signet',
+            inviteCode,
+        }
+        this.restoreTimers.push(
+            setTimeout(() => {
+                if (this.status.type !== 'restored') return
+                this.status.formation.freshness = 'fresh'
+                this.status.formation.backupEligible = true
+                this.publish()
+                // the invite is only handed to the auto-join once the snapshot
+                // is fresh, so this edge is where the bridge starts joining
+                this.emitFederationJoin({ type: 'joining' })
+            }, this.scenario.restoreReconcileMs),
+        )
+        // null means the federation is never announced — the failure shape,
+        // where the checklist reports complete but the join never lands
+        if (this.scenario.restoreJoinMs === null) {
+            this.restoreTimers.push(
+                setTimeout(
+                    () =>
+                        this.emitFederationJoin({
+                            type: 'failed',
+                            message: 'simulated: federation join failed',
+                        }),
+                    this.scenario.restoreReconcileMs +
+                        this.scenario.restoreJoinFailMs,
+                ),
+            )
+            return
+        }
+        this.restoreTimers.push(
+            setTimeout(() => {
+                if (!this.walletServiceFederation) return
+                this.isWalletServiceJoined = true
+                this.emitEvent?.('federation', this.walletServiceFederation)
+                // straight after the federation, not before: `ready` is
+                // the bridge's word for "joined and past its checks", and
+                // the app reads it as the end of the rejoining stage
+                this.emitFederationJoin({ type: 'ready' })
+            }, this.scenario.restoreReconcileMs + this.scenario.restoreJoinMs),
+        )
+    }
+
+    /**
+     * The `fiFederationJoin` event, on the same channel the `federation` event
+     * uses. Without it the app never learns a rejoin failed, and the terminal
+     * failure screen cannot be reached in dev.
+     */
+    private emitFederationJoin(state: RpcFiFederationJoinState) {
+        if (!this.walletServiceFederation) return
+        const event: FiFederationJoinEvent = {
+            federationId: this.walletServiceFederation.id,
+            state,
+        }
+        this.emitEvent?.('fiFederationJoin', event)
+    }
+
     /** Return to a pristine `idle` client. */
     reset() {
         if (this.phaseTimer) clearTimeout(this.phaseTimer)
+        this.restoreTimers.forEach(clearTimeout)
+        this.restoreTimers = []
         this.phaseTimer = null
         this.phaseIndex = 0
         this.hasPreviewedOnce = false
@@ -365,6 +485,7 @@ export class FiSimulator {
         this.liquidityOperation = null
         this.liquidityPolls = 0
         this.walletServiceFederation = null
+        this.isWalletServiceJoined = false
         this.status = { type: 'idle' }
         this.publish()
     }
@@ -606,7 +727,9 @@ export class FiSimulator {
                 balanceSats: payer.balanceSats,
             }),
         )
-        return this.walletServiceFederation
+        // only once joined: a restored backup knows its federation from the
+        // start, and listing it then would report the rejoin as already done
+        return this.walletServiceFederation && this.isWalletServiceJoined
             ? [...payers, this.walletServiceFederation]
             : payers
     }
@@ -700,6 +823,8 @@ export class FiSimulator {
             network: 'signet',
             inviteCode: formation.inviteCode,
         }
+        // stood up and joined in one step, as the created path always was
+        this.isWalletServiceJoined = true
         this.emitEvent?.('federation', this.walletServiceFederation)
     }
 

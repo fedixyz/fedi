@@ -101,6 +101,7 @@ const renderFee = ({
         fi: {
             status: { type: 'formation', formation },
             clientError: null,
+            federationJoin: null,
             creationHighWaterMark: hasFormedBefore
                 ? {
                       formationId: formation.formationId,

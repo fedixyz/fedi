@@ -118,6 +118,7 @@ const renderReview = ({
                 formation: makeFormation(actionRequired),
             },
             clientError: null,
+            federationJoin: null,
             creationHighWaterMark: null,
             draft: { name: '', size: 7 },
             selectionPreview: null,
