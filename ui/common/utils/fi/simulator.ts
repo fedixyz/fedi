@@ -181,20 +181,46 @@ export class FiSimulator {
     /**
      * Whether that federation has been joined yet.
      *
-     * The restore path knows the federation before it is joined — the backup
-     * carries the invite, so the id resolves offline — and the app must not
-     * see it in its wallet list until the join lands. The created path stands
-     * the federation up and joins it in the same step, so this is `true` from
-     * the moment it exists.
+     * Both paths know the federation before it is joined — the invite resolves
+     * offline — and the app must not see it in its wallet list until the join
+     * lands. The bridge runs the same auto-join for a created federation as for
+     * a restored one, so the created path waits here too.
      */
     private isWalletServiceJoined = false
+    /**
+     * Whether that federation is still recovering its ecash.
+     *
+     * A restored seed joins a federation it has spent from before, so the
+     * bridge lists it with `recovering` true until the recovery finishes. The
+     * recovery checklist reads exactly that flag for its `restoringBalance`
+     * row. A created federation has nothing to recover.
+     */
+    private isWalletServiceRecovering = false
+    /**
+     * The last auto-join state reported, mirroring `FiFederationJoinReport`.
+     *
+     * The app can read the FI client status after the join event was already
+     * delivered — a fresh subscribe, a foreground refresh — so the status
+     * handler re-delivers this rather than leaving the app with nothing.
+     */
+    private lastJoinEvent: FiFederationJoinEvent | null = null
+    /**
+     * The federation a deliberate leave has suppressed the auto-join for,
+     * mirroring the bridge's completion marker, which is keyed by federation
+     * id. An absent federation that was left on purpose is silence, not a
+     * failure; a later formation gets a new id and is not suppressed.
+     */
+    private suppressedAutoJoinFederationId: string | null = null
     private nextId = 1
     /** The single live liquidity operation, if one exists. */
     private liquidityOperation: RpcFiLiquidityOperation | null = null
     /** Status reads so far, which is what advances the verification. */
     private liquidityPolls = 0
-    /** Timers the restore path arms: reconciliation, then the auto-join. */
-    private restoreTimers: Array<ReturnType<typeof setTimeout>> = []
+    /**
+     * Timers the restore path arms (reconciliation, then the auto-join) and the
+     * timers the created path arms for its own auto-join.
+     */
+    private joinTimers: Array<ReturnType<typeof setTimeout>> = []
 
     constructor(scenarioName: FiScenarioName = DEFAULT_FI_SCENARIO) {
         this.scenario = fiScenarios[scenarioName]
@@ -298,7 +324,7 @@ export class FiSimulator {
                 walletServiceCreated: true,
             }
             formation.paymentOutputsStarted = true
-            this.markFormed(formation)
+            this.markFormed(formation, { alreadyJoined: true })
             this.phaseIndex = FORMATION_PHASES.indexOf('formed')
         } else {
             formation.milestones.ecashSent = true
@@ -394,7 +420,10 @@ export class FiSimulator {
                 snapshotGeneration: 3,
                 formationId,
                 federationInvite: inviteCode,
-                federationName: 'My Wallet Service',
+                // the backup does not carry the name: `restore_authenticated`
+                // writes `federation_name: None`, and reconciliation is what
+                // learns it from the Fleet Managers
+                federationName: null,
                 seats: Array.from({ length: 10 }, (_, index) => ({
                     fmanId: `fman_${String(index + 1).padStart(2, '0')}_${this.hash(index)}`,
                     seatId: `seat_${index}`,
@@ -417,11 +446,13 @@ export class FiSimulator {
             network: 'signet',
             inviteCode,
         }
-        this.restoreTimers.push(
+        this.joinTimers.push(
             setTimeout(() => {
                 if (this.status.type !== 'restored') return
                 this.status.formation.freshness = 'fresh'
+                // `reconcile_restored_backup` writes both in one transaction
                 this.status.formation.backupEligible = true
+                this.status.formation.federationName = 'My Wallet Service'
                 this.publish()
                 // the invite is only handed to the auto-join once the snapshot
                 // is fresh, so this edge is where the bridge starts joining
@@ -431,7 +462,7 @@ export class FiSimulator {
         // null means the federation is never announced — the failure shape,
         // where the checklist reports complete but the join never lands
         if (this.scenario.restoreJoinMs === null) {
-            this.restoreTimers.push(
+            this.joinTimers.push(
                 setTimeout(
                     () =>
                         this.emitFederationJoin({
@@ -444,16 +475,24 @@ export class FiSimulator {
             )
             return
         }
-        this.restoreTimers.push(
-            setTimeout(() => {
-                if (!this.walletServiceFederation) return
-                this.isWalletServiceJoined = true
-                this.emitEvent?.('federation', this.walletServiceFederation)
-                // straight after the federation, not before: `ready` is
-                // the bridge's word for "joined and past its checks", and
-                // the app reads it as the end of the rejoining stage
-                this.emitFederationJoin({ type: 'ready' })
-            }, this.scenario.restoreReconcileMs + this.scenario.restoreJoinMs),
+        const joinedAt =
+            this.scenario.restoreReconcileMs + this.scenario.restoreJoinMs
+        this.joinTimers.push(
+            setTimeout(() => this.beginWalletServiceRecovery(), joinedAt),
+        )
+        this.joinTimers.push(
+            setTimeout(
+                () => this.completeWalletServiceJoin(),
+                joinedAt + this.scenario.restoreRecoveryMs,
+            ),
+        )
+    }
+
+    private isWalletServiceAutoJoinSuppressed(): boolean {
+        return (
+            this.walletServiceFederation !== null &&
+            this.suppressedAutoJoinFederationId ===
+                this.walletServiceFederation.id
         )
     }
 
@@ -461,21 +500,29 @@ export class FiSimulator {
      * The `fiFederationJoin` event, on the same channel the `federation` event
      * uses. Without it the app never learns a rejoin failed, and the terminal
      * failure screen cannot be reached in dev.
+     *
+     * Retained as well as delivered, because the bridge retains it: a status
+     * read that happens after the event was delivered re-delivers it.
      */
     private emitFederationJoin(state: RpcFiFederationJoinState) {
-        if (!this.walletServiceFederation) return
+        if (
+            !this.walletServiceFederation ||
+            this.isWalletServiceAutoJoinSuppressed()
+        )
+            return
         const event: FiFederationJoinEvent = {
             federationId: this.walletServiceFederation.id,
             state,
         }
+        this.lastJoinEvent = event
         this.emitEvent?.('fiFederationJoin', event)
     }
 
     /** Return to a pristine `idle` client. */
     reset() {
         if (this.phaseTimer) clearTimeout(this.phaseTimer)
-        this.restoreTimers.forEach(clearTimeout)
-        this.restoreTimers = []
+        this.joinTimers.forEach(clearTimeout)
+        this.joinTimers = []
         this.phaseTimer = null
         this.phaseIndex = 0
         this.hasPreviewedOnce = false
@@ -486,6 +533,9 @@ export class FiSimulator {
         this.liquidityPolls = 0
         this.walletServiceFederation = null
         this.isWalletServiceJoined = false
+        this.isWalletServiceRecovering = false
+        this.lastJoinEvent = null
+        this.suppressedAutoJoinFederationId = null
         this.status = { type: 'idle' }
         this.publish()
     }
@@ -533,6 +583,14 @@ export class FiSimulator {
                 this.isMockPayer(payload.federationId as string) ||
                 this.isWalletServiceFederation(payload.federationId as string)
             )
+        // leaving a wallet the simulator invented cannot reach the real bridge,
+        // which has never heard of it; and the retained join state has to go
+        // with it, or every later status read re-announces a join that is gone
+        if (method === 'leaveFederation')
+            return (
+                this.isMockPayer(payload.federationId as string) ||
+                this.isWalletServiceFederation(payload.federationId as string)
+            )
         // This developer action must reach the real bridge so it can write the
         // startup marker outside the simulated FI state.
         return (
@@ -557,6 +615,8 @@ export class FiSimulator {
                 return this.joinMockFederation(payload)
             case 'getGuardianStatus':
                 return this.guardianStatus(payload.federationId as string)
+            case 'leaveFederation':
+                return this.leaveFederation(payload.federationId as string)
             case 'streamCancel':
                 return this.unsubscribe(payload.streamId as number)
             case 'fiClientStatus':
@@ -607,6 +667,12 @@ export class FiSimulator {
     /*** Queries ***/
 
     private clientStatus(): RpcFiClientStatus {
+        // mirrors `Bridge::fi_client_status`: a status read can happen after
+        // the join event was already delivered, so the retained state rides
+        // along with it. A formed wallet service seeded before the bridge was
+        // attached has no other way to report its join at all.
+        if (this.lastJoinEvent)
+            this.emitEvent?.('fiFederationJoin', this.lastJoinEvent)
         return { type: 'ready', status: this.status }
     }
 
@@ -727,11 +793,10 @@ export class FiSimulator {
                 balanceSats: payer.balanceSats,
             }),
         )
-        // only once joined: a restored backup knows its federation from the
-        // start, and listing it then would report the rejoin as already done
-        return this.walletServiceFederation && this.isWalletServiceJoined
-            ? [...payers, this.walletServiceFederation]
-            : payers
+        // only once joined: both paths know the federation before the join
+        // lands, and listing it then would report the rejoin as already done
+        const walletService = this.walletServiceListing()
+        return walletService ? [...payers, walletService] : payers
     }
 
     private mockJoinableFor(inviteCode: string | undefined) {
@@ -786,6 +851,29 @@ export class FiSimulator {
         return federation as unknown as RpcFederation
     }
 
+    /**
+     * Leave a simulated federation, the way `Bridge::leave_federation` does.
+     *
+     * The auto-join is suppressed and the retained report cleared under the
+     * same lock, so an auto-join still in flight says nothing more about this
+     * federation: an absent federation that was left on purpose is silence,
+     * never a `failed`. The invite still resolves, because the FI status still
+     * holds it and `parseInviteCode` answers offline.
+     */
+    private leaveFederation(federationId: string): null {
+        if (this.isWalletServiceFederation(federationId)) {
+            this.suppressedAutoJoinFederationId = federationId
+            this.isWalletServiceJoined = false
+            this.isWalletServiceRecovering = false
+        }
+        this.mockPayers = this.mockPayers.filter(
+            payer => payer.federationId !== federationId,
+        )
+        if (this.lastJoinEvent?.federationId === federationId)
+            this.lastJoinEvent = null
+        return null
+    }
+
     private isMockPayer(federationId: string | undefined): boolean {
         return this.mockPayers.some(p => p.federationId === federationId)
     }
@@ -803,15 +891,27 @@ export class FiSimulator {
     }
 
     /**
-     * Stand the formed federation up and announce it, as the bridge does when
-     * it auto-joins the wallet service at `formed`.
+     * Stand the formed federation up and start the auto-join the bridge runs
+     * when the wallet service reaches `formed`.
+     *
+     * `formed_federation_invite` yields the invite for a `formation` status as
+     * well as a `restored` one, so the created path reports the same join
+     * states as the restore path. A created federation has no ecash to recover,
+     * so it goes straight from `joining` to `ready`.
+     *
+     * `alreadyJoined` is the seeded-`formed` case: it stands for a session that
+     * joined this federation long ago, which the bridge finds already `Ready`
+     * and reports as such, without a `joining` it never performed.
      *
      * On `signet`, because that is the network a dev federation actually runs
      * on and the network the simulated provider advertises by default: the
      * Lightning step filters providers against the federation's own network,
      * and a federation the app cannot see has no network at all.
      */
-    private markFormed(formation: RpcFiFormationSnapshot) {
+    private markFormed(
+        formation: RpcFiFormationSnapshot,
+        { alreadyJoined = false }: { alreadyJoined?: boolean } = {},
+    ) {
         formation.milestones.walletServiceCreated = true
         formation.inviteCode = `fed1${'sim'.padEnd(40, '0')}${formation.formationId}`
         this.walletServiceFederation = {
@@ -823,9 +923,83 @@ export class FiSimulator {
             network: 'signet',
             inviteCode: formation.inviteCode,
         }
-        // stood up and joined in one step, as the created path always was
+        this.isWalletServiceJoined = false
+        if (alreadyJoined) {
+            this.completeWalletServiceJoin()
+            return
+        }
+        this.emitFederationJoin({ type: 'joining' })
+        const { createdJoinMs, createdJoinFailMs } = this.scenario
+        // null means the join never lands — the same silent-failure shape the
+        // restore path has, which the dashboard answers rather than the
+        // recovery checklist
+        if (createdJoinMs === null) {
+            this.joinTimers.push(
+                setTimeout(
+                    () =>
+                        this.emitFederationJoin({
+                            type: 'failed',
+                            message: 'simulated: federation join failed',
+                        }),
+                    createdJoinFailMs,
+                ),
+            )
+            return
+        }
+        this.joinTimers.push(
+            setTimeout(() => this.completeWalletServiceJoin(), createdJoinMs),
+        )
+    }
+
+    /**
+     * The join landed on a restored seed, and the ecash recovery it started has
+     * not finished.
+     *
+     * The bridge lists a federation in that state with `recovering` true and
+     * reports `recovering` for the whole window. Collapsing it into `ready`
+     * skips the recovery checklist's `restoringBalance` row, which is the one
+     * window these scenarios exist to show.
+     */
+    private beginWalletServiceRecovery() {
+        if (
+            !this.walletServiceFederation ||
+            this.isWalletServiceAutoJoinSuppressed()
+        )
+            return
         this.isWalletServiceJoined = true
-        this.emitEvent?.('federation', this.walletServiceFederation)
+        this.isWalletServiceRecovering = true
+        this.emitEvent?.('federation', this.walletServiceListing())
+        this.emitFederationJoin({ type: 'recovering' })
+    }
+
+    /**
+     * The join has landed and nothing is left to recover: list the federation
+     * and report `ready`.
+     *
+     * `ready` is the bridge's word for "joined and past the checks that can
+     * still make it leave again", so it is emitted straight after the
+     * federation rather than before it.
+     */
+    private completeWalletServiceJoin() {
+        if (
+            !this.walletServiceFederation ||
+            this.isWalletServiceAutoJoinSuppressed()
+        )
+            return
+        this.isWalletServiceJoined = true
+        this.isWalletServiceRecovering = false
+        this.emitEvent?.('federation', this.walletServiceListing())
+        this.emitFederationJoin({ type: 'ready' })
+    }
+
+    /**
+     * The wallet service's federation as the wallet list carries it right now,
+     * or null while it is not joined.
+     */
+    private walletServiceListing(): LoadedFederation | null {
+        const federation = this.walletServiceFederation
+        if (!federation || !this.isWalletServiceJoined) return null
+        return { ...federation, recovering: this.isWalletServiceRecovering }
     }
 
     private parseWalletServiceInvite(): RpcParseInviteCodeResult {

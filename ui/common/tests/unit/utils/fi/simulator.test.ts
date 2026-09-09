@@ -17,7 +17,11 @@ import {
     MOCK_PAYER_FEDERATION_IDS,
     MOCK_PAYER_FEDERATIONS,
 } from '../../../../utils/fi/mockPayerFederation'
-import { FiScenarioName, fiScenarios } from '../../../../utils/fi/scenarios'
+import {
+    FORMATION_PHASES,
+    FiScenarioName,
+    fiScenarios,
+} from '../../../../utils/fi/scenarios'
 import { FiSimulator } from '../../../../utils/fi/simulator'
 
 const PREVIEW_REQUEST = {
@@ -1143,20 +1147,10 @@ describe('FiSimulator', () => {
             expect(sim.listMockFederations()).toEqual([])
         })
 
-        it('restoredBackup reports the join as joining, then ready', () => {
-            const sim = new FiSimulator('restoredBackup')
-            const joinStates: RpcFiFederationJoinState[] = []
-            sim.attach(
-                () => {},
-                (name, payload) => {
-                    if (name === 'fiFederationJoin')
-                        joinStates.push(
-                            (payload as FiFederationJoinEvent).state,
-                        )
-                },
-            )
+        it('restoredBackup reports the join as joining, recovering, then ready', () => {
+            const { simulator: sim, joinStates } = joinReports('restoredBackup')
 
-            const { restoreReconcileMs, restoreJoinMs } =
+            const { restoreReconcileMs, restoreJoinMs, restoreRecoveryMs } =
                 fiScenarios.restoredBackup
             if (restoreJoinMs === null) {
                 throw new Error('restoredBackup must define restoreJoinMs')
@@ -1165,8 +1159,21 @@ describe('FiSimulator', () => {
             jest.advanceTimersByTime(restoreReconcileMs)
             expect(joinStates).toEqual([{ type: 'joining' }])
 
+            // joined, but the ecash it had spent before is still coming back
             jest.advanceTimersByTime(restoreJoinMs)
-            expect(joinStates).toEqual([{ type: 'joining' }, { type: 'ready' }])
+            expect(joinStates).toEqual([
+                { type: 'joining' },
+                { type: 'recovering' },
+            ])
+            expect(walletServiceListing(sim)?.recovering).toBe(true)
+
+            jest.advanceTimersByTime(restoreRecoveryMs)
+            expect(joinStates).toEqual([
+                { type: 'joining' },
+                { type: 'recovering' },
+                { type: 'ready' },
+            ])
+            expect(walletServiceListing(sim)?.recovering).toBe(false)
         })
 
         it('restoredBackupJoinFails reports the join as failed and never ready', () => {
@@ -1218,10 +1225,246 @@ describe('FiSimulator', () => {
                 formation: { freshness: 'fresh' },
             })
         })
+
+        // `restore_authenticated` writes `backup_eligible: false` and
+        // `federation_name: None`; `reconcile_restored_backup` sets both in one
+        // transaction. A name known from the start hides the window where the
+        // recovery screen has no federation to name.
+        it('restoredBackup learns the name and backup eligibility at reconciliation', async () => {
+            const sim = new FiSimulator('restoredBackup')
+            const restored = async () => {
+                const envelope = (await sim.handle(
+                    'fiClientStatus',
+                    {},
+                )) as RpcFiClientStatus
+                if (envelope.type !== 'ready') throw new Error('expected ready')
+                if (envelope.status.type !== 'restored')
+                    throw new Error('expected a restored status')
+                return envelope.status.formation
+            }
+            sim.attach(
+                () => {},
+                () => {},
+            )
+
+            expect(await restored()).toMatchObject({
+                federationName: null,
+                backupEligible: false,
+            })
+
+            await jest.advanceTimersByTimeAsync(
+                fiScenarios.restoredBackup.restoreReconcileMs,
+            )
+
+            expect(await restored()).toMatchObject({
+                federationName: 'My Wallet Service',
+                backupEligible: true,
+            })
+        })
+    })
+
+    // The bridge runs one auto-join for both paths: `formed_federation_invite`
+    // yields the invite for a `formation` status as well as a `restored` one.
+    // Without it the created path reported no join at all, so the dashboard's
+    // failed-join handling was unreachable in dev.
+    describe('created federation auto-join', () => {
+        it('reports the created federation as joining, then ready', async () => {
+            const { simulator, joinStates } = joinReports('happyPath')
+
+            await payWithFreshPreview(simulator)
+            await jest.advanceTimersByTimeAsync(30_000)
+
+            expect(joinStates).toEqual([{ type: 'joining' }, { type: 'ready' }])
+        })
+
+        it('lists the created federation only once the join lands', async () => {
+            const { simulator } = joinReports('happyPath')
+            const { createdJoinMs, phaseIntervalMs } = fiScenarios.happyPath
+            if (createdJoinMs === null) {
+                throw new Error('happyPath must define createdJoinMs')
+            }
+
+            await payWithFreshPreview(simulator)
+            // every phase but the first, which `payAndCreate` seeds
+            await jest.advanceTimersByTimeAsync(
+                phaseIntervalMs * (FORMATION_PHASES.length - 1),
+            )
+            const formation = await currentFormation(simulator)
+            expect(formation.phase).toBe('formed')
+            expect(walletServiceListing(simulator)).toBeUndefined()
+
+            await jest.advanceTimersByTimeAsync(createdJoinMs)
+
+            expect(walletServiceListing(simulator)).toBeDefined()
+        })
+
+        it('createdJoinFails reports the join as failed and never lists it', async () => {
+            const { simulator, joinStates } = joinReports('createdJoinFails')
+
+            await jest.advanceTimersByTimeAsync(10 * 60_000)
+
+            expect(joinStates).toEqual([
+                { type: 'joining' },
+                {
+                    type: 'failed',
+                    message: 'simulated: federation join failed',
+                },
+            ])
+            expect(walletServiceListing(simulator)).toBeUndefined()
+        })
+
+        // `fi_client_status` re-delivers the retained report, because a status
+        // read can happen after the event was delivered — a fresh subscribe or
+        // a foreground refresh. Without it the app has no way back to a join
+        // state it was not listening for.
+        it('re-emits the last join state on a status read', async () => {
+            const { simulator, joinStates } = joinReports('happyPath')
+
+            await payWithFreshPreview(simulator)
+            await jest.advanceTimersByTimeAsync(30_000)
+            joinStates.length = 0
+
+            await simulator.handle('fiClientStatus', {})
+
+            expect(joinStates).toEqual([{ type: 'ready' }])
+        })
+
+        it('re-emits a failed join on a status read', async () => {
+            const { simulator, joinStates } = joinReports('createdJoinFails')
+            await jest.advanceTimersByTimeAsync(10 * 60_000)
+            joinStates.length = 0
+
+            await simulator.handle('fiClientStatus', {})
+
+            expect(joinStates).toEqual([
+                {
+                    type: 'failed',
+                    message: 'simulated: federation join failed',
+                },
+            ])
+        })
+
+        it('re-emits nothing when no join has been reported', async () => {
+            const { simulator, joinStates } = joinReports('happyPath')
+
+            await simulator.handle('fiClientStatus', {})
+
+            expect(joinStates).toEqual([])
+        })
+
+        // `Bridge::leave_federation` suppresses the auto-join and clears the
+        // retained report under one lock, so the wait that is still running
+        // says nothing more: a federation left on purpose is silence, never a
+        // `failed` the app would show as a broken recovery.
+        it('stays silent when the federation is left mid-recovery', async () => {
+            const { simulator, joinStates } = joinReports(
+                'restoredBackupSlowJoin',
+            )
+            const { restoreReconcileMs, restoreJoinMs } =
+                fiScenarios.restoredBackupSlowJoin
+            if (restoreJoinMs === null) {
+                throw new Error(
+                    'restoredBackupSlowJoin must define restoreJoinMs',
+                )
+            }
+            await jest.advanceTimersByTimeAsync(
+                restoreReconcileMs + restoreJoinMs,
+            )
+            expect(joinStates).toEqual([
+                { type: 'joining' },
+                { type: 'recovering' },
+            ])
+            const { federationId } = (await simulator.handle(
+                'parseInviteCode',
+                {},
+            )) as RpcParseInviteCodeResult
+            joinStates.length = 0
+
+            expect(simulator.handles('leaveFederation', { federationId })).toBe(
+                true,
+            )
+            await simulator.handle('leaveFederation', { federationId })
+            await jest.advanceTimersByTimeAsync(10 * 60_000)
+
+            expect(joinStates).toEqual([])
+            expect(walletServiceListing(simulator)).toBeUndefined()
+        })
+
+        it('forgets the retained join state of a federation that was left', async () => {
+            const { simulator, joinStates } = joinReports('happyPath')
+            await payWithFreshPreview(simulator)
+            await jest.advanceTimersByTimeAsync(30_000)
+            const { federationId } = (await simulator.handle(
+                'parseInviteCode',
+                {},
+            )) as RpcParseInviteCodeResult
+
+            await simulator.handle('leaveFederation', { federationId })
+            joinStates.length = 0
+            await simulator.handle('fiClientStatus', {})
+
+            expect(joinStates).toEqual([])
+        })
+
+        // The bridge keys its suppression marker by federation id, so a leave
+        // silences only that federation. A later formation has a new id and
+        // its auto-join reports as normal.
+        it('reports the join of a federation formed after another was left', async () => {
+            const { simulator, joinStates } = joinReports('happyPath')
+            await payWithFreshPreview(simulator)
+            await jest.advanceTimersByTimeAsync(30_000)
+            const { federationId: leftId } = (await simulator.handle(
+                'parseInviteCode',
+                {},
+            )) as RpcParseInviteCodeResult
+            await simulator.handle('leaveFederation', {
+                federationId: leftId,
+            })
+            joinStates.length = 0
+
+            await payWithFreshPreview(simulator)
+            await jest.advanceTimersByTimeAsync(30_000)
+
+            const listing = walletServiceListing(simulator)
+            expect(listing).toBeDefined()
+            expect(listing?.id).not.toBe(leftId)
+            expect(joinStates).toEqual([{ type: 'joining' }, { type: 'ready' }])
+        })
+
+        // A seeded `formed` formation stands for a session that joined the
+        // federation long ago. The bridge finds it already `Ready` and reports
+        // that; a `joining` it never performed would put the dashboard back
+        // through a rejoin that is not happening.
+        it('alreadyFormed reports ready without a joining it never performed', () => {
+            const { simulator, joinStates } = joinReports('happyPath')
+
+            simulator.setScenario('alreadyFormed')
+
+            expect(joinStates).toEqual([{ type: 'ready' }])
+            expect(walletServiceListing(simulator)).toBeDefined()
+        })
     })
 })
 
 /*** helpers ***/
+
+/** A simulator whose `fiFederationJoin` reports are collected in order. */
+function joinReports(scenarioName: FiScenarioName) {
+    const simulator = new FiSimulator(scenarioName)
+    const joinStates: RpcFiFederationJoinState[] = []
+    const emitEvent = jest.fn((name: string, payload: unknown) => {
+        if (name === 'fiFederationJoin')
+            joinStates.push((payload as FiFederationJoinEvent).state)
+    })
+    simulator.attach(jest.fn(), emitEvent)
+    return { simulator, joinStates, emitEvent }
+}
+
+/** The wallet service's own federation as the wallet list would carry it. */
+const walletServiceListing = (simulator: FiSimulator) =>
+    simulator
+        .listMockFederations()
+        .find(federation => federation.id.startsWith('mock-wallet-service-'))
 
 const intentFor = (federationSize: number) => ({
     federationName: 'Test Service',

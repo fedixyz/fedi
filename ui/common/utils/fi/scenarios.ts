@@ -92,6 +92,25 @@ export interface FiScenario {
      */
     seedFormation: null | 'inProgress' | 'formed'
     /**
+     * Milliseconds between a formation reaching `formed` and its federation
+     * being joined.
+     *
+     * The bridge auto-joins a created federation exactly as it auto-joins a
+     * restored one — `formed_federation_invite` yields the invite for a
+     * `formation` status too — so the created path reports the same states. A
+     * created federation has no ecash to recover, so it goes straight from
+     * `joining` to `ready`.
+     *
+     * `null` means the join never lands: the created-path counterpart of a
+     * null {@link restoreJoinMs}.
+     */
+    createdJoinMs: number | null
+    /**
+     * Milliseconds after `formed` before a `null` {@link createdJoinMs} reports
+     * the join as failed. Unused when `createdJoinMs` is set.
+     */
+    createdJoinFailMs: number
+    /**
      * The network the simulated provider advertises.
      *
      * Discovery filters a provider against the federation's own network, so a
@@ -155,6 +174,18 @@ export interface FiScenario {
      * in dev. Unused when `restoreJoinMs` is set.
      */
     restoreJoinFailMs: number
+    /**
+     * Milliseconds the restored federation spends recovering its ecash after
+     * the join lands.
+     *
+     * The bridge lists a joined federation with `recovering` true until its
+     * ecash recovery finishes, and reports `fiFederationJoin`/`recovering` for
+     * that whole window; only then does it report `ready`. Collapsing the two
+     * skips the recovery checklist's `restoringBalance` row entirely. A created
+     * federation has nothing to recover, so this applies to the restore path
+     * alone.
+     */
+    restoreRecoveryMs: number
 }
 
 export type FormationPhaseName =
@@ -207,6 +238,8 @@ const baseScenario: FiScenario = {
     admitNewlyJoined: false,
     seedMockPayers: false,
     seedFormation: null,
+    createdJoinMs: 2_000,
+    createdJoinFailMs: 4_000,
     // the simulated federation is a dev one, so the provider advertises the
     // network a dev federation actually runs on
     liquidityNetwork: 'signet',
@@ -220,6 +253,7 @@ const baseScenario: FiScenario = {
     restoreReconcileMs: 6_000,
     restoreJoinMs: 8_000,
     restoreJoinFailMs: 10_000,
+    restoreRecoveryMs: 4_000,
 }
 
 const scenario = (overrides: Partial<FiScenario>): FiScenario => ({
@@ -342,6 +376,19 @@ export const fiScenarios = {
     /** Drop straight into a formed wallet service — the operator screens. */
     alreadyFormed: scenario({ seedFormation: 'formed' }),
 
+    /**
+     * The wallet service forms but its federation never joins.
+     *
+     * The created-path counterpart of {@link restoredBackupJoinFails}: the
+     * bridge reports `fiFederationJoin`/`failed` here too, and the dashboard
+     * deliberately answers it differently — a created service stays on the
+     * dashboard rather than being handed to the recovery checklist.
+     */
+    createdJoinFails: scenario({
+        seedFormation: 'inProgress',
+        createdJoinMs: null,
+    }),
+
     /** Slow everything down to inspect loading states. */
     slowNetwork: scenario({
         coldPreviewLatencyMs: 3_000,
@@ -432,15 +479,18 @@ export const fiScenarios = {
     /**
      * The same restore, slowed to human speed.
      *
-     * Both windows are stretched: reconciliation, so the recovery screen can be
-     * read, and the auto-join, so the state the dashboard has to survive —
+     * Every window is stretched: reconciliation, so the recovery screen can be
+     * read; the auto-join, so the state the dashboard has to survive —
      * recovery reported complete, federation not yet joined — stays on screen
-     * long enough to inspect. Real timings are in {@link restoredBackup}.
+     * long enough to inspect; and the ecash recovery that follows it, which is
+     * the checklist's `restoringBalance` row. Real timings are in
+     * {@link restoredBackup}.
      */
     restoredBackupSlowJoin: scenario({
         restoreOnLaunch: true,
         restoreReconcileMs: 60_000,
         restoreJoinMs: 60_000,
+        restoreRecoveryMs: 60_000,
     }),
 
     /** The backup is verified but the federation never joins — the silent-failure shape. */
@@ -498,6 +548,7 @@ export const FI_SCENARIO_GROUPS = [
             'alreadyFormed',
             'formationFails',
             'formationFailsTerminally',
+            'createdJoinFails',
             'reconnecting',
         ],
     },
@@ -570,6 +621,8 @@ export const FI_SCENARIO_STORYBOARD_FRAMES: Partial<
     lightningRejected: 'step 5 error banner, provider refused the request',
     lightningNeverVerifies: 'step 5 "still setting up" banner',
     lightningAlreadyAttaching: 'settings sheet locked, row reads Attaching…',
+    createdJoinFails:
+        'the dashboard once creation completes, with the join reported failed',
     restoredBackup: 'recovery progress screen, then the dashboard',
     restoredBackupSlowJoin:
         'the dashboard while the wallet service federation is still joining',
