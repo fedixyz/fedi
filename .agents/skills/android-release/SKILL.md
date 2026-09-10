@@ -89,9 +89,22 @@ A release committed as `inProgress` sits at its `userFraction` until changed. Ra
 
 The direct-download APK ships through a draft GitHub release on this repo, and the draft doubles as the release's state record:
 
-- the draft comes from CI: `release-production.yml` creates it as part of the full release build, and `upload-android-apk.yml` (manual dispatch) builds the APK alone. Both tag it with the bare version string (`26.X.Y`), attach the signed APK, and set the body to the build commit line. No draft for the version means no production build has run yet, so dispatch one. A draft publishes nothing and stays invisible outside the repo.
+- the draft comes from CI: `release-production.yml` creates it as part of the full release build, and `upload-android-apk.yml` (manual dispatch) builds the APK alone. Both name it for the bare version string (`26.X.Y`), attach the signed APK, and set the body to the build commit line. The name is not a git tag yet. A draft has no tag, and GitHub creates one only when someone publishes. No draft for the version means no production build has run yet, so dispatch one. A draft publishes nothing and stays invisible outside the repo.
 - the draft's body is where the release notes land before publishing. A published release is the strongest in-repo signal that a version actually shipped, and its body is the internal record of what went out, so a body still carrying only the commit line means the release notes have not been produced yet. Distill them (see the notes guidance in the staging step), get the user's sign-off, then stage them with `gh release edit <version> --notes-file <file>`, which finds drafts by tag and changes nothing visible. Never pass `--draft=false`, which is the publish switch. Shipped patches list their changes as short bullets; a feature release links and attaches the rendered release notes report.
 - publishing the release fires `deploy-public-apk-to-github.yml`, which deploys the APK to apk.fedi.xyz and refreshes the public repo's download release. The public side gets only a download link pointing at apk.fedi.xyz, never the APK binary or the notes body, because the download site can block sanctioned IPs and public GitHub releases cannot.
+
+### What shipped is the body's commit, never the tag
+
+GitHub cuts the tag when the draft is published, at whatever commit the draft targets, so the tag records where the repo stood at publish time rather than what was built. The release workflows pass `target_commitish: ${{ github.sha }}` to make those the same commit. Before that pin the draft carried no target and GitHub fell back to the default branch. `26.8.2` was built from `release/26.8` on 7 September and its tag landed on a master commit made the next day, so everything merged to master before then reads as shipped when you check the tag.
+
+The `Built from commit:` line comes from the build, so it always names what was built. Check that the two agree while the release is still a draft:
+
+```bash
+gh api repos/fedibtc/fedi/releases --jq '.[] | select(.tag_name=="26.X.Y") | .body' | head -1
+gh release view 26.X.Y --repo fedibtc/fedi --json targetCommitish --jq '.targetCommitish'
+```
+
+Repoint a target that is not the build commit with `gh release edit 26.X.Y --target <build-sha>`, and do it before handing the draft over. Once the release is published the tag exists, and moving it rewrites a ref other people have already fetched. Answer "did this ship" against the build commit either way. The `product-activity-report` skill's `shipped_status.py` does that for you.
 
 Publishing the release is the APK channel's release action and is never an agent action, under any instruction. The user publishes the draft themselves on GitHub.
 

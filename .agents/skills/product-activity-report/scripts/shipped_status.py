@@ -6,9 +6,11 @@ platform, and two traps make the obvious implementation confidently wrong.
 
 1. **The newest tag is not what users are running.** Web production is a manual
    `workflow_dispatch` against a `web/*` tag, so a tag can sit unreleased
-   forever. The deployed ref is the one the last SUCCESSFUL production run used,
-   and native's is the latest published release. Newest-tag is the fallback when
-   a repo offers neither, and it is labelled as unconfirmed when used.
+   forever. The deployed ref is the one the last SUCCESSFUL production run used.
+   Native's is the commit its newest published release records having been built
+   from, because a native tag is cut by GitHub at publish time and can name a
+   commit that never shipped. Newest-tag is the fallback when a repo offers
+   neither, and it is labelled as unconfirmed when used.
 
 2. **Containment is not ancestry.** Release lineages are cut from the previous
    release tag plus cherry-picks, never from master, so a shipped change's
@@ -35,6 +37,9 @@ TAG_RE = re.compile(r"^(?P<track>.*?/)?(?P<version>\d+\.\d+(?:\.\d+)?)$")
 
 # Workflows whose last successful run names the ref currently in production.
 DEPLOY_WORKFLOWS = {"web": "vercel-prod.yml"}
+
+# The line every release workflow writes into the release body at build time.
+BUILT_FROM_RE = re.compile(r"Built from commit: *([0-9a-f]{7,40})")
 
 
 def run(cmd, cwd=None):
@@ -76,14 +81,9 @@ def deployed_refs(repo, repo_path):
             ref, when = (out.split("\t") + [""])[:2]
             refs[track] = (ref, f"last successful {workflow} deploy, {when}")
 
-    code, out, _ = run(
-        ["gh", "release", "list", "--repo", repo, "--exclude-drafts",
-         "--exclude-pre-releases", "--limit", "1",
-         "--json", "tagName,publishedAt",
-         "--jq", '.[] | [.tagName, .publishedAt[0:10]] | @tsv'])
-    if code == 0 and out:
-        tag, when = (out.split("\t") + [""])[:2]
-        refs.setdefault("native", (tag, f"latest published release, {when}"))
+    native = native_release_ref(repo, repo_path)
+    if native:
+        refs.setdefault("native", native)
 
     # setdefault, not assignment: a real deploy already answered for this track.
     if repo_path:
@@ -102,11 +102,63 @@ def deployed_refs(repo, repo_path):
     return usable
 
 
-def have_ref(repo_path, ref):
+def native_release_ref(repo, repo_path):
+    """The newest published native release as (ref, provenance), or None.
+
+    Its tag is not the answer. The release workflows create the GitHub release
+    as a draft, so no tag exists until a human publishes it, and GitHub then
+    cuts the tag wherever the draft points. `26.8.2` shipped from `release/26.8`
+    and its tag landed on a master commit made a day later, which reads back as
+    every master commit before that point having shipped. The build itself
+    writes `Built from commit:` into the body, so that line is the record and
+    the tag is usable only once it agrees with it.
+    """
+    # The REST endpoint, not `gh release list`, which cannot return the body.
+    code, out, _ = run(
+        ["gh", "api", f"repos/{repo}/releases?per_page=30",
+         "--jq", '[.[] | select((.draft or .prerelease) | not)] '
+                 '| sort_by(.published_at) | last // empty '
+                 '| [.tag_name, .published_at[0:10], .body] | @tsv'])
+    if code != 0 or not out:
+        return None
+    tag, when, body = (out.split("\t") + ["", ""])[:3]
+
+    builds = []
+    for written in BUILT_FROM_RE.findall(body):
+        sha = rev_parse(repo_path, written)
+        if sha and sha not in builds:
+            builds.append(sha)
+
+    tag_sha = rev_parse(repo_path, tag)
+    if tag_sha and tag_sha in builds:
+        return tag, f"published release, tag agrees with its build record, {when}"
+    if builds:
+        return newest_commit(repo_path, builds)[:12], (
+            f"published release {tag} was built here; the {tag} tag points "
+            f"somewhere else and was ignored, {when}")
+    return tag, (f"published release {tag}, nothing to check the tag against, "
+                 f"NOT confirmed, {when}")
+
+
+def newest_commit(repo_path, shas):
+    """The most recent of `shas` by commit date; a rebuild appends a later build line."""
+    if len(shas) == 1:
+        return shas[0]
+    code, out, _ = run(["git", "show", "-s", "--format=%ct %H", *shas], cwd=repo_path)
+    dated = [line.split() for line in out.splitlines() if line.strip()] if code == 0 else []
+    return max(dated, key=lambda pair: int(pair[0]))[1] if dated else shas[-1]
+
+
+def rev_parse(repo_path, ref):
+    """The full sha `ref` names in this clone, or "" when it names nothing here."""
     if not repo_path or not ref:
-        return False
-    code, _, _ = run(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"], cwd=repo_path)
-    return code == 0
+        return ""
+    code, out, _ = run(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"], cwd=repo_path)
+    return out.strip() if code == 0 else ""
+
+
+def have_ref(repo_path, ref):
+    return bool(rev_parse(repo_path, ref))
 
 
 def grep_ref(repo_path, ref, needle):

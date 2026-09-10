@@ -71,6 +71,7 @@ jobs:
                   tag_name: ${{ steps.prep-apk.outputs.APK_VERSION }}
                   name: '${{ steps.prep-apk.outputs.APK_VERSION }}'
                   body: 'Built from commit: ${{ github.sha }}'
+                  target_commitish: ${{ github.sha }} # else publishing cuts the tag at master's head
                   draft: true
                   append_body: true
                   files: ${{ steps.prep-apk.outputs.APK_PATH }}

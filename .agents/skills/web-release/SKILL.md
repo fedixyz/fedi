@@ -23,7 +23,7 @@ Staging (`vercel-staging.yml`) is separate and auto-deploys from `master`; it is
 ## Preconditions
 
 - The commits you want to release are already merged to `master`, or exist on a branch you can cherry-pick from.
-- The corresponding native build for this cycle is already shipped, if the change is a flag that only takes effect on a specific app version.
+- The corresponding native build for this cycle is already shipped, if the change is a flag that only takes effect on a specific app version. Check that against the `Built from commit:` line in the newest published GitHub release, not against the `26.X.Y` tag. GitHub cuts that tag at publish time, and it has named a commit that never shipped. The `android-release` skill covers the lifecycle.
 - You have push access and permission to dispatch the production workflow. Dispatching touches live production, so get an explicit go before step 4.
 
 ## Steps
