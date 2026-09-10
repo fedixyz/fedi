@@ -10,14 +10,13 @@ import {
 } from '@fedi/common/hooks/fi'
 import { getFederationWelcomeMessage } from '@fedi/common/utils/FederationUtils'
 
-import CustomOverlay from '../../ui/CustomOverlay'
 import { Column, Row } from '../../ui/Flex'
-import { ScreenTitle } from '../../ui/ScreenTitle'
-import { SheetHandle } from '../../ui/SheetHandle'
+import { SheetDescription } from '../../ui/SheetDescription'
 import { Skeleton } from '../../ui/Skeleton'
 import { SuccessPill } from '../../ui/SuccessPill'
 import { WarningBanner } from '../../ui/WarningBanner'
 import { FederationLogo } from '../federations/FederationLogo'
+import { ServiceSheet } from './ServiceSheet'
 
 /**
  * A row at its tallest: 14pt of padding either side of a name (20), an
@@ -74,26 +73,18 @@ export const WalletServiceJoinSheet: React.FC<{
     const { t } = useTranslation()
 
     return (
-        <CustomOverlay
+        <ServiceSheet
             show={show}
-            onBackdropPress={onDismiss}
-            contents={{
-                title: (
-                    <Column fullWidth gap="xs">
-                        <SheetHandle />
-                        <ScreenTitle>
-                            {t('feature.wallet-service.join-sheet-title')}
-                        </ScreenTitle>
-                    </Column>
-                ),
-                // mounted only while open, so each open starts a fresh lookup
-                // and no answer from a previous open survives to be shown as
-                // the current one
-                body: show ? (
-                    <JoinSheetBody onDismiss={onDismiss} onJoin={onJoin} />
-                ) : null,
-            }}
-        />
+            onDismiss={onDismiss}
+            title={t('feature.wallet-service.join-sheet-title')}
+            buttons={[]}>
+            {/* mounted only while open, so each open starts a fresh lookup
+                and no answer from a previous open survives to be shown as
+                the current one */}
+            {show ? (
+                <JoinSheetBody onDismiss={onDismiss} onJoin={onJoin} />
+            ) : null}
+        </ServiceSheet>
     )
 }
 
@@ -143,9 +134,9 @@ const JoinSheetBody: React.FC<{
                 fullWidth
                 style={style.body}
                 testID="join-sheet-loading">
-                <Text caption style={style.subtitle}>
+                <SheetDescription>
                     {t('feature.wallet-service.join-sheet-body')}
-                </Text>
+                </SheetDescription>
                 <Column gap="sm" fullWidth>
                     {Array.from({ length: JOIN_SKELETON_ROWS }).map(
                         (_, index) => (
@@ -184,9 +175,9 @@ const JoinSheetBody: React.FC<{
 
     return (
         <Column gap="sm" fullWidth style={style.body}>
-            <Text caption style={style.subtitle}>
+            <SheetDescription>
                 {t('feature.wallet-service.join-sheet-body')}
-            </Text>
+            </SheetDescription>
             <Column gap="sm" fullWidth>
                 {services.map(service => (
                     <JoinableServiceRow
@@ -298,11 +289,6 @@ const styles = (theme: Theme) =>
         button: {
             // the Join button's radius, so its placeholder is its silhouette
             borderRadius: 16,
-        },
-        subtitle: {
-            color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.caption,
-            lineHeight: 20,
         },
         welcome: {
             color: theme.colors.darkGrey,

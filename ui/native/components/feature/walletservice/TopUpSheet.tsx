@@ -18,17 +18,15 @@ import { coerceTxn } from '@fedi/common/utils/transaction'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
-import CustomOverlay, { CustomOverlayContents } from '../../ui/CustomOverlay'
 import { Eyebrow } from '../../ui/Eyebrow'
 import { Column } from '../../ui/Flex'
 import QRCodeContainer from '../../ui/QRCodeContainer'
-import { ScreenTitle } from '../../ui/ScreenTitle'
 import { SelectableOptionCard } from '../../ui/SelectableOptionCard'
-import { SheetHandle } from '../../ui/SheetHandle'
 import { SUCCESS_PILL_GREEN, SUCCESS_PILL_GREEN_BG } from '../../ui/SuccessPill'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import { MilestoneSpinner } from './MilestoneSpinner'
+import { ServiceSheet, ServiceSheetButton } from './ServiceSheet'
 import { WalletServiceFederationRow } from './WalletServiceFederationRow'
 
 const log = makeLog('TopUpSheet')
@@ -75,6 +73,14 @@ const isFederationSource = (source: SelectedSource): source is TopUpSource =>
     source !== null && source !== EXTERNAL_SOURCE
 
 type TopUpView = 'amount' | 'source' | 'moving' | 'invoice' | 'join'
+
+type TopUpViewContents = {
+    title?: string
+    description?: string
+    showClose?: boolean
+    buttons: ServiceSheetButton[]
+    body?: React.ReactNode
+}
 
 export interface TopUpSheetProps {
     show: boolean
@@ -507,19 +513,6 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
 
     const style = styles(theme)
 
-    /**
-     * The sheet's own title block. `CustomOverlay` centres a 16px title, where
-     * the design leads each view with a left-aligned 20/500 line over a 12/400
-     * explanation, so both are handed over as the title node.
-     */
-    const buildSheetHeader = (title: string, subtitle?: string) => (
-        <Column fullWidth gap="xs">
-            <SheetHandle />
-            <ScreenTitle>{title}</ScreenTitle>
-            {subtitle && <Text style={style.sheetSubtitle}>{subtitle}</Text>}
-        </Column>
-    )
-
     /** The Bolt tile that stands in for a logo on the external-deposit rows. */
     const externalAdornment = (
         <Column align="center" justify="center" style={style.externalLogo}>
@@ -531,10 +524,11 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
      * One From/To surface (decision ②, 21 Aug). To is fixed — the payer is
      * predetermined by the confirm screen — and only From is selectable.
      */
-    const buildAmountContents = (): CustomOverlayContents => {
+    const buildAmountContents = (): TopUpViewContents => {
         const isMovingBetweenWallets = isFederationSource(selectedSource)
         return {
-            title: buildSheetHeader(t('feature.wallet-service.topup-title')),
+            title: t('feature.wallet-service.topup-title'),
+            showClose: true,
             // No receipt above this: `AmountInput` brings its own keypad, and
             // three summary rows pushed it past the bottom of the sheet. The
             // same three numbers are already on the screen behind — the banner
@@ -636,19 +630,18 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
      * The From picker. Tapping a row chooses it and returns — it does not move
      * anything, which is decision ④.
      */
-    const buildSourceContents = (): CustomOverlayContents => {
+    const buildSourceContents = (): TopUpViewContents => {
         const chooseSource = (source: SelectedSource) => {
             setSelectedSource(source)
             setView('amount')
         }
         return {
-            title: buildSheetHeader(
-                t('feature.wallet-service.topup-source-title', {
-                    amount: makeFormattedAmountsFromMSats(amountMsats)
-                        .formattedSats,
-                }),
-                t('feature.wallet-service.topup-source-body'),
-            ),
+            title: t('feature.wallet-service.topup-source-title', {
+                amount: makeFormattedAmountsFromMSats(amountMsats)
+                    .formattedSats,
+            }),
+            description: t('feature.wallet-service.topup-source-body'),
+            showClose: true,
             body: (
                 <Column gap="lg" fullWidth>
                     {sources.length > 0 && (
@@ -711,10 +704,10 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         }
     }
 
-    const buildMovingContents = (): CustomOverlayContents => ({
+    const buildMovingContents = (): TopUpViewContents => ({
         // no title while moving or moved: the tick and its caption carry the
         // whole state, and a heading above them restated the sheet's name
-        title: <SheetHandle />,
+        title: undefined,
         body: (
             <Column
                 align="center"
@@ -784,12 +777,10 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
               ],
     })
 
-    const buildInvoiceContents = (): CustomOverlayContents => {
+    const buildInvoiceContents = (): TopUpViewContents => {
         const depositAmounts = makeFormattedAmountsFromMSats(amountMsats)
         return {
-            title: buildSheetHeader(
-                t('feature.wallet-service.topup-source-external'),
-            ),
+            title: t('feature.wallet-service.topup-source-external'),
             body: (
                 <Column align="center" gap="md" fullWidth>
                     <Column align="center">
@@ -832,15 +823,13 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         }
     }
 
-    const buildJoinContents = (): CustomOverlayContents => ({
-        title: buildSheetHeader(
-            t('feature.wallet-service.topup-join-title'),
-            t('feature.wallet-service.topup-join-body', {
-                federation: isFederationSource(selectedSource)
-                    ? selectedSource.name
-                    : '',
-            }),
-        ),
+    const buildJoinContents = (): TopUpViewContents => ({
+        title: t('feature.wallet-service.topup-join-title'),
+        description: t('feature.wallet-service.topup-join-body', {
+            federation: isFederationSource(selectedSource)
+                ? selectedSource.name
+                : '',
+        }),
         buttons: [
             { text: t('words.cancel'), onPress: () => setView('source') },
             {
@@ -852,27 +841,32 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         ],
     })
 
-    const contentsByView: Record<TopUpView, () => CustomOverlayContents> = {
+    const contentsByView: Record<TopUpView, () => TopUpViewContents> = {
         amount: buildAmountContents,
         source: buildSourceContents,
         moving: buildMovingContents,
         invoice: buildInvoiceContents,
         join: buildJoinContents,
     }
+    const contents = contentsByView[view]()
 
     return (
-        <CustomOverlay
+        <ServiceSheet
             show={show}
-            onBackdropPress={onDismiss}
+            onDismiss={onDismiss}
             // spins the primary button and locks the sheet while an RPC is out.
             // The external-deposit path awaits its invoice here rather than on
             // the invoice view, so this is the surface that shows that wait.
             loading={isWorking}
             // the amount view's keypad must not scroll: at the default height
-            // its bottom row sits behind the pinned button
+            // its bottom row sits behind the button
             tall={view === 'amount'}
-            contents={contentsByView[view]()}
-        />
+            title={contents.title}
+            description={contents.description}
+            showClose={contents.showClose}
+            buttons={contents.buttons}>
+            {contents.body}
+        </ServiceSheet>
     )
 }
 
@@ -908,11 +902,6 @@ const styles = (theme: Theme) =>
             borderRadius: 10,
             height: 40,
             width: 40,
-        },
-        sheetSubtitle: {
-            color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.caption,
-            lineHeight: 20,
         },
         // the shared box: the ring waits in it and the tick lands in it, so the
         // caption below sits at one height for both

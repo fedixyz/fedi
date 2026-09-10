@@ -8,14 +8,19 @@ import { SERVICE_CARD_BG } from '../../../constants/walletServiceTheme'
 import { useKeyboard } from '../../../utils/hooks/keyboard'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column, Row } from '../../ui/Flex'
+import { PressableIcon } from '../../ui/PressableIcon'
+import { ScreenTitle } from '../../ui/ScreenTitle'
+import { SheetDescription } from '../../ui/SheetDescription'
 import { SheetHandle } from '../../ui/SheetHandle'
 import SvgImage from '../../ui/SvgImage'
+import { MilestoneSpinner } from './MilestoneSpinner'
 
 export interface ServiceSheetButton {
     text: string
     /** Filled ink pill; everything else is an outlined pill. */
     primary?: boolean
     disabled?: boolean
+    testID?: string
     onPress: () => void
 }
 
@@ -28,11 +33,16 @@ export interface ServiceSheetButton {
  */
 export const ServiceSheet: React.FC<{
     show: boolean
-    title: string
+    title?: string
     description?: string
     /** Hint in a bordered grey card — the design's `.note-line`. */
     note?: string
     loading?: boolean
+    /** Close icon beside the title; tapping it calls `onDismiss`. */
+    showClose?: boolean
+    closeTestID?: string
+    /** See `CustomOverlay`'s `tall`. */
+    tall?: boolean
     onDismiss: () => void
     /** Rendered in order, primary first. */
     buttons: ServiceSheetButton[]
@@ -43,6 +53,9 @@ export const ServiceSheet: React.FC<{
     description,
     note,
     loading,
+    showClose = false,
+    closeTestID,
+    tall,
     onDismiss,
     buttons,
     children,
@@ -67,16 +80,40 @@ export const ServiceSheet: React.FC<{
         <CustomOverlay
             show={show}
             loading={loading}
+            tall={tall}
             onBackdropPress={onDismiss}
             contents={{
                 title: (
                     <Column fullWidth style={style.sheetInset}>
                         <SheetHandle />
-                        <Text medium style={style.title}>
-                            {title}
-                        </Text>
-                        {description && (
-                            <Text style={style.description}>{description}</Text>
+                        {(title || description) && (
+                            <Column gap="xs">
+                                {title &&
+                                    (showClose ? (
+                                        <Row align="start" gap="sm">
+                                            <ScreenTitle style={style.grow}>
+                                                {title}
+                                            </ScreenTitle>
+                                            <PressableIcon
+                                                testID={closeTestID}
+                                                svgName="Close"
+                                                svgProps={{
+                                                    color: theme.colors
+                                                        .darkGrey,
+                                                    size: 20,
+                                                }}
+                                                onPress={onDismiss}
+                                            />
+                                        </Row>
+                                    ) : (
+                                        <ScreenTitle>{title}</ScreenTitle>
+                                    ))}
+                                {description && (
+                                    <SheetDescription>
+                                        {description}
+                                    </SheetDescription>
+                                )}
+                            </Column>
                         )}
                     </Column>
                 ),
@@ -101,27 +138,47 @@ export const ServiceSheet: React.FC<{
                             </Row>
                         )}
                         <Column fullWidth gap={8}>
-                            {buttons.map(button => (
-                                <Button
-                                    key={button.text}
-                                    fullWidth
-                                    title={button.text}
-                                    disabled={button.disabled}
-                                    onPress={button.onPress}
-                                    buttonStyle={[
-                                        style.button,
-                                        button.primary
-                                            ? style.buttonPrimary
-                                            : style.buttonSecondary,
-                                    ]}
-                                    titleStyle={[
-                                        style.buttonTitle,
-                                        button.primary
-                                            ? style.buttonTitlePrimary
-                                            : style.buttonTitleSecondary,
-                                    ]}
-                                />
-                            ))}
+                            {buttons.map(button =>
+                                loading && button.primary ? (
+                                    // the journey's own ring rather than the
+                                    // platform's spokes, in a box the height
+                                    // of the button it replaces so the sheet
+                                    // does not resize
+                                    <Row
+                                        key={button.text}
+                                        center
+                                        testID={
+                                            button.testID &&
+                                            `${button.testID}-busy`
+                                        }
+                                        style={style.busy}>
+                                        <MilestoneSpinner />
+                                    </Row>
+                                ) : (
+                                    <Button
+                                        key={button.text}
+                                        testID={button.testID}
+                                        fullWidth
+                                        title={button.text}
+                                        disabled={
+                                            loading ? true : button.disabled
+                                        }
+                                        onPress={button.onPress}
+                                        buttonStyle={[
+                                            style.button,
+                                            button.primary
+                                                ? style.buttonPrimary
+                                                : style.buttonSecondary,
+                                        ]}
+                                        titleStyle={[
+                                            style.buttonTitle,
+                                            button.primary
+                                                ? style.buttonTitlePrimary
+                                                : style.buttonTitleSecondary,
+                                        ]}
+                                    />
+                                ),
+                            )}
                         </Column>
                     </Column>
                 ),
@@ -136,18 +193,11 @@ const styles = (theme: Theme) =>
             // CustomOverlay insets 12pt where the design insets 20pt
             paddingHorizontal: 8,
         },
-        title: {
-            color: theme.colors.primary,
-            fontSize: fediTheme.fontSizes.h2,
-            lineHeight: 32,
-            marginBottom: 4,
-            textAlign: 'left',
+        grow: {
+            flex: 1,
         },
-        description: {
-            color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.caption,
-            lineHeight: 20,
-            textAlign: 'left',
+        busy: {
+            minHeight: theme.sizes.lg,
         },
         note: {
             backgroundColor: SERVICE_CARD_BG,

@@ -30,17 +30,13 @@ import {
     GUARDIAN_DETAILS_CARD_METRICS,
     GuardianDetailsSkeleton,
 } from '../components/feature/walletservice/GuardianDetailsSkeleton'
-import { MilestoneSpinner } from '../components/feature/walletservice/MilestoneSpinner'
+import { ServiceSheet } from '../components/feature/walletservice/ServiceSheet'
 import { WalletServiceScreenHeader } from '../components/feature/walletservice/WalletServiceScreenHeader'
-import CustomOverlay from '../components/ui/CustomOverlay'
 import { Eyebrow } from '../components/ui/Eyebrow'
 import { Column, Row } from '../components/ui/Flex'
 import HelpTooltip from '../components/ui/HelpTooltip'
 import { Pressable } from '../components/ui/Pressable'
-import { PressableIcon } from '../components/ui/PressableIcon'
 import { SafeScrollArea } from '../components/ui/SafeArea'
-import { ScreenTitle } from '../components/ui/ScreenTitle'
-import { SheetHandle } from '../components/ui/SheetHandle'
 import { Skeleton } from '../components/ui/Skeleton'
 import { SuccessPill } from '../components/ui/SuccessPill'
 import { SummaryRow } from '../components/ui/SummaryRow'
@@ -582,94 +578,44 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                 />
             </WalletServiceFooter>
 
-            {/* everything rides in `body`: the shared overlay centres its own
-                title and buttons, and it has 47 other consumers to not disturb */}
-            <CustomOverlay
+            <ServiceSheet
                 show={isConfirming}
                 loading={isSubmitting}
-                onBackdropPress={() => setIsConfirming(false)}
-                contents={{
-                    // the handle rides in `title`: `body` is inside a
-                    // ScrollView, which clips it and would scroll it away
-                    title: <SheetHandle />,
-                    body: (
-                        <Column gap="lg" style={style.sheet}>
-                            <Column gap="xs">
-                                <Row align="start" gap="sm">
-                                    <ScreenTitle style={style.grow}>
-                                        {t(
-                                            'feature.wallet-service.confirm-count-title',
-                                            { count: size },
-                                        )}
-                                    </ScreenTitle>
-                                    <PressableIcon
-                                        testID="confirm-count-close"
-                                        svgName="Close"
-                                        svgProps={{
-                                            color: theme.colors.darkGrey,
-                                            size: 20,
-                                        }}
-                                        onPress={() => setIsConfirming(false)}
-                                    />
-                                </Row>
-                                <Text style={style.sheetSubtitle}>
-                                    {t(
-                                        'feature.wallet-service.confirm-count-body',
-                                    )}
-                                </Text>
-                            </Column>
-                            <Column>
-                                <SummaryRow
-                                    isFirst
-                                    label={t(
-                                        'feature.wallet-service.guardians-label',
-                                    )}
-                                    value={t(
-                                        'feature.wallet-service.confirm-count-permanent',
-                                        { count: size },
-                                    )}
-                                />
-                                <SummaryRow
-                                    label={t(
-                                        'feature.wallet-service.resilience',
-                                    )}
-                                    value={`${t(`feature.wallet-service.${scale.resilience}`)} · ${t(
-                                        'feature.wallet-service.can-go-offline',
-                                        {
-                                            count: walletServiceFaultTolerance(
-                                                size,
-                                            ),
-                                        },
-                                    )}`}
-                                />
-                            </Column>
-                            {/* the journey's own ring rather than the
-                                platform's spokes, the same one the guardian
-                                set is found under. It stands in a box the
-                                height of the button it replaces, so confirming
-                                does not resize the sheet */}
-                            {isSubmitting ? (
-                                <Row
-                                    center
-                                    testID="confirm-count-busy"
-                                    style={style.confirmBusy}>
-                                    <MilestoneSpinner />
-                                </Row>
-                            ) : (
-                                <Button
-                                    fullWidth
-                                    testID="confirm-count-submit"
-                                    title={t(
-                                        'feature.wallet-service.confirm-count-cta',
-                                        { count: size },
-                                    )}
-                                    onPress={handleConfirm}
-                                />
-                            )}
-                        </Column>
-                    ),
-                }}
-            />
+                onDismiss={() => setIsConfirming(false)}
+                showClose
+                closeTestID="confirm-count-close"
+                title={t('feature.wallet-service.confirm-count-title', {
+                    count: size,
+                })}
+                description={t('feature.wallet-service.confirm-count-body')}
+                buttons={[
+                    {
+                        text: t('feature.wallet-service.confirm-count-cta', {
+                            count: size,
+                        }),
+                        primary: true,
+                        testID: 'confirm-count-submit',
+                        onPress: handleConfirm,
+                    },
+                ]}>
+                <Column>
+                    <SummaryRow
+                        isFirst
+                        label={t('feature.wallet-service.guardians-label')}
+                        value={t(
+                            'feature.wallet-service.confirm-count-permanent',
+                            { count: size },
+                        )}
+                    />
+                    <SummaryRow
+                        label={t('feature.wallet-service.resilience')}
+                        value={`${t(`feature.wallet-service.${scale.resilience}`)} · ${t(
+                            'feature.wallet-service.can-go-offline',
+                            { count: walletServiceFaultTolerance(size) },
+                        )}`}
+                    />
+                </Column>
+            </ServiceSheet>
         </>
     )
 }
@@ -693,10 +639,6 @@ const styles = (theme: Theme) =>
             fontSize: fediTheme.fontSizes.caption,
             fontWeight: '500',
             letterSpacing: -0.28,
-        },
-        confirmBusy: {
-            // holds the footprint of the button it stands in for
-            minHeight: theme.sizes.lg,
         },
         detailsLabel: {
             color: theme.colors.primary,
@@ -749,15 +691,6 @@ const styles = (theme: Theme) =>
         },
         grow: {
             flex: 1,
-        },
-        sheet: {
-            paddingHorizontal: theme.spacing.sm,
-            width: '100%',
-        },
-        sheetSubtitle: {
-            color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.caption,
-            lineHeight: 20,
         },
     })
 

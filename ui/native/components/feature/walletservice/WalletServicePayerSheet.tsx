@@ -13,19 +13,13 @@ import {
 import { LoadedFederation, MSats } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
-import CustomOverlay from '../../ui/CustomOverlay'
 import { Column, Row } from '../../ui/Flex'
-import { ScreenTitle } from '../../ui/ScreenTitle'
-import { SheetHandle } from '../../ui/SheetHandle'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
+import { ServiceSheet } from './ServiceSheet'
 
 /**
  * Which wallet pays for setup, on story 04.
- *
- * Renders its own heading inside `CustomOverlay`'s body rather than using the
- * overlay's `title` / `description`: those are centred app-wide and the wallet
- * service sheet is left aligned.
  */
 export const WalletServicePayerSheet: React.FC<{
     show: boolean
@@ -34,7 +28,6 @@ export const WalletServicePayerSheet: React.FC<{
     allowedFederationIds: string[]
 }> = ({ show, onDismiss, onSelect, allowedFederationIds }) => {
     const { t } = useTranslation()
-    const { theme } = useTheme()
     const federations = useAppSelector(selectLoadedFederations)
     const preview = useAppSelector(selectWalletServiceSelectionPreview)
     const { makeFormattedAmountsFromMSats } = useAmountFormatter({})
@@ -59,43 +52,26 @@ export const WalletServicePayerSheet: React.FC<{
           ).formattedSats.toLowerCase()
         : ''
 
-    const style = styles(theme)
-
     return (
-        <CustomOverlay
+        <ServiceSheet
             show={show}
-            onBackdropPress={onDismiss}
-            contents={{
-                // the handle rides in `title`: `body` is inside a ScrollView,
-                // which clips it and would scroll it away
-                title: <SheetHandle />,
-                body: (
-                    <Column gap="lg" style={style.sheet}>
-                        <Column gap="xs">
-                            <ScreenTitle>
-                                {t('feature.wallet-service.select-payer-title')}
-                            </ScreenTitle>
-                            <Text style={style.sheetSubtitle}>
-                                {t(
-                                    'feature.wallet-service.select-payer-subtitle',
-                                    { amount: total },
-                                )}
-                            </Text>
-                        </Column>
-
-                        <Column gap="sm" fullWidth>
-                            {payers.map(federation => (
-                                <PayerOption
-                                    key={federation.id}
-                                    federation={federation}
-                                    onSelect={onSelect}
-                                />
-                            ))}
-                        </Column>
-                    </Column>
-                ),
-            }}
-        />
+            onDismiss={onDismiss}
+            showClose
+            title={t('feature.wallet-service.select-payer-title')}
+            description={t('feature.wallet-service.select-payer-subtitle', {
+                amount: total,
+            })}
+            buttons={[]}>
+            <Column gap="sm" fullWidth>
+                {payers.map(federation => (
+                    <PayerOption
+                        key={federation.id}
+                        federation={federation}
+                        onSelect={onSelect}
+                    />
+                ))}
+            </Column>
+        </ServiceSheet>
     )
 }
 
@@ -165,16 +141,5 @@ const styles = (theme: Theme) =>
             borderWidth: 1,
             padding: 14,
             width: '100%',
-        },
-        // these three match the guardian confirm sheet in `CreateWalletService`
-        // so the two wallet service sheets read as one component
-        sheet: {
-            paddingHorizontal: theme.spacing.sm,
-            width: '100%',
-        },
-        sheetSubtitle: {
-            color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.caption,
-            lineHeight: 20,
         },
     })
