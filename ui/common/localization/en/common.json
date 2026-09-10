@@ -1653,6 +1653,8 @@
             "join-card-button": "Join a Wallet Service",
             "join-card-title": "Join an eligible Wallet Service to finish setup",
             "join-eligible-pill": "Eligible Wallet Service",
+            "join-failed-body": "Restart the app to try again, or contact Fedi Support and quote your Wallet Service name.",
+            "join-failed-title": "We could not join your federation",
             "join-sheet-body": "Joining is free, and you can top it up straight after.",
             "join-sheet-check-again": "Check again",
             "join-sheet-empty-body": "Guardian setup is paid in ecash from a wallet service that is trusted for setup payments. There is nothing to join right now — new ones appear over time.",

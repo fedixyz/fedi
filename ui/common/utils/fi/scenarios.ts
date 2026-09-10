@@ -382,7 +382,8 @@ export const fiScenarios = {
      * The created-path counterpart of {@link restoredBackupJoinFails}: the
      * bridge reports `fiFederationJoin`/`failed` here too, and the dashboard
      * deliberately answers it differently — a created service stays on the
-     * dashboard rather than being handed to the recovery checklist.
+     * dashboard rather than being handed to the recovery checklist, and shows
+     * the join-failed card in place of the balance.
      */
     createdJoinFails: scenario({
         seedFormation: 'inProgress',
@@ -622,7 +623,7 @@ export const FI_SCENARIO_STORYBOARD_FRAMES: Partial<
     lightningNeverVerifies: 'step 5 "still setting up" banner',
     lightningAlreadyAttaching: 'settings sheet locked, row reads Attaching…',
     createdJoinFails:
-        'the dashboard once creation completes, with the join reported failed',
+        'the dashboard once creation completes, with the join-failed card in place of the balance',
     restoredBackup: 'recovery progress screen, then the dashboard',
     restoredBackupSlowJoin:
         'the dashboard while the wallet service federation is still joining',

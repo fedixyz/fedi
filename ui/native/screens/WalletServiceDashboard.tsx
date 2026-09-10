@@ -27,6 +27,7 @@ import type { GuardianStatus } from '@fedi/common/types/bindings'
 import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
 import { WalletServiceDashboardHeader } from '../components/feature/walletservice/WalletServiceDashboardHeader'
 import { WalletServiceInviteSheet } from '../components/feature/walletservice/WalletServiceInviteSheet'
+import { WalletServiceJoinFailed } from '../components/feature/walletservice/WalletServiceJoinFailed'
 import {
     WalletServiceTour,
     type WalletServiceTourStep,
@@ -141,8 +142,14 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     // where this screen is where the user belongs; handing that one over would
     // put the creation checklist, its confetti and its fee onboarding in front
     // of someone whose service was created long ago.
-    const isRestoredService =
-        useAppSelector(selectFiStatus)?.type === 'restored'
+    // the type alone, not the status: the object is replaced on every snapshot
+    // the bridge reports, and neither of the two decisions below moves with it
+    const fiStatusType = useAppSelector(s => selectFiStatus(s)?.type ?? null)
+    const isRestoredService = fiStatusType === 'restored'
+    // The created counterpart, which stays here and is answered here: the
+    // bridge runs its auto-join once per start, so no spinner on this screen
+    // is describing anything that is still happening.
+    const hasCreatedJoinFailed = fiStatusType === 'formation' && hasJoinFailed
     // No loop back: Progress only returns here once the service is usable,
     // which means the wallet is ready — exactly the condition that makes a
     // retained failure stale in `selectFiFederationJoinFailure`.
@@ -378,6 +385,10 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                                                       )}
                                             </Text>
                                         </>
+                                    ) : hasCreatedJoinFailed ? (
+                                        <WalletServiceJoinFailed
+                                            federationId={federationId}
+                                        />
                                     ) : (
                                         <RecoveryInProgress
                                             federationId={federationId ?? ''}

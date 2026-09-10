@@ -7,7 +7,11 @@ import {
 } from '@testing-library/react-native'
 import { ScrollView, StyleSheet } from 'react-native'
 
-import { setFiFederationJoin, setupStore } from '@fedi/common/redux'
+import {
+    setFederations,
+    setFiFederationJoin,
+    setupStore,
+} from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { MSats } from '@fedi/common/types'
@@ -37,6 +41,16 @@ const INVITE_CODE = 'fed11invitecode'
  * props the screen hands it.
  */
 const mockTourRender = jest.fn()
+
+/**
+ * The support hook is mocked rather than the Zendesk module beneath it, same
+ * as `WalletServiceProgress.test.tsx`: this screen's contract is "the support
+ * action opens support", not how `useLaunchZendesk` gets there.
+ */
+const mockLaunchZendesk = jest.fn()
+jest.mock('../../../utils/hooks/support', () => ({
+    useLaunchZendesk: () => ({ launchZendesk: mockLaunchZendesk }),
+}))
 
 jest.mock(
     '../../../components/feature/walletservice/WalletServiceTour',
@@ -395,6 +409,142 @@ describe('screens/WalletServiceDashboard', () => {
         })
 
         expect(mockNavigation.replace).not.toHaveBeenCalled()
+    })
+
+    it('should keep the spinner for a created service whose join has not failed', async () => {
+        const { queryByTestId } = renderScreen({ federationJoined: false })
+        await waitFor(() => {})
+
+        expect(
+            queryByTestId('wallet-service-recovery-in-progress'),
+        ).not.toBeNull()
+        expect(queryByTestId('wallet-service-join-failed')).toBeNull()
+    })
+
+    // The spinner says "working on it" about a join the bridge has already
+    // given up on — nothing on this device retries it before the next launch.
+    it('should replace the spinner with a failure card when a created join fails', async () => {
+        const { store } = renderScreen({ federationJoined: false })
+        await waitFor(() => {})
+
+        await act(async () => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'failed', message: 'guardian unreachable' },
+                }),
+            )
+        })
+
+        expect(
+            screen.getByTestId('wallet-service-join-failed'),
+        ).toBeOnTheScreen()
+        expect(
+            screen.queryByTestId('wallet-service-recovery-in-progress'),
+        ).toBeNull()
+        expect(screen.getByTestId('wallet-service-withdraw')).toBeDisabled()
+        expect(mockNavigation.replace).not.toHaveBeenCalled()
+        // the card takes the balance slot only: the guardian line is still the
+        // one the FI snapshot decides
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.dashboard-guardian-count', {
+                    total: 7,
+                }),
+            ),
+        ).toBeOnTheScreen()
+    })
+
+    // the failure goes stale the moment the federation it names is ready, so
+    // the card has to give way on its own rather than wait for a remount
+    it('should give the card up for the balance once the federation loads', async () => {
+        const { store } = renderScreen({ federationJoined: false })
+        await waitFor(() => {})
+
+        await act(async () => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'failed', message: 'guardian unreachable' },
+                }),
+            )
+        })
+        expect(
+            screen.getByTestId('wallet-service-join-failed'),
+        ).toBeOnTheScreen()
+
+        await act(async () => {
+            store.dispatch(
+                setFederations([
+                    {
+                        ...mockFederation1,
+                        id: WALLET_SERVICE_FEDERATION_ID,
+                        name: formation.intent.federationName,
+                        balance: 21_000_000 as MSats,
+                        recovering: false,
+                    },
+                ]),
+            )
+        })
+
+        await waitFor(() =>
+            expect(
+                screen.queryByTestId('wallet-service-join-failed'),
+            ).toBeNull(),
+        )
+        expect(
+            screen.getByTestId('wallet-service-balance-amount'),
+        ).toBeOnTheScreen()
+    })
+
+    // the restored path is handed to WalletServiceProgress's terminal state,
+    // which owns the frozen checklist this card has no counterpart for
+    it('should not show the failure card for a restored service', async () => {
+        const { store } = renderScreen({
+            status: restoredStatus('fresh'),
+            federationJoined: false,
+        })
+        await waitFor(() => {})
+
+        await act(async () => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'failed', message: 'guardian unreachable' },
+                }),
+            )
+        })
+
+        expect(screen.queryByTestId('wallet-service-join-failed')).toBeNull()
+        expect(mockNavigation.replace).toHaveBeenCalledWith(
+            'WalletServiceProgress',
+        )
+    })
+
+    it('should open a tagged support conversation from the failure card', async () => {
+        const { store } = renderScreen({ federationJoined: false })
+        await waitFor(() => {})
+
+        await act(async () => {
+            store.dispatch(
+                setFiFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'failed', message: 'guardian unreachable' },
+                }),
+            )
+        })
+        await user.press(screen.getByTestId('contact-support-button'))
+
+        // an untagged open leaves support with an open-ended chat instead of
+        // knowing which wallet service to look at
+        await waitFor(() =>
+            expect(mockLaunchZendesk).toHaveBeenCalledWith(false, {
+                conversationTags: [
+                    'wallet-service-recovery-failed',
+                    `wallet-service-${WALLET_SERVICE_FEDERATION_ID}`,
+                ],
+            }),
+        )
     })
 
     it('should stay on the dashboard while the rejoin has not failed', async () => {
