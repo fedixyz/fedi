@@ -124,20 +124,7 @@ export class IntegrationTestBuilder {
     }
 
     /**
-     * Ensures this user has joined `roomId`, given an invite already sent to
-     * them.
-     *
-     * Membership reaches redux from the sync loop, so it can flip to `joined`
-     * on its own at any moment. Reading `roomState` and then dispatching a
-     * join off that snapshot raced that: when the sync landed in between, the
-     * bridge rejected the join with
-     * `wrong room state: expected: Invited or Left, got: Joined`.
-     *
-     * So wait for the room to settle on a state a join can act on, dispatch
-     * from a fresh read, and treat a rejection as success only once the room
-     * list confirms the room is joined anyway — the outcome the caller asked
-     * for. A join that fails for any other reason still throws, carrying the
-     * bridge's own message and the state the room was left in.
+     * Ensures this user has joined `roomId` after an invite
      */
     async withRoomJoined(
         roomId: MatrixRoom['id'],
@@ -147,8 +134,6 @@ export class IntegrationTestBuilder {
         const roomStateOf = () =>
             selectMatrixRoom(store.getState(), roomId)?.roomState
 
-        // `invited` and `joined` are the only states a join can act on, so
-        // anything else here means the invite did not arrive as expected
         await this.waitFor(() => {
             expect(['invited', 'joined']).toContain(roomStateOf())
         })
@@ -166,9 +151,8 @@ export class IntegrationTestBuilder {
                         .unwrap()
                 })
             } catch (e) {
-                // The bridge knowing the room is joined can lead redux by a
-                // sync tick, so give the room list a bounded moment to agree
-                // before calling this a real failure.
+                // the sync loop can join the room first and the bridge then
+                // rejects this join, so only fail if the room list disagrees
                 await this.waitFor(
                     () => {
                         expect(roomStateOf()).toBe('joined')
