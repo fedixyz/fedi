@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
+import { setupOnboarded } from '../fixtures/setupOnboarded'
 import {
     acceptCameraPermissionIfPresent,
     allowPasteIfPrompted,
@@ -41,6 +42,7 @@ function getPublicFederationInvite(federationName: string): string {
 export class JoinLeaveFederation extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
     static produces = ['onboarded', 'extraFederationsJoined'] as const
+    static actors = 2
 
     // The app rejects leaving any federation while another federation is
     // still recovering (#3754), and re-joining a previously-left federation
@@ -48,11 +50,36 @@ export class JoinLeaveFederation extends AppiumTestBase {
     // blockchain scan, so a single leave attempt is not enough.
     private async leaveFederationViaAccordion(
         accordionKey: string,
+        leaveKey: string,
         federationName: string,
     ): Promise<void> {
         const deadline = Date.now() + 120000
         while (Date.now() < deadline) {
-            await this.clickElementByKey('Leave Federation')
+            // the accordion click toggles, so only expand when the leave
+            // item is not already on the list
+            if ((await this.scrollToElement(leaveKey)) === null) {
+                if (
+                    (await this.scrollToElement(accordionKey, {
+                        scrollDirection: 'up',
+                    })) === null
+                ) {
+                    return
+                }
+                await this.clickElementByKey(accordionKey)
+                await this.scrollToElement(leaveKey)
+            }
+            await this.clickElementByKey(leaveKey)
+            if (
+                !(await this.isTextPresent(
+                    `Leave Federation - ${federationName}`,
+                    false,
+                    5000,
+                ))
+            ) {
+                throw new Error(
+                    `Failed - the leave confirmation shown is not for ${federationName}`,
+                )
+            }
             await this.acceptAlert('Yes')
             if (await this.waitForElementToDisappear(accordionKey, 10000)) {
                 return
@@ -60,6 +87,8 @@ export class JoinLeaveFederation extends AppiumTestBase {
             console.log(
                 `Leaving ${federationName} was rejected, likely because a recovery is still in progress. Retrying...`,
             )
+            await this.clickElementByKey('HeaderCloseButton')
+            await this.clickElementByKey('AvatarButton')
         }
         throw new Error(
             `Failed - ${federationName} accordion is in the account settings after leaving`,
@@ -88,8 +117,33 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await this.waitForElementDisplayed(detailsButtonKey, 45000)
     }
 
+    private async copyFederationInviteFromSettings(
+        accordionKey: string,
+    ): Promise<string> {
+        await this.clickElementByKey('AvatarButton')
+        await this.scrollToElement(accordionKey)
+        await this.clickElementByKey(accordionKey)
+        await this.scrollToElement('Invite Members')
+        await this.clickElementByKey('Invite Members')
+        await this.waitForElementDisplayed('TrueUsername')
+        await this.setClipboard('')
+        await this.clickOnText('Copy', 0, true)
+        const invite = (await this.getClipboard()).trim()
+        if (!invite.toLowerCase().startsWith('fed1')) {
+            throw new Error(
+                `generated federation invite was not copied: "${invite.slice(0, 40)}"`,
+            )
+        }
+        await this.clickElementByKey('FederationInviteCloseButton')
+        await this.clickElementByKey('HeaderCloseButton')
+        return invite
+    }
+
     async execute(): Promise<void> {
         console.log('Starting Joining Public Federation Test')
+        const bob = await this.spawnActor('b')
+        await setupOnboarded.run(bob)
+
         await this.clickElementByKey('WalletTabButton')
         await this.waitForElementDisplayed('FediTestnetDetailsButton', 2000)
         await this.joinFederationByPastedInvite(
@@ -105,6 +159,28 @@ export class JoinLeaveFederation extends AppiumTestBase {
             )
         }
         // END of the process of joining a Public Federation by pasted invite code
+        console.log('Joining a second actor by a generated federation invite')
+        const generatedInvite = await this.copyFederationInviteFromSettings(
+            'E-CashClubFedAccordionButton',
+        )
+        await bob.clickElementByKey('HomeTabButton')
+        await bob.clickElementByKey('PlusButton')
+        await bob.clickElementByKey('joinTab')
+        await acceptCameraPermissionIfPresent(bob)
+        await bob.setClipboard(generatedInvite)
+        await bob.clickElementByKey('PasteButton')
+        await allowPasteIfPrompted(bob)
+        await bob.clickOnText('Continue', 0, true)
+        await bob.waitForElementDisplayed('JoinFederationButton', 45000)
+        if (!(await bob.isTextPresent(INVITE_PREVIEW_FEDERATION_NAME))) {
+            throw new Error(
+                `Generated invite preview does not show "${INVITE_PREVIEW_FEDERATION_NAME}"`,
+            )
+        }
+        await bob.clickElementByKey('JoinFederationButton')
+        await bob.waitForElementDisplayed('E-CashClubDetailsButton', 45000)
+        console.log('Generated federation invite joined by second actor')
+
         await this.clickElementByKey('PlusButton')
         await this.scrollToElement('BitcoinPrinciplesJoinButton')
         await this.clickElementByKey('BitcoinPrinciplesJoinButton')
@@ -154,6 +230,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await this.scrollToElement('Leave Federation')
         await this.leaveFederationViaAccordion(
             'BitcoinPrinciplesFedAccordionButton',
+            'BitcoinPrinciplesLeaveFederationButton',
             'Bitcoin Principles',
         )
         await this.clickElementByKey('HeaderCloseButton')
@@ -221,6 +298,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         }
         await this.leaveFederationViaAccordion(
             'E-CashClubFedAccordionButton',
+            'E-CashClubLeaveFederationButton',
             'E-Cash Club',
         )
         await this.clickElementByKey('HeaderCloseButton')

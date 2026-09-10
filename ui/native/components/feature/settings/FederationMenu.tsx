@@ -175,6 +175,9 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
                         }
                     />
                     <SettingsItem
+                        testID={federation.name
+                            .concat('LeaveFederationButton')
+                            .replaceAll(' ', '')}
                         icon="LeaveFederation"
                         label={t('feature.federations.leave-federation')}
                         onPress={handleLeavePressed}
