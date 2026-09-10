@@ -100,7 +100,7 @@ use rpc_types::fi_client::{
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::FI_CLIENT_CHILD_ID;
 use runtime::db::{FederationPendingRejoinFromScratchKeyPrefix, FiFederationAutoJoinCompletedKey};
-use runtime::features::RuntimeEnvironment;
+use runtime::features::FiManifoldEnvironment;
 use sp_transfer::services::SptServices;
 use tokio::sync::{Mutex, OnceCell, OwnedMutexGuard, mpsc, oneshot, watch};
 use tokio_stream::wrappers::WatchStream;
@@ -134,12 +134,14 @@ const LIQUIDITY_CONNECTION_ERROR: &str = "Liquidity provider connection failed";
 pub(crate) async fn open_fi_client(
     runtime: &Runtime,
     federations: Arc<Federations>,
+    environment: FiManifoldEnvironment,
 ) -> FiResult<BridgeFiClient> {
     let database = runtime.fi_client_db();
     migrate_fi_guardian_fee_field(&database).await?;
     let root_secret = runtime.app_state.root_secret().await;
     let identity = BridgeFiIdentity::from_root_secret(&root_secret);
-    let environment = manifold_environment(runtime.feature_catalog.runtime_env);
+    let environment = manifold_environment(environment);
+    tracing::info!(?environment, "opening the FI client");
     let profile = environment
         .profile()
         .map_err(|_| FiError::Registry("Manifold environment profile is unavailable".to_owned()))?;
@@ -644,11 +646,11 @@ pub(crate) async fn suppress_fi_federation_auto_join(runtime: &Runtime, federati
     complete_fi_federation_auto_join(&runtime.bridge_db(), federation_id).await;
 }
 
-fn manifold_environment(environment: RuntimeEnvironment) -> ManifoldEnvironment {
+fn manifold_environment(environment: FiManifoldEnvironment) -> ManifoldEnvironment {
     match environment {
-        RuntimeEnvironment::Dev | RuntimeEnvironment::Tests => ManifoldEnvironment::Development,
-        RuntimeEnvironment::Staging => ManifoldEnvironment::Staging,
-        RuntimeEnvironment::Edge | RuntimeEnvironment::Prod => ManifoldEnvironment::Production,
+        FiManifoldEnvironment::Development => ManifoldEnvironment::Development,
+        FiManifoldEnvironment::Staging => ManifoldEnvironment::Staging,
+        FiManifoldEnvironment::Production => ManifoldEnvironment::Production,
     }
 }
 
@@ -1963,6 +1965,7 @@ pub(crate) fn start_fi_driver(
     federations: Arc<Federations>,
     push_gateway: Result<Arc<BridgeFiPushGateway>, Arc<FiPushError>>,
     restore_on_launch: bool,
+    environment: FiManifoldEnvironment,
 ) -> BridgeFiDriver {
     let (sender, receiver) = mpsc::channel(FI_DRIVER_QUEUE_CAPACITY);
     let liquidity_connector = Arc::new(BridgeLiquidityConnector::default());
@@ -1971,7 +1974,7 @@ pub(crate) fn start_fi_driver(
     let formation_state = Arc::new(FormationLocalState::new(push_gateway));
     let restore_profile =
         (restore_on_launch && matches!(client.status(), FiStatus::Idle)).then(|| {
-            manifold_environment(runtime.feature_catalog.runtime_env)
+            manifold_environment(environment)
                 .profile()
                 .expect("the Manifold profile was validated when the FI client opened")
         });

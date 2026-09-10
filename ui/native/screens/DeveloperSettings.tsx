@@ -72,6 +72,7 @@ import {
 } from '@fedi/common/redux/personal-backup-reminder/personalBackupReminderSelectors'
 import { FediModCacheMode, SupportedCurrency } from '@fedi/common/types'
 import {
+    FiManifoldEnvironment,
     GuardianStatus,
     RpcFediFeeStream,
     RpcLightningGateway,
@@ -108,6 +109,12 @@ import {
 } from '../utils/logSpikeSimulator'
 
 const log = makeLog('DeveloperSettings')
+
+const MANIFOLD_ENVIRONMENTS: FiManifoldEnvironment[] = [
+    'Development',
+    'Staging',
+    'Production',
+]
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -232,9 +239,18 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     )
     const fedimint = useFedimint()
     const canResetFi = isDev() || isExperimental()
+    const [fiManifoldEnvironment, setFiManifoldEnvironment] =
+        useState<FiManifoldEnvironment | null>(null)
 
     // This is a partial refactor of state management from context to redux
     const reduxDispatch = useAppDispatch()
+
+    useEffect(() => {
+        fedimint
+            .getFiManifoldEnvironment()
+            .then(setFiManifoldEnvironment)
+            .catch(error => log.error('getFiManifoldEnvironment failed', error))
+    }, [fedimint])
 
     useEffect(() => {
         if (paymentFederation) {
@@ -479,6 +495,39 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         )
     }
 
+    const handleSelectManifoldEnvironment = (
+        environment: FiManifoldEnvironment,
+    ) => {
+        if (environment === fiManifoldEnvironment) return
+        Alert.alert(
+            `Use the ${environment.toLowerCase()} Manifold environment?`,
+            'This also wipes all wallet-service test state, because a wallet service formed against the other environment would stay in the way. Restart immediately afterwards. Any federation you already joined stays joined.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Switch and wipe',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await fedimint.setFiManifoldEnvironment(environment)
+                            setFiManifoldEnvironment(environment)
+                            toast.show({
+                                content: `Manifold environment set to ${environment.toLowerCase()}. Restart the app now.`,
+                                status: 'success',
+                            })
+                        } catch (error) {
+                            log.error('setFiManifoldEnvironment failed', error)
+                            toast.show({
+                                content: `Switch failed: ${error}`,
+                                status: 'error',
+                            })
+                        }
+                    },
+                },
+            ],
+        )
+    }
+
     const handleClearGatewayOverride = async () => {
         if (!paymentFederation?.id) return
 
@@ -675,6 +724,28 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         containerStyle={style.buttonContainer}
                         onPress={handleScheduleFiReset}
                     />
+                )}
+                {canResetFi && fiManifoldEnvironment && (
+                    <>
+                        <Text small style={style.switchLabel}>
+                            {`Manifold environment: ${fiManifoldEnvironment.toLowerCase()}. This picks the Nostr relay the wallet service flow discovers Fleet Managers on, whose trust badges it accepts, and the Bitcoin network it forms on. Takes effect on the next restart.`}
+                        </Text>
+                        {MANIFOLD_ENVIRONMENTS.map(environment => (
+                            <Button
+                                key={environment}
+                                day
+                                title={
+                                    environment === fiManifoldEnvironment
+                                        ? `✓ ${environment}`
+                                        : environment
+                                }
+                                containerStyle={style.buttonContainer}
+                                onPress={() =>
+                                    handleSelectManifoldEnvironment(environment)
+                                }
+                            />
+                        ))}
+                    </>
                 )}
                 <View style={style.switchWrapper}>
                     <View style={style.switchLabelContainer}>

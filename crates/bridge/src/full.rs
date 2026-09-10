@@ -447,6 +447,7 @@ impl BridgeFull {
 
         let nostril = Arc::new(Nostril::new(&runtime).await);
         let push_root_secret = runtime.app_state.root_secret().await;
+        let fi_manifold_environment = runtime.fi_manifold_environment().await;
         let fi_push_gateway = BridgeFiPushGateway::from_parts(
             &push_root_secret,
             runtime.feature_catalog.runtime_env,
@@ -459,7 +460,7 @@ impl BridgeFull {
         )
         .map(Arc::new)
         .map_err(Arc::new);
-        let fi_client = open_fi_client(&runtime, federations.clone())
+        let fi_client = open_fi_client(&runtime, federations.clone(), fi_manifold_environment)
             .await
             .map(Arc::new)
             .map_err(Arc::new);
@@ -472,6 +473,7 @@ impl BridgeFull {
                 federations.clone(),
                 fi_push_gateway.clone(),
                 restore_fi_on_launch,
+                fi_manifold_environment,
             )
         });
 

@@ -81,7 +81,7 @@ use rpc_types::{
 use runtime::api::{IFediApi, LiveFediApi, MockFediApi};
 use runtime::bridge_runtime::Runtime;
 use runtime::event::IEventSink;
-use runtime::features::{FeatureCatalog, RuntimeEnvironment};
+use runtime::features::{FeatureCatalog, FiManifoldEnvironment, RuntimeEnvironment};
 use runtime::rpc_stream::{RpcStreamId, RpcVecDiffStreamId};
 use runtime::storage::state::FiatFXInfo;
 use runtime::storage::{BRIDGE_DB_PREFIX, OnboardingCompletionMethod, Storage};
@@ -1234,6 +1234,19 @@ async fn getSensitiveLog(runtime: Arc<Runtime>) -> anyhow::Result<bool> {
 #[macro_rules_derive(rpc_method!)]
 async fn setSensitiveLog(runtime: Arc<Runtime>, enable: bool) -> anyhow::Result<()> {
     runtime.set_sensitive_log(enable).await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn getFiManifoldEnvironment(runtime: Arc<Runtime>) -> anyhow::Result<FiManifoldEnvironment> {
+    Ok(runtime.fi_manifold_environment().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn setFiManifoldEnvironment(
+    runtime: Arc<Runtime>,
+    environment: FiManifoldEnvironment,
+) -> anyhow::Result<()> {
+    runtime.set_fi_manifold_environment(environment).await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2936,6 +2949,8 @@ rpc_methods!(RpcMethods {
     // Developer
     getSensitiveLog,
     setSensitiveLog,
+    getFiManifoldEnvironment,
+    setFiManifoldEnvironment,
     internalMarkBridgeExport,
     internalExportBridgeState,
     setMintModuleFediFeeSchedule,

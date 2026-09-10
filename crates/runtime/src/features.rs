@@ -48,6 +48,15 @@ pub enum RuntimeEnvironment {
     Prod,
 }
 
+/// Only the FI client reads this, not chat or device registration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TS, Serialize, Deserialize)]
+#[ts(export)]
+pub enum FiManifoldEnvironment {
+    Development,
+    Staging,
+    Production,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

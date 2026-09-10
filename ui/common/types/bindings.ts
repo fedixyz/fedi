@@ -289,6 +289,11 @@ export type FiFederationJoinEvent = {
   state: RpcFiFederationJoinState;
 };
 
+/**
+ * Only the FI client reads this, not chat or device registration.
+ */
+export type FiManifoldEnvironment = "Development" | "Staging" | "Production";
+
 export type FiPushGatewayFeatureConfig = {
   /**
    * Public HTTPS management origin. Callback bearer paths are returned by
@@ -1677,6 +1682,8 @@ export type RpcMethods = {
   spv2StartFastSync: [spv2StartFastSync, null];
   getSensitiveLog: [getSensitiveLog, boolean];
   setSensitiveLog: [setSensitiveLog, null];
+  getFiManifoldEnvironment: [getFiManifoldEnvironment, FiManifoldEnvironment];
+  setFiManifoldEnvironment: [setFiManifoldEnvironment, null];
   internalMarkBridgeExport: [internalMarkBridgeExport, null];
   internalExportBridgeState: [internalExportBridgeState, null];
   setMintModuleFediFeeSchedule: [setMintModuleFediFeeSchedule, null];
@@ -2902,6 +2909,8 @@ export type getAccruedPendingFediFeesPerTXTypeByStream = {
 
 export type getFeatureCatalog = {};
 
+export type getFiManifoldEnvironment = {};
+
 export type getGatewayOverride = { federationId: RpcFederationId };
 
 export type getGuardianPassword = {
@@ -3324,6 +3333,8 @@ export type repairWallet = { federationId: RpcFederationId };
 export type resetUnrecognizedSeed = {};
 
 export type restoreMnemonic = { mnemonic: Array<string> };
+
+export type setFiManifoldEnvironment = { environment: FiManifoldEnvironment };
 
 export type setGatewayOverride = {
   federationId: RpcFederationId;

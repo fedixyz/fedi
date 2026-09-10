@@ -11,7 +11,9 @@ use super::event::EventSink;
 use super::storage::Storage;
 use crate::api::IFediApi;
 use crate::db::{BridgeDbPrefix, FiClientResetPendingKey};
-use crate::features::{FeatureCatalog, RemoteFeaturesService, RuntimeEnvironment};
+use crate::features::{
+    FeatureCatalog, FiManifoldEnvironment, RemoteFeaturesService, RuntimeEnvironment,
+};
 use crate::rpc_stream::RpcStreamPool;
 use crate::storage::{AppState, BRIDGE_DB_PREFIX};
 
@@ -125,6 +127,40 @@ impl Runtime {
             .await?;
         Ok(())
     }
+
+    pub async fn fi_manifold_environment(&self) -> FiManifoldEnvironment {
+        let default = default_fi_manifold_environment(self.feature_catalog.runtime_env);
+        if !fi_client_reset_is_allowed(self.feature_catalog.runtime_env) {
+            return default;
+        }
+        self.app_state
+            .with_read_lock(|state| state.fi_manifold_environment)
+            .await
+            .unwrap_or(default)
+    }
+
+    pub async fn set_fi_manifold_environment(
+        &self,
+        environment: FiManifoldEnvironment,
+    ) -> anyhow::Result<()> {
+        // Wipe first. A crash between the two writes must not leave the new
+        // environment with the old wallet service still in the slot.
+        self.schedule_fi_client_reset().await?;
+        self.app_state
+            .with_write_lock(|state| {
+                state.fi_manifold_environment = Some(environment);
+            })
+            .await?;
+        Ok(())
+    }
+}
+
+fn default_fi_manifold_environment(environment: RuntimeEnvironment) -> FiManifoldEnvironment {
+    match environment {
+        RuntimeEnvironment::Dev | RuntimeEnvironment::Tests => FiManifoldEnvironment::Development,
+        RuntimeEnvironment::Staging => FiManifoldEnvironment::Staging,
+        RuntimeEnvironment::Edge | RuntimeEnvironment::Prod => FiManifoldEnvironment::Production,
+    }
 }
 
 fn fi_client_reset_is_allowed(environment: RuntimeEnvironment) -> bool {
@@ -223,5 +259,29 @@ mod tests {
         for environment in [RuntimeEnvironment::Edge, RuntimeEnvironment::Prod] {
             assert!(!fi_client_reset_is_allowed(environment));
         }
+    }
+
+    #[test]
+    fn each_runtime_environment_defaults_to_its_own_manifold_deployment() {
+        assert_eq!(
+            default_fi_manifold_environment(RuntimeEnvironment::Dev),
+            FiManifoldEnvironment::Development
+        );
+        assert_eq!(
+            default_fi_manifold_environment(RuntimeEnvironment::Tests),
+            FiManifoldEnvironment::Development
+        );
+        assert_eq!(
+            default_fi_manifold_environment(RuntimeEnvironment::Staging),
+            FiManifoldEnvironment::Staging
+        );
+        assert_eq!(
+            default_fi_manifold_environment(RuntimeEnvironment::Edge),
+            FiManifoldEnvironment::Production
+        );
+        assert_eq!(
+            default_fi_manifold_environment(RuntimeEnvironment::Prod),
+            FiManifoldEnvironment::Production
+        );
     }
 }

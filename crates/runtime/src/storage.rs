@@ -509,6 +509,7 @@ impl AppStateOnboarding {
                         joined_federations: BTreeMap::new(),
                         joined_communities: BTreeMap::new(),
                         sensitive_log: None,
+                        fi_manifold_environment: None,
                         // When setting up a new AppState (fresh install), set
                         // encrypted_device_identifier_v1 as None which marks the transfer of
                         // ownership as complete.

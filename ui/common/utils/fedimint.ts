@@ -934,6 +934,16 @@ export class FedimintBridge {
         return this.rpcTyped('setSensitiveLog', { enable })
     }
 
+    async getFiManifoldEnvironment() {
+        return this.rpcTyped('getFiManifoldEnvironment', {})
+    }
+
+    async setFiManifoldEnvironment(
+        environment: bindings.FiManifoldEnvironment,
+    ) {
+        return this.rpcTyped('setFiManifoldEnvironment', { environment })
+    }
+
     async internalMarkBridgeExport() {
         return this.rpcTyped('internalMarkBridgeExport', {})
     }

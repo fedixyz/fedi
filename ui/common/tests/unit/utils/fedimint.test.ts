@@ -371,4 +371,24 @@ describe('FedimintBridge FI client', () => {
             {},
         )
     })
+
+    test('forwards the Manifold environment selection through typed RPCs', async () => {
+        const rpc = jest
+            .fn()
+            .mockResolvedValueOnce('Staging')
+            .mockResolvedValue(null)
+        const fedimint = new FedimintBridge(rpc)
+
+        await expect(fedimint.getFiManifoldEnvironment()).resolves.toEqual(
+            'Staging',
+        )
+        await expect(
+            fedimint.setFiManifoldEnvironment('Production'),
+        ).resolves.toBeNull()
+
+        expect(rpc).toHaveBeenNthCalledWith(1, 'getFiManifoldEnvironment', {})
+        expect(rpc).toHaveBeenNthCalledWith(2, 'setFiManifoldEnvironment', {
+            environment: 'Production',
+        })
+    })
 })
