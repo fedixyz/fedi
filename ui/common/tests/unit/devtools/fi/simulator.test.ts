@@ -1,4 +1,15 @@
 import {
+    MOCK_PAYER_FEDERATION_IDS,
+    MOCK_PAYER_FEDERATIONS,
+} from '../../../../devtools/fi/mockPayerFederation'
+import {
+    FORMATION_PHASES,
+    FiScenarioName,
+    fiScenarios,
+} from '../../../../devtools/fi/scenarios'
+import { FiSimulator } from '../../../../devtools/fi/simulator'
+import { MSats } from '../../../../types'
+import {
     FiFederationJoinEvent,
     GuardianStatus,
     RpcFederationPreview,
@@ -13,16 +24,6 @@ import {
     RpcFiStatus,
     RpcParseInviteCodeResult,
 } from '../../../../types/bindings'
-import {
-    MOCK_PAYER_FEDERATION_IDS,
-    MOCK_PAYER_FEDERATIONS,
-} from '../../../../utils/fi/mockPayerFederation'
-import {
-    FORMATION_PHASES,
-    FiScenarioName,
-    fiScenarios,
-} from '../../../../utils/fi/scenarios'
-import { FiSimulator } from '../../../../utils/fi/simulator'
 
 const PREVIEW_REQUEST = {
     federationSize: 10,
@@ -82,33 +83,6 @@ describe('FiSimulator', () => {
     })
 
     describe('eligible payers', () => {
-        it('should report scenario payers with balances converted to msats', async () => {
-            const simulator = new FiSimulator('happyPath')
-
-            const result = (await simulator.handle(
-                'fiClientEligiblePayers',
-                {},
-            )) as RpcFiEligiblePayersResult
-
-            expect(result.type).toBe('payers')
-            if (result.type !== 'payers') return
-            expect(result.payers[0]).toEqual({
-                federationId: 'fed-bitcoin-builders',
-                balanceMsats: '312500000',
-            })
-        })
-
-        it('should report an empty list for the no-payer scenario', async () => {
-            const simulator = new FiSimulator('noEligiblePayers')
-
-            const result = (await simulator.handle(
-                'fiClientEligiblePayers',
-                {},
-            )) as RpcFiEligiblePayersResult
-
-            expect(result).toEqual({ type: 'payers', payers: [] })
-        })
-
         // the real bridge errors here rather than returning nothing, so the
         // two causes stay distinguishable end to end
         it('should error rather than empty for the failing-lookup scenario', async () => {
@@ -134,7 +108,10 @@ describe('FiSimulator', () => {
 
         it('should admit a mock payer the app has never really joined', async () => {
             const simulator = new FiSimulator('happyPath')
-            simulator.observeFederations(['real-fed'])
+            simulator.clearMockPayers()
+            simulator.observeFederations([
+                { id: 'real-fed', balance: 1_000 as MSats },
+            ])
             simulator.addMockPayer('mock-payer-federation', 50_000)
 
             const result = (await simulator.handle(
@@ -145,15 +122,17 @@ describe('FiSimulator', () => {
             expect(result.type).toBe('payers')
             if (result.type !== 'payers') return
             expect(result.payers.map(p => p.federationId)).toEqual([
-                'real-fed',
                 'mock-payer-federation',
             ])
         })
 
         it('should keep the mock payer when the real federation list is replaced', async () => {
             const simulator = new FiSimulator('happyPath')
+            simulator.clearMockPayers()
             simulator.addMockPayer('mock-payer-federation', 50_000)
-            simulator.observeFederations(['real-fed'])
+            simulator.observeFederations([
+                { id: 'real-fed', balance: 1_000 as MSats },
+            ])
 
             const result = (await simulator.handle(
                 'fiClientEligiblePayers',
@@ -167,26 +146,8 @@ describe('FiSimulator', () => {
             )
         })
 
-        it('should not list the mock payer twice once it is really joined', async () => {
-            const simulator = new FiSimulator('happyPath')
-            simulator.addMockPayer('mock-payer-federation', 50_000)
-            simulator.observeFederations(['mock-payer-federation'])
-
-            const result = (await simulator.handle(
-                'fiClientEligiblePayers',
-                {},
-            )) as RpcFiEligiblePayersResult
-
-            expect(result.type).toBe('payers')
-            if (result.type !== 'payers') return
-            expect(result.payers.map(p => p.federationId)).toEqual([
-                'mock-payer-federation',
-            ])
-        })
-
         it('should drop the mock payer when it is cleared', async () => {
             const simulator = new FiSimulator('happyPath')
-            simulator.observeFederations(['real-fed'])
             simulator.addMockPayer('mock-payer-federation', 50_000)
 
             simulator.clearMockPayers()
@@ -195,13 +156,12 @@ describe('FiSimulator', () => {
                 {},
             )) as RpcFiEligiblePayersResult
 
-            expect(result.type).toBe('payers')
-            if (result.type !== 'payers') return
-            expect(result.payers.map(p => p.federationId)).toEqual(['real-fed'])
+            expect(result).toEqual({ type: 'payers', payers: [] })
         })
 
         it('should report each mock payer at its own balance', async () => {
             const simulator = new FiSimulator('happyPath')
+            simulator.clearMockPayers()
             simulator.addMockPayer('mock-funded', 312_500)
             simulator.addMockPayer('mock-empty', 0)
 
@@ -220,6 +180,7 @@ describe('FiSimulator', () => {
 
         it('should keep a zero-balance mock payer, so the shortfall can be shown', async () => {
             const simulator = new FiSimulator('happyPath')
+            simulator.clearMockPayers()
             simulator.addMockPayer('mock-empty', 0)
 
             const result = (await simulator.handle(
@@ -236,6 +197,7 @@ describe('FiSimulator', () => {
 
         it('should replace the balance when a mock payer is added twice', async () => {
             const simulator = new FiSimulator('happyPath')
+            simulator.clearMockPayers()
             simulator.addMockPayer('mock-funded', 1_000)
             simulator.addMockPayer('mock-funded', 2_000)
 
@@ -251,16 +213,138 @@ describe('FiSimulator', () => {
             ])
         })
 
-        it('should still report nothing for the no-payer scenario', async () => {
-            const simulator = new FiSimulator('noEligiblePayers')
-            simulator.addMockPayer('mock-payer-federation', 50_000)
+        it('should keep a wallet joined mid-flow after the real federation list is refreshed', async () => {
+            const simulator = new FiSimulator('happyPath')
+            simulator.setPayerSource('real')
+            simulator.observeJoinedFederation('sim-joined')
+            simulator.observeFederations([
+                { id: 'real-1', balance: 5_000_000 as MSats },
+            ])
 
             const result = (await simulator.handle(
                 'fiClientEligiblePayers',
                 {},
             )) as RpcFiEligiblePayersResult
 
-            expect(result).toEqual({ type: 'payers', payers: [] })
+            expect(result.type).toBe('payers')
+            if (result.type !== 'payers') return
+            expect(result.payers.map(p => p.federationId)).toEqual(
+                expect.arrayContaining(['real-1', 'sim-joined']),
+            )
+        })
+
+        it('should still wholesale-replace real ids absent from the latest refresh', async () => {
+            const simulator = new FiSimulator('happyPath')
+            simulator.setPayerSource('real')
+            simulator.observeFederations([
+                { id: 'real-stale', balance: 1_000 as MSats },
+            ])
+            simulator.observeFederations([
+                { id: 'real-1', balance: 5_000_000 as MSats },
+            ])
+
+            const result = (await simulator.handle(
+                'fiClientEligiblePayers',
+                {},
+            )) as RpcFiEligiblePayersResult
+
+            expect(result.type).toBe('payers')
+            if (result.type !== 'payers') return
+            expect(result.payers.map(p => p.federationId)).not.toContain(
+                'real-stale',
+            )
+        })
+    })
+
+    describe('payer source', () => {
+        const payers = (simulator: FiSimulator) =>
+            simulator.handle(
+                'fiClientEligiblePayers',
+                {},
+            ) as Promise<RpcFiEligiblePayersResult>
+
+        it('should admit the mock payers at their seeded balance when the source is mock', async () => {
+            const simulator = new FiSimulator('happyPath')
+            simulator.setPayerSource('mock')
+            const result = await payers(simulator)
+            expect(result).toEqual({
+                type: 'payers',
+                payers: MOCK_PAYER_FEDERATIONS.map(p => ({
+                    federationId: p.id,
+                    balanceMsats: String(p.balanceSats * 1000),
+                })),
+            })
+        })
+
+        it('should admit every joined wallet at its real balance when the source is real', async () => {
+            const simulator = new FiSimulator('happyPath')
+            simulator.setPayerSource('real')
+            simulator.observeFederations([
+                { id: 'fed-a', balance: 5_000_000 as MSats },
+                { id: 'fed-b', balance: 0 as MSats },
+            ])
+            await expect(payers(simulator)).resolves.toEqual({
+                type: 'payers',
+                payers: [
+                    { federationId: 'fed-a', balanceMsats: '5000000' },
+                    { federationId: 'fed-b', balanceMsats: '0' },
+                ],
+            })
+        })
+
+        it('should admit nobody when the source is none, whatever is joined', async () => {
+            const simulator = new FiSimulator('happyPath')
+            simulator.setPayerSource('none')
+            simulator.observeFederations([
+                { id: 'fed-a', balance: 5_000_000 as MSats },
+            ])
+            await expect(payers(simulator)).resolves.toEqual({
+                type: 'payers',
+                payers: [],
+            })
+        })
+
+        it('should admit a wallet joined during the session under the real source', async () => {
+            const simulator = new FiSimulator('happyPath')
+            simulator.setPayerSource('real')
+            simulator.observeFederations([])
+            simulator.observeJoinedFederation('fed-new')
+            await expect(payers(simulator)).resolves.toEqual({
+                type: 'payers',
+                payers: [{ federationId: 'fed-new', balanceMsats: '0' }],
+            })
+        })
+
+        it('should drop the mock payers when the source leaves mock', () => {
+            const simulator = new FiSimulator('happyPath')
+            simulator.setPayerSource('mock')
+            expect(simulator.listMockFederations()).toHaveLength(
+                MOCK_PAYER_FEDERATIONS.length,
+            )
+            simulator.setPayerSource('real')
+            expect(simulator.listMockFederations()).toHaveLength(0)
+        })
+
+        it('should still fail the lookup under payerLookupFails whatever the source', async () => {
+            const simulator = new FiSimulator('payerLookupFails')
+            simulator.setPayerSource('mock')
+            await expect(payers(simulator)).resolves.toMatchObject({
+                type: 'error',
+            })
+        })
+
+        it('should price a seat above any balance under insufficientBalance', async () => {
+            const simulator = new FiSimulator('insufficientBalance')
+            simulator.setPayerSource('mock')
+            const result = await flushPreview(preview(simulator))
+            expect(result.type).toBe('preview')
+            if (result.type !== 'preview') return
+            const richest =
+                Math.max(...MOCK_PAYER_FEDERATIONS.map(p => p.balanceSats)) *
+                1000
+            expect(Number(result.preview.totalAdvertisedMsats)).toBeGreaterThan(
+                richest,
+            )
         })
     })
 
@@ -801,29 +885,14 @@ describe('FiSimulator', () => {
             return formation.inviteCode
         }
 
-        it('should seed the story 04 payers when the happy path is chosen, not at boot', async () => {
-            const simulator = new FiSimulator('happyPath')
-            simulator.observeFederations(['real-fed'])
-
-            const atBoot = (await payerIds(simulator)).map(p => p.federationId)
-            expect(atBoot).toEqual(['real-fed'])
-
-            simulator.setScenario('happyPath')
-
-            const chosen = (await payerIds(simulator)).map(p => p.federationId)
-            expect(chosen).toEqual(['real-fed', ...MOCK_PAYER_FEDERATION_IDS])
-        })
-
-        it('should take the seeded payers away again when another scenario is chosen', async () => {
+        it('should keep the seeded payers across a scenario change, since the source owns them', async () => {
             const { simulator } = attached('happyPath')
-            simulator.observeFederations(['real-fed'])
 
             simulator.setScenario('insufficientBalance')
 
-            expect(simulator.listMockFederations()).toEqual([])
             expect(
                 (await payerIds(simulator)).map(p => p.federationId),
-            ).toEqual(['real-fed'])
+            ).toEqual(MOCK_PAYER_FEDERATION_IDS)
         })
 
         it('should keep a payer added by hand across a scenario change', () => {
@@ -832,13 +901,14 @@ describe('FiSimulator', () => {
 
             simulator.setScenario('insufficientBalance')
 
-            expect(simulator.listMockFederations().map(f => f.id)).toEqual([
+            expect(simulator.listMockFederations().map(f => f.id)).toContain(
                 'hand-added',
-            ])
+            )
         })
 
         it('should name a seeded payer from its story, and prefer a name given by hand', () => {
             const simulator = new FiSimulator()
+            simulator.clearMockPayers()
             simulator.addMockPayer(GLOBAL, 1)
             simulator.addMockPayer(VICTORIA, 1, 'Renamed')
 
@@ -849,7 +919,8 @@ describe('FiSimulator', () => {
         })
 
         it('should announce each seeded payer as a federation event, so redux holds it', () => {
-            const { emitEvent } = attached('happyPath')
+            const { simulator, emitEvent } = attached()
+            simulator.setPayerSource('mock')
 
             const announced = emitEvent.mock.calls
                 .filter(([event]) => event === 'federation')
@@ -899,7 +970,7 @@ describe('FiSimulator', () => {
             )
         })
 
-        it('should refund a spent payer when the happy path is chosen again', async () => {
+        it('should refund a spent payer when the mock source is chosen again', async () => {
             const { simulator, emitEvent } = attached('happyPath')
             const invoice = (await simulator.handle('generateInvoice', {
                 federationId: VICTORIA,
@@ -913,7 +984,7 @@ describe('FiSimulator', () => {
             await paying
 
             emitEvent.mockClear()
-            simulator.setScenario('happyPath')
+            simulator.setPayerSource('mock')
 
             const payers = await payerIds(simulator)
             expect(
@@ -1048,7 +1119,6 @@ describe('FiSimulator', () => {
 
         it('should clear every seeded wallet and the formation', async () => {
             const { simulator } = attached('happyPath')
-            simulator.observeFederations(['real-fed'])
             const inviteCode = await formedInvite(simulator)
 
             simulator.clearSimulatedState()
@@ -1061,9 +1131,7 @@ describe('FiSimulator', () => {
             expect(simulator.handles('parseInviteCode', { inviteCode })).toBe(
                 false,
             )
-            expect(
-                (await payerIds(simulator)).map(p => p.federationId),
-            ).toEqual(['real-fed'])
+            expect(await payerIds(simulator)).toEqual([])
         })
     })
 
@@ -1119,10 +1187,10 @@ describe('FiSimulator', () => {
                 )
             }
 
-            expect(sim.listMockFederations()).toEqual([])
+            expect(walletServiceListing(sim)).toBeUndefined()
 
             jest.advanceTimersByTime(restoreReconcileMs)
-            expect(sim.listMockFederations()).toEqual([])
+            expect(walletServiceListing(sim)).toBeUndefined()
             // the invite still resolves to the id: the backup carries it, and
             // the real `parseInviteCode` answers offline too
             expect(
@@ -1132,7 +1200,7 @@ describe('FiSimulator', () => {
             ).toBe(true)
 
             jest.advanceTimersByTime(restoreJoinMs)
-            expect(sim.listMockFederations()).toHaveLength(1)
+            expect(walletServiceListing(sim)).toBeDefined()
         })
 
         it('restoredBackupJoinFails never lists the federation', () => {
@@ -1144,7 +1212,7 @@ describe('FiSimulator', () => {
 
             jest.advanceTimersByTime(10 * 60_000)
 
-            expect(sim.listMockFederations()).toEqual([])
+            expect(walletServiceListing(sim)).toBeUndefined()
         })
 
         it('restoredBackup reports the join as joining, recovering, then ready', () => {

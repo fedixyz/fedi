@@ -8,7 +8,6 @@ import {
     ActivityIndicator,
     Alert,
     Platform,
-    Pressable,
     ScrollView,
     StyleSheet,
     TextInput,
@@ -54,12 +53,6 @@ import {
     selectBackupReminderCountdownStartedAt,
     selectBackupReminderDismissedThisSession,
     selectHasReachedThresholds,
-    upsertFederation,
-    setFederations,
-    selectFederationIds,
-    setFiStatus,
-    clearFiLiquidity,
-    clearWalletServiceSelectionPreview,
 } from '@fedi/common/redux'
 import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
@@ -81,18 +74,9 @@ import {
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getGuardianStatuses } from '@fedi/common/utils/FederationUtils'
 import { isDev } from '@fedi/common/utils/environment'
-import {
-    DEFAULT_FI_SCENARIO,
-    FI_SCENARIO_GROUPS,
-    FI_SCENARIO_STORYBOARD_FRAMES,
-    FiScenarioName,
-    makeMockPayerFederation,
-    MOCK_PAYER_FEDERATIONS,
-    MOCK_PAYER_FEDERATION_IDS,
-} from '@fedi/common/utils/fi'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fiSimulator } from '../bridge'
+import { fiDevTools } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import CheckBox from '../components/ui/CheckBox'
 import SvgImage from '../components/ui/SvgImage'
@@ -125,19 +109,21 @@ type FeesMap = { [key: string]: number }
 const sumFeesMap = (feesMap: FeesMap) =>
     Object.values(feesMap).reduce((total, fee) => total + fee, 0)
 
+// dev builds only: Metro drops a require inside a dead __DEV__ branch, so
+// nothing under common/devtools reaches a release bundle
+/* eslint-disable @typescript-eslint/no-require-imports */
+const WalletServiceDevTools = __DEV__
+    ? (
+          require('./developer/WalletServiceDevTools') as typeof import('./developer/WalletServiceDevTools')
+      ).default
+    : null
+/* eslint-enable @typescript-eslint/no-require-imports */
+
 const getGatewayIdValue = (gatewayId: RpcLightningGatewayId) => {
     return gatewayId.kind === 'lnv1'
         ? `lnv1:${gatewayId.pubkey}`
         : `lnv2:${gatewayId.url}`
 }
-
-/** The simulator's own actions, which are not a scenario to choose between. */
-const SIMULATOR_TOOLS_GROUP = 'Simulator tools'
-
-const groupTitleFor = (scenario: FiScenarioName): string | undefined =>
-    FI_SCENARIO_GROUPS.find(group =>
-        (group.scenarios as ReadonlyArray<FiScenarioName>).includes(scenario),
-    )?.title
 
 const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
@@ -169,24 +155,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         useState<FeesMap>({})
     const [isSharingState, setIsSharingState] = useState(false)
     const [isSensitiveLogging, setIsSensitiveLogging] = useState<boolean>(false)
-    const [fiScenario, setFiScenario] =
-        useState<FiScenarioName>(DEFAULT_FI_SCENARIO)
-    // opens on whichever group holds the active scenario, so the screen starts
-    // showing where you already are rather than fully closed
-    const [openFiGroup, setOpenFiGroup] = useState<string | null>(
-        () => groupTitleFor(DEFAULT_FI_SCENARIO) ?? null,
-    )
     const [guardianOnlineStatus, setGuardianOnlineStatus] = useState<
         GuardianStatus[]
     >([])
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const selectedFiatCurrency = useAppSelector(s =>
         selectCurrency(s, paymentFederation?.id),
-    )
-    const federations = useAppSelector(s => s.federation.federations)
-    const joinedFederationIds = useAppSelector(selectFederationIds)
-    const isMockPayerAdded = MOCK_PAYER_FEDERATION_IDS.some(id =>
-        joinedFederationIds.includes(id),
     )
     const fediModDebugMode = useAppSelector(selectFediModDebugMode)
     const fediModCacheEnabled = useAppSelector(selectFediModCacheEnabled)
@@ -435,30 +409,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             log.error('fiClientAbandon failed', e)
             toast.show({ content: `Abandon failed: ${e}`, status: 'error' })
         }
-    }
-
-    // Everything the simulator ever put in front of the app: seeded payers,
-    // mock joined services, the formed wallet service and its formation. Redux
-    // learned of them through the same events the bridge sends, so they are
-    // dropped here explicitly rather than waiting for the next wholesale
-    // refresh to stop riding them along.
-    const handleClearSimulatedState = () => {
-        if (!fiSimulator) return
-        const seededIds = [
-            ...fiSimulator.listMockFederations().map(f => f.id),
-            ...MOCK_PAYER_FEDERATION_IDS,
-        ]
-        fiSimulator.clearSimulatedState()
-        reduxDispatch(
-            setFederations(federations.filter(f => !seededIds.includes(f.id))),
-        )
-        reduxDispatch(setFiStatus({ type: 'idle' }))
-        reduxDispatch(clearFiLiquidity())
-        reduxDispatch(clearWalletServiceSelectionPreview())
-        toast.show({
-            content: 'Simulated wallet service state cleared',
-            status: 'info',
-        })
     }
 
     // The wipe deletes the formation record this reads, so it has to run first.
@@ -822,162 +772,9 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     />
                 </View>
             </SettingsSection>
-            <SettingsSection title="Wallet Service simulator">
-                <Text small style={style.switchLabel}>
-                    The FI backend cannot complete a formation in dev, so the
-                    fiClient* RPCs resolve from an in-memory simulator. Pick the
-                    environment the wallet service flow should see. The
-                    storyboard frames each scenario reaches are named in the
-                    toast, so screen and storyboard can be matched without
-                    guessing.
-                </Text>
-                {fiSimulator ? (
-                    FI_SCENARIO_GROUPS.map(group => (
-                        <CollapsibleSection
-                            key={group.title}
-                            title={group.title}
-                            count={group.scenarios.length}
-                            isOpen={openFiGroup === group.title}
-                            // one open at a time: these are alternatives, and
-                            // the list is only long because it is all of them
-                            onToggle={() =>
-                                setOpenFiGroup(current =>
-                                    current === group.title
-                                        ? null
-                                        : group.title,
-                                )
-                            }>
-                            {group.scenarios.map(name => (
-                                <Button
-                                    key={name}
-                                    title={
-                                        name === fiScenario
-                                            ? `\u2713 ${name}`
-                                            : name
-                                    }
-                                    day={name !== fiScenario}
-                                    containerStyle={style.buttonContainer}
-                                    onPress={() => {
-                                        fiSimulator?.setScenario(name)
-                                        setFiScenario(name)
-                                        toast.show({
-                                            content: `Wallet Service scenario: ${name}${
-                                                FI_SCENARIO_STORYBOARD_FRAMES[
-                                                    name
-                                                ]
-                                                    ? ` \u2014 ${FI_SCENARIO_STORYBOARD_FRAMES[name]}`
-                                                    : ''
-                                            }`,
-                                            status: 'info',
-                                        })
-                                    }}
-                                />
-                            ))}
-                        </CollapsibleSection>
-                    ))
-                ) : (
-                    <Text small style={style.switchLabel}>
-                        Not a dev build \u2014 the real bridge is in use.
-                    </Text>
-                )}
-                {fiSimulator && (
-                    <CollapsibleSection
-                        title="Simulator tools"
-                        count={3}
-                        isOpen={openFiGroup === SIMULATOR_TOOLS_GROUP}
-                        onToggle={() =>
-                            setOpenFiGroup(current =>
-                                current === SIMULATOR_TOOLS_GROUP
-                                    ? null
-                                    : SIMULATOR_TOOLS_GROUP,
-                            )
-                        }>
-                        <Text small style={style.switchLabel}>
-                            The confirm step can only offer a wallet the app
-                            actually holds, and dev cannot always join one.
-                            Seeds the story 04 payer set: two funded wallets, a
-                            zero-balance one and one holding less than a single
-                            setup, so the picker, the happy path, the shortfall
-                            banner and the top-up From list are all reachable.
-                            Transfers between these wallets are simulated too.
-                        </Text>
-                        <Button
-                            title={
-                                isMockPayerAdded
-                                    ? 'Remove mock payer federations'
-                                    : 'Add mock payer federations'
-                            }
-                            day={!isMockPayerAdded}
-                            containerStyle={style.buttonContainer}
-                            onPress={() => {
-                                if (isMockPayerAdded) {
-                                    reduxDispatch(
-                                        setFederations(
-                                            federations.filter(
-                                                f =>
-                                                    !MOCK_PAYER_FEDERATION_IDS.includes(
-                                                        f.id,
-                                                    ),
-                                            ),
-                                        ),
-                                    )
-                                    fiSimulator?.clearMockPayers()
-                                } else {
-                                    MOCK_PAYER_FEDERATIONS.forEach(mock => {
-                                        reduxDispatch(
-                                            upsertFederation(
-                                                makeMockPayerFederation(mock),
-                                            ),
-                                        )
-                                        fiSimulator?.addMockPayer(
-                                            mock.id,
-                                            mock.balanceSats,
-                                        )
-                                    })
-                                }
-                                toast.show({
-                                    content: isMockPayerAdded
-                                        ? 'Mock payer federations removed'
-                                        : `Added ${MOCK_PAYER_FEDERATIONS.length} mock payer federations`,
-                                    status: 'info',
-                                })
-                            }}
-                        />
-                        <Text small style={style.switchLabel}>
-                            The external-deposit branch of the top-up sheet
-                            waits for a Lightning payment nobody in dev can
-                            make. This settles every invoice the simulator has
-                            handed out, which is what the storyboard's A6 to A7
-                            step is.
-                        </Text>
-                        <Button
-                            day
-                            title="Settle open simulated deposits"
-                            containerStyle={style.buttonContainer}
-                            onPress={() => {
-                                fiSimulator?.settleOpenDeposits()
-                                toast.show({
-                                    content: 'Simulated deposits settled',
-                                    status: 'info',
-                                })
-                            }}
-                        />
-                        <Text small style={style.switchLabel}>
-                            Removes every wallet and formation the simulator
-                            seeded, so a device holding real wallets can be
-                            checked with nothing invented in the way. Real
-                            wallet-service state on the bridge is untouched;
-                            that is "Wipe all wallet-service test state".
-                        </Text>
-                        <Button
-                            day
-                            title="Clear simulated wallet service state"
-                            containerStyle={style.buttonContainer}
-                            onPress={handleClearSimulatedState}
-                        />
-                    </CollapsibleSection>
-                )}
-            </SettingsSection>
+            {WalletServiceDevTools && fiDevTools && (
+                <WalletServiceDevTools tools={fiDevTools} />
+            )}
             <SettingsSection title="Log spike simulator">
                 <Text small style={style.switchLabel}>
                     Simulate large volumes of logs to stress-test the logging
@@ -1676,54 +1473,6 @@ const SettingsSection: React.FC<{
         </View>
     )
 }
-
-/**
- * A section inside a section, collapsed until asked for.
- *
- * The scenario list is thirty entries and every one of them is a button, so
- * shown flat it buries every other developer setting under a wall of them.
- * Local to this screen: nothing else has enough rows to need it.
- */
-const CollapsibleSection: React.FC<{
-    title: string
-    /** Rows inside, shown in the header so a closed group still counts. */
-    count: number
-    isOpen: boolean
-    onToggle: () => void
-    children: React.ReactNode
-}> = ({ title, count, isOpen, onToggle, children }) => {
-    const { theme } = useTheme()
-    const style = styles(theme)
-
-    return (
-        <View style={style.collapsible}>
-            <Pressable
-                onPress={onToggle}
-                style={style.collapsibleHeader}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: isOpen }}>
-                <SvgImage
-                    name="ChevronRight"
-                    size={16}
-                    color={theme.colors.grey}
-                    svgProps={{
-                        style: {
-                            transform: [{ rotate: isOpen ? '90deg' : '0deg' }],
-                        },
-                    }}
-                />
-                <Text medium style={style.collapsibleTitle}>
-                    {title}
-                </Text>
-                <Text small style={style.collapsibleCount}>
-                    {count}
-                </Text>
-            </Pressable>
-            {isOpen && <View>{children}</View>}
-        </View>
-    )
-}
-
 const styles = (theme: Theme) =>
     StyleSheet.create({
         modalContent: {
@@ -1757,22 +1506,6 @@ const styles = (theme: Theme) =>
         },
         sectionTitle: {
             marginVertical: theme.spacing.md,
-        },
-        collapsible: {
-            borderBottomColor: theme.colors.extraLightGrey,
-            borderBottomWidth: 1,
-        },
-        collapsibleHeader: {
-            alignItems: 'center',
-            flexDirection: 'row',
-            gap: theme.spacing.sm,
-            paddingVertical: theme.spacing.md,
-        },
-        collapsibleTitle: {
-            flex: 1,
-        },
-        collapsibleCount: {
-            color: theme.colors.grey,
         },
         checkboxContainer: {
             margin: 0,

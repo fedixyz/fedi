@@ -21,7 +21,8 @@
         "lint:eslint": "eslint . --ext .js,.jsx,.ts,.tsx",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "devtools": "( npx react-devtools > /dev/null 2>&1 & )"
+        "devtools": "( npx react-devtools > /dev/null 2>&1 & )",
+        "check:devtools-excluded": "bash scripts/check-devtools-excluded.sh"
     },
     "dependencies": {
         "@likashefqet/react-native-image-zoom": "4.3.0",

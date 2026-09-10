@@ -6,10 +6,10 @@ import { RpcAppFlavor, RpcInitOpts } from '@fedi/common/types/bindings'
 import { isDev } from '@fedi/common/utils/environment'
 import { BridgeError } from '@fedi/common/utils/errors'
 import { FedimintBridge } from '@fedi/common/utils/fedimint'
-import { FiSimulator, withFiSimulator } from '@fedi/common/utils/fi'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { isEdge, isExperimental } from '../utils/device-info'
+import { storage } from '../utils/storage'
 
 const { BridgeNativeEventEmitter, FedimintFfi } = NativeModules
 
@@ -36,29 +36,21 @@ async function fedimintRpc<Type = void>(
     }
 }
 
-/**
- * The FI backend cannot complete a formation in dev — the environment ships a
- * placeholder trust root — so dev builds resolve the `fiClient*` family from an
- * in-memory simulator instead. Every other RPC still reaches the real bridge,
- * which is what lets the top-up step move real ecash between real dev
- * federations.
- *
- * Deleting this block is the whole job of switching to the real backend.
- */
-export const fiSimulator: FiSimulator | null = isDev()
-    ? new FiSimulator()
+// dev builds only: Metro drops a require inside a dead __DEV__ branch, so
+// nothing under common/devtools reaches a release bundle
+/* eslint-disable @typescript-eslint/no-require-imports */
+export const fiDevTools = __DEV__
+    ? (
+          require('@fedi/common/devtools/fi') as typeof import('@fedi/common/devtools/fi')
+      ).attachFiDevTools(fedimintRpc, storage)
     : null
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 export const fedimint = new FedimintBridge(
-    fiSimulator ? withFiSimulator(fedimintRpc, fiSimulator) : fedimintRpc,
+    fiDevTools ? fiDevTools.rpc : fedimintRpc,
 )
 
-fiSimulator?.attach(
-    update => fedimint.emit('streamUpdate', update),
-    // the simulated money rails speak in bridge events, not RPC replies
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (event, payload) => fedimint.emit(event as any, payload as any),
-)
+fiDevTools?.attachBridge(fedimint)
 
 export async function subscribeToBridgeEvents() {
     // Pass through all native bridge events to the FedimintBridge class instance

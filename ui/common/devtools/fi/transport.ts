@@ -1,4 +1,5 @@
-import { FedimintBridge } from '../fedimint'
+import type { MSats } from '../../types'
+import { FedimintBridge } from '../../utils/fedimint'
 import { FiScenarioName } from './scenarios'
 import { FiSimulator } from './simulator'
 
@@ -19,11 +20,13 @@ type BridgeRpc = <T = void>(method: string, payload: object) => Promise<T>
 export function withFiSimulator(
     realRpc: BridgeRpc,
     simulator: FiSimulator,
+    isEnabled: () => boolean = () => true,
 ): BridgeRpc {
     return async function simulatedRpc<T = void>(
         method: string,
         payload: object,
     ): Promise<T> {
+        if (!isEnabled()) return realRpc<T>(method, payload)
         const args = payload as Record<string, unknown>
         if (!simulator.handles(method, args)) {
             const result = await realRpc<T>(method, payload)
@@ -31,14 +34,21 @@ export function withFiSimulator(
             // simulator needs the real federation ids rather than invented ones
             if (method === 'listFederations' && Array.isArray(result)) {
                 // observe the real ids only: a mock payer is not a wallet the
-                // app joined, and counting it as one would admit it twice
+                // app joined
                 simulator.observeFederations(
                     result
-                        .map(f => (f as { id?: string }).id)
-                        .filter((id): id is string => Boolean(id)),
+                        .filter((f): f is { id: string; balance?: MSats } =>
+                            Boolean((f as { id?: string }).id),
+                        )
+                        .map(f => ({
+                            id: f.id,
+                            balance: f.balance ?? (0 as MSats),
+                        })),
                 )
                 // seeded mock wallets ride along on every refresh, so the
-                // wholesale replace that follows cannot drop them
+                // wholesale replace that follows cannot drop them. Never gated
+                // on the payer source: this list also carries the formed wallet
+                // service's own federation, which the app holds whoever pays
                 const mocks = simulator.listMockFederations()
                 if (mocks.length) return [...result, ...mocks] as unknown as T
             }

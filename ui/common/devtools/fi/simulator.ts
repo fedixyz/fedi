@@ -1,4 +1,4 @@
-import type { LoadedFederation } from '../../types'
+import type { LoadedFederation, MSats } from '../../types'
 import {
     FiFederationJoinEvent,
     GuardianStatus,
@@ -25,11 +25,10 @@ import {
     RpcFiStatus,
     RpcParseInviteCodeResult,
 } from '../../types/bindings'
-import { makeLog } from '../log'
+import { makeLog } from '../../utils/log'
 import {
     MOCK_JOINABLE_WALLET_SERVICES,
     MOCK_PAYER_FEDERATIONS,
-    MOCK_PAYER_FEDERATION_IDS,
     makeMockPayerFederation,
 } from './mockPayerFederation'
 import {
@@ -40,11 +39,10 @@ import {
     FormationPhaseName,
     fiScenarios,
 } from './scenarios'
+import { FiPayerSource } from './switches'
 
-const log = makeLog('common/utils/fi/simulator')
+const log = makeLog('common/devtools/fi/simulator')
 
-/** Advertised price per guardian seat, in msats. 2,100 sats. */
-const BASE_SEAT_PRICE_MSATS = 2_100_000
 /** Ceiling enforced by `guardian_fee_from_rpc` in the Rust bridge. */
 const MAX_GUARDIAN_FEE_PPM = 210_000
 
@@ -91,16 +89,14 @@ const error = (
 /**
  * Seat prices are deliberately non-uniform — the contract makes no uniformity
  * promise and `Guardian details` has to render real per-seat variance. The
- * offsets cancel in pairs so the total still lands on `count * 2,100 sats`,
- * which is what the design references quote.
+ * offsets cancel in pairs so the total still lands on `count * base`, which is
+ * what the design references quote.
  */
-const seatPriceMsats = (index: number, count: number): number => {
+const seatPriceMsats = (index: number, count: number, base: number): number => {
     const isLastOfOddSet = index === count - 1 && count % 2 === 1
-    if (isLastOfOddSet) return BASE_SEAT_PRICE_MSATS
+    if (isLastOfOddSet) return base
     const offset = 50 * SATS_TO_MSATS
-    return index % 2 === 0
-        ? BASE_SEAT_PRICE_MSATS + offset
-        : BASE_SEAT_PRICE_MSATS - offset
+    return index % 2 === 0 ? base + offset : base - offset
 }
 
 const FMAN_ADJECTIVES = [
@@ -165,8 +161,11 @@ export class FiSimulator {
     private phaseIndex = 0
     private hasPreviewedOnce = false
     private joinedFederationIds: string[] = []
-    /** Federations known at session start; anything later was joined since. */
-    private baselineFederationIds: string[] | null = null
+    /** Ids admitted via `observeJoinedFederation`, kept across `observeFederations` refreshes. */
+    private simulatorJoinedIds = new Set<string>()
+    /** The balance each joined federation last reported through `listFederations`. */
+    private observedBalances = new Map<string, MSats>()
+    private payerSource: FiPayerSource = 'mock'
     private mockPayers: Array<{
         federationId: string
         balanceSats: number
@@ -225,6 +224,7 @@ export class FiSimulator {
     constructor(scenarioName: FiScenarioName = DEFAULT_FI_SCENARIO) {
         this.scenario = fiScenarios[scenarioName]
         this.seedFromScenario()
+        this.setPayerSource(this.payerSource)
     }
 
     /**
@@ -241,25 +241,29 @@ export class FiSimulator {
 
     /** Swap the environment mid-session, for the dev scenario picker. */
     setScenario(name: FiScenarioName) {
-        // a scenario's own seed leaves with it, so a funded wallet cannot
-        // follow the tester into a scenario that is about not having one.
-        // Payers added by hand from the dev screen stay, as they always have.
-        if (this.scenario.seedMockPayers)
-            this.mockPayers = this.mockPayers.filter(
-                p => !MOCK_PAYER_FEDERATION_IDS.includes(p.federationId),
-            )
         this.scenario = fiScenarios[name]
         this.reset()
         this.seedFromScenario()
-        // on selection only, never in the constructor: a dev build that boots
-        // with real wallets must not wake up holding invented ones. Re-adding
-        // an existing payer restores its balance, so choosing the scenario
-        // again also refunds what an earlier run spent.
-        if (this.scenario.seedMockPayers)
+        this.publish()
+    }
+
+    /**
+     * Choose where the setup payers come from.
+     *
+     * Re-choosing `mock` reseeds the story 04 set at its full balance, which is
+     * how a run that spent from it is refunded.
+     */
+    setPayerSource(source: FiPayerSource) {
+        this.payerSource = source
+        this.clearMockPayers()
+        if (source === 'mock')
             MOCK_PAYER_FEDERATIONS.forEach(mock =>
                 this.addMockPayer(mock.id, mock.balanceSats, mock.name),
             )
-        this.publish()
+    }
+
+    getPayerSource(): FiPayerSource {
+        return this.payerSource
     }
 
     /**
@@ -295,7 +299,9 @@ export class FiSimulator {
             return {
                 fmanId,
                 fmanName: fmanNameFor(fmanId),
-                advertisedPriceMsats: String(seatPriceMsats(index, size)),
+                advertisedPriceMsats: String(
+                    seatPriceMsats(index, size, this.scenario.seatPriceMsats),
+                ),
                 provenance: 'fedi_attested',
             }
         })
@@ -303,7 +309,9 @@ export class FiSimulator {
             preview: {
                 previewId: 'preview_seed',
                 selected: size,
-                totalAdvertisedMsats: String(size * BASE_SEAT_PRICE_MSATS),
+                totalAdvertisedMsats: String(
+                    size * this.scenario.seatPriceMsats,
+                ),
                 seen: this.scenario.seenFmanCount,
                 eligible: this.scenario.eligibleFmanCount,
                 validUntil: nowSecs() + this.scenario.previewValiditySecs,
@@ -314,7 +322,7 @@ export class FiSimulator {
                 federationSize: size,
                 plan: 'infiniteBestEffort',
             },
-            maxTotalMsats: String(size * BASE_SEAT_PRICE_MSATS),
+            maxTotalMsats: String(size * this.scenario.seatPriceMsats),
             phase: seed === 'formed' ? 'formed' : 'acquiringSeats',
         })
         if (seed === 'formed') {
@@ -536,6 +544,7 @@ export class FiSimulator {
         this.isWalletServiceRecovering = false
         this.lastJoinEvent = null
         this.suppressedAutoJoinFederationId = null
+        this.simulatorJoinedIds.clear()
         this.status = { type: 'idle' }
         this.publish()
     }
@@ -681,16 +690,23 @@ export class FiSimulator {
      *
      * The payer picker can only offer a wallet the app holds, so invented ids
      * would leave every scenario stuck on "no wallet can pay". The transport
-     * snoops `listFederations` and feeds the real ids in here; the scenario
-     * then supplies the balances against them.
+     * snoops `listFederations` and feeds the real ids and balances in here,
+     * which is what the `real` payer source reports.
+     *
+     * Real ids replace the previous set wholesale, but ids admitted via
+     * `observeJoinedFederation` are retained even when absent from this
+     * reply — the bridge hasn't caught up to a wallet the simulator just
+     * joined mid-flow.
      */
-    observeFederations(federationIds: string[]) {
-        // the first list is what the session started with; anything that turns
-        // up later was joined during it, which is what `admitNewlyJoined` acts
-        // on
-        if (this.baselineFederationIds === null)
-            this.baselineFederationIds = federationIds
-        this.joinedFederationIds = federationIds
+    observeFederations(federations: Array<{ id: string; balance: MSats }>) {
+        const federationIds = federations.map(f => f.id)
+        federations.forEach(f => this.observedBalances.set(f.id, f.balance))
+        this.joinedFederationIds = [
+            ...federationIds,
+            ...Array.from(this.simulatorJoinedIds).filter(
+                id => !federationIds.includes(id),
+            ),
+        ]
         // a seeded formation can park an authorization before the app's real
         // wallets are known; re-point it at a wallet the app actually holds so
         // the approve prompt's live balance gate has something real to read
@@ -722,10 +738,7 @@ export class FiSimulator {
      * leave the join card.
      */
     observeJoinedFederation(federationId: string) {
-        // whatever was joined before this point is the baseline, so a join
-        // arriving before the first `listFederations` still counts as new
-        if (this.baselineFederationIds === null)
-            this.baselineFederationIds = this.joinedFederationIds
+        this.simulatorJoinedIds.add(federationId)
         if (this.joinedFederationIds.includes(federationId)) return
         this.joinedFederationIds = [...this.joinedFederationIds, federationId]
     }
@@ -826,8 +839,8 @@ export class FiSimulator {
 
     /**
      * Join a mock trusted service: it becomes a zero-balance mock wallet, so
-     * `listFederations` keeps it, the payer lookup admits it (in scenarios
-     * with `admitNewlyJoined`) and the top-up rails can fund it.
+     * `listFederations` keeps it, the payer lookup admits it and the top-up
+     * rails can fund it.
      */
     private joinMockFederation(
         payload: Record<string, unknown>,
@@ -1155,47 +1168,25 @@ export class FiSimulator {
                 },
             }
         }
-        // a federation joined during the session, in a scenario that is about
-        // joining one. Zero balance: it was joined to pay for setup, so the
-        // next thing it needs is a top-up
-        const newlyJoined = this.scenario.admitNewlyJoined
-            ? this.joinedFederationIds
-                  .filter(id => !this.baselineFederationIds?.includes(id))
-                  .map(federationId => ({ federationId, balanceMsats: '0' }))
-            : []
-
-        const balances = this.scenario.payers
-        // an empty scenario means "nothing can pay", whatever was already
-        // joined — but not what was joined since
-        if (!balances.length) return { type: 'payers', payers: newlyJoined }
-
-        // mock payers carry their own balance; everything else falls back to
-        // the scenario's list, cycled across however many wallets are joined
-        const mockPayers = this.mockPayers.filter(
-            p => !this.joinedFederationIds.includes(p.federationId),
-        )
-        const realIds = this.joinedFederationIds.length
-            ? this.joinedFederationIds
-            : mockPayers.length
-              ? []
-              : balances.map(p => p.federationId)
-
-        return {
-            type: 'payers',
-            payers: [
-                ...newlyJoined,
-                ...realIds.map((federationId, index) => ({
-                    federationId,
-                    balanceMsats: String(
-                        balances[index % balances.length].balanceSats *
-                            SATS_TO_MSATS,
-                    ),
-                })),
-                ...mockPayers.map(p => ({
+        if (this.payerSource === 'none') return { type: 'payers', payers: [] }
+        if (this.payerSource === 'mock')
+            return {
+                type: 'payers',
+                payers: this.mockPayers.map(p => ({
                     federationId: p.federationId,
                     balanceMsats: String(p.balanceSats * SATS_TO_MSATS),
                 })),
-            ],
+            }
+        // real: every wallet the app holds, at the balance it last reported;
+        // a wallet joined this session has not reported one yet
+        return {
+            type: 'payers',
+            payers: this.joinedFederationIds.map(federationId => ({
+                federationId,
+                balanceMsats: String(
+                    this.observedBalances.get(federationId) ?? 0,
+                ),
+            })),
         }
     }
 
@@ -1306,7 +1297,13 @@ export class FiSimulator {
             return {
                 fmanId,
                 fmanName: fmanNameFor(fmanId),
-                advertisedPriceMsats: String(seatPriceMsats(index, requested)),
+                advertisedPriceMsats: String(
+                    seatPriceMsats(
+                        index,
+                        requested,
+                        this.scenario.seatPriceMsats,
+                    ),
+                ),
                 provenance: 'fedi_attested',
             }
         })
@@ -1485,7 +1482,11 @@ export class FiSimulator {
                 fmanId,
                 fmanName: fmanNameFor(fmanId),
                 advertisedPriceMsats: String(
-                    seatPriceMsats(seat.index, requested),
+                    seatPriceMsats(
+                        seat.index,
+                        requested,
+                        this.scenario.seatPriceMsats,
+                    ),
                 ),
                 provenance: 'PeerBadge',
             }
@@ -1880,16 +1881,14 @@ export class FiSimulator {
      * Park an extra-payment authorization. The payer must be a wallet the app
      * really holds: the approve prompt gates on that wallet's live balance,
      * exactly as the real bridge names real payment federations per seat.
+     * The payer id falls back to `'unknown'` until a real wallet is observed.
      */
     private parkAuthorization(formation: RpcFiFormationSnapshot) {
-        // a mock payer outranks the scenario's invented ids: it is a wallet
-        // redux actually holds, so the shortfall gate and the banner's name
-        // both resolve — an invented id degrades to the nameless variant
+        const eligible = this.eligiblePayers()
         const payerFederationId =
-            this.joinedFederationIds[0] ??
-            this.mockPayers[0]?.federationId ??
-            this.scenario.payers[0]?.federationId ??
-            ''
+            eligible.type === 'payers'
+                ? (eligible.payers[0]?.federationId ?? 'unknown')
+                : 'unknown'
         const totalMsats = this.scenario.authorizeAmountSats * SATS_TO_MSATS
         const seats = formation.seats.slice(0, 3)
         formation.actionRequired = {

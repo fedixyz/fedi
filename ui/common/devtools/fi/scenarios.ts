@@ -8,8 +8,8 @@ import { RpcFiErrorCode, RpcFiLiquidityNetwork } from '../../types/bindings'
  * the same bridge contract the real backend serves.
  */
 export interface FiScenario {
-    /** Wallets the bridge admits as setup payers. Empty routes to the gate. */
-    payers: Array<{ federationId: string; balanceSats: number }>
+    /** Price of one seat. Above any wallet's balance is how the shortfall banner is reached. */
+    seatPriceMsats: number
     /** Cold-start latency for the first selection preview, in ms. */
     coldPreviewLatencyMs: number
     /** Warm latency for subsequent previews, in ms. */
@@ -66,25 +66,6 @@ export interface FiScenario {
      * sheet's loading state is a real thing to look at.
      */
     joinLookupLatencyMs: number
-    /**
-     * Admit any federation joined during the session as a setup payer, at zero
-     * balance.
-     *
-     * Without this a scenario that starts with no eligible payer can never
-     * leave that state, and the join flow stops at the terms. The real bridge
-     * admits a newly joined trusted federation on the next lookup; this is that
-     * behaviour, kept to the scenarios that are about joining one.
-     */
-    admitNewlyJoined: boolean
-    /**
-     * Seed the story 04 mock payer set when the scenario is chosen.
-     *
-     * The confirm step can only offer a wallet the app actually holds, and dev
-     * cannot always join a funded one, so without this the flow stops at the
-     * payer picker. Seeding on selection rather than at boot keeps a dev build
-     * with real wallets clean until a tester asks for the scenario.
-     */
-    seedMockPayers: boolean
     /**
      * Seed the client with a formation already underway, so the post-payment
      * screens can be reached without spending. `formed` lands on the operator
@@ -212,10 +193,7 @@ export const FORMATION_PHASES: FormationPhaseName[] = [
 ]
 
 const baseScenario: FiScenario = {
-    payers: [
-        { federationId: 'fed-bitcoin-builders', balanceSats: 312_500 },
-        { federationId: 'fed-community-mint', balanceSats: 48_000 },
-    ],
+    seatPriceMsats: 2_100_000,
     coldPreviewLatencyMs: 1_000,
     warmPreviewLatencyMs: 400,
     eligibleFmanCount: 30,
@@ -235,8 +213,6 @@ const baseScenario: FiScenario = {
     failJoinLookup: false,
     noJoinableWalletServices: false,
     joinLookupLatencyMs: 400,
-    admitNewlyJoined: false,
-    seedMockPayers: false,
     seedFormation: null,
     createdJoinMs: 2_000,
     createdJoinFailMs: 4_000,
@@ -262,21 +238,8 @@ const scenario = (overrides: Partial<FiScenario>): FiScenario => ({
 })
 
 export const fiScenarios = {
-    /**
-     * Everything succeeds, end to end. The default for dogfooding the flow.
-     *
-     * Seeds the mock payer set so the payer picker, a top-up moved from a
-     * second wallet, formation, the fee step, the Lightning attach and the
-     * dashboard are all reachable without touching a real federation.
-     */
-    happyPath: scenario({ seedMockPayers: true }),
-
-    /**
-     * The lookup works and finds nothing: the user is in no trusted setup
-     * payment federation. The payment screen still prices the setup and says
-     * what is missing — there is no gate any more.
-     */
-    noEligiblePayers: scenario({ payers: [], admitNewlyJoined: true }),
+    /** Everything succeeds, end to end. The default for dogfooding the flow. */
+    happyPath: scenario({}),
 
     /**
      * The payer lookup itself fails, which is what the real bridge does when
@@ -291,34 +254,20 @@ export const fiScenarios = {
      * join either. The screen keeps its offer, so the sheet can be reopened;
      * the sheet is where "no wallet can pay for setup" is said.
      */
-    noJoinableServices: scenario({
-        payers: [],
-        noJoinableWalletServices: true,
-        admitNewlyJoined: true,
-    }),
+    noJoinableServices: scenario({ noJoinableWalletServices: true }),
 
     /**
      * The join sheet's own lookup fails. Membership is unknown rather than
      * absent, so the sheet must not report it as an empty list — that verdict
      * reads as settled and would stop the user looking.
      */
-    joinLookupFails: scenario({
-        payers: [],
-        failJoinLookup: true,
-        admitNewlyJoined: true,
-    }),
+    joinLookupFails: scenario({ failJoinLookup: true }),
 
     /** The join sheet's lookup crawls — exercises its loading state. */
-    slowJoinLookup: scenario({
-        payers: [],
-        joinLookupLatencyMs: 6_000,
-        admitNewlyJoined: true,
-    }),
+    slowJoinLookup: scenario({ joinLookupLatencyMs: 6_000 }),
 
-    /** A payer exists but cannot cover the total — exercises top-up (05). */
-    insufficientBalance: scenario({
-        payers: [{ federationId: 'fed-bitcoin-builders', balanceSats: 8_000 }],
-    }),
+    /** No payer can cover the total — exercises top-up (05). */
+    insufficientBalance: scenario({ seatPriceMsats: 1_000_000_000_000 }),
 
     /** Too few verified guardians for the larger presets. */
     notEnoughGuardians: scenario({ eligibleFmanCount: 8, seenFmanCount: 11 }),
@@ -519,11 +468,7 @@ export const FI_SCENARIO_GROUPS = [
     },
     {
         title: 'Paying for setup',
-        scenarios: [
-            'noEligiblePayers',
-            'payerLookupFails',
-            'insufficientBalance',
-        ],
+        scenarios: ['payerLookupFails', 'insufficientBalance'],
     },
     {
         title: 'Joining a wallet service',
@@ -607,7 +552,6 @@ void _everyScenarioIsGrouped
 export const FI_SCENARIO_STORYBOARD_FRAMES: Partial<
     Record<FiScenarioName, string>
 > = {
-    noEligiblePayers: 'A1-A7 (join card, join sheet, terms, top up, funded)',
     noJoinableServices: 'A1 + join sheet empty state (Check again)',
     joinLookupFails: 'A1 + join sheet failed-check state (Try again)',
     slowJoinLookup: 'A1 + join sheet loading state',

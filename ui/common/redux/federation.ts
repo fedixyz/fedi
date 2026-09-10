@@ -97,6 +97,39 @@ const initialState = {
 
 export type FederationState = typeof initialState
 
+// shared by `leaveFederation.fulfilled` and `removeFederations` so a wallet
+// dropped either way can't leave `payFromFederationId` or
+// `recentlyUsedFederationIds` pointing at it
+function removeFederationBookkeeping(
+    state: FederationState,
+    federationId: Federation['id'],
+) {
+    state.federations = state.federations.filter(fed => fed.id !== federationId)
+    if (state.federations.length === 0) {
+        state.payFromFederationId = null
+    } else {
+        state.recentlyUsedFederationIds =
+            state.recentlyUsedFederationIds.filter(id => id !== federationId)
+
+        if (
+            state.recentlyUsedFederationIds.length === 0 &&
+            state.federations.length > 0
+        ) {
+            state.recentlyUsedFederationIds = Array.from(
+                new Set([
+                    state.federations[0].id,
+                    ...state.recentlyUsedFederationIds,
+                ]),
+            )
+        }
+
+        if (state.payFromFederationId === federationId) {
+            state.payFromFederationId =
+                state.recentlyUsedFederationIds[0] ?? null
+        }
+    }
+}
+
 /*** Slice definition ***/
 
 export const federationSlice = createSlice({
@@ -223,6 +256,13 @@ export const federationSlice = createSlice({
             if (hasAnyUpdates) {
                 state.federations = [...updatedFederations, ...newFederations]
             }
+        },
+        // `setFederations` only ever adds or updates, so a caller that holds
+        // federations the bridge never issued needs this to drop them again.
+        removeFederations(state, action: PayloadAction<Federation['id'][]>) {
+            action.payload.forEach(federationId =>
+                removeFederationBookkeeping(state, federationId),
+            )
         },
         setPublicCommunities(state, action: PayloadAction<PublicCommunity[]>) {
             state.publicCommunities = action.payload
@@ -479,37 +519,7 @@ export const federationSlice = createSlice({
         })
         builder.addCase(leaveFederation.fulfilled, (state, action) => {
             const { federationId } = action.meta.arg
-            // Remove from federations
-            state.federations = state.federations.filter(
-                fed => fed.id !== federationId,
-            )
-            if (state.federations.length === 0) {
-                state.payFromFederationId = null
-            } else {
-                // Remove `federationId` from the recently-used list
-                state.recentlyUsedFederationIds =
-                    state.recentlyUsedFederationIds.filter(
-                        id => id !== federationId,
-                    )
-
-                // If there are no recently-used federations, set it to the first available federation (if any)
-                if (
-                    state.recentlyUsedFederationIds.length === 0 &&
-                    state.federations.length > 0
-                ) {
-                    state.recentlyUsedFederationIds = Array.from(
-                        new Set([
-                            state.federations[0].id,
-                            ...state.recentlyUsedFederationIds,
-                        ]),
-                    )
-                }
-
-                if (state.payFromFederationId === federationId) {
-                    state.payFromFederationId =
-                        state.recentlyUsedFederationIds[0] ?? null
-                }
-            }
+            removeFederationBookkeeping(state, federationId)
             if (state.customFediMods[federationId]) {
                 state.customFediMods = omit(state.customFediMods, federationId)
             }
@@ -582,6 +592,7 @@ export const federationSlice = createSlice({
 export const {
     setCommunities,
     setFederations,
+    removeFederations,
     setPublicCommunities,
     setPublicFederations,
     setAutoSelectFederations,
