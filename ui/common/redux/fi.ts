@@ -38,7 +38,7 @@ const log = makeLog('common/redux/fi')
 // presets only, no custom entry: `federation_size` is a plain u16 but each
 // fleet manager advertises which sizes it serves, so an arbitrary number can
 // only be validated by a round trip that has no "size unavailable" design
-export const WALLET_SERVICE_SIZE_OPTIONS = [7, 10, 13, 16, 19]
+export const WALLET_SERVICE_SIZE_OPTIONS = [7, 10, 13]
 export const RECOMMENDED_WALLET_SERVICE_SIZE = 10
 export const MIN_WALLET_SERVICE_SIZE = WALLET_SERVICE_SIZE_OPTIONS[0]
 export const MAX_WALLET_SERVICE_SIZE =

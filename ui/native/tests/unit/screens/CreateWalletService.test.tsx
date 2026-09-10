@@ -123,8 +123,8 @@ describe('screens/CreateWalletService', () => {
         renderScreen(makeBridge())
         await settlePreview()
 
-        expect(WALLET_SERVICE_SIZE_OPTIONS).toEqual([7, 10, 13, 16, 19])
-        for (const option of [7, 10, 13, 16, 19]) {
+        expect(WALLET_SERVICE_SIZE_OPTIONS).toEqual([7, 10, 13])
+        for (const option of [7, 10, 13]) {
             expect(screen.getByTestId(`${option}Tab`)).toBeOnTheScreen()
         }
         expect(
@@ -151,12 +151,12 @@ describe('screens/CreateWalletService', () => {
         await settlePreview()
 
         fireEvent.press(screen.getByTestId('13Tab'))
-        fireEvent.press(screen.getByTestId('16Tab'))
+        fireEvent.press(screen.getByTestId('7Tab'))
         await settlePreview()
 
         expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
         expect(fedimint.fiClientPreviewSelection).toHaveBeenLastCalledWith(
-            expect.objectContaining({ federationSize: 16 }),
+            expect.objectContaining({ federationSize: 7 }),
         )
     })
 
