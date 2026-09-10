@@ -184,6 +184,11 @@ export class FedimintBridge {
         return this.rpcTyped('fiClientAbandon', {})
     }
 
+    /** End every seat of the recorded formation. Run before the state wipe. */
+    async fiClientDecommission() {
+        return this.rpcTyped('fiClientDecommission', {})
+    }
+
     /** Wipe all local FI protocol state when an internal build next starts. */
     async fiClientScheduleReset() {
         return this.rpcTyped('fiClientScheduleReset', {})

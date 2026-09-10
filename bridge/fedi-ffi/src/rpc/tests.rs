@@ -77,6 +77,7 @@ fn raw_fi_rpc_allowlist_excludes_formation_orchestration() {
             "fiClientAbandon",
             "fiClientApplyReplacements",
             "fiClientAuthorizeReplacementPayments",
+            "fiClientDecommission",
             "fiClientEligiblePayers",
             "fiClientLiquidityCurrent",
             "fiClientLiquidityDiscover",

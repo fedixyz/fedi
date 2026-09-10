@@ -672,6 +672,33 @@ pub enum RpcFiOperationResult {
     Error { error: RpcFiOperationError },
 }
 
+/// One seat a decommission pass could not end, and what its Fleet Manager said.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFiDecommissionRefusal {
+    pub index: u16,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum RpcFiDecommissionResult {
+    Outcome {
+        decommissioned: Vec<u16>,
+        already_decommissioned: Vec<u16>,
+        refused: Vec<RpcFiDecommissionRefusal>,
+    },
+    Error {
+        error: RpcFiOperationError,
+    },
+}
+
 /// Native FCM platform attached to one installation registration.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]

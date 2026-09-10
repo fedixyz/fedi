@@ -391,4 +391,19 @@ describe('FedimintBridge FI client', () => {
             environment: 'Production',
         })
     })
+
+    test('forwards the seat decommission and reports every seat outcome', async () => {
+        const outcome: bindings.RpcFiDecommissionResult = {
+            type: 'outcome',
+            decommissioned: [0, 1],
+            alreadyDecommissioned: [2],
+            refused: [{ index: 3, reason: 'decommission request timed out' }],
+        }
+        const rpc = jest.fn().mockResolvedValue(outcome)
+        const fedimint = new FedimintBridge(rpc)
+
+        await expect(fedimint.fiClientDecommission()).resolves.toEqual(outcome)
+
+        expect(rpc).toHaveBeenNthCalledWith(1, 'fiClientDecommission', {})
+    })
 })

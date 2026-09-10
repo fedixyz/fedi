@@ -14,13 +14,13 @@ use multispend::services::MultispendServices;
 use nostril::Nostril;
 use rpc_types::event::TypedEventExt as _;
 use rpc_types::fi_client::{
-    RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiEligiblePayersResult,
-    RpcFiErrorCode, RpcFiFederationMetadataUpdate, RpcFiFormationIntent,
-    RpcFiLiquidityDiscoveryResult, RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult,
-    RpcFiLiquidityOperationResult, RpcFiLiquidityRequestIntent, RpcFiOperationError,
-    RpcFiOperationResult, RpcFiPushPlatform, RpcFiPushRegistrationResult,
-    RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest, RpcFiSelectionPreviewResult,
-    RpcFiSetupPaymentFederationsResult,
+    RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiDecommissionRefusal,
+    RpcFiDecommissionResult, RpcFiEligiblePayersResult, RpcFiErrorCode,
+    RpcFiFederationMetadataUpdate, RpcFiFormationIntent, RpcFiLiquidityDiscoveryResult,
+    RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult, RpcFiLiquidityOperationResult,
+    RpcFiLiquidityRequestIntent, RpcFiOperationError, RpcFiOperationResult, RpcFiPushPlatform,
+    RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest,
+    RpcFiSelectionPreviewResult, RpcFiSetupPaymentFederationsResult,
 };
 use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
@@ -341,6 +341,38 @@ impl BridgeFull {
         match &self.fi_driver {
             Some(driver) => driver.abandon().await,
             None => self.fi_initialization_failure(),
+        }
+    }
+
+    pub async fn fi_decommission(&self) -> RpcFiDecommissionResult {
+        if !self.runtime.fi_client_reset_is_allowed() {
+            return RpcFiDecommissionResult::Error {
+                error: RpcFiOperationError {
+                    code: RpcFiErrorCode::CapabilityUnavailable,
+                    message: "Wallet-service decommission is only available in internal builds"
+                        .to_owned(),
+                    detail: None,
+                },
+            };
+        }
+        let Ok(client) = &self.fi_client else {
+            return RpcFiDecommissionResult::Error {
+                error: self.fi_initialization_error(),
+            };
+        };
+        match client.decommission_seats().await {
+            Ok(outcome) => RpcFiDecommissionResult::Outcome {
+                decommissioned: outcome.decommissioned,
+                already_decommissioned: outcome.already_decommissioned,
+                refused: outcome
+                    .refused
+                    .into_iter()
+                    .map(|(index, reason)| RpcFiDecommissionRefusal { index, reason })
+                    .collect(),
+            },
+            Err(error) => RpcFiDecommissionResult::Error {
+                error: fi_error_to_rpc(&error),
+            },
         }
     }
 

@@ -461,6 +461,54 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         })
     }
 
+    // The wipe deletes the formation record this reads, so it has to run first.
+    const handleDecommissionSeats = () => {
+        Alert.alert(
+            'Decommission every wallet-service seat?',
+            'This asks every Fleet Manager hosting a seat to shut that guardian down permanently. Nothing is refunded and it cannot be undone. Do this before wiping the test state, because the wipe deletes the record this needs.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Decommission',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const result = await fedimint.fiClientDecommission()
+                            if (result.type === 'error') {
+                                throw new Error(result.error.message)
+                            }
+                            if (result.refused.length > 0) {
+                                log.error(
+                                    'wallet-service seats refused decommissioning',
+                                    result.refused,
+                                )
+                                toast.show({
+                                    content: `Seats ${result.refused
+                                        .map(seat => seat.index)
+                                        .join(
+                                            ', ',
+                                        )} refused. Their operators must decommission by hand.`,
+                                    status: 'error',
+                                })
+                                return
+                            }
+                            toast.show({
+                                content: `Decommissioned ${result.decommissioned.length} seats, ${result.alreadyDecommissioned.length} were already ended.`,
+                                status: 'success',
+                            })
+                        } catch (error) {
+                            log.error('fiClientDecommission failed', error)
+                            toast.show({
+                                content: `Decommission failed: ${error}`,
+                                status: 'error',
+                            })
+                        }
+                    },
+                },
+            ],
+        )
+    }
+
     const handleScheduleFiReset = () => {
         Alert.alert(
             'Wipe all wallet-service test state?',
@@ -718,6 +766,13 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     containerStyle={style.buttonContainer}
                     onPress={handleAbandonFormation}
                 />
+                {canResetFi && (
+                    <Button
+                        title="Decommission all wallet-service seats"
+                        containerStyle={style.buttonContainer}
+                        onPress={handleDecommissionSeats}
+                    />
+                )}
                 {canResetFi && (
                     <Button
                         title="Wipe all wallet-service test state"

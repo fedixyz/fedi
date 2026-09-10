@@ -698,6 +698,20 @@ export type RpcFiCurrentLiquidityOperationResult =
   | { type: "current"; operation: RpcFiLiquidityOperation | null }
   | { type: "error"; error: RpcFiOperationError };
 
+/**
+ * One seat a decommission pass could not end, and what its Fleet Manager said.
+ */
+export type RpcFiDecommissionRefusal = { index: number; reason: string };
+
+export type RpcFiDecommissionResult =
+  | {
+      type: "outcome";
+      decommissioned: Array<number>;
+      alreadyDecommissioned: Array<number>;
+      refused: Array<RpcFiDecommissionRefusal>;
+    }
+  | { type: "error"; error: RpcFiOperationError };
+
 export type RpcFiEligiblePayer = {
   /**
    * A federation is eligible only when Manifold's authenticated setup-
@@ -1535,6 +1549,7 @@ export type RpcMethods = {
   ];
   fiClientResume: [fiClientResume, RpcFiOperationResult];
   fiClientAbandon: [fiClientAbandon, RpcFiOperationResult];
+  fiClientDecommission: [fiClientDecommission, RpcFiDecommissionResult];
   fiClientScheduleReset: [fiClientScheduleReset, RpcFiOperationResult];
   fiClientLiquidityDiscover: [
     fiClientLiquidityDiscover,
@@ -2817,6 +2832,8 @@ export type fiClientApplyReplacements = {
 };
 
 export type fiClientAuthorizeReplacementPayments = { authorizationId: string };
+
+export type fiClientDecommission = {};
 
 export type fiClientEligiblePayers = {};
 

@@ -49,12 +49,12 @@ use rpc_types::communities::RpcCommunity;
 use rpc_types::error::{ErrorCode, RpcError};
 use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
 use rpc_types::fi_client::{
-    RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiEligiblePayersResult,
-    RpcFiFederationMetadataUpdate, RpcFiFormationIntent, RpcFiLiquidityDiscoveryResult,
-    RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult, RpcFiLiquidityOperationResult,
-    RpcFiLiquidityRequestIntent, RpcFiMsats, RpcFiOperationResult, RpcFiPushPlatform,
-    RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest,
-    RpcFiSelectionPreviewResult, RpcFiSetupPaymentFederationsResult,
+    RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiDecommissionResult,
+    RpcFiEligiblePayersResult, RpcFiFederationMetadataUpdate, RpcFiFormationIntent,
+    RpcFiLiquidityDiscoveryResult, RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult,
+    RpcFiLiquidityOperationResult, RpcFiLiquidityRequestIntent, RpcFiMsats, RpcFiOperationResult,
+    RpcFiPushPlatform, RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult,
+    RpcFiSelectionPreviewRequest, RpcFiSelectionPreviewResult, RpcFiSetupPaymentFederationsResult,
 };
 use rpc_types::matrix::{
     RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession, RpcMatrixInitializeStatus,
@@ -1539,6 +1539,11 @@ async fn fiClientAbandon(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationRe
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn fiClientDecommission(bridge: &BridgeFull) -> anyhow::Result<RpcFiDecommissionResult> {
+    Ok(bridge.fi_decommission().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn fiClientScheduleReset(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
     Ok(bridge.fi_schedule_reset().await)
 }
@@ -2832,6 +2837,7 @@ rpc_methods!(RpcMethods {
     fiClientAuthorizeReplacementPayments,
     fiClientResume,
     fiClientAbandon,
+    fiClientDecommission,
     fiClientScheduleReset,
     fiClientLiquidityDiscover,
     fiClientLiquidityStart,
