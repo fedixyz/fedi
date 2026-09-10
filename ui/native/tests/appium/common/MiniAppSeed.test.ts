@@ -13,11 +13,15 @@ type SeedRequestResult =
 const en = resources.en.translation
 
 const RESULT_KEY = '__fediMiniAppSeedResult'
+const INSTALL_RESULT_KEY = '__fediMiniAppInstallResult'
 const RESULT_TIMEOUT = 20_000
 const DENY = en.words.deny
 const APPROVE = en.words.approve
+const ALLOW = en.words.allow
 const CONSENT_TITLE = en.feature.fedimods['seed-request-title']
 const CONSENT_DESCRIPTION = en.feature.fedimods['seed-request-description']
+const INSTALLED_MINI_APP_TITLE = 'E2E Install'
+const INSTALLED_MINI_APP_URL = 'https://example.com/fedi-e2e-mini-app'
 
 export class MiniAppSeed extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
@@ -73,6 +77,8 @@ export class MiniAppSeed extends AppiumTestBase {
             )
         }
 
+        await this.installMiniAppFromBrowser()
+
         await this.switchToNativeContext()
 
         // The runner only resets when the state ledger exceeds the next
@@ -81,6 +87,14 @@ export class MiniAppSeed extends AppiumTestBase {
         await this.clickElementByKey('CloseMiniAppButton')
         if (!(await this.elementIsDisplayed('HomeTabButton', 5000))) {
             await this.driver.back()
+        }
+        await this.clickElementByKey('ModsTabButton')
+        if (
+            !(await this.isTextPresent(INSTALLED_MINI_APP_TITLE, true, 10000))
+        ) {
+            throw new Error(
+                'Installed mini app was not visible on the Mods tab',
+            )
         }
         await this.clickElementByKey('HomeTabButton')
         console.log('Mini-app seed test complete')
@@ -122,6 +136,49 @@ export class MiniAppSeed extends AppiumTestBase {
         return origin
     }
 
+    private async installMiniAppFromBrowser(): Promise<void> {
+        await this.driver.execute(`
+            window.${INSTALL_RESULT_KEY} = { status: 'pending' };
+            window.fediInternal.installMiniApp({
+                id: 'e2e-install-mini-app',
+                title: '${INSTALLED_MINI_APP_TITLE}',
+                url: '${INSTALLED_MINI_APP_URL}',
+                imageUrl: '',
+            }).then(
+                () => {
+                    window.${INSTALL_RESULT_KEY} = { status: 'resolved' };
+                },
+                error => {
+                    window.${INSTALL_RESULT_KEY} = {
+                        status: 'rejected',
+                        message: String(error && error.message ? error.message : error),
+                    };
+                },
+            );
+        `)
+        await this.switchToNativeContext()
+
+        if (
+            await this.isTextPresent(
+                en.feature.permissions[
+                    'manage-installed-mini-apps-description'
+                ],
+                true,
+                5000,
+            )
+        ) {
+            await this.clickOnText(ALLOW, 0, true)
+        }
+
+        await this.switchToWebviewContext()
+        const result = await this.waitForInstallResult()
+        if (result.status !== 'resolved') {
+            throw new Error(
+                `Expected mini app install to resolve, received ${JSON.stringify(result)}`,
+            )
+        }
+    }
+
     private async assertConsentPrompt(origin: string): Promise<void> {
         if (!(await this.isTextPresent(CONSENT_TITLE))) {
             throw new Error('Mini-app seed consent title was not displayed')
@@ -150,6 +207,26 @@ export class MiniAppSeed extends AppiumTestBase {
             },
         )
         if (!result) throw new Error('Mini-app seed response was unavailable')
+        return result
+    }
+
+    private async waitForInstallResult(): Promise<SeedRequestResult> {
+        let result: SeedRequestResult | undefined
+        await this.driver.waitUntil(
+            async () => {
+                result = (await this.driver.execute(
+                    `return window.${INSTALL_RESULT_KEY}`,
+                )) as unknown as SeedRequestResult | undefined
+                return Boolean(result && result.status !== 'pending')
+            },
+            {
+                timeout: RESULT_TIMEOUT,
+                interval: 500,
+                timeoutMsg: 'Timed out waiting for mini app install response',
+            },
+        )
+        if (!result)
+            throw new Error('Mini-app install response was unavailable')
         return result
     }
 
