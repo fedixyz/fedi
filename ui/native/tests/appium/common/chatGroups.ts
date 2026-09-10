@@ -199,9 +199,11 @@ export async function respondToOnlyKnock(
     // the homeserver confirms the leave. Phase 4 verifies the actual
     // outcome from B's perspective, so a missing empty-state is not fatal.
     await t.elementIsDisplayed('NoKnockRequestsEmpty', 20000)
-    // Pop back to the chat list so the bottom tab bar is visible again
-    // (it's hidden on stacked screens).
-    await t.clickElementByKey('HeaderBackButton') // members -> settings
-    await t.clickElementByKey('HeaderBackButton') // settings -> conversation
-    await t.clickElementByKey('HeaderBackButton') // conversation -> chat list
+    // The tab bar is hidden on stacked screens, and responding can leave the
+    // request detail on the stack, so the depth back to the chat list varies.
+    for (let i = 0; i < 6; i++) {
+        if (await t.elementIsDisplayed('ChatTabButton', 1000)) return
+        await t.clickElementByKey('HeaderBackButton')
+    }
+    await t.waitForElementDisplayed('ChatTabButton', MATRIX_TIMEOUT)
 }
