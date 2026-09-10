@@ -168,6 +168,7 @@ pub(super) async fn preflight_exact_payments(
                 .context("reconstructed reservation journal does not match its quote")?;
             continue;
         }
+        validate_new_payment_issuance(&parsed)?;
         let hold = seat_payment_hold_msats(&federation.client, &parsed).await?;
         members.push(FiFundingReservationMember::new(
             FiFundingQuoteId::from_bytes(requirement.quote_id.0),
@@ -726,6 +727,7 @@ pub(super) async fn submit_seat_payment(
     quote_id: &QuoteId,
     parsed: &ParsedPaidQuote,
 ) -> anyhow::Result<FiSeatPaymentJournal> {
+    validate_new_payment_issuance(parsed)?;
     let client = &federation.client;
     let operation_id = seat_payment_operation_id(quote_id);
     let funding_plan = seat_funding_plan(client, parsed)?;

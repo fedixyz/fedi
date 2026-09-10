@@ -151,6 +151,11 @@ const MINT_V2_GENERATION: u8 = 2;
 /// abort the process (crash DoS). Every price must pass
 /// [`CheckedSeatPrice`] BEFORE any splitting or fee summation.
 const MAX_SEAT_PRICE_MSATS: u64 = 100_000_000_000;
+/// Maximum mint-v1 outputs accepted for a new Fleet Manager seat payment.
+///
+/// A canonical power-of-two representation of any `u64` price needs at most
+/// one output per bit. The matching Manifold quote generator uses this bound.
+const MAX_LOCKED_PAYMENT_NOTES: usize = u64::BITS as usize;
 
 /// A remote seat price that has passed the allocation-safety ceiling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -427,6 +432,20 @@ impl ParsedIssuance {
     fn payment_hash(&self) -> PaymentIssuanceHash {
         PaymentIssuanceHash(self.canonical_hash_bytes())
     }
+}
+
+/// Reject an oversized mint-v1 payment before it can move wallet funds.
+///
+/// Keep this out of quote parsing: recovery must continue accepting a
+/// previously journaled oversized payment so it can collect its signatures.
+fn validate_new_payment_issuance(parsed: &ParsedPaidQuote) -> anyhow::Result<()> {
+    if let ParsedIssuance::V1(issuance) = &parsed.payment {
+        ensure!(
+            issuance.len() <= MAX_LOCKED_PAYMENT_NOTES,
+            "mint-v1 seat payment contains too many outputs"
+        );
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -752,6 +771,8 @@ fn settled_refund_after_credit(
 }
 
 mod quote;
+#[cfg(test)]
+use quote::decode_v1_issuance;
 use quote::{denomination_from_amount, parse_paid_quote, plan_price_msats};
 
 mod journal;

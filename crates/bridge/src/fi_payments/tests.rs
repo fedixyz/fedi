@@ -142,6 +142,78 @@ fn journal_binding_rejects_a_different_quote() {
 }
 
 #[test]
+fn new_mint_v1_payments_reject_more_than_64_outputs() {
+    let payment = |count| {
+        ParsedIssuance::V1(
+            std::iter::repeat_n(
+                (Amount::from_msats(1), BlindNonce(dummy_blinded_message())),
+                count,
+            )
+            .collect(),
+        )
+    };
+    let parsed = |payment| ParsedPaidQuote {
+        federation_id: WireFederationId("test".to_owned()),
+        price: CheckedSeatPrice::try_from(1024).unwrap(),
+        refund_nonce: [9; 32],
+        refund: ParsedIssuance::V1(vec![]),
+        payment,
+    };
+
+    assert!(validate_new_payment_issuance(&parsed(payment(MAX_LOCKED_PAYMENT_NOTES))).is_ok());
+    let oversized = parsed(payment(MAX_LOCKED_PAYMENT_NOTES + 1));
+    assert!(validate_new_payment_issuance(&oversized).is_err());
+
+    let journal = FiSeatPaymentJournal {
+        version: FI_SEAT_PAYMENT_JOURNAL_VERSION,
+        generation: MINT_V1_GENERATION,
+        mint_module: 0,
+        txid: TransactionId::from_byte_array([7; 32]),
+        output_count: MAX_LOCKED_PAYMENT_NOTES as u64 + 1,
+        issuance_hash: oversized.payment.payment_hash().0,
+        payment_signatures: None,
+        claimed_refund_issuance_hash: None,
+        credited_refund_issuance_hash: None,
+    };
+    validate_journal(&journal, &oversized).unwrap();
+}
+
+#[test]
+fn mint_v1_decoding_remains_permissive_for_journal_recovery() {
+    let request = LockedIssuanceRequest {
+        amount_msats: 1,
+        blind_nonce: dummy_blinded_message().consensus_encode_to_vec(),
+    };
+    let issuance = std::iter::repeat_n(request, MAX_LOCKED_PAYMENT_NOTES + 1).collect::<Vec<_>>();
+
+    assert_eq!(
+        decode_v1_issuance(&issuance, &ModuleDecoderRegistry::default())
+            .unwrap()
+            .len(),
+        MAX_LOCKED_PAYMENT_NOTES + 1
+    );
+}
+
+#[test]
+fn new_mint_v2_payments_do_not_use_the_sequential_collection_bound() {
+    let parsed = ParsedPaidQuote {
+        federation_id: WireFederationId("test".to_owned()),
+        price: CheckedSeatPrice::try_from(1024).unwrap(),
+        refund_nonce: [9; 32],
+        refund: ParsedIssuance::V2(vec![]),
+        payment: ParsedIssuance::V2(
+            std::iter::repeat_n(
+                (Denomination(0), dummy_blinded_message(), [0; 16]),
+                MAX_LOCKED_PAYMENT_NOTES + 1,
+            )
+            .collect(),
+        ),
+    };
+
+    assert!(validate_new_payment_issuance(&parsed).is_ok());
+}
+
+#[test]
 fn journal_records_roundtrip_through_consensus_encoding() {
     let journal = FiSeatPaymentJournal {
         version: FI_SEAT_PAYMENT_JOURNAL_VERSION,
