@@ -83,7 +83,7 @@ const SettingsItem = ({
                     <Column gap="xxs" style={style.text}>
                         <Text
                             color={color || theme.colors.primary}
-                            style={labelStyle}
+                            style={[style.text, labelStyle]}
                             numberOfLines={2}
                             ellipsizeMode="tail">
                             {label}
