@@ -98,6 +98,22 @@ export async function ensureSatsMode(t: AppiumTestBase): Promise<void> {
     throw new Error('could not switch amount input to SATS mode')
 }
 
+// the input re-renders after a tap lands, so one read right after the last
+// digit can still show the previous amount
+async function readAmountInput(
+    t: AppiumTestBase,
+    isExpected: (raw: string) => boolean,
+): Promise<string> {
+    const deadline = Date.now() + 5000
+    let raw = ''
+    do {
+        raw = await t.getTextByKey('AmountInputValue')
+        if (isExpected(raw)) return raw
+        await new Promise(r => setTimeout(r, 250))
+    } while (Date.now() < deadline)
+    return raw
+}
+
 export async function enterAmount(
     t: AppiumTestBase,
     sats: number,
@@ -107,9 +123,9 @@ export async function enterAmount(
     }
     // A dropped numpad tap would otherwise surface much later as a wrong
     // payment amount, so verify what actually landed in the input.
-    const entered = (await t.getTextByKey('AmountInputValue')).replace(
-        /[^0-9]/g,
-        '',
+    const digits = (raw: string) => raw.replace(/[^0-9]/g, '')
+    const entered = digits(
+        await readAmountInput(t, raw => digits(raw) === String(sats)),
     )
     if (entered !== String(sats)) {
         throw new Error(`amount input shows "${entered}" after typing ${sats}`)
@@ -282,9 +298,8 @@ export async function enterFiatAmount(
     for (const digit of String(dollars)) {
         await t.clickElementByKey(`NumpadButton-${digit}`)
     }
-    const entered = parseFloat(
-        (await t.getTextByKey('AmountInputValue')).replace(/[^0-9.]/g, ''),
-    )
+    const fiat = (raw: string) => parseFloat(raw.replace(/[^0-9.]/g, ''))
+    const entered = fiat(await readAmountInput(t, raw => fiat(raw) === dollars))
     if (entered !== dollars) {
         throw new Error(
             `fiat input shows "${entered}" after typing ${dollars} dollars`,
