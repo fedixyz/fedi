@@ -128,8 +128,8 @@
 		DB2BA6EC67864338B2D68D71 /* AlbertSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CA334607B4314C63BA2FFF2E /* AlbertSans-Regular.ttf */; };
 		DB56B1CCF54A4112B737871E /* AlbertSans-SemiBoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7807C962FEA411DAE116582 /* AlbertSans-SemiBoldItalic.ttf */; };
 		E174E484A09AC304139F6803 /* AlbertSans-BoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 312DFEE4FBE3416993434E2C /* AlbertSans-BoldItalic.ttf */; };
-		E5B973404239DD316FA33DE8 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FA38AC8F2BFE7945007C7E9E /* GoogleService-Info.plist */; };
-		EA95BEE9DE9E20EA2C8EB352 /* FediNightly-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FA38AC922BFE7E28007C7E9E /* FediNightly-Info.plist */; };
+		E5B973404239DD316FA33DE8 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = C455582D40A3A9B463BB3153 /* GoogleService-Info.plist */; };
+		EA95BEE9DE9E20EA2C8EB352 /* FediEdge-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 37C71B13D1DE2BBDBE33EFB5 /* FediEdge-Info.plist */; };
 		EC021CED38EA9932226589E0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 69BE1F7188AC9CF2966C017E /* PrivacyInfo.xcprivacy */; };
 		ED1BB88ACC7D1D51653A7099 /* AlbertSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 727A4AA578294BB8B29DFF97 /* AlbertSans-SemiBold.ttf */; };
 		F3FA384A62E446EFAA757304 /* AlbertSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CA334607B4314C63BA2FFF2E /* AlbertSans-Regular.ttf */; };
@@ -218,6 +218,7 @@
 		B3542F0755C9B2EE9CA5D72B /* libPods-FediReactNative-FediEdge.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FediReactNative-FediEdge.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B629B376C532DB5BE64CF38D /* Pods-FediReactNative-FediReactNativeTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FediReactNative-FediReactNativeTests.release.xcconfig"; path = "Target Support Files/Pods-FediReactNative-FediReactNativeTests/Pods-FediReactNative-FediReactNativeTests.release.xcconfig"; sourceTree = "<group>"; };
 		C017C3C90B14478883674F23 /* AlbertSans-Black.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "AlbertSans-Black.ttf"; path = "../assets/fonts/AlbertSans-Black.ttf"; sourceTree = "<group>"; };
+		C455582D40A3A9B463BB3153 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "firebase-edge/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		CA334607B4314C63BA2FFF2E /* AlbertSans-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "AlbertSans-Regular.ttf"; path = "../assets/fonts/AlbertSans-Regular.ttf"; sourceTree = "<group>"; };
 		CBA5A20FFC084EEFB3339B92 /* AlbertSans-ExtraBoldItalic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "AlbertSans-ExtraBoldItalic.ttf"; path = "../assets/fonts/AlbertSans-ExtraBoldItalic.ttf"; sourceTree = "<group>"; };
 		D0D73EF92921E1C80059F06F /* FedimintFfi.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FedimintFfi.m; sourceTree = "<group>"; };
@@ -312,6 +313,7 @@
 				A4DA7E192D63EB330074B08E /* PushNotificationEmitter.h */,
 				FA38AC8D2BFE793B007C7E9E /* GoogleService-Info.plist */,
 				FA38AC8F2BFE7945007C7E9E /* GoogleService-Info.plist */,
+				C455582D40A3A9B463BB3153 /* GoogleService-Info.plist */,
 				FAB825F92BAD160D00B7EFD0 /* SimpleLaunch.storyboard */,
 				51AEF46B2A2BDBC600887043 /* FediReactNative.entitlements */,
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
@@ -730,7 +732,7 @@
 				8B6A99E2083BFE4BF26AA3AF /* AlbertSans-Black.ttf in Resources */,
 				91A39A7224221D157397E5DF /* AlbertSans-BlackItalic.ttf in Resources */,
 				84E8F56FAD39BA136DBD27CD /* AlbertSans-Bold.ttf in Resources */,
-				EA95BEE9DE9E20EA2C8EB352 /* FediNightly-Info.plist in Resources */,
+				EA95BEE9DE9E20EA2C8EB352 /* FediEdge-Info.plist in Resources */,
 				618294CB2B9388AB51D4779F /* SimpleLaunch.storyboard in Resources */,
 				E174E484A09AC304139F6803 /* AlbertSans-BoldItalic.ttf in Resources */,
 				B982500ED2AAD8A12F51B261 /* AlbertSans-ExtraBold.ttf in Resources */,
