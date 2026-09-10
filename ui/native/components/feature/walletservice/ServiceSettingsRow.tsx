@@ -277,7 +277,7 @@ const styles = (theme: Theme) =>
         },
         actionDetail: {
             color: theme.colors.darkGrey,
-            fontSize: fediTheme.fontSizes.small,
-            lineHeight: 17,
+            fontSize: fediTheme.fontSizes.caption,
+            lineHeight: 20,
         },
     })
