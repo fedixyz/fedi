@@ -57,6 +57,8 @@ impl DevFed {
 
         let ((), (), _, synapse, nostr_relay, ()) = tokio::try_join!(
             async {
+                // the wallet client polls esplora for the deposit tx
+                dev_fed.esplora().await?;
                 let client = dev_fed.internal_client().await?;
                 // Walletv2 has no deposit state machine (deposits are
                 // auto-claimed), so there is no operation to await: watch the
