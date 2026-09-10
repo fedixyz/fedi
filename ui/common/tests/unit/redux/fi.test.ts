@@ -38,6 +38,7 @@ import {
     selectWalletServiceReplacementPreview,
     selectFiFederationJoinFailure,
     setFederations,
+    updateWalletServiceMetadata,
     setFiClientStatus,
     setFiFederationJoin,
     setFiStatus,
@@ -1547,6 +1548,131 @@ describe('common/redux/fi › getWalletServiceErrorKey', () => {
             )
         },
     )
+})
+
+describe('common/redux/fi › updateWalletServiceMetadata', () => {
+    const FED = 'wallet-service-federation'
+    const storeWithFederation = () =>
+        buildStore({
+            federation: {
+                ...setupStore().getState().federation,
+                federations: [
+                    {
+                        ...mockFederation1,
+                        id: FED,
+                        init_state: 'ready' as const,
+                        meta: { federation_name: 'Old Name', other: 'kept' },
+                    },
+                ] satisfies LoadedFederation[],
+            },
+        })
+    const loadedMeta = (store: ReturnType<typeof buildStore>) =>
+        store.getState().federation.federations.find(f => f.id === FED)?.meta
+
+    it.each([
+        ['name', 'federation_name'],
+        ['iconUrl', 'fedi:federation_icon_url'],
+        ['welcomeMessage', 'fedi:welcome_message'],
+    ] as const)(
+        'should fold a saved %s into the joined federation meta under %s',
+        async (type, key) => {
+            const fedimint = createMockFedimintBridge({
+                fiClientUpdateFederationMetadata: { type: 'success' },
+            })
+            const store = storeWithFederation()
+
+            await store
+                .dispatch(
+                    updateWalletServiceMetadata({
+                        fedimint,
+                        update: { type, value: 'New Value' },
+                        federationId: FED,
+                    }),
+                )
+                .unwrap()
+
+            expect(
+                fedimint.fiClientUpdateFederationMetadata,
+            ).toHaveBeenCalledWith({ type, value: 'New Value' })
+            expect(loadedMeta(store)).toEqual({
+                federation_name: type === 'name' ? 'New Value' : 'Old Name',
+                other: 'kept',
+                ...(type === 'name' ? {} : { [key]: 'New Value' }),
+            })
+        },
+    )
+
+    it('should leave the federation meta alone when the bridge rejects', async () => {
+        const error = makeError(
+            'busy',
+            'An FI operation is already in progress',
+        )
+        const fedimint = createMockFedimintBridge({
+            fiClientUpdateFederationMetadata: { type: 'error', error },
+        })
+        const store = storeWithFederation()
+
+        await expect(
+            store
+                .dispatch(
+                    updateWalletServiceMetadata({
+                        fedimint,
+                        update: { type: 'name', value: 'New Value' },
+                        federationId: FED,
+                    }),
+                )
+                .unwrap(),
+        ).rejects.toEqual(error)
+
+        expect(loadedMeta(store)).toEqual({
+            federation_name: 'Old Name',
+            other: 'kept',
+        })
+    })
+
+    it('should leave the federation meta alone without a federation id', async () => {
+        const fedimint = createMockFedimintBridge({
+            fiClientUpdateFederationMetadata: { type: 'success' },
+        })
+        const store = storeWithFederation()
+
+        await store
+            .dispatch(
+                updateWalletServiceMetadata({
+                    fedimint,
+                    update: { type: 'name', value: 'New Value' },
+                    federationId: null,
+                }),
+            )
+            .unwrap()
+
+        expect(loadedMeta(store)).toEqual({
+            federation_name: 'Old Name',
+            other: 'kept',
+        })
+    })
+
+    it('should write no meta key for a terms of service update', async () => {
+        const fedimint = createMockFedimintBridge({
+            fiClientUpdateFederationMetadata: { type: 'success' },
+        })
+        const store = storeWithFederation()
+
+        await store
+            .dispatch(
+                updateWalletServiceMetadata({
+                    fedimint,
+                    update: { type: 'termsOfService' },
+                    federationId: FED,
+                }),
+            )
+            .unwrap()
+
+        expect(loadedMeta(store)).toEqual({
+            federation_name: 'Old Name',
+            other: 'kept',
+        })
+    })
 })
 
 describe('common/redux/fi › previewWalletServiceReplacements', () => {

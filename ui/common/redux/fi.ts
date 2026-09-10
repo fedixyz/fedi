@@ -27,6 +27,7 @@ import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { selectFeatureFlag } from './environment'
 import {
+    mergeFederationMeta,
     selectFederationBalance,
     selectIsFederationRecovering,
     selectLoadedFederation,
@@ -722,17 +723,54 @@ export const setWalletServiceGuardianFee = createAsyncThunk<
     },
 )
 
+/**
+ * The consensus meta key each editable field lands under. Manifold writes the
+ * name bare and the rest `fedi:`-prefixed (`FEDERATION_NAME_META_FIELD_KEY`
+ * and siblings in its `service-fleet-manager` types).
+ */
+const METADATA_UPDATE_META_KEYS = {
+    name: 'federation_name',
+    iconUrl: 'fedi:federation_icon_url',
+    welcomeMessage: 'fedi:welcome_message',
+} as const
+
 export const updateWalletServiceMetadata = createAsyncThunk<
     void,
-    { fedimint: FedimintBridge; update: RpcFiFederationMetadataUpdate },
+    {
+        fedimint: FedimintBridge
+        update: RpcFiFederationMetadataUpdate
+        /**
+         * The joined wallet service federation, when known. Its store meta is
+         * patched with the saved value so screens reading the federation
+         * (the dashboard title, the wallet list) show it at once.
+         */
+        federationId?: string | null
+    },
     { state: CommonState; rejectValue: RpcFiOperationError }
 >(
     'fi/updateWalletServiceMetadata',
-    async ({ fedimint, update }, { rejectWithValue }) => {
+    async (
+        { fedimint, update, federationId },
+        { dispatch, rejectWithValue },
+    ) => {
         const result = await fedimint.fiClientUpdateFederationMetadata(update)
         if (result.type === 'error') {
             log.error('updateWalletServiceMetadata', result.error)
             return rejectWithValue(result.error)
+        }
+        // Manifold only reports success once the guardians' consensus already
+        // holds the value, so this is a read-through, not an optimistic write.
+        // The bridge's own meta poll is ten minutes apart, which is where a
+        // rename that "did not take" was hiding.
+        if (federationId && update.type !== 'termsOfService') {
+            dispatch(
+                mergeFederationMeta({
+                    federationId,
+                    meta: {
+                        [METADATA_UPDATE_META_KEYS[update.type]]: update.value,
+                    },
+                }),
+            )
         }
     },
 )

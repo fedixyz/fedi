@@ -10,10 +10,13 @@ import {
 
 import {
     recordFiLiquidityAbsent,
+    selectLoadedFederation,
+    setFederations,
     setFiLiquidityOperation,
     setFiStatus,
     setupStore,
 } from '@fedi/common/redux'
+import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type {
     RpcFiFormationSnapshot,
@@ -115,8 +118,11 @@ const renderScreen = ({
     fedimint = makePreviewBridge(),
     formation = makeFormation(),
     hasFormedBefore = false,
+    store = setupStore(),
 }: {
     fedimint?: ReturnType<typeof createMockFedimintBridge>
+    /** Pass one in to read what the screen wrote to it afterwards. */
+    store?: ReturnType<typeof setupStore>
     formation?: RpcFiFormationSnapshot
     /**
      * Whether this formation reached `formed` earlier in the session, which is
@@ -134,7 +140,6 @@ const renderScreen = ({
      */
     liquidity?: RpcFiLiquidityOperation | null | false
 } = {}) => {
-    const store = setupStore()
     if (hasFormedBefore)
         store.dispatch(
             setFiStatus({
@@ -217,6 +222,41 @@ describe('screens/WalletServiceSettings', () => {
             type: 'name',
             value: 'Renamed',
         })
+    })
+
+    // the dashboard title reads the joined federation's meta, which the bridge
+    // only re-polls every ten minutes; the save has to land there itself or
+    // the rename looks like it never took
+    it('should fold a saved name into the joined federation meta', async () => {
+        const store = setupStore()
+        store.dispatch(
+            setFederations([
+                {
+                    ...mockFederation1,
+                    id: WALLET_SERVICE_FEDERATION_ID,
+                    meta: { federation_name: 'My Wallet Service' },
+                },
+            ]),
+        )
+        renderScreen({ store })
+        // the screen resolves the federation id from the invite asynchronously
+        await waitFor(() =>
+            expect(screen.getByTestId('settings-name-row')).toBeOnTheScreen(),
+        )
+
+        await user.press(screen.getByTestId('settings-name-row'))
+        await user.clear(screen.getByTestId('settings-edit-input'))
+        await user.type(screen.getByTestId('settings-edit-input'), 'Renamed')
+        await pressOverlayButton(i18n.t('words.save'))
+
+        await waitFor(() =>
+            expect(
+                selectLoadedFederation(
+                    store.getState(),
+                    WALLET_SERVICE_FEDERATION_ID,
+                )?.meta.federation_name,
+            ).toBe('Renamed'),
+        )
     })
 
     it('should show the name the federation publishes, not the intent', async () => {

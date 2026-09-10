@@ -266,7 +266,11 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
             setIsSaving(true)
             try {
                 await dispatch(
-                    updateWalletServiceMetadata({ fedimint, update }),
+                    updateWalletServiceMetadata({
+                        fedimint,
+                        update,
+                        federationId,
+                    }),
                 ).unwrap()
                 toast.show({
                     content: t('feature.wallet-service.settings-saved'),
@@ -280,7 +284,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                 setIsSaving(false)
             }
         },
-        [dispatch, fedimint, toast, t, showError],
+        [dispatch, fedimint, federationId, toast, t, showError],
     )
 
     const openEditor = useCallback((field: EditableField, current: string) => {

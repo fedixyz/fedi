@@ -19,6 +19,7 @@ import {
 import {
     Community,
     Federation,
+    FederationMetadata,
     FediMod,
     Guardian,
     LoadedFederation,
@@ -273,6 +274,25 @@ export const federationSlice = createSlice({
             state.federations = state.federations.map(f => {
                 if (f.id !== federationId) return f
                 return { ...f, balance }
+            })
+        },
+        /**
+         * Folds keys into a loaded federation's meta ahead of the bridge's
+         * next consensus poll. The meta service re-reads every ten minutes,
+         * so a value the guardians have already adopted would otherwise stay
+         * invisible until then or until a relaunch.
+         */
+        mergeFederationMeta(
+            state,
+            action: PayloadAction<{
+                federationId: Federation['id']
+                meta: FederationMetadata
+            }>,
+        ) {
+            const { federationId, meta } = action.payload
+            state.federations = state.federations.map(f => {
+                if (f.id !== federationId || f.init_state !== 'ready') return f
+                return { ...f, meta: { ...f.meta, ...meta } }
             })
         },
         setPayFromFederationId(state, action: PayloadAction<string | null>) {
@@ -568,6 +588,7 @@ export const {
     upsertCommunity,
     upsertFederation,
     updateFederationBalance,
+    mergeFederationMeta,
     setLastUsedFederationId,
     setLastSelectedCommunityId,
     setPayFromFederationId,
