@@ -15,6 +15,7 @@ export const FORMATION_PHASES: FormationPhaseName[] = [
     'acquiringSeats',
     'preparingDkg',
     'dkgUnderway',
+    'dkgComplete',
     'publishingSeatBindings',
     'formed',
 ]

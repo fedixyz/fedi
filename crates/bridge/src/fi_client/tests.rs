@@ -1706,12 +1706,27 @@ fn supervisor_retries_only_unattended_nonterminal_formation() {
     assert!(should_auto_resume(&FiStatus::Formation(
         formed_unsynced.clone()
     )));
-    assert!(!formation_milestones(&formed_unsynced).wallet_service_created);
+    // Confirmed completion survives the launch recheck: the phase and the
+    // milestone stay put, only `freshness` says a check is running.
+    assert!(formation_milestones(&formed_unsynced).wallet_service_created);
+    let projected = formation_snapshot_to_rpc(formed_unsynced.clone());
+    assert_eq!(projected.phase, RpcFiFormationPhase::Formed);
+    assert_eq!(projected.freshness, RpcFiFormationFreshness::Unsynced);
+    assert!(projected.milestones.wallet_service_created);
 
     let mut formed_fresh = snapshot.clone();
     formed_fresh.phase = FormationPhase::Formed;
     formed_fresh.freshness = FormationFreshness::Fresh;
     assert!(formation_milestones(&formed_fresh).wallet_service_created);
+
+    let mut dkg_complete = snapshot.clone();
+    dkg_complete.phase = FormationPhase::DkgComplete;
+    assert!(should_auto_resume(&FiStatus::Formation(
+        dkg_complete.clone()
+    )));
+    let projected = formation_snapshot_to_rpc(dkg_complete);
+    assert_eq!(projected.phase, RpcFiFormationPhase::DkgComplete);
+    assert!(!projected.milestones.wallet_service_created);
 
     let mut awaiting_user = snapshot.clone();
     awaiting_user.action_required = Some(FormationActionRequired::AuthorizePayments(

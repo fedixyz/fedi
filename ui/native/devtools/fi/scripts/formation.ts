@@ -38,6 +38,7 @@ const walk = (
         | 'acquiringSeats'
         | 'preparingDkg'
         | 'dkgUnderway'
+        | 'dkgComplete'
         | 'publishingSeatBindings'
     >,
 ) =>
@@ -63,7 +64,7 @@ const TO_DKG = [
 
 export const formationHappyPath: FiScript = script('formation.happyPath', [
     ...PAY_AND_CREATE_STEPS,
-    ...walk([...TO_DKG, 'publishingSeatBindings']),
+    ...walk([...TO_DKG, 'dkgComplete', 'publishingSeatBindings']),
     stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
     formWalletService('joining'),
     checkpoint('formedJoining'),
@@ -115,7 +116,7 @@ export const formationCreatedJoinFails: FiScript = script(
     'formation.createdJoinFails',
     [
         ...PAY_AND_CREATE_STEPS,
-        ...walk([...TO_DKG, 'publishingSeatBindings']),
+        ...walk([...TO_DKG, 'dkgComplete', 'publishingSeatBindings']),
         stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
         formWalletService('joining'),
         formWalletService('failed'),
@@ -156,7 +157,12 @@ const authorizeScript = (name: string, amountSats: number): FiScript =>
             authorizationId: AUTHORIZATION_ID,
         }),
         wait(PHASE_MS),
-        ...walk(['preparingDkg', 'dkgUnderway', 'publishingSeatBindings']),
+        ...walk([
+            'preparingDkg',
+            'dkgUnderway',
+            'dkgComplete',
+            'publishingSeatBindings',
+        ]),
         stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
         formWalletService('ready'),
         checkpoint('formed'),
@@ -193,7 +199,7 @@ const REPLACEMENT_STEPS = [
         previewId: 'replacement_preview_script',
     }),
     wait(PHASE_MS),
-    ...walk(['publishingSeatBindings']),
+    ...walk(['dkgComplete', 'publishingSeatBindings']),
     stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
     formWalletService('ready'),
     checkpoint('formed'),

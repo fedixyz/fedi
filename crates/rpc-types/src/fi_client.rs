@@ -255,6 +255,7 @@ pub enum RpcFiFormationPhase {
     AcquiringSeats,
     PreparingDkg,
     DkgUnderway,
+    DkgComplete,
     PublishingSeatBindings,
     Formed,
 }
@@ -625,7 +626,7 @@ pub enum RpcFiSelectionReauthorizationReason {
 #[ts(export)]
 pub enum RpcFiAbandonUnavailableReason {
     PaymentOutputsStarted,
-    AlreadyFormed,
+    DkgComplete,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]

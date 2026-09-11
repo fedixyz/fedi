@@ -33,7 +33,7 @@ import {
     type MockJoinableWalletService,
     makeMockPayerFederation,
 } from './mockPayerFederation'
-import { FormationPhaseName } from './status'
+import { FORMATION_PHASES, FormationPhaseName } from './status'
 import type { FiWalletServiceJoin } from './steps'
 import { FiPayerSource } from './switches'
 import type { FiWorld } from './world'
@@ -1253,7 +1253,10 @@ export class FiSimulator implements FiWorld {
                 error: error('noActiveFormation', 'no formation to abandon'),
             }
         }
-        if (formation.paymentOutputsStarted || formation.phase === 'formed') {
+        const dkgComplete =
+            FORMATION_PHASES.indexOf(formation.phase) >=
+            FORMATION_PHASES.indexOf('dkgComplete')
+        if (formation.paymentOutputsStarted || dkgComplete) {
             return {
                 type: 'error',
                 error: error(
@@ -1261,10 +1264,9 @@ export class FiSimulator implements FiWorld {
                     'this setup can no longer be cancelled',
                     {
                         type: 'abandonUnavailable',
-                        reason:
-                            formation.phase === 'formed'
-                                ? 'alreadyFormed'
-                                : 'paymentOutputsStarted',
+                        reason: dkgComplete
+                            ? 'dkgComplete'
+                            : 'paymentOutputsStarted',
                     },
                 ),
             }

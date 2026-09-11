@@ -220,6 +220,12 @@ export const FI_SCREEN_GROUPS: FiScreenGroup[] = [
                 'replaceGuardians',
             ),
             progress(
+                'formation.dkgComplete',
+                'Progress: DKG complete',
+                formationHappyPath,
+                'dkgComplete',
+            ),
+            progress(
                 'formation.publishingSeatBindings',
                 'Progress: publishing seat bindings',
                 formationHappyPath,

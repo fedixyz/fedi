@@ -86,6 +86,7 @@ describe('formation scripts', () => {
         for (const phase of [
             'acquiringSeats',
             'dkgUnderway',
+            'dkgComplete',
             'publishingSeatBindings',
         ] as const) {
             const { status } = await jumpAndRead(`formation.${phase}`)
@@ -415,6 +416,7 @@ describe('setup scripts', () => {
             'acquiringSeats',
             'preparingDkg',
             'dkgUnderway',
+            'dkgComplete',
             'publishingSeatBindings',
             'formedJoining',
             'formed',

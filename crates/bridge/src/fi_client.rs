@@ -2858,6 +2858,7 @@ fn restored_formation_snapshot_to_rpc(
             FormationPhase::AcquiringSeats => RpcFiFormationPhase::AcquiringSeats,
             FormationPhase::PreparingDkg => RpcFiFormationPhase::PreparingDkg,
             FormationPhase::DkgUnderway => RpcFiFormationPhase::DkgUnderway,
+            FormationPhase::DkgComplete => RpcFiFormationPhase::DkgComplete,
             FormationPhase::PublishingSeatBindings => RpcFiFormationPhase::PublishingSeatBindings,
             FormationPhase::Formed => RpcFiFormationPhase::Formed,
         },
@@ -2886,8 +2887,6 @@ pub fn fi_client_status_stream(
 
 pub fn formation_snapshot_to_rpc(snapshot: FormationSnapshot) -> RpcFiFormationSnapshot {
     let milestones = formation_milestones(&snapshot);
-    let formed_needs_reconciliation = snapshot.phase == FormationPhase::Formed
-        && snapshot.freshness == FormationFreshness::Unsynced;
     let selected_post_output = snapshot.payment_outputs_started;
     RpcFiFormationSnapshot {
         formation_id: snapshot.formation_id.0,
@@ -2899,10 +2898,8 @@ pub fn formation_snapshot_to_rpc(snapshot: FormationSnapshot) -> RpcFiFormationS
             FormationPhase::AcquiringSeats => RpcFiFormationPhase::AcquiringSeats,
             FormationPhase::PreparingDkg => RpcFiFormationPhase::PreparingDkg,
             FormationPhase::DkgUnderway => RpcFiFormationPhase::DkgUnderway,
+            FormationPhase::DkgComplete => RpcFiFormationPhase::DkgComplete,
             FormationPhase::PublishingSeatBindings => RpcFiFormationPhase::PublishingSeatBindings,
-            FormationPhase::Formed if formed_needs_reconciliation => {
-                RpcFiFormationPhase::PublishingSeatBindings
-            }
             FormationPhase::Formed => RpcFiFormationPhase::Formed,
         },
         intent: resolved_formation_intent_to_rpc(snapshot.intent),
@@ -3006,8 +3003,7 @@ fn formation_milestones(snapshot: &FormationSnapshot) -> RpcFiFormationMilestone
     RpcFiFormationMilestones {
         ecash_sent,
         guardians_confirmed,
-        wallet_service_created: snapshot.phase == FormationPhase::Formed
-            && snapshot.freshness == FormationFreshness::Fresh,
+        wallet_service_created: snapshot.phase == FormationPhase::Formed,
     }
 }
 
@@ -3059,8 +3055,8 @@ fn fi_error_detail_to_rpc(error: &FiError) -> Option<RpcFiOperationErrorDetail> 
                     AbandonUnavailableReason::PaymentOutputsStarted => {
                         RpcFiAbandonUnavailableReason::PaymentOutputsStarted
                     }
-                    AbandonUnavailableReason::AlreadyFormed => {
-                        RpcFiAbandonUnavailableReason::AlreadyFormed
+                    AbandonUnavailableReason::DkgComplete => {
+                        RpcFiAbandonUnavailableReason::DkgComplete
                     }
                 },
             })

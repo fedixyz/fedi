@@ -682,7 +682,7 @@ export type RpcFeeDetails = {
 
 export type RpcFiAbandonUnavailableReason =
   | "paymentOutputsStarted"
-  | "alreadyFormed";
+  | "dkgComplete";
 
 export type RpcFiClientStatus =
   | { type: "ready"; status: RpcFiStatus }
@@ -809,6 +809,7 @@ export type RpcFiFormationPhase =
   | "acquiringSeats"
   | "preparingDkg"
   | "dkgUnderway"
+  | "dkgComplete"
   | "publishingSeatBindings"
   | "formed";
 
