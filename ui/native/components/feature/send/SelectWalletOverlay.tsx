@@ -79,6 +79,7 @@ export default function SelectWalletOverlay({
                                     {otherFederations.length > 0 && (
                                         <Text
                                             caption
+                                            style={style.otherWalletHeader}
                                             color={theme.colors.darkGrey}>
                                             {t(
                                                 'feature.wallet-service.list-other-wallet-service',
@@ -327,5 +328,8 @@ const styles = (theme: Theme) =>
         balanceColumn: {
             flexShrink: 1,
             alignItems: 'flex-end',
+        },
+        otherWalletHeader: {
+            marginTop: theme.spacing.lg,
         },
     })
