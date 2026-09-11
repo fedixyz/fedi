@@ -1,4 +1,5 @@
 import type { StorageApi } from '@fedi/common/types'
+import type { FedimintBridge } from '@fedi/common/utils/fedimint'
 
 import { attachFiDevTools } from '../../../../devtools/fi'
 import { FI_DEV_SWITCHES_KEY } from '../../../../devtools/fi/switches'
@@ -33,6 +34,19 @@ describe('attachFiDevTools', () => {
         })
         expect(tools.simulator.getPayerSource()).toBe('none')
         await expect(tools.rpc('fiClientStatus', {})).resolves.toBe('real')
+    })
+
+    it('should announce no federation while the simulator is off', async () => {
+        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        const emit = jest.fn()
+        // attach before the storage load resolves, the order native/bridge
+        // uses: awaiting first leaves no emitter wired during the seed and
+        // passes whatever the seed does
+        tools.attachBridge({ emit } as unknown as FedimintBridge)
+        await tools.ready
+
+        expect(tools.simulator.listMockFederations()).toEqual([])
+        expect(emit).not.toHaveBeenCalledWith('federation', expect.anything())
     })
 
     it('should seed mock payers and persist when switched to mock', async () => {

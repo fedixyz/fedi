@@ -58,7 +58,12 @@ export function attachFiDevTools(
     let switches: FiDevSwitches = DEFAULT_FI_DEV_SWITCHES
     const apply = (next: FiDevSwitches) => {
         switches = next
-        simulator.setPayerSource(next.payerSource)
+        // seeding a mock payer announces it as a federation join straight to
+        // redux, which never passes the rpc gate below, so an off simulator
+        // has to seed nothing
+        simulator.setPayerSource(
+            next.simulator === 'on' ? next.payerSource : 'none',
+        )
     }
     apply(switches)
     const ready = loadFiDevSwitches(storage).then(apply)
