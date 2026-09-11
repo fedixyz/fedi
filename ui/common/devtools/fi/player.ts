@@ -1,14 +1,26 @@
 import type { RpcFiStatus } from '../../types/bindings'
 import { IDLE_STATUS } from './status'
-import { FiScript, FiScriptContext, checkpointsOf, resolveLazy } from './steps'
+import {
+    FiScript,
+    FiScriptContext,
+    FiWalletServiceJoin,
+    checkpointsOf,
+    resolveLazy,
+} from './steps'
+import type { FiWorld } from './world'
 
 export interface PlayerHost {
     setStatus(status: RpcFiStatus): void
     emitEvent(event: string, payload: unknown): void
     setReply(method: string, value: unknown): void
+    setStub(
+        method: string,
+        handler: (payload: Record<string, unknown>) => unknown,
+    ): void
     onRpc(method: string): Promise<Record<string, unknown>>
-    formWalletService(join: 'ready' | 'joining' | 'failed'): void
+    formWalletService(join: FiWalletServiceJoin): void
     nextFormationId(): string
+    world: FiWorld
 }
 
 type Run = {
@@ -58,6 +70,7 @@ export class FiPlayer {
         const ctx: FiScriptContext = {
             formationId: this.host.nextFormationId(),
             recorded: {},
+            world: this.host.world,
         }
         // idle first so redux drops the previous formation's high-water mark
         this.host.setStatus(IDLE_STATUS)
@@ -71,6 +84,14 @@ export class FiPlayer {
                         step.method,
                         resolveLazy(step.value, ctx),
                     )
+                    break
+                case 'stub':
+                    this.host.setStub(step.method, payload =>
+                        step.handler(payload, ctx),
+                    )
+                    break
+                case 'act':
+                    step.run(ctx)
                     break
                 case 'stream':
                     this.host.setStatus(resolveLazy(step.status, ctx))

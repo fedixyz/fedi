@@ -1,6 +1,4 @@
 import type { MSats } from '../../types'
-import { FedimintBridge } from '../../utils/fedimint'
-import { FiScenarioName } from './scenarios'
 import { FiSimulator } from './simulator'
 
 type BridgeRpc = <T = void>(method: string, payload: object) => Promise<T>
@@ -63,33 +61,4 @@ export function withFiSimulator(
         }
         return (await simulator.handle(method, args)) as T
     }
-}
-
-/**
- * Build a bridge whose FI surface is simulated.
- *
- * Used by the dev toggle and by flow tests that need real state transitions
- * rather than per-method stubs.
- */
-export function createSimulatedBridge(
-    scenario?: FiScenarioName,
-    realRpc: BridgeRpc = notImplementedRpc,
-): { fedimint: FedimintBridge; simulator: FiSimulator } {
-    const simulator = new FiSimulator(scenario)
-    const fedimint = new FedimintBridge(withFiSimulator(realRpc, simulator))
-    // the bridge routes `streamUpdate` to the handler `rpcStream` registered,
-    // so the simulator drives subscriptions through the same public path the
-    // native event emitter uses
-    simulator.attach(
-        update => fedimint.emit('streamUpdate', update),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (event, payload) => fedimint.emit(event as any, payload as any),
-    )
-    return { fedimint, simulator }
-}
-
-const notImplementedRpc: BridgeRpc = method => {
-    return Promise.reject(
-        new Error(`no real bridge behind the simulator for "${method}"`),
-    )
 }

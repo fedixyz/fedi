@@ -1,27 +1,26 @@
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import {
-    DEFAULT_FI_SCENARIO,
-    FI_SCENARIO_GROUPS,
-    FI_SCENARIO_STORYBOARD_FRAMES,
     FI_SCREEN_GROUPS,
+    FI_SCRIPT_GROUPS,
     FiDevSwitches,
     FiDevTools,
     FiPayerSource,
-    FiScenarioName,
     FiScreen,
-    FiScreenRoute,
     FiSimulatorSwitch,
     makeMockPayerFederation,
     MOCK_PAYER_FEDERATIONS,
     MOCK_PAYER_FEDERATION_IDS,
 } from '@fedi/common/devtools/fi'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     clearFiLiquidity,
     clearWalletServiceSelectionPreview,
+    prepareWalletServicePayment,
     removeFederations,
     setFiStatus,
     upsertFederation,
@@ -29,14 +28,18 @@ import {
 
 import SvgImage from '../../components/ui/SvgImage'
 import { useAppDispatch } from '../../state/hooks'
+import { RootStackParamList } from '../../types/navigation'
 
-/** The simulator's own actions, which are not a scenario to choose between. */
-const SIMULATOR_TOOLS_GROUP = 'Simulator tools'
-
-const groupTitleFor = (scenario: FiScenarioName): string | undefined =>
-    FI_SCENARIO_GROUPS.find(group =>
-        (group.scenarios as ReadonlyArray<FiScenarioName>).includes(scenario),
-    )?.title
+const SCRIPT_COUNT = FI_SCRIPT_GROUPS.reduce(
+    (n, group) => n + group.scripts.length,
+    0,
+)
+const SCREEN_COUNT = FI_SCREEN_GROUPS.reduce(
+    (n, group) => n + group.screens.length,
+    0,
+)
+// the settle and clear buttons
+const ADVANCED_TOOL_COUNT = 2
 
 const SIMULATOR_OPTIONS: FiSimulatorSwitch[] = ['on', 'off']
 const PAYER_SOURCE_OPTIONS: FiPayerSource[] = ['real', 'mock', 'none']
@@ -79,22 +82,19 @@ function SegmentedRow<T extends string>({
 
 const WalletServiceDevTools: React.FC<{
     tools: FiDevTools
-    navigation: { navigate: (route: FiScreenRoute) => void }
+    navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate'>
 }> = ({ tools, navigation }) => {
     const { theme } = useTheme()
     const style = styles(theme)
     const toast = useToast()
+    const fedimint = useFedimint()
     const dispatch = useAppDispatch()
     const [switches, setSwitchesState] = useState<FiDevSwitches>(() =>
         tools.getSwitches(),
     )
-    const [fiScenario, setFiScenario] =
-        useState<FiScenarioName>(DEFAULT_FI_SCENARIO)
-    // opens on whichever group holds the active scenario, so the screen starts
-    // showing where you already are rather than fully closed
-    const [openFiGroup, setOpenFiGroup] = useState<string | null>(
-        () => groupTitleFor(DEFAULT_FI_SCENARIO) ?? null,
-    )
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+    const [isPlayListOpen, setIsPlayListOpen] = useState(false)
+    const [openPlayGroup, setOpenPlayGroup] = useState<string | null>(null)
     const [needsRelaunch, setNeedsRelaunch] = useState(false)
     const [isScreenListOpen, setIsScreenListOpen] = useState(false)
     const [openScreenGroup, setOpenScreenGroup] = useState<string | null>(null)
@@ -120,15 +120,49 @@ const WalletServiceDevTools: React.FC<{
         await tools.setSwitches(next)
     }
 
+    // navigate's overloads pair each route with its own params type, so a
+    // route held in a union has to be handed over one literal at a time;
+    // any route not listed here has its params dropped
+    const navigateToScreen = (target: FiScreen) => {
+        switch (target.route) {
+            case 'WalletServiceSettings':
+                return navigation.navigate(target.route, target.params)
+            default:
+                return navigation.navigate(target.route)
+        }
+    }
+
     const handleGoToScreen = async (screen: FiScreen) => {
         dispatch(clearFiLiquidity())
         dispatch(clearWalletServiceSelectionPreview())
         try {
             const target = await tools.jumpTo(screen.id)
+            // Confirm renders a spinner until a selection preview exists, and
+            // only Create's Continue fetches one. Fetch it here so the
+            // script's stubs (slow quote, payer lookup failure) apply to it.
+            if (target.route === 'ConfirmWalletService') {
+                await dispatch(
+                    prepareWalletServicePayment({ fedimint }),
+                ).unwrap()
+            }
             setIsScreenListOpen(false)
-            navigation.navigate(target.route)
+            navigateToScreen(target)
         } catch (e) {
             toast.show({ content: `Jump failed: ${e}`, status: 'error' })
+        }
+    }
+
+    const handlePlay = (scriptName: string) => {
+        dispatch(clearFiLiquidity())
+        dispatch(clearWalletServiceSelectionPreview())
+        try {
+            tools.play(scriptName)
+            toast.show({
+                content: `Playing ${scriptName} from the start`,
+                status: 'info',
+            })
+        } catch (e) {
+            toast.show({ content: `Play failed: ${e}`, status: 'error' })
         }
     }
 
@@ -183,18 +217,14 @@ const WalletServiceDevTools: React.FC<{
             )}
             <Text small style={style.switchLabel}>
                 The FI backend cannot complete a formation in dev, so the
-                fiClient* RPCs resolve from an in-memory simulator. Pick the
-                environment the wallet service flow should see. The storyboard
-                frames each scenario reaches are named in the toast, so screen
-                and storyboard can be matched without guessing.
+                fiClient* RPCs resolve from an in-memory simulator. Go to screen
+                puts the flow straight on the screen you picked; Advanced plays
+                a whole scenario at its real pace and holds the state tools.
             </Text>
             <CollapsibleSection
                 testID="go-to-screen-section"
                 title="Go to screen"
-                count={FI_SCREEN_GROUPS.reduce(
-                    (n, group) => n + group.screens.length,
-                    0,
-                )}
+                count={SCREEN_COUNT}
                 isOpen={isScreenListOpen}
                 onToggle={() => setIsScreenListOpen(open => !open)}>
                 {!isSimulatorOn ? (
@@ -229,58 +259,54 @@ const WalletServiceDevTools: React.FC<{
                     ))
                 )}
             </CollapsibleSection>
-            {FI_SCENARIO_GROUPS.map(group => (
-                <CollapsibleSection
-                    key={group.title}
-                    title={group.title}
-                    count={group.scenarios.length}
-                    isOpen={openFiGroup === group.title}
-                    // one open at a time: these are alternatives, and
-                    // the list is only long because it is all of them
-                    onToggle={() =>
-                        setOpenFiGroup(current =>
-                            current === group.title ? null : group.title,
-                        )
-                    }>
-                    {group.scenarios.map(name => (
-                        <Button
-                            key={name}
-                            title={name === fiScenario ? `✓ ${name}` : name}
-                            day={name !== fiScenario}
-                            containerStyle={style.buttonContainer}
-                            onPress={() => {
-                                tools.player.cancel()
-                                tools.simulator.setScenario(name)
-                                setFiScenario(name)
-                                toast.show({
-                                    content: `Wallet Service scenario: ${name}${
-                                        FI_SCENARIO_STORYBOARD_FRAMES[name]
-                                            ? ` — ${FI_SCENARIO_STORYBOARD_FRAMES[name]}`
-                                            : ''
-                                    }`,
-                                    status: 'info',
-                                })
-                            }}
-                        />
-                    ))}
-                </CollapsibleSection>
-            ))}
             <CollapsibleSection
-                title={SIMULATOR_TOOLS_GROUP}
-                count={2}
-                isOpen={openFiGroup === SIMULATOR_TOOLS_GROUP}
-                onToggle={() =>
-                    setOpenFiGroup(current =>
-                        current === SIMULATOR_TOOLS_GROUP
-                            ? null
-                            : SIMULATOR_TOOLS_GROUP,
-                    )
-                }>
+                testID="advanced-section"
+                title="Advanced"
+                count={SCRIPT_COUNT + ADVANCED_TOOL_COUNT}
+                isOpen={isAdvancedOpen}
+                onToggle={() => setIsAdvancedOpen(open => !open)}>
+                <CollapsibleSection
+                    title="Play scenario from start"
+                    count={SCRIPT_COUNT}
+                    isOpen={isPlayListOpen}
+                    nested
+                    onToggle={() => setIsPlayListOpen(open => !open)}>
+                    {!isSimulatorOn ? (
+                        <Text caption style={style.switchLabel}>
+                            Turn the simulator on to play a scenario.
+                        </Text>
+                    ) : (
+                        FI_SCRIPT_GROUPS.map(group => (
+                            <CollapsibleSection
+                                key={group.title}
+                                title={group.title}
+                                count={group.scripts.length}
+                                isOpen={openPlayGroup === group.title}
+                                nested
+                                onToggle={() =>
+                                    setOpenPlayGroup(current =>
+                                        current === group.title
+                                            ? null
+                                            : group.title,
+                                    )
+                                }>
+                                {group.scripts.map(script => (
+                                    <Button
+                                        key={script.name}
+                                        title={script.name}
+                                        type="outline"
+                                        containerStyle={style.buttonContainer}
+                                        onPress={() => handlePlay(script.name)}
+                                    />
+                                ))}
+                            </CollapsibleSection>
+                        ))
+                    )}
+                </CollapsibleSection>
                 <Text small style={style.switchLabel}>
                     The external-deposit branch of the top-up sheet waits for a
                     Lightning payment nobody in dev can make. This settles every
-                    invoice the simulator has handed out, which is what the
-                    storyboard's A6 to A7 step is.
+                    invoice the simulator has handed out.
                 </Text>
                 <Button
                     day
@@ -314,9 +340,8 @@ const WalletServiceDevTools: React.FC<{
 /**
  * A section inside a section, collapsed until asked for.
  *
- * The scenario list is thirty entries and every one of them is a button, so
- * shown flat it buries every other developer setting under a wall of them.
- * Local to this panel: nothing else has enough rows to need it.
+ * The screen list is long enough that, shown flat, it buries every other
+ * developer setting. Local to this panel: nothing else has enough rows.
  */
 const CollapsibleSection: React.FC<{
     title: string

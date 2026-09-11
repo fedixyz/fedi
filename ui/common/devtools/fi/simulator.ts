@@ -29,17 +29,13 @@ import { makeLog } from '../../utils/log'
 import {
     MOCK_JOINABLE_WALLET_SERVICES,
     MOCK_PAYER_FEDERATIONS,
+    type MockJoinableWalletService,
     makeMockPayerFederation,
 } from './mockPayerFederation'
-import {
-    DEFAULT_FI_SCENARIO,
-    FORMATION_PHASES,
-    FiScenario,
-    FiScenarioName,
-    FormationPhaseName,
-    fiScenarios,
-} from './scenarios'
+import { FormationPhaseName } from './status'
+import type { FiWalletServiceJoin } from './steps'
 import { FiPayerSource } from './switches'
+import type { FiWorld } from './world'
 
 const log = makeLog('common/devtools/fi/simulator')
 
@@ -47,6 +43,17 @@ const log = makeLog('common/devtools/fi/simulator')
 const MAX_GUARDIAN_FEE_PPM = 210_000
 
 const SATS_TO_MSATS = 1_000
+
+const DEFAULT_SEAT_PRICE_MSATS = 2_100_000
+const DEFAULT_ELIGIBLE_FMANS = 30
+const DEFAULT_SEEN_FMANS = 42
+const DEFAULT_PREVIEW_VALIDITY_SECS = 120
+
+/**
+ * Status reads before the gateway view is reported verified. Counted in reads
+ * rather than timed, so the wait is the same however fast the device is.
+ */
+const LIQUIDITY_VERIFY_AFTER_POLLS = 2
 
 /**
  * Where `propose_guardian_fees` publishes the applied rate. Mirrors
@@ -125,8 +132,8 @@ const FMAN_NOUNS = [
  *
  * The bridge derives the name from `fman_id` and treats it as decoration: names
  * can collide and never substitute for the id. Deriving it here the same way
- * keeps a replayed scenario naming the same seat the same way, and keeps
- * collisions possible rather than papering over them.
+ * names the same seat the same way on every run, and keeps collisions possible
+ * rather than papering over them.
  */
 const fmanNameFor = (fmanId: string): string => {
     const digest = Array.from(fmanId).reduce(
@@ -146,20 +153,29 @@ const fmanNameFor = (fmanId: string): string => {
  * generated bindings, so a Rust change that regenerates `bindings.ts` breaks
  * this file at compile time rather than at runtime on a device.
  */
-export class FiSimulator {
-    private scenario: FiScenario
+export class FiSimulator implements FiWorld {
+    private stubs = new Map<
+        string,
+        (payload: Record<string, unknown>) => unknown
+    >()
+    /*** World: values the default answers read, which a script may set ***/
+    private seatPriceMsats = DEFAULT_SEAT_PRICE_MSATS
+    private fleet = {
+        eligible: DEFAULT_ELIGIBLE_FMANS,
+        seen: DEFAULT_SEEN_FMANS,
+    }
+    private previewValiditySecs = DEFAULT_PREVIEW_VALIDITY_SECS
+    private joinableWalletServices: MockJoinableWalletService[] =
+        MOCK_JOINABLE_WALLET_SERVICES
+    private liquidityNetwork: RpcFiLiquidityNetwork = 'signet'
     private status: RpcFiStatus = { type: 'idle' }
     private previews = new Map<string, RpcFiSelectionPreview>()
     private replacementPreviewId: string | null = null
-    private previewCount = 0
     private streamIds = new Set<number>()
     private sequences = new Map<number, number>()
     private emitStream: StreamEmitter | null = null
     private eventEmitter: EventEmitter | null = null
     private pendingDeposits = new Map<string, PendingDeposit>()
-    private phaseTimer: ReturnType<typeof setTimeout> | null = null
-    private phaseIndex = 0
-    private hasPreviewedOnce = false
     private joinedFederationIds: string[] = []
     /** Ids admitted via `observeJoinedFederation`, kept across `observeFederations` refreshes. */
     private simulatorJoinedIds = new Set<string>()
@@ -215,20 +231,13 @@ export class FiSimulator {
     private liquidityOperation: RpcFiLiquidityOperation | null = null
     /** Status reads so far, which is what advances the verification. */
     private liquidityPolls = 0
-    /**
-     * Timers the restore path arms (reconciliation, then the auto-join) and the
-     * timers the created path arms for its own auto-join.
-     */
-    private joinTimers: Array<ReturnType<typeof setTimeout>> = []
     private replies = new Map<string, unknown>()
     private rpcWaiters = new Map<
         string,
         Array<(payload: Record<string, unknown>) => void>
     >()
 
-    constructor(scenarioName: FiScenarioName = DEFAULT_FI_SCENARIO) {
-        this.scenario = fiScenarios[scenarioName]
-        this.seedFromScenario()
+    constructor() {
         this.setPayerSource(this.payerSource)
     }
 
@@ -242,14 +251,6 @@ export class FiSimulator {
     attach(emitStream: StreamEmitter, emitEvent?: EventEmitter) {
         this.emitStream = emitStream
         this.eventEmitter = emitEvent ?? null
-    }
-
-    /** Swap the environment mid-session, for the dev scenario picker. */
-    setScenario(name: FiScenarioName) {
-        this.scenario = fiScenarios[name]
-        this.reset()
-        this.seedFromScenario()
-        this.publish()
     }
 
     /**
@@ -273,8 +274,7 @@ export class FiSimulator {
 
     /**
      * Forget everything the dev screen ever seeded: mock payers, mock joined
-     * services, the formed wallet service and the formation itself. The
-     * scenario stays selected; choosing it again is how it reseeds.
+     * services, the formed wallet service and the formation itself.
      *
      * Redux still holds the announced wallets until the caller drops them;
      * `listMockFederations` is the list to drop. The ids observed from the
@@ -287,9 +287,7 @@ export class FiSimulator {
 
     /*** Scripting host ***/
 
-    /** A script owns the timeline from here: no knob timer may fire again. */
     setStatus(status: RpcFiStatus) {
-        this.clearTimers()
         this.status = status
         this.publish()
     }
@@ -306,22 +304,50 @@ export class FiSimulator {
         })
     }
 
-    formWalletService(join: 'ready' | 'joining' | 'failed') {
-        const formation = this.currentFormation()
-        if (!formation)
-            throw new Error('formWalletService needs a formation status')
-        this.createWalletServiceFederation(formation)
-        if (join === 'ready') {
-            this.completeWalletServiceJoin()
+    formWalletService(join: FiWalletServiceJoin) {
+        this.ensureWalletServiceFederation()
+        switch (join) {
+            case 'ready':
+                return this.completeWalletServiceJoin()
+            case 'recovering':
+                return this.beginWalletServiceRecovery()
+            case 'joining':
+                return this.emitFederationJoin({ type: 'joining' })
+            case 'failed':
+                return this.emitFederationJoin({
+                    type: 'failed',
+                    message: 'simulated: federation join failed',
+                })
+        }
+    }
+
+    /**
+     * The wallet service's federation for the current status, created once.
+     * A formation names it by intent; a restored backup already carries its
+     * invite and, once reconciled, its name.
+     */
+    private ensureWalletServiceFederation() {
+        const status = this.status
+        if (status.type === 'idle')
+            throw new Error(
+                'formWalletService needs a formation or restored status',
+            )
+        const id = `mock-wallet-service-${status.formation.formationId}`
+        if (this.walletServiceFederation?.id === id) return
+        if (status.type === 'formation') {
+            this.createWalletServiceFederation(status.formation)
             return
         }
-        this.emitFederationJoin({ type: 'joining' })
-        if (join === 'failed') {
-            this.emitFederationJoin({
-                type: 'failed',
-                message: 'simulated: federation join failed',
-            })
+        this.walletServiceFederation = {
+            ...makeMockPayerFederation({
+                id,
+                name: status.formation.federationName ?? 'My Wallet Service',
+                balanceSats: 21_000,
+            }),
+            network: 'signet',
+            inviteCode: status.formation.federationInvite,
         }
+        this.isWalletServiceJoined = false
     }
 
     nextFormationId(): string {
@@ -332,220 +358,51 @@ export class FiSimulator {
         this.eventEmitter?.(event, payload)
     }
 
-    /**
-     * Put the client straight into a formation when the scenario asks for one.
-     *
-     * Reaching the progress, fee and operator screens otherwise means spending
-     * from a real joined wallet, which dev cannot always provide.
-     */
-    private seedFromScenario() {
-        if (this.scenario.restoreOnLaunch) {
-            this.seedRestoredBackup()
-            return
-        }
-        const seed = this.scenario.seedFormation
-        if (!seed) return
-        const size = 10
-        const seats = Array.from({ length: size }, (_, index) => {
-            const fmanId = `fman_${String(index + 1).padStart(2, '0')}_${this.hash(index)}`
-            return {
-                fmanId,
-                fmanName: fmanNameFor(fmanId),
-                advertisedPriceMsats: String(
-                    seatPriceMsats(index, size, this.scenario.seatPriceMsats),
-                ),
-                provenance: 'fedi_attested',
-            }
-        })
-        const formation = this.buildSnapshot({
-            preview: {
-                previewId: 'preview_seed',
-                selected: size,
-                totalAdvertisedMsats: String(
-                    size * this.scenario.seatPriceMsats,
-                ),
-                seen: this.scenario.seenFmanCount,
-                eligible: this.scenario.eligibleFmanCount,
-                validUntil: nowSecs() + this.scenario.previewValiditySecs,
-                seats,
-            },
-            intent: {
-                federationName: 'My Wallet Service',
-                federationSize: size,
-                plan: 'infiniteBestEffort',
-            },
-            maxTotalMsats: String(size * this.scenario.seatPriceMsats),
-            phase: seed === 'formed' ? 'formed' : 'acquiringSeats',
-        })
-        if (seed === 'formed') {
-            formation.milestones = {
-                ecashSent: true,
-                guardiansConfirmed: true,
-                walletServiceCreated: true,
-            }
-            formation.paymentOutputsStarted = true
-            this.markFormed(formation, { alreadyJoined: true })
-            this.phaseIndex = FORMATION_PHASES.indexOf('formed')
-        } else {
-            formation.milestones.ecashSent = true
-            formation.paymentOutputsStarted = true
-            this.phaseIndex = FORMATION_PHASES.indexOf('acquiringSeats')
-        }
-        this.status = { type: 'formation', formation }
-        // an operation the creation flow is presumed to have started already.
-        // Seeded after the status, so it carries the real formation id.
-        if (
-            this.scenario.liquidityAlreadyRunning ||
-            this.scenario.liquidityAlreadyAttached
-        )
-            this.liquidityOperation = this.makeLiquidityOperation(
-                this.scenario.liquidityAlreadyAttached,
-            )
-        // a seeded in-flight formation marches like a paid one, so the
-        // scenario's fail/authorize/replace knobs apply to it too. Knob
-        // scenarios walk the timeline synchronously until the knob parks it,
-        // so the very first snapshot a screen reads is already in the state
-        // the scenario names; a plain seed keeps marching on the timer.
-        if (seed !== 'inProgress') return
-        const { scenario } = this
-        const hasKnob =
-            scenario.failAtPhase ||
-            scenario.unsyncedAtPhase ||
-            scenario.authorizeAtPhase ||
-            scenario.replaceGuardianAtPhase
-        if (!hasKnob) {
-            this.scheduleNextPhase()
-            return
-        }
-        // a knob at or before the seeded phase can never be "entered" by the
-        // walk, so it applies to the seeded snapshot directly
-        const phaseIndexOf = (phase: FormationPhaseName | null) =>
-            phase ? FORMATION_PHASES.indexOf(phase) : Number.MAX_SAFE_INTEGER
-        if (phaseIndexOf(scenario.failAtPhase) <= this.phaseIndex) {
-            formation.lastError = scenario.failWithCode
-            return
-        }
-        if (phaseIndexOf(scenario.unsyncedAtPhase) <= this.phaseIndex) {
-            formation.freshness = 'unsynced'
-            return
-        }
-        if (phaseIndexOf(scenario.authorizeAtPhase) <= this.phaseIndex) {
-            this.parkAuthorization(formation)
-            return
-        }
-        if (phaseIndexOf(scenario.replaceGuardianAtPhase) <= this.phaseIndex) {
-            this.parkReplacement(formation)
-            return
-        }
-        for (let step = 0; step < FORMATION_PHASES.length; step++) {
-            const current = this.currentFormation()
-            if (
-                !current ||
-                current.phase === 'formed' ||
-                current.lastError ||
-                current.actionRequired ||
-                current.freshness === 'unsynced'
-            )
-                break
-            this.advancePhase()
-        }
-        // the walk's intermediate advances each armed a timer; parked states
-        // must not march on without the user
-        if (this.phaseTimer) {
-            clearTimeout(this.phaseTimer)
-            this.phaseTimer = null
-        }
+    get world(): FiWorld {
+        return this
     }
 
-    /**
-     * Open on a Nostr backup found for this seed, and let it settle.
-     *
-     * Three moments, because the bridge has three:
-     *
-     *   restored/unsynced ─(reconcile)─▶ restored/fresh ─(auto-join)─▶ federation
-     *
-     * The invite is known from the backup at moment one, which is why
-     * `parseInviteCode` answers straight away — the real one parses offline
-     * too. The federation itself is announced only at moment three, because
-     * `formed_federation_invite` refuses to hand the invite to the auto-join
-     * until the snapshot is fresh. Collapsing those two would hide the very
-     * window the dashboard has to survive.
-     */
-    private seedRestoredBackup() {
-        const formationId = 'restored_formation'
-        const inviteCode = `fed1${'sim'.padEnd(40, '0')}${formationId}`
-        this.status = {
-            type: 'restored',
-            formation: {
-                snapshotGeneration: 3,
-                formationId,
-                federationInvite: inviteCode,
-                // the backup does not carry the name: `restore_authenticated`
-                // writes `federation_name: None`, and reconciliation is what
-                // learns it from the Fleet Managers
-                federationName: null,
-                seats: Array.from({ length: 10 }, (_, index) => ({
-                    fmanId: `fman_${String(index + 1).padStart(2, '0')}_${this.hash(index)}`,
-                    seatId: `seat_${index}`,
-                    locator: '{"version":1}',
-                })),
-                phase: 'formed',
-                freshness: 'unsynced',
-                backupEligible: false,
-            },
-        }
-        // known, but not yet joined: the app can resolve the id and still
-        // have no client behind it, so it is neither announced nor listed
-        this.isWalletServiceJoined = false
-        this.walletServiceFederation = {
-            ...makeMockPayerFederation({
-                id: `mock-wallet-service-${formationId}`,
-                name: 'My Wallet Service',
-                balanceSats: 21_000,
-            }),
-            network: 'signet',
-            inviteCode,
-        }
-        this.joinTimers.push(
-            setTimeout(() => {
-                if (this.status.type !== 'restored') return
-                this.status.formation.freshness = 'fresh'
-                // `reconcile_restored_backup` writes both in one transaction
-                this.status.formation.backupEligible = true
-                this.status.formation.federationName = 'My Wallet Service'
-                this.publish()
-                // the invite is only handed to the auto-join once the snapshot
-                // is fresh, so this edge is where the bridge starts joining
-                this.emitFederationJoin({ type: 'joining' })
-            }, this.scenario.restoreReconcileMs),
-        )
-        // null means the federation is never announced — the failure shape,
-        // where the checklist reports complete but the join never lands
-        if (this.scenario.restoreJoinMs === null) {
-            this.joinTimers.push(
-                setTimeout(
-                    () =>
-                        this.emitFederationJoin({
-                            type: 'failed',
-                            message: 'simulated: federation join failed',
-                        }),
-                    this.scenario.restoreReconcileMs +
-                        this.scenario.restoreJoinFailMs,
-                ),
-            )
-            return
-        }
-        const joinedAt =
-            this.scenario.restoreReconcileMs + this.scenario.restoreJoinMs
-        this.joinTimers.push(
-            setTimeout(() => this.beginWalletServiceRecovery(), joinedAt),
-        )
-        this.joinTimers.push(
-            setTimeout(
-                () => this.completeWalletServiceJoin(),
-                joinedAt + this.scenario.restoreRecoveryMs,
-            ),
-        )
+    setStub(
+        method: string,
+        handler: (payload: Record<string, unknown>) => unknown,
+    ) {
+        this.stubs.set(method, handler)
+    }
+
+    setSeatPriceMsats(msats: number) {
+        this.seatPriceMsats = msats
+    }
+
+    setFleet(fleet: { eligible: number; seen: number }) {
+        this.fleet = fleet
+    }
+
+    setPreviewValiditySecs(secs: number) {
+        this.previewValiditySecs = secs
+    }
+
+    setJoinableWalletServices(services: MockJoinableWalletService[]) {
+        this.joinableWalletServices = services
+    }
+
+    setLiquidityNetwork(network: RpcFiLiquidityNetwork) {
+        this.liquidityNetwork = network
+    }
+
+    startLiquidity({ verified }: { verified: boolean }) {
+        this.liquidityPolls = 0
+        this.liquidityOperation = this.makeLiquidityOperation(verified)
+    }
+
+    currentLiquidityOperation(): RpcFiLiquidityOperation | null {
+        return this.liquidityOperation
+    }
+
+    eligiblePayerIds(): string[] {
+        const result = this.eligiblePayers()
+        return result.type === 'payers'
+            ? result.payers.map(p => p.federationId)
+            : []
     }
 
     private isWalletServiceAutoJoinSuppressed(): boolean {
@@ -578,20 +435,17 @@ export class FiSimulator {
         this.eventEmitter?.('fiFederationJoin', event)
     }
 
-    /** Clear the knob timeline's timers, without touching anything else. */
-    private clearTimers() {
-        if (this.phaseTimer) clearTimeout(this.phaseTimer)
-        this.joinTimers.forEach(clearTimeout)
-        this.joinTimers = []
-        this.phaseTimer = null
-    }
-
     /** Return to a pristine `idle` client. */
     reset() {
-        this.clearTimers()
-        this.phaseIndex = 0
-        this.hasPreviewedOnce = false
-        this.previewCount = 0
+        this.stubs.clear()
+        this.seatPriceMsats = DEFAULT_SEAT_PRICE_MSATS
+        this.fleet = {
+            eligible: DEFAULT_ELIGIBLE_FMANS,
+            seen: DEFAULT_SEEN_FMANS,
+        }
+        this.previewValiditySecs = DEFAULT_PREVIEW_VALIDITY_SECS
+        this.joinableWalletServices = MOCK_JOINABLE_WALLET_SERVICES
+        this.liquidityNetwork = 'signet'
         this.previews.clear()
         this.pendingDeposits.clear()
         this.liquidityOperation = null
@@ -678,6 +532,12 @@ export class FiSimulator {
             this.replies.delete(method)
             return value
         }
+        const stub = this.stubs.get(method)
+        if (stub) return stub(payload)
+        return this.defaultHandle(method, payload)
+    }
+
+    async defaultHandle(method: string, payload: Record<string, unknown>) {
         switch (method) {
             case 'generateInvoice':
                 return this.generateInvoice(payload)
@@ -758,7 +618,7 @@ export class FiSimulator {
      * Record the federations the app has actually joined.
      *
      * The payer picker can only offer a wallet the app holds, so invented ids
-     * would leave every scenario stuck on "no wallet can pay". The transport
+     * would leave every run stuck on "no wallet can pay". The transport
      * snoops `listFederations` and feeds the real ids and balances in here,
      * which is what the `real` payer source reports.
      *
@@ -820,8 +680,8 @@ export class FiSimulator {
      * and the payer picker would filter it out again. Mock payers are held
      * apart and survive that.
      *
-     * The balance rides along rather than coming from the scenario, so seeding
-     * a payer set does not disturb the scenario the flow is being tested under.
+     * The balance rides along with the call, so seeding a payer set does not
+     * disturb the rest of the world the flow is being tested under.
      */
     addMockPayer(federationId: string, balanceSats: number, name?: string) {
         const existing = this.mockPayers.find(
@@ -883,7 +743,7 @@ export class FiSimulator {
 
     private mockJoinableFor(inviteCode: string | undefined) {
         return (
-            MOCK_JOINABLE_WALLET_SERVICES.find(
+            this.joinableWalletServices.find(
                 s => s.inviteCode === inviteCode,
             ) ?? null
         )
@@ -1005,46 +865,13 @@ export class FiSimulator {
         this.isWalletServiceJoined = false
     }
 
-    private markFormed(
-        formation: RpcFiFormationSnapshot,
-        { alreadyJoined = false }: { alreadyJoined?: boolean } = {},
-    ) {
-        this.createWalletServiceFederation(formation)
-        if (alreadyJoined) {
-            this.completeWalletServiceJoin()
-            return
-        }
-        this.emitFederationJoin({ type: 'joining' })
-        const { createdJoinMs, createdJoinFailMs } = this.scenario
-        // null means the join never lands — the same silent-failure shape the
-        // restore path has, which the dashboard answers rather than the
-        // recovery checklist
-        if (createdJoinMs === null) {
-            this.joinTimers.push(
-                setTimeout(
-                    () =>
-                        this.emitFederationJoin({
-                            type: 'failed',
-                            message: 'simulated: federation join failed',
-                        }),
-                    createdJoinFailMs,
-                ),
-            )
-            return
-        }
-        this.joinTimers.push(
-            setTimeout(() => this.completeWalletServiceJoin(), createdJoinMs),
-        )
-    }
-
     /**
      * The join landed on a restored seed, and the ecash recovery it started has
      * not finished.
      *
      * The bridge lists a federation in that state with `recovering` true and
      * reports `recovering` for the whole window. Collapsing it into `ready`
-     * skips the recovery checklist's `restoringBalance` row, which is the one
-     * window these scenarios exist to show.
+     * skips the recovery checklist's `restoringBalance` row.
      */
     private beginWalletServiceRecovery() {
         if (
@@ -1135,7 +962,7 @@ export class FiSimulator {
      * A deposit invoice against a wallet the real bridge has never heard of.
      *
      * Without this the top-up sheet dies on its first step whenever the payer
-     * is a mock one, which is every scenario dev cannot join a real wallet for.
+     * is a mock one, which is every wallet dev cannot really join.
      */
     private generateInvoice(payload: Record<string, unknown>): string {
         const invoice = `lnbcsim${this.nextId++}`
@@ -1227,20 +1054,6 @@ export class FiSimulator {
     }
 
     private eligiblePayers(): RpcFiEligiblePayersResult {
-        // the real bridge returns an *error*, not an empty list, when the
-        // trusted setup payment set cannot be authenticated — which is what a
-        // user in no such federation actually hits. `payers: []` cannot stand
-        // in for it, so the failing shape is its own scenario.
-        if (this.scenario.failPayerLookup) {
-            return {
-                type: 'error',
-                error: {
-                    code: 'registry',
-                    message: 'trusted setup payment federations unavailable',
-                    detail: null,
-                },
-            }
-        }
         if (this.payerSource === 'none') return { type: 'payers', payers: [] }
         if (this.payerSource === 'mock')
             return {
@@ -1271,21 +1084,7 @@ export class FiSimulator {
      * mock service is joined it moves sides rather than leaving the set, which
      * is what stops the join sheet re-offering a federation the user is in.
      */
-    private async setupPaymentFederations(): Promise<RpcFiSetupPaymentFederationsResult> {
-        const scenario = this.scenario
-        // the real lookup is a relay fetch plus a preview per result, so the
-        // sheet's loading state is worth being able to sit and look at
-        await delay(scenario.joinLookupLatencyMs)
-        if (scenario.failJoinLookup) {
-            return {
-                type: 'error',
-                error: {
-                    code: 'registry',
-                    message: 'simulated setup-payment lookup failure',
-                    detail: null,
-                },
-            }
-        }
+    private setupPaymentFederations(): RpcFiSetupPaymentFederationsResult {
         const payerMembers = [
             ...this.mockPayers.map(p => p.federationId),
             ...this.joinedFederationIds,
@@ -1298,10 +1097,7 @@ export class FiSimulator {
                 inviteCode: `fed1mock-joined-${federationId}`,
                 joined: true,
             })),
-            ...(scenario.noJoinableWalletServices
-                ? []
-                : MOCK_JOINABLE_WALLET_SERVICES
-            )
+            ...this.joinableWalletServices
                 .filter(
                     service => !this.joinedFederationIds.includes(service.id),
                 )
@@ -1330,25 +1126,12 @@ export class FiSimulator {
 
     /*** Commands ***/
 
-    private async previewSelection(
+    private previewSelection(
         request: RpcFiSelectionPreviewRequest,
-    ): Promise<RpcFiSelectionPreviewResult> {
-        const { scenario } = this
-        await delay(
-            this.hasPreviewedOnce
-                ? scenario.warmPreviewLatencyMs
-                : scenario.coldPreviewLatencyMs,
-        )
-        this.previewCount++
-        this.hasPreviewedOnce = true
-
+    ): RpcFiSelectionPreviewResult {
         const requested = request.federationSize
-        if (
-            scenario.eligibleFmanCount < requested ||
-            (scenario.previewFailuresAfterCount !== null &&
-                this.previewCount > scenario.previewFailuresAfterCount)
-        ) {
-            const eligible = Math.min(scenario.eligibleFmanCount, requested - 1)
+        if (this.fleet.eligible < requested) {
+            const eligible = Math.min(this.fleet.eligible, requested - 1)
             return {
                 type: 'error',
                 error: error(
@@ -1358,7 +1141,7 @@ export class FiSimulator {
                         type: 'insufficientFmanSeats',
                         requested,
                         selected: eligible,
-                        seen: scenario.seenFmanCount,
+                        seen: this.fleet.seen,
                         eligible,
                     },
                 ),
@@ -1371,11 +1154,7 @@ export class FiSimulator {
                 fmanId,
                 fmanName: fmanNameFor(fmanId),
                 advertisedPriceMsats: String(
-                    seatPriceMsats(
-                        index,
-                        requested,
-                        this.scenario.seatPriceMsats,
-                    ),
+                    seatPriceMsats(index, requested, this.seatPriceMsats),
                 ),
                 provenance: 'fedi_attested',
             }
@@ -1388,9 +1167,9 @@ export class FiSimulator {
             previewId: `preview_${this.nextId++}`,
             selected: requested,
             totalAdvertisedMsats: String(total),
-            seen: scenario.seenFmanCount,
-            eligible: scenario.eligibleFmanCount,
-            validUntil: nowSecs() + scenario.previewValiditySecs,
+            seen: this.fleet.seen,
+            eligible: this.fleet.eligible,
+            validUntil: nowSecs() + this.previewValiditySecs,
             seats,
         }
         this.previews.set(preview.previewId, preview)
@@ -1411,7 +1190,7 @@ export class FiSimulator {
         const preview = this.previews.get(previewId)
         const isExpired = preview ? preview.validUntil <= nowSecs() : false
 
-        if (!preview || isExpired || this.scenario.rejectSelectionOnPay) {
+        if (!preview || isExpired) {
             this.previews.delete(previewId)
             return {
                 type: 'error',
@@ -1447,9 +1226,7 @@ export class FiSimulator {
                 phase: 'preparing',
             }),
         }
-        this.phaseIndex = 0
         this.publish()
-        this.scheduleNextPhase()
         return { type: 'success' }
     }
 
@@ -1464,7 +1241,6 @@ export class FiSimulator {
         formation.lastError = null
         formation.freshness = 'fresh'
         this.publish()
-        this.scheduleNextPhase()
         return { type: 'success' }
     }
 
@@ -1515,7 +1291,6 @@ export class FiSimulator {
         formation.actionRequired = null
         formation.paymentOutputsStarted = true
         this.publish()
-        this.scheduleNextPhase()
         return { type: 'success' }
     }
 
@@ -1531,22 +1306,6 @@ export class FiSimulator {
             }
         }
         const requested = required.requirements.seats.length
-        if (this.scenario.replacementCandidateCount < requested) {
-            return {
-                type: 'error',
-                error: error(
-                    'selection',
-                    'not enough verified replacement candidates',
-                    {
-                        type: 'insufficientFmanSeats',
-                        requested,
-                        selected: this.scenario.replacementCandidateCount,
-                        seen: this.scenario.seenFmanCount,
-                        eligible: this.scenario.replacementCandidateCount,
-                    },
-                ),
-            }
-        }
         const previewId = `replacement_preview_${this.nextId++}`
         const seats = required.requirements.seats.map(seat => {
             const fmanId = `fman_replacement_${this.hash(seat.index)}`
@@ -1555,11 +1314,7 @@ export class FiSimulator {
                 fmanId,
                 fmanName: fmanNameFor(fmanId),
                 advertisedPriceMsats: String(
-                    seatPriceMsats(
-                        seat.index,
-                        requested,
-                        this.scenario.seatPriceMsats,
-                    ),
+                    seatPriceMsats(seat.index, requested, this.seatPriceMsats),
                 ),
                 provenance: 'PeerBadge',
             }
@@ -1603,7 +1358,6 @@ export class FiSimulator {
                 : seat,
         )
         this.publish()
-        this.scheduleNextPhase()
         return { type: 'success' }
     }
 
@@ -1662,15 +1416,15 @@ export class FiSimulator {
     /**
      * The one provider the simulated environment admits.
      *
-     * `supportedNetworks` comes from the scenario rather than the request, so a
-     * scenario can put the provider on a network the federation does not run,
-     * which is the mismatch that silently finds nothing.
+     * `supportedNetworks` comes from the world rather than the request, so the
+     * provider can be put on a network the federation does not run, which is
+     * the mismatch that silently finds nothing.
      */
     private liquidityProvider(): RpcFiLiquidityProvider {
         return {
             providerPubkey: 'sim_provider_peerbadge',
             supportedSources: ['gateway'],
-            supportedNetworks: [this.scenario.liquidityNetwork],
+            supportedNetworks: [this.liquidityNetwork],
             displayName: 'PeerBadge Verified Lightning Provider',
             website: null,
             contact: null,
@@ -1682,15 +1436,6 @@ export class FiSimulator {
     private liquidityDiscover(
         network: RpcFiLiquidityNetwork,
     ): RpcFiLiquidityDiscoveryResult {
-        const code = this.scenario.liquidityFailWithCode
-        if (code)
-            return {
-                type: 'error',
-                error: error(code, 'simulated liquidity discovery failure'),
-            }
-        if (this.scenario.liquidityNoProvider)
-            return { type: 'discovery', providers: [], rejected: [] }
-
         const provider = this.liquidityProvider()
         // the caller filters on this too, but a provider that cannot serve the
         // requested network is a rejection the response should carry
@@ -1717,13 +1462,6 @@ export class FiSimulator {
         if (this.liquidityOperation)
             return { type: 'operation', operation: this.liquidityOperation }
 
-        const code = this.scenario.liquidityFailWithCode
-        if (code)
-            return {
-                type: 'error',
-                error: error(code, 'simulated liquidity start failure'),
-            }
-
         this.liquidityPolls = 0
         this.liquidityOperation = this.makeLiquidityOperation(false)
         return { type: 'operation', operation: this.liquidityOperation }
@@ -1738,13 +1476,7 @@ export class FiSimulator {
         return { type: 'operation', operation: this.liquidityOperation }
     }
 
-    /**
-     * Reads the durable projection and advances it.
-     *
-     * The verification is counted in reads rather than timed, so a scenario
-     * says how many polls it takes and the wait is the same however fast the
-     * device is.
-     */
+    /** Reads the durable projection and advances it. */
     private liquidityStatus(): RpcFiLiquidityOperationResult {
         const operation = this.liquidityOperation
         if (!operation)
@@ -1753,19 +1485,9 @@ export class FiSimulator {
                 error: error('noActiveFormation', 'no liquidity operation'),
             }
 
-        if (this.scenario.liquidityRejectsOnStatus) {
-            this.liquidityOperation = {
-                ...operation,
-                phase: 'rejected',
-                rejectionCode: 'intentRefused',
-            }
-            return { type: 'operation', operation: this.liquidityOperation }
-        }
-
         this.liquidityPolls += 1
-        const verifyAfter = this.scenario.liquidityVerifyAfterPolls
         const advanced =
-            verifyAfter !== null && this.liquidityPolls >= verifyAfter
+            this.liquidityPolls >= LIQUIDITY_VERIFY_AFTER_POLLS
                 ? { ...operation, gatewayViewVerified: true }
                 : operation
         this.liquidityOperation = advanced
@@ -1862,126 +1584,6 @@ export class FiSimulator {
         }
     }
 
-    private scheduleNextPhase() {
-        if (this.phaseTimer) clearTimeout(this.phaseTimer)
-        this.phaseTimer = setTimeout(
-            () => this.advancePhase(),
-            this.scenario.phaseIntervalMs,
-        )
-    }
-
-    private advancePhase() {
-        const formation = this.currentFormation()
-        if (!formation) return
-
-        const nextIndex = this.phaseIndex + 1
-        const nextPhase = FORMATION_PHASES[nextIndex]
-        if (!nextPhase) return
-
-        if (this.scenario.failAtPhase === nextPhase) {
-            formation.lastError = this.scenario.failWithCode
-            this.publish()
-            return
-        }
-
-        if (this.scenario.unsyncedAtPhase === nextPhase) {
-            // the stream stalls: last-known data, no error, no more progress
-            formation.freshness = 'unsynced'
-            this.publish()
-            return
-        }
-
-        this.phaseIndex = nextIndex
-        formation.phase = nextPhase
-        formation.seats = formation.seats.map(seat => ({
-            ...seat,
-            phase: seatPhaseFor(nextPhase),
-        }))
-
-        // milestones are what the progress screen renders, so they flip on the
-        // phases the bridge actually associates them with
-        if (nextIndex >= FORMATION_PHASES.indexOf('acquiringSeats')) {
-            formation.milestones.ecashSent = true
-            formation.paymentOutputsStarted = true
-        }
-        if (nextIndex >= FORMATION_PHASES.indexOf('dkgUnderway')) {
-            formation.milestones.guardiansConfirmed = true
-        }
-        if (nextPhase === 'formed') this.markFormed(formation)
-
-        if (this.scenario.replaceGuardianAtPhase === nextPhase) {
-            this.parkReplacement(formation)
-            this.publish()
-            return // wait for the user rather than marching on
-        }
-
-        if (this.scenario.authorizeAtPhase === nextPhase) {
-            this.parkAuthorization(formation)
-            this.publish()
-            return // wait for the user rather than marching on
-        }
-
-        this.publish()
-        if (nextPhase !== 'formed') this.scheduleNextPhase()
-    }
-
-    /**
-     * One seat is terminally refused: it regresses, the all-seats milestone
-     * predicate un-ticks, and the decision parks for the user.
-     */
-    private parkReplacement(formation: RpcFiFormationSnapshot) {
-        const refused = formation.seats[0]
-        refused.phase = 'replacementRequired'
-        formation.milestones.guardiansConfirmed = false
-        formation.actionRequired = {
-            type: 'replaceGuardians',
-            requirements: {
-                replacementId: `replacement_${this.nextId++}`,
-                seats: [
-                    {
-                        index: refused.index,
-                        previousFmanId: refused.fmanId,
-                        previousFmanName: refused.fmanName,
-                        previousQuoteId: `quote_${refused.index}`,
-                        previousLocator: refused.locator,
-                    },
-                ],
-            },
-        }
-    }
-
-    /**
-     * Park an extra-payment authorization. The payer must be a wallet the app
-     * really holds: the approve prompt gates on that wallet's live balance,
-     * exactly as the real bridge names real payment federations per seat.
-     * The payer id falls back to `'unknown'` until a real wallet is observed.
-     */
-    private parkAuthorization(formation: RpcFiFormationSnapshot) {
-        const eligible = this.eligiblePayers()
-        const payerFederationId =
-            eligible.type === 'payers'
-                ? (eligible.payers[0]?.federationId ?? 'unknown')
-                : 'unknown'
-        const totalMsats = this.scenario.authorizeAmountSats * SATS_TO_MSATS
-        const seats = formation.seats.slice(0, 3)
-        formation.actionRequired = {
-            type: 'authorizePayments',
-            requirements: {
-                authorizationId: `auth_${this.nextId++}`,
-                totalMsats: String(totalMsats),
-                maxTotalMsats: formation.intent.maxTotalMsats,
-                seats: seats.map(seat => ({
-                    index: seat.index,
-                    fmanId: seat.fmanId,
-                    fmanName: seat.fmanName,
-                    quoteId: `quote_${seat.index}`,
-                    paymentFederationId: payerFederationId,
-                    amountMsats: String(Math.floor(totalMsats / seats.length)),
-                })),
-            },
-        }
-    }
-
     /*** Stream plumbing ***/
 
     private currentFormation(): RpcFiFormationSnapshot | null {
@@ -2005,24 +1607,6 @@ export class FiSimulator {
 
     private hash(index: number): string {
         return ((index + 7) * 2654435761).toString(16).slice(0, 6)
-    }
-}
-
-const seatPhaseFor = (
-    phase: FormationPhaseName,
-): RpcFiFormationSnapshot['seats'][number]['phase'] => {
-    switch (phase) {
-        case 'preparing':
-        case 'awaitingPaymentReadiness':
-            return 'selected'
-        case 'acquiringSeats':
-            return 'acquiring'
-        case 'preparingDkg':
-            return 'guardianCodeReady'
-        case 'dkgUnderway':
-            return 'dkgUnderway'
-        default:
-            return 'running'
     }
 }
 

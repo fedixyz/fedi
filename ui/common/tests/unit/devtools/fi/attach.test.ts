@@ -78,4 +78,25 @@ describe('attachFiDevTools', () => {
             'unknown screen "nope"',
         )
     })
+
+    it('should play a script from the start with real timing after a reset', async () => {
+        jest.useFakeTimers()
+        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        await tools.ready
+        const reset = jest.spyOn(tools.simulator, 'reset')
+        const run = jest.spyOn(tools.player, 'run')
+
+        const played = tools.play('formation.happyPath')
+
+        expect(played.name).toBe('formation.happyPath')
+        expect(reset).toHaveBeenCalledTimes(1)
+        expect(run).toHaveBeenCalledWith(played, {})
+        tools.player.cancel()
+        jest.useRealTimers()
+    })
+
+    it('should reject an unknown script name', () => {
+        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        expect(() => tools.play('nope')).toThrow('unknown script "nope"')
+    })
 })

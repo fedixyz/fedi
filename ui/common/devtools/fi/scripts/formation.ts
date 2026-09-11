@@ -1,17 +1,21 @@
 import {
     formationAt,
     formationStatus,
+    withAuthorization,
     withError,
+    withReplacement,
     withUnsynced,
 } from '../status'
 import {
     FiScript,
+    FiStep,
     awaitRpc,
     checkpoint,
     formWalletService,
     reply,
     script,
     stream,
+    stub,
     wait,
 } from '../steps'
 
@@ -43,7 +47,7 @@ const walk = (
         wait(PHASE_MS),
     ])
 
-const start = [
+const PAY_AND_CREATE_STEPS = [
     reply('fiClientPayAndCreate', { type: 'success' }),
     awaitRpc('fiClientPayAndCreate', PAY_AND_CREATE),
     checkpoint('paid'),
@@ -58,7 +62,7 @@ const TO_DKG = [
 ] as const
 
 export const formationHappyPath: FiScript = script('formation.happyPath', [
-    ...start,
+    ...PAY_AND_CREATE_STEPS,
     ...walk([...TO_DKG, 'publishingSeatBindings']),
     stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
     formWalletService('joining'),
@@ -68,8 +72,11 @@ export const formationHappyPath: FiScript = script('formation.happyPath', [
     checkpoint('formed'),
 ])
 
+/** Payment through to a joined wallet service, for scripts that begin earlier. */
+export const FORMATION_FROM_PAYMENT: FiStep[] = formationHappyPath.steps
+
 export const formationFails: FiScript = script('formation.fails', [
-    ...start,
+    ...PAY_AND_CREATE_STEPS,
     ...walk(TO_DKG),
     stream(ctx =>
         formationStatus(
@@ -82,7 +89,7 @@ export const formationFails: FiScript = script('formation.fails', [
 export const formationFailsTerminally: FiScript = script(
     'formation.failsTerminally',
     [
-        ...start,
+        ...PAY_AND_CREATE_STEPS,
         ...walk(TO_DKG),
         stream(ctx =>
             formationStatus(
@@ -107,9 +114,10 @@ export const formationReconnecting: FiScript = script(
 export const formationCreatedJoinFails: FiScript = script(
     'formation.createdJoinFails',
     [
-        ...start,
+        ...PAY_AND_CREATE_STEPS,
         ...walk([...TO_DKG, 'publishingSeatBindings']),
         stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+        formWalletService('joining'),
         formWalletService('failed'),
         checkpoint('joinFailed'),
     ],
@@ -124,6 +132,101 @@ export const formationAlreadyFormed: FiScript = script(
     ],
 )
 
+const AUTHORIZATION_ID = 'auth_script'
+const REPLACEMENT_ID = 'replacement_script'
+
+const authorizeAt = (amountSats: number) =>
+    stream(ctx =>
+        formationStatus(
+            withAuthorization(formationAt(ctx, 'acquiringSeats'), {
+                authorizationId: AUTHORIZATION_ID,
+                amountSats,
+                payerFederationId: ctx.world.eligiblePayerIds()[0] ?? 'unknown',
+            }),
+        ),
+    )
+
+const authorizeScript = (name: string, amountSats: number): FiScript =>
+    script(name, [
+        ...PAY_AND_CREATE_STEPS,
+        ...walk(['preparing', 'awaitingPaymentReadiness']),
+        authorizeAt(amountSats),
+        checkpoint('authorize'),
+        awaitRpc('fiClientAuthorizeReplacementPayments', {
+            authorizationId: AUTHORIZATION_ID,
+        }),
+        wait(PHASE_MS),
+        ...walk(['preparingDkg', 'dkgUnderway', 'publishingSeatBindings']),
+        stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+        formWalletService('ready'),
+        checkpoint('formed'),
+    ])
+
+export const formationAuthorizePayments = authorizeScript(
+    'formation.authorizePayments',
+    6_300,
+)
+export const formationAuthorizePaymentsShort = authorizeScript(
+    'formation.authorizePaymentsShort',
+    10_000_000,
+)
+
+const REPLACEMENT_STEPS = [
+    ...PAY_AND_CREATE_STEPS,
+    ...walk([
+        'preparing',
+        'awaitingPaymentReadiness',
+        'acquiringSeats',
+        'preparingDkg',
+    ]),
+    stream(ctx =>
+        formationStatus(
+            withReplacement(formationAt(ctx, 'dkgUnderway'), {
+                replacementId: REPLACEMENT_ID,
+            }),
+        ),
+    ),
+    checkpoint('replaceGuardians'),
+    // the simulator answers the real tap against the id its own preview sealed;
+    // this payload is only read when a jump skips the step, which no screen does
+    awaitRpc('fiClientApplyReplacements', {
+        previewId: 'replacement_preview_script',
+    }),
+    wait(PHASE_MS),
+    ...walk(['publishingSeatBindings']),
+    stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+    formWalletService('ready'),
+    checkpoint('formed'),
+]
+
+export const formationGuardianDroppedOut: FiScript = script(
+    'formation.guardianDroppedOut',
+    REPLACEMENT_STEPS,
+)
+
+export const formationGuardianDroppedOutNoCandidates: FiScript = script(
+    'formation.guardianDroppedOutNoCandidates',
+    [
+        stub('fiClientPreviewReplacements', () => ({
+            type: 'error',
+            error: {
+                code: 'selection',
+                message: 'not enough verified replacement candidates',
+                detail: {
+                    type: 'insufficientFmanSeats',
+                    requested: 1,
+                    selected: 0,
+                    seen: 42,
+                    eligible: 0,
+                },
+            },
+        })),
+        // the replacement preview never succeeds, so the formed tail of
+        // these steps is unreachable; kept so the checkpoint stays shared
+        ...REPLACEMENT_STEPS,
+    ],
+)
+
 export const FORMATION_SCRIPTS: FiScript[] = [
     formationHappyPath,
     formationFails,
@@ -131,4 +234,8 @@ export const FORMATION_SCRIPTS: FiScript[] = [
     formationReconnecting,
     formationCreatedJoinFails,
     formationAlreadyFormed,
+    formationAuthorizePayments,
+    formationAuthorizePaymentsShort,
+    formationGuardianDroppedOut,
+    formationGuardianDroppedOutNoCandidates,
 ]

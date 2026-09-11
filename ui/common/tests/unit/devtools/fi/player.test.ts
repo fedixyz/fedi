@@ -1,6 +1,7 @@
 import { FiPlayer, PlayerHost } from '../../../../devtools/fi/player'
 import { IDLE_STATUS } from '../../../../devtools/fi/status'
 import {
+    act,
     awaitRpc,
     checkpoint,
     checkpointsOf,
@@ -9,8 +10,10 @@ import {
     reply,
     script,
     stream,
+    stub,
     wait,
 } from '../../../../devtools/fi/steps'
+import type { FiWorld } from '../../../../devtools/fi/world'
 import type { RpcFiStatus } from '../../../../types/bindings'
 
 const formation = (
@@ -33,18 +36,24 @@ const makeHost = () => {
         events: Array<[string, unknown]>
         replies: Array<[string, unknown]>
         formed: string[]
+        stubs: Array<[string, (payload: Record<string, unknown>) => unknown]>
+        world: FiWorld
         callRpc: (method: string, payload: Record<string, unknown>) => void
     } = {
         statuses: [],
         events: [],
         replies: [],
         formed: [],
+        stubs: [],
         setStatus: jest.fn(status => host.statuses.push(status)),
         emitEvent: jest.fn((event, payload) =>
             host.events.push([event, payload]),
         ),
         setReply: jest.fn((method, value) =>
             host.replies.push([method, value]),
+        ),
+        setStub: jest.fn((method, handler) =>
+            host.stubs.push([method, handler]),
         ),
         onRpc: jest.fn(
             method =>
@@ -54,6 +63,17 @@ const makeHost = () => {
         ),
         formWalletService: jest.fn(join => host.formed.push(join)),
         nextFormationId: jest.fn(() => `formation_${++ids}`),
+        world: {
+            defaultHandle: jest.fn(async () => 'default'),
+            setSeatPriceMsats: jest.fn(),
+            setFleet: jest.fn(),
+            setPreviewValiditySecs: jest.fn(),
+            setJoinableWalletServices: jest.fn(),
+            setLiquidityNetwork: jest.fn(),
+            startLiquidity: jest.fn(),
+            currentLiquidityOperation: jest.fn(() => null),
+            eligiblePayerIds: jest.fn(() => ['payer_1']),
+        },
         callRpc: (method, payload) => waiters.get(method)?.(payload),
     }
     return host
@@ -214,5 +234,64 @@ describe('FiPlayer', () => {
             'unknown checkpoint "nope" in script "test"',
         )
         expect(host.setStatus).not.toHaveBeenCalled()
+    })
+
+    it('should install a stub whose handler receives the payload and the script context', async () => {
+        const host = makeHost()
+        const player = new FiPlayer(host)
+        const handler = jest.fn((payload, ctx) => ({
+            echoed: payload.x,
+            id: ctx.formationId,
+        }))
+
+        await player.run(script('s', [stub('fiClientStatus', handler)]))
+
+        expect(host.setStub).toHaveBeenCalledWith(
+            'fiClientStatus',
+            expect.any(Function),
+        )
+        const [, installed] = host.stubs[0]
+        expect(installed({ x: 1 })).toEqual({
+            echoed: 1,
+            id: 'formation_1',
+        })
+        expect(handler).toHaveBeenCalledWith(
+            { x: 1 },
+            expect.objectContaining({ formationId: 'formation_1' }),
+        )
+    })
+
+    it('should run an act step with the context, including the world', async () => {
+        const host = makeHost()
+        const player = new FiPlayer(host)
+
+        await player.run(
+            script('s', [act(ctx => ctx.world.setSeatPriceMsats(5))]),
+        )
+
+        expect(host.world.setSeatPriceMsats).toHaveBeenCalledWith(5)
+    })
+
+    it('should install stubs and run acts while jumping, since they configure the checkpoint', async () => {
+        const host = makeHost()
+        const player = new FiPlayer(host)
+        const run = player.run(
+            script('s', [
+                stub('a', () => 1),
+                act(ctx => ctx.world.setFleet({ eligible: 8, seen: 11 })),
+                wait(5_000),
+                checkpoint('c'),
+            ]),
+            { jumpTo: 'c' },
+        )
+
+        await run
+
+        expect(host.setStub).toHaveBeenCalledTimes(1)
+        expect(host.world.setFleet).toHaveBeenCalledWith({
+            eligible: 8,
+            seen: 11,
+        })
+        expect(jest.getTimerCount()).toBe(0)
     })
 })

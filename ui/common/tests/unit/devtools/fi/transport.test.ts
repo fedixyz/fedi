@@ -4,11 +4,7 @@ import { withFiSimulator } from '../../../../devtools/fi/transport'
 describe('withFiSimulator', () => {
     it('should answer fiClient calls from the simulator when enabled', async () => {
         const realRpc = jest.fn()
-        const rpc = withFiSimulator(
-            realRpc,
-            new FiSimulator('happyPath'),
-            () => true,
-        )
+        const rpc = withFiSimulator(realRpc, new FiSimulator(), () => true)
         const result = await rpc<{ type: string }>('fiClientStatus', {})
         expect(result.type).toBe('ready')
         expect(realRpc).not.toHaveBeenCalled()
@@ -16,11 +12,7 @@ describe('withFiSimulator', () => {
 
     it('should forward every call to the real bridge when disabled', async () => {
         const realRpc = jest.fn().mockResolvedValue('real')
-        const rpc = withFiSimulator(
-            realRpc,
-            new FiSimulator('happyPath'),
-            () => false,
-        )
+        const rpc = withFiSimulator(realRpc, new FiSimulator(), () => false)
         await expect(rpc('fiClientStatus', {})).resolves.toBe('real')
         expect(realRpc).toHaveBeenCalledWith('fiClientStatus', {})
     })
@@ -29,7 +21,7 @@ describe('withFiSimulator', () => {
         const realRpc = jest
             .fn()
             .mockResolvedValue([{ id: 'fed-a', balance: 0 }])
-        const simulator = new FiSimulator('happyPath')
+        const simulator = new FiSimulator()
         simulator.setPayerSource('mock')
         const rpc = withFiSimulator(realRpc, simulator, () => false)
         await expect(rpc('listFederations', {})).resolves.toEqual([
@@ -40,11 +32,7 @@ describe('withFiSimulator', () => {
     it('should read the switch on every call', async () => {
         const realRpc = jest.fn().mockResolvedValue('real')
         let enabled = false
-        const rpc = withFiSimulator(
-            realRpc,
-            new FiSimulator('happyPath'),
-            () => enabled,
-        )
+        const rpc = withFiSimulator(realRpc, new FiSimulator(), () => enabled)
         await expect(rpc('fiClientStatus', {})).resolves.toBe('real')
         enabled = true
         const result = await rpc<{ type: string }>('fiClientStatus', {})

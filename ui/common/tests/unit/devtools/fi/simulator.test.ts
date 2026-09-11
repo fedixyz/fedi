@@ -2,13 +2,15 @@ import {
     MOCK_PAYER_FEDERATION_IDS,
     MOCK_PAYER_FEDERATIONS,
 } from '../../../../devtools/fi/mockPayerFederation'
-import {
-    FORMATION_PHASES,
-    FiScenarioName,
-    fiScenarios,
-} from '../../../../devtools/fi/scenarios'
 import { FiSimulator } from '../../../../devtools/fi/simulator'
-import { formationAt } from '../../../../devtools/fi/status'
+import {
+    formationAt,
+    formationStatus,
+    withAuthorization,
+    withError,
+    withUnsynced,
+} from '../../../../devtools/fi/status'
+import type { FiWalletServiceJoin } from '../../../../devtools/fi/steps'
 import { MSats } from '../../../../types'
 import {
     FiFederationJoinEvent,
@@ -22,6 +24,7 @@ import {
     RpcFiLiquidityOperationResult,
     RpcFiOperationResult,
     RpcFiSelectionPreviewResult,
+    RpcFiSetupPaymentFederationsResult,
     RpcFiStatus,
     RpcParseInviteCodeResult,
 } from '../../../../types/bindings'
@@ -38,12 +41,6 @@ const preview = (simulator: FiSimulator, federationSize = 10) =>
 
 const status = (simulator: FiSimulator) =>
     simulator.handle('fiClientStatus', {}) as Promise<RpcFiClientStatus>
-
-/** Resolve the pending preview latency without waiting in real time. */
-const flushPreview = async <T>(pending: Promise<T>): Promise<T> => {
-    await jest.advanceTimersByTimeAsync(5_000)
-    return pending
-}
 
 describe('FiSimulator', () => {
     beforeEach(() => {
@@ -84,31 +81,8 @@ describe('FiSimulator', () => {
     })
 
     describe('eligible payers', () => {
-        // the real bridge errors here rather than returning nothing, so the
-        // two causes stay distinguishable end to end
-        it('should error rather than empty for the failing-lookup scenario', async () => {
-            const simulator = new FiSimulator('payerLookupFails')
-
-            const result = (await simulator.handle(
-                'fiClientEligiblePayers',
-                {},
-            )) as RpcFiEligiblePayersResult
-
-            expect(result.type).toBe('error')
-            expect(result).not.toEqual({ type: 'payers', payers: [] })
-        })
-
-        // a failing lookup must not take the price down with it
-        it('should still price a selection when the payer lookup fails', async () => {
-            const simulator = new FiSimulator('payerLookupFails')
-
-            const result = await flushPreview(preview(simulator))
-
-            expect(result.type).toBe('preview')
-        })
-
         it('should admit a mock payer the app has never really joined', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.clearMockPayers()
             simulator.observeFederations([
                 { id: 'real-fed', balance: 1_000 as MSats },
@@ -128,7 +102,7 @@ describe('FiSimulator', () => {
         })
 
         it('should keep the mock payer when the real federation list is replaced', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.clearMockPayers()
             simulator.addMockPayer('mock-payer-federation', 50_000)
             simulator.observeFederations([
@@ -148,7 +122,7 @@ describe('FiSimulator', () => {
         })
 
         it('should drop the mock payer when it is cleared', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.addMockPayer('mock-payer-federation', 50_000)
 
             simulator.clearMockPayers()
@@ -161,7 +135,7 @@ describe('FiSimulator', () => {
         })
 
         it('should report each mock payer at its own balance', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.clearMockPayers()
             simulator.addMockPayer('mock-funded', 312_500)
             simulator.addMockPayer('mock-empty', 0)
@@ -180,7 +154,7 @@ describe('FiSimulator', () => {
         })
 
         it('should keep a zero-balance mock payer, so the shortfall can be shown', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.clearMockPayers()
             simulator.addMockPayer('mock-empty', 0)
 
@@ -197,7 +171,7 @@ describe('FiSimulator', () => {
         })
 
         it('should replace the balance when a mock payer is added twice', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.clearMockPayers()
             simulator.addMockPayer('mock-funded', 1_000)
             simulator.addMockPayer('mock-funded', 2_000)
@@ -215,7 +189,7 @@ describe('FiSimulator', () => {
         })
 
         it('should keep a wallet joined mid-flow after the real federation list is refreshed', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.setPayerSource('real')
             simulator.observeJoinedFederation('sim-joined')
             simulator.observeFederations([
@@ -235,7 +209,7 @@ describe('FiSimulator', () => {
         })
 
         it('should still wholesale-replace real ids absent from the latest refresh', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.setPayerSource('real')
             simulator.observeFederations([
                 { id: 'real-stale', balance: 1_000 as MSats },
@@ -265,7 +239,7 @@ describe('FiSimulator', () => {
             ) as Promise<RpcFiEligiblePayersResult>
 
         it('should admit the mock payers at their seeded balance when the source is mock', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.setPayerSource('mock')
             const result = await payers(simulator)
             expect(result).toEqual({
@@ -278,7 +252,7 @@ describe('FiSimulator', () => {
         })
 
         it('should admit every joined wallet at its real balance when the source is real', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.setPayerSource('real')
             simulator.observeFederations([
                 { id: 'fed-a', balance: 5_000_000 as MSats },
@@ -294,7 +268,7 @@ describe('FiSimulator', () => {
         })
 
         it('should admit nobody when the source is none, whatever is joined', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.setPayerSource('none')
             simulator.observeFederations([
                 { id: 'fed-a', balance: 5_000_000 as MSats },
@@ -306,7 +280,7 @@ describe('FiSimulator', () => {
         })
 
         it('should admit a wallet joined during the session under the real source', async () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.setPayerSource('real')
             simulator.observeFederations([])
             simulator.observeJoinedFederation('fed-new')
@@ -317,7 +291,7 @@ describe('FiSimulator', () => {
         })
 
         it('should drop the mock payers when the source leaves mock', () => {
-            const simulator = new FiSimulator('happyPath')
+            const simulator = new FiSimulator()
             simulator.setPayerSource('mock')
             expect(simulator.listMockFederations()).toHaveLength(
                 MOCK_PAYER_FEDERATIONS.length,
@@ -326,18 +300,11 @@ describe('FiSimulator', () => {
             expect(simulator.listMockFederations()).toHaveLength(0)
         })
 
-        it('should still fail the lookup under payerLookupFails whatever the source', async () => {
-            const simulator = new FiSimulator('payerLookupFails')
+        it('should price a seat above any balance when the world says so', async () => {
+            const simulator = new FiSimulator()
+            simulator.setSeatPriceMsats(1_000_000_000_000)
             simulator.setPayerSource('mock')
-            await expect(payers(simulator)).resolves.toMatchObject({
-                type: 'error',
-            })
-        })
-
-        it('should price a seat above any balance under insufficientBalance', async () => {
-            const simulator = new FiSimulator('insufficientBalance')
-            simulator.setPayerSource('mock')
-            const result = await flushPreview(preview(simulator))
+            const result = await preview(simulator)
             expect(result.type).toBe('preview')
             if (result.type !== 'preview') return
             const richest =
@@ -353,7 +320,7 @@ describe('FiSimulator', () => {
         it('should return one seat per requested guardian', async () => {
             const simulator = new FiSimulator()
 
-            const result = await flushPreview(preview(simulator, 13))
+            const result = await preview(simulator, 13)
 
             expect(result.type).toBe('preview')
             if (result.type !== 'preview') return
@@ -364,7 +331,7 @@ describe('FiSimulator', () => {
         it('should total exactly the sum of the per-seat prices', async () => {
             const simulator = new FiSimulator()
 
-            const result = await flushPreview(preview(simulator, 7))
+            const result = await preview(simulator, 7)
 
             if (result.type !== 'preview') throw new Error('expected preview')
             const summed = result.preview.seats.reduce(
@@ -379,7 +346,7 @@ describe('FiSimulator', () => {
         it('should vary per-seat prices so the details list is not uniform', async () => {
             const simulator = new FiSimulator()
 
-            const result = await flushPreview(preview(simulator, 10))
+            const result = await preview(simulator, 10)
 
             if (result.type !== 'preview') throw new Error('expected preview')
             const prices = new Set(
@@ -391,7 +358,7 @@ describe('FiSimulator', () => {
         it('should expire in unix seconds, not milliseconds', async () => {
             const simulator = new FiSimulator()
 
-            const result = await flushPreview(preview(simulator))
+            const result = await preview(simulator)
 
             if (result.type !== 'preview') throw new Error('expected preview')
             const expectedExpiry = Math.floor(Date.now() / 1000) + 120
@@ -399,9 +366,10 @@ describe('FiSimulator', () => {
         })
 
         it('should reject a size no verified guardian set can serve', async () => {
-            const simulator = new FiSimulator('notEnoughGuardians')
+            const simulator = new FiSimulator()
+            simulator.setFleet({ eligible: 8, seen: 11 })
 
-            const result = await flushPreview(preview(simulator, 19))
+            const result = await preview(simulator, 19)
 
             expect(result.type).toBe('error')
             if (result.type !== 'error') return
@@ -413,20 +381,6 @@ describe('FiSimulator', () => {
                 seen: 11,
                 eligible: 8,
             })
-        })
-
-        it('should serve the cold latency first and the warm latency after', async () => {
-            const simulator = new FiSimulator('happyPath')
-
-            const first = preview(simulator)
-            await jest.advanceTimersByTimeAsync(500)
-            expect(await settled(first)).toBe(false)
-            await jest.advanceTimersByTimeAsync(600)
-            expect(await settled(first)).toBe(true)
-
-            const second = preview(simulator)
-            await jest.advanceTimersByTimeAsync(450)
-            expect(await settled(second)).toBe(true)
         })
     })
 
@@ -458,8 +412,9 @@ describe('FiSimulator', () => {
         })
 
         it('should reject a preview that expired while the user decided', async () => {
-            const simulator = new FiSimulator('selectionExpiresFast')
-            const previewResult = await flushPreview(preview(simulator))
+            const simulator = new FiSimulator()
+            simulator.setPreviewValiditySecs(5)
+            const previewResult = await preview(simulator)
             if (previewResult.type !== 'preview')
                 throw new Error('expected preview')
 
@@ -480,7 +435,7 @@ describe('FiSimulator', () => {
 
         it('should refuse to spend more than the approved cap', async () => {
             const simulator = new FiSimulator()
-            const previewResult = await flushPreview(preview(simulator))
+            const previewResult = await preview(simulator)
             if (previewResult.type !== 'preview')
                 throw new Error('expected preview')
 
@@ -498,63 +453,34 @@ describe('FiSimulator', () => {
     })
 
     describe('formation timeline', () => {
-        it('should reach formed and flip every milestone', async () => {
-            const simulator = new FiSimulator()
-            await payWithFreshPreview(simulator)
-
-            await jest.advanceTimersByTimeAsync(30_000)
-
-            const formation = await currentFormation(simulator)
-            expect(formation.phase).toBe('formed')
-            expect(formation.milestones).toEqual({
-                ecashSent: true,
-                guardiansConfirmed: true,
-                walletServiceCreated: true,
-            })
-            expect(formation.inviteCode).toEqual(expect.any(String))
-        })
-
-        it('should stop and report the error code for a failing scenario', async () => {
-            const simulator = new FiSimulator('formationFails')
-            await payWithFreshPreview(simulator)
-
-            await jest.advanceTimersByTimeAsync(30_000)
-
-            const formation = await currentFormation(simulator)
-            expect(formation.lastError).toBe('fleetManager')
-            expect(formation.phase).not.toBe('formed')
-        })
-
         it('should continue after resume clears the error', async () => {
-            const simulator = new FiSimulator('formationFails')
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
+            const simulator = new FiSimulator()
+            simulator.setStatus(
+                formationStatus(
+                    withUnsynced(
+                        withError(
+                            formationAt({ formationId: 'f1' }, 'dkgUnderway'),
+                            'fleetManager',
+                        ),
+                    ),
+                ),
+            )
 
-            // the failing phase is skipped only once, so resume walks on
             const resumed = (await simulator.handle(
                 'fiClientResume',
                 {},
             )) as RpcFiOperationResult
+
             expect(resumed).toEqual({ type: 'success' })
             const formation = await currentFormation(simulator)
             expect(formation.lastError).toBeNull()
-        })
-
-        it('should park an authorization request and wait for the user', async () => {
-            const simulator = new FiSimulator('authorizePayments')
-            await payWithFreshPreview(simulator)
-
-            await jest.advanceTimersByTimeAsync(30_000)
-
-            const formation = await currentFormation(simulator)
-            expect(formation.actionRequired?.type).toBe('authorizePayments')
-            expect(formation.phase).not.toBe('formed')
+            expect(formation.freshness).toBe('fresh')
+            expect(jest.getTimerCount()).toBe(0)
         })
 
         it('should reject a stale authorization id', async () => {
-            const simulator = new FiSimulator('authorizePayments')
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
+            const simulator = new FiSimulator()
+            simulator.setStatus(formationStatus(parkedAuthorization()))
 
             const result = (await simulator.handle(
                 'fiClientAuthorizeReplacementPayments',
@@ -566,24 +492,25 @@ describe('FiSimulator', () => {
             expect(result.error.code).toBe('invalidIntent')
         })
 
-        it('should resume the timeline once the real authorization lands', async () => {
-            const simulator = new FiSimulator('authorizePayments')
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
-            const parked = await currentFormation(simulator)
-            const authorizationId =
-                parked.actionRequired?.type === 'authorizePayments'
-                    ? parked.actionRequired.requirements.authorizationId
-                    : ''
+        it('should clear the parked authorization once the real authorization lands', async () => {
+            const simulator = new FiSimulator()
+            simulator.setStatus(
+                formationStatus({
+                    ...parkedAuthorization(),
+                    paymentOutputsStarted: false,
+                }),
+            )
 
             const result = (await simulator.handle(
                 'fiClientAuthorizeReplacementPayments',
-                { authorizationId },
+                { authorizationId: 'auth_1' },
             )) as RpcFiOperationResult
-            await jest.advanceTimersByTimeAsync(30_000)
 
             expect(result).toEqual({ type: 'success' })
-            expect((await currentFormation(simulator)).phase).toBe('formed')
+            const formation = await currentFormation(simulator)
+            expect(formation.actionRequired).toBeNull()
+            expect(formation.paymentOutputsStarted).toBe(true)
+            expect(jest.getTimerCount()).toBe(0)
         })
     })
 
@@ -632,8 +559,11 @@ describe('FiSimulator', () => {
     describe('abandon', () => {
         it('should refuse once the payment outputs have started', async () => {
             const simulator = new FiSimulator()
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
+            simulator.setStatus(
+                formationStatus(
+                    formationAt({ formationId: 'f1' }, 'acquiringSeats'),
+                ),
+            )
 
             const result = (await simulator.handle(
                 'fiClientAbandon',
@@ -742,7 +672,7 @@ describe('FiSimulator', () => {
             ) as Promise<RpcFiLiquidityOperationResult>
 
         it('should admit one provider on the federation network', async () => {
-            const simulator = new FiSimulator('lightningAttaches')
+            const simulator = new FiSimulator()
 
             const result = await discover(simulator)
 
@@ -755,7 +685,8 @@ describe('FiSimulator', () => {
         // a provider on another network is not an error: discovery worked and
         // admitted nobody who can serve this federation
         it('should admit nobody when the provider serves another network', async () => {
-            const simulator = new FiSimulator('lightningWrongNetwork')
+            const simulator = new FiSimulator()
+            simulator.setLiquidityNetwork('bitcoin')
 
             const result = await discover(simulator)
 
@@ -765,18 +696,8 @@ describe('FiSimulator', () => {
             expect(result.rejected).toHaveLength(1)
         })
 
-        it('should fail discovery with the scenario code', async () => {
-            const simulator = new FiSimulator('lightningFailsRetryable')
-
-            const result = await discover(simulator)
-
-            expect(result.type).toBe('error')
-            if (result.type !== 'error') return
-            expect(result.error.code).toBe('busy')
-        })
-
-        it('should verify the gateway view only after the scenario says so', async () => {
-            const simulator = new FiSimulator('lightningAttaches')
+        it('should verify the gateway view only after two status reads', async () => {
+            const simulator = new FiSimulator()
 
             const started = await start(simulator)
             expect(started.type).toBe('operation')
@@ -795,35 +716,10 @@ describe('FiSimulator', () => {
             ).toBe(true)
         })
 
-        it('should never verify when the scenario says it does not', async () => {
-            const simulator = new FiSimulator('lightningNeverVerifies')
-
-            await start(simulator)
-            for (let read = 0; read < 5; read++) await readStatus(simulator)
-            const result = await readStatus(simulator)
-
-            expect(
-                result.type === 'operation' &&
-                    result.operation.gatewayViewVerified,
-            ).toBe(false)
-        })
-
-        it('should report a rejected operation rather than an rpc error', async () => {
-            const simulator = new FiSimulator('lightningRejected')
-
-            await start(simulator)
-            const result = await readStatus(simulator)
-
-            // terminal for this intent, and never a formation failure — so it
-            // arrives as a phase, not as an error envelope
-            expect(result.type).toBe('operation')
-            if (result.type !== 'operation') return
-            expect(result.operation.phase).toBe('rejected')
-        })
-
         // at most one live operation per federation
         it('should adopt the running operation instead of starting a second', async () => {
-            const simulator = new FiSimulator('lightningAlreadyAttaching')
+            const simulator = new FiSimulator()
+            simulator.startLiquidity({ verified: false })
 
             const current = (await simulator.handle(
                 'fiClientLiquidityCurrent',
@@ -842,7 +738,11 @@ describe('FiSimulator', () => {
         })
 
         it('should seed an already attached provider as verified', async () => {
-            const simulator = new FiSimulator('lightningAlreadyAttached')
+            const simulator = new FiSimulator()
+            simulator.setStatus(
+                formationStatus(formationAt({ formationId: 'f1' }, 'formed')),
+            )
+            simulator.startLiquidity({ verified: true })
 
             const current = (await simulator.handle(
                 'fiClientLiquidityCurrent',
@@ -870,42 +770,20 @@ describe('FiSimulator', () => {
         }
 
         /** A simulator wired to a spy, so announced events can be asserted. */
-        const attached = (scenario?: FiScenarioName) => {
+        const attached = () => {
             const simulator = new FiSimulator()
             const emitEvent = jest.fn()
             simulator.attach(jest.fn(), emitEvent)
-            if (scenario) simulator.setScenario(scenario)
             return { simulator, emitEvent }
         }
 
         const formedInvite = async (simulator: FiSimulator) => {
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
+            await formInstantly(simulator)
             const formation = await currentFormation(simulator)
             if (!formation.inviteCode) throw new Error('expected an invite')
+            simulator.formWalletService('ready')
             return formation.inviteCode
         }
-
-        it('should keep the seeded payers across a scenario change, since the source owns them', async () => {
-            const { simulator } = attached('happyPath')
-
-            simulator.setScenario('insufficientBalance')
-
-            expect(
-                (await payerIds(simulator)).map(p => p.federationId),
-            ).toEqual(MOCK_PAYER_FEDERATION_IDS)
-        })
-
-        it('should keep a payer added by hand across a scenario change', () => {
-            const { simulator } = attached('happyPath')
-            simulator.addMockPayer('hand-added', 5_000)
-
-            simulator.setScenario('insufficientBalance')
-
-            expect(simulator.listMockFederations().map(f => f.id)).toContain(
-                'hand-added',
-            )
-        })
 
         it('should name a seeded payer from its story, and prefer a name given by hand', () => {
             const simulator = new FiSimulator()
@@ -930,7 +808,7 @@ describe('FiSimulator', () => {
         })
 
         it('should move a top-up between two seeded wallets and report it as a claimed receive', async () => {
-            const { simulator, emitEvent } = attached('happyPath')
+            const { simulator, emitEvent } = attached()
             const global = MOCK_PAYER_FEDERATIONS.find(m => m.id === GLOBAL)
             if (!global) throw new Error('expected the global payer')
 
@@ -972,7 +850,7 @@ describe('FiSimulator', () => {
         })
 
         it('should refund a spent payer when the mock source is chosen again', async () => {
-            const { simulator, emitEvent } = attached('happyPath')
+            const { simulator, emitEvent } = attached()
             const invoice = (await simulator.handle('generateInvoice', {
                 federationId: VICTORIA,
                 amount: SETUP_MSATS,
@@ -1013,7 +891,7 @@ describe('FiSimulator', () => {
         })
 
         it('should stand up the formed wallet service on signet and announce it', async () => {
-            const { simulator, emitEvent } = attached('happyPath')
+            const { simulator, emitEvent } = attached()
 
             const inviteCode = await formedInvite(simulator)
 
@@ -1072,7 +950,7 @@ describe('FiSimulator', () => {
         })
 
         it('should publish the applied guardian fee in the preview once it is set', async () => {
-            const { simulator } = attached('happyPath')
+            const { simulator } = attached()
             const inviteCode = await formedInvite(simulator)
 
             const before = (await simulator.handle('federationPreview', {
@@ -1091,7 +969,7 @@ describe('FiSimulator', () => {
         })
 
         it('should attach the Lightning provider once formed, with no extra seeding', async () => {
-            const { simulator } = attached('happyPath')
+            const { simulator } = attached()
             await formedInvite(simulator)
 
             const discovery = (await simulator.handle(
@@ -1119,7 +997,7 @@ describe('FiSimulator', () => {
         })
 
         it('should clear every seeded wallet and the formation', async () => {
-            const { simulator } = attached('happyPath')
+            const { simulator } = attached()
             const inviteCode = await formedInvite(simulator)
 
             simulator.clearSimulatedState()
@@ -1136,261 +1014,18 @@ describe('FiSimulator', () => {
         })
     })
 
-    describe('restored backup scenarios', () => {
-        it('restoredBackup announces the federation only after freshness', () => {
-            const sim = new FiSimulator('restoredBackup')
-            const events: string[] = []
-            sim.attach(
-                () => {},
-                e => events.push(e),
-            )
-
-            jest.advanceTimersByTime(
-                fiScenarios.restoredBackup.restoreReconcileMs,
-            )
-            expect(events).not.toContain('federation')
-
-            const { restoreJoinMs } = fiScenarios.restoredBackup
-            if (restoreJoinMs === null) {
-                throw new Error('restoredBackup must define restoreJoinMs')
-            }
-            jest.advanceTimersByTime(restoreJoinMs)
-            expect(events).toContain('federation')
-        })
-
-        it('restoredBackupJoinFails never announces the federation', () => {
-            const sim = new FiSimulator('restoredBackupJoinFails')
-            const events: string[] = []
-            sim.attach(
-                () => {},
-                e => events.push(e),
-            )
-
-            jest.advanceTimersByTime(10 * 60_000)
-            expect(events).not.toContain('federation')
-        })
-
-        // The wallet list is what the recovery checklist reads to decide the
-        // `rejoining` and `restoringBalance` rows. A federation listed from the
-        // first render skips both of them, so the very window these scenarios
-        // exist to show never appears.
-        it('restoredBackupSlowJoin lists the federation only once the join lands', () => {
-            const sim = new FiSimulator('restoredBackupSlowJoin')
-            sim.attach(
-                () => {},
-                () => {},
-            )
-            const { restoreReconcileMs, restoreJoinMs } =
-                fiScenarios.restoredBackupSlowJoin
-            if (restoreJoinMs === null) {
-                throw new Error(
-                    'restoredBackupSlowJoin must define restoreJoinMs',
-                )
-            }
-
-            expect(walletServiceListing(sim)).toBeUndefined()
-
-            jest.advanceTimersByTime(restoreReconcileMs)
-            expect(walletServiceListing(sim)).toBeUndefined()
-            // the invite still resolves to the id: the backup carries it, and
-            // the real `parseInviteCode` answers offline too
-            expect(
-                sim.handles('parseInviteCode', {
-                    inviteCode: `fed1${'sim'.padEnd(40, '0')}restored_formation`,
-                }),
-            ).toBe(true)
-
-            jest.advanceTimersByTime(restoreJoinMs)
-            expect(walletServiceListing(sim)).toBeDefined()
-        })
-
-        it('restoredBackupJoinFails never lists the federation', () => {
-            const sim = new FiSimulator('restoredBackupJoinFails')
-            sim.attach(
-                () => {},
-                () => {},
-            )
-
-            jest.advanceTimersByTime(10 * 60_000)
-
-            expect(walletServiceListing(sim)).toBeUndefined()
-        })
-
-        it('restoredBackup reports the join as joining, recovering, then ready', () => {
-            const { simulator: sim, joinStates } = joinReports('restoredBackup')
-
-            const { restoreReconcileMs, restoreJoinMs, restoreRecoveryMs } =
-                fiScenarios.restoredBackup
-            if (restoreJoinMs === null) {
-                throw new Error('restoredBackup must define restoreJoinMs')
-            }
-
-            jest.advanceTimersByTime(restoreReconcileMs)
-            expect(joinStates).toEqual([{ type: 'joining' }])
-
-            // joined, but the ecash it had spent before is still coming back
-            jest.advanceTimersByTime(restoreJoinMs)
-            expect(joinStates).toEqual([
-                { type: 'joining' },
-                { type: 'recovering' },
-            ])
-            expect(walletServiceListing(sim)?.recovering).toBe(true)
-
-            jest.advanceTimersByTime(restoreRecoveryMs)
-            expect(joinStates).toEqual([
-                { type: 'joining' },
-                { type: 'recovering' },
-                { type: 'ready' },
-            ])
-            expect(walletServiceListing(sim)?.recovering).toBe(false)
-        })
-
-        it('restoredBackupJoinFails reports the join as failed and never ready', () => {
-            const sim = new FiSimulator('restoredBackupJoinFails')
-            const joinStates: RpcFiFederationJoinState[] = []
-            sim.attach(
-                () => {},
-                (name, payload) => {
-                    if (name === 'fiFederationJoin')
-                        joinStates.push(
-                            (payload as FiFederationJoinEvent).state,
-                        )
-                },
-            )
-
-            jest.advanceTimersByTime(10 * 60_000)
-
-            expect(joinStates).toEqual([
-                { type: 'joining' },
-                {
-                    type: 'failed',
-                    message: 'simulated: federation join failed',
-                },
-            ])
-        })
-
-        it('restoredBackup publishes restored/unsynced on attach and restored/fresh once reconciled', async () => {
-            const sim = new FiSimulator('restoredBackup')
-            const statuses: RpcFiStatus[] = []
-            sim.attach(update => {
-                if (update.data.type === 'ready')
-                    statuses.push(update.data.status)
-            })
-
-            await sim.handle('fiClientSubscribe', { streamId: 1 })
-            await jest.advanceTimersByTimeAsync(0)
-
-            expect(statuses[0]).toMatchObject({
-                type: 'restored',
-                formation: { freshness: 'unsynced' },
-            })
-
-            await jest.advanceTimersByTimeAsync(
-                fiScenarios.restoredBackup.restoreReconcileMs,
-            )
-
-            expect(statuses.at(-1)).toMatchObject({
-                type: 'restored',
-                formation: { freshness: 'fresh' },
-            })
-        })
-
-        // `restore_authenticated` writes `backup_eligible: false` and
-        // `federation_name: None`; `reconcile_restored_backup` sets both in one
-        // transaction. A name known from the start hides the window where the
-        // recovery screen has no federation to name.
-        it('restoredBackup learns the name and backup eligibility at reconciliation', async () => {
-            const sim = new FiSimulator('restoredBackup')
-            const restored = async () => {
-                const envelope = (await sim.handle(
-                    'fiClientStatus',
-                    {},
-                )) as RpcFiClientStatus
-                if (envelope.type !== 'ready') throw new Error('expected ready')
-                if (envelope.status.type !== 'restored')
-                    throw new Error('expected a restored status')
-                return envelope.status.formation
-            }
-            sim.attach(
-                () => {},
-                () => {},
-            )
-
-            expect(await restored()).toMatchObject({
-                federationName: null,
-                backupEligible: false,
-            })
-
-            await jest.advanceTimersByTimeAsync(
-                fiScenarios.restoredBackup.restoreReconcileMs,
-            )
-
-            expect(await restored()).toMatchObject({
-                federationName: 'My Wallet Service',
-                backupEligible: true,
-            })
-        })
-    })
-
     // The bridge runs one auto-join for both paths: `formed_federation_invite`
     // yields the invite for a `formation` status as well as a `restored` one.
     // Without it the created path reported no join at all, so the dashboard's
     // failed-join handling was unreachable in dev.
     describe('created federation auto-join', () => {
-        it('reports the created federation as joining, then ready', async () => {
-            const { simulator, joinStates } = joinReports('happyPath')
-
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
-
-            expect(joinStates).toEqual([{ type: 'joining' }, { type: 'ready' }])
-        })
-
-        it('lists the created federation only once the join lands', async () => {
-            const { simulator } = joinReports('happyPath')
-            const { createdJoinMs, phaseIntervalMs } = fiScenarios.happyPath
-            if (createdJoinMs === null) {
-                throw new Error('happyPath must define createdJoinMs')
-            }
-
-            await payWithFreshPreview(simulator)
-            // every phase but the first, which `payAndCreate` seeds
-            await jest.advanceTimersByTimeAsync(
-                phaseIntervalMs * (FORMATION_PHASES.length - 1),
-            )
-            const formation = await currentFormation(simulator)
-            expect(formation.phase).toBe('formed')
-            expect(walletServiceListing(simulator)).toBeUndefined()
-
-            await jest.advanceTimersByTimeAsync(createdJoinMs)
-
-            expect(walletServiceListing(simulator)).toBeDefined()
-        })
-
-        it('createdJoinFails reports the join as failed and never lists it', async () => {
-            const { simulator, joinStates } = joinReports('createdJoinFails')
-
-            await jest.advanceTimersByTimeAsync(10 * 60_000)
-
-            expect(joinStates).toEqual([
-                { type: 'joining' },
-                {
-                    type: 'failed',
-                    message: 'simulated: federation join failed',
-                },
-            ])
-            expect(walletServiceListing(simulator)).toBeUndefined()
-        })
-
         // `fi_client_status` re-delivers the retained report, because a status
         // read can happen after the event was delivered — a fresh subscribe or
         // a foreground refresh. Without it the app has no way back to a join
         // state it was not listening for.
-        it('re-emits the last join state on a status read', async () => {
-            const { simulator, joinStates } = joinReports('happyPath')
-
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
+        it('should re-emit the last join state on a status read', async () => {
+            const { simulator, joinStates } = joinReports()
+            formAndJoin(simulator, 'f1', 'ready')
             joinStates.length = 0
 
             await simulator.handle('fiClientStatus', {})
@@ -1398,9 +1033,9 @@ describe('FiSimulator', () => {
             expect(joinStates).toEqual([{ type: 'ready' }])
         })
 
-        it('re-emits a failed join on a status read', async () => {
-            const { simulator, joinStates } = joinReports('createdJoinFails')
-            await jest.advanceTimersByTimeAsync(10 * 60_000)
+        it('should re-emit a failed join on a status read', async () => {
+            const { simulator, joinStates } = joinReports()
+            formAndJoin(simulator, 'f1', 'failed')
             joinStates.length = 0
 
             await simulator.handle('fiClientStatus', {})
@@ -1413,8 +1048,8 @@ describe('FiSimulator', () => {
             ])
         })
 
-        it('re-emits nothing when no join has been reported', async () => {
-            const { simulator, joinStates } = joinReports('happyPath')
+        it('should re-emit nothing when no join has been reported', async () => {
+            const { simulator, joinStates } = joinReports()
 
             await simulator.handle('fiClientStatus', {})
 
@@ -1422,23 +1057,13 @@ describe('FiSimulator', () => {
         })
 
         // `Bridge::leave_federation` suppresses the auto-join and clears the
-        // retained report under one lock, so the wait that is still running
-        // says nothing more: a federation left on purpose is silence, never a
+        // retained report under one lock, so a report that lands afterwards
+        // says nothing: a federation left on purpose is silence, never a
         // `failed` the app would show as a broken recovery.
-        it('stays silent when the federation is left mid-recovery', async () => {
-            const { simulator, joinStates } = joinReports(
-                'restoredBackupSlowJoin',
-            )
-            const { restoreReconcileMs, restoreJoinMs } =
-                fiScenarios.restoredBackupSlowJoin
-            if (restoreJoinMs === null) {
-                throw new Error(
-                    'restoredBackupSlowJoin must define restoreJoinMs',
-                )
-            }
-            await jest.advanceTimersByTimeAsync(
-                restoreReconcileMs + restoreJoinMs,
-            )
+        it('should stay silent when the federation is left mid-recovery', async () => {
+            const { simulator, joinStates } = joinReports()
+            formAndJoin(simulator, 'f1', 'joining')
+            simulator.formWalletService('recovering')
             expect(joinStates).toEqual([
                 { type: 'joining' },
                 { type: 'recovering' },
@@ -1453,16 +1078,15 @@ describe('FiSimulator', () => {
                 true,
             )
             await simulator.handle('leaveFederation', { federationId })
-            await jest.advanceTimersByTimeAsync(10 * 60_000)
+            simulator.formWalletService('ready')
 
             expect(joinStates).toEqual([])
             expect(walletServiceListing(simulator)).toBeUndefined()
         })
 
-        it('forgets the retained join state of a federation that was left', async () => {
-            const { simulator, joinStates } = joinReports('happyPath')
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
+        it('should forget the retained join state of a federation that was left', async () => {
+            const { simulator, joinStates } = joinReports()
+            formAndJoin(simulator, 'f1', 'ready')
             const { federationId } = (await simulator.handle(
                 'parseInviteCode',
                 {},
@@ -1478,10 +1102,9 @@ describe('FiSimulator', () => {
         // The bridge keys its suppression marker by federation id, so a leave
         // silences only that federation. A later formation has a new id and
         // its auto-join reports as normal.
-        it('reports the join of a federation formed after another was left', async () => {
-            const { simulator, joinStates } = joinReports('happyPath')
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
+        it('should report the join of a federation formed after another was left', async () => {
+            const { simulator, joinStates } = joinReports()
+            formAndJoin(simulator, 'f1', 'ready')
             const { federationId: leftId } = (await simulator.handle(
                 'parseInviteCode',
                 {},
@@ -1491,26 +1114,13 @@ describe('FiSimulator', () => {
             })
             joinStates.length = 0
 
-            await payWithFreshPreview(simulator)
-            await jest.advanceTimersByTimeAsync(30_000)
+            formAndJoin(simulator, 'f2', 'joining')
+            simulator.formWalletService('ready')
 
             const listing = walletServiceListing(simulator)
             expect(listing).toBeDefined()
             expect(listing?.id).not.toBe(leftId)
             expect(joinStates).toEqual([{ type: 'joining' }, { type: 'ready' }])
-        })
-
-        // A seeded `formed` formation stands for a session that joined the
-        // federation long ago. The bridge finds it already `Ready` and reports
-        // that; a `joining` it never performed would put the dashboard back
-        // through a rejoin that is not happening.
-        it('alreadyFormed reports ready without a joining it never performed', () => {
-            const { simulator, joinStates } = joinReports('happyPath')
-
-            simulator.setScenario('alreadyFormed')
-
-            expect(joinStates).toEqual([{ type: 'ready' }])
-            expect(walletServiceListing(simulator)).toBeDefined()
         })
     })
 
@@ -1532,20 +1142,6 @@ describe('FiSimulator', () => {
             expect(updates).toHaveLength(before + 1)
             expect(updates.at(-1)?.sequence).toBe(before)
             expect(updates.at(-1)?.data).toEqual({
-                type: 'ready',
-                status: { type: 'idle' },
-            })
-        })
-
-        it('should stop the knob timeline when a status is set by script', async () => {
-            const simulator = new FiSimulator('formationInProgress')
-            simulator.attach(() => {})
-            expect(jest.getTimerCount()).toBeGreaterThan(0)
-
-            simulator.setStatus({ type: 'idle' })
-
-            expect(jest.getTimerCount()).toBe(0)
-            expect(await status(simulator)).toEqual({
                 type: 'ready',
                 status: { type: 'idle' },
             })
@@ -1635,12 +1231,9 @@ describe('FiSimulator', () => {
 
             simulator.formWalletService('failed')
 
-            expect(events.map(([e]) => e)).toEqual([
-                'fiFederationJoin',
-                'fiFederationJoin',
-            ])
+            expect(events.map(([e]) => e)).toEqual(['fiFederationJoin'])
             expect(
-                (events[1][1] as { state: { type: string } }).state.type,
+                (events[0][1] as { state: { type: string } }).state.type,
             ).toBe('failed')
             // the default payer source seeds its own mock wallets, so a failed
             // join is proven by the wallet service's absence, not an empty list
@@ -1671,11 +1264,272 @@ describe('FiSimulator', () => {
             ).resolves.toBe('unresolved')
         })
 
-        it('should hand out formation ids from the same counter as the knob timeline', () => {
+        it('should restore the world defaults on reset', async () => {
+            const simulator = new FiSimulator()
+            simulator.setSeatPriceMsats(1_000_000_000_000)
+            simulator.setJoinableWalletServices([])
+
+            simulator.reset()
+            const quote = await preview(simulator, 4)
+            const joinable = (await simulator.handle(
+                'fiClientSetupPaymentFederations',
+                {},
+            )) as RpcFiSetupPaymentFederationsResult
+
+            if (quote.type !== 'preview') throw new Error('expected preview')
+            expect(Number(quote.preview.totalAdvertisedMsats)).toBe(
+                4 * 2_100_000,
+            )
+            if (joinable.type !== 'federations')
+                throw new Error('expected federations')
+            expect(joinable.federations.some(f => !f.joined)).toBe(true)
+        })
+
+        it('should hand out formation ids from the same counter as payAndCreate', () => {
             const simulator = new FiSimulator()
 
             expect(simulator.nextFormationId()).toBe('formation_1')
             expect(simulator.nextFormationId()).toBe('formation_2')
+        })
+
+        it('should answer every call of a stubbed method until reset', async () => {
+            const simulator = new FiSimulator()
+            simulator.setStub('fiClientStatus', () => 'stubbed')
+
+            expect(await simulator.handle('fiClientStatus', {})).toBe('stubbed')
+            expect(await simulator.handle('fiClientStatus', {})).toBe('stubbed')
+
+            simulator.reset()
+            expect(
+                (
+                    (await simulator.handle(
+                        'fiClientStatus',
+                        {},
+                    )) as RpcFiClientStatus
+                ).type,
+            ).toBe('ready')
+        })
+
+        it('should let a stub delegate to the default answer', async () => {
+            const simulator = new FiSimulator()
+            simulator.setStub('fiClientEligiblePayers', payload =>
+                simulator.defaultHandle('fiClientEligiblePayers', payload),
+            )
+
+            const result = (await simulator.handle(
+                'fiClientEligiblePayers',
+                {},
+            )) as RpcFiEligiblePayersResult
+
+            expect(result.type).toBe('payers')
+        })
+
+        it('should prefer a one-shot reply over a stub, once', async () => {
+            const simulator = new FiSimulator()
+            simulator.setStub('fiClientStatus', () => 'stubbed')
+            simulator.setReply('fiClientStatus', 'once')
+
+            expect(await simulator.handle('fiClientStatus', {})).toBe('once')
+            expect(await simulator.handle('fiClientStatus', {})).toBe('stubbed')
+        })
+
+        it('should price seats from the world seat price', async () => {
+            const simulator = new FiSimulator()
+            simulator.setSeatPriceMsats(1_000_000_000_000)
+
+            const result = await preview(simulator, 2)
+
+            if (result.type !== 'preview') throw new Error('expected a preview')
+            expect(Number(result.preview.totalAdvertisedMsats)).toBe(
+                2_000_000_000_000,
+            )
+        })
+
+        it('should refuse a size above the world fleet and report the fleet counts', async () => {
+            const simulator = new FiSimulator()
+            simulator.setFleet({ eligible: 8, seen: 11 })
+
+            const result = await preview(simulator, 10)
+
+            expect(result).toMatchObject({
+                type: 'error',
+                error: {
+                    detail: {
+                        type: 'insufficientFmanSeats',
+                        seen: 11,
+                        eligible: 8,
+                    },
+                },
+            })
+        })
+
+        it('should offer no joinable services once the world has none', async () => {
+            const simulator = new FiSimulator()
+            simulator.setJoinableWalletServices([])
+
+            const result = (await simulator.handle(
+                'fiClientSetupPaymentFederations',
+                {},
+            )) as RpcFiSetupPaymentFederationsResult
+
+            if (result.type !== 'federations')
+                throw new Error('expected federations')
+            expect(result.federations.every(f => f.joined)).toBe(true)
+        })
+
+        it('should expire a preview after the world validity', async () => {
+            const simulator = new FiSimulator()
+            simulator.setPreviewValiditySecs(5)
+
+            const result = await preview(simulator)
+
+            if (result.type !== 'preview') throw new Error('expected a preview')
+            expect(
+                result.preview.validUntil - Math.floor(Date.now() / 1000),
+            ).toBe(5)
+        })
+
+        it('should put the provider on the world liquidity network', async () => {
+            const simulator = new FiSimulator()
+            simulator.setLiquidityNetwork('bitcoin')
+
+            const result = (await simulator.handle(
+                'fiClientLiquidityDiscover',
+                {
+                    network: 'signet',
+                },
+            )) as RpcFiLiquidityDiscoveryResult
+
+            expect(result).toMatchObject({
+                type: 'discovery',
+                providers: [],
+                rejected: [{ code: 'networkUnsupported' }],
+            })
+        })
+
+        it('should start a liquidity operation from the world, verified or not', async () => {
+            const simulator = new FiSimulator()
+            simulator.setStatus({
+                type: 'formation',
+                formation: formationAt({ formationId: 'f1' }, 'formed'),
+            })
+
+            simulator.startLiquidity({ verified: true })
+
+            expect(simulator.currentLiquidityOperation()).toMatchObject({
+                formationId: 'f1',
+                gatewayViewVerified: true,
+            })
+            const current = (await simulator.handle(
+                'fiClientLiquidityCurrent',
+                {},
+            )) as RpcFiCurrentLiquidityOperationResult
+            expect(
+                current.type === 'current' && current.operation?.operationId,
+            ).toBe(simulator.currentLiquidityOperation()?.operationId)
+        })
+
+        it('should list the eligible payer ids for the current source', () => {
+            const simulator = new FiSimulator()
+            expect(simulator.eligiblePayerIds()).toEqual(
+                MOCK_PAYER_FEDERATION_IDS,
+            )
+            simulator.setPayerSource('none')
+            expect(simulator.eligiblePayerIds()).toEqual([])
+        })
+
+        it('should report a recovering join, listing the federation as recovering', () => {
+            const simulator = new FiSimulator()
+            const emitEvent = jest.fn()
+            simulator.attach(jest.fn(), emitEvent)
+            simulator.setStatus({
+                type: 'formation',
+                formation: formationAt({ formationId: 'f1' }, 'formed'),
+            })
+
+            simulator.formWalletService('recovering')
+
+            expect(emitEvent).toHaveBeenCalledWith(
+                'federation',
+                expect.objectContaining({
+                    id: 'mock-wallet-service-f1',
+                    recovering: true,
+                }),
+            )
+            expect(emitEvent).toHaveBeenCalledWith('fiFederationJoin', {
+                federationId: 'mock-wallet-service-f1',
+                state: { type: 'recovering' },
+            })
+        })
+
+        it('should form the wallet service from a restored status using its invite', () => {
+            const simulator = new FiSimulator()
+            const emitEvent = jest.fn()
+            simulator.attach(jest.fn(), emitEvent)
+            simulator.setStatus({
+                type: 'restored',
+                formation: {
+                    snapshotGeneration: 1,
+                    formationId: 'r1',
+                    federationInvite: 'fed1restored',
+                    federationName: 'Restored',
+                    seats: [],
+                    phase: 'formed',
+                    freshness: 'fresh',
+                    backupEligible: true,
+                },
+            })
+
+            simulator.formWalletService('ready')
+
+            expect(simulator.listMockFederations()).toContainEqual(
+                expect.objectContaining({
+                    id: 'mock-wallet-service-r1',
+                    name: 'Restored',
+                    inviteCode: 'fed1restored',
+                }),
+            )
+        })
+
+        it('should keep the same federation across join reports rather than re-forming it', () => {
+            const simulator = new FiSimulator()
+            const emitEvent = jest.fn()
+            simulator.attach(jest.fn(), emitEvent)
+            const formation = formationAt({ formationId: 'f1' }, 'formed')
+            simulator.setStatus({ type: 'formation', formation })
+
+            simulator.formWalletService('joining')
+            // If the join report re-forms the federation, the second report
+            // would pick up this renamed intent; keeping the original name
+            // proves the federation created on `joining` was reused, not
+            // rebuilt, when `ready` landed.
+            formation.intent.federationName = 'Renamed mid-join'
+            simulator.formWalletService('ready')
+
+            expect(walletServiceListing(simulator)?.name).toBe(
+                'My Wallet Service',
+            )
+            const joins = emitEvent.mock.calls
+                .filter(([event]) => event === 'fiFederationJoin')
+                .map(([, e]) => (e as FiFederationJoinEvent).state.type)
+            expect(joins).toEqual(['joining', 'ready'])
+        })
+
+        it('should report only the failed join when asked for failed', () => {
+            const simulator = new FiSimulator()
+            const emitEvent = jest.fn()
+            simulator.attach(jest.fn(), emitEvent)
+            simulator.setStatus({
+                type: 'formation',
+                formation: formationAt({ formationId: 'f1' }, 'formed'),
+            })
+
+            simulator.formWalletService('failed')
+
+            const joins = emitEvent.mock.calls
+                .filter(([event]) => event === 'fiFederationJoin')
+                .map(([, e]) => (e as FiFederationJoinEvent).state.type)
+            expect(joins).toEqual(['failed'])
         })
 
         it('should forward emitEvent to the attached emitter', () => {
@@ -1696,8 +1550,8 @@ describe('FiSimulator', () => {
 /*** helpers ***/
 
 /** A simulator whose `fiFederationJoin` reports are collected in order. */
-function joinReports(scenarioName: FiScenarioName) {
-    const simulator = new FiSimulator(scenarioName)
+function joinReports() {
+    const simulator = new FiSimulator()
     const joinStates: RpcFiFederationJoinState[] = []
     const emitEvent = jest.fn((name: string, payload: unknown) => {
         if (name === 'fiFederationJoin')
@@ -1705,6 +1559,16 @@ function joinReports(scenarioName: FiScenarioName) {
     })
     simulator.attach(jest.fn(), emitEvent)
     return { simulator, joinStates, emitEvent }
+}
+
+/** Seat a formed formation and report the join state it reached. */
+function formAndJoin(
+    simulator: FiSimulator,
+    formationId: string,
+    join: FiWalletServiceJoin,
+) {
+    simulator.setStatus(formationStatus(formationAt({ formationId }, 'formed')))
+    simulator.formWalletService(join)
 }
 
 /** The wallet service's own federation as the wallet list would carry it. */
@@ -1723,7 +1587,7 @@ async function payWithFreshPreview(
     simulator: FiSimulator,
     federationSize = 10,
 ): Promise<RpcFiOperationResult> {
-    const previewResult = await flushPreview(preview(simulator, federationSize))
+    const previewResult = await preview(simulator, federationSize)
     if (previewResult.type !== 'preview') throw new Error('expected preview')
     return simulator.handle('fiClientPayAndCreate', {
         previewId: previewResult.preview.previewId,
@@ -1733,9 +1597,35 @@ async function payWithFreshPreview(
     }) as Promise<RpcFiOperationResult>
 }
 
+/** Take the formation `payAndCreate` started to `formed`, as a script would. */
 async function formInstantly(simulator: FiSimulator) {
     await payWithFreshPreview(simulator)
-    await jest.advanceTimersByTimeAsync(30_000)
+    const formation = await currentFormation(simulator)
+    simulator.setStatus(
+        formationStatus(
+            formationAt(
+                {
+                    formationId: formation.formationId,
+                    federationName:
+                        formation.intent.federationName ?? undefined,
+                    federationSize: formation.intent.federationSize,
+                },
+                'formed',
+            ),
+        ),
+    )
+}
+
+/** A formation parked on an authorization the user has not answered. */
+function parkedAuthorization() {
+    return withAuthorization(
+        formationAt({ formationId: 'f1' }, 'acquiringSeats'),
+        {
+            authorizationId: 'auth_1',
+            amountSats: 6_300,
+            payerFederationId: 'p',
+        },
+    )
 }
 
 async function currentFormation(simulator: FiSimulator) {
@@ -1745,11 +1635,4 @@ async function currentFormation(simulator: FiSimulator) {
     >
     const inner = current.status as Extract<RpcFiStatus, { type: 'formation' }>
     return inner.formation
-}
-
-/** Whether a promise has already resolved, without awaiting it forever. */
-async function settled(promise: Promise<unknown>): Promise<boolean> {
-    const marker = Symbol('pending')
-    const race = await Promise.race([promise, Promise.resolve(marker)])
-    return race !== marker
 }

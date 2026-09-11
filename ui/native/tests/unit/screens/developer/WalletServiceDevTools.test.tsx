@@ -6,7 +6,8 @@ import {
 } from '@testing-library/react-native'
 import React from 'react'
 
-import { attachFiDevTools } from '@fedi/common/devtools/fi'
+import { attachFiDevTools, FI_DEV_SWITCHES_KEY } from '@fedi/common/devtools/fi'
+import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 
 import WalletServiceDevTools from '../../../../screens/developer/WalletServiceDevTools'
 import { mockNavigation } from '../../../setup/jest.setup.mocks'
@@ -25,9 +26,23 @@ const memoryStorage = () => {
     }
 }
 
-const render = (tools: ReturnType<typeof attachFiDevTools>) =>
+// the simulator defaults off so appium boots clean; the pickers need it on
+const simulatorOnStorage = () => {
+    const storage = memoryStorage()
+    storage.setItem(
+        FI_DEV_SWITCHES_KEY,
+        JSON.stringify({ simulator: 'on', payerSource: 'mock' }),
+    )
+    return storage
+}
+
+const render = (
+    tools: ReturnType<typeof attachFiDevTools>,
+    fedimint = createMockFedimintBridge(),
+) =>
     renderWithProviders(
         <WalletServiceDevTools tools={tools} navigation={mockNavigation} />,
+        { fedimint },
     )
 
 describe('WalletServiceDevTools', () => {
@@ -90,14 +105,12 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should jump to the chosen screen and navigate to its route', async () => {
-        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        const tools = attachFiDevTools(jest.fn(), simulatorOnStorage())
         await tools.ready
         const jumpTo = jest.spyOn(tools, 'jumpTo')
         render(tools)
 
         fireEvent.press(screen.getByText('Go to screen'))
-        // "Formation" also names a scenario group further down the panel,
-        // so scope to the go-to-screen section to press the right one
         const goToScreen = within(screen.getByTestId('go-to-screen-section'))
         fireEvent.press(goToScreen.getByText('Formation'))
         fireEvent.press(goToScreen.getByText('Progress: DKG underway'))
@@ -110,13 +123,50 @@ describe('WalletServiceDevTools', () => {
         )
     })
 
+    it('should prepare the payment before navigating to a confirm screen', async () => {
+        const tools = attachFiDevTools(jest.fn(), simulatorOnStorage())
+        await tools.ready
+        const fedimint = createMockFedimintBridge({
+            fiClientPreviewSelection: () =>
+                Promise.resolve({
+                    type: 'preview',
+                    preview: {
+                        previewId: 'preview_1',
+                        selected: 10,
+                        totalAdvertisedMsats: '600000',
+                        seen: 42,
+                        eligible: 30,
+                        validUntil: 0,
+                        seats: [],
+                    },
+                }),
+            fiClientEligiblePayers: { type: 'payers', payers: [] },
+        })
+        render(tools, fedimint)
+
+        fireEvent.press(screen.getByText('Go to screen'))
+        const goToScreen = within(screen.getByTestId('go-to-screen-section'))
+        fireEvent.press(goToScreen.getByText('Setup'))
+        fireEvent.press(goToScreen.getByText('Confirm: quote ready'))
+
+        await waitFor(() =>
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'ConfirmWalletService',
+            ),
+        )
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledWith({
+            federationSize: 10,
+            plan: 'infiniteBestEffort',
+        })
+    })
+
     it('should cancel a running script when the simulated state is cleared', async () => {
         const tools = attachFiDevTools(jest.fn(), memoryStorage())
         await tools.ready
         const cancel = jest.spyOn(tools.player, 'cancel')
         render(tools)
 
-        fireEvent.press(screen.getByText('Simulator tools'))
+        fireEvent.press(screen.getByText('Advanced'))
         fireEvent.press(
             screen.getByText('Clear simulated wallet service state'),
         )
@@ -124,16 +174,39 @@ describe('WalletServiceDevTools', () => {
         expect(cancel).toHaveBeenCalledTimes(1)
     })
 
-    it('should cancel a running script when a knob scenario is picked', async () => {
-        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+    it('should play a script from the start without navigating', async () => {
+        const tools = attachFiDevTools(jest.fn(), simulatorOnStorage())
         await tools.ready
-        const cancel = jest.spyOn(tools.player, 'cancel')
+        const play = jest.spyOn(tools, 'play')
         render(tools)
 
-        // Baseline holds the default scenario, so it starts open
-        fireEvent.press(screen.getByText('slowNetwork'))
+        fireEvent.press(screen.getByText('Advanced'))
+        fireEvent.press(screen.getByText('Play scenario from start'))
+        const advanced = within(screen.getByTestId('advanced-section'))
+        fireEvent.press(advanced.getByText('Formation'))
+        fireEvent.press(advanced.getByText('formation.happyPath'))
 
-        expect(cancel).toHaveBeenCalledTimes(1)
+        expect(play).toHaveBeenCalledWith('formation.happyPath')
+        expect(mockNavigation.navigate).not.toHaveBeenCalled()
+        tools.player.cancel()
+    })
+
+    it("should pass a screen's params to navigate", async () => {
+        const tools = attachFiDevTools(jest.fn(), simulatorOnStorage())
+        await tools.ready
+        render(tools)
+
+        fireEvent.press(screen.getByText('Go to screen'))
+        const goToScreen = within(screen.getByTestId('go-to-screen-section'))
+        fireEvent.press(goToScreen.getByText('Lightning'))
+        fireEvent.press(goToScreen.getByText('Settings: attached and verified'))
+
+        await waitFor(() =>
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'WalletServiceSettings',
+                { openSheet: 'provider' },
+            ),
+        )
     })
 
     it('should disable Go to screen while the simulator is off', async () => {

@@ -3,7 +3,9 @@ import type { FedimintBridge } from '../../utils/fedimint'
 import { makeLog } from '../../utils/log'
 import { FiPlayer } from './player'
 import { findFiScreen, type FiScreen } from './screens'
+import { findFiScript } from './scripts'
 import { FiSimulator } from './simulator'
+import type { FiScript } from './steps'
 import {
     DEFAULT_FI_DEV_SWITCHES,
     FiDevSwitches,
@@ -15,7 +17,7 @@ import { withFiSimulator } from './transport'
 const log = makeLog('common/devtools/fi')
 
 export { FiSimulator } from './simulator'
-export { withFiSimulator, createSimulatedBridge } from './transport'
+export { withFiSimulator } from './transport'
 export {
     makeMockPayerFederation,
     MOCK_PAYER_FEDERATIONS,
@@ -23,20 +25,12 @@ export {
     type MockPayerFederation,
 } from './mockPayerFederation'
 export {
-    fiScenarios,
-    FORMATION_PHASES,
-    DEFAULT_FI_SCENARIO,
-    FI_SCENARIO_GROUPS,
-    FI_SCENARIO_STORYBOARD_FRAMES,
-    type FiScenario,
-    type FiScenarioName,
-    type FormationPhaseName,
-} from './scenarios'
-export {
-    MOCK_FI_SERVICE_HEALTH,
-    type MockFiServiceHealth,
-} from './dashboardMock'
-export { FI_SCREEN_GROUPS, type FiScreen, type FiScreenRoute } from './screens'
+    FI_SCREEN_GROUPS,
+    type FiScreen,
+    type FiScreenParams,
+    type FiScreenRoute,
+} from './screens'
+export { FI_SCRIPT_GROUPS, findFiScript, type FiScriptGroup } from './scripts'
 
 type BridgeRpc = <T = void>(method: string, payload: object) => Promise<T>
 
@@ -50,6 +44,8 @@ export interface FiDevTools {
     player: FiPlayer
     /** Reset the simulated timeline and jump the named screen's script to its checkpoint. */
     jumpTo(screenId: string): Promise<FiScreen>
+    /** Reset the simulator and run a script from its first step with real timing. */
+    play(scriptName: string): FiScript
 }
 
 export function attachFiDevTools(
@@ -95,6 +91,13 @@ export function attachFiDevTools(
                 .run(screen.script, { jumpTo: screen.checkpoint })
                 .catch(e => log.warn('fi script failed', e))
             return screen
+        },
+        play: scriptName => {
+            const target = findFiScript(scriptName)
+            if (!target) throw new Error(`unknown script "${scriptName}"`)
+            simulator.reset()
+            player.run(target, {}).catch(e => log.warn('fi script failed', e))
+            return target
         },
     }
 }

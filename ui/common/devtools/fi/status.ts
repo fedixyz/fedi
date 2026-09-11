@@ -1,10 +1,23 @@
 import type {
     RpcFiErrorCode,
+    RpcFiFormationPhase,
     RpcFiFormationSnapshot,
     RpcFiSeatPhase,
     RpcFiStatus,
 } from '../../types/bindings'
-import { FORMATION_PHASES, FormationPhaseName } from './scenarios'
+
+export type FormationPhaseName = RpcFiFormationPhase
+
+/** Ordered formation timeline; a phase added in Rust is a compile error here. */
+export const FORMATION_PHASES: FormationPhaseName[] = [
+    'preparing',
+    'awaitingPaymentReadiness',
+    'acquiringSeats',
+    'preparingDkg',
+    'dkgUnderway',
+    'publishingSeatBindings',
+    'formed',
+]
 
 export type FormationSeed = {
     formationId: string
@@ -19,8 +32,7 @@ const DEFAULT_SEAT_PRICE_MSATS = 2_100_000
 
 export const IDLE_STATUS: RpcFiStatus = { type: 'idle' }
 
-// mirrors the seat phase the knob simulator assigns per formation phase
-const seatPhaseFor = (phase: FormationPhaseName): RpcFiSeatPhase => {
+export const seatPhaseFor = (phase: FormationPhaseName): RpcFiSeatPhase => {
     switch (phase) {
         case 'preparing':
         case 'awaitingPaymentReadiness':
@@ -104,4 +116,109 @@ export function formationStatus(
     formation: RpcFiFormationSnapshot,
 ): RpcFiStatus {
     return { type: 'formation', formation }
+}
+
+const SATS_TO_MSATS = 1_000
+
+export function withAuthorization(
+    formation: RpcFiFormationSnapshot,
+    {
+        authorizationId,
+        amountSats,
+        payerFederationId,
+    }: {
+        authorizationId: string
+        amountSats: number
+        payerFederationId: string
+    },
+): RpcFiFormationSnapshot {
+    const totalMsats = amountSats * SATS_TO_MSATS
+    const seats = formation.seats.slice(0, 3)
+    return {
+        ...formation,
+        paymentOutputsStarted: true,
+        actionRequired: {
+            type: 'authorizePayments',
+            requirements: {
+                authorizationId,
+                totalMsats: String(totalMsats),
+                maxTotalMsats: formation.intent.maxTotalMsats,
+                seats: seats.map(seat => ({
+                    index: seat.index,
+                    fmanId: seat.fmanId,
+                    fmanName: seat.fmanName,
+                    quoteId: `quote_${seat.index}`,
+                    paymentFederationId: payerFederationId,
+                    amountMsats: String(Math.floor(totalMsats / seats.length)),
+                })),
+            },
+        },
+    }
+}
+
+/** Seat 0 is refused: it regresses and the decision parks for the user. */
+export function withReplacement(
+    formation: RpcFiFormationSnapshot,
+    { replacementId }: { replacementId: string },
+): RpcFiFormationSnapshot {
+    const [refused, ...rest] = formation.seats
+    return {
+        ...formation,
+        seats: [{ ...refused, phase: 'replacementRequired' }, ...rest],
+        milestones: { ...formation.milestones, guardiansConfirmed: false },
+        actionRequired: {
+            type: 'replaceGuardians',
+            requirements: {
+                replacementId,
+                seats: [
+                    {
+                        index: refused.index,
+                        previousFmanId: refused.fmanId,
+                        previousFmanName: refused.fmanName,
+                        previousQuoteId: `quote_${refused.index}`,
+                        previousLocator: refused.locator,
+                    },
+                ],
+            },
+        },
+    }
+}
+
+export type RestoredSeed = { formationId: string }
+
+const RESTORED_SEAT_COUNT = 10
+
+/**
+ * A backup found for this seed. The backup carries no name; reconciliation
+ * learns it, which is why the name is an option rather than a default.
+ */
+export function restoredStatus(
+    seed: RestoredSeed,
+    {
+        freshness,
+        backupEligible = false,
+        federationName = null,
+    }: {
+        freshness: 'fresh' | 'unsynced'
+        backupEligible?: boolean
+        federationName?: string | null
+    },
+): RpcFiStatus {
+    return {
+        type: 'restored',
+        formation: {
+            snapshotGeneration: 3,
+            formationId: seed.formationId,
+            federationInvite: `fed1${'sim'.padEnd(40, '0')}${seed.formationId}`,
+            federationName,
+            seats: Array.from({ length: RESTORED_SEAT_COUNT }, (_, index) => ({
+                fmanId: `fman_${seed.formationId}_${index}`,
+                seatId: `seat_${index}`,
+                locator: '{"version":1}',
+            })),
+            phase: 'formed',
+            freshness,
+            backupEligible,
+        },
+    }
 }

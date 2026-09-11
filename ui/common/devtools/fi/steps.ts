@@ -1,21 +1,32 @@
 import type { RpcFiStatus } from '../../types/bindings'
+import type { FiWorld } from './world'
 
 export type FiScriptContext = {
     formationId: string
     /** payloads of every `awaitRpc` already passed, by method */
     recorded: Record<string, Record<string, unknown>>
+    world: FiWorld
 }
+
+export type FiWalletServiceJoin = 'ready' | 'joining' | 'recovering' | 'failed'
+
+export type StubHandler = (
+    payload: Record<string, unknown>,
+    ctx: FiScriptContext,
+) => unknown
 
 type Lazy<T> = T | ((ctx: FiScriptContext) => T)
 
 export type FiStep =
     | { kind: 'reply'; method: string; value: Lazy<unknown> }
+    | { kind: 'stub'; method: string; handler: StubHandler }
+    | { kind: 'act'; run: (ctx: FiScriptContext) => void }
     | { kind: 'stream'; status: Lazy<RpcFiStatus> }
     | { kind: 'emit'; event: string; payload: Lazy<unknown> }
     | { kind: 'wait'; ms: number }
     | { kind: 'awaitRpc'; method: string; recorded: Record<string, unknown> }
     | { kind: 'checkpoint'; name: string }
-    | { kind: 'formWalletService'; join: 'ready' | 'joining' | 'failed' }
+    | { kind: 'formWalletService'; join: FiWalletServiceJoin }
 
 export type FiScript = { name: string; steps: FiStep[] }
 
@@ -48,9 +59,21 @@ export const checkpoint = (name: string): FiStep => ({
     kind: 'checkpoint',
     name,
 })
-export const formWalletService = (
-    join: 'ready' | 'joining' | 'failed',
-): FiStep => ({ kind: 'formWalletService', join })
+export const formWalletService = (join: FiWalletServiceJoin): FiStep => ({
+    kind: 'formWalletService',
+    join,
+})
+/** Answer every call of `method` until the simulator resets; async handlers are fine. */
+export const stub = (method: string, handler: StubHandler): FiStep => ({
+    kind: 'stub',
+    method,
+    handler,
+})
+/** Change the world between steps, e.g. a seat price or the fleet size. */
+export const act = (run: (ctx: FiScriptContext) => void): FiStep => ({
+    kind: 'act',
+    run,
+})
 
 export function script(name: string, steps: FiStep[]): FiScript {
     return { name, steps }
