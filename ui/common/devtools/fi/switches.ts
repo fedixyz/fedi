@@ -9,7 +9,9 @@ export interface FiDevSwitches {
 }
 
 export const DEFAULT_FI_DEV_SWITCHES: FiDevSwitches = {
-    simulator: 'on',
+    // turning this on seeds mock federations into the app's federation list,
+    // so every appium suite boots already onboarded and fails
+    simulator: 'off',
     payerSource: 'mock',
 }
 

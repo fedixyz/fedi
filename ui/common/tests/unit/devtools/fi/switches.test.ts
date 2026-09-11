@@ -20,6 +20,10 @@ const memoryStorage = (initial: Record<string, string> = {}): StorageApi => {
 }
 
 describe('fi dev switches', () => {
+    it('should default the simulator off so a dev build holds no mock federations', () => {
+        expect(DEFAULT_FI_DEV_SWITCHES.simulator).toBe('off')
+    })
+
     it('should return the defaults when nothing is stored', async () => {
         const storage = memoryStorage()
         await expect(loadFiDevSwitches(storage)).resolves.toEqual(
