@@ -38,6 +38,26 @@ that don't have good developer tooling of their own, e.g. react-native.
 
 Read more at https://github.com/liriliri/eruda
 
+#### `fediInternal`
+
+Provides Fedi-specific mini-app APIs. Native clients with `fediInternal.version >= 5` support saving UTF-8 content through the system document picker:
+
+```ts
+const result = await window.fediInternal.saveFile({
+    filename: 'badge-issuer-authority.json',
+    mimeType: 'application/json',
+    contents: json,
+})
+```
+
+The promise resolves to `'saved'` only after the selected destination has been written, or `'cancelled'` when the user closes the picker. Other failures reject the promise. A rejection can occur after writing if the document provider cannot return file metadata. Check the destination before retrying.
+
+Contents must be nonempty and are limited to 10 MiB when UTF-8 encoded. Empty files are rejected before opening the picker because the Android picker reports zero-byte copies as failures. Only one save request may be active at a time. File sharing is a separate behavior and is not provided by this method.
+
+Use the provider injected by Fedi native. A bundled copy's `version` describes that bundle, not the host's capabilities. Without the native WebView bridge, this provider's `saveFile` rejects with `Error('SaveFileUnavailable')` before sending a message. The web host also rejects save requests sent through its separate `{ event, payload }` iframe protocol; this provider does not implement that transport.
+
+The 10 MiB limit bounds temporary-file writes. It does not bound WebView message serialization or parsing. Failure messages from the native host use the device language and are for display, not programmatic matching.
+
 ### `sendInjectorMessage`
 
 Sends an injection request from a web page to the host client and resolves when the matching `fedi:message` response event is dispatched. The optional `AbortSignal` cancels the wait and removes the response listener, which is useful for timeouts in tools that call many APIs.

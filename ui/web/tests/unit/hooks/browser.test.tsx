@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom'
 import { waitFor } from '@testing-library/react'
 
+import commonEN from '@fedi/common/localization/en/common.json'
 import { setupStore } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { InjectionMessageType } from '@fedi/injections/src/types'
@@ -55,6 +56,26 @@ describe('/hooks/browser', () => {
     beforeEach(() => {
         jest.clearAllMocks()
         mockGenerateInvoice.mockResolvedValue('lnbc2500')
+    })
+
+    it('should reject file saving with a translatable unavailable message', async () => {
+        renderHookWithProviders(() => useIFrameListener(iframeRef))
+
+        window.dispatchEvent(
+            new MessageEvent('message', {
+                data: { event: InjectionMessageType.fedi_saveFile },
+            }),
+        )
+
+        await waitFor(() => {
+            expect(postMessageMock).toHaveBeenCalledWith(
+                {
+                    event: InjectionMessageType.fedi_saveFile,
+                    error: commonEN.errors['save-file-unavailable-web'],
+                },
+                '*',
+            )
+        })
     })
 
     describe('When a nostr_getPublicKey message event occurs', () => {

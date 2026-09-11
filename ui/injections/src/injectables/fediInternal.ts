@@ -7,6 +7,8 @@ import {
     InstallMiniAppRequest,
     JoinedFederationSummary,
     MSats,
+    SaveFileRequest,
+    SaveFileResult,
     SupportedCurrency,
 } from '@fedi/common/types'
 import { RpcCommunity } from '@fedi/common/types/bindings'
@@ -15,7 +17,7 @@ import { InjectionMessageResponseMap, InjectionMessageType } from '../types'
 import { sendInjectorMessage } from '../utils'
 
 class InjectionFediProvider {
-    public version: FediInternalVersion = 4
+    public version: FediInternalVersion = 5
     private lastMessageId = 0
 
     async getSeed(): Promise<{ seed: string }> {
@@ -175,6 +177,13 @@ class InjectionFediProvider {
             InjectionMessageType.fedi_getJoinedFederations,
             undefined,
         )
+    }
+
+    async saveFile(request: SaveFileRequest): Promise<SaveFileResult> {
+        if (!('ReactNativeWebView' in window)) {
+            throw new Error('SaveFileUnavailable')
+        }
+        return this.sendMessage(InjectionMessageType.fedi_saveFile, request)
     }
 
     /** Sends a message to the injector via postMessage, returns response */

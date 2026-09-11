@@ -40,7 +40,15 @@ export type JoinedFederationSummary = {
     iconUrl?: string
 }
 
-export type FediInternalVersion = 4
+export type FediInternalVersion = 5
+
+export type SaveFileRequest = {
+    filename: string
+    mimeType: string
+    contents: string
+}
+
+export type SaveFileResult = 'saved' | 'cancelled'
 
 export type InstallMiniAppRequest = Omit<FediMod, 'color'>
 

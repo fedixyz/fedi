@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { RequestInvoiceArgs } from 'webln'
 
 import { hasPermission } from '@fedi/common/hooks/browser'
@@ -66,6 +67,7 @@ const log = makeLog('useIFrameListener')
 export function useIFrameListener(
     ref: React.RefObject<HTMLIFrameElement | null>,
 ) {
+    const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const { push, replace } = useRouter()
@@ -409,6 +411,10 @@ export function useIFrameListener(
                     }
                     break
                 }
+                case InjectionMessageType.fedi_saveFile: {
+                    sendError(event, t('errors.save-file-unavailable-web'))
+                    break
+                }
                 case InjectionMessageType.fedi_previewMatrixRoom: {
                     if (!hasPermission(ev.origin, ['manageCommunities'])) {
                         return sendError(event, 'InvalidPermissions')
@@ -447,6 +453,7 @@ export function useIFrameListener(
         sendSuccess,
         sendError,
         chats,
+        t,
     ])
 
     return { sendSuccess, sendError, overlayId, resetOverlay }

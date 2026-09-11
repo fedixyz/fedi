@@ -15,6 +15,8 @@ import {
     InstallMiniAppRequest,
     JoinedFederationSummary,
     MSats,
+    SaveFileRequest,
+    SaveFileResult,
     SupportedCurrency,
 } from '@fedi/common/types'
 import { RpcCommunity } from '@fedi/common/types/bindings'
@@ -54,6 +56,7 @@ export enum InjectionMessageType {
     fedi_installMiniApp = 'fedi_installMiniApp',
     fedi_previewMatrixRoom = 'fedi_previewMatrixRoom',
     fedi_getJoinedFederations = 'fedi_getJoinedFederations',
+    fedi_saveFile = 'fedi_saveFile',
 }
 
 export type InjectionMessageResponseMap = {
@@ -211,6 +214,10 @@ export type InjectionMessageResponseMap = {
     [InjectionMessageType.fedi_getJoinedFederations]: {
         message: void
         response: { federations: JoinedFederationSummary[] }
+    }
+    [InjectionMessageType.fedi_saveFile]: {
+        message: SaveFileRequest
+        response: SaveFileResult
     }
 }
 

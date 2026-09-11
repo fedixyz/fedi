@@ -103,6 +103,7 @@ import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 import { useIsFeatureUnlocked } from '../utils/hooks/security'
 import { MiniAppSeedRequestController } from '../utils/miniAppSeed'
+import { saveFile } from '../utils/saveFile'
 
 const log = makeLog('FediModBrowser')
 
@@ -601,6 +602,10 @@ const FediModBrowser: React.FC<Props> = ({ route, navigation }) => {
                 log.info('fedi.fedi_getLanguageCode')
 
                 return language ?? 'en'
+            },
+            [InjectionMessageType.fedi_saveFile]: async request => {
+                log.info('fedi.saveFile')
+                return saveFile(request)
             },
             [InjectionMessageType.fedi_listCreatedCommunities]: async () => {
                 try {
