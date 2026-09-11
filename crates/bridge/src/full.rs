@@ -452,11 +452,17 @@ impl BridgeFull {
             return Err(BridgeOffboardingReason::DeviceIndexConflict);
         }
 
-        match runtime.apply_scheduled_fi_client_reset().await {
-            Ok(true) => tracing::warn!("cleared scheduled FI client test state"),
-            Ok(false) => {}
-            Err(error) => tracing::error!(%error, "failed to clear scheduled FI client test state"),
-        }
+        let fi_reset_failed = match runtime.apply_scheduled_fi_client_reset().await {
+            Ok(true) => {
+                tracing::warn!("cleared scheduled FI client test state");
+                false
+            }
+            Ok(false) => false,
+            Err(error) => {
+                tracing::error!(%error, "failed to clear scheduled FI client test state");
+                true
+            }
+        };
 
         let device_registration_service = DeviceRegistrationService::new(runtime.clone()).await;
 
@@ -492,10 +498,18 @@ impl BridgeFull {
         )
         .map(Arc::new)
         .map_err(Arc::new);
-        let fi_client = open_fi_client(&runtime, federations.clone(), fi_manifold_environment)
-            .await
-            .map(Arc::new)
-            .map_err(Arc::new);
+        // a failed apply leaves the wipe pending, so this formation predates the
+        // environment now selected and must not open against its relay and issuers
+        let fi_client = if fi_reset_failed {
+            Err(Arc::new(fi_client::FiError::Storage(
+                "the scheduled wallet-service wipe has not run yet".to_owned(),
+            )))
+        } else {
+            open_fi_client(&runtime, federations.clone(), fi_manifold_environment)
+                .await
+                .map(Arc::new)
+                .map_err(Arc::new)
+        };
         let restore_fi_on_launch =
             runtime.app_state.onboarding_method().await == Some(OnboardingMethod::Restored);
         let fi_driver = fi_client.as_ref().ok().map(|client| {
