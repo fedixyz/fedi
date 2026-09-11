@@ -443,7 +443,9 @@ fn maintenance_rpc_constructs_only_supported_typed_metadata() {
         RpcFiFederationMetadataUpdate::WelcomeMessage {
             value: "Welcome members".to_owned(),
         },
-        RpcFiFederationMetadataUpdate::TermsOfService,
+        RpcFiFederationMetadataUpdate::TermsOfService {
+            value: "https://example.com/terms".to_owned(),
+        },
     ];
     for update in updates {
         assert!(metadata_update_from_rpc(update).is_ok());
@@ -454,6 +456,26 @@ fn maintenance_rpc_constructs_only_supported_typed_metadata() {
     })
     .expect_err("raw image data is outside the maintenance contract");
     assert_eq!(error.code, RpcFiErrorCode::InvalidIntent);
+}
+
+#[test]
+fn terms_rpc_preserves_the_url_and_rejects_invalid_values() {
+    let url = "https://example.com/terms";
+    let update = metadata_update_from_rpc(RpcFiFederationMetadataUpdate::TermsOfService {
+        value: url.to_owned(),
+    })
+    .unwrap();
+    let (key, value) = update.into_field();
+    assert_eq!(key.0, "fedi:tos_url");
+    assert_eq!(value.0, url);
+
+    for value in ["", "not a URL", "file:///terms", "http://localhost/terms"] {
+        let error = metadata_update_from_rpc(RpcFiFederationMetadataUpdate::TermsOfService {
+            value: value.to_owned(),
+        })
+        .expect_err("invalid terms must be rejected before contacting guardians");
+        assert_eq!(error.code, RpcFiErrorCode::InvalidIntent);
+    }
 }
 
 #[test]

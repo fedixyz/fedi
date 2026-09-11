@@ -770,14 +770,13 @@ export type RpcFiFederationJoinState =
  *
  * Values are validated again by Manifold before any guardian is contacted.
  * `WelcomeMessage` is also the federation description shown by Fedi.
- * `TermsOfService` selects Guardianito's fixed approved document; callers
- * cannot provide an arbitrary terms URL.
+ * Fedi supplies the URL for both ready-made and custom terms.
  */
 export type RpcFiFederationMetadataUpdate =
   | { type: "name"; value: string }
   | { type: "iconUrl"; value: string }
   | { type: "welcomeMessage"; value: string }
-  | { type: "termsOfService" };
+  | { type: "termsOfService"; value: string };
 
 export type RpcFiFormationActionRequired =
   | { type: "authorizePayments"; requirements: RpcFiPaymentRequirements }

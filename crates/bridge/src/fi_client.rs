@@ -2438,8 +2438,8 @@ fn metadata_update_from_rpc(
         RpcFiFederationMetadataUpdate::WelcomeMessage { value } => {
             FederationMetadataUpdate::welcome_message(value)
         }
-        RpcFiFederationMetadataUpdate::TermsOfService => {
-            Ok(FederationMetadataUpdate::TermsOfService)
+        RpcFiFederationMetadataUpdate::TermsOfService { value } => {
+            FederationMetadataUpdate::terms_of_service_url(value)
         }
     };
     update.map_err(|error| operation_error(RpcFiErrorCode::InvalidIntent, error.to_string()))

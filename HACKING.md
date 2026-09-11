@@ -237,8 +237,11 @@ Post-formation maintenance also stays on the same serialized driver. Call
 `FedimintBridge.fiClientUpdateFederationMetadata(update)` only after status is a
 fresh `Formed` snapshot. The supported update union is intentionally narrow:
 federation name, URL-based icon, `welcomeMessage` (also Fedi's federation
-description), and `termsOfService` (Guardianito's fixed currently approved
-document, never a caller-provided URL). Manifold validates every value and
+description), and `termsOfService` with a `value` containing a public HTTP(S)
+URL. Fedi supplies the URL for both ready-made and custom terms. Upgrade all
+participating FMans before enabling these requests; older validators reject
+custom URLs. The ready-made URL must serve a public page before release.
+Manifold validates every value and
 proposes the corresponding meta-module consensus update; the Fedi caller does
 not supply a guardian account or raw meta key.
 

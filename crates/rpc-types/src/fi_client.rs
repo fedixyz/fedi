@@ -238,13 +238,12 @@ pub enum RpcFiSetupPaymentFederationsResult {
 ///
 /// Values are validated again by Manifold before any guardian is contacted.
 /// `WelcomeMessage` is also the federation description shown by Fedi.
-/// `TermsOfService` selects Guardianito's fixed approved document; callers
-/// cannot provide an arbitrary terms URL.
+/// Fedi supplies the URL for both ready-made and custom terms.
 pub enum RpcFiFederationMetadataUpdate {
     Name { value: String },
     IconUrl { value: String },
     WelcomeMessage { value: String },
-    TermsOfService,
+    TermsOfService { value: String },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]

@@ -1652,7 +1652,7 @@ describe('common/redux/fi › updateWalletServiceMetadata', () => {
         })
     })
 
-    it('should write no meta key for a terms of service update', async () => {
+    it('should publish the saved terms URL for member-facing screens', async () => {
         const fedimint = createMockFedimintBridge({
             fiClientUpdateFederationMetadata: { type: 'success' },
         })
@@ -1662,7 +1662,10 @@ describe('common/redux/fi › updateWalletServiceMetadata', () => {
             .dispatch(
                 updateWalletServiceMetadata({
                     fedimint,
-                    update: { type: 'termsOfService' },
+                    update: {
+                        type: 'termsOfService',
+                        value: 'https://example.com/terms',
+                    },
                     federationId: FED,
                 }),
             )
@@ -1671,6 +1674,7 @@ describe('common/redux/fi › updateWalletServiceMetadata', () => {
         expect(loadedMeta(store)).toEqual({
             federation_name: 'Old Name',
             other: 'kept',
+            'fedi:tos_url': 'https://example.com/terms',
         })
     })
 })

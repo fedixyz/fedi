@@ -732,6 +732,7 @@ const METADATA_UPDATE_META_KEYS = {
     name: 'federation_name',
     iconUrl: 'fedi:federation_icon_url',
     welcomeMessage: 'fedi:welcome_message',
+    termsOfService: 'fedi:tos_url',
 } as const
 
 export const updateWalletServiceMetadata = createAsyncThunk<
@@ -762,7 +763,7 @@ export const updateWalletServiceMetadata = createAsyncThunk<
         // holds the value, so this is a read-through, not an optimistic write.
         // The bridge's own meta poll is ten minutes apart, which is where a
         // rename that "did not take" was hiding.
-        if (federationId && update.type !== 'termsOfService') {
+        if (federationId) {
             dispatch(
                 mergeFederationMeta({
                     federationId,

@@ -8,6 +8,7 @@ import {
     within,
 } from '@testing-library/react-native'
 
+import { FEDERATION_TERMS_URL } from '@fedi/common/constants/tos'
 import {
     recordFiLiquidityAbsent,
     selectLoadedFederation,
@@ -584,11 +585,95 @@ describe('screens/WalletServiceSettings', () => {
         await user.press(screen.getByTestId('settings-terms-row'))
         await user.press(screen.getByTestId('terms-ready-made-row'))
 
-        // the variant carries no value: it installs one fixed document
         expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledWith({
             type: 'termsOfService',
+            value: FEDERATION_TERMS_URL,
         })
     })
+
+    it('should save a custom terms link and reopen it for editing', async () => {
+        const fedimint = renderScreen()
+        const url = 'https://example.com/my-terms'
+
+        await user.press(screen.getByTestId('settings-terms-row'))
+        await user.press(screen.getByTestId('terms-link-own-row'))
+        fireEvent.changeText(
+            screen.getByTestId('settings-edit-input'),
+            ` ${url} `,
+        )
+        await pressOverlayButton(i18n.t('words.save'))
+
+        expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledWith({
+            type: 'termsOfService',
+            value: url,
+        })
+        expect(await screen.findByText(url)).toBeOnTheScreen()
+        await user.press(screen.getByTestId('settings-terms-row'))
+        await user.press(screen.getByTestId('terms-link-own-row'))
+        expect(screen.getByTestId('settings-edit-input')).toHaveDisplayValue(
+            url,
+        )
+    })
+
+    it.each([
+        '',
+        'not a URL',
+        'file:///terms',
+        'http://localhost/terms',
+        'https://example.com/a\nb',
+    ])('should prevent saving invalid terms %p', async url => {
+        const fedimint = renderScreen()
+        await user.press(screen.getByTestId('settings-terms-row'))
+        await user.press(screen.getByTestId('terms-link-own-row'))
+        fireEvent.changeText(screen.getByTestId('settings-edit-input'), url)
+        expect(
+            screen.getByRole('button', { name: i18n.t('words.save') }),
+        ).toBeDisabled()
+        expect(fedimint.fiClientUpdateFederationMetadata).not.toHaveBeenCalled()
+    })
+
+    it.each(['ready-made', 'custom'])(
+        'should keep the previous terms and report a failed %s save',
+        async choice => {
+            const oldUrl = 'https://example.com/old-terms'
+            renderScreen({
+                fedimint: makePreviewBridge(
+                    { 'fedi:tos_url': oldUrl },
+                    {
+                        fiClientUpdateFederationMetadata: {
+                            type: 'error',
+                            error: { code: 'maintenanceRejected' },
+                        },
+                    },
+                ),
+            })
+            expect(await screen.findByText(oldUrl)).toBeOnTheScreen()
+            await user.press(screen.getByTestId('settings-terms-row'))
+            if (choice === 'ready-made') {
+                await user.press(screen.getByTestId('terms-ready-made-row'))
+            } else {
+                await user.press(screen.getByTestId('terms-link-own-row'))
+                fireEvent.changeText(
+                    screen.getByTestId('settings-edit-input'),
+                    'https://example.com/new-terms',
+                )
+                await pressOverlayButton(i18n.t('words.save'))
+                expect(
+                    screen.getByTestId('settings-edit-input'),
+                ).toHaveDisplayValue('https://example.com/new-terms')
+            }
+            await waitFor(() =>
+                expect(mockToast.show).toHaveBeenCalledWith(
+                    expect.objectContaining({ status: 'error' }),
+                ),
+            )
+            expect(
+                within(screen.getByTestId('settings-terms-row')).getByText(
+                    oldUrl,
+                ),
+            ).toBeOnTheScreen()
+        },
+    )
 
     const requestStableBalance = async () => {
         await user.press(screen.getByTestId('settings-stable-balance-row'))
@@ -957,24 +1042,6 @@ describe('screens/WalletServiceSettings', () => {
         ).toBe(true)
     })
 
-    it('should not offer to link a custom terms url it cannot install', async () => {
-        const fedimint = renderScreen()
-
-        await user.press(screen.getByTestId('settings-terms-row'))
-        await user.press(screen.getByTestId('terms-link-own-row'))
-
-        // the row says why rather than accepting a tap and refusing it
-        expect(
-            screen.getByText(
-                i18n.t(
-                    'feature.wallet-service.settings-terms-link-own-unavailable',
-                ),
-            ),
-        ).toBeOnTheScreen()
-        expect(mockToast.show).not.toHaveBeenCalled()
-        expect(fedimint.fiClientUpdateFederationMetadata).not.toHaveBeenCalled()
-    })
-
     it('should save an icon url through the metadata rpc', async () => {
         const fedimint = renderScreen()
 
@@ -1060,10 +1127,13 @@ describe('screens/WalletServiceSettings', () => {
         })
         expect(screen.getByText('Welcome to the shop')).toBeOnTheScreen()
         expect(
-            screen.getByText(
-                i18n.t('feature.wallet-service.settings-terms-installed'),
-            ),
+            screen.getByText('https://example.com/terms.pdf'),
         ).toBeOnTheScreen()
+        await user.press(screen.getByTestId('settings-terms-row'))
+        await user.press(screen.getByTestId('terms-link-own-row'))
+        expect(screen.getByTestId('settings-edit-input')).toHaveDisplayValue(
+            'https://example.com/terms.pdf',
+        )
     })
 
     it('should say the icon and terms are unset when the federation publishes none', async () => {
@@ -1245,14 +1315,9 @@ describe('screens/WalletServiceSettings', () => {
         await user.press(screen.getByTestId('settings-terms-row'))
         await user.press(screen.getByTestId('terms-ready-made-row'))
 
-        // the url Manifold installs reaches consensus a moment later, so the
-        // row must not still read "not set" after a save that worked
+        // The preview still has the old metadata until its next read.
         await waitFor(() => {
-            expect(
-                screen.getByText(
-                    i18n.t('feature.wallet-service.settings-terms-installed'),
-                ),
-            ).toBeOnTheScreen()
+            expect(screen.getByText(FEDERATION_TERMS_URL)).toBeOnTheScreen()
         })
     })
 

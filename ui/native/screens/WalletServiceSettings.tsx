@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
+import { FEDERATION_TERMS_URL } from '@fedi/common/constants/tos'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     useAppliedGuardianFeePpm,
@@ -76,20 +77,17 @@ export type Props = NativeStackScreenProps<
  * that variant rather than a description-specific one, which the bridge
  * contract does not have.
  */
-type EditableField = 'name' | 'welcomeMessage' | 'iconUrl'
+type EditableField = 'name' | 'welcomeMessage' | 'iconUrl' | 'termsOfService'
 
 /**
- * Manifold's icon URL limit. Compared here against character count, not bytes:
+ * Manifold's URL limit. Compared here against character count, not bytes:
  * a non-ASCII URL could slip past and be rejected server-side, which is the
  * safe direction to be wrong in, since Manifold validates authoritatively.
  */
-const ICON_URL_MAX_LENGTH = 2048
+const URL_MAX_LENGTH = 2048
 
-/** Why an icon URL cannot be saved, or `null` when it can. */
-type IconUrlError = 'invalid' | 'nonPublicHost' | null
-
-/** A disabled row still needs a handler it will never call. */
-const noop = () => undefined
+/** Why a URL cannot be saved, or `null` when it can. */
+type UrlError = 'invalid' | 'nonPublicHost' | null
 
 // `as const`, not `Record<…, string>`: t() only accepts keys it can prove
 // exist, and widening these to string discards that proof
@@ -97,28 +95,42 @@ const EDITOR_TITLE_KEYS = {
     name: 'feature.wallet-service.settings-name',
     welcomeMessage: 'feature.wallet-service.settings-description',
     iconUrl: 'feature.wallet-service.settings-icon',
+    termsOfService: 'feature.wallet-service.settings-terms',
 } as const satisfies Record<EditableField, string>
 
 const EDITOR_HELP_KEYS = {
     name: 'feature.wallet-service.settings-name-help',
     welcomeMessage: 'feature.wallet-service.settings-description-help',
     iconUrl: 'feature.wallet-service.settings-icon-help',
+    termsOfService: 'feature.wallet-service.settings-terms-link-own-help',
 } as const satisfies Record<EditableField, string>
 
-const ICON_URL_ERROR_KEYS = {
+const URL_ERROR_KEYS = {
     invalid: 'feature.wallet-service.settings-icon-invalid',
     nonPublicHost: 'feature.wallet-service.settings-icon-not-public',
-} as const satisfies Record<Exclude<IconUrlError, null>, string>
+} as const satisfies Record<Exclude<UrlError, null>, string>
+
+const TERMS_URL_ERROR_KEYS = {
+    invalid: 'feature.wallet-service.settings-icon-invalid',
+    nonPublicHost: 'feature.wallet-service.settings-terms-not-public',
+} as const satisfies Record<Exclude<UrlError, null>, string>
 
 /**
- * Mirrors `FederationMetadataIconUrl::try_from` in Manifold, which requires an
+ * Manifold checks both icon and terms URLs, requiring an
  * http(s) URL on a publicly resolvable host. Checked here because a rejected
  * write comes back as a generic error toast, which is a poor way to find out
  * you typed `localhost`.
  */
-const getIconUrlError = (raw: string): IconUrlError => {
+const getUrlError = (raw: string): UrlError => {
     const value = raw.trim()
-    if (value === '' || value.length > ICON_URL_MAX_LENGTH) return 'invalid'
+    if (value === '' || value.length > URL_MAX_LENGTH) return 'invalid'
+    if (
+        Array.from(value).some(char => {
+            const code = char.charCodeAt(0)
+            return code < 32 || (code >= 127 && code <= 159)
+        })
+    )
+        return 'invalid'
 
     let url: URL
     try {
@@ -204,7 +216,6 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
     // resolves, and on a fresh install of a pre-consensus service
     const name = consensusName || formationName
     const [isSaving, setIsSaving] = useState(false)
-    const [termsJustInstalled, setTermsJustInstalled] = useState(false)
     // Initial state only: re-applying every render would reopen a sheet the
     // user had just dismissed.
     const [sheet, setSheet] = useState<OpenSheet>(
@@ -295,9 +306,11 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
     const handleSaveEdit = useCallback(async () => {
         if (!editing) return
         const value = draftValue.trim()
-        // an invalid icon url never reaches the bridge: Manifold would reject
-        // it, and the sheet already says why
-        if (editing === 'iconUrl' && getIconUrlError(value)) return
+        if (
+            (editing === 'iconUrl' || editing === 'termsOfService') &&
+            getUrlError(value)
+        )
+            return
         const update: RpcFiFederationMetadataUpdate = { type: editing, value }
         if (await saveMetadata(update)) {
             // consensus lags the save, so hold the new value on screen until a
@@ -306,6 +319,8 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
             if (editing === 'iconUrl') markMetadataApplied({ iconUrl: value })
             if (editing === 'welcomeMessage')
                 markMetadataApplied({ description: value })
+            if (editing === 'termsOfService')
+                markMetadataApplied({ termsUrl: value })
             setEditing(null)
         }
     }, [saveMetadata, draftValue, editing, markMetadataApplied])
@@ -382,16 +397,16 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
     }, [closeSheet, launchZendesk, federationId])
 
     const handleUseReadyMadeTerms = useCallback(async () => {
-        // this variant carries no value: it installs one fixed approved
-        // document, so there is nothing for the user to enter
-        if (await saveMetadata({ type: 'termsOfService' })) {
-            // the url it installs is Manifold's to choose, so the row cannot
-            // hold the value the way the icon does — it holds the fact instead,
-            // until consensus publishes the url itself
-            setTermsJustInstalled(true)
+        if (
+            await saveMetadata({
+                type: 'termsOfService',
+                value: FEDERATION_TERMS_URL,
+            })
+        ) {
+            markMetadataApplied({ termsUrl: FEDERATION_TERMS_URL })
             closeSheet()
         }
-    }, [saveMetadata, closeSheet])
+    }, [saveMetadata, closeSheet, markMetadataApplied])
 
     // `null`, not falsy: 0 ppm is a rate the guardians can deliberately set to
     // stop new accrual, and it must not read as "not set"
@@ -404,16 +419,12 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                   ),
               })
 
-    // the installed url arrives from consensus a moment after the save, so the
-    // local flag covers the gap rather than letting the row read "not set"
-    // straight after installing terms that worked
-    const hasTerms = termsUrl !== null || termsJustInstalled
-
     // only surfaced once something has been typed: an empty sheet is not yet a
     // mistake, it is an unstarted edit
-    const iconUrlError =
-        editing === 'iconUrl' && draftValue.trim() !== ''
-            ? getIconUrlError(draftValue)
+    const urlError =
+        (editing === 'iconUrl' || editing === 'termsOfService') &&
+        draftValue.trim() !== ''
+            ? getUrlError(draftValue)
             : null
 
     // four states, not two: a running request is neither an attached provider
@@ -553,13 +564,8 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                         icon="File"
                         name={t('feature.wallet-service.settings-terms')}
                         detail={
-                            hasTerms
-                                ? t(
-                                      'feature.wallet-service.settings-terms-installed',
-                                  )
-                                : t(
-                                      'feature.wallet-service.settings-terms-not-set',
-                                  )
+                            termsUrl ||
+                            t('feature.wallet-service.settings-terms-not-set')
                         }
                         disabled={!isFormed}
                         trailing={
@@ -601,8 +607,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                         text: t('words.save'),
                         primary: true,
                         disabled:
-                            draftValue.trim().length === 0 ||
-                            iconUrlError !== null,
+                            draftValue.trim().length === 0 || urlError !== null,
                         onPress: handleSaveEdit,
                     },
                     {
@@ -619,13 +624,19 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                                 ? t(
                                       'feature.wallet-service.settings-icon-placeholder',
                                   )
-                                : undefined
+                                : editing === 'termsOfService'
+                                  ? 'https://example.com/terms'
+                                  : undefined
                         }
                         testID="settings-edit-input"
                     />
-                    {iconUrlError !== null && (
+                    {urlError !== null && (
                         <Text caption style={style.editError}>
-                            {t(ICON_URL_ERROR_KEYS[iconUrlError])}
+                            {t(
+                                (editing === 'termsOfService'
+                                    ? TERMS_URL_ERROR_KEYS
+                                    : URL_ERROR_KEYS)[urlError],
+                            )}
                         </Text>
                     )}
                 </Column>
@@ -736,8 +747,6 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                 )}
             </ServiceSheet>
 
-            {/* the design offers two routes; only the fixed document can be
-                installed, so the other says so rather than disappearing */}
             <ServiceSheet
                 show={sheet === 'terms'}
                 loading={isSaving}
@@ -760,19 +769,18 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                         testID="terms-ready-made-row"
                     />
                     <ServiceSettingsDivider />
-                    {/* no metadata variant carries a url, so this cannot be
-                        installed yet — the row says so rather than offering an
-                        action it would then refuse */}
                     <ServiceActionRow
                         icon="Globe"
                         name={t(
                             'feature.wallet-service.settings-terms-link-own',
                         )}
                         detail={t(
-                            'feature.wallet-service.settings-terms-link-own-unavailable',
+                            'feature.wallet-service.settings-terms-link-own-help',
                         )}
-                        disabled
-                        onPress={noop}
+                        onPress={() => {
+                            closeSheet()
+                            openEditor('termsOfService', termsUrl ?? '')
+                        }}
                         testID="terms-link-own-row"
                     />
                 </Column>
