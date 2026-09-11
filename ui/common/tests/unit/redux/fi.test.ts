@@ -1288,6 +1288,27 @@ describe('common/redux/fi › a retained join failure the federation outlived', 
     })
 })
 
+describe('common/redux/fi › a formed service being rechecked on launch', () => {
+    it('should stay formed while only maintenance waits for the recheck', () => {
+        const state = buildFormationStore({
+            phase: 'formed',
+            freshness: 'unsynced',
+        }).getState()
+
+        expect(selectIsWalletServiceFormed(state)).toBe(true)
+        expect(selectWalletServiceFlowStatus(state)).toBe('formed')
+        expect(selectFiIsUnsynced(state)).toBe(true)
+        expect(selectIsWalletServiceMaintenanceReady(state)).toBe(false)
+    })
+
+    it('should report a completed DKG as still in progress', () => {
+        const state = buildFormationStore({ phase: 'dkgComplete' }).getState()
+
+        expect(selectIsWalletServiceFormed(state)).toBe(false)
+        expect(selectWalletServiceFlowStatus(state)).toBe('inProgress')
+    })
+})
+
 describe('common/redux/fi › restored Wallet Service facts', () => {
     it('should expose a fresh recovery as the active Wallet Service', () => {
         const store = buildStore({

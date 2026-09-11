@@ -182,10 +182,6 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
      * being created, the celebration fires once when it is genuinely over, and
      * Continue greys out exactly as it already does for every other stage. No
      * new waiting state, and nothing to take back.
-     *
-     * `selectIsWalletServiceFormed` is itself a high-water mark, so a driver
-     * re-run that republishes an earlier phase cannot un-finish a screen that
-     * has already finished.
      */
     const isFormed = useAppSelector(selectIsWalletServiceFormed)
     const isComplete = Boolean(progress?.isComplete) && isFormed

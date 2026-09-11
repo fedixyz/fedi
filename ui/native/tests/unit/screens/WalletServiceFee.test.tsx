@@ -46,17 +46,11 @@ const makeFormedFormation = (): RpcFiFormationSnapshot => ({
     lastError: null,
 })
 
-// what the bridge republishes while launch reconciliation still holds the FI
-// operation lock: the formed phase is downgraded and freshness is unsynced
+// what the bridge reports while the launch recheck still holds the FI
+// operation lock: still formed, but not yet fresh
 const makeReconcilingFormation = (): RpcFiFormationSnapshot => ({
     ...makeFormedFormation(),
-    phase: 'publishingSeatBindings',
     freshness: 'unsynced',
-    milestones: {
-        ecashSent: true,
-        guardiansConfirmed: true,
-        walletServiceCreated: false,
-    },
 })
 
 /** An invite code is what `useAppliedGuardianFeePpm` reads the rate through. */
@@ -80,13 +74,11 @@ const renderFee = ({
     mode = 'onboarding',
     setGuardianFeeResult,
     formation = makeFormedFormation(),
-    hasFormedBefore = false,
     federationPreview,
 }: {
     mode?: 'onboarding' | 'edit'
     setGuardianFeeResult?: RpcFiOperationResult
     formation?: RpcFiFormationSnapshot
-    hasFormedBefore?: boolean
     /** How the federation's metadata answers, when a test cares. */
     federationPreview?: () => Promise<unknown>
 } = {}) => {
@@ -102,14 +94,7 @@ const renderFee = ({
             status: { type: 'formation', formation },
             clientError: null,
             federationJoin: null,
-            creationHighWaterMark: hasFormedBefore
-                ? {
-                      formationId: formation.formationId,
-                      stage: 3,
-                      isComplete: true,
-                      hasFormed: true,
-                  }
-                : null,
+            creationHighWaterMark: null,
             draft: { name: '', size: 7 },
             selectionPreview: null,
             eligiblePayers: null,
@@ -401,14 +386,11 @@ describe('WalletServiceFee screen', () => {
         expect(mockNavigation.navigate).not.toHaveBeenCalled()
     })
 
-    // regression for #12005: after an interrupted formation resumes, the
-    // sticky "has formed before" flag must not enable the fee CTA while the
-    // bridge is still reconciling and would reject with "already in progress"
-    it('should disable the CTA and explain while the resumed formation is still reconciling', async () => {
-        renderFee({
-            formation: makeReconcilingFormation(),
-            hasFormedBefore: true,
-        })
+    // regression for #12005: a formed service being rechecked on launch must
+    // not enable the fee CTA while the bridge would reject with "already in
+    // progress"
+    it('should disable the CTA and explain while the formed service is still being rechecked', async () => {
+        renderFee({ formation: makeReconcilingFormation() })
 
         expect(await findCtaButton()).toBeDisabled()
         expect(
@@ -425,7 +407,7 @@ describe('WalletServiceFee screen', () => {
     })
 
     it('should enable the CTA without a banner once the formation is live and fresh', async () => {
-        renderFee({ hasFormedBefore: true })
+        renderFee()
 
         expect(await findCtaButton()).toBeEnabled()
         expect(

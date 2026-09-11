@@ -94,22 +94,6 @@ type CreationHighWaterMark = {
     formationId: string
     stage: WalletServiceCreationStage
     isComplete: boolean
-    /**
-     * Whether `phase` has ever reached `formed` for this formation.
-     *
-     * Held apart from `isComplete`, which is the looser question: it also
-     * accepts the `walletServiceCreated` milestone, and screens that only need
-     * to know the work is done are right to use it.
-     *
-     * The bridge is stricter about what it will *accept*. `set_guardian_fee`
-     * is rejected with `maintenanceWrongState` until the federation is actually
-     * formed, so the fee screen has to ask the strict question — and asking it
-     * of the live phase is not enough, because a driver re-run republishes the
-     * snapshot as `unsynced` with the phase back at `publishingSeatBindings`.
-     * Read live, that flips a settled screen back into a warning state for
-     * something that has already happened.
-     */
-    hasFormed: boolean
 }
 
 const initialState = {
@@ -192,7 +176,6 @@ function recordCreationHighWaterMark(state: FiState) {
         ) as WalletServiceCreationStage,
         isComplete:
             formationIsComplete(formation) || Boolean(previous?.isComplete),
-        hasFormed: formation.phase === 'formed' || Boolean(previous?.hasFormed),
     }
 }
 
@@ -1450,30 +1433,25 @@ export const selectWalletServiceMaxTotalMsats = (s: CommonState) =>
     selectFiFormation(s)?.intent.maxTotalMsats ?? null
 
 /**
- * Formed, and staying formed.
+ * The federation exists and setup is complete.
  *
- * Reads the high-water mark rather than the live phase, so a driver re-run that
- * republishes the snapshot as `unsynced` with an earlier phase cannot take the
- * answer away again. See {@link CreationHighWaterMark.hasFormed}.
- *
- * The live phase is still the truth for the *bridge* — a save attempted during
- * such a re-run is rejected — so screens that submit maintenance calls must
- * gate the action on {@link selectIsWalletServiceMaintenanceReady} and use
- * this only for progress, routing, and settled visuals.
+ * Live phase: the bridge keeps `formed` across a relaunch and reports the
+ * launch recheck through `freshness` alone, so nothing here needs to remember
+ * an earlier answer. A save attempted mid-recheck is still rejected, so screens
+ * that submit maintenance calls gate the action on
+ * {@link selectIsWalletServiceMaintenanceReady} and use this only for
+ * progress, routing, and settled visuals.
  */
 export const selectIsWalletServiceFormed = (s: CommonState) =>
-    selectFiFormation(s)?.phase === 'formed' ||
-    selectIsFiRecoveryComplete(s) ||
-    Boolean(s.fi.creationHighWaterMark?.hasFormed)
+    selectFiFormation(s)?.phase === 'formed' || selectIsFiRecoveryComplete(s)
 
 /**
  * Ready for a maintenance call like `set_guardian_fee` right now.
  *
- * Live phase only, no high-water mark: the bridge reports `formed` only once
- * launch reconciliation has finished (`formed` + `unsynced` is republished as
- * `publishingSeatBindings`), which is exactly when it stops rejecting
- * maintenance calls. The status stream pushes the flip, so a gated button
- * enables without polling or a restart.
+ * `formed` alone is not enough: on launch the bridge rechecks a formed service
+ * and reports `unsynced` until that finishes, which is exactly the window in
+ * which it rejects maintenance calls. The status stream pushes the flip to
+ * `fresh`, so a gated button enables without polling or a restart.
  */
 export const selectIsWalletServiceMaintenanceReady = (s: CommonState) => {
     const status = selectFiStatus(s)

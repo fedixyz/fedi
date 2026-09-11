@@ -911,22 +911,14 @@ describe('WalletServiceProgress screen', () => {
             i18n.t('feature.wallet-service.progress-ready-title'),
         )
 
-        // a driver re-run reloads the snapshot as unsynced, which un-sets
-        // walletServiceCreated. Reverting "ready" to "creating" would read as
-        // the finished setup having come undone.
+        // the launch recheck republishes the snapshot as unsynced. Reverting
+        // "ready" to "creating" would read as the finished setup having come
+        // undone.
         act(() => {
             store.dispatch(
                 setFiStatus({
                     type: 'formation',
-                    formation: {
-                        ...formed,
-                        freshness: 'unsynced',
-                        phase: 'publishingSeatBindings',
-                        milestones: {
-                            ...formed.milestones,
-                            walletServiceCreated: false,
-                        },
-                    },
+                    formation: { ...formed, freshness: 'unsynced' },
                 }),
             )
         })

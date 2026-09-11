@@ -118,19 +118,12 @@ const renderScreen = ({
     liquidity,
     fedimint = makePreviewBridge(),
     formation = makeFormation(),
-    hasFormedBefore = false,
     store = setupStore(),
 }: {
     fedimint?: ReturnType<typeof createMockFedimintBridge>
     /** Pass one in to read what the screen wrote to it afterwards. */
     store?: ReturnType<typeof setupStore>
     formation?: RpcFiFormationSnapshot
-    /**
-     * Whether this formation reached `formed` earlier in the session, which is
-     * what leaves the sticky high-water mark set while the live phase is
-     * something else.
-     */
-    hasFormedBefore?: boolean
     /**
      * What the app-wide monitor has already found.
      *
@@ -141,13 +134,6 @@ const renderScreen = ({
      */
     liquidity?: RpcFiLiquidityOperation | null | false
 } = {}) => {
-    if (hasFormedBefore)
-        store.dispatch(
-            setFiStatus({
-                type: 'formation',
-                formation: { ...formation, phase: 'formed' },
-            }),
-        )
     store.dispatch(setFiStatus({ type: 'formation', formation }))
     // `hasRead: false` is the state before the monitor's durable read answers,
     // and is deliberately NOT the same as "nothing attached"
@@ -456,13 +442,9 @@ describe('screens/WalletServiceSettings', () => {
 
     // #12005's gate reached the standalone fee screen but not this sheet, so
     // Save called an rpc the bridge rejects outright while reconciling
-    it('should disable the sheet Save and explain while the formation is reconciling', async () => {
+    it('should disable the sheet Save and explain while the formed service is being rechecked', async () => {
         renderScreen({
-            formation: makeFormation({
-                phase: 'publishingSeatBindings',
-                freshness: 'unsynced',
-            }),
-            hasFormedBefore: true,
+            formation: makeFormation({ freshness: 'unsynced' }),
         })
 
         await user.press(screen.getByTestId('settings-fee-row'))
