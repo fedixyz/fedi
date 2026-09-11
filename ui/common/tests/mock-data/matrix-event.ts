@@ -116,6 +116,18 @@ export const createMockNonPaymentEvent = (
     return makeEventWithOverrides<'m.text'>(MOCK_NON_PAYMENT_EVENT, overrides)
 }
 
+export const createMockUnableToDecryptEvent = (
+    overrides: MockOverride<'unableToDecrypt'> = {},
+) => {
+    return makeEventWithOverrides<'unableToDecrypt'>(
+        {
+            ...MOCK_EVENT,
+            content: { msgtype: 'unableToDecrypt' as const },
+        },
+        overrides,
+    )
+}
+
 export const createMockFederationInviteEvent = (
     overrides: MockOverride<'xyz.fedi.federationInvite'> = {},
 ) => {

@@ -623,7 +623,6 @@
             "private-group": "Private group",
             "private-group-notice": "This is a private group. You must request to join and wait for an admin to approve.",
             "public-group-notice": "This is a public group. Members and messages are publicly viewable.",
-            "recovering-messages": "Recovering messages - Open chat to view",
             "request-to-join": "Request to join",
             "request-to-join-group": "You must request to join this group",
             "request-to-join-pending": "Request pending",

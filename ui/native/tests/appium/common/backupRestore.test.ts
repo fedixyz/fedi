@@ -24,6 +24,9 @@ const IDENTITY_TIMEOUT = 120_000
 // wait up to this bound for the restored history to land.
 const ENCRYPTED_RECOVERY_TIMEOUT = 240_000
 
+const ENCRYPTED_PREVIEW_TIMEOUT = 60_000
+const ENCRYPTED_PREVIEW_COPY = 'This message is private'
+
 export class BackupRestore extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
     static produces = ['onboarded'] as const
@@ -179,6 +182,47 @@ export class BackupRestore extends AppiumTestBase {
         await this.clickElementByKey('HeaderCloseButton') // close the avatar/account overlay
         await this.clickElementByKey('ChatTabButton')
         await this.waitForElementDisplayed('SearchButton')
+
+        console.log(
+            'Verifying encrypted tiles never settle on the empty-room copy',
+        )
+
+        // Key download speed decides which copy lands, so asserting the
+        // private-message one alone would flake.
+        const stuckPreviews: string[] = []
+        for (const group of ALL_GROUPS) {
+            if (group.isPublic) continue
+            // Missing tiles are reported by the group checks below.
+            if (!(await this.scrollToText(group.name, 0, false))) continue
+
+            const deadline = Date.now() + ENCRYPTED_PREVIEW_TIMEOUT
+            let preview = ''
+            let acceptable = false
+            while (Date.now() < deadline) {
+                await this.scrollToText(group.name, 0, false)
+                preview = await this.getTextByKey(`ChatTile-${group.name}`)
+                if (
+                    preview.includes(ENCRYPTED_PREVIEW_COPY) ||
+                    preview.includes(group.message)
+                ) {
+                    acceptable = true
+                    break
+                }
+                await this.driver.pause(2_000)
+            }
+            if (acceptable) {
+                console.log(
+                    `[preview] "${group.name}" preview OK: "${preview}"`,
+                )
+            } else {
+                stuckPreviews.push(`"${group.name}" showed "${preview}"`)
+            }
+        }
+        if (stuckPreviews.length > 0) {
+            throw new Error(
+                `Encrypted tiles settled on the empty-room copy:\n  ${stuckPreviews.join('\n  ')}`,
+            )
+        }
 
         const missingGroups: string[] = []
         const missingMessages: string[] = []

@@ -1070,10 +1070,9 @@ export class AppiumTestBase {
         const text = await element.getText()
         if (text && text.length > 0) return text
 
-        // iOS fallbacks: try `value` then `label` directly. On Android these
-        // attributes don't exist on TextView so the calls return null and we
-        // fall through to the error.
-        for (const attr of ['value', 'label'] as const) {
+        // iOS exposes an accessibilityLabel through `value` or `label`,
+        // Android through `contentDescription`.
+        for (const attr of ['value', 'label', 'contentDescription'] as const) {
             try {
                 const fallback = await element.getAttribute(attr)
                 if (fallback && fallback.length > 0) return fallback

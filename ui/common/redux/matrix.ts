@@ -104,6 +104,7 @@ import {
     isMultispendFinancialEvent,
     prepareMentionsDataPayload,
     hasMentions,
+    isEncryptedEvent,
     isTextEvent,
     isPowerLevelGreaterOrEqual,
     isRpcMatrixEvent,
@@ -2714,6 +2715,14 @@ export const selectMatrixRoomEventsHaveLoaded = (
     s: CommonState,
     roomId: MatrixRoom['id'],
 ) => s.matrix.roomTimelines[roomId] !== undefined
+
+export const selectMatrixRoomHasUndecryptableEvents = (
+    s: CommonState,
+    roomId: MatrixRoom['id'],
+) =>
+    !!s.matrix.roomTimelines[roomId]?.some(
+        item => item !== null && isEncryptedEvent(item),
+    )
 
 // Conversation UI needs a settled joined-members snapshot, not just any
 // fetched member payload. During room creation the snapshot may still be

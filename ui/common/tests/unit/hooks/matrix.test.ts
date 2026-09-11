@@ -11,6 +11,7 @@ import {
 import {
     addMatrixRoomInfo,
     handleMatrixRoomListStreamUpdates,
+    handleMatrixRoomTimelineStreamUpdates,
     markMatrixRoomInviteSeen,
     selectToast,
     setChatDraft,
@@ -33,6 +34,7 @@ import {
     createMockNonPaymentEvent,
     createMockPaymentEvent,
     createMockFormEvent,
+    createMockUnableToDecryptEvent,
     mockRoomMembers,
 } from '../../mock-data/matrix-event'
 import { createMockTransaction } from '../../mock-data/transactions'
@@ -143,6 +145,80 @@ describe('useMatrixRoomPreview', () => {
             roomState: 'invited',
             preview: null,
         })
+
+        const { result } = renderHookWithState(
+            () => useMatrixRoomPreview({ roomId, t }),
+            store,
+        )
+
+        expect(result.current).toEqual({
+            text: 'feature.chat.no-messages',
+            isUnread: false,
+            isNotice: true,
+            isPublicBroadcast: null,
+        })
+    })
+
+    it('should show the private-message preview for a joined room whose timeline holds undecryptable events', () => {
+        const roomId = '!room:example.com'
+        const t = createMockT()
+
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            roomState: 'joined',
+            preview: null,
+        })
+        store.dispatch(
+            handleMatrixRoomTimelineStreamUpdates({
+                roomId,
+                updates: [
+                    {
+                        Append: {
+                            values: [
+                                createMockUnableToDecryptEvent({ roomId }),
+                            ],
+                        },
+                    },
+                ],
+            }),
+        )
+
+        const { result } = renderHookWithState(
+            () => useMatrixRoomPreview({ roomId, t }),
+            store,
+        )
+
+        expect(result.current).toEqual({
+            text: 'feature.chat.message-private',
+            isUnread: false,
+            isNotice: true,
+            isPublicBroadcast: null,
+        })
+    })
+
+    it('should keep the no-messages preview for a joined room whose timeline has only decrypted events', () => {
+        const roomId = '!room:example.com'
+        const t = createMockT()
+
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            roomState: 'joined',
+            preview: null,
+        })
+        store.dispatch(
+            handleMatrixRoomTimelineStreamUpdates({
+                roomId,
+                updates: [
+                    {
+                        Append: {
+                            values: [createMockNonPaymentEvent({ roomId })],
+                        },
+                    },
+                ],
+            }),
+        )
 
         const { result } = renderHookWithState(
             () => useMatrixRoomPreview({ roomId, t }),

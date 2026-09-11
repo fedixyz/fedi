@@ -58,6 +58,7 @@ import {
     selectMatrixRoomSelfPowerLevel,
     selectDefaultMatrixRoom,
     selectIsUnpreviewablePrivateGroup,
+    selectMatrixRoomHasUndecryptableEvents,
     selectFederationIds,
     selectFeatureFlag,
     selectMatrixRoomInviteIsSeen,
@@ -1982,6 +1983,9 @@ export function useMatrixRoomPreview({
     const isUnpreviewablePrivateGroup = useCommonSelector(s =>
         selectIsUnpreviewablePrivateGroup(s, roomId),
     )
+    const hasUndecryptableEvents = useCommonSelector(s =>
+        selectMatrixRoomHasUndecryptableEvents(s, roomId),
+    )
 
     const text = useMemo(() => {
         // For deriving the preview text, we prefer a `defaultRoom` (if any)
@@ -2013,6 +2017,9 @@ export function useMatrixRoomPreview({
             // none, so "no messages" would mislead. Show nothing instead. A
             // joined room's emptiness is real, so it keeps the message.
             if (defaultRoom && matrixRoom?.roomState !== 'joined') return ''
+            // Matrix never picks an encrypted event as a room preview, so a
+            // room with only undecrypted messages arrives here looking empty.
+            if (hasUndecryptableEvents) return t('feature.chat.message-private')
             return t('feature.chat.no-messages')
         }
 
@@ -2051,6 +2058,7 @@ export function useMatrixRoomPreview({
         myId,
         showInvitePreview,
         isUnpreviewablePrivateGroup,
+        hasUndecryptableEvents,
     ])
 
     return {

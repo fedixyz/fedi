@@ -317,6 +317,54 @@ describe('MatrixChatClient', () => {
             ).not.toHaveBeenCalled()
         })
 
+        it('should emit nothing on warm-up teardown so captured timeline items persist', async () => {
+            const handler = jest.fn()
+            client.on('roomTimelineUpdate', handler)
+
+            await (
+                client as unknown as {
+                    observeRoomInfo: (roomId: string) => void
+                }
+            ).observeRoomInfo(ROOM_ID)
+
+            roomInfoCallback?.(makeRoomInfo())
+            await flushPromises()
+
+            const { callback } = (
+                mockFedimint.matrixSubscribeRoomTimelineItems as jest.Mock
+            ).mock.calls[0][0]
+            callback([
+                {
+                    Append: {
+                        values: [
+                            {
+                                kind: 'event',
+                                value: {
+                                    ...makePreviewEvent(),
+                                    content: { msgtype: 'unableToDecrypt' },
+                                },
+                            },
+                        ],
+                    },
+                },
+            ])
+
+            expect(handler).toHaveBeenCalledTimes(1)
+            expect(
+                handler.mock.calls[0][0].updates[0].Append.values[0],
+            ).toMatchObject({
+                roomId: ROOM_ID,
+                content: { msgtype: 'unableToDecrypt' },
+            })
+
+            handler.mockClear()
+            jest.advanceTimersByTime(12_000)
+            await flushPromises()
+
+            expect(timelineUnsubscribe).toHaveBeenCalledTimes(1)
+            expect(handler).not.toHaveBeenCalled()
+        })
+
         it('should keep an explicitly observed room timeline attached after warm-up ends', async () => {
             await (
                 client as unknown as {
