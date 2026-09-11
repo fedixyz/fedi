@@ -1,15 +1,18 @@
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
-import { DevSettings, Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import {
     DEFAULT_FI_SCENARIO,
     FI_SCENARIO_GROUPS,
     FI_SCENARIO_STORYBOARD_FRAMES,
+    FI_SCREEN_GROUPS,
     FiDevSwitches,
     FiDevTools,
     FiPayerSource,
     FiScenarioName,
+    FiScreen,
+    FiScreenRoute,
     FiSimulatorSwitch,
     makeMockPayerFederation,
     MOCK_PAYER_FEDERATIONS,
@@ -74,7 +77,10 @@ function SegmentedRow<T extends string>({
     )
 }
 
-const WalletServiceDevTools: React.FC<{ tools: FiDevTools }> = ({ tools }) => {
+const WalletServiceDevTools: React.FC<{
+    tools: FiDevTools
+    navigation: { navigate: (route: FiScreenRoute) => void }
+}> = ({ tools, navigation }) => {
     const { theme } = useTheme()
     const style = styles(theme)
     const toast = useToast()
@@ -89,13 +95,16 @@ const WalletServiceDevTools: React.FC<{ tools: FiDevTools }> = ({ tools }) => {
     const [openFiGroup, setOpenFiGroup] = useState<string | null>(
         () => groupTitleFor(DEFAULT_FI_SCENARIO) ?? null,
     )
-    const [needsReload, setNeedsReload] = useState(false)
+    const [needsRelaunch, setNeedsRelaunch] = useState(false)
+    const [isScreenListOpen, setIsScreenListOpen] = useState(false)
+    const [openScreenGroup, setOpenScreenGroup] = useState<string | null>(null)
+    const isSimulatorOn = switches.simulator === 'on'
 
     const handleSimulatorChange = async (simulator: FiSimulatorSwitch) => {
         const next = { ...switches, simulator }
         setSwitchesState(next)
         await tools.setSwitches(next)
-        setNeedsReload(true)
+        setNeedsRelaunch(true)
     }
 
     const handlePayerSourceChange = async (payerSource: FiPayerSource) => {
@@ -109,7 +118,18 @@ const WalletServiceDevTools: React.FC<{ tools: FiDevTools }> = ({ tools }) => {
         const next = { ...switches, payerSource }
         setSwitchesState(next)
         await tools.setSwitches(next)
-        setNeedsReload(true)
+    }
+
+    const handleGoToScreen = async (screen: FiScreen) => {
+        dispatch(clearFiLiquidity())
+        dispatch(clearWalletServiceSelectionPreview())
+        try {
+            const target = await tools.jumpTo(screen.id)
+            setIsScreenListOpen(false)
+            navigation.navigate(target.route)
+        } catch (e) {
+            toast.show({ content: `Jump failed: ${e}`, status: 'error' })
+        }
     }
 
     // Everything the simulator ever put in front of the app: seeded payers,
@@ -118,6 +138,7 @@ const WalletServiceDevTools: React.FC<{ tools: FiDevTools }> = ({ tools }) => {
     // dropped here explicitly rather than waiting for the next wholesale
     // refresh to stop riding them along.
     const handleClearSimulatedState = () => {
+        tools.player.cancel()
         const seededIds = [
             ...tools.simulator.listMockFederations().map(f => f.id),
             ...MOCK_PAYER_FEDERATION_IDS,
@@ -155,17 +176,10 @@ const WalletServiceDevTools: React.FC<{ tools: FiDevTools }> = ({ tools }) => {
                 payment stays simulated. None reaches the no-payer gate, which
                 is where the join frames start.
             </Text>
-            {needsReload && (
-                <>
-                    <Button
-                        title="Reload to apply"
-                        containerStyle={style.buttonContainer}
-                        onPress={() => DevSettings.reload?.()}
-                    />
-                    <Text small style={style.switchLabel}>
-                        The status stream was opened against the old setting.
-                    </Text>
-                </>
+            {needsRelaunch && (
+                <Text caption style={style.switchLabel}>
+                    Quit and relaunch the app to apply the simulator switch.
+                </Text>
             )}
             <Text small style={style.switchLabel}>
                 The FI backend cannot complete a formation in dev, so the
@@ -174,6 +188,47 @@ const WalletServiceDevTools: React.FC<{ tools: FiDevTools }> = ({ tools }) => {
                 frames each scenario reaches are named in the toast, so screen
                 and storyboard can be matched without guessing.
             </Text>
+            <CollapsibleSection
+                testID="go-to-screen-section"
+                title="Go to screen"
+                count={FI_SCREEN_GROUPS.reduce(
+                    (n, group) => n + group.screens.length,
+                    0,
+                )}
+                isOpen={isScreenListOpen}
+                onToggle={() => setIsScreenListOpen(open => !open)}>
+                {!isSimulatorOn ? (
+                    <Text caption style={style.switchLabel}>
+                        Turn the simulator on to jump to a screen.
+                    </Text>
+                ) : (
+                    FI_SCREEN_GROUPS.map(group => (
+                        <CollapsibleSection
+                            key={group.title}
+                            title={group.title}
+                            count={group.screens.length}
+                            isOpen={openScreenGroup === group.title}
+                            nested
+                            onToggle={() =>
+                                setOpenScreenGroup(current =>
+                                    current === group.title
+                                        ? null
+                                        : group.title,
+                                )
+                            }>
+                            {group.screens.map(screen => (
+                                <Button
+                                    key={screen.id}
+                                    title={screen.label}
+                                    type="outline"
+                                    containerStyle={style.buttonContainer}
+                                    onPress={() => handleGoToScreen(screen)}
+                                />
+                            ))}
+                        </CollapsibleSection>
+                    ))
+                )}
+            </CollapsibleSection>
             {FI_SCENARIO_GROUPS.map(group => (
                 <CollapsibleSection
                     key={group.title}
@@ -194,6 +249,7 @@ const WalletServiceDevTools: React.FC<{ tools: FiDevTools }> = ({ tools }) => {
                             day={name !== fiScenario}
                             containerStyle={style.buttonContainer}
                             onPress={() => {
+                                tools.player.cancel()
                                 tools.simulator.setScenario(name)
                                 setFiScenario(name)
                                 toast.show({
@@ -269,12 +325,15 @@ const CollapsibleSection: React.FC<{
     isOpen: boolean
     onToggle: () => void
     children: React.ReactNode
-}> = ({ title, count, isOpen, onToggle, children }) => {
+    /** Drops the outer border for a section nested inside another one. */
+    nested?: boolean
+    testID?: string
+}> = ({ title, count, isOpen, onToggle, children, nested, testID }) => {
     const { theme } = useTheme()
     const style = styles(theme)
 
     return (
-        <View style={style.collapsible}>
+        <View testID={testID} style={nested ? undefined : style.collapsible}>
             <Pressable
                 onPress={onToggle}
                 style={style.collapsibleHeader}

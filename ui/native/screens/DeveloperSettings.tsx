@@ -773,7 +773,10 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 </View>
             </SettingsSection>
             {WalletServiceDevTools && fiDevTools && (
-                <WalletServiceDevTools tools={fiDevTools} />
+                <WalletServiceDevTools
+                    tools={fiDevTools}
+                    navigation={navigation}
+                />
             )}
             <SettingsSection title="Log spike simulator">
                 <Text small style={style.switchLabel}>

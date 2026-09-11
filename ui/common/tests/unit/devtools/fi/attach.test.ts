@@ -45,4 +45,37 @@ describe('attachFiDevTools', () => {
             JSON.stringify({ simulator: 'on', payerSource: 'mock' }),
         )
     })
+
+    it('should jump to a screen through the player and return the screen', async () => {
+        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        await tools.ready
+
+        const screen = await tools.jumpTo('formation.dkgUnderway')
+
+        expect(screen.route).toBe('WalletServiceProgress')
+        expect(tools.player.current).toEqual({
+            script: screen.script.name,
+            checkpoint: 'dkgUnderway',
+        })
+    })
+
+    it('should resolve the jump even when the script later fails', async () => {
+        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        await tools.ready
+        jest.spyOn(tools.player, 'run').mockRejectedValue(new Error('boom'))
+
+        await expect(
+            tools.jumpTo('formation.dkgUnderway'),
+        ).resolves.toMatchObject({
+            id: 'formation.dkgUnderway',
+        })
+    })
+
+    it('should reject an unknown screen id', async () => {
+        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+
+        await expect(tools.jumpTo('nope')).rejects.toThrow(
+            'unknown screen "nope"',
+        )
+    })
 })

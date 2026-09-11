@@ -8,6 +8,7 @@ import {
     fiScenarios,
 } from '../../../../devtools/fi/scenarios'
 import { FiSimulator } from '../../../../devtools/fi/simulator'
+import { formationAt } from '../../../../devtools/fi/status'
 import { MSats } from '../../../../types'
 import {
     FiFederationJoinEvent,
@@ -1510,6 +1511,184 @@ describe('FiSimulator', () => {
 
             expect(joinStates).toEqual([{ type: 'ready' }])
             expect(walletServiceListing(simulator)).toBeDefined()
+        })
+    })
+
+    describe('scripting host', () => {
+        it('should publish a set status on the open stream with the next sequence', async () => {
+            const simulator = new FiSimulator()
+            const updates: Array<{
+                stream_id: number
+                sequence: number
+                data: RpcFiClientStatus
+            }> = []
+            simulator.attach(update => updates.push(update))
+            await simulator.handle('fiClientSubscribe', { streamId: 3 })
+            await jest.advanceTimersByTimeAsync(0)
+            const before = updates.length
+
+            simulator.setStatus({ type: 'idle' })
+
+            expect(updates).toHaveLength(before + 1)
+            expect(updates.at(-1)?.sequence).toBe(before)
+            expect(updates.at(-1)?.data).toEqual({
+                type: 'ready',
+                status: { type: 'idle' },
+            })
+        })
+
+        it('should stop the knob timeline when a status is set by script', async () => {
+            const simulator = new FiSimulator('formationInProgress')
+            simulator.attach(() => {})
+            expect(jest.getTimerCount()).toBeGreaterThan(0)
+
+            simulator.setStatus({ type: 'idle' })
+
+            expect(jest.getTimerCount()).toBe(0)
+            expect(await status(simulator)).toEqual({
+                type: 'ready',
+                status: { type: 'idle' },
+            })
+        })
+
+        it('should answer the next call of a method with the one-shot reply, then fall back', async () => {
+            const simulator = new FiSimulator()
+            simulator.setReply('fiClientEligiblePayers', {
+                type: 'payers',
+                payers: [],
+            })
+
+            const first = await simulator.handle('fiClientEligiblePayers', {})
+            const second = (await simulator.handle(
+                'fiClientEligiblePayers',
+                {},
+            )) as RpcFiEligiblePayersResult
+
+            expect(first).toEqual({ type: 'payers', payers: [] })
+            expect(second.type).toBe('payers')
+            expect(second).not.toEqual({ type: 'payers', payers: [] })
+        })
+
+        it('should resolve onRpc with the payload of the next call before handling it', async () => {
+            const simulator = new FiSimulator()
+            const seen = simulator.onRpc('fiClientPayAndCreate')
+            simulator.setReply('fiClientPayAndCreate', { type: 'success' })
+
+            const result = await simulator.handle('fiClientPayAndCreate', {
+                previewId: 'p1',
+            })
+
+            await expect(seen).resolves.toEqual({ previewId: 'p1' })
+            expect(result).toEqual({ type: 'success' })
+        })
+
+        it('should form the wallet service so the app can list and parse it', async () => {
+            const simulator = new FiSimulator()
+            const events: Array<[string, unknown]> = []
+            simulator.attach(
+                () => {},
+                (event, payload) => events.push([event, payload]),
+            )
+            simulator.setStatus({
+                type: 'formation',
+                formation: formationAt(
+                    { formationId: 'formation_x' },
+                    'formed',
+                ),
+            })
+
+            simulator.formWalletService('ready')
+
+            const listed = simulator.listMockFederations()
+            expect(listed.map(f => f.id)).toContain(
+                'mock-wallet-service-formation_x',
+            )
+            expect(events.map(([e]) => e)).toEqual([
+                'federation',
+                'fiFederationJoin',
+            ])
+            expect(events[1][1]).toEqual({
+                federationId: 'mock-wallet-service-formation_x',
+                state: { type: 'ready' },
+            })
+            expect(
+                simulator.handles('parseInviteCode', {
+                    inviteCode: `fed1${'sim'.padEnd(40, '0')}formation_x`,
+                }),
+            ).toBe(true)
+        })
+
+        it('should report a failed join without scheduling anything', () => {
+            const simulator = new FiSimulator()
+            const events: Array<[string, unknown]> = []
+            simulator.attach(
+                () => {},
+                (event, payload) => events.push([event, payload]),
+            )
+            simulator.setStatus({
+                type: 'formation',
+                formation: formationAt(
+                    { formationId: 'formation_y' },
+                    'formed',
+                ),
+            })
+
+            simulator.formWalletService('failed')
+
+            expect(events.map(([e]) => e)).toEqual([
+                'fiFederationJoin',
+                'fiFederationJoin',
+            ])
+            expect(
+                (events[1][1] as { state: { type: string } }).state.type,
+            ).toBe('failed')
+            // the default payer source seeds its own mock wallets, so a failed
+            // join is proven by the wallet service's absence, not an empty list
+            expect(
+                simulator.listMockFederations().map(f => f.id),
+            ).not.toContain('mock-wallet-service-formation_y')
+            expect(jest.getTimerCount()).toBe(0)
+        })
+
+        it('should clear one-shot replies and waiters on reset', async () => {
+            const simulator = new FiSimulator()
+            simulator.setReply('fiClientEligiblePayers', {
+                type: 'payers',
+                payers: [],
+            })
+            const waiter = simulator.onRpc('fiClientStatus')
+
+            simulator.reset()
+            await simulator.handle('fiClientStatus', {})
+            const result = (await simulator.handle(
+                'fiClientEligiblePayers',
+                {},
+            )) as RpcFiEligiblePayersResult
+
+            expect(result).not.toEqual({ type: 'payers', payers: [] })
+            await expect(
+                Promise.race([waiter, Promise.resolve('unresolved')]),
+            ).resolves.toBe('unresolved')
+        })
+
+        it('should hand out formation ids from the same counter as the knob timeline', () => {
+            const simulator = new FiSimulator()
+
+            expect(simulator.nextFormationId()).toBe('formation_1')
+            expect(simulator.nextFormationId()).toBe('formation_2')
+        })
+
+        it('should forward emitEvent to the attached emitter', () => {
+            const simulator = new FiSimulator()
+            const events: Array<[string, unknown]> = []
+            simulator.attach(
+                () => {},
+                (event, payload) => events.push([event, payload]),
+            )
+
+            simulator.emitEvent('balance', { federationId: 'f' })
+
+            expect(events).toEqual([['balance', { federationId: 'f' }]])
         })
     })
 })

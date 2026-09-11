@@ -155,7 +155,7 @@ export class FiSimulator {
     private streamIds = new Set<number>()
     private sequences = new Map<number, number>()
     private emitStream: StreamEmitter | null = null
-    private emitEvent: EventEmitter | null = null
+    private eventEmitter: EventEmitter | null = null
     private pendingDeposits = new Map<string, PendingDeposit>()
     private phaseTimer: ReturnType<typeof setTimeout> | null = null
     private phaseIndex = 0
@@ -220,6 +220,11 @@ export class FiSimulator {
      * timers the created path arms for its own auto-join.
      */
     private joinTimers: Array<ReturnType<typeof setTimeout>> = []
+    private replies = new Map<string, unknown>()
+    private rpcWaiters = new Map<
+        string,
+        Array<(payload: Record<string, unknown>) => void>
+    >()
 
     constructor(scenarioName: FiScenarioName = DEFAULT_FI_SCENARIO) {
         this.scenario = fiScenarios[scenarioName]
@@ -236,7 +241,7 @@ export class FiSimulator {
      */
     attach(emitStream: StreamEmitter, emitEvent?: EventEmitter) {
         this.emitStream = emitStream
-        this.emitEvent = emitEvent ?? null
+        this.eventEmitter = emitEvent ?? null
     }
 
     /** Swap the environment mid-session, for the dev scenario picker. */
@@ -278,6 +283,53 @@ export class FiSimulator {
     clearSimulatedState() {
         this.mockPayers = []
         this.reset()
+    }
+
+    /*** Scripting host ***/
+
+    /** A script owns the timeline from here: no knob timer may fire again. */
+    setStatus(status: RpcFiStatus) {
+        this.clearTimers()
+        this.status = status
+        this.publish()
+    }
+
+    setReply(method: string, value: unknown) {
+        this.replies.set(method, value)
+    }
+
+    onRpc(method: string): Promise<Record<string, unknown>> {
+        return new Promise(resolve => {
+            const waiters = this.rpcWaiters.get(method) ?? []
+            waiters.push(resolve)
+            this.rpcWaiters.set(method, waiters)
+        })
+    }
+
+    formWalletService(join: 'ready' | 'joining' | 'failed') {
+        const formation = this.currentFormation()
+        if (!formation)
+            throw new Error('formWalletService needs a formation status')
+        this.createWalletServiceFederation(formation)
+        if (join === 'ready') {
+            this.completeWalletServiceJoin()
+            return
+        }
+        this.emitFederationJoin({ type: 'joining' })
+        if (join === 'failed') {
+            this.emitFederationJoin({
+                type: 'failed',
+                message: 'simulated: federation join failed',
+            })
+        }
+    }
+
+    nextFormationId(): string {
+        return `formation_${this.nextId++}`
+    }
+
+    emitEvent(event: string, payload: unknown) {
+        this.eventEmitter?.(event, payload)
     }
 
     /**
@@ -523,15 +575,20 @@ export class FiSimulator {
             state,
         }
         this.lastJoinEvent = event
-        this.emitEvent?.('fiFederationJoin', event)
+        this.eventEmitter?.('fiFederationJoin', event)
     }
 
-    /** Return to a pristine `idle` client. */
-    reset() {
+    /** Clear the knob timeline's timers, without touching anything else. */
+    private clearTimers() {
         if (this.phaseTimer) clearTimeout(this.phaseTimer)
         this.joinTimers.forEach(clearTimeout)
         this.joinTimers = []
         this.phaseTimer = null
+    }
+
+    /** Return to a pristine `idle` client. */
+    reset() {
+        this.clearTimers()
         this.phaseIndex = 0
         this.hasPreviewedOnce = false
         this.previewCount = 0
@@ -544,6 +601,8 @@ export class FiSimulator {
         this.isWalletServiceRecovering = false
         this.lastJoinEvent = null
         this.suppressedAutoJoinFederationId = null
+        this.replies.clear()
+        this.rpcWaiters.clear()
         this.simulatorJoinedIds.clear()
         this.status = { type: 'idle' }
         this.publish()
@@ -609,6 +668,16 @@ export class FiSimulator {
 
     async handle(method: string, payload: Record<string, unknown>) {
         log.debug('simulated fi rpc', method)
+        const waiters = this.rpcWaiters.get(method)
+        if (waiters?.length) {
+            this.rpcWaiters.delete(method)
+            waiters.forEach(resolve => resolve(payload))
+        }
+        if (this.replies.has(method)) {
+            const value = this.replies.get(method)
+            this.replies.delete(method)
+            return value
+        }
         switch (method) {
             case 'generateInvoice':
                 return this.generateInvoice(payload)
@@ -681,7 +750,7 @@ export class FiSimulator {
         // along with it. A formed wallet service seeded before the bridge was
         // attached has no other way to report its join at all.
         if (this.lastJoinEvent)
-            this.emitEvent?.('fiFederationJoin', this.lastJoinEvent)
+            this.eventEmitter?.('fiFederationJoin', this.lastJoinEvent)
         return { type: 'ready', status: this.status }
     }
 
@@ -766,7 +835,7 @@ export class FiSimulator {
         this.mockPayers.push({ federationId, balanceSats, name })
         // announce it the way the bridge announces a join, so redux holds the
         // wallet before the next `listFederations` refresh rides it along
-        this.emitEvent?.(
+        this.eventEmitter?.(
             'federation',
             makeMockPayerFederation({
                 id: federationId,
@@ -858,7 +927,7 @@ export class FiSimulator {
         // redux listener is what puts the wallet into the store — the join
         // thunk then reads it back from there, so without this the join
         // "fails" after succeeding
-        this.emitEvent?.('federation', federation)
+        this.eventEmitter?.('federation', federation)
         // Federation is the ready arm of RpcFederationMaybeLoading, which is
         // what the join rpc's consumers actually read
         return federation as unknown as RpcFederation
@@ -921,10 +990,7 @@ export class FiSimulator {
      * Lightning step filters providers against the federation's own network,
      * and a federation the app cannot see has no network at all.
      */
-    private markFormed(
-        formation: RpcFiFormationSnapshot,
-        { alreadyJoined = false }: { alreadyJoined?: boolean } = {},
-    ) {
+    private createWalletServiceFederation(formation: RpcFiFormationSnapshot) {
         formation.milestones.walletServiceCreated = true
         formation.inviteCode = `fed1${'sim'.padEnd(40, '0')}${formation.formationId}`
         this.walletServiceFederation = {
@@ -937,6 +1003,13 @@ export class FiSimulator {
             inviteCode: formation.inviteCode,
         }
         this.isWalletServiceJoined = false
+    }
+
+    private markFormed(
+        formation: RpcFiFormationSnapshot,
+        { alreadyJoined = false }: { alreadyJoined?: boolean } = {},
+    ) {
+        this.createWalletServiceFederation(formation)
         if (alreadyJoined) {
             this.completeWalletServiceJoin()
             return
@@ -981,7 +1054,7 @@ export class FiSimulator {
             return
         this.isWalletServiceJoined = true
         this.isWalletServiceRecovering = true
-        this.emitEvent?.('federation', this.walletServiceListing())
+        this.eventEmitter?.('federation', this.walletServiceListing())
         this.emitFederationJoin({ type: 'recovering' })
     }
 
@@ -1001,7 +1074,7 @@ export class FiSimulator {
             return
         this.isWalletServiceJoined = true
         this.isWalletServiceRecovering = false
-        this.emitEvent?.('federation', this.walletServiceListing())
+        this.eventEmitter?.('federation', this.walletServiceListing())
         this.emitFederationJoin({ type: 'ready' })
     }
 
@@ -1121,7 +1194,7 @@ export class FiSimulator {
         if (payer)
             payer.balanceSats += Math.round(deposit.amountMsats / SATS_TO_MSATS)
         this.emitBalance(deposit.federationId)
-        this.emitEvent?.('transaction', {
+        this.eventEmitter?.('transaction', {
             federationId: deposit.federationId,
             transaction: {
                 id: `txn_sim_${this.nextId++}`,
@@ -1147,7 +1220,7 @@ export class FiSimulator {
     private emitBalance(federationId: string) {
         const payer = this.mockPayers.find(p => p.federationId === federationId)
         if (!payer) return
-        this.emitEvent?.('balance', {
+        this.eventEmitter?.('balance', {
             federationId,
             balance: payer.balanceSats * SATS_TO_MSATS,
         })
