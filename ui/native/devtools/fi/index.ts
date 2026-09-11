@@ -1,6 +1,7 @@
-import type { StorageApi } from '../../types'
-import type { FedimintBridge } from '../../utils/fedimint'
-import { makeLog } from '../../utils/log'
+import type { StorageApi } from '@fedi/common/types'
+import type { FedimintBridge } from '@fedi/common/utils/fedimint'
+import { makeLog } from '@fedi/common/utils/log'
+
 import { FiPlayer } from './player'
 import { findFiScreen, type FiScreen } from './screens'
 import { findFiScript } from './scripts'
@@ -14,7 +15,7 @@ import {
 } from './switches'
 import { withFiSimulator } from './transport'
 
-const log = makeLog('common/devtools/fi')
+const log = makeLog('native/devtools/fi')
 
 export { FiSimulator } from './simulator'
 export { withFiSimulator } from './transport'

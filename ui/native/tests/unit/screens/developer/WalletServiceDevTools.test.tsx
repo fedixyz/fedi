@@ -6,9 +6,9 @@ import {
 } from '@testing-library/react-native'
 import React from 'react'
 
-import { attachFiDevTools, FI_DEV_SWITCHES_KEY } from '@fedi/common/devtools/fi'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 
+import { attachFiDevTools, FI_DEV_SWITCHES_KEY } from '../../../../devtools/fi'
 import WalletServiceDevTools from '../../../../screens/developer/WalletServiceDevTools'
 import { mockNavigation } from '../../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../../utils/render'

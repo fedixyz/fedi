@@ -1,3 +1,5 @@
+import type { RpcFiStatus } from '@fedi/common/types/bindings'
+
 import { FiPlayer, PlayerHost } from '../../../../devtools/fi/player'
 import { IDLE_STATUS } from '../../../../devtools/fi/status'
 import {
@@ -14,7 +16,6 @@ import {
     wait,
 } from '../../../../devtools/fi/steps'
 import type { FiWorld } from '../../../../devtools/fi/world'
-import type { RpcFiStatus } from '../../../../types/bindings'
 
 const formation = (
     formationId: string,

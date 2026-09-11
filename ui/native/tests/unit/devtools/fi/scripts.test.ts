@@ -1,3 +1,11 @@
+import type {
+    FiFederationJoinEvent,
+    RpcFiClientStatus,
+    RpcFiFormationSnapshot,
+    RpcFiSelectionPreviewResult,
+    RpcFiSetupPaymentFederationsResult,
+} from '@fedi/common/types/bindings'
+
 import { FiPlayer } from '../../../../devtools/fi/player'
 import { FI_SCREEN_GROUPS, findFiScreen } from '../../../../devtools/fi/screens'
 import { FI_SCRIPT_GROUPS, findFiScript } from '../../../../devtools/fi/scripts'
@@ -12,13 +20,6 @@ import {
 import { setupHappyPath } from '../../../../devtools/fi/scripts/setup'
 import { FiSimulator } from '../../../../devtools/fi/simulator'
 import { checkpointsOf } from '../../../../devtools/fi/steps'
-import type {
-    FiFederationJoinEvent,
-    RpcFiClientStatus,
-    RpcFiFormationSnapshot,
-    RpcFiSelectionPreviewResult,
-    RpcFiSetupPaymentFederationsResult,
-} from '../../../../types/bindings'
 
 const formationOf = (status: RpcFiClientStatus): RpcFiFormationSnapshot => {
     if (status.type !== 'ready' || status.status.type !== 'formation')

@@ -1,4 +1,5 @@
-import type { RpcFiStatus } from '../../types/bindings'
+import type { RpcFiStatus } from '@fedi/common/types/bindings'
+
 import { IDLE_STATUS } from './status'
 import {
     FiScript,

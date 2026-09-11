@@ -1,4 +1,4 @@
-import type { StorageApi } from '../../types'
+import type { StorageApi } from '@fedi/common/types'
 
 export type FiSimulatorSwitch = 'on' | 'off'
 export type FiPayerSource = 'real' | 'mock' | 'none'

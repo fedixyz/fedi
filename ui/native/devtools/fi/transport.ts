@@ -1,4 +1,5 @@
-import type { MSats } from '../../types'
+import type { MSats } from '@fedi/common/types'
+
 import { FiSimulator } from './simulator'
 
 type BridgeRpc = <T = void>(method: string, payload: object) => Promise<T>

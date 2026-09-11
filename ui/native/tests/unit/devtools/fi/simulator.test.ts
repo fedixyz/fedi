@@ -1,17 +1,4 @@
-import {
-    MOCK_PAYER_FEDERATION_IDS,
-    MOCK_PAYER_FEDERATIONS,
-} from '../../../../devtools/fi/mockPayerFederation'
-import { FiSimulator } from '../../../../devtools/fi/simulator'
-import {
-    formationAt,
-    formationStatus,
-    withAuthorization,
-    withError,
-    withUnsynced,
-} from '../../../../devtools/fi/status'
-import type { FiWalletServiceJoin } from '../../../../devtools/fi/steps'
-import { MSats } from '../../../../types'
+import { MSats } from '@fedi/common/types'
 import {
     FiFederationJoinEvent,
     GuardianStatus,
@@ -27,7 +14,21 @@ import {
     RpcFiSetupPaymentFederationsResult,
     RpcFiStatus,
     RpcParseInviteCodeResult,
-} from '../../../../types/bindings'
+} from '@fedi/common/types/bindings'
+
+import {
+    MOCK_PAYER_FEDERATION_IDS,
+    MOCK_PAYER_FEDERATIONS,
+} from '../../../../devtools/fi/mockPayerFederation'
+import { FiSimulator } from '../../../../devtools/fi/simulator'
+import {
+    formationAt,
+    formationStatus,
+    withAuthorization,
+    withError,
+    withUnsynced,
+} from '../../../../devtools/fi/status'
+import type { FiWalletServiceJoin } from '../../../../devtools/fi/steps'
 
 const PREVIEW_REQUEST = {
     federationSize: 10,

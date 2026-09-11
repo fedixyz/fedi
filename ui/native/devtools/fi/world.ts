@@ -1,7 +1,8 @@
 import type {
     RpcFiLiquidityNetwork,
     RpcFiLiquidityOperation,
-} from '../../types/bindings'
+} from '@fedi/common/types/bindings'
+
 import type { MockJoinableWalletService } from './mockPayerFederation'
 
 /**

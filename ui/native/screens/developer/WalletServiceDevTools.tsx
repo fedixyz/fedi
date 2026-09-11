@@ -3,18 +3,6 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
-import {
-    FI_SCREEN_GROUPS,
-    FI_SCRIPT_GROUPS,
-    FiDevSwitches,
-    FiDevTools,
-    FiPayerSource,
-    FiScreen,
-    FiSimulatorSwitch,
-    makeMockPayerFederation,
-    MOCK_PAYER_FEDERATIONS,
-    MOCK_PAYER_FEDERATION_IDS,
-} from '@fedi/common/devtools/fi'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -27,6 +15,18 @@ import {
 } from '@fedi/common/redux'
 
 import SvgImage from '../../components/ui/SvgImage'
+import {
+    FI_SCREEN_GROUPS,
+    FI_SCRIPT_GROUPS,
+    FiDevSwitches,
+    FiDevTools,
+    FiPayerSource,
+    FiScreen,
+    FiSimulatorSwitch,
+    makeMockPayerFederation,
+    MOCK_PAYER_FEDERATIONS,
+    MOCK_PAYER_FEDERATION_IDS,
+} from '../../devtools/fi'
 import { useAppDispatch } from '../../state/hooks'
 import { RootStackParamList } from '../../types/navigation'
 

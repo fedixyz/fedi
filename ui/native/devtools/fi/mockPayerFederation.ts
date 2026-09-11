@@ -1,4 +1,4 @@
-import type { LoadedFederation, MSats } from '../../types'
+import type { LoadedFederation, MSats } from '@fedi/common/types'
 
 const SATS_TO_MSATS = 1000
 

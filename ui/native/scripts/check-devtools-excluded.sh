@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fails if anything under common/devtools reaches a release bundle.
+# Fails if anything under native/devtools reaches a release bundle.
 # The dev bundle is checked too, so a broken grep cannot pass by accident.
 set -euo pipefail
 cd "$(dirname "$0")/.."

@@ -1,4 +1,4 @@
-import type { LoadedFederation, MSats } from '../../types'
+import type { LoadedFederation, MSats } from '@fedi/common/types'
 import {
     FiFederationJoinEvent,
     GuardianStatus,
@@ -24,8 +24,9 @@ import {
     RpcFiSetupPaymentFederationsResult,
     RpcFiStatus,
     RpcParseInviteCodeResult,
-} from '../../types/bindings'
-import { makeLog } from '../../utils/log'
+} from '@fedi/common/types/bindings'
+import { makeLog } from '@fedi/common/utils/log'
+
 import {
     MOCK_JOINABLE_WALLET_SERVICES,
     MOCK_PAYER_FEDERATIONS,
@@ -37,7 +38,7 @@ import type { FiWalletServiceJoin } from './steps'
 import { FiPayerSource } from './switches'
 import type { FiWorld } from './world'
 
-const log = makeLog('common/devtools/fi/simulator')
+const log = makeLog('native/devtools/fi/simulator')
 
 /** Ceiling enforced by `guardian_fee_from_rpc` in the Rust bridge. */
 const MAX_GUARDIAN_FEE_PPM = 210_000

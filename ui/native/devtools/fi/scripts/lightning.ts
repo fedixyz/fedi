@@ -1,4 +1,5 @@
-import type { RpcFiErrorCode } from '../../../types/bindings'
+import type { RpcFiErrorCode } from '@fedi/common/types/bindings'
+
 import { formationAt, formationStatus } from '../status'
 import {
     FiScript,

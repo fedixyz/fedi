@@ -1,4 +1,5 @@
-import type { RpcFiStatus } from '../../types/bindings'
+import type { RpcFiStatus } from '@fedi/common/types/bindings'
+
 import type { FiWorld } from './world'
 
 export type FiScriptContext = {

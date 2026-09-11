@@ -1,10 +1,11 @@
+import type { StorageApi } from '@fedi/common/types'
+
 import {
     DEFAULT_FI_DEV_SWITCHES,
     FI_DEV_SWITCHES_KEY,
     loadFiDevSwitches,
     saveFiDevSwitches,
 } from '../../../../devtools/fi/switches'
-import type { StorageApi } from '../../../../types'
 
 const memoryStorage = (initial: Record<string, string> = {}): StorageApi => {
     const items = { ...initial }

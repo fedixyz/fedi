@@ -4,7 +4,7 @@ import type {
     RpcFiFormationSnapshot,
     RpcFiSeatPhase,
     RpcFiStatus,
-} from '../../types/bindings'
+} from '@fedi/common/types/bindings'
 
 export type FormationPhaseName = RpcFiFormationPhase
 
