@@ -11,6 +11,7 @@ import {
     joinFederation as joinFederationAction,
     selectLastUsedFederation,
     selectMatrixAuth,
+    selectMatrixStatus,
     createMatrixRoom,
     joinMatrixRoom,
     selectMatrixRoom,
@@ -55,14 +56,18 @@ export class IntegrationTestBuilder {
 
         await act(async () => {
             await bridge.fedimint.completeOnboardingNewSeed()
-            await store.dispatch(refreshOnboardingStatus(bridge.fedimint))
+            await store
+                .dispatch(refreshOnboardingStatus(bridge.fedimint))
+                .unwrap()
         })
 
         await this.waitFor(() => {
             const state = store.getState()
             expect(selectOnboardingCompleted(state)).toBe(true)
-            const matrixAuth = selectMatrixAuth(state)
-            expect(matrixAuth?.userId).toBeTruthy()
+            expect({
+                matrixStatus: selectMatrixStatus(state),
+                matrixUserId: selectMatrixAuth(state)?.userId,
+            }).toMatchObject({ matrixUserId: expect.any(String) })
         })
 
         return this
