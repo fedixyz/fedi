@@ -182,9 +182,7 @@ describe('/components/Chat/ChatConfirmJoinPublicRoom', () => {
         await waitFor(() => {
             expect(mockKnockGroup).toHaveBeenCalledWith(TEST_ROOM_ID)
         })
-        expect(
-            screen.getByText(i18n.t('feature.chat.request-to-join-pending')),
-        ).toBeInTheDocument()
+        await screen.findByText(i18n.t('feature.chat.request-to-join-pending'))
     })
 
     it('should not navigate when an old room preview request fails after cleanup', async () => {
