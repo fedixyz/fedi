@@ -411,83 +411,96 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         }
     }
 
-    // The wipe deletes the formation record this reads, so it has to run first.
-    const handleDecommissionSeats = () => {
+    const decommissionSeats = async (): Promise<{
+        problem: string | null
+        summary: string
+    }> => {
+        try {
+            const result = await fedimint.fiClientDecommission()
+            if (result.type === 'error') {
+                // no formation was ever recorded, so no seat is left running
+                if (result.error.code === 'noActiveFormation')
+                    return { problem: null, summary: 'No seats to end.' }
+                return {
+                    problem: result.error.message,
+                    summary: result.error.message,
+                }
+            }
+            const summary = `Decommissioned ${result.decommissioned.length} seats, ${result.alreadyDecommissioned.length} were already ended.`
+            if (result.refused.length > 0) {
+                log.error(
+                    'wallet-service seats refused decommissioning',
+                    result.refused,
+                )
+                return {
+                    problem: `Seats ${result.refused
+                        .map(seat => seat.index)
+                        .join(
+                            ', ',
+                        )} refused. Their operators must decommission by hand.`,
+                    summary,
+                }
+            }
+            return { problem: null, summary }
+        } catch (error) {
+            log.error('fiClientDecommission failed', error)
+            const problem = `Decommission failed: ${error}`
+            return { problem, summary: problem }
+        }
+    }
+
+    const scheduleFiReset = async () => {
+        try {
+            const result = await fedimint.fiClientScheduleReset()
+            if (result.type === 'error') {
+                throw new Error(result.error.message)
+            }
+            toast.show({
+                content: 'Wallet-service reset scheduled. Restart the app now.',
+                status: 'success',
+            })
+        } catch (error) {
+            log.error('fiClientScheduleReset failed', error)
+            toast.show({ content: `Reset failed: ${error}`, status: 'error' })
+        }
+    }
+
+    const endSeatsThenReset = async () => {
+        // the wipe deletes the record the decommission reads
+        const { problem } = await decommissionSeats()
+        if (!problem) {
+            await scheduleFiReset()
+            return
+        }
         Alert.alert(
-            'Decommission every wallet-service seat?',
-            'This asks every Fleet Manager hosting a seat to shut that guardian down permanently. Nothing is refunded and it cannot be undone. Do this before wiping the test state, because the wipe deletes the record this needs.',
+            'Some seats are still running',
+            `${problem}\n\nWiping now leaves them running with no way for the app to reach them.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Decommission',
+                    text: 'Wipe anyway',
                     style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            const result = await fedimint.fiClientDecommission()
-                            if (result.type === 'error') {
-                                throw new Error(result.error.message)
-                            }
-                            if (result.refused.length > 0) {
-                                log.error(
-                                    'wallet-service seats refused decommissioning',
-                                    result.refused,
-                                )
-                                toast.show({
-                                    content: `Seats ${result.refused
-                                        .map(seat => seat.index)
-                                        .join(
-                                            ', ',
-                                        )} refused. Their operators must decommission by hand.`,
-                                    status: 'error',
-                                })
-                                return
-                            }
-                            toast.show({
-                                content: `Decommissioned ${result.decommissioned.length} seats, ${result.alreadyDecommissioned.length} were already ended.`,
-                                status: 'success',
-                            })
-                        } catch (error) {
-                            log.error('fiClientDecommission failed', error)
-                            toast.show({
-                                content: `Decommission failed: ${error}`,
-                                status: 'error',
-                            })
-                        }
-                    },
+                    onPress: scheduleFiReset,
                 },
             ],
         )
     }
 
-    const handleScheduleFiReset = () => {
+    const handleResetFi = () => {
         Alert.alert(
-            'Wipe all wallet-service test state?',
-            'Restart immediately after scheduling. Any later wallet-service activity will also be erased. Remote work may continue, and funds reserved by an unfinished formation may remain unavailable. Use only with disposable test wallets.',
+            'Reset the wallet service?',
+            'Both choices erase this app\u2019s wallet-service state on the next launch, and you should restart immediately. Ending the seats also shuts every hosted guardian down permanently, which destroys the federation for anyone else using it. Nothing is refunded and it cannot be undone. Keep the seats when you are only clearing this app, or when its state is too broken to reach them.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Schedule wipe',
+                    text: 'Wipe this app only',
                     style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            const result =
-                                await fedimint.fiClientScheduleReset()
-                            if (result.type === 'error') {
-                                throw new Error(result.error.message)
-                            }
-                            toast.show({
-                                content:
-                                    'Wallet-service reset scheduled. Restart the app now.',
-                                status: 'success',
-                            })
-                        } catch (error) {
-                            log.error('fiClientScheduleReset failed', error)
-                            toast.show({
-                                content: `Reset failed: ${error}`,
-                                status: 'error',
-                            })
-                        }
-                    },
+                    onPress: scheduleFiReset,
+                },
+                {
+                    text: 'End seats and wipe',
+                    style: 'destructive',
+                    onPress: endSeatsThenReset,
                 },
             ],
         )
@@ -718,16 +731,9 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 />
                 {canResetFi && (
                     <Button
-                        title="Decommission all wallet-service seats"
+                        title="Reset wallet service"
                         containerStyle={style.buttonContainer}
-                        onPress={handleDecommissionSeats}
-                    />
-                )}
-                {canResetFi && (
-                    <Button
-                        title="Wipe all wallet-service test state"
-                        containerStyle={style.buttonContainer}
-                        onPress={handleScheduleFiReset}
+                        onPress={handleResetFi}
                     />
                 )}
                 {canResetFi && fiManifoldEnvironment && (

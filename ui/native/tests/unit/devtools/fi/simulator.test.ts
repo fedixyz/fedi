@@ -59,6 +59,7 @@ describe('FiSimulator', () => {
             expect(simulator.handles('fiClientStatus', {})).toBe(true)
             expect(simulator.handles('fiClientPayAndCreate', {})).toBe(true)
             expect(simulator.handles('fiClientScheduleReset', {})).toBe(false)
+            expect(simulator.handles('fiClientDecommission', {})).toBe(false)
         })
 
         it('should not claim unrelated bridge methods', () => {

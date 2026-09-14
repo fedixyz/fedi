@@ -514,10 +514,12 @@ export class FiSimulator implements FiWorld {
                 this.isMockPayer(payload.federationId as string) ||
                 this.isWalletServiceFederation(payload.federationId as string)
             )
-        // This developer action must reach the real bridge so it can write the
-        // startup marker outside the simulated FI state.
+        // the wipe writes a startup marker outside the simulated FI state, and
+        // decommissioning talks to the Fleet Managers holding the real seats
         return (
-            method !== 'fiClientScheduleReset' && method.startsWith('fiClient')
+            method !== 'fiClientScheduleReset' &&
+            method !== 'fiClientDecommission' &&
+            method.startsWith('fiClient')
         )
     }
 
