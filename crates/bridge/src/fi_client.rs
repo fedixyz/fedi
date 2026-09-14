@@ -121,7 +121,10 @@ const FI_LIQUIDITY_PAGE_SIZE: usize = FI_LIQUIDITY_OPERATION_PAGE_MAX;
 const FI_ACTIVE_FORMATION_KEY: &[u8] = &[0x00];
 // Fedi supports compatible 0.11 patches from the first approved 0.11.2 release.
 const FEDIMINTD_MINIMUM: &str = "0.11.2";
-const FEDIMINTD_MAXIMUM_EXCLUSIVE: &str = "0.12.0";
+// The ceiling runs ahead of the pinned Fedimint release on purpose: guardians
+// upgrade before the app does, and an exclusive bound one patch above the pin
+// strands the whole fleet.
+const FEDIMINTD_MAXIMUM_EXCLUSIVE: &str = "0.14.0";
 const FI_RESUME_INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const FI_RESUME_MAX_BACKOFF: Duration = Duration::from_secs(5 * 60);
 const FMAN_TRANSPORT_INITIALIZATION_ERROR: &str = "Fleet Manager transport initialization failed";
