@@ -308,8 +308,12 @@ The exact routing fields are governed in `HACKING.md` and implemented by the
 single strict parser in `ui/common/utils/fiPush.ts`; consumers must not create a
 second string contract.
 
-At `Pay & create`, the bridge creates one installation-scoped, one-use,
-30-day hook before entering Manifold's paid operation. The callback is passed
+Production Manifold formation always omits notification callbacks, including
+cached hooks, because production managers have push disabled. This follows the
+selected Manifold environment, including a nightly switched to production.
+In development and staging, at `Pay & create`, the bridge attempts to create
+one installation-scoped, one-use, 30-day hook before entering Manifold's paid
+operation; unavailable push setup does not block formation. The callback is passed
 only through the callback-aware `pay_and_create` method, which must persist it
 in the formation initialization transaction before external effects. A later
 setter is forbidden. Fedi does not duplicate the callback in its database; a

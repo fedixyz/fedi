@@ -908,6 +908,7 @@ impl FormationPushGateway for BridgeFiPushGateway {
 type FormationPushGatewayHandle = Result<Arc<dyn FormationPushGateway>, Arc<FiPushError>>;
 
 struct FormationPushCoordinator {
+    environment: FiManifoldEnvironment,
     gateway: FormationPushGatewayHandle,
     state: Mutex<Option<StoredFormationPush>>,
 }
@@ -974,7 +975,13 @@ struct FormationLocalState {
 async fn ensure_formation_push_hook(
     stored_hook: &mut Option<FiDkgPushHook>,
     push_gateway: &FormationPushGatewayHandle,
+    environment: FiManifoldEnvironment,
 ) -> Option<FiDkgPushHook> {
+    // Production managers have push disabled and reject callbacks after payment.
+    // Check the selected Manifold environment before reusing even a cached hook.
+    if environment == FiManifoldEnvironment::Production {
+        return None;
+    }
     if let Some(hook) = stored_hook {
         return Some(hook.clone());
     }
@@ -1019,8 +1026,9 @@ enum FiDriverOperation {
         intent: FormationIntent,
         approval: Box<FmanSelectionApproval>,
         payment_federation_id: FederationId,
-        /// `None` when no push hook could be arranged; the formation then
-        /// relies on launch reconciliation instead of a completion push.
+        /// `None` in production or when no push hook could be arranged;
+        /// formation relies on launch reconciliation instead of a
+        /// completion push.
         completion_callback: Option<DkgCompletionCallback>,
     },
     ApplyReplacements {
@@ -1178,8 +1186,9 @@ impl Drop for FiDriverOperationClaim {
 }
 
 impl FormationPushCoordinator {
-    fn new(gateway: FormationPushGatewayHandle) -> Self {
+    fn new(gateway: FormationPushGatewayHandle, environment: FiManifoldEnvironment) -> Self {
         Self {
+            environment,
             gateway,
             state: Mutex::new(None),
         }
@@ -1240,7 +1249,7 @@ impl FormationPushCoordinator {
                     "The selection preview callback is no longer available",
                 );
             };
-            ensure_formation_push_hook(&mut stored.hook, &self.gateway)
+            ensure_formation_push_hook(&mut stored.hook, &self.gateway, self.environment)
                 .await
                 .map(|hook| hook.callback)
         };
@@ -1278,9 +1287,9 @@ impl FormationPushCoordinator {
 }
 
 impl FormationLocalState {
-    fn new(push_gateway: FormationPushGatewayHandle) -> Self {
+    fn new(push_gateway: FormationPushGatewayHandle, environment: FiManifoldEnvironment) -> Self {
         Self {
-            formation_push: FormationPushCoordinator::new(push_gateway),
+            formation_push: FormationPushCoordinator::new(push_gateway, environment),
             selection: Mutex::new(None),
             replacement: Mutex::new(None),
         }
@@ -2003,7 +2012,7 @@ pub(crate) fn start_fi_driver(
     let liquidity_connector = Arc::new(BridgeLiquidityConnector::default());
     let push_gateway: FormationPushGatewayHandle =
         push_gateway.map(|gateway| gateway as Arc<dyn FormationPushGateway>);
-    let formation_state = Arc::new(FormationLocalState::new(push_gateway));
+    let formation_state = Arc::new(FormationLocalState::new(push_gateway, environment));
     let restore_profile =
         (restore_on_launch && matches!(client.status(), FiStatus::Idle)).then(|| {
             manifold_environment(environment)

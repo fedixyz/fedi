@@ -148,9 +148,42 @@ impl FiDriverBackend for BlockingAbandonBackend {
 }
 
 #[tokio::test]
-async fn production_coordinator_dispatches_without_callback_when_hook_creation_fails() {
+async fn production_formation_skips_new_and_cached_callbacks() {
+    for hook in [None, Some(fake_push_hook())] {
+        let (gateway, handle) = fake_push_gateway(false, false, false);
+        let state = FormationLocalState::new(handle, FiManifoldEnvironment::Production);
+        let coordinator = &state.formation_push;
+        coordinator
+            .install_preview("preview".to_owned(), false)
+            .await;
+        coordinator.state.lock().await.as_mut().unwrap().hook = hook;
+        let active = Arc::new(AtomicBool::new(false));
+        let dispatched = AtomicBool::new(false);
+
+        let result = coordinator
+            .dispatch_paid_formation(
+                "preview",
+                |callback| {
+                    assert!(callback.is_none());
+                    dispatched.store(true, Ordering::Release);
+                    async { successful_dispatch(&active) }
+                },
+                || true,
+            )
+            .await;
+
+        assert!(matches!(result, RpcFiOperationResult::Success));
+        assert!(dispatched.load(Ordering::Acquire));
+        assert_eq!(gateway.create_calls.load(Ordering::Acquire), 0);
+        assert_eq!(gateway.revoke_calls.load(Ordering::Acquire), 0);
+        assert!(!active.load(Ordering::Acquire));
+    }
+}
+
+#[tokio::test]
+async fn staging_dispatches_without_callback_when_hook_creation_fails() {
     let (gateway, handle) = fake_push_gateway(true, false, false);
-    let coordinator = FormationPushCoordinator::new(handle);
+    let coordinator = FormationPushCoordinator::new(handle, FiManifoldEnvironment::Staging);
     coordinator
         .install_preview("preview".to_owned(), false)
         .await;
@@ -182,9 +215,9 @@ async fn production_coordinator_dispatches_without_callback_when_hook_creation_f
 }
 
 #[tokio::test]
-async fn production_coordinator_dispatches_without_callback_when_gateway_is_undeployed() {
+async fn staging_dispatches_without_callback_when_gateway_is_undeployed() {
     let handle: FormationPushGatewayHandle = Err(Arc::new(FiPushError::Unavailable));
-    let coordinator = FormationPushCoordinator::new(handle);
+    let coordinator = FormationPushCoordinator::new(handle, FiManifoldEnvironment::Staging);
     coordinator
         .install_preview("preview".to_owned(), false)
         .await;
@@ -214,9 +247,9 @@ async fn production_coordinator_dispatches_without_callback_when_gateway_is_unde
 }
 
 #[tokio::test]
-async fn production_coordinator_reuses_exact_callback_for_safe_payer_retry() {
+async fn staging_reuses_exact_callback_for_safe_payer_retry() {
     let (gateway, handle) = fake_push_gateway(false, false, false);
-    let coordinator = FormationPushCoordinator::new(handle);
+    let coordinator = FormationPushCoordinator::new(handle, FiManifoldEnvironment::Staging);
     coordinator
         .install_preview("preview".to_owned(), false)
         .await;
@@ -267,6 +300,7 @@ async fn production_coordinator_reuses_exact_callback_for_safe_payer_retry() {
     assert!(!second_active.load(Ordering::Acquire));
     let callbacks = callbacks.lock().unwrap();
     assert_eq!(callbacks.len(), 2);
+    assert_eq!(callbacks[0].as_ref(), Some(&gateway.hook.callback));
     assert_eq!(callbacks[0], callbacks[1]);
     assert_eq!(gateway.create_calls.load(Ordering::Acquire), 1);
     assert_eq!(gateway.revoke_calls.load(Ordering::Acquire), 1);
@@ -305,7 +339,10 @@ async fn production_driver_returns_the_same_global_claim_for_callback_handoff() 
 #[tokio::test]
 async fn production_coordinator_holds_global_claim_through_terminal_hook_cleanup() {
     let (gateway, handle) = fake_push_gateway(false, false, true);
-    let coordinator = Arc::new(FormationPushCoordinator::new(handle));
+    let coordinator = Arc::new(FormationPushCoordinator::new(
+        handle,
+        FiManifoldEnvironment::Staging,
+    ));
     coordinator
         .install_preview("preview".to_owned(), false)
         .await;
@@ -344,7 +381,7 @@ async fn production_coordinator_holds_global_claim_through_terminal_hook_cleanup
 #[tokio::test]
 async fn preview_replacement_uses_authoritative_formation_ownership_before_revocation() {
     let (gateway, handle) = fake_push_gateway(false, true, false);
-    let coordinator = FormationPushCoordinator::new(handle);
+    let coordinator = FormationPushCoordinator::new(handle, FiManifoldEnvironment::Staging);
     coordinator.state.lock().await.replace(StoredFormationPush {
         preview_id: "abandoned-caller".to_owned(),
         hook: Some(fake_push_hook()),
@@ -366,7 +403,10 @@ async fn preview_replacement_uses_authoritative_formation_ownership_before_revoc
 #[tokio::test]
 async fn dropped_abandon_caller_still_invalidates_orphaned_paid_preview() {
     let (gateway, handle) = fake_push_gateway(false, false, true);
-    let formation_state = Arc::new(FormationLocalState::new(handle));
+    let formation_state = Arc::new(FormationLocalState::new(
+        handle,
+        FiManifoldEnvironment::Staging,
+    ));
     formation_state
         .selection
         .lock()
@@ -464,7 +504,10 @@ async fn dropped_abandon_caller_still_invalidates_orphaned_paid_preview() {
 #[tokio::test]
 async fn durable_idle_abandonment_invalidates_state_despite_release_error() {
     let (gateway, handle) = fake_push_gateway(false, false, false);
-    let formation_state = Arc::new(FormationLocalState::new(handle));
+    let formation_state = Arc::new(FormationLocalState::new(
+        handle,
+        FiManifoldEnvironment::Staging,
+    ));
     formation_state
         .selection
         .lock()

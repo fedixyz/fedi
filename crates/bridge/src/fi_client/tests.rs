@@ -2002,9 +2002,10 @@ impl TestDriverBackend {
 }
 
 fn test_formation_local_state() -> Arc<FormationLocalState> {
-    Arc::new(FormationLocalState::new(Err(Arc::new(
-        FiPushError::Transport,
-    ))))
+    Arc::new(FormationLocalState::new(
+        Err(Arc::new(FiPushError::Transport)),
+        FiManifoldEnvironment::Staging,
+    ))
 }
 
 struct TestExecutionGuard<'a> {
