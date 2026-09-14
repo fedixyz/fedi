@@ -218,13 +218,30 @@ impl FiFeeAccountProvider for BridgeFiFeeAccountProvider {
         &self,
         federation_id: &FedimintFederationId,
     ) -> Result<GuardianFeeAccount, FiFeeAccountError> {
+        // Manifold maps every error from this provider to
+        // CapabilityUnavailable(FeeArrangement), so the specific cause only
+        // survives if it is logged here.
         let federation = self
             .federations
             .get_federation(&federation_id.to_string())
-            .map_err(|_| FiFeeAccountError::new("formed federation is not joined and ready"))?;
+            .map_err(|error| {
+                tracing::warn!(
+                    %federation_id,
+                    %error,
+                    "the formed federation is not joined and ready"
+                );
+                FiFeeAccountError::new("formed federation is not joined and ready")
+            })?;
         federation
             .spv2_our_btc_depositor_account()
-            .map_err(|_| FiFeeAccountError::new("formed federation has no SPv2 BTC account"))
+            .map_err(|error| {
+                tracing::warn!(
+                    %federation_id,
+                    %error,
+                    "the formed federation has no SPv2 BTC account"
+                );
+                FiFeeAccountError::new("formed federation has no SPv2 BTC account")
+            })
     }
 }
 
@@ -415,8 +432,9 @@ async fn run_fi_federation_auto_join(
     on_joined: &(impl Fn() + MaybeSend + MaybeSync),
 ) {
     let emitter = JoinStateEmitter::new(report);
-    {
-        let _handoff_guard = handoff_locks.lock(federation_id).await;
+    let mut retry_delay = Duration::ZERO;
+    loop {
+        let handoff_guard = handoff_locks.lock(federation_id).await;
         // The marker alone cannot answer "is this federation joined". A
         // deliberate `leave_federation` suppresses the auto-join by writing the
         // same marker, so on the next launch a marker-only `Ready` would claim
@@ -450,22 +468,25 @@ async fn run_fi_federation_auto_join(
             }
             Err(_) => {
                 emitter.emit(RpcFiFederationJoinState::Joining);
-                match target.join(invite_code).await {
+                match target.join(invite_code.clone()).await {
                     Ok(()) => on_joined(),
                     Err(error) => {
                         tracing::warn!(
                             %federation_id,
                             %error,
-                            "automatic FI federation join failed"
+                            "automatic FI federation join failed; retrying"
                         );
-                        emitter.emit(RpcFiFederationJoinState::Failed {
-                            message: error.to_string(),
-                        });
-                        return;
+                        // Let a leave run during the delay, then recheck its
+                        // marker and the wallet state before trying again.
+                        drop(handoff_guard);
+                        retry_delay = next_retry_delay(retry_delay, false);
+                        fedimint_core::task::sleep(retry_delay).await;
+                        continue;
                     }
                 }
             }
         }
+        break;
     }
 
     mark_complete_once_ready(
@@ -601,9 +622,17 @@ async fn federation_pending_rejoin_from_scratch(database: &Database, federation_
 
 fn formed_federation_invite(status: &FiStatus) -> Option<(String, String)> {
     let invite_code = match status {
+        // Waiting for Formed deadlocks: publish_seat_bindings has to read the
+        // formed federation's SPv2 account to assemble the fee recipients, and
+        // that federation only becomes readable once this join has run. The
+        // invite is durable from DkgComplete onwards.
         FiStatus::Formation(formation)
-            if formation.phase == FormationPhase::Formed
-                && formation.freshness == FormationFreshness::Fresh =>
+            if matches!(
+                formation.phase,
+                FormationPhase::DkgComplete
+                    | FormationPhase::PublishingSeatBindings
+                    | FormationPhase::Formed
+            ) =>
         {
             formation.invite_code.as_ref()?.0.clone()
         }

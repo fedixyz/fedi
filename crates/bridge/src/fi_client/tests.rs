@@ -541,7 +541,7 @@ fn maintenance_is_bound_to_the_exact_formed_invite() {
 }
 
 #[test]
-fn auto_join_uses_only_a_fresh_formed_invite() {
+fn auto_join_uses_the_invite_from_dkg_complete_onwards() {
     let expected: fedimint_core::config::FederationId = "22".repeat(32).parse().unwrap();
     let invite = FedimintInviteCode::new(
         "wss://guardian.example.com".parse().unwrap(),
@@ -549,22 +549,42 @@ fn auto_join_uses_only_a_fresh_formed_invite() {
         expected,
         None,
     );
-    let mut fresh = test_formation(FormationPhase::Formed, FormationFreshness::Fresh);
-    let FiStatus::Formation(formation) = &mut fresh else {
-        unreachable!("test fixture is a formation");
+    let formation_with_invite = |phase, freshness| {
+        let mut status = test_formation(phase, freshness);
+        let FiStatus::Formation(formation) = &mut status else {
+            unreachable!("test fixture is a formation");
+        };
+        formation.invite_code = Some(InviteCode(invite.to_string()));
+        status
     };
-    formation.invite_code = Some(InviteCode(invite.to_string()));
-    assert_eq!(
-        formed_federation_invite(&fresh),
-        Some((invite.to_string(), expected.to_string()))
-    );
 
-    let mut unsynced = fresh;
-    let FiStatus::Formation(formation) = &mut unsynced else {
-        unreachable!("test fixture is a formation");
-    };
-    formation.freshness = FormationFreshness::Unsynced;
-    assert!(formed_federation_invite(&unsynced).is_none());
+    for phase in [
+        FormationPhase::DkgComplete,
+        FormationPhase::PublishingSeatBindings,
+        FormationPhase::Formed,
+    ] {
+        for freshness in [FormationFreshness::Fresh, FormationFreshness::Unsynced] {
+            assert_eq!(
+                formed_federation_invite(&formation_with_invite(phase, freshness)),
+                Some((invite.to_string(), expected.to_string())),
+                "{phase:?} with {freshness:?} should offer the invite"
+            );
+        }
+    }
+
+    for phase in [
+        FormationPhase::Preparing,
+        FormationPhase::AwaitingPaymentReadiness,
+        FormationPhase::AcquiringSeats,
+        FormationPhase::PreparingDkg,
+        FormationPhase::DkgUnderway,
+    ] {
+        assert!(
+            formed_federation_invite(&formation_with_invite(phase, FormationFreshness::Fresh))
+                .is_none(),
+            "{phase:?} should not offer the invite"
+        );
+    }
 
     let restored = test_restored_formation(FormationFreshness::Fresh);
     let restored_invite = restored.federation_invite.0.clone();
@@ -619,7 +639,7 @@ struct ScriptedAutoJoinTarget {
     /// One entry per `state` call. `None` means "not joined". The last entry
     /// is sticky, so a wait loop settles on it.
     states: Mutex<VecDeque<Option<AutoJoinFederationState>>>,
-    join_error: Option<String>,
+    join_error: Mutex<Option<String>>,
     joins: AtomicUsize,
     /// How often the script was read, so a test can tell that the driver
     /// reached its wait loop.
@@ -631,7 +651,7 @@ impl ScriptedAutoJoinTarget {
         assert!(!states.is_empty(), "the state script must not be empty");
         Self {
             states: Mutex::new(states.into()),
-            join_error: join_error.map(ToOwned::to_owned),
+            join_error: Mutex::new(join_error.map(ToOwned::to_owned)),
             joins: AtomicUsize::new(0),
             state_calls: AtomicUsize::new(0),
         }
@@ -662,8 +682,13 @@ impl AutoJoinTarget for ScriptedAutoJoinTarget {
 
     async fn join(&self, _invite_code: String) -> anyhow::Result<()> {
         self.joins.fetch_add(1, AtomicOrdering::SeqCst);
-        match &self.join_error {
-            Some(error) => Err(anyhow::anyhow!(error.clone())),
+        match self
+            .join_error
+            .lock()
+            .expect("join error lock is healthy")
+            .take()
+        {
+            Some(error) => Err(anyhow::anyhow!(error)),
             None => Ok(()),
         }
     }
@@ -728,22 +753,80 @@ async fn wait_for_state_calls(target: &ScriptedAutoJoinTarget, calls: usize) {
 }
 
 #[tokio::test]
-async fn auto_join_emits_failed_and_leaves_no_marker_when_join_errors() {
+async fn auto_join_retries_after_a_join_error() {
     let database = MemDatabase::new().into_database();
-    let target = ScriptedAutoJoinTarget::new(Some("guardian unreachable"), vec![None]);
+    let target = ScriptedAutoJoinTarget::new(
+        Some("guardian unreachable"),
+        vec![None, None, Some(AutoJoinFederationState::Ready)],
+    );
 
-    let states = drive_auto_join(&target, &database).await;
+    let states = tokio::time::timeout(Duration::from_secs(10), drive_auto_join(&target, &database))
+        .await
+        .expect("the second join succeeds without restarting the task");
 
     assert_eq!(
         states,
         vec![
             RpcFiFederationJoinState::Joining,
-            RpcFiFederationJoinState::Failed {
-                message: "guardian unreachable".to_owned()
-            }
+            RpcFiFederationJoinState::Ready
         ]
     );
-    assert!(!fi_federation_auto_join_completed(&database, "federation").await);
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 2);
+    assert!(fi_federation_auto_join_completed(&database, "federation").await);
+}
+
+#[tokio::test]
+async fn auto_join_stops_if_the_user_leaves_during_the_retry_delay() {
+    let database = MemDatabase::new().into_database();
+    let locks = FiFederationHandoffLocks::default();
+    let target = ScriptedAutoJoinTarget::new(Some("guardian unreachable"), vec![None]);
+    let driver = drive_auto_join_with(
+        &target,
+        &database,
+        &locks,
+        "federation",
+        Duration::from_millis(100),
+    );
+    tokio::pin!(driver);
+
+    tokio::select! {
+        _ = &mut driver => panic!("the join should wait to retry"),
+        () = async {
+            wait_for_state_calls(&target, 1).await;
+            let _guard = tokio::time::timeout(Duration::from_millis(50), locks.lock("federation"))
+                .await
+                .expect("a leave can take the lock during the retry delay");
+            assert!(!fi_federation_auto_join_completed(&database, "federation").await);
+            complete_fi_federation_auto_join(&database, "federation").await;
+        } => {}
+    }
+
+    let states = tokio::time::timeout(Duration::from_secs(10), driver)
+        .await
+        .expect("the leave stops the retry");
+    assert_eq!(states, vec![RpcFiFederationJoinState::Joining]);
+    assert_eq!(target.joins.load(AtomicOrdering::SeqCst), 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn auto_join_backs_off_after_repeated_errors() {
+    let database = MemDatabase::new().into_database();
+    let target = ScriptedAutoJoinTarget::new(Some("guardian unreachable"), vec![None]);
+    let driver = drive_auto_join(&target, &database);
+    tokio::pin!(driver);
+
+    for (attempt, seconds) in [1, 2, 4, 8, 16, 32, 64, 128, 256, 300, 300]
+        .into_iter()
+        .enumerate()
+    {
+        assert!(futures::poll!(&mut driver).is_pending());
+        assert_eq!(target.joins.load(AtomicOrdering::SeqCst), attempt + 1);
+        tokio::time::advance(Duration::from_secs(seconds) - Duration::from_millis(1)).await;
+        assert!(futures::poll!(&mut driver).is_pending());
+        assert_eq!(target.joins.load(AtomicOrdering::SeqCst), attempt + 1);
+        *target.join_error.lock().unwrap() = Some("guardian unreachable".to_owned());
+        tokio::time::advance(Duration::from_millis(1)).await;
+    }
 }
 
 #[tokio::test]
