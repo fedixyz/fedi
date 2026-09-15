@@ -2,8 +2,13 @@ import bundleAnalyzer from '@next/bundle-analyzer'
 import type { NextConfig } from 'next'
 import nextPwa from 'next-pwa'
 
+import { version as appVersion } from './package.json'
+
 const nextConfig: NextConfig = {
     devIndicators: false,
+    env: {
+        NEXT_PUBLIC_APP_VERSION: appVersion,
+    },
     transpilePackages: ['@fedi/common'],
     webpack(config) {
         config.experiments = { asyncWebAssembly: true, layers: true }

@@ -1,6 +1,6 @@
 {
     "name": "@fedi/web",
-    "version": "0.1.0",
+    "version": "26.8.2",
     "private": true,
     "scripts": {
         "dev": "next dev",

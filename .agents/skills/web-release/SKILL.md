@@ -18,13 +18,15 @@ So a release is: take the last `web/X.Y.Z` tag, add only the commits you want, t
 
 The deploy runs on a self-hosted linux runner: it builds the wasm bridge in release mode (`WASM_BUILD_PROFILE=release`), then `vercel pull/build/deploy --prod`. `VERCEL_ENV=production` on that deployment is what makes the `/api/features` handler serve `prodRemoteFeatures`.
 
+The version the app reports lives in `ui/web/package.json` on the release lineage, bumped in the release commit the way native bumps its own. It is independent of the native version, and nothing sets it in the Vercel dashboard. The deploy refuses to ship when that version and the tag disagree.
+
 Staging (`vercel-staging.yml`) is separate and auto-deploys from `master`; it is not part of this process.
 
 ## Preconditions
 
 - The commits you want to release are already merged to `master`, or exist on a branch you can cherry-pick from.
 - The corresponding native build for this cycle is already shipped, if the change is a flag that only takes effect on a specific app version. Check that against the `Built from commit:` line in the newest published GitHub release, not against the `26.X.Y` tag. GitHub cuts that tag at publish time, and it has named a commit that never shipped. The `android-release` skill covers the lifecycle.
-- You have push access and permission to dispatch the production workflow. Dispatching touches live production, so get an explicit go before step 4.
+- You have push access and permission to dispatch the production workflow. Dispatching touches live production, so get an explicit go before step 5.
 
 ## Steps
 
@@ -46,7 +48,16 @@ git cherry-pick <sha> [<sha> ...]   # only the commits for this release
 
 The release lineage usually lags `master`, so cherry-picks may conflict. Resolve each conflict to keep only the intended change, dropping unrelated keys or lines that exist on `master` but not on this lineage.
 
-**2. Verify the diff is exactly what you intend.**
+**2. Bump the version to match the tag you are about to cut.**
+
+```bash
+(cd ui/web && yarn version --new-version 26.6.2 --no-git-tag-version)
+git commit -am "chore: bump web version for 26.6.2"
+```
+
+Use yarn here. `npm version` rewrites `ui/yarn.lock` and drops a stray `ui/package-lock.json` beside it.
+
+**3. Verify the diff is exactly what you intend.**
 
 ```bash
 git diff web/26.6.1..web/26.6.2
@@ -55,7 +66,7 @@ git diff --stat web/26.6.1..web/26.6.2
 
 Confirm the delta against the previous tag is the intended change and nothing else. This is the safety net that catches an over-broad cherry-pick.
 
-**3. Tag the release commit, then remove the branch.**
+**4. Tag the release commit, then remove the branch.**
 
 The environment deploys from a tag, and a branch sharing the tag's name makes `--ref` ambiguous. Create the tag and delete the branch so the ref resolves unambiguously to the tag:
 
@@ -68,7 +79,7 @@ git push origin --delete refs/heads/web/26.6.2  # fully-qualified: tag and branc
 git ls-remote origin | grep 'web/26.6.2'        # expect ONLY refs/tags/web/26.6.2
 ```
 
-**4. Dispatch the production deploy on the tag.** Live production, so confirm the go first.
+**5. Dispatch the production deploy on the tag.** Live production, so confirm the go first.
 
 ```bash
 gh workflow run vercel-prod.yml --repo fedibtc/fedi --ref web/26.6.2
@@ -77,15 +88,23 @@ gh run list --repo fedibtc/fedi --workflow vercel-prod.yml --limit 1 \
 gh run watch <run-id> --repo fedibtc/fedi --exit-status
 ```
 
-A run that fails within seconds with zero steps means the ref was not an allowed tag. Recheck step 3.
+A run that fails within seconds with zero steps means the ref was not an allowed tag. Recheck step 4.
 
-**5. Verify live.**
+A run that fails in its first minute saying `ui/web/package.json says X, tag says Y` means step 2 was skipped, or bumped to the wrong number.
+
+**6. Verify live.**
 
 ```bash
 curl -s https://app.fedi.xyz/api/features
 ```
 
 Confirm the response reflects the change, for example the flipped flag is now `true`. Native apps pick up remote flag changes on their next fetch (app launch or refresh), so no store release is needed.
+
+Then check the deployment reports the version you tagged:
+
+```bash
+curl -s https://app.fedi.xyz/api/version
+```
 
 ## Feature-Flag Flips
 
@@ -105,6 +124,7 @@ Land that as a normal PR to `master`, then release it via the steps above. The f
 
 - Deploy workflow: `.github/workflows/vercel-prod.yml` (`workflow_dispatch` only)
 - Deploy script: `scripts/ci/vercel-prod.sh`
+- Version: `ui/web/package.json`, inlined by `ui/web/next.config.ts`, reported by `ui/web/src/pages/api/version.ts`
 - Production env policy: `gh api repos/fedibtc/fedi/environments/Production/deployment-branch-policies`
 - Live flags endpoint: `https://app.fedi.xyz/api/features`
 - app store tracks: separate processes, see the `ios-release` and `android-release` skills
