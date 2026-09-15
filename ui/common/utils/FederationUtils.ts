@@ -700,6 +700,16 @@ export const getPreviewFromLoadedFederation = (
     }
 }
 
+// Invite codes are bech32, so a scanned or pasted code can arrive in any case
+// while a joined federation stores its own in lowercase
+export const findFederationByInviteCode = (
+    federations: LoadedFederation[],
+    inviteCode: string,
+) => {
+    const code = inviteCode.toLowerCase()
+    return federations.find(f => f.inviteCode.toLowerCase() === code)
+}
+
 // Finds matching federation using url
 // Used for Recovery Assist
 export const findAuthenticatedFederation = (

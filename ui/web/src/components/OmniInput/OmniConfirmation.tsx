@@ -9,9 +9,13 @@ import {
     selectLoadedFederations,
     setGuardianAssist,
     setLastSelectedCommunityId,
+    setSelectedFederationId,
 } from '@fedi/common/redux'
 import { AnyParsedData, ParserDataType } from '@fedi/common/types'
-import { findAuthenticatedFederation } from '@fedi/common/utils/FederationUtils'
+import {
+    findAuthenticatedFederation,
+    findFederationByInviteCode,
+} from '@fedi/common/utils/FederationUtils'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import { BLOCKED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parser'
 
@@ -20,6 +24,7 @@ import {
     ecashRoute,
     homeRoute,
     settingsStartRecoveryAssistRoute,
+    walletRoute,
 } from '../../constants/routes'
 import { useRouteStateContext } from '../../context/RouteStateContext'
 import { useAppSelector, useAppDispatch } from '../../hooks'
@@ -107,7 +112,25 @@ export const OmniConfirmation: React.FC<Props> = ({
                     continueOnClick: () =>
                         pushWithState('/request', parsedData),
                 }
-            case ParserDataType.FedimintInvite:
+            case ParserDataType.FedimintInvite: {
+                const existingFederation = findFederationByInviteCode(
+                    loadedFederations,
+                    parsedData.data.invite,
+                )
+
+                if (existingFederation)
+                    return {
+                        icon: 'Federation',
+                        text: t('feature.omni.existing-federation-membership'),
+                        continueText: t('phrases.take-me-there'),
+                        continueOnClick: () => {
+                            dispatch(
+                                setSelectedFederationId(existingFederation.id),
+                            )
+                            router.push(walletRoute)
+                        },
+                    }
+
                 return {
                     icon: 'Federation',
                     text: t('feature.omni.confirm-federation-invite'),
@@ -116,6 +139,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                             `/onboarding/join?id=${parsedData.data.invite}`,
                         ),
                 }
+            }
             case ParserDataType.CommunityInvite: {
                 const existingCommunity = communities.find(
                     c =>

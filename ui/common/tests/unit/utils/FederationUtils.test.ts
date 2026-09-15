@@ -12,6 +12,7 @@ import {
     fetchPublicFederations,
     fetchAutoSelectFederations,
     switchGateway,
+    findFederationByInviteCode,
 } from '../../../utils/FederationUtils'
 
 const SAMPLE_CHAT_SERVER_DOMAIN = 'chat.dev.fedibtc.com'
@@ -299,6 +300,38 @@ describe('FederationUtils', () => {
             expect(result).toHaveLength(2)
             const names = result.map(f => f.name)
             expect(names).not.toContain('Soon Expiring Federation')
+        })
+    })
+
+    describe('findFederationByInviteCode', () => {
+        const joinedFed: LoadedFederation = {
+            ...baseFed,
+            id: 'joined',
+            inviteCode: 'fed11qgqpsgqsjrxvfhk6mtwd4jhystnwfjkg6nsw3exgcm9wsc',
+        }
+
+        it('finds the federation whose stored code matches', () => {
+            expect(
+                findFederationByInviteCode(
+                    [baseFed, joinedFed],
+                    joinedFed.inviteCode,
+                ),
+            ).toEqual(joinedFed)
+        })
+
+        it('finds it when the scanned code is uppercase', () => {
+            expect(
+                findFederationByInviteCode(
+                    [baseFed, joinedFed],
+                    joinedFed.inviteCode.toUpperCase(),
+                ),
+            ).toEqual(joinedFed)
+        })
+
+        it('returns undefined when no federation stores that code', () => {
+            expect(
+                findFederationByInviteCode([baseFed], joinedFed.inviteCode),
+            ).toBeUndefined()
         })
     })
 

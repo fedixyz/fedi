@@ -13,8 +13,12 @@ import {
     setGuardianAssist,
     setLastSelectedCommunityId,
     setPayFromFederationId,
+    setSelectedFederationId,
 } from '@fedi/common/redux'
-import { findAuthenticatedFederation } from '@fedi/common/utils/FederationUtils'
+import {
+    findAuthenticatedFederation,
+    findFederationByInviteCode,
+} from '@fedi/common/utils/FederationUtils'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import {
     BLOCKED_PARSER_TYPES_BEFORE_FEDERATION,
@@ -182,7 +186,31 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                     continueOnPress: () =>
                         handleNavigate('RedeemLnurlWithdraw', { parsedData }),
                 }
-            case ParserDataType.FedimintInvite:
+            case ParserDataType.FedimintInvite: {
+                const existingFederation = findFederationByInviteCode(
+                    walletFederations,
+                    parsedData.data.invite,
+                )
+
+                if (existingFederation)
+                    return {
+                        contents: {
+                            icon: 'Federation',
+                            title: t(
+                                'feature.omni.existing-federation-membership',
+                            ),
+                        },
+                        continueText: t('phrases.take-me-there'),
+                        continueOnPress: () => {
+                            dispatch(
+                                setSelectedFederationId(existingFederation.id),
+                            )
+                            handleNavigate('TabsNavigator', {
+                                initialRouteName: 'Wallet',
+                            })
+                        },
+                    }
+
                 return {
                     contents: {
                         icon: 'Federation',
@@ -193,6 +221,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                             invite: parsedData.data.invite,
                         }),
                 }
+            }
             case ParserDataType.CommunityInvite: {
                 const existingCommunity = communities.find(
                     c =>

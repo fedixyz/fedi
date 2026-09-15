@@ -1,7 +1,12 @@
-import { cleanup, screen } from '@testing-library/react-native'
+import { cleanup, fireEvent, screen } from '@testing-library/react-native'
 
-import { setFeatureFlags, setupStore } from '@fedi/common/redux'
-import { ParserDataType, ParsedStabilityAddress } from '@fedi/common/types'
+import { setFeatureFlags, setFederations, setupStore } from '@fedi/common/redux'
+import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
+import {
+    ParserDataType,
+    ParsedFederationInvite,
+    ParsedStabilityAddress,
+} from '@fedi/common/types'
 import { FeatureCatalog } from '@fedi/common/types/bindings'
 
 import { OmniConfirmation } from '../../../../../components/feature/omni/OmniConfirmation'
@@ -77,6 +82,57 @@ describe('components/feature/omni/OmniConfirmation', () => {
                 'Stable Balance Address',
             )
             expect(stabilityText).toBeOnTheScreen()
+        })
+        it('should offer to open the wallet when scanning the invite of a joined federation', async () => {
+            store.dispatch(setFederations([mockFederation1]))
+            const parsedData: ParsedFederationInvite = {
+                type: ParserDataType.FedimintInvite,
+                data: { invite: mockFederation1.inviteCode },
+            }
+
+            renderWithProviders(
+                <OmniConfirmation
+                    parsedData={parsedData}
+                    onGoBack={() => {}}
+                    onSuccess={() => {}}
+                />,
+                { store },
+            )
+
+            expect(
+                screen.getByText(
+                    "You're already a member of this Wallet Service.",
+                ),
+            ).toBeOnTheScreen()
+
+            fireEvent.press(screen.getByText('Take me there'))
+
+            expect(store.getState().federation.selectedFederationId).toBe(
+                mockFederation1.id,
+            )
+        })
+        it('should offer to join when scanning the invite of a federation that is not joined', () => {
+            store.dispatch(setFederations([mockFederation1]))
+            const parsedData: ParsedFederationInvite = {
+                type: ParserDataType.FedimintInvite,
+                data: { invite: 'invite-for-a-different-federation' },
+            }
+
+            renderWithProviders(
+                <OmniConfirmation
+                    parsedData={parsedData}
+                    onGoBack={() => {}}
+                    onSuccess={() => {}}
+                />,
+                { store },
+            )
+
+            expect(
+                screen.getByText(
+                    'This is a federation invitation, do you want to join?',
+                ),
+            ).toBeOnTheScreen()
+            expect(screen.queryByText('Take me there')).not.toBeOnTheScreen()
         })
     })
 })

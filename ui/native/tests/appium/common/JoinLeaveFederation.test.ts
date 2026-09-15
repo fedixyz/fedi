@@ -139,6 +139,41 @@ export class JoinLeaveFederation extends AppiumTestBase {
         return invite
     }
 
+    private async pasteInviteOfJoinedFederation(
+        invite: string,
+        joinedDetailsKey: string,
+        previousDetailsKey: string,
+    ): Promise<void> {
+        await this.clickElementByKey('PlusButton')
+        await this.clickElementByKey('joinTab')
+        await acceptCameraPermissionIfPresent(this)
+        await this.setClipboard(invite)
+        await this.clickElementByKey('PasteButton')
+        await allowPasteIfPrompted(this)
+        if (
+            !(await this.isTextPresent(
+                "You're already a member of this Wallet Service.",
+                true,
+                30000,
+            ))
+        ) {
+            throw new Error(
+                'Failed - pasted invite of a joined federation does not show the already-a-member copy',
+            )
+        }
+        await this.clickOnText('Take me there', 0, true)
+        if (!(await this.elementIsDisplayed(joinedDetailsKey, 30000))) {
+            throw new Error(
+                'Failed - take me there did not land on the wallet of the joined federation',
+            )
+        }
+        if (await this.elementIsDisplayed(previousDetailsKey, 2000)) {
+            throw new Error(
+                'Failed - the previously selected federation is still the active wallet after take me there',
+            )
+        }
+    }
+
     async execute(): Promise<void> {
         console.log('Starting Joining Public Federation Test')
         const bob = await this.spawnActor('b')
@@ -351,8 +386,20 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 'Fedi Testnet remained selected after switching to E-Cash Club',
             )
         }
-        await this.clickElementByKey('HomeTabButton')
         // END of the process of switching the active wallet between federations
+
+        // Switch away from E-Cash Club first, so landing on its wallet proves
+        // that take me there selected it rather than leaving it selected.
+        await this.openWalletSwitcher()
+        await this.clickOnText('Fedi Testnet', 0, true)
+        await this.waitForElementDisplayed('FediTestnetDetailsButton', 30000)
+        await this.pasteInviteOfJoinedFederation(
+            getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
+            'E-CashClubDetailsButton',
+            'FediTestnetDetailsButton',
+        )
+        await this.clickElementByKey('HomeTabButton')
+        // END of the process of pasting the invite of a joined federation
     }
 
     // Tapping the wallet tab while it is focused opens the switcher overlay
