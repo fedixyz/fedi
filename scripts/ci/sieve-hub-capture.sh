@@ -131,7 +131,7 @@ devfed_pid=$!
 set +m
 echo "dev fed building and booting in the background (pid $devfed_pid, log in $devfed_dir/log)"
 
-# One full apk per side: production-debug is not in the react native
+# One full apk per side: nightly-debug is not in the react native
 # plugin's debuggableVariants, so gradle embeds the js bundle and the app
 # ignores metro. One apk with metro per side diffs a build against itself.
 build_side_apk() {
@@ -151,8 +151,10 @@ build_side_apk() {
     [ "$(uname)" = "Darwin" ] && bridge_profile=ci
     env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE="$bridge_profile" \
         ./scripts/bridge/build-bridge-android.sh || return 1
-    ./scripts/ci/build-android.sh || return 1
-    local built="$REPO_ROOT_CLONE/ui/native/android/app/build/outputs/apk/production/debug/app-production-debug.apk"
+    # the bridge picks its feature catalog by flavor, and production's hides
+    # every screen still behind a flag
+    (cd ui/native/android && ./gradlew assembleNightlyDebug -Pandroid.injected.testOnly=false) || return 1
+    local built="$REPO_ROOT_CLONE/ui/native/android/app/build/outputs/apk/nightly/debug/app-nightly-debug.apk"
     [ -f "$built" ] || return 1
     cp -f "$built" "$workdir/$side.apk"
 }
@@ -412,8 +414,6 @@ tour_stations() {
     reanchor
 }
 
-# the nightly builds resolve to the staging feature catalog, which has wallet
-# service creation on, so the create tab needs no setup here
 tour_wallet_service() {
     local side=$1
     ui_tap "WalletTabButton" 30 || return 0
@@ -488,7 +488,7 @@ tour_funded() {
         return 0
     fi
     reanchor
-    adb shell "am start -a android.intent.action.VIEW -d 'fedi://join-then-ecash?invite=$invite&ecash=$ecash' com.fedi" >/dev/null 2>&1
+    adb shell "am start -a android.intent.action.VIEW -d 'fedi://join-then-ecash?invite=$invite&ecash=$ecash' com.fedi.nightly" >/dev/null 2>&1
     wait_for_key "JoinFederationButton" 90 || return 0
     ui_tap "JoinFederationButton" 30 || return 0
     wait_for_key "claim-ecash-button" 120 || return 0
@@ -544,8 +544,8 @@ tour_funded() {
 # a changed onboarding flow still yields the earlier screenshots.
 tour() {
     local side=$1
-    adb shell pm clear com.fedi >/dev/null
-    adb shell monkey -p com.fedi -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+    adb shell pm clear com.fedi.nightly >/dev/null
+    adb shell monkey -p com.fedi.nightly -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
     wait_for_key "Get started" 180 || {
         shoot "$side" "00-launch"
         return 0
@@ -574,7 +574,7 @@ run_side() {
     section "capture: $side"
     adb install -r "$workdir/$side.apk" || return 1
     tour "$side"
-    adb shell am force-stop com.fedi || true
+    adb shell am force-stop com.fedi.nightly || true
 }
 
 run_side before || fail_soft "before-side capture failed"
@@ -614,28 +614,28 @@ section "coverage"
 # a missed station, or a screen no station names, is one the review never saw
 station_sources() {
     cat <<'EOF'
-01-welcome screens/Splash
-02-federation-list screens/PublicFederations|feature/federations/(FederationCompactTile|CommunityTile)
-03-federation-preview screens/JoinFederation|feature/onboarding/FederationPreview|feature/federations/(JoinFederationHeader|FederationInviteHeader)
-04-home screens/Home|feature/home/
-05-chat screens/ChatScreen|feature/chat/
-06-wallet screens/Wallet|feature/federations/BalanceCard|feature/wallet/
-07-receive screens/Receive|feature/receive/
-07b-federation-details screens/FederationDetails|feature/federations/FederationDetail
-08-mods screens/Mods|feature/fedimods/
-09-account screens/Settings|feature/settings/
-10-app-settings screens/AppSettings|feature/settings/GeneralSettings
-11-claim-ecash screens/ClaimEcash
-12-ecash-claimed screens/ClaimEcash
-13-wallet-funded screens/Wallet|feature/federations/BalanceCard|feature/backup/PersonalBackupReminder
-14-history screens/Transactions|feature/transaction-history/
+01-welcome screens/Splash\.tsx
+02-federation-list screens/PublicFederations\.tsx|feature/federations/(FederationCompactTile|CommunityTile)
+03-federation-preview screens/JoinFederation\.tsx|feature/onboarding/FederationPreview|feature/federations/(JoinFederationHeader|FederationInviteHeader)
+04-home screens/Home\.tsx|feature/home/
+05-chat screens/ChatScreen\.tsx|feature/chat/
+06-wallet screens/Wallet\.tsx|feature/federations/BalanceCard|feature/wallet/
+07-receive screens/Receive\.tsx|feature/receive/
+07b-federation-details screens/FederationDetails\.tsx|feature/federations/FederationDetail
+08-mods screens/Mods\.tsx|feature/fedimods/
+09-account screens/Settings\.tsx|feature/settings/
+10-app-settings screens/AppSettings\.tsx|feature/settings/GeneralSettings
+11-claim-ecash screens/ClaimEcash\.tsx
+12-ecash-claimed screens/ClaimEcash\.tsx
+13-wallet-funded screens/Wallet\.tsx|feature/federations/BalanceCard|feature/backup/PersonalBackupReminder
+14-history screens/Transactions\.tsx|feature/transaction-history/
 15-history-detail-receive feature/transaction-history/HistoryDetail|hooks/transactions|utils/transaction
-16-send-ecash-amount screens/SendOfflineAmount|components/ui/(AmountInput|Numpad|InvisibleInput)|hooks/amount
-17-send-ecash-confirm screens/ConfirmSendEcash|feature/send/(SendPreviewDetails|FeeBreakdown|SendAmounts)
-18-send-ecash-qr screens/SendOfflineQr|feature/send/
+16-send-ecash-amount screens/SendOfflineAmount\.tsx|components/ui/(AmountInput|Numpad|InvisibleInput)|hooks/amount
+17-send-ecash-confirm screens/ConfirmSendEcash\.tsx|feature/send/(SendPreviewDetails|FeeBreakdown|SendAmounts)
+18-send-ecash-qr screens/SendOfflineQr\.tsx|feature/send/
 19-history-detail-send feature/transaction-history/HistoryDetail|utils/transaction
 20-wallet-service-intro feature/walletservice/(WalletServiceEntry|WalletServiceIntro)|components/ui/WalletServiceFooter
-21-wallet-service-create screens/CreateWalletService|feature/walletservice/(GuardianDetailsSkeleton|ServiceSheet|WalletServiceScreenHeader)
+21-wallet-service-create screens/CreateWalletService\.tsx|feature/walletservice/(GuardianDetailsSkeleton|ServiceSheet|WalletServiceScreenHeader)
 EOF
 }
 # the release bundle these apks embed excludes the devtools tree, so no
