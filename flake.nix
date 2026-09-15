@@ -254,7 +254,9 @@
         # };
 
         androidSdk = android-nixpkgs.sdk."${system}" (
-          sdkPkgs: with sdkPkgs; [
+          sdkPkgs:
+          with sdkPkgs;
+          [
             cmdline-tools-latest
             build-tools-30-0-3
             build-tools-32-0-0
@@ -262,20 +264,24 @@
             build-tools-34-0-0
             build-tools-35-0-0
             platform-tools
-            platforms-android-16
             platforms-android-25
             platforms-android-31
             platforms-android-33
             platforms-android-34
             platforms-android-35
             emulator
-            ndk-26-1-10909125
+            # must match ndkVersion in ui/native/android/build.gradle
             ndk-27-1-12297006
             cmake-3-22-1
             tools
+          ]
+          # emulator images only run on the host cpu
+          ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
             system-images-android-25-google-apis-x86-64
-            system-images-android-25-google-apis-arm64-v8a
             system-images-android-34-google-apis-x86-64
+          ]
+          ++ lib.optionals pkgs.stdenv.hostPlatform.isAarch64 [
+            system-images-android-25-google-apis-arm64-v8a
             system-images-android-34-google-apis-arm64-v8a
           ]
         );
