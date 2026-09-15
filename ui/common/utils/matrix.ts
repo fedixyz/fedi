@@ -415,8 +415,10 @@ export function makeChatFromUnjoinedRoomPreview(preview: MatrixGroupPreview) {
 // room-summary endpoint: the room id is in the community meta but its name and
 // join rule can't be fetched. Rather than hide the chat, surface a placeholder
 // tile that still offers a request-to-join, so the user can knock from it. The
-// name is left blank so the tile renders its default label, and allowKnocking
-// drives the join button to the knock confirm screen.
+// name is left blank so the tile renders its default label. Knockability is
+// unknown here, so `previewUnavailable` (not a fabricated allowKnocking: true)
+// is what keeps the join affordance available; a rejected knock reconciles the
+// room to the known invite-only state (allowKnocking: false, marker cleared).
 export function makeUnpreviewableDefaultChat(
     roomId: MatrixRoom['id'],
 ): MatrixGroupPreview {
@@ -427,7 +429,8 @@ export function makeUnpreviewableDefaultChat(
             avatarUrl: null,
             joinedMemberCount: 0,
             isPublic: false,
-            allowKnocking: true,
+            allowKnocking: false,
+            previewUnavailable: true,
             isPreview: true,
             inviteCode: encodeFediMatrixRoomUri(roomId),
             directUserId: null,
@@ -1749,6 +1752,11 @@ export const MATRIX_ROOM_PREVIEW_INPUT_FIELDS = [
     'broadcastOnly',
     'isPublic',
     'roomState',
+    // Reconciling a rejected knock flips these, and the preview subtitle
+    // (request-to-join vs invite-only) depends on them, so the memoized
+    // selector must re-run when they change.
+    'allowKnocking',
+    'previewUnavailable',
 ] as const satisfies ReadonlyArray<keyof MatrixRoom>
 
 export function areChatListRoomRenderFieldsEqual(
@@ -1783,11 +1791,26 @@ export function areMatrixRoomPreviewInputsEqual(
 // rethrows, so an instanceof check fails. Match the message string the SDK
 // emits; that survives serialization.
 export function isBannedFromRoomError(err: unknown): boolean {
-    const message =
-        err && typeof err === 'object' && 'message' in err
-            ? String((err as { message: unknown }).message)
-            : String(err)
+    const message = getSerializedErrorMessage(err)
     return message.includes('Cannot join user who was banned')
+}
+
+// A knock rejected because the room's join rule is `invite` (not `knock`).
+// Synapse raises a deterministic 403 / M_FORBIDDEN "You don't have permission
+// to knock" here, which is positive evidence the room is invite-only. Matched
+// on the serialized message string for the same reason as the banned check.
+export function isForbiddenToKnockError(err: unknown): boolean {
+    const message = getSerializedErrorMessage(err)
+    return (
+        message.includes('M_FORBIDDEN') &&
+        message.includes('permission to knock')
+    )
+}
+
+function getSerializedErrorMessage(err: unknown): string {
+    return err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err)
 }
 
 export function isPowerLevelGreaterOrEqual(

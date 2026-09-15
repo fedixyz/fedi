@@ -308,6 +308,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                     <Row align="center" justify="between" style={style.toggle}>
                         <Text>{t('feature.chat.allow-join-requests')}</Text>
                         <Switch
+                            testID="AllowKnockingSwitch"
                             value={allowKnocking}
                             disabled={isTogglingAllowKnocking}
                             onValueChange={handleAllowKnockingToggle}

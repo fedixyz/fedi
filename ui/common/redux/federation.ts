@@ -12,6 +12,7 @@ import {
     CommonState,
     previewCommunityDefaultChats,
     previewFederationDefaultChats,
+    reconcileRoomNotKnockable,
     selectFeatureFlags,
     selectIsInternetUnreachable,
     selectIsNostrClientEnabled,
@@ -584,6 +585,26 @@ export const federationSlice = createSlice({
                       }
             },
         )
+        builder.addCase(reconcileRoomNotKnockable, (state, action) => {
+            const { roomId } = action.payload
+            // A rejected knock proved the placeholder room is invite-only, so
+            // demote it wherever it sits in the default chat lists: the tile
+            // then stops offering a Join that can't succeed while keeping its
+            // "Private group" label.
+            for (const [communityId, chats] of Object.entries(
+                state.defaultCommunityChats,
+            )) {
+                const idx = chats.findIndex(room => room.id === roomId)
+                if (idx === -1) continue
+                const updated = chats.slice()
+                updated[idx] = {
+                    ...updated[idx],
+                    allowKnocking: false,
+                    previewUnavailable: false,
+                }
+                state.defaultCommunityChats[communityId] = updated
+            }
+        })
     },
 })
 

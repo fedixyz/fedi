@@ -14,6 +14,7 @@ import {
 import { MOCK_MATRIX_ROOM } from '@fedi/common/tests/mock-data/matrix'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import { MatrixGroupPreview, MatrixRoom } from '@fedi/common/types'
+import { makeUnpreviewableDefaultChat } from '@fedi/common/utils/matrix'
 
 import ConfirmJoinPrivateGroup from '../../../screens/ConfirmJoinPrivateGroup'
 import { mockNavigation, mockRoute } from '../../setup/jest.setup.mocks'
@@ -144,6 +145,74 @@ describe('ConfirmJoinPrivateGroup', () => {
             ).toBeOnTheScreen()
         })
         expect(screen.queryByText('Request to join')).not.toBeOnTheScreen()
+    })
+
+    it('demotes an unpreviewable room to invite-only when the knock is forbidden (403)', async () => {
+        // The homeserver wouldn't preview the room, so it starts unknown and
+        // offers request-to-join; the server's 403 is what reveals invite-only.
+        const store = setupStoreWithPreview(
+            makeUnpreviewableDefaultChat(TEST_ROOM_ID),
+        )
+        // The exact serialized BridgeError the bridge rethrows after unwrap().
+        const forbidden = new Error(
+            "BridgeError: the server returned an error: [403 / M_FORBIDDEN] You don't have permission to knock",
+        )
+        mockKnockGroup.mockRejectedValue(forbidden)
+
+        renderWithProviders(
+            <ConfirmJoinPrivateGroup
+                navigation={mockNavigation as any}
+                route={confirmJoinRoute}
+            />,
+            { store, fedimint: createMockFedimintBridge() },
+        )
+
+        await waitFor(() => {
+            expect(screen.getByText('Request to join')).toBeOnTheScreen()
+        })
+
+        fireEvent.press(screen.getByText('Request to join'))
+
+        // The caught 403 flips the sheet to the translated invite-only state:
+        // no raw BridgeError text, and the request-to-join affordance is gone.
+        await waitFor(() => {
+            expect(
+                screen.getByText(
+                    'This group is invite-only. Ask an admin to add you.',
+                ),
+            ).toBeOnTheScreen()
+        })
+        expect(screen.queryByText('Request to join')).not.toBeOnTheScreen()
+        expect(screen.queryByText(/BridgeError/)).not.toBeOnTheScreen()
+    })
+
+    it('reaches pending when an unpreviewable room accepts the knock', async () => {
+        const store = setupStoreWithPreview(
+            makeUnpreviewableDefaultChat(TEST_ROOM_ID),
+        )
+        mockKnockGroup.mockResolvedValue(true)
+
+        renderWithProviders(
+            <ConfirmJoinPrivateGroup
+                navigation={mockNavigation as any}
+                route={confirmJoinRoute}
+            />,
+            { store, fedimint: createMockFedimintBridge() },
+        )
+
+        await waitFor(() => {
+            expect(screen.getByText('Request to join')).toBeOnTheScreen()
+        })
+
+        fireEvent.press(screen.getByText('Request to join'))
+
+        await waitFor(() => {
+            expect(mockKnockGroup).toHaveBeenCalledWith(TEST_ROOM_ID)
+        })
+        // A successful knock swaps in the pending view locally, before sync.
+        await waitFor(() => {
+            expect(screen.getByText('Request pending')).toBeOnTheScreen()
+        })
     })
 
     it('shows pending state when room is already knocked', () => {

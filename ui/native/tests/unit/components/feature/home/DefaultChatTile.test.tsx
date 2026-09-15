@@ -4,6 +4,7 @@ import React from 'react'
 import {
     addMatrixRoomInfo,
     handleMatrixRoomListStreamUpdates,
+    reconcileRoomNotKnockable,
     setupStore,
 } from '@fedi/common/redux'
 import {
@@ -26,6 +27,7 @@ const GLOBAL_COMMUNITY_ID = 'fedi-global-community'
 const JOIN = i18n.t('words.join')
 const PENDING = i18n.t('words.pending')
 const PRIVATE_GROUP = i18n.t('feature.chat.private-group')
+const INVITE_ONLY = i18n.t('feature.chat.invite-only')
 const REQUEST_TO_JOIN = i18n.t('feature.chat.request-to-join-group')
 const REQUEST_PENDING = i18n.t('feature.chat.request-to-join-pending')
 const NO_MESSAGES = i18n.t('feature.chat.no-messages')
@@ -182,6 +184,34 @@ describe('/components/feature/home/DefaultChatTile', () => {
         expect(screen.getByText(JOIN)).toBeOnTheScreen()
     })
 
+    it('demotes an unpreviewable group to invite-only after a rejected knock', () => {
+        const store = setupStore()
+        store.dispatch({
+            type: 'matrix/previewCommunityDefaultChats/fulfilled',
+            payload: [makeUnpreviewableDefaultChat(TEST_ROOM_ID)],
+            meta: { arg: { communityId: TEST_COMMUNITY_ID } },
+        })
+        // The server rejected the knock as invite-only, reconciling the room to
+        // the known not-knockable state.
+        store.dispatch(reconcileRoomNotKnockable({ roomId: TEST_ROOM_ID }))
+
+        renderWithProviders(
+            <DefaultChatTile room={createDefaultChatRoom({ name: '' })} />,
+            {
+                store,
+                fedimint: createFedimint(),
+            },
+        )
+
+        // Still labelled a private group rather than the generic fallback, but
+        // it no longer offers a Join that can't succeed, and the subtitle says
+        // invite-only instead of "request to join".
+        expect(screen.getByText(PRIVATE_GROUP)).toBeOnTheScreen()
+        expect(screen.getByText(INVITE_ONLY)).toBeOnTheScreen()
+        expect(screen.queryByText(JOIN)).toBeNull()
+        expect(screen.queryByText(REQUEST_TO_JOIN)).toBeNull()
+    })
+
     it('shows the request as pending, not "request to join", once the user has knocked on an unpreviewable group', () => {
         const store = setupStore()
         // The cached preview stays frozen at its unpreviewable state...
@@ -284,6 +314,49 @@ describe('/components/feature/home/DefaultChatTile', () => {
         expect(screen.queryByText(NO_MESSAGES)).toBeNull()
         // The tile is still there and joinable.
         expect(screen.getByText(JOIN)).toBeOnTheScreen()
+    })
+
+    it('keeps request-to-join, not invite-only, for a knockable room with an empty timeline', () => {
+        const store = setupStore()
+        // MatrixChatClient.getRoomPreview allows this: room info is fetched
+        // (allowKnocking true, a real name), but /messages failed so the
+        // timeline is empty and there is no preview. This is still knockable.
+        store.dispatch({
+            type: 'matrix/previewCommunityDefaultChats/fulfilled',
+            payload: [
+                {
+                    info: {
+                        ...MOCK_MATRIX_ROOM,
+                        id: TEST_ROOM_ID,
+                        name: 'Knockable Room',
+                        isPublic: false,
+                        allowKnocking: true,
+                        isPreview: true,
+                        roomState: 'invited',
+                        preview: null,
+                    },
+                    timeline: [],
+                    isDefaultGroup: true,
+                },
+            ],
+            meta: { arg: { communityId: TEST_COMMUNITY_ID } },
+        })
+
+        renderWithProviders(
+            <DefaultChatTile
+                room={createDefaultChatRoom({ name: 'Knockable Room' })}
+            />,
+            {
+                store,
+                fedimint: createFedimint(),
+            },
+        )
+
+        // A knockable room must keep the Join affordance and request-to-join
+        // subtitle; it must never be mislabelled invite-only.
+        expect(screen.getByText(JOIN)).toBeOnTheScreen()
+        expect(screen.getByText(REQUEST_TO_JOIN)).toBeOnTheScreen()
+        expect(screen.queryByText(INVITE_ONLY)).toBeNull()
     })
 
     it('shows Pending for a chat the user already knocked on', () => {

@@ -12,6 +12,7 @@ import {
     cancelMatrixPayment,
     joinMatrixRoom,
     knockMatrixRoom,
+    reconcileRoomNotKnockable,
     observeMatrixRoom,
     paginateMatrixRoomTimeline,
     refetchMatrixRoomMembers,
@@ -97,6 +98,7 @@ import {
     getEventBodyPreview,
     getReplyData,
     isBannedFromRoomError,
+    isForbiddenToKnockError,
     isValidMatrixUserId,
     makeMatrixPaymentText,
     matrixIdToUsername,
@@ -1165,6 +1167,11 @@ export function useMatrixChatInvites(t: TFunction) {
     const showInviteError = (err: unknown) => {
         if (isBannedFromRoomError(err)) {
             toast.error(t, 'errors.you-have-been-banned')
+        } else if (isForbiddenToKnockError(err)) {
+            // formatErrorMessage prefers err.message over its default-message
+            // argument, so the raw BridgeError string would win unless we pass
+            // a translation key as the error itself (as the banned case does).
+            toast.error(t, 'feature.chat.invite-only-group-notice')
         } else {
             toast.error(t, err)
         }
@@ -1188,6 +1195,12 @@ export function useMatrixChatInvites(t: TFunction) {
             ).unwrap()
         } catch (err) {
             showInviteError(err)
+            // A 403 knock rejection is proof the room is invite-only, not
+            // knockable. Reconcile it everywhere so the tile and both confirm
+            // sheets stop offering a request-to-join that can't succeed.
+            if (isForbiddenToKnockError(err)) {
+                dispatch(reconcileRoomNotKnockable({ roomId }))
+            }
             throw err
         }
     }
@@ -1222,7 +1235,11 @@ export function useJoinDefaultChat(roomId: MatrixRoom['id'], t: TFunction) {
     const isPublic = defaultRoom?.isPublic ?? room?.isPublic ?? false
     const allowKnocking =
         defaultRoom?.allowKnocking ?? room?.allowKnocking ?? false
-    const canJoin = shouldShowJoin && (isPublic || allowKnocking)
+    // A room the homeserver wouldn't preview is knockability-unknown, so keep
+    // the join affordance available; a rejected knock reconciles it away.
+    const previewUnavailable = defaultRoom?.previewUnavailable ?? false
+    const canJoin =
+        shouldShowJoin && (isPublic || allowKnocking || previewUnavailable)
 
     let joinState: DefaultChatJoinState
     if (room?.roomState === 'joined' || room?.roomState === 'invited') {
@@ -2008,7 +2025,18 @@ export function useMatrixRoomPreview({
         }
 
         if (isUnpreviewablePrivateGroup) {
-            return t('feature.chat.request-to-join-group')
+            // Only show invite-only copy when we know knocking is disallowed:
+            // preview succeeded (not previewUnavailable) AND allowKnocking is
+            // false. A genuinely knockable room whose timeline came back empty
+            // (allowKnocking === true) or a still-unknown placeholder both keep
+            // request-to-join copy, matching the Join button they still show.
+            const isKnownInviteOnly =
+                defaultRoom &&
+                !defaultRoom.previewUnavailable &&
+                !defaultRoom.allowKnocking
+            return isKnownInviteOnly
+                ? t('feature.chat.invite-only')
+                : t('feature.chat.request-to-join-group')
         }
 
         if (!preferredPreviewRoom?.preview) {

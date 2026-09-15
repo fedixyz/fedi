@@ -51,6 +51,14 @@ export type MatrixRoom = Omit<RpcSerializedRoomInfo, 'preview'> & {
     isBlocked?: boolean
     broadcastOnly?: boolean
     inviteCode?: string
+    // App-side only marker. When the homeserver won't return a preview for a
+    // default group, its real join rule is unknown: a genuinely knockable room
+    // (older/federated server without MSC3266 summaries) and a genuinely
+    // invite-only room fail preview identically. This flags that "unknown"
+    // state so the UI can still offer a request-to-join attempt without
+    // asserting a fabricated allowKnocking, and reconcile clears it once a
+    // knock attempt makes the server reveal the truth.
+    previewUnavailable?: boolean
 }
 
 export type MatrixRoomState = 'Joined' | 'Left' | 'Invited'

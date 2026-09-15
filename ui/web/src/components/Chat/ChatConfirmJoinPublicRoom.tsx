@@ -10,6 +10,7 @@ import {
     selectMatrixRoom,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { isForbiddenToKnockError } from '@fedi/common/utils/matrix'
 
 import { chatRoute, chatRoomRoute } from '../../constants/routes'
 import { useAppDispatch, useAppSelector } from '../../hooks'
@@ -45,13 +46,22 @@ export const ChatConfirmJoinPublicRoom = ({ roomId }: Props) => {
     // Knock was issued but sync hasn't reflected it yet. Local flag swaps in
     // KnockPendingView so a fast second tap can't fire a duplicate knock.
     const [hasKnockedLocally, setHasKnockedLocally] = useState(false)
+    // Set when a knock is rejected as invite-only (403 / M_FORBIDDEN), so the
+    // request-to-join drops and invite-only copy shows instead.
+    const [isInviteOnly, setIsInviteOnly] = useState(false)
 
     const isAlreadyKnocked = room?.roomState === 'knocked' || hasKnockedLocally
     const isPublic = groupPreview?.info?.isPublic ?? false
-    // Some homeservers won't return preview metadata even for knockable rooms,
-    // so default to true and let the knock response reveal invite-only rooms.
-    const allowKnocking = groupPreview?.info?.allowKnocking ?? true
-    const canJoin = isPublic || allowKnocking
+    const allowKnocking = groupPreview?.info?.allowKnocking ?? false
+    // Some homeservers won't return preview metadata even for knockable rooms
+    // (older servers, federation gaps). A missing preview (fetch settled with
+    // none) or the unpreviewable placeholder marker is that "unknown" state:
+    // still let the user attempt to knock; the knock response reveals
+    // invite-only rooms, which flips isInviteOnly below.
+    const previewUnavailable =
+        !groupPreview || (groupPreview.info.previewUnavailable ?? false)
+    const canJoin =
+        !isInviteOnly && (isPublic || allowKnocking || previewUnavailable)
     const roomName = groupPreview?.info?.name || room?.name || null
 
     // Existing members/invitees go straight to the conversation. Knocked rooms
@@ -111,9 +121,13 @@ export const ChatConfirmJoinPublicRoom = ({ roomId }: Props) => {
                 await knockGroup(roomId)
                 setHasKnockedLocally(true)
             }
-        } catch {
+        } catch (err) {
             // joinPublicGroup throws if the room is already joined; knockGroup
-            // surfaces its own error toast.
+            // surfaces its own error toast. A 403 means the room is invite-only,
+            // so swap to the invite-only state rather than keep a dead knock.
+            if (isForbiddenToKnockError(err)) {
+                setIsInviteOnly(true)
+            }
         } finally {
             setIsJoiningGroup(false)
         }
@@ -157,9 +171,13 @@ export const ChatConfirmJoinPublicRoom = ({ roomId }: Props) => {
                         <Text center>
                             {isPublic
                                 ? t('feature.chat.public-group-notice')
-                                : canJoin
-                                  ? t('feature.chat.private-group-notice')
-                                  : t('feature.chat.invite-only-group-notice')}
+                                : !canJoin
+                                  ? t('feature.chat.invite-only-group-notice')
+                                  : previewUnavailable
+                                    ? t(
+                                          'feature.chat.unpreviewable-group-notice',
+                                      )
+                                    : t('feature.chat.private-group-notice')}
                         </Text>
                     </Column>
                     {canJoin && (

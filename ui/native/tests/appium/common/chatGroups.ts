@@ -207,3 +207,24 @@ export async function respondToOnlyKnock(
     }
     await t.waitForElementDisplayed('ChatTabButton', MATRIX_TIMEOUT)
 }
+
+// Leaves the device on the chat list.
+export async function disableJoinRequests(
+    t: AppiumTestBase,
+    groupName: string,
+): Promise<void> {
+    console.log(`[${t.handle}] Disabling join requests on: ${groupName}`)
+    await switchToChatTab(t)
+    const tileKey = `ChatTile-${groupName}`
+    await t.scrollToElement(tileKey)
+    await t.clickElementByKey(tileKey)
+    await t.waitForElementDisplayed('MessageInput-TextInput', MATRIX_TIMEOUT)
+    await t.clickElementByKey('ChatRoomSettingsButton')
+    await t.clickOnText('Invite to group', 0, true)
+    await t.clickElementByKey('AllowKnockingSwitch')
+    // The settings and invite screens render no header, so system back is the
+    // only way off them.
+    await t.driver.back()
+    await t.driver.back()
+    await t.clickElementByKey('HeaderBackButton')
+}

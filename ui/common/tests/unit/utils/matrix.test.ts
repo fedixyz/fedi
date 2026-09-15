@@ -12,6 +12,7 @@ import {
     encodeFediMatrixUserUri,
     filterMultispendEvents,
     isValidMatrixUserId,
+    isForbiddenToKnockError,
     isMultispendReannounceEvent,
     findUserDisplayName,
     getUserSuffix,
@@ -145,6 +146,38 @@ describe('isMultispendReannounceEvent', () => {
 
     it('returns false if the event is not a multispend reannounce event', () => {
         expect(isMultispendReannounceEvent(mockChatEvent)).toBe(false)
+    })
+})
+
+describe('isForbiddenToKnockError', () => {
+    it('matches the serialized 403 knock rejection message', () => {
+        // The BridgeError prototype is stripped by RTK before unwrap() rethrows,
+        // so only the message string survives — match on that.
+        const serialized = {
+            message:
+                "BridgeError: the server returned an error: [403 / M_FORBIDDEN] You don't have permission to knock",
+        }
+        expect(isForbiddenToKnockError(serialized)).toBe(true)
+        expect(
+            isForbiddenToKnockError(
+                new Error(
+                    "the server returned an error: [403 / M_FORBIDDEN] You don't have permission to knock",
+                ),
+            ),
+        ).toBe(true)
+    })
+
+    it('does not match unrelated errors', () => {
+        expect(isForbiddenToKnockError(new Error('network timeout'))).toBe(
+            false,
+        )
+        // A different M_FORBIDDEN error must not be treated as invite-only.
+        expect(
+            isForbiddenToKnockError(
+                new Error('[403 / M_FORBIDDEN] You are not invited'),
+            ),
+        ).toBe(false)
+        expect(isForbiddenToKnockError(undefined)).toBe(false)
     })
 })
 
@@ -681,6 +714,8 @@ describe('room equality helpers (drift-prevention)', () => {
         broadcastOnly: { broadcastOnly: true },
         isPublic: { isPublic: true },
         roomState: { roomState: 'invited' },
+        allowKnocking: { allowKnocking: true },
+        previewUnavailable: { previewUnavailable: true },
     } satisfies Record<
         (typeof MATRIX_ROOM_PREVIEW_INPUT_FIELDS)[number],
         Partial<MatrixRoom>

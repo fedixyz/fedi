@@ -1,5 +1,6 @@
 import {
     PayloadAction,
+    createAction,
     createAsyncThunk,
     createSelector,
     createSlice,
@@ -251,6 +252,17 @@ const pruneSeenKnockRequests = (
         state.seenKnockRequests[roomId] = pruned
     }
 }
+
+/*** Shared actions ***/
+
+// A knock was rejected as invite-only (403 / M_FORBIDDEN), so a room we could
+// only guess about is now known not to be knockable. Both the matrix slice
+// (groupPreviews, read by the confirm sheets) and the federation slice
+// (defaultCommunityChats, read by the chat tiles) reconcile the room to the
+// known invite-only state so the dead request-to-join affordance disappears.
+export const reconcileRoomNotKnockable = createAction<{
+    roomId: MatrixRoom['id']
+}>('matrix/reconcileRoomNotKnockable')
 
 /*** Slice definition ***/
 
@@ -712,6 +724,22 @@ export const matrixSlice = createSlice({
         })
         builder.addCase(editMatrixMessage.fulfilled, state => {
             state.messageToEdit = null
+        })
+        builder.addCase(reconcileRoomNotKnockable, (state, action) => {
+            const { roomId } = action.payload
+            const preview = state.groupPreviews[roomId]
+            if (!preview) return
+            // Clearing previewUnavailable moves the room out of the "unknown"
+            // state and into the known invite-only state, and allowKnocking
+            // false stops the confirm sheet offering another dead knock.
+            state.groupPreviews[roomId] = {
+                ...preview,
+                info: {
+                    ...preview.info,
+                    allowKnocking: false,
+                    previewUnavailable: false,
+                },
+            }
         })
         builder.addMatcher(
             isAnyOf(ignoreUser.fulfilled, unignoreUser.fulfilled),
@@ -2570,11 +2598,14 @@ export const selectIsMatrixChatEmpty = (s: CommonState) =>
 export const selectMatrixRoom = (s: CommonState, roomId: MatrixRoom['id']) =>
     selectMatrixRooms(s).find(room => room.id === roomId)
 
-// A knockable default chat the homeserver wouldn't summarize, so it comes back
+// A private default chat the homeserver wouldn't summarize, so it comes back
 // with no name and no messages. Membership is read from the live room rather
 // than the cached preview, which never updates, so the tile reads as a private
-// group to request to join only until the user actually joins. A pending knock
-// keeps it a "Private group" while the subtitle reports the request as pending.
+// group only until the user actually joins. A pending knock keeps it a
+// "Private group" while the subtitle reports the request as pending. This holds
+// whether the room is still unknown (previewUnavailable) or was reconciled to
+// known invite-only after a rejected knock, so the placeholder is detected by
+// its empty-name/no-preview shape rather than by a fabricated allowKnocking.
 export const selectIsUnpreviewablePrivateGroup = (
     s: CommonState,
     roomId: MatrixRoom['id'],
@@ -2582,9 +2613,15 @@ export const selectIsUnpreviewablePrivateGroup = (
     const preview = selectDefaultMatrixRoom(s, roomId)
     const liveRoom = selectMatrixRoom(s, roomId)
     return Boolean(
-        preview?.allowKnocking &&
+        preview &&
+            !preview.isPublic &&
             !preview.preview &&
-            liveRoom?.roomState !== 'joined',
+            liveRoom?.roomState !== 'joined' &&
+            // Unknown placeholder, a previewable knockable room (unchanged from
+            // before), or a placeholder reconciled to invite-only (empty name).
+            (preview.previewUnavailable ||
+                preview.allowKnocking ||
+                !preview.name),
     )
 }
 

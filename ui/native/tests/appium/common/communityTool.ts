@@ -81,5 +81,9 @@ export async function createSpaceWithChats(
     if (!invite.toLowerCase().startsWith('fedi:community')) {
         throw new Error(`Expected a community invite, captured: "${invite}"`)
     }
+    // The create screen sits behind the mini app, and it covers the tab bar too.
+    await t.clickElementByKey('CloseMiniAppButton')
+    await t.clickElementByKey('HeaderBackButton')
+    await t.waitForElementDisplayed('HomeTabButton')
     return invite
 }

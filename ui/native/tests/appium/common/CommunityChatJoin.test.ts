@@ -7,8 +7,11 @@ import { Platform } from '../../configs/appium/types'
 import { setupOnboarded } from '../fixtures/setupOnboarded'
 import {
     ALL_GROUPS,
+    BROADCAST_GROUP,
+    PRIVATE_GROUP,
     PUBLIC_GROUP,
     createGroupAndSendMessage,
+    disableJoinRequests,
     switchToChatTab,
 } from './chatGroups'
 import { createSpaceWithChats } from './communityTool'
@@ -66,12 +69,7 @@ export class CommunityChatJoin extends AppiumTestBase {
         // testID.
         await joiner.clickElementByKey('JoinFederationButton', MATRIX_TIMEOUT)
 
-        // Joiner: every default chat surfaces as a tile. Public ones render
-        // with their names since the homeserver previews them. Knockable ones
-        // can't be previewed without MSC3266, so they fall back to placeholder
-        // tiles that still offer a request-to-join. Screenshot the list so all
-        // tiles can be eyeballed, then drive the join from the public tiles,
-        // which are the ones findable by name.
+        // devimint previews private rooms, so every tile carries a real name.
         await joiner.clickElementByKey('HomeTabButton')
         await joiner.scrollToElement(
             `DefaultChatTileJoinButton-${PUBLIC_GROUP.name}`,
@@ -93,6 +91,71 @@ export class CommunityChatJoin extends AppiumTestBase {
                 MATRIX_TIMEOUT,
             )
             await joiner.clickElementByKey('HeaderBackButton')
+        }
+
+        // Guards that the invite-only handling below doesn't cost a room that
+        // really does accept requests.
+        await joiner.clickElementByKey('HomeTabButton')
+        await joiner.clickElementByKey(
+            `DefaultChatTileJoinButton-${PRIVATE_GROUP.name}`,
+            MATRIX_TIMEOUT,
+        )
+        await joiner.waitForElementDisplayed(
+            'ConfirmJoinButton',
+            MATRIX_TIMEOUT,
+        )
+        await joiner.clickElementByKey('ConfirmJoinButton')
+        await joiner.waitForElementDisplayed('KnockPendingView', MATRIX_TIMEOUT)
+        await joiner.saveScreenshot('knockable-reaches-pending')
+        await joiner.clickElementByKey('HeaderCloseButton')
+
+        // The joiner previewed this room while it still took join requests, and
+        // the confirm sheet reads that cached preview rather than refetching,
+        // so it keeps offering a request the server will now refuse.
+        await disableJoinRequests(admin, BROADCAST_GROUP.name)
+
+        // Tapping the Spaces tab while already on Spaces opens the switcher
+        // over the tiles.
+        await joiner.clickElementByKey(
+            `DefaultChatTileJoinButton-${BROADCAST_GROUP.name}`,
+            MATRIX_TIMEOUT,
+        )
+        await joiner.waitForElementDisplayed(
+            'ConfirmJoinButton',
+            MATRIX_TIMEOUT,
+        )
+        await joiner.clickElementByKey('ConfirmJoinButton')
+
+        await joiner.waitForText(
+            'This group is invite-only. Ask an admin to add you.',
+            0,
+            true,
+            MATRIX_TIMEOUT,
+        )
+        await joiner.saveScreenshot('invite-only-after-refused-knock')
+
+        // Both look for text that should already be absent, so don't wait the
+        // default out.
+        const ABSENCE_TIMEOUT = 5000
+        if (
+            await joiner.getTextInstanceCount(
+                'BridgeError',
+                false,
+                ABSENCE_TIMEOUT,
+            )
+        ) {
+            throw new Error('Raw BridgeError text was shown to the user')
+        }
+        if (
+            await joiner.getTextInstanceCount(
+                'Request to join',
+                true,
+                ABSENCE_TIMEOUT,
+            )
+        ) {
+            throw new Error(
+                'Request to join still offered after the server refused the knock',
+            )
         }
     }
 
