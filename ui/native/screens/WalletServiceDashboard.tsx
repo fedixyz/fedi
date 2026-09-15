@@ -5,12 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
-import { useBalance } from '@fedi/common/hooks/amount'
+import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     useWalletServiceFederationId,
     useWalletServiceRecoveryStage,
 } from '@fedi/common/hooks/fi'
+import { useGuardianFeeBalance } from '@fedi/common/hooks/guardianFees'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
     selectFiFederationJoinFailure,
@@ -50,6 +51,9 @@ export type Props = NativeStackScreenProps<
 /** What the design shows in place of the amount while it is hidden. */
 const MASKED_BALANCE = '••••'
 
+/** Stands in for the amount when the fee stream could not be opened. */
+const UNAVAILABLE_BALANCE = '—'
+
 /**
  * Delay before the tour opens, matching the prototype. It lets the screen's
  * entrance settle and the post-creation toast be read before the scrim lands.
@@ -76,6 +80,17 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     // re-reconciling must not replace them with a recovery loader. The FI
     // caveat is carried by the guardian-line skeleton below.
     const { isWalletReady } = useWalletServiceRecoveryStage()
+    // Held back until the wallet is ready, which is the point the federation is
+    // loaded: the bridge answers this stream from app state, and the auto-join
+    // races this screen's mount. A stream refused for a federation that had not
+    // landed yet would stay refused — nothing reopens it.
+    const {
+        balance: feeBalance,
+        isLoading: isFeeBalanceLoading,
+        error: feeBalanceError,
+    } = useGuardianFeeBalance(
+        isWalletReady ? (federationId ?? undefined) : undefined,
+    )
     const [guardianStatuses, setGuardianStatuses] = useState<
         GuardianStatus[] | null
     >(null)
@@ -94,9 +109,15 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
             : null,
     )
     const name = federationName || formationName
-    const { formattedBalanceSats, formattedBalanceFiat } = useBalance(
-        t,
-        federationId ?? '',
+    // the same formatter call the guardian fees screen makes, so one number
+    // cannot read two ways across the two screens that show it
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        federationId: federationId ?? undefined,
+    })
+    const { formattedSats, formattedFiat } = makeFormattedAmountsFromMSats(
+        feeBalance,
+        'end',
+        true,
     )
 
     useEffect(() => {
@@ -369,22 +390,37 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                                     testID="wallet-service-balance-content"
                                     style={style.balanceContent}>
                                     {isWalletReady ? (
-                                        <>
-                                            <Text
-                                                testID="wallet-service-balance-amount"
-                                                style={style.balanceAmount}>
-                                                {isBalanceRevealed
-                                                    ? formattedBalanceSats
-                                                    : MASKED_BALANCE}
-                                            </Text>
-                                            <Text style={style.balanceEquiv}>
-                                                {isBalanceRevealed
-                                                    ? `≈ ${formattedBalanceFiat}`
-                                                    : t(
-                                                          'feature.wallet-service.dashboard-tap-to-reveal',
-                                                      )}
-                                            </Text>
-                                        </>
+                                        isFeeBalanceLoading ? (
+                                            <Skeleton
+                                                height={20}
+                                                width={132}
+                                                testID="wallet-service-balance-skeleton"
+                                            />
+                                        ) : (
+                                            <>
+                                                <Text
+                                                    testID="wallet-service-balance-amount"
+                                                    style={style.balanceAmount}>
+                                                    {feeBalanceError
+                                                        ? UNAVAILABLE_BALANCE
+                                                        : isBalanceRevealed
+                                                          ? formattedSats
+                                                          : MASKED_BALANCE}
+                                                </Text>
+                                                <Text
+                                                    style={style.balanceEquiv}>
+                                                    {feeBalanceError
+                                                        ? t(
+                                                              'feature.wallet-service.dashboard-fees-unavailable',
+                                                          )
+                                                        : isBalanceRevealed
+                                                          ? `≈ ${formattedFiat}`
+                                                          : t(
+                                                                'feature.wallet-service.dashboard-tap-to-reveal',
+                                                            )}
+                                                </Text>
+                                            </>
+                                        )
                                     ) : hasCreatedJoinFailed ? (
                                         <WalletServiceJoinFailed
                                             federationId={federationId}

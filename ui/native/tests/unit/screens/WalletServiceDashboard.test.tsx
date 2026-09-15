@@ -66,6 +66,9 @@ jest.mock(
     }),
 )
 
+/** Records every guardian remittance balance subscribe the screen opens. */
+const mockFeeBalanceSubscribe = jest.fn()
+
 const makeGuardianStatuses = (
     online: number,
     total: number,
@@ -128,7 +131,9 @@ const renderScreen = ({
     // name; that equals the creation-time intent until a rename
     federationName = formation.intent.federationName,
     renamedTo = null as string | null,
-    balanceMsats = 0,
+    // what the guardian remittance balance stream does: a number it emits, or
+    // one of the two states it can be left in
+    feeBalance = 0 as number | 'pending' | 'error',
     guardianStatuses = null as GuardianStatus[] | null,
     hasSeenTour = true,
     // what the app-wide monitor has found; the dashboard is where a user lands
@@ -141,7 +146,7 @@ const renderScreen = ({
     federationJoined?: boolean
     federationName?: string
     renamedTo?: string | null
-    balanceMsats?: number
+    feeBalance?: number | 'pending' | 'error'
     guardianStatuses?: GuardianStatus[] | null
     hasSeenTour?: boolean
     liquidity?: RpcFiLiquidityOperation | null
@@ -154,6 +159,18 @@ const renderScreen = ({
             federationId: WALLET_SERVICE_FEDERATION_ID,
         }),
         getGuardianStatus: async () => guardianStatuses ?? [],
+        spv2GuardianRemittanceBalance: (args: {
+            federationId: string
+            callback: (balance: MSats) => void
+            onError?: (error: unknown) => void
+        }) => {
+            mockFeeBalanceSubscribe(args.federationId)
+            if (feeBalance === 'error')
+                args.onError?.(new Error('stream refused'))
+            else if (feeBalance !== 'pending')
+                args.callback(feeBalance as unknown as MSats)
+            return () => {}
+        },
     })
 
     return renderWithProviders(
@@ -175,7 +192,10 @@ const renderScreen = ({
                                   meta: renamedTo
                                       ? { federation_name: renamedTo }
                                       : mockFederation1.meta,
-                                  balance: balanceMsats as MSats,
+                                  // the screen no longer reads this; it is here
+                                  // so a personal balance cannot silently
+                                  // become what the card shows again
+                                  balance: 21_000_000 as MSats,
                                   recovering,
                               },
                           ]
@@ -580,7 +600,7 @@ describe('screens/WalletServiceDashboard', () => {
         renderScreen({
             status: restoredStatus('fresh'),
             federationJoined: true,
-            balanceMsats: 21_000_000,
+            feeBalance: 5_000_000,
         })
         await waitFor(() =>
             expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
@@ -593,7 +613,7 @@ describe('screens/WalletServiceDashboard', () => {
         renderScreen({
             snapshot: { ...formation, freshness: 'unsynced' },
             federationJoined: true,
-            balanceMsats: 21_000_000,
+            feeBalance: 5_000_000,
         })
         await waitFor(() =>
             expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
@@ -615,7 +635,7 @@ describe('screens/WalletServiceDashboard', () => {
         renderScreen({
             status: restoredStatus('unsynced', true),
             federationJoined: true,
-            balanceMsats: 21_000_000,
+            feeBalance: 5_000_000,
         })
         await waitFor(() =>
             expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
@@ -661,7 +681,7 @@ describe('screens/WalletServiceDashboard', () => {
         renderScreen({
             status: restoredStatus('fresh'),
             federationJoined: true,
-            balanceMsats: 21_000_000,
+            feeBalance: 5_000_000,
         })
         await waitFor(() =>
             expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
@@ -676,7 +696,7 @@ describe('screens/WalletServiceDashboard', () => {
     })
 
     it('should keep the balance hidden until it is tapped', async () => {
-        renderScreen({ balanceMsats: 21_000_000 })
+        renderScreen({ feeBalance: 5_000_000 })
         await waitFor(() => {})
 
         expect(screen.getByText('••••')).toBeOnTheScreen()
@@ -689,16 +709,92 @@ describe('screens/WalletServiceDashboard', () => {
     })
 
     it('should reveal the real balance when tapped', async () => {
-        renderScreen({ balanceMsats: 21_000_000 })
+        renderScreen({ feeBalance: 5_000_000 })
 
         await user.press(screen.getByTestId('wallet-service-balance'))
 
-        expect(screen.getByText(/21,000 SATS/)).toBeOnTheScreen()
+        expect(screen.getByText(/5,000 SATS/)).toBeOnTheScreen()
         expect(screen.queryByText('••••')).not.toBeOnTheScreen()
     })
 
+    // The card used to read `federation.balance`, which is the operator's own
+    // spendable ecash — a personal receive moved it, and claiming a fee was
+    // the only thing that did not. The fixture federation holds 21,000 SATS
+    // precisely so this can tell the two numbers apart.
+    it('should reveal the claimable fees rather than the personal wallet balance', async () => {
+        renderScreen({ feeBalance: 5_000_000 })
+
+        await user.press(screen.getByTestId('wallet-service-balance'))
+
+        expect(screen.queryByText(/21,000 SATS/)).not.toBeOnTheScreen()
+    })
+
+    // A service that has earned nothing has claimable fees of exactly zero.
+    // That is a value, not an absent one, and it must not read as loading.
+    it('should show a zero fee balance as zero', async () => {
+        renderScreen({ feeBalance: 0 })
+
+        await user.press(screen.getByTestId('wallet-service-balance'))
+
+        expect(screen.getByText(/0 SATS/)).toBeOnTheScreen()
+        expect(
+            screen.queryByTestId('wallet-service-balance-skeleton'),
+        ).toBeNull()
+    })
+
+    // The bridge answers this stream out of app state and the auto-join races
+    // this screen's mount, so an early subscribe is refused — and nothing
+    // reopens it once the federation lands.
+    it('should not open the fee stream before the federation is loaded', async () => {
+        renderScreen({ federationJoined: false })
+        await waitFor(() => {})
+
+        expect(mockFeeBalanceSubscribe).not.toHaveBeenCalled()
+    })
+
+    it('should open the fee stream for the wallet service federation once it loads', async () => {
+        renderScreen()
+
+        await waitFor(() =>
+            expect(mockFeeBalanceSubscribe).toHaveBeenCalledWith(
+                WALLET_SERVICE_FEDERATION_ID,
+            ),
+        )
+        expect(mockFeeBalanceSubscribe).toHaveBeenCalledTimes(1)
+    })
+
+    it('should show a skeleton while the fee balance has not arrived', async () => {
+        renderScreen({ feeBalance: 'pending' })
+        await waitFor(() => {})
+
+        expect(
+            screen.getByTestId('wallet-service-balance-skeleton'),
+        ).toBeOnTheScreen()
+        expect(screen.queryByTestId('wallet-service-balance-amount')).toBeNull()
+    })
+
+    // Nothing reopens a refused stream, so a screen that kept spinning here
+    // would spin until the user left it. Withdraw stays reachable: the fees
+    // screen is where an error belongs, and this is the only way to it.
+    it('should report unavailable fees rather than spin when the stream is refused', async () => {
+        renderScreen({ feeBalance: 'error' })
+        await waitFor(() =>
+            expect(screen.getByTestId('wallet-service-withdraw')).toBeEnabled(),
+        )
+
+        expect(
+            screen.queryByTestId('wallet-service-balance-skeleton'),
+        ).toBeNull()
+        expect(screen.getByText('—')).toBeOnTheScreen()
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.dashboard-fees-unavailable'),
+            ),
+        ).toBeOnTheScreen()
+    })
+
     it('should hide the balance again when tapped a second time', async () => {
-        renderScreen({ balanceMsats: 21_000_000 })
+        renderScreen({ feeBalance: 5_000_000 })
 
         await user.press(screen.getByTestId('wallet-service-balance'))
         await user.press(screen.getByTestId('wallet-service-balance'))
