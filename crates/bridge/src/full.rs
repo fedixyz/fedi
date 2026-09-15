@@ -38,7 +38,7 @@ use crate::fa_client::{
     fa_client_status_to_rpc, fa_error_to_rpc, fa_push_error_to_rpc, open_fa_client,
     start_fa_driver, start_fa_federation_auto_join, suppress_fa_federation_auto_join,
 };
-use crate::fa_push::{BridgeFaPushGateway, FaPushError, FaPushPlatform};
+use crate::fa_push::{BridgeFaPushGatewayCache, FaPushPlatform};
 use crate::providers::{
     FederationProviderWrapper, MultispendNotificationsProvider, SptFederationProviderWrapper,
     SptNotificationsProvider,
@@ -62,8 +62,11 @@ pub struct BridgeFull {
     /// Dormant FA service. Initialization errors are retained without
     /// offboarding an otherwise healthy wallet.
     fa_client: std::result::Result<Arc<BridgeFaClient>, Arc<fa_client::FaError>>,
-    /// Seed- and installation-bound client for Manifold's push gateway.
-    fa_push_gateway: std::result::Result<Arc<BridgeFaPushGateway>, Arc<FaPushError>>,
+    /// Seed- and installation-bound push gateway, cached by Manifold
+    /// deployment.
+    fa_push_gateway: BridgeFaPushGatewayCache,
+    /// Manifold deployment selected for this bridge lifetime.
+    fa_manifold_environment: runtime::features::FaManifoldEnvironment,
     /// The sole owner of long-running FA formation, liquidity, and maintenance
     /// operations.
     pub(crate) fa_driver: Option<BridgeFaDriver>,
@@ -151,11 +154,11 @@ impl BridgeFull {
         fcm_token: String,
         platform: RpcFaPushPlatform,
     ) -> RpcFaPushRegistrationResult {
-        let gateway = match &self.fa_push_gateway {
+        let gateway = match self.fa_push_gateway.get(self.fa_manifold_environment) {
             Ok(gateway) => gateway,
             Err(error) => {
                 return RpcFaPushRegistrationResult::Error {
-                    error: fa_push_error_to_rpc(error),
+                    error: fa_push_error_to_rpc(&error),
                 };
             }
         };
@@ -177,11 +180,11 @@ impl BridgeFull {
     }
 
     pub async fn fa_unregister_push_installation(&self) -> RpcFaPushRegistrationResult {
-        let gateway = match &self.fa_push_gateway {
+        let gateway = match self.fa_push_gateway.get(self.fa_manifold_environment) {
             Ok(gateway) => gateway,
             Err(error) => {
                 return RpcFaPushRegistrationResult::Error {
-                    error: fa_push_error_to_rpc(error),
+                    error: fa_push_error_to_rpc(&error),
                 };
             }
         };
@@ -501,18 +504,12 @@ impl BridgeFull {
         let nostril = Arc::new(Nostril::new(&runtime).await);
         let push_root_secret = runtime.app_state.root_secret().await;
         let fa_manifold_environment = runtime.fa_manifold_environment().await;
-        let fa_push_gateway = BridgeFaPushGateway::from_parts(
+        let fa_push_gateway = BridgeFaPushGatewayCache::from_parts(
             &push_root_secret,
             runtime.feature_catalog.runtime_env,
             &device_identifier,
-            runtime
-                .feature_catalog
-                .fa_push_gateway
-                .as_ref()
-                .map(|config| config.api_base_url.clone()),
-        )
-        .map(Arc::new)
-        .map_err(Arc::new);
+            runtime.feature_catalog.fa_push_gateway.as_ref(),
+        );
         // A failed reset or owner check leaves FA state intact. Do not open
         // it against a possibly different environment's relays and issuers.
         let fa_client = if fa_reset_failed {
@@ -536,7 +533,7 @@ impl BridgeFull {
                 &runtime,
                 client.clone(),
                 federations.clone(),
-                fa_push_gateway.clone(),
+                fa_push_gateway.get(fa_manifold_environment),
                 fa_manifold_environment,
             )
         });
@@ -580,6 +577,7 @@ impl BridgeFull {
             nostril,
             fa_client,
             fa_push_gateway,
+            fa_manifold_environment,
             fa_driver,
             fa_federation_handoff_locks,
             fa_federation_join_report,

@@ -1013,13 +1013,11 @@ struct FormationLocalState {
 async fn ensure_formation_push_hook(
     stored_hook: &mut Option<FaDkgPushHook>,
     push_gateway: &FormationPushGatewayHandle,
-    environment: FaManifoldEnvironment,
+    // The selected environment must not impose callback policy here. The
+    // environment-scoped gateway cache already decides whether a usable client
+    // is available for that Manifold deployment.
+    _environment: FaManifoldEnvironment,
 ) -> Option<FaDkgPushHook> {
-    // Production managers have push disabled and reject callbacks after payment.
-    // Check the selected Manifold environment before reusing even a cached hook.
-    if environment == FaManifoldEnvironment::Production {
-        return None;
-    }
     if let Some(hook) = stored_hook {
         return Some(hook.clone());
     }
@@ -1064,9 +1062,8 @@ enum FaDriverOperation {
         intent: FormationIntent,
         approval: Box<MgSelectionApproval>,
         payment_federation_id: FederationId,
-        /// `None` in production or when no push hook could be arranged;
-        /// formation relies on launch reconciliation instead of a
-        /// completion push.
+        /// `None` when no push hook could be arranged; the formation then
+        /// relies on launch reconciliation instead of a completion push.
         completion_callback: Option<DkgCompletionCallback>,
     },
     ApplyReplacements {

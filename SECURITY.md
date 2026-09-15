@@ -85,6 +85,13 @@ Manager or liquidity work may continue, and payer-wallet holds and journals in
 joined federation databases are deliberately left untouched and may remain
 unavailable. The UI must say so and direct testers to disposable wallets.
 
+The Manifold push-gateway client is cached with the Manifold deployment of the
+runtime environment that supplied its feature configuration. Registration,
+unregistration, and formation hooks may use that client only while the same
+deployment is selected. Switching an internal build to another deployment must
+fail push setup closed rather than send installation credentials or callback
+traffic to the previously configured gateway.
+
 FA status snapshots are sensitive application state. They can contain Fleet
 Manager locators, guardian/DKG codes, invite codes, quote-bound authorization
 details, and exact payment terms. Neither handled nor orphaned stream payloads
@@ -339,12 +346,9 @@ The exact routing fields are governed in `HACKING.md` and implemented by the
 single strict parser in `ui/common/utils/faPush.ts`; consumers must not create a
 second string contract.
 
-Production Manifold formation always omits notification callbacks, including
-cached hooks, because production managers have push disabled. This follows the
-selected Manifold environment, including a nightly switched to production.
-In development and staging, at `Pay & create`, the bridge attempts to create
-one installation-scoped, one-use, 30-day hook before entering Manifold's paid
-operation; unavailable push setup does not block formation. The callback is passed
+At `Pay & create`, the bridge attempts to create one installation-scoped,
+one-use, 30-day hook before entering Manifold's paid operation; unavailable
+push setup does not block formation. The callback is passed
 only through the callback-aware `pay_and_create` method, which must persist it
 in the formation initialization transaction before external effects. A later
 setter is forbidden. Fedi does not duplicate the callback in its database; a
@@ -352,6 +356,14 @@ crash before Manifold initialization can leave only an expiring gateway orphan.
 Once a formation exists, Manifold is the sole durable owner and gateway failure
 must never roll back money or DKG. A hook may be revoked by Fedi only after the
 driver proves no durable formation owns it.
+
+This callback behavior must not deploy until the Manifold #69 fix is deployed
+to every Fleet Manager the app can select. Merging or pinning the fix in the
+client library does not establish server compatibility. A fixed manager ignores
+a supplied callback when callback delivery is unconfigured and continues DKG,
+but still rejects a configured callback that is malformed or has the wrong
+origin.
+
 The gateway response is accepted only when `expires_at == created_at + 30 days`
 without integer overflow and `created_at` is fresh relative to the bridge's
 trusted request-start/response-receive timestamps. The permitted gateway clock

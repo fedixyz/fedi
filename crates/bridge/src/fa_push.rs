@@ -8,6 +8,7 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::net::IpAddr;
+use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
@@ -31,9 +32,10 @@ use nostr::hashes::sha256::Hash as Sha256Hash;
 use nostr::{Keys, Kind, Tag};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use reqwest::{Client, Method, Url};
+use runtime::bridge_runtime::default_fa_manifold_environment;
 #[cfg(not(target_arch = "wasm32"))]
 use runtime::constants::FA_PUSH_RECIPIENT_CHILD_ID;
-use runtime::features::RuntimeEnvironment;
+use runtime::features::{FaManifoldEnvironment, FaPushGatewayFeatureConfig, RuntimeEnvironment};
 use runtime::storage::state::DeviceIdentifier;
 use runtime::utils::unix_now;
 use serde::Serialize;
@@ -65,6 +67,16 @@ pub(crate) struct BridgeFaPushGateway {
     keys: Keys,
     installation_id: DeviceInstallationId,
     client: Client,
+}
+
+/// One cached push-gateway client, bound to the Manifold deployment it serves.
+pub(crate) struct BridgeFaPushGatewayCache {
+    cached: Option<CachedBridgeFaPushGateway>,
+}
+
+struct CachedBridgeFaPushGateway {
+    environment: FaManifoldEnvironment,
+    gateway: Result<Arc<BridgeFaPushGateway>, Arc<FaPushError>>,
 }
 
 /// Callback and public management handle for one formation notification.
@@ -415,6 +427,42 @@ impl BridgeFaPushGateway {
         let encoded = general_purpose::STANDARD
             .encode(serde_json::to_vec(&event).map_err(|_| FaPushError::RequestEncoding)?);
         Ok(format!("Nostr {encoded}"))
+    }
+}
+
+impl BridgeFaPushGatewayCache {
+    /// Builds the configured gateway cache without allowing it to cross
+    /// Manifold deployment boundaries.
+    pub(crate) fn from_parts(
+        root_secret: &DerivableSecret,
+        runtime_environment: RuntimeEnvironment,
+        device_identifier: &DeviceIdentifier,
+        config: Option<&FaPushGatewayFeatureConfig>,
+    ) -> Self {
+        Self {
+            cached: config.map(|config| CachedBridgeFaPushGateway {
+                environment: default_fa_manifold_environment(runtime_environment),
+                gateway: BridgeFaPushGateway::from_parts(
+                    root_secret,
+                    runtime_environment,
+                    device_identifier,
+                    Some(config.api_base_url.clone()),
+                )
+                .map(Arc::new)
+                .map_err(Arc::new),
+            }),
+        }
+    }
+
+    /// Returns the cached client only for its configured Manifold deployment.
+    pub(crate) fn get(
+        &self,
+        environment: FaManifoldEnvironment,
+    ) -> Result<Arc<BridgeFaPushGateway>, Arc<FaPushError>> {
+        match &self.cached {
+            Some(cached) if cached.environment == environment => cached.gateway.clone(),
+            _ => Err(Arc::new(FaPushError::Unavailable)),
+        }
     }
 }
 

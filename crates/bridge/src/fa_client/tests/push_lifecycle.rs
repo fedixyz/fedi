@@ -148,42 +148,9 @@ impl FaDriverBackend for BlockingAbandonBackend {
 }
 
 #[tokio::test]
-async fn production_formation_skips_new_and_cached_callbacks() {
-    for hook in [None, Some(fake_push_hook())] {
-        let (gateway, handle) = fake_push_gateway(false, false, false);
-        let state = FormationLocalState::new(handle, FaManifoldEnvironment::Production);
-        let coordinator = &state.formation_push;
-        coordinator
-            .install_preview("preview".to_owned(), false)
-            .await;
-        coordinator.state.lock().await.as_mut().unwrap().hook = hook;
-        let active = Arc::new(AtomicBool::new(false));
-        let dispatched = AtomicBool::new(false);
-
-        let result = coordinator
-            .dispatch_paid_formation(
-                "preview",
-                |callback| {
-                    assert!(callback.is_none());
-                    dispatched.store(true, Ordering::Release);
-                    async { successful_dispatch(&active) }
-                },
-                || true,
-            )
-            .await;
-
-        assert!(matches!(result, RpcFaOperationResult::Success));
-        assert!(dispatched.load(Ordering::Acquire));
-        assert_eq!(gateway.create_calls.load(Ordering::Acquire), 0);
-        assert_eq!(gateway.revoke_calls.load(Ordering::Acquire), 0);
-        assert!(!active.load(Ordering::Acquire));
-    }
-}
-
-#[tokio::test]
-async fn staging_dispatches_without_callback_when_hook_creation_fails() {
+async fn production_dispatches_without_callback_when_hook_creation_fails() {
     let (gateway, handle) = fake_push_gateway(true, false, false);
-    let coordinator = FormationPushCoordinator::new(handle, FaManifoldEnvironment::Staging);
+    let coordinator = FormationPushCoordinator::new(handle, FaManifoldEnvironment::Production);
     coordinator
         .install_preview("preview".to_owned(), false)
         .await;
@@ -215,9 +182,9 @@ async fn staging_dispatches_without_callback_when_hook_creation_fails() {
 }
 
 #[tokio::test]
-async fn staging_dispatches_without_callback_when_gateway_is_undeployed() {
+async fn production_dispatches_without_callback_when_gateway_is_undeployed() {
     let handle: FormationPushGatewayHandle = Err(Arc::new(FaPushError::Unavailable));
-    let coordinator = FormationPushCoordinator::new(handle, FaManifoldEnvironment::Staging);
+    let coordinator = FormationPushCoordinator::new(handle, FaManifoldEnvironment::Production);
     coordinator
         .install_preview("preview".to_owned(), false)
         .await;
@@ -247,9 +214,9 @@ async fn staging_dispatches_without_callback_when_gateway_is_undeployed() {
 }
 
 #[tokio::test]
-async fn staging_reuses_exact_callback_for_safe_payer_retry() {
+async fn production_reuses_exact_callback_for_safe_payer_retry() {
     let (gateway, handle) = fake_push_gateway(false, false, false);
-    let coordinator = FormationPushCoordinator::new(handle, FaManifoldEnvironment::Staging);
+    let coordinator = FormationPushCoordinator::new(handle, FaManifoldEnvironment::Production);
     coordinator
         .install_preview("preview".to_owned(), false)
         .await;

@@ -177,7 +177,8 @@ impl Runtime {
     }
 }
 
-fn default_fa_manifold_environment(environment: RuntimeEnvironment) -> FaManifoldEnvironment {
+/// Returns the Manifold deployment assigned to one compiled runtime flavor.
+pub fn default_fa_manifold_environment(environment: RuntimeEnvironment) -> FaManifoldEnvironment {
     match environment {
         RuntimeEnvironment::Dev | RuntimeEnvironment::Tests => FaManifoldEnvironment::Development,
         RuntimeEnvironment::Staging => FaManifoldEnvironment::Staging,

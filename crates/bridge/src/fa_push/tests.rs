@@ -21,6 +21,58 @@ fn gateway() -> BridgeFaPushGateway {
     .unwrap()
 }
 
+fn staging_config() -> FaPushGatewayFeatureConfig {
+    FaPushGatewayFeatureConfig {
+        api_base_url: Url::parse("https://push.example/").unwrap(),
+    }
+}
+
+#[test]
+fn cached_gateway_is_scoped_to_its_manifold_environment() {
+    let device = DeviceIdentifier::from_str("phone:mobile:test-installation").unwrap();
+    let config = staging_config();
+    let cache = BridgeFaPushGatewayCache::from_parts(
+        &root(9),
+        RuntimeEnvironment::Staging,
+        &device,
+        Some(&config),
+    );
+
+    assert!(cache.get(FaManifoldEnvironment::Staging).is_ok());
+    assert!(matches!(
+        cache.get(FaManifoldEnvironment::Development),
+        Err(error) if matches!(&*error, FaPushError::Unavailable)
+    ));
+    assert!(matches!(
+        cache.get(FaManifoldEnvironment::Production),
+        Err(error) if matches!(&*error, FaPushError::Unavailable)
+    ));
+}
+
+#[test]
+fn production_cache_selects_a_usable_gateway_only_for_production() {
+    let device = DeviceIdentifier::from_str("phone:mobile:test-installation").unwrap();
+    let config = FaPushGatewayFeatureConfig {
+        api_base_url: Url::parse("https://push.example/").unwrap(),
+    };
+    let cache = BridgeFaPushGatewayCache::from_parts(
+        &root(9),
+        RuntimeEnvironment::Prod,
+        &device,
+        Some(&config),
+    );
+
+    assert!(cache.get(FaManifoldEnvironment::Production).is_ok());
+    assert!(matches!(
+        cache.get(FaManifoldEnvironment::Staging),
+        Err(error) if matches!(&*error, FaPushError::Unavailable)
+    ));
+    assert!(matches!(
+        cache.get(FaManifoldEnvironment::Development),
+        Err(error) if matches!(&*error, FaPushError::Unavailable)
+    ));
+}
+
 fn hook_response(
     gateway: &BridgeFaPushGateway,
     created_at: i64,
