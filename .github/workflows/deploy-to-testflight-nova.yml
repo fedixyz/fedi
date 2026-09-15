@@ -9,6 +9,8 @@ permissions:
 jobs:
     release-ios:
         name: Build iOS app and upload to TestFlight
+        # nova ios is unimplemented
+        if: false
         timeout-minutes: 90
         runs-on: [self-hosted, macos, arm64, deployment]
         steps:

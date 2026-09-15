@@ -90,5 +90,7 @@ jobs:
 
     call-deployment-workflow-testflight:
         name: Trigger deployment to TestFlight
+        # edge ios is unimplemented
+        if: false
         uses: ./.github/workflows/deploy-to-testflight-edge.yml
         secrets: inherit

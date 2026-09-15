@@ -90,5 +90,7 @@ jobs:
 
     call-deployment-workflow-testflight:
         name: Trigger deployment to TestFlight
+        # nova ios is unimplemented
+        if: false
         uses: ./.github/workflows/deploy-to-testflight-nova.yml
         secrets: inherit
