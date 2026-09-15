@@ -1035,6 +1035,7 @@
             "error-network-offline-title": "Internet is offline",
             "error-network-title": "Network error, please retry with connectivity",
             "error-paste-empty": "There was nothing in the clipboard to paste.",
+            "existing-federation-membership": "You're already a member of this Wallet Service.",
             "first-time-overlay-title": "What can you do with scan?",
             "first-time-overlay-desc1": "Scan anything — send or receive money, start new chats, or add mini apps. Your all-in-one scanner for everything Fedi.",
             "first-time-overlay-desc2": "Can't scan? No worries. You can paste a code instead.",
