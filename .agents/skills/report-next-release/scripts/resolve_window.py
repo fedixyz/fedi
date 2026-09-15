@@ -19,7 +19,8 @@ Output:
     "baselines": {"native": {...}, "web": {...}},
     "prs": [{number, title, date, author, body_refs: [...], ...}],
     "refs": {"11474": {kind, state, milestone, labels, title, board: {dev, qa}}, ...},
-    "milestone_issues": {"26.7.0": [{number, title, state, board}], ...},
+    "milestone_issues": {"26.7.0": [{number, title, state, board, open_prs}], ...},
+    "open_prs": [{number, title, draft, author, updated, body_refs}],
     "milestones": [{number, state, title, open_issues, closed_issues}],
     "warnings": [...]
   }
@@ -109,6 +110,21 @@ def fetch_prs(repo, since):
     prs = json.loads(raw)
     prs.sort(key=lambda p: p["mergedAt"])
     return prs
+
+
+def fetch_open_prs(repo):
+    """Open PRs against master with their body refs. A milestone issue with one that
+    is ready for review is in progress; with only a draft, or none, it is planned."""
+    raw = run(["gh", "pr", "list", "--repo", repo, "--base", "master", "--state", "open",
+               "--limit", "300", "--json", "number,title,body,isDraft,author,updatedAt"])
+    out = []
+    for p in json.loads(raw):
+        out.append({"number": p["number"], "title": p["title"], "draft": bool(p.get("isDraft")),
+                    "author": (p.get("author") or {}).get("login", ""),
+                    "updated": (p.get("updatedAt") or "")[:10],
+                    "body_refs": sorted({int(m) for m in REF_RE.findall(p.get("body") or "")})})
+    out.sort(key=lambda p: p["number"])
+    return out
 
 
 def resolve_ref(repo, n):
@@ -223,6 +239,16 @@ def main():
 
     ms_issues = milestone_issues(args.repo, args.milestone, warnings) if args.milestone else {}
 
+    open_prs = fetch_open_prs(args.repo)
+    open_by_ref = {}
+    for p in open_prs:
+        for r in p["body_refs"]:
+            open_by_ref.setdefault(r, []).append(
+                {"number": p["number"], "title": p["title"], "draft": p["draft"], "updated": p["updated"]})
+    for rows in ms_issues.values():
+        for r in rows:
+            r["open_prs"] = open_by_ref.get(r["number"], [])
+
     boards = {}
     if not args.no_zenhub:
         want_board = {int(n) for n, m in refs.items() if m["kind"] == "ISSUE" and not m.get("noise")}
@@ -243,6 +269,7 @@ def main():
                "refs": refs,
                "issue_refs_dropped_as_noise": noise,
                "milestone_issues": ms_issues,
+               "open_prs": open_prs,
                "milestones": json.loads(ms_raw),
                "warnings": warnings},
               sys.stdout, indent=1)
@@ -250,7 +277,7 @@ def main():
     for w in warnings:
         print(f"warning: {w}", file=sys.stderr)
     print(f"resolved {len(prs)} PRs, {len(refs)} refs ({len(noise)} dropped as bot noise), "
-          f"{len(boards)} on the board", file=sys.stderr)
+          f"{len(boards)} on the board, {len(open_prs)} open PRs against master", file=sys.stderr)
 
 
 if __name__ == "__main__":

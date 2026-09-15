@@ -21,9 +21,9 @@
     "live": "26.6.1",
     "live_note": "out since 14 July",
     "waiting": "15 user-facing changes",
-    "waiting_note": "merged over 51 days",
+    "waiting_note": "waiting 51 days",
     "next": "26.7.0",
-    "next_note": "not cut yet",
+    "next_note": "not out yet",
     "in_flight": "26.7.0",
     "in_flight_note": "in app store review, 12 days",
     "emph": "in_flight"
@@ -38,11 +38,11 @@
    "note": "web/26.6.1 and web/26.6.2 are cherry-pick lineages, each carrying one feature-flag flip. app.fedi.xyz serves /api/features to both apps, so a flag deploy is a web deploy. They are not the baseline; web/26.6.0 is.",
    "glance": {
     "live": "web/26.6.2",
-    "live_note": "a feature flag flip, 13 July",
+    "live_note": "one feature switched on, 13 July",
     "waiting": "16 user-facing changes",
-    "waiting_note": "no code deploy in 52 days",
+    "waiting_note": "nothing new in 52 days",
     "next": "web/26.7.0",
-    "next_note": "not tagged yet"
+    "next_note": "not out yet"
    }
   },
   "focus": "none"
@@ -72,7 +72,6 @@
    {
     "headline": "Request to join private and community groups",
     "kind": "New feature",
-    "status": "Pending release",
     "badge": "",
     "summary": "People will be able to ask to join a private group, and admins can review those requests.",
     "track": "Native"
@@ -80,7 +79,6 @@
    {
     "headline": "Personal backup reminder",
     "kind": "New feature",
-    "status": "Pending release",
     "badge": "Feature flagged",
     "summary": "A reminder that nudges people to back up their wallet. Built and ready, held behind a feature flag.",
     "track": "Native",
@@ -94,30 +92,39 @@
    {
     "headline": "Send button greys out when funds are short",
     "kind": "Fix",
-    "status": "Pending release",
     "badge": "",
     "summary": "The confirm button is disabled when the balance is too low.",
     "track": "Native"
-   },
+   }
+  ],
+  "not_merged": [
    {
-    "headline": "Crash fix for older iPhones (iOS 15)",
+    "headline": "Crash on older iPhones (iOS 15)",
     "kind": "Fix",
     "status": "In progress",
     "badge": "",
-    "summary": "A fix is in review and not yet on master.",
+    "summary": "Opening the app on iOS 15 crashes before the home screen.",
     "track": "Native",
     "platforms": [
      "ios"
     ]
+   },
+   {
+    "headline": "Separate history entries for reused on-chain addresses",
+    "kind": "Improvement",
+    "status": "Planned",
+    "badge": "",
+    "summary": "Each deposit to a reused address gets its own line in history.",
+    "track": "Native + web"
+   },
+   {
+    "headline": "Default to your most-used federation",
+    "kind": "Improvement",
+    "status": "Planned",
+    "badge": "",
+    "summary": "",
+    "track": "Native"
    }
-  ],
-  "planned_keep": {
-   "title": "Separate history entries for reused on-chain addresses",
-   "detail": "Each deposit to a reused address gets its own line in history."
-  },
-  "planned_park": [
-   "Default to your most-used federation",
-   "Show LNURL payments in history"
   ]
  },
  "user_facing": [
@@ -160,7 +167,8 @@
      "board": {
       "dev": "Ready for Prod",
       "qa": "Passed Test"
-     }
+     },
+     "open_prs": []
     },
     {
      "number": 11601,
@@ -169,7 +177,15 @@
      "board": {
       "dev": "Needs Triage",
       "qa": "All Issues"
-     }
+     },
+     "open_prs": [
+      {
+       "number": 11620,
+       "title": "fix(ios): pin the bridge target to apple-a7",
+       "draft": false,
+       "updated": "2026-06-25"
+      }
+     ]
     },
     {
      "number": 9187,
@@ -178,7 +194,8 @@
      "board": {
       "dev": "Code Review",
       "qa": "All Issues"
-     }
+     },
+     "open_prs": []
     }
    ]
   },
@@ -193,7 +210,8 @@
      "board": {
       "dev": "Ready for Prod",
       "qa": "Passed Test"
-     }
+     },
+     "open_prs": []
     },
     {
      "number": 11458,
@@ -202,7 +220,8 @@
      "board": {
       "dev": "Queue",
       "qa": "All Issues"
-     }
+     },
+     "open_prs": []
     }
    ]
   }

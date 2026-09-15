@@ -22,9 +22,16 @@ Design choices that matter (learned the hard way, keep them):
     hardcode a hex outside the two :root blocks, or one theme breaks.
   - Two release tracks, always. Native and web have different "already released"
     baselines, so a single current version is always wrong for one of them.
-  - Status says "Pending release", never "Shipped". Merged to master is not
-    released. "Shipped"/live means a production flag is on, which this report
-    does not assert.
+  - MERGED IS THE LINE BETWEEN THE TWO CARD SECTIONS. "What users will get"
+    holds only work on master and its cards carry no status chip, because the
+    section is the status. Milestone work that has not merged renders in a
+    collapsed "Not in this release yet" section with an In progress or Planned
+    chip. The renderer warns when a card sits on the wrong side.
+  - THE SUMMARY SPEAKS PRODUCT, NEVER WORKFLOW. Its reader does not know what
+    a PR, a merge or a cut is. The renderer scans that tab for workflow
+    vocabulary and warns on every hit.
+  - Nothing says "Shipped". Merged to master is not released. "Shipped"/live
+    means a production flag is on, which this report does not assert.
   - No em or en dashes anywhere in output. Use a regular hyphen. (Repo rule.)
   - Chips never wrap mid-word (white-space:nowrap); the chip row wraps whole
     pills instead.
@@ -33,6 +40,7 @@ See SKILL.md for the JSON schema and how to fill it.
 """
 import html
 import json
+import re
 import sys
 
 # ---- chip vocab -> color class -------------------------------------------
@@ -40,13 +48,13 @@ KIND_CLS = {"New feature": "k-feat", "Improvement": "k-imp", "Fix": "k-fix"}
 STATUS_CLS = {"Pending release": "s-ship", "In progress": "s-prog", "Planned": "s-plan"}
 
 # Milestone-issue status -> badge. "done" = a merged window PR addresses it;
-# "pending" = milestoned but no code yet; "backport" = its fix ships in the
-# patch, not the next major; "inprogress" = open PR, not on master yet.
+# "inprogress" = an open PR ready for review; "pending" = a draft PR or no PR;
+# "backport" = its fix ships in the patch, not the next major.
 STATUS_BADGE = {
     "done": '<span class="badge ok">on master</span>',
-    "pending": '<span class="badge wait">not yet on master</span>',
+    "pending": '<span class="badge wait">no PR, or only a draft</span>',
     "backport": '<span class="badge bp">ships in the backport</span>',
-    "inprogress": '<span class="badge prog">fix in progress</span>',
+    "inprogress": '<span class="badge prog">open PR, not merged</span>',
     "closed": '<span class="badge ok">closed / done</span>',
 }
 
@@ -148,6 +156,27 @@ PLATFORM_SVG = {
 PLATFORM_JS = json.dumps({"order": list(PLATFORM_ORDER), "label": PLATFORM_LABEL})
 
 LAYOUTS = (("all", "All"), ("status", "Status"), ("platform", "Platform"))
+# Every merged card has the same status, so grouping on it yields one panel.
+MERGED_LAYOUTS = tuple(l for l in LAYOUTS if l[0] != "status")
+NOT_MERGED_STATUSES = ("In progress", "Planned")
+
+SUMMARY_JARGON = (
+    r"\bPRs?\b", r"\bpull requests?\b", r"\bmerged?s?\b", r"\bmaster\b", r"\bbranch(es)?\b",
+    r"\bcommits?\b", r"\btags?\b", r"\btagged\b", r"\bcut\b", r"\bmilestones?\b",
+    r"\bbackports?\b", r"\bcherry-pick", r"\bdeploy(ed|s|ment)?\b", r"\b(code|under|in) review\b",
+    r"\bCI\b", r"\bnightly\b", r"\bQA\b", r"\bzenhub\b", r"\bboards?\b", r"\bupstream\b",
+    r"\bcrates?\b", r"\bwasm\b", r"\bbridge\b", r"\bsha\b", r"#\d{3,}", r"\b[0-9a-f]{7,40}\b",
+)
+
+
+def scan_summary_jargon(summary_html):
+    text = html.unescape(re.sub(r"<[^>]+>", " ", summary_html))
+    for pat in SUMMARY_JARGON:
+        for m in re.finditer(pat, text, re.I):
+            s, e = max(0, m.start() - 40), min(len(text), m.end() + 40)
+            snippet = re.sub(r"\s+", " ", text[s:e]).strip()
+            warn(f"summary tab says {m.group(0)!r} in \"...{snippet}...\". That is workflow "
+                 "vocabulary. Rewrite the sentence for a reader who does not know the release process.")
 
 
 def track_lanes(tracks):
@@ -277,13 +306,24 @@ def platform_marks(active):
     return f'<span class="pmarks" aria-label="{esc(label)}">{"".join(cells)}</span>'
 
 
-def summary_cards(items):
+def summary_cards(items, section, with_status):
+    """`with_status` is on for the not-merged grid only. Every card in "What users
+    will get" is on master, so a status chip there would restate the section."""
     out = []
     for it in items:
-        budget(it.get("summary"), 300, f'summary card "{it.get("headline","")}"')
+        name = f'summary.{section} card "{it.get("headline","")}"'
+        budget(it.get("summary"), 300, name)
+        kind, status = it.get("kind", ""), it.get("status", "")
+        if with_status and status not in NOT_MERGED_STATUSES:
+            warn(f"{name} has status {status!r}. A not-merged card is 'In progress' (an open PR "
+                 "ready for review) or 'Planned' (a draft or no PR). Merged work goes in features or fixes.")
+        elif not with_status and status and status != "Pending release":
+            warn(f"{name} has status {status!r} in a merged-only section. Move it to "
+                 "summary.not_merged, or drop the status if it is on master.")
         badge = it.get("badge") or ""
         badge_html = f'<span class="flagbadge">{esc(badge)}</span>' if badge else ""
-        kind, status = it.get("kind", ""), it.get("status", "")
+        status_html = (f'<span class="chip {STATUS_CLS.get(status,"")}">{esc(status)}</span>'
+                       if with_status else "")
         plats = card_platforms(it)
         body = it.get("summary") or ""
         body_html = f'<p class="ssum">{esc(body)}</p>' if body else ""
@@ -291,8 +331,7 @@ def summary_cards(items):
             f'<article class="scard" data-plat="{" ".join(plats)}" '
             f'data-status="{esc(status)}" data-kind="{esc(kind)}">'
             f'<div class="schips"><span class="chip {KIND_CLS.get(kind,"")}">{esc(kind)}</span>'
-            f'<span class="chip {STATUS_CLS.get(status,"")}">{esc(status)}</span>'
-            f'{badge_html}{platform_marks(plats)}</div>'
+            f'{status_html}{badge_html}{platform_marks(plats)}</div>'
             f'<h3 class="shead">{esc(it.get("headline",""))}</h3>'
             f'{body_html}</article>'
         )
@@ -319,25 +358,29 @@ def backport_banner(bp):
     return f'<div class="{cls}">{esc(headline)}</div>'
 
 
-def planned_section(summary, repo):
-    keep = summary.get("planned_keep")
-    park = summary.get("planned_park") or []
-    if not keep and not park:
+def not_merged_section(summary):
+    """Collapsed under the merged cards, so a reader who stops at "What users will
+    get" has only read things that are on master."""
+    for old in ("planned_keep", "planned_park"):
+        if summary.get(old):
+            warn(f"summary.{old} is no longer rendered. Write each item as a card in "
+                 "summary.not_merged with status 'Planned'.")
+    items = summary.get("not_merged") or []
+    if not items:
         return ""
-    out = ['<h2>Previously planned for this release</h2>',
-           '<p class="sub">These carried the milestone but have no work done yet. They need to be reconsidered for reprioritization.</p>']
-    if keep:
-        out.append('<div class="keepcard">')
-        out.append('<div class="schips"><span class="chip keep">Keep</span></div>')
-        out.append(f'<h3>{esc(keep.get("title",""))}</h3>')
-        if keep.get("detail"):
-            out.append(f'<p>{esc(keep["detail"])}</p>')
-        out.append('</div>')
-    if park:
-        out.append('<div class="parkbox"><div class="park-label">Park and reprioritize</div><ul>')
-        out.extend(f"<li>{esc(p)}</li>" for p in park)
-        out.append('</ul></div>')
-    return "\n".join(out)
+    prog = sum(1 for it in items if it.get("status") == "In progress")
+    plan = len(items) - prog
+    bits = [f"{n} {label}" for n, label in ((prog, "in progress"), (plan, "planned")) if n]
+    return "\n".join([
+        '<details class="cardsec tucked" id="notmerged">',
+        '<summary><span class="chev" aria-hidden="true"></span><span>Not in this release yet</span>'
+        f'<span class="cnt">{len(items)}</span><span class="tknote">{esc(", ".join(bits))}</span></summary>',
+        '<div class="tbody">',
+        '<div class="h2row thead2"><p class="sub">Promised for this release but not finished. '
+        'In progress means a fix exists and is being checked, and it makes the release only if '
+        f'the release waits for it. Planned means no fix is ready yet.</p>{layout_switch(LAYOUTS)}</div>',
+        f'<div class="scards" data-grid>{summary_cards(items, "not_merged", True)}</div>',
+        '</div></details>'])
 
 
 def pending_counts(data):
@@ -358,25 +401,25 @@ def decision_exit(data):
     """Counts and the trade only. The issue lists and the reasoning live on the
     full tab."""
     pend, prog = pending_counts(data)
-    needs = len(data.get("needs_milestone", []))
-    if not (pend or prog or needs):
-        return ""
-    out = ['<div class="exit"><div class="exit-label">What needs a decision</div><ul>']
+    items = []
     if prog or pend:
-        line = "Whether to cut now. "
+        line = "Whether to release now. "
         if prog:
-            line += f"{prog} planned item{'s' if prog != 1 else ''} would land if you wait for an open fix to merge. "
+            line += (f"{prog} item{'s' if prog != 1 else ''} in progress would make it if the release "
+                     f"waits for {'their' if prog != 1 else 'its'} fix. ")
         if pend:
-            line += (f"{pend} ha{'ve' if pend != 1 else 's'} no code at all, so waiting does nothing for "
-                     f"{'them' if pend != 1 else 'it'}: keep {'them' if pend != 1 else 'it'} and the release slips, "
-                     "or roll without and move to the next milestone.")
-        out.append(f"<li>{line.strip()}</li>")
-    if needs:
-        out.append(f"<li>Whether to tag {needs} finished issue{'s' if needs != 1 else ''} that carry no milestone. "
-                   "They go out either way. Tagging is what keeps them in the release notes.</li>")
-    out.append(qa_exit_line(data))
-    out.append('</ul></div>')
-    return "\n".join(out)
+            many = pend != 1
+            line += (f"{pend} ha{'ve' if many else 's'} no fix ready, so waiting does nothing for "
+                     f"{'them' if many else 'it'}: {'they' if many else 'it'} either hold{'' if many else 's'} "
+                     f"the release or move{'' if many else 's'} to the next one.")
+        items.append(f"<li>{line.strip()}</li>")
+    qa = qa_exit_line(data)
+    if qa:
+        items.append(qa)
+    if not items:
+        return ""
+    return ('<div class="exit"><div class="exit-label">What needs a decision</div><ul>'
+            + "\n".join(items) + '</ul></div>')
 
 
 def qa_exit_line(data):
@@ -385,24 +428,23 @@ def qa_exit_line(data):
     if not has_board(uniq):
         return ""
     passed, flagged, untriaged = qa_split(uniq)
-    line = f"Whether to cut with {len(passed)} of {len(uniq)} items carrying a tester sign-off. "
+    line = f"Whether to release with {len(passed)} of {len(uniq)} changes signed off by a tester. "
     if untriaged:
-        line += (f"{len(untriaged)} get their first look during QA on the release build, after the cut. ")
+        line += f"{len(untriaged)} get their first test on the release build. "
     if flagged:
-        line += f"{len(flagged)} came back failed or blocked and need a call before the cut."
+        line += f"{len(flagged)} came back failed or blocked and need a call first."
     return f"<li>{line.strip()}</li>"
 
 
-def layout_switch():
+def layout_switch(layouts):
     btns = "".join(
         f'<button class="lbtn{" active" if key == "all" else ""}" data-layout="{key}">{esc(lbl)}</button>'
-        for key, lbl in LAYOUTS)
+        for key, lbl in layouts)
     return (f'<div class="lswitch"><span class="lswitch-l">Layout</span>{btns}'
             '<button class="lbtn lall" hidden>Expand all</button></div>')
 
 
 def render_summary(data):
-    repo = data.get("repo", "")
     s = data.get("summary", {})
     budget(s.get("title"), 90, "summary.title")
     budget(s.get("lede"), 240, "summary.lede")
@@ -411,18 +453,23 @@ def render_summary(data):
         parts.append(f'<p class="lede">{esc(s["lede"])}</p>')
     parts.append(track_lanes(data.get("tracks")))
     parts.append(backport_banner(data.get("backport")))
-    sw = layout_switch() if (s.get("features") or s.get("fixes")) else ""
-    parts.append(f'<div class="h2row"><h2>What users will get</h2>{sw}</div>')
+    sw = layout_switch(MERGED_LAYOUTS) if (s.get("features") or s.get("fixes")) else ""
+    merged = ['<section class="cardsec" id="merged">',
+              f'<div class="h2row"><h2>What users will get</h2>{sw}</div>']
     if s.get("features"):
-        parts.append('<div class="subhead" data-sub>New features and improvements</div>')
-        parts.append(f'<div class="scards" data-grid>{summary_cards(s["features"])}</div>')
+        merged.append('<div class="subhead" data-sub>New features and improvements</div>')
+        merged.append(f'<div class="scards" data-grid>{summary_cards(s["features"], "features", False)}</div>')
     if s.get("fixes"):
-        parts.append('<div class="subhead" data-sub>Fixes people will feel</div>')
-        parts.append(f'<div class="scards" data-grid>{summary_cards(s["fixes"])}</div>')
-    parts.append(planned_section(s, repo))
+        merged.append('<div class="subhead" data-sub>Fixes people will feel</div>')
+        merged.append(f'<div class="scards" data-grid>{summary_cards(s["fixes"], "fixes", False)}</div>')
+    merged.append('</section>')
+    parts.append("\n".join(merged))
+    parts.append(not_merged_section(s))
     parts.append(decision_exit(data))
-    parts.append('<p class="sub" style="margin-top:22px">Version numbers, the PR-by-PR breakdown, milestone status and the patch detail are on <b>Full report</b> above.</p>')
-    return "\n".join(p for p in parts if p)
+    parts.append('<p class="sub" style="margin-top:22px">The full list of changes, version numbers, issue tracking and the patch detail are on <b>Full report</b> above.</p>')
+    out = "\n".join(p for p in parts if p)
+    scan_summary_jargon(out)
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -618,8 +665,8 @@ def render_full(data):
         prog = sum(1 for g in (nm, ms.get("next_web") or {}) for i in (g.get("issues") or []) if i.get("status") == "inprogress")
         if pend or prog:
             parts.append('<div class="note flag"><b>The cut is a judgement call.</b> '
-                         f'{prog} issue(s) have a fix open but not merged, so holding the cut would buy those. '
-                         f'{pend} have no code at all, and holding does nothing for them: they either stay and delay the release, or roll to the next milestone. '
+                         f'{prog} issue(s) have a PR open for review but not merged, so holding the cut would buy those. '
+                         f'{pend} have no PR or only a draft, and holding does nothing for them: they either stay and delay the release, or roll to the next milestone. '
                          'Milestones record intent until a release is live, so these are still promises rather than mistakes. '
                          'QA is manual and runs after the cut alongside store review, so this decides what gets submitted, not what ships.</div>')
         parts.append(f'<table>{milestone_table(nm.get("issues"), repo)}</table>')
@@ -823,12 +870,17 @@ details.gwrap .scards{{margin:14px 18px 18px}}
 .flagbadge{{color:var(--bp);background:var(--bp-bg);border:1px solid var(--bp-bd)}}
 .trackchip{{color:var(--mut);background:var(--card2);border:1px solid var(--line)}}
 .subhead{{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:24px 0 10px;font-weight:700}}
-.keepcard{{background:var(--ok-bg);border:1px solid var(--ok-bd);border-left:3px solid var(--ok);border-radius:0 12px 12px 0;padding:14px 18px;margin:10px 0}}
-.keepcard .chip.keep{{background:var(--s-ship)}}
-.keepcard h3{{margin:8px 0 5px;font-size:16px}} .keepcard p{{margin:0;color:var(--tx2);font-size:14px;line-height:1.5}}
-.parkbox{{background:var(--card2);border:1px dashed var(--line);border-radius:12px;padding:12px 18px;margin:10px 0}}
-.parkbox .park-label{{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:700;margin-bottom:6px}}
-.parkbox ul{{margin:0;padding-left:18px;color:var(--tx)}} .parkbox ul li{{margin:3px 0;font-size:14px}}
+details.tucked{{margin:34px 0 0;border:1px dashed var(--line);border-radius:12px}}
+details.tucked>summary{{display:flex;align-items:center;gap:10px;padding:13px 18px;cursor:pointer;list-style:none;user-select:none;color:var(--mut);font-size:13px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}}
+details.tucked>summary::-webkit-details-marker{{display:none}}
+details.tucked>summary:hover{{color:var(--tx);background:var(--hover);border-radius:12px}}
+details.tucked>summary .chev{{border-color:var(--mut)}}
+details.tucked[open]>summary{{border-bottom:1px dashed var(--line);border-radius:12px 12px 0 0;color:var(--tx2)}}
+details.tucked[open]>summary .chev{{transform:rotate(45deg);margin:0 2px 0 0}}
+.tknote{{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600}}
+.tbody{{padding:4px 18px 18px}}
+.thead2{{margin:10px 0 4px;padding-bottom:0;border-bottom:none}}
+.thead2 .sub{{flex:1 1 320px;margin:0}}
 @media print{{html{{color-scheme:light}} .tabbar{{display:none}} .tabpane{{display:block!important}}}}
 </style></head>
 <body>
@@ -857,10 +909,7 @@ document.querySelectorAll('.tab').forEach(function(t){{
 }});
 (function(){{
   var PLAT = {PLATFORM_JS};
-  var STATUS_ORDER = ['In progress','Pending release','Planned'];
-  var grids = [].slice.call(document.querySelectorAll('[data-grid]'));
-  if (!grids.length) return;
-  grids.forEach(function(g){{ g.dataset.orig = g.innerHTML; }});
+  var STATUS_ORDER = ['In progress','Planned','Pending release'];
 
   function cards(g){{ return [].slice.call(g.querySelectorAll('.scard')); }}
   // The grid is emptied before groups are built, so only a group's own cards
@@ -904,66 +953,75 @@ document.querySelectorAll('.tab').forEach(function(t){{
         return c.dataset.status === s; }})}};
     }});
   }}
-
   function group(mode, list){{
     return mode === 'status' ? byStatus(list) : byPlatform(list);
   }}
 
-  function paint(mode){{
-    grids.forEach(function(g){{
-      g.innerHTML = g.dataset.orig;
-      if (mode === 'all') return;
-      var groups = group(mode, cards(g));
-      g.innerHTML = '';
-      groups.forEach(function(gr){{
-        var inner = document.createElement('div');
-        inner.className = 'scards';
-        // Status groups carry no marks: a status set spans every platform.
-        var marks = mode === 'platform' ? marksFor(gr.items[0]) : '';
-        gr.items.forEach(function(c){{ inner.appendChild(c); }});
-        var d = document.createElement('details');
-        d.className = 'gwrap';
-        d.innerHTML = '<summary><span class="chev" aria-hidden="true"></span>'+marks
-                    + '<span>'+gr.label+'</span>'
-                    + '<span class="gcount">'+gr.items.length+'</span>'
-                    + '<span class="gsuffix">show</span></summary>';
-        d.appendChild(inner);
-        g.appendChild(d);
+  // Each card section owns its switch, grids and expand-all control, so
+  // regrouping the merged cards leaves the not-merged ones alone.
+  function wire(sec){{
+    var grids = [].slice.call(sec.querySelectorAll('[data-grid]'));
+    if (!grids.length) return;
+    grids.forEach(function(g){{ g.dataset.orig = g.innerHTML; }});
+    var allBtn = sec.querySelector('.lall');
+    function panels(){{ return [].slice.call(sec.querySelectorAll('details.gwrap')); }}
+    function syncAll(){{
+      if (!allBtn || allBtn.hidden) return;
+      var open = panels().some(function(d){{ return d.open; }});
+      allBtn.textContent = open ? 'Collapse all' : 'Expand all';
+      allBtn.dataset.next = open ? 'close' : 'open';
+    }}
+    sec.syncAll = syncAll;
+    function paint(mode){{
+      grids.forEach(function(g){{
+        g.innerHTML = g.dataset.orig;
+        if (mode === 'all') return;
+        var groups = group(mode, cards(g));
+        g.innerHTML = '';
+        groups.forEach(function(gr){{
+          var inner = document.createElement('div');
+          inner.className = 'scards';
+          // Status groups carry no marks: a status set spans every platform.
+          var marks = mode === 'platform' ? marksFor(gr.items[0]) : '';
+          gr.items.forEach(function(c){{ inner.appendChild(c); }});
+          var d = document.createElement('details');
+          d.className = 'gwrap';
+          d.innerHTML = '<summary><span class="chev" aria-hidden="true"></span>'+marks
+                      + '<span>'+gr.label+'</span>'
+                      + '<span class="gcount">'+gr.items.length+'</span>'
+                      + '<span class="gsuffix">show</span></summary>';
+          d.appendChild(inner);
+          g.appendChild(d);
+        }});
+      }});
+      if (allBtn) allBtn.hidden = mode === 'all';
+      syncAll();
+    }}
+    if (allBtn) {{
+      allBtn.addEventListener('click', function(){{
+        var open = allBtn.dataset.next === 'open';
+        panels().forEach(function(d){{ d.open = open; }});
+        syncAll();
+      }});
+    }}
+    // [data-layout], not .lbtn: the expand-all control shares the button styling
+    // and would otherwise repaint the grid and undo itself.
+    sec.querySelectorAll('.lbtn[data-layout]').forEach(function(b){{
+      b.addEventListener('click', function(){{
+        sec.querySelectorAll('.lbtn[data-layout]').forEach(function(x){{ x.classList.remove('active'); }});
+        b.classList.add('active');
+        paint(b.dataset.layout);
       }});
     }});
-    allBtn.hidden = mode === 'all';
-    syncAll();
   }}
-
-  var allBtn = document.querySelector('.lall');
-  function panels(){{ return [].slice.call(document.querySelectorAll('#summary details.gwrap')); }}
-  function syncAll(){{
-    if (!allBtn || allBtn.hidden) return;
-    var open = panels().some(function(d){{ return d.open; }});
-    allBtn.textContent = open ? 'Collapse all' : 'Expand all';
-    allBtn.dataset.next = open ? 'close' : 'open';
-  }}
-  if (allBtn) {{
-    allBtn.addEventListener('click', function(){{
-      var open = allBtn.dataset.next === 'open';
-      panels().forEach(function(d){{ d.open = open; }});
-      syncAll();
-    }});
-    // toggle does not bubble, so catch it on the way down.
-    document.addEventListener('toggle', function(e){{
-      if (e.target.classList && e.target.classList.contains('gwrap')) syncAll();
-    }}, true);
-  }}
-
-  // [data-layout], not .lbtn: the expand-all control shares the button styling
-  // and would otherwise repaint the grid and undo itself.
-  document.querySelectorAll('.lbtn[data-layout]').forEach(function(b){{
-    b.addEventListener('click', function(){{
-      document.querySelectorAll('.lbtn[data-layout]').forEach(function(x){{ x.classList.remove('active'); }});
-      b.classList.add('active');
-      paint(b.dataset.layout);
-    }});
-  }});
+  [].slice.call(document.querySelectorAll('.cardsec')).forEach(wire);
+  // toggle does not bubble, so catch it on the way down.
+  document.addEventListener('toggle', function(e){{
+    var t = e.target;
+    if (!(t.classList && t.classList.contains('gwrap'))) return;
+    var sec = t.closest('.cardsec');
+    if (sec && sec.syncAll) sec.syncAll();
+  }}, true);
 }})();
 var btn = document.getElementById('themebtn');
 function paintBtn(){{ btn.textContent = document.documentElement.dataset.theme === 'dark' ? 'Light' : 'Dark'; }}
@@ -1004,8 +1062,14 @@ def render_briefing(data):
         lines.append(f"- {len(needs)} resolved issues carry no milestone. Nothing applied, see the ask below.")
     lines.append("")
     for it in (s.get("features", []) + s.get("fixes", [])):
-        meta = " / ".join(x for x in [it.get("kind"), it.get("status"), it.get("track")] if x)
+        meta = " / ".join(x for x in [it.get("kind"), it.get("track")] if x)
         lines.append(f"- **{it.get('headline','')}** ({meta})")
+    not_merged = s.get("not_merged") or []
+    if not_merged:
+        lines += ["", "Not in this release yet:"]
+        for it in not_merged:
+            meta = " / ".join(x for x in [it.get("status"), it.get("kind"), it.get("track")] if x)
+            lines.append(f"- **{it.get('headline','')}** ({meta})")
     lines.append(cut_decision(data))
     lines.append(milestone_ask(data))
     return "\n".join(lines) + "\n"
@@ -1036,7 +1100,7 @@ def cut_decision(data):
             out.append(f"- in progress, would land if you hold the cut: "
                        f"[#{i['number']}]({iss_url(repo, i['number'])}) {i.get('title','')}")
         for i in pend:
-            out.append(f"- no code yet: [#{i['number']}]({iss_url(repo, i['number'])}) {i.get('title','')}")
+            out.append(f"- nothing ready to merge: [#{i['number']}]({iss_url(repo, i['number'])}) {i.get('title','')}")
     out += ["",
             "Holding the cut only ever buys the in-progress work. The not-started items need a decision either way: "
             "keep them and delay, or roll without them and move them to the next milestone."]

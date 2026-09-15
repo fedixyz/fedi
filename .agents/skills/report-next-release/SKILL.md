@@ -9,7 +9,7 @@ description: >-
 Generate, at any time, a grounded report of what the next Fedi release will contain, plus the milestone bookkeeping that tends to rot when developers merge faster than anyone tags issues.
 
 The output is one self-contained HTML file with two tabs, rendered by the bundled script:
-- **Summary** (default): a condensed, plain-language product view for a non-technical reader (product, ops, leadership). Clustered product items, not a ticket dump, and no release mechanics at all.
+- **Summary** (default): a condensed, plain-language product view for a non-technical reader (product, ops, leadership). Clustered product items, not a ticket dump, and no release mechanics at all. Two card sections: "What users will get", which holds merged work only, and a collapsed "Not in this release yet" for milestone work that has not merged.
 - **Full report**: the PR-by-PR breakdown, release-track state, milestone status with each issue's Zenhub board columns, QA sign-off, backport detail, and the prepared milestone-tagging commands.
 
 Those are two altitudes rather than two lengths, which is the distinction that decides whether the report is usable.
@@ -28,6 +28,8 @@ The Summary is not a shorter Full report, it is a higher one. It goes wrong by a
 
 **Nothing mechanical goes on the Summary.** No sha, tag, branch name, merge-base, PR number, milestone name, PR count, or "N days since" phrasing, outside the short glance strings the lanes render. All of it belongs on Full report, which exists so the Summary does not have to carry it. The renderer enforces the split rather than trusting the prose, and warns on stderr when copy runs over budget. Read that stderr.
 
+**The Summary speaks the reader's language, never the workflow's.** Every string on that tab, the title, the lede, the lane notes, the patch line and every card, is read by someone who does not know what a PR, a merge, a cut or a milestone is, and does not need to. Say what a person gets, in the words they would use: "out since 8 September", "not out yet", "waiting 51 days", "a fix is on its way". Words that never appear on the Summary: PR, pull request, merge, master, branch, commit, tag, cut, milestone, backport, cherry-pick, deploy, code review, CI, nightly, QA, Zenhub, board, upstream, crate, wasm, bridge, and any sha or issue number. The renderer scans the Summary text for them and warns on each hit. A hit means rewrite the sentence rather than swap the word: "the change is under review" and "the fix is awaiting approval" are the same workflow sentence, and the reader wanted neither. All of that vocabulary is welcome on Full report.
+
 **The first screen is a claim, one sentence, the lanes, one line about the patch.** Then product cards. If a reader scrolls past mechanics to reach the first thing a user would feel, the Summary has failed however accurate it is.
 
 **The lane is the mental model.** Two pipelines side by side, up to four stops each, live then in flight then waiting then next. It exists for one misconception: readers assume Fedi has *a* current version. It has two, cut on independent schedules, and a reader who does not hold that misreads every card below.
@@ -44,6 +46,16 @@ The Summary is not a shorter Full report, it is a higher one. It goes wrong by a
 
 **The card grids ship three layouts and default to All.** A `Layout` switch on the section heading regroups them in the browser. All is the authored order in two flat sections. Status and Platform both group into collapsible panels, with one Expand all control rather than a click per panel. Platform groups on the whole platform set, so a change that lands everywhere appears once instead of once per platform. Leave the default alone unless a release genuinely reads better grouped, and never hand-order cards to fake a grouping the switch already does.
 
+## Merged is the line between the two card sections
+
+**"What users will get" is a statement of fact, so everything in it is on master.** A card goes there only when the PRs behind it merged to master inside the window. Not an open PR, not a PR that is ready for review, not a milestone issue in a promising board column. The bar is deliberately higher than "has a PR": an open PR can sit for months, and this report has already been wrong once by promoting one. If it is not on master when you write the card, it is not in this section.
+
+**Everything else promised for the release goes in "Not in this release yet".** Same card grid, same platform slots, same layout switch, rendered collapsed under the merged cards so a reader who stops at the first section has read only things that are true. Its cards carry the one chip the merged cards do not need, a status: `In progress` when an open PR that is ready for review exists, so holding the cut would land it, and `Planned` when there is a draft or no PR at all. A draft is the author saying it is not ready, so for the purpose of a cut it counts as nothing.
+
+**The merged cards carry no status chip.** The section is the status. A "Pending release" chip on every card of a merged-only section says nothing, and the renderer warns when a merged card claims any other status, because that card is in the wrong section.
+
+The split is structural rather than a chip because two questions get asked of this report, "what is going out" and "what is still left", and one grid answering both makes the reader do the sorting the report exists to do. A grid that mixes "In progress" cards with merged ones gets read as release content, every card of it.
+
 **The title and lede are about substance, never schedule.** The most valuable line on the page says what people get. "Fedi 26.7 at a glance" is a label and wastes it. "Nothing in 26.7 has reached a user yet" is release mechanics, which the lane lines and Full report already carry. "The web app finally gets withdrawals, reactions and request-to-join" tells a reader what changed.
 
 No dates, day counts, version numbers, PR totals or "still uncut" phrasing in either the title or the lede. If the only thing you can think to say is how long something has been waiting, you have not read the cards closely enough: name the two or three changes a person would actually notice. Keep the title near 90 characters and the lede to one or two sentences that carry the next most important things, or who they affect.
@@ -54,7 +66,7 @@ The test, run against the screenshot rather than the markup: **read only the fir
 
 - **Calendar versioning (CalVer).** A version is `YY.M[.patch]` where `M` is the calendar month: `26.6` is June 2026, `26.7` is July 2026. The monthly release is `26.M.0`, patches are `26.M.1`, `26.M.2`, and the next major is next month's `26.(M+1).0`.
 - **Two tracks, cut and deployed independently.** Native ships from a `release/26.M` branch. Web ships as a `web/X.Y.Z` tag with no branch. Neither waits for the other, so a single "current version" is always a lie. Step 1 pins both.
-- **"Shipped" is wrong for unreleased work.** Merged to master is *not* released. Merged and queued is **"Pending release"**, an open PR is **"In progress"**, a milestone issue with no code is **"Planned"**. Reserve "shipped/live" for a production flag actually being on, which this report does not assert.
+- **"Shipped" is wrong for unreleased work.** Merged to master is *not* released. On the Summary, merged work sits in "What users will get" with no status chip. A not-merged card is **"In progress"** (an open PR ready for review) or **"Planned"** (a draft or no PR). Reserve "shipped/live" for a production flag actually being on, which this report does not assert.
 - **No em or en dashes anywhere** in any file you write. Use a regular hyphen. The renderer warns if any slip into the HTML.
 
 ## What a milestone means here, and when an issue closes
@@ -84,16 +96,19 @@ Issues stay open until a release is live, so GitHub state cannot tell you whethe
 
 **Three signals, three questions, and none implies another.** The board says where the work is in the workflow. The `ios pass` / `android pass` / `web pass` labels say a tester verified that platform, usually against Nightly, so a pass can predate the cut. GitHub open or closed says only whether the carrying release is live. Name which one you read whenever you make a claim about QA.
 
-**The board outranks this report's own inference.** The resolver scrapes `#NNNN` out of PR *bodies* only, so a fix linked from an issue comment is invisible to it. Issue #11313 was fixed by #11493 and verified on Nightly with the link left in a comment, and the report called it not started. So before you call any issue `pending`, read its Dev Team column. `Ready for Prod`, `QA` or `Code Review` against a "no code yet" verdict means the report is wrong. Go find the PR rather than trusting the resolver.
+**The board outranks this report's own inference, but it never decides which section a card sits in. The repo does.** A milestone issue is done, in progress or planned by what exists in git: a merged window PR, an open PR that is ready for review, or a draft or nothing. The resolver lists the open PRs referencing each milestone issue under `open_prs`, each with a `draft` flag, so this is a lookup rather than a judgment.
 
-Column to report status:
+The resolver scrapes `#NNNN` out of PR *bodies* only, so a fix linked from an issue comment is invisible to it. Issue #11313 was fixed by #11493 and verified on Nightly with the link left in a comment, and the report called it not started. That is what the Dev Team column is for: a column that disagrees with the repo means a link is missing. `Ready for Prod`, `QA` or `Code Review` against an empty `open_prs` and no merged PR means go find the PR. If it merged, the issue is `done`. If it is open, it is `inprogress` no matter what the column says, and it stays out of "What users will get", because a column cannot merge it.
 
-| Dev Team column | status in this report | status on the summary |
+Repo evidence to report status:
+
+| Repo evidence | status in this report | on the summary |
 |---|---|---|
-| Ready for Prod | `done` | Pending release |
-| QA, Code Review, In Progress | `inprogress` | In progress |
-| Queue, Needs Triage, Reviewed and Estimated | `pending` | Planned |
-| Blocked, Blocked by Design | `pending`, and name the block | Planned |
+| a merged window PR resolves it | `done` | a card in "What users will get", no status chip |
+| an open PR, ready for review | `inprogress` | "Not in this release yet", chip In progress |
+| a draft PR, or no PR | `pending` | "Not in this release yet", chip Planned |
+| its fix ships in the patch | `backport` | not on the summary, it reaches users through the patch |
+| Blocked or Blocked by Design on the board | `pending`, and name the block | "Not in this release yet", chip Planned |
 
 **Reading is free, writing is not.** This report never moves an issue. The board is shared, and a move is an outward-facing write. If a column looks wrong, say so and let the user decide.
 
@@ -237,7 +252,7 @@ What is left for you is the one judgment the resolver refuses to make: **does th
 
 Sort referenced issues into buckets:
 
-- **On the next milestone already** (`26.(M+1).0` or `web-26.(M+1)`): mark each `done` (a merged window PR addresses it), `inprogress` (its fix is open, not merged), `backport` (its fix ships in the patch), or `pending` (no code yet). Also list milestone issues that *no* window PR touches: that is the planned-but-unstarted work, and it is usually the most actionable part of the report.
+- **On the next milestone already** (`26.(M+1).0` or `web-26.(M+1)`): mark each `done` (a merged window PR addresses it), `inprogress` (an open PR ready for review, listed under the issue's `open_prs` in `window.json` with `draft: false`), `backport` (its fix ships in the patch), or `pending` (a draft or no PR). Also list milestone issues that *no* window PR touches: that is the planned-but-unstarted work, and it is usually the most actionable part of the report.
 
   Reconcile each one against its Dev Team column before you settle on a status. The board and the PR-body inference disagree in exactly one direction that matters, and the board is right: an issue in `Ready for Prod` is finished no matter what the PR bodies say. Chase the missing link, correct the status, and carry the `board` block through to the report JSON so the reader sees both.
 - **No milestone at all**, but resolved by a window PR. Suggest one by track: a web-only fix goes to `web-26.(M+1)`, everything else to `26.(M+1).0`.
@@ -274,7 +289,7 @@ Judge every PR by one test, the same one the `product-activity-report` skill use
 
 Judge by impact, not by the commit prefix. A `feat` can be pure developer tooling (out of the product story). A `fix` to a crash is deeply user-facing (in). Tests, build/CI, refactors, skills, and docs are almost always internal. Feature flags and selectors are plumbing for a user feature: fold them into that feature, do not list them alone.
 
-For the **Summary** tab, cluster into a handful of product items written in plain language (what a user would tell a friend), each with a `kind` (New feature / Improvement / Fix), a `status` (Pending release / In progress / Planned), and a `track` (Native / Web / Native + web). Take `status` from the Dev Team column where the item has one, using the mapping in the Zenhub section, rather than inferring it a second time. The track chip is what stops a reader assuming everything lands everywhere at once. Split distinct fixes into their own cards rather than lumping them. Keep it to roughly a page or two: this is a briefing, not a changelog.
+For the **Summary** tab, cluster into a handful of product items written in plain language (what a user would tell a friend), each with a `kind` (New feature / Improvement / Fix) and a `track` (Native / Web / Native + web). A card goes in `features` or `fixes` only when every PR behind it is merged to master in the window. Milestone work that has not merged goes in `not_merged`, and only those cards carry a `status`: `In progress` when the issue has an open PR ready for review, `Planned` when it has a draft or nothing. Read that off `open_prs` in `window.json` rather than off the board. The track chip is what stops a reader assuming everything lands everywhere at once. Split distinct fixes into their own cards rather than lumping them. Keep it to roughly a page or two: this is a briefing, not a changelog.
 
 ### The card body is the hardest 20 words in the report
 
@@ -283,8 +298,9 @@ The headline says what changes. The body adds what the headline structurally can
 Everything else on the card is already rendered as a chip, so writing it again is pure tax:
 
 - **Never restate the `kind` or the section.** "Fixed." under a heading that says Fixes is noise. So is "This is a new feature."
-- **Never restate the `status`.** The chip says Pending release. The body does not.
+- **Never restate the `status`.** In the not-merged section the chip says In progress or Planned. The body does not.
 - **Never put a QA verdict in the body.** "Signed off by a tester" is the Zenhub `Passed Test` column, which is release mechanics and belongs on Full report with the rest of the board state. Gathering the QA data is not a reason to place it here.
+- **Never narrate the work.** "The rename to Federation is under review", "a follow-up PR is open", "a fix is in review and not yet on master" describe the progress of the work, not the change. The section a card sits in already says whether it merged, and the status chip in the not-merged section says how far it got. The body says what a person will notice and nothing about PRs, reviews, renames pending or what comes next. A reader of these cards is trying to understand the change, and a sentence about its progress is the sentence they skip.
 - **Never paraphrase the headline.** "Crash when opening community chats" followed by "The app could crash on opening a community chat" is the same sentence twice. If the headline already covers it, either add scope ("it fired from the Spaces list, which is the main way in") or ship the headline with no body at all.
 
 The 300-character cap is a **ceiling, not a target**. A body of eight words that names the trigger beats three padded sentences. When a fix is genuinely self-evident, the honest card is a headline and nothing else.
@@ -323,12 +339,13 @@ See `references/example-report.json` for a complete, fillable example with every
 - `tracks`: `{native:{...}, web:{...}}`. Each track carries the full-report fields **and** a glance block, because the two tabs sit at different altitudes:
   - full report: `{current, next, baseline, in_window, milestone, note}`. `current` is what is in production on that track, `baseline` is the commit the window opens at and how you derived it, `note` is the nuance a reader would otherwise get wrong. Be as precise and as technical as the facts require. This is the only place that nuance belongs.
   - `glance`: the short strings that render as the summary lane. Values cap at 34 characters, notes at 42, and the renderer warns past that.
-    - `{live, live_note, waiting, waiting_note, next, next_note}` are the three stops every lane has. `live` is the bare version (`26.6.1`, `web/26.6.2`). `waiting` counts what a user would feel (`15 user-facing changes`), never a raw PR total. `next` is the version that has not happened yet. Each note is the one clause a non-technical reader needs: `out since 14 July`, `no code deploy in 52 days`, `not cut yet`.
+    - `{live, live_note, waiting, waiting_note, next, next_note}` are the three stops every lane has. `live` is the bare version (`26.6.1`, `web/26.6.2`). `waiting` counts what a user would feel (`15 user-facing changes`), never a raw PR total. `next` is the version that has not happened yet. Each note is the one clause a non-technical reader needs: `out since 14 July`, `nothing new in 52 days`, `not out yet`.
     - `{in_flight, in_flight_note}` is the optional fourth stop, between `live` and `waiting`, for a build that has left master but reached nobody: `26.7.0` / `in app store review, 12 days`. Omit both keys when nothing is in flight.
     - lane size is not per-track. `tracks.focus` (a sibling of `tracks.native` and `tracks.web`) names the single track to expand, one of `native`, `web`, `none`. Everything else collapses to a line. See the altitudes section for how to choose.
     - `emph` names the stop that renders highlighted, one of `live`, `in_flight`, `waiting`, `next`. Defaults to `waiting`. Point it at the anomaly.
 - `backport`: `{in_progress, version, pr, base_branch, items[], headline, note}`. `headline` is the single sentence the Summary shows, so write it for someone who does not know what a backport is. `note` is the full account, including which PRs were cherry-picked, and renders on Full report only. Keep that list out of `headline`.
-- `summary`: `{title, lede, features[], fixes[], planned_keep, planned_park[]}`. `title` is a claim rather than a label, near 90 characters. `lede` is one or two sentences under about 240. Each card is `{headline, kind, status, track, platforms, badge, summary}` where `summary` is a ceiling of about 300 characters and is often much shorter (`platforms`, `badge` and `summary` are all optional). See the card-body rules in Step 7 before writing one.
+- `summary`: `{title, lede, features[], fixes[], not_merged[]}`. `title` is a claim rather than a label, near 90 characters. `lede` is one or two sentences under about 240. Each card is `{headline, kind, track, platforms, badge, summary}` where `summary` is a ceiling of about 300 characters and is often much shorter (`platforms`, `badge` and `summary` are all optional). See the card-body rules in Step 7 before writing one.
+  - `features` and `fixes` hold merged work only and their cards carry no `status`. `not_merged` holds milestone work that has not merged, and each of its cards adds `status`, one of `In progress` or `Planned`. The renderer warns when a card sits on the wrong side, and it renders `not_merged` collapsed under the merged cards.
   - `platforms` is any of `["ios","android","web"]` and renders as three fixed icon slots in the card corner, lit for the platforms the change lands on. It replaces the old track word chip on the Summary. Set it whenever a change is narrower than its `track`: an android-only redirect bug, an iOS-only layout fix. Leave it out and the renderer derives it from `track`, where Native means both phone platforms.
   - `track` is still required. Full report and the briefing use the words, and it is the fallback when `platforms` is absent.
 - `user_facing[]` / `non_user_facing[]`: `{theme, prs:[{number, title, author, date, issue}]}`
@@ -380,6 +397,9 @@ Verify before you claim. If you assert a fix is "in progress / not yet on master
 - No issue is called outstanding on the strength of being open.
 - Every issue riding the release carries both board columns, no `pending` survives a `Ready for Prod` column unreconciled, and the QA answer distinguishes passed from flagged from never triaged.
 - The Summary's first screen is a claim, a sentence, the lanes and one line on the patch, with product cards visible without scrolling past mechanics. No sha, tag, branch, merge-base or PR number appears on that tab at all.
+- Every card in "What users will get" is backed by a PR merged to master in the window, and none of them carries a status chip. Milestone work that has not merged is in the collapsed "Not in this release yet" section, In progress only when a non-draft PR is open for it.
+- No card body narrates the work: nothing about a review, a follow-up PR, a pending rename or what comes next.
+- The renderer's Summary vocabulary scan is silent. No PR, merge, cut, milestone, deploy or QA word appears on that tab, and a lane note says "not out yet" rather than "not cut yet".
 - The title and the lede name changes, not dates. No version number, day count or PR total appears in either.
 - No lane is expanded unless a track is stuck in a way someone must act on this week. The emphasized stop is that blockage rather than a version number, and a build in review or a patch mid-cherry-pick shows as `in_flight` rather than as the grey footnote.
 - The first product card sits within about 500 pixels. Past that, the hero has started narrating the schedule again.
