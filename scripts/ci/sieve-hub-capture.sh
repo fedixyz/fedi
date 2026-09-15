@@ -3,8 +3,9 @@
 # review, under $OUT_DIR ({before,after,diff}/NN-name.png). Needs the fedi
 # dev shell and a runner that can boot an android emulator. Best-effort:
 # every failure exits 0 so the review still publishes, just without images.
-# A second leg per side joins a dev fed the script boots itself, for the
-# screens only a funded wallet has. coverage.txt maps changed files to stations.
+# Each side walks three legs: the joined federation's screens, the wallet
+# service create flow, and a dev fed the script boots itself for the screens
+# only a funded wallet has. coverage.txt maps changed files to stations.
 set -uo pipefail
 
 repo=${REPO:?REPO (owner/name) is required}
@@ -22,16 +23,12 @@ if [ "$repo" != "fedibtc/fedi" ]; then
     exit 0
 fi
 
-pr=$(gh pr view "$number" --repo "$repo" --json state,headRefName,headRefOid,baseRefName,files) || {
+pr=$(gh pr view "$number" --repo "$repo" --json headRefOid,baseRefName,files) || {
     echo "::warning::could not read $repo#$number (token missing pull-requests: read?); skipping capture"
     exit 0
 }
-branch=$(jq -r '.headRefName' <<<"$pr")
+head_ref=$(jq -r '.headRefOid' <<<"$pr")
 base_branch=$(jq -r '.baseRefName' <<<"$pr")
-if [ "$(jq -r '.state' <<<"$pr")" != "OPEN" ]; then
-    echo "$repo#$number is not open; skipping capture"
-    exit 0
-fi
 if ! jq -r '.files[].path' <<<"$pr" | grep -qE '^ui/(native|common)/'; then
     echo "$repo#$number does not touch ui/native or ui/common; skipping capture"
     exit 0
@@ -70,17 +67,24 @@ trap cleanup EXIT
 # bash skips EXIT traps on unhandled signals
 trap 'exit 129' HUP INT TERM
 
+# the head branch is often deleted by the time a merged pr's review runs,
+# and the pull ref still resolves to headRefOid
+pull_ref="refs/pull/$number/head"
 if [ -n "${CLONE_REUSE:-}" ] && [ -d "$CLONE_REUSE/.git" ]; then
     # local iteration: skip the clone and reuse a previous run's checkout
     REPO_ROOT_CLONE="$CLONE_REUSE"
-    git -C "$REPO_ROOT_CLONE" fetch -q origin "$branch" "$base_branch"
-    git -C "$REPO_ROOT_CLONE" checkout -q --detach "origin/$branch"
+    git -C "$REPO_ROOT_CLONE" fetch -q origin "$pull_ref" "$base_branch"
 else
-    echo "Cloning $repo#$number ($branch) for capture"
-    git clone --quiet --branch "$branch" \
+    echo "Cloning $repo#$number ($head_ref) for capture"
+    git clone --quiet --branch "$base_branch" \
         "https://x-access-token:${GH_TOKEN}@github.com/${repo}.git" "$workdir/repo"
     REPO_ROOT_CLONE="$workdir/repo"
+    git -C "$REPO_ROOT_CLONE" fetch -q origin "$pull_ref"
 fi
+git -C "$REPO_ROOT_CLONE" checkout -q --detach "$head_ref" || {
+    echo "::warning::could not check out $head_ref; skipping capture"
+    exit 0
+}
 cd "$REPO_ROOT_CLONE" || exit 0
 # the dev shell's REPO_ROOT names its own checkout, and install-wasm and
 # build-bridge-android install their outputs into whatever it points at
@@ -408,6 +412,24 @@ tour_stations() {
     reanchor
 }
 
+# the nightly builds resolve to the staging feature catalog, which has wallet
+# service creation on, so the create tab needs no setup here
+tour_wallet_service() {
+    local side=$1
+    ui_tap "WalletTabButton" 30 || return 0
+    ui_tap "PlusButton" 20 || return 0
+    ui_tap "createTab" 20 || return 0
+    shoot "$side" "20-wallet-service-intro"
+
+    ui_tap "WalletServiceEntryButton" 20 || return 0
+    wait_for_key "guardian-count-headline" 30 || return 0
+    # the price is a manifold quote, so the screen holds skeletons until it lands
+    wait_for_key "total-setup-cost" 60 || true
+    shoot "$side" "21-wallet-service-create"
+    # stop here: the next screen takes the payment and forms a real service
+    reanchor
+}
+
 key_text() {
     dump_ui | grep -oE "<node[^>]*resource-id=\"$1\"[^>]*>" | head -1 |
         sed -E 's/.* text="([^"]*)".*/\1/'
@@ -541,6 +563,8 @@ tour() {
     ui_tap "JoinFederationButton" 60 || return 0
     wait_for_key "HomeTabButton" 120 || return 0
     tour_stations "$side"
+    # the funded leg joins a second federation, which changes the create tab
+    tour_wallet_service "$side"
     tour_funded "$side"
     return 0
 }
@@ -587,7 +611,7 @@ for after_png in "$out_dir"/after/*.png; do
 done
 
 section "coverage"
-# a missed station, or a file no station names, is a screen the review never saw
+# a missed station, or a screen no station names, is one the review never saw
 station_sources() {
     cat <<'EOF'
 01-welcome screens/Splash
@@ -610,14 +634,19 @@ station_sources() {
 17-send-ecash-confirm screens/ConfirmSendEcash|feature/send/(SendPreviewDetails|FeeBreakdown|SendAmounts)
 18-send-ecash-qr screens/SendOfflineQr|feature/send/
 19-history-detail-send feature/transaction-history/HistoryDetail|utils/transaction
+20-wallet-service-intro feature/walletservice/(WalletServiceEntry|WalletServiceIntro)|components/ui/WalletServiceFooter
+21-wallet-service-create screens/CreateWalletService|feature/walletservice/(GuardianDetailsSkeleton|ServiceSheet|WalletServiceScreenHeader)
 EOF
 }
+# the release bundle these apks embed excludes the devtools tree, so no
+# station can reach it
+offscreen='devtools/|developer/WalletServiceDevTools|^ui/native/(android|ios|scripts)/|/package\.json$|/docs/|/types/'
+everywhere='/localization/|/components/ui/|/constants/|/bridge/'
 coverage="$out_dir/coverage.txt"
 : >"$coverage"
 covered=0
-changed=0
+screens=0
 while IFS= read -r path; do
-    changed=$((changed + 1))
     hits=""
     while read -r station pattern; do
         grep -qE "$pattern" <<<"$path" || continue
@@ -627,11 +656,21 @@ while IFS= read -r path; do
             hits="$hits $station:missed"
         fi
     done < <(station_sources)
-    case "$hits" in *:captured*) covered=$((covered + 1)) ;; esac
-    echo "$path:${hits:- no station}" >>"$coverage"
+    if [ -n "$hits" ]; then
+        screens=$((screens + 1))
+        case "$hits" in *:captured*) covered=$((covered + 1)) ;; esac
+    elif grep -qE "$offscreen" <<<"$path"; then
+        hits=" offscreen"
+    elif grep -qE "$everywhere" <<<"$path"; then
+        hits=" everywhere"
+    else
+        screens=$((screens + 1))
+        hits=" no station"
+    fi
+    echo "$path:$hits" >>"$coverage"
 done < <(jq -r '.files[].path' <<<"$pr" | grep -E '^ui/(native|common)/' | grep -vE '/tests?/')
-echo "changed ui files photographed by a station: $covered of $changed" | tee -a "$coverage"
-if [ "$covered" -eq 0 ] && [ "$changed" -gt 0 ]; then
+echo "changed ui screens photographed by a station: $covered of $screens" | tee -a "$coverage"
+if [ "$covered" -eq 0 ] && [ "$screens" -gt 0 ]; then
     echo "::warning::the capture reached none of the screens this PR changes (see coverage.txt)"
 fi
 
