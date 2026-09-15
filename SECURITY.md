@@ -36,9 +36,9 @@ RPC caller future and intersects that result with fully loaded joined wallets.
 Conversely, cancelling the task may leave durable protocol effects; launch
 recovery must reopen the same database and call `resume` so exact quotes and
 wallet operations are reconciled rather than replaced or spent twice. This
-includes an unsynced persisted `Formed` record: it is projected as
-`PublishingSeatBindings` and resumed until the FMan directory reaches consensus
-before terminal success is exposed.
+includes an unsynced persisted `Formed` record: it stays projected as `Formed`,
+reports the launch recheck through `freshness`, and is resumed until the FMan
+directory reaches consensus before fresh terminal success is exposed.
 
 Explicit abandonment is a no-argument mutation serialized through that same
 driver. The bridge delegates the value-safety decision to `fi-client` and must

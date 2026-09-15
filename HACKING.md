@@ -207,8 +207,9 @@ Formation commands are accepted by one `Runtime.task_group`-owned driver and exe
 Once accepted, disconnecting or cancelling the RPC caller does not cancel the operation. Bridge
 shutdown does cancel in-flight work at a resumable durable checkpoint, and bridge launch calls
 `resume` for every persisted unfinished formation. A persisted `Formed` snapshot reopens as
-unsynced, is projected as `PublishingSeatBindings`, and is resumed until the exact FMan directory
-is published and read back from consensus; only the resulting fresh `Formed` state is terminal.
+unsynced, stays projected as `Formed`, and is resumed until the exact FMan directory is published
+and read back from consensus; `freshness` carries the launch recheck, and only the resulting fresh
+`Formed` state is maintenance-ready.
 The eligible-payer query is the bounded read-only exception to the mutation driver: it refreshes
 Manifold's authenticated payer policy and intersects it with Fedi wallets that are joined and
 fully `Ready`, retaining admitted zero-balance wallets for the existing refill flow.
@@ -336,9 +337,9 @@ with `--with-devfed`. `just clear-remote-bridge` wipes its state.
 
 ### Fedimint is a fork
 
-The `fedimint-pkgs` flake input currently pins `github.com/fedibtc/fedimint` at tag
-`v0.11.0-fedi0`, while the workspace's Cargo patch routes its Fedimint crates to
-`v0.10.0-fedi28`. Nix separately materializes the pinned Manifold and Credential SDK inputs into
+The `fedimint-pkgs` flake input currently follows upstream `fedimint/fedimint` at tag `v0.11.2`,
+while the workspace dependencies and Cargo patches route Fedimint crates to the Fedi fork tag
+`v0.11.2-fedi4`. Nix separately materializes the pinned Manifold and Credential SDK inputs into
 `.nix-deps`. `matrix-rust-sdk`, `uniffi`, and `iroh` are likewise pinned to Fedi forks, so upstream
 documentation may not match the behavior you observe.
 
