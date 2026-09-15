@@ -22,15 +22,19 @@ export const LightningAttaching: React.FC<{
 
     return (
         <Column gap="lg" fullWidth testID={testID}>
-            <LightningProviderBanner
-                banner={{
-                    tone: 'warn',
-                    message: t(
-                        'feature.wallet-service.lightning-takes-a-while',
-                    ),
-                }}
-                testID="lightning-banner"
-            />
+            {/* the wait is over, and the completed line already says so — a
+                banner still promising a wait would contradict it */}
+            {stage !== 'ready' && (
+                <LightningProviderBanner
+                    banner={{
+                        tone: 'warn',
+                        message: t(
+                            'feature.wallet-service.lightning-takes-a-while',
+                        ),
+                    }}
+                    testID="lightning-banner"
+                />
+            )}
             <LightningAttachProgress stage={stage} />
         </Column>
     )

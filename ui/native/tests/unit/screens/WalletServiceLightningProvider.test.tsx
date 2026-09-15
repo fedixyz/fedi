@@ -17,7 +17,9 @@ import type {
 
 import { ProviderCard } from '../../../components/ui/ProviderCard'
 import i18n from '../../../localization/i18n'
-import WalletServiceLightningProvider from '../../../screens/WalletServiceLightningProvider'
+import WalletServiceLightningProvider, {
+    LIGHTNING_ATTACH_DONE_HOLD_MS,
+} from '../../../screens/WalletServiceLightningProvider'
 import {
     mockNavigation,
     mockRoute,
@@ -382,6 +384,81 @@ describe('screens/WalletServiceLightningProvider', () => {
                 'WalletServiceDashboard',
             ),
         )
+    })
+
+    /**
+     * `ready` is `gatewayViewVerified`, which is the same read that ends
+     * `attaching`. Without the hold the rows turn green and unmount in one
+     * render, so the last step of a multi-minute wait is never watchable.
+     */
+    it('should show the finished line before it moves on', async () => {
+        const { store } = renderScreen()
+
+        await pressContinue(user)
+        await screen.findByTestId('lightning-stage-requested')
+
+        await act(async () => {
+            store.dispatch(
+                setFiLiquidityOperation(
+                    operation({ gatewayViewVerified: true }),
+                ),
+            )
+        })
+
+        expect(screen.getByTestId('lightning-stage-ready')).toBeOnTheScreen()
+        expect(screen.queryByTestId('milestone-spinner')).not.toBeOnTheScreen()
+        expect(mockNavigation.navigate).not.toHaveBeenCalled()
+
+        await waitFor(
+            () =>
+                expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                    'WalletServiceDashboard',
+                ),
+            { timeout: LIGHTNING_ATTACH_DONE_HOLD_MS + 2_000 },
+        )
+    })
+
+    it('should drop the wait banner once the line is done', async () => {
+        const { store } = renderScreen()
+
+        await pressContinue(user)
+        await screen.findByTestId('lightning-banner')
+
+        await act(async () => {
+            store.dispatch(
+                setFiLiquidityOperation(
+                    operation({ gatewayViewVerified: true }),
+                ),
+            )
+        })
+
+        // a banner still promising a wait would contradict the green line
+        expect(screen.queryByTestId('lightning-banner')).not.toBeOnTheScreen()
+    })
+
+    it('should not follow a user who leaves during the hold', async () => {
+        const { store } = renderScreen()
+
+        await pressContinue(user)
+        await screen.findByTestId('lightning-stage-requested')
+
+        await act(async () => {
+            store.dispatch(
+                setFiLiquidityOperation(
+                    operation({ gatewayViewVerified: true }),
+                ),
+            )
+        })
+        act(() => mockScreenFocus.blur())
+
+        await act(
+            async () =>
+                new Promise(resolve =>
+                    setTimeout(resolve, LIGHTNING_ATTACH_DONE_HOLD_MS + 500),
+                ),
+        )
+
+        expect(mockNavigation.navigate).not.toHaveBeenCalled()
     })
 
     // reaching `attached` by reading, rather than by watching a request through,

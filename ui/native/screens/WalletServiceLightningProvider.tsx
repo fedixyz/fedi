@@ -30,6 +30,16 @@ export type Props = NativeStackScreenProps<
 const STEP_INDEX = 4
 
 /**
+ * How long the finished progress line stays up before this screen moves on.
+ *
+ * Without it the line is unwatchable: `ready` is `gatewayViewVerified`, which
+ * is the same read that ends `attaching`, so the rows would turn green and be
+ * unmounted in one render. The attach takes minutes, so the user who waited it
+ * out gets to see it land.
+ */
+export const LIGHTNING_ATTACH_DONE_HOLD_MS = 2_000
+
+/**
  * Ask for a Lightning provider, as the last thing creation does.
  *
  * It ran before as a screen that discovered a provider and requested none, so
@@ -81,12 +91,24 @@ const WalletServiceLightningProvider: React.FC<Props> = ({ navigation }) => {
     // still earned the same exit.
     const hasRequested = useRef(false)
 
+    // Derived during render, not set from the effect that acts on it: a flag
+    // raised afterwards would let one picker frame through between the last
+    // poll and the hold, which is the flicker this exists to remove.
+    const [hasHeldDone, setHasHeldDone] = useState(false)
+    const isShowingDone =
+        status === 'attached' && hasRequested.current && !hasHeldDone
+
     useEffect(() => {
-        if (status !== 'attached') return
-        if (!hasRequested.current) return
+        if (!isShowingDone) return
         if (!isOnScreen.current) return
-        goToDashboard()
-    }, [status, goToDashboard])
+        const timer = setTimeout(() => {
+            setHasHeldDone(true)
+            // re-read rather than close over it: the user can leave during the
+            // hold, and a late navigate must not follow them
+            if (isOnScreen.current) goToDashboard()
+        }, LIGHTNING_ATTACH_DONE_HOLD_MS)
+        return () => clearTimeout(timer)
+    }, [isShowingDone, goToDashboard])
 
     const isAttaching = status === 'attaching'
     // the durable read has not answered, so Continue has nothing to act on yet
@@ -139,7 +161,7 @@ const WalletServiceLightningProvider: React.FC<Props> = ({ navigation }) => {
                 <Column gap="lg">
                     {/* read from the attach, never stored, so a relaunch
                         mid-attach lands here too */}
-                    {isAttaching && stage ? (
+                    {(isAttaching || isShowingDone) && stage ? (
                         <LightningAttaching stage={stage} />
                     ) : (
                         <>

@@ -1030,16 +1030,21 @@ export const getWalletServiceCreationStage = (
 export type WalletServiceLightningStage =
     | 'requested'
     | 'allocating'
-    | 'providerComplete'
     | 'verifying'
     | 'ready'
     | 'actionRequired'
 
-/** Ordered stages a progress line walks. `actionRequired` is not among them. */
+/**
+ * Ordered stages a progress line walks. `actionRequired` is not among them.
+ *
+ * Every entry must be reachable from `toLightningStage`, or the line shows a
+ * step that can never light. There is deliberately no provider-complete stage:
+ * an item reporting `completed` always carries matching completion evidence,
+ * so no state exists between that and `gatewayViewVerified` for one to read.
+ */
 export const WALLET_SERVICE_LIGHTNING_STAGES = [
     'requested',
     'allocating',
-    'providerComplete',
     'verifying',
     'ready',
 ] as const satisfies ReadonlyArray<WalletServiceLightningStage>
@@ -1059,10 +1064,10 @@ const findGatewayItem = (operation: RpcFiLiquidityOperation) =>
 /**
  * Read the stage out of a durable operation snapshot.
  *
- * Verification is the last and longest step and is the FI's own work, not the
- * provider's, so a provider that reports itself complete still leaves the user
- * waiting. Naming that separately is the point: it is where the wait actually
- * is.
+ * A `completed` gateway item maps to `verifying`, not to a stage of its own:
+ * verification is the FI's work, not the provider's, so a provider reporting
+ * itself complete still leaves the user waiting. That wait is where the time
+ * actually goes, so it gets the stage.
  *
  * A snapshot without item statuses still has a stage — the request exists.
  * Throwing here would take the whole read down, and a caller would render that

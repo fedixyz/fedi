@@ -18,11 +18,6 @@ const STAGE_COPY = {
         labelKey: 'feature.wallet-service.lightning-stage-allocating',
         detailKey: 'feature.wallet-service.lightning-stage-allocating-detail',
     },
-    providerComplete: {
-        labelKey: 'feature.wallet-service.lightning-stage-provider-complete',
-        detailKey:
-            'feature.wallet-service.lightning-stage-provider-complete-detail',
-    },
     verifying: {
         labelKey: 'feature.wallet-service.lightning-stage-verifying',
         detailKey: 'feature.wallet-service.lightning-stage-verifying-detail',
@@ -51,10 +46,15 @@ const STAGE_COPY = {
  *
  * `actionRequired` replaces the list rather than appearing inside it. Its
  * contract calls it an operator decision point and forbids automatic retry, so
- * showing it as one lit step among five would present a stop as progress.
+ * showing it as one lit step among the rest would present a stop as progress.
  *
- * `providerComplete` and everything before it is provider-authored. Only
- * `ready` is `gatewayViewVerified`, and only it may read as done.
+ * `verifying` carries the provider's own claim as well as the federation's
+ * check, because there is no separate provider-complete stage to carry it: a
+ * `completed` item always arrives with its evidence, so nothing distinguishes
+ * "provider says done" from "evidence accepted but not yet threshold-verified".
+ *
+ * Everything before `verifying` is provider-authored. Only `ready` is
+ * `gatewayViewVerified`, and only it may read as done.
  */
 export const LightningAttachProgress: React.FC<{
     stage: WalletServiceLightningStage
