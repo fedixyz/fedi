@@ -707,6 +707,17 @@
 
         devShells = fmLib.devShells // {
           default = crossDevShell;
+          worktree = crossDevShell.overrideAttrs (prev: {
+            nativeBuildInputs = prev.nativeBuildInputs ++ [ pkgs.python3 ];
+            shellHook = prev.shellHook + ''
+              if [ -z "''${CI:-}" ] && [ -z "''${GITHUB_ACTIONS:-}" ]; then
+                export CARGO_TARGET_DIR="$REPO_ROOT/target-nix"
+                export CARGO_BUILD_TARGET_DIR="$CARGO_TARGET_DIR"
+                export TS_RS_EXPORT_DIR="$CARGO_TARGET_DIR/bindings/"
+                ${pkgs.python3}/bin/python3 "$REPO_ROOT/dev/worktree-cache.py" || true
+              fi
+            '';
+          });
           # TODO: this is overriden just to fix semgrep on MacOS,
           # which will be fixed upstream as well. Then this whole section
           # can be removed
