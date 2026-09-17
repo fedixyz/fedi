@@ -42,6 +42,7 @@ const log = makeLog('redux/environment')
 const initialState = {
     isInternetUnreachable: false,
     developerMode: false,
+    manifoldCreationOverrideEnabled: false,
     fedimodDebugMode: false,
     fedimodCacheEnabled: true,
     fedimodShowClearCacheButton: false,
@@ -85,6 +86,12 @@ export const environmentSlice = createSlice({
         },
         setDeveloperMode(state, action: PayloadAction<boolean>) {
             state.developerMode = action.payload
+        },
+        setManifoldCreationOverrideEnabled(
+            state,
+            action: PayloadAction<boolean>,
+        ) {
+            state.manifoldCreationOverrideEnabled = action.payload
         },
         setFediModDebugMode(state, action: PayloadAction<boolean>) {
             state.fedimodDebugMode = action.payload
@@ -207,6 +214,10 @@ export const environmentSlice = createSlice({
             if (action.payload.developerMode) {
                 state.developerMode = action.payload.developerMode
             }
+            if (action.payload.manifoldCreationOverrideEnabled) {
+                state.manifoldCreationOverrideEnabled =
+                    action.payload.manifoldCreationOverrideEnabled
+            }
             if (action.payload.transactionDisplayType) {
                 state.transactionDisplayType =
                     action.payload.transactionDisplayType
@@ -237,6 +248,7 @@ export const {
     clearSessionCount,
     setIsInternetUnreachable,
     setDeveloperMode,
+    setManifoldCreationOverrideEnabled,
     setFediModDebugMode,
     setFediModCacheEnabled,
     setFediModShowClearCacheButton,
@@ -479,6 +491,9 @@ export const selectIsInternetUnreachable = (s: CommonState) =>
 
 export const selectDeveloperMode = (s: CommonState) =>
     s.environment.developerMode
+
+export const selectManifoldCreationOverrideEnabled = (s: CommonState) =>
+    s.environment.manifoldCreationOverrideEnabled
 
 export const selectFediModDebugMode = (s: CommonState) =>
     s.environment.fedimodDebugMode

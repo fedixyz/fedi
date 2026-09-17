@@ -415,6 +415,11 @@ export interface StoredStateV49 extends Omit<StoredStateV48, 'version'> {
     }
 }
 
+export interface StoredStateV50 extends Omit<StoredStateV49, 'version'> {
+    version: 50
+    manifoldCreationOverrideEnabled: boolean
+}
+
 /**
  * Consolidated type for older storage versions (0-24).
  * These are grouped together to reduce union type computation that slows down TSC performance.
@@ -480,9 +485,10 @@ export type AnyStoredState =
     | StoredStateV47
     | StoredStateV48
     | StoredStateV49
+    | StoredStateV50
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV49
+export type LatestStoredState = StoredStateV50
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

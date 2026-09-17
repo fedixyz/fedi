@@ -26,9 +26,11 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 49,
+        version: 50,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
+        manifoldCreationOverrideEnabled:
+            state.environment.manifoldCreationOverrideEnabled,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
         language: state.environment.language,
         amountInputType: state.environment.amountInputType,
@@ -115,6 +117,7 @@ export function hasStorageStateChanged(
         ['environment', 'amountInputType'],
         ['environment', 'onchainDepositsEnabled'],
         ['environment', 'developerMode'],
+        ['environment', 'manifoldCreationOverrideEnabled'],
         ['environment', 'stableBalanceEnabled'],
         ['environment', 'transactionDisplayType'],
         ['environment', 'deviceId'],
@@ -880,6 +883,14 @@ async function migrateStoredState(
                 countdownStartedAt: null,
                 hasReachedThresholds: false,
             },
+        }
+    }
+
+    if (migrationState.version === 49) {
+        migrationState = {
+            ...migrationState,
+            version: 50,
+            manifoldCreationOverrideEnabled: false,
         }
     }
 

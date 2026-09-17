@@ -1,13 +1,27 @@
-import { cleanup, screen, userEvent } from '@testing-library/react-native'
+import {
+    cleanup,
+    fireEvent,
+    screen,
+    userEvent,
+} from '@testing-library/react-native'
 import React from 'react'
 
-import { setFeatureFlags, setFiStatus, setupStore } from '@fedi/common/redux'
+import {
+    setFeatureFlags,
+    setFiStatus,
+    setupStore,
+    setManifoldCreationOverrideEnabled,
+} from '@fedi/common/redux'
 import type { FeatureCatalog } from '@fedi/common/types/bindings'
 import { isDev } from '@fedi/common/utils/environment'
 import i18n from '@fedi/native/localization/i18n'
 
 import PublicFederations from '../../../screens/PublicFederations'
-import { mockNavigation, mockRoute } from '../../setup/jest.setup.mocks'
+import {
+    mockNavigation,
+    mockRoute,
+    mockToast,
+} from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
 
 // the discover tab's fetch dispatches after mount, and the shared react-native
@@ -113,5 +127,65 @@ describe('PublicFederations screen', () => {
                 i18n.t('feature.onboarding.create-button-label'),
             ),
         ).not.toBeOnTheScreen()
+    })
+
+    it('should toggle the wallet service flow with 21 taps on the title', async () => {
+        const store = makeStore({ walletServiceCreation: false })
+        await renderCreateTab(store)
+        const title = screen.getByText(
+            i18n.t('feature.onboarding.title-create'),
+        )
+
+        for (let i = 0; i < 20; i++) fireEvent.press(title)
+        expect(
+            screen.queryByRole('button', { name: i18n.t('words.create') }),
+        ).not.toBeOnTheScreen()
+
+        fireEvent.press(title)
+        expect(
+            await screen.findByRole('button', { name: i18n.t('words.create') }),
+        ).toBeOnTheScreen()
+        expect(
+            store.getState().environment.manifoldCreationOverrideEnabled,
+        ).toBe(true)
+
+        for (let i = 0; i < 21; i++) fireEvent.press(title)
+        expect(
+            await screen.findByText(
+                i18n.t('feature.onboarding.create-button-label'),
+            ),
+        ).toBeOnTheScreen()
+        expect(
+            store.getState().environment.manifoldCreationOverrideEnabled,
+        ).toBe(false)
+    })
+
+    it('should ignore the taps once the flag is on for everyone', async () => {
+        const store = makeStore({ walletServiceCreation: true })
+        await renderCreateTab(store)
+        const title = screen.getByText(
+            i18n.t('feature.onboarding.title-create'),
+        )
+
+        for (let i = 0; i < 21; i++) fireEvent.press(title)
+
+        expect(
+            await screen.findByRole('button', { name: i18n.t('words.create') }),
+        ).toBeOnTheScreen()
+        expect(
+            store.getState().environment.manifoldCreationOverrideEnabled,
+        ).toBe(false)
+        expect(mockToast.show).not.toHaveBeenCalled()
+    })
+
+    it('should show the wallet service flow when the override was already enabled', async () => {
+        const store = makeStore({ walletServiceCreation: false })
+        store.dispatch(setManifoldCreationOverrideEnabled(true))
+
+        await renderCreateTab(store)
+
+        expect(
+            await screen.findByRole('button', { name: i18n.t('words.create') }),
+        ).toBeOnTheScreen()
     })
 })

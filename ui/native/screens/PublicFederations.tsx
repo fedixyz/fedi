@@ -2,13 +2,17 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 
 import { useLatestPublicFederations } from '@fedi/common/hooks/federation'
+import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectIsWalletServiceCreationEnabled,
+    selectIsWalletServiceCreationReleased,
     selectFederationIds,
+    selectManifoldCreationOverrideEnabled,
     selectWalletServiceFlowStatus,
+    setManifoldCreationOverrideEnabled,
 } from '@fedi/common/redux'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
@@ -18,16 +22,20 @@ import { WalletServiceEntry } from '../components/feature/walletservice/WalletSe
 import { Row, Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { Switcher } from '../components/ui/Switcher'
-import { useAppSelector } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
     'PublicFederations'
 >
+const TOGGLE_TAP_COUNT = 21
+
 const PublicFederations: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const toast = useToast()
+    const dispatch = useAppDispatch()
 
     useLatestPublicFederations()
     // `unknown` is the pre-status window, so it must read as "not formed"
@@ -41,12 +49,38 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
     const isWalletServiceCreationEnabled = useAppSelector(
         selectIsWalletServiceCreationEnabled,
     )
+    const isWalletServiceCreationReleased = useAppSelector(
+        selectIsWalletServiceCreationReleased,
+    )
+    const isManifoldCreationOverrideEnabled = useAppSelector(
+        selectManifoldCreationOverrideEnabled,
+    )
 
     const style = styles(theme)
 
     type Tab = 'discover' | 'join' | 'create'
 
     const [activeTab, setActiveTab] = useState<Tab>('discover')
+    const [titleTapCount, setTitleTapCount] = useState(0)
+
+    const handleTitlePress = () => {
+        if (isWalletServiceCreationReleased) return
+        const tapCount = titleTapCount + 1
+        if (tapCount < TOGGLE_TAP_COUNT) {
+            setTitleTapCount(tapCount)
+            return
+        }
+        setTitleTapCount(0)
+        const enabled = !isManifoldCreationOverrideEnabled
+        dispatch(setManifoldCreationOverrideEnabled(enabled))
+        toast.show(
+            t(
+                enabled
+                    ? 'feature.wallet-service.manifold-creation-override-enabled'
+                    : 'feature.wallet-service.manifold-creation-override-disabled',
+            ),
+        )
+    }
 
     const switcherOptions: Array<{
         label: string
@@ -92,9 +126,11 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                 gap="sm"
                 fullWidth
                 style={style.titleContainer}>
-                <Text medium style={style.title}>
-                    {selectedOption.title}
-                </Text>
+                <Pressable onPress={handleTitlePress}>
+                    <Text medium style={style.title}>
+                        {selectedOption.title}
+                    </Text>
+                </Pressable>
                 <Text
                     small
                     center

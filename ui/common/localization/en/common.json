@@ -1684,6 +1684,8 @@
             "lightning-attach-action": "Attach provider",
             "lightning-attaching": "Attaching…",
             "lightning-checking": "Checking…",
+            "manifold-creation-override-disabled": "Federation creation is disabled",
+            "manifold-creation-override-enabled": "Federation creation is enabled",
             "lightning-byo": "Bring your own",
             "lightning-byo-detail": "Connect your own Lightning gateway.",
             "lightning-byo-guide": "Setup guide",

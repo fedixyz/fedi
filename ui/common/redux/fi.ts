@@ -25,7 +25,10 @@ import {
 import { isDev } from '../utils/environment'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
-import { selectFeatureFlag } from './environment'
+import {
+    selectFeatureFlag,
+    selectManifoldCreationOverrideEnabled,
+} from './environment'
 import {
     mergeFederationMeta,
     selectFederationBalance,
@@ -836,8 +839,12 @@ export const resumeWalletService = createAsyncThunk<
  * Forced on in dev until staging ships the flag. Remove this and read
  * `selectFeatureFlag` directly at that point.
  */
-export const selectIsWalletServiceCreationEnabled = (s: CommonState) =>
+export const selectIsWalletServiceCreationReleased = (s: CommonState) =>
     isDev() || Boolean(selectFeatureFlag(s, 'wallet_service_creation'))
+
+export const selectIsWalletServiceCreationEnabled = (s: CommonState) =>
+    selectIsWalletServiceCreationReleased(s) ||
+    selectManifoldCreationOverrideEnabled(s)
 
 export const selectFiStatus = (s: CommonState) => s.fi.status
 
