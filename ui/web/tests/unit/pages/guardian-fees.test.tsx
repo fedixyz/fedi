@@ -28,6 +28,7 @@ describe('/pages/guardian-fees/[id]', () => {
         mockUseRouter.query = { id: '1' }
         mockUseGuardianFeesDashboard.mockReturnValue({
             currentBalance: 100_000 as MSats,
+            outstandingBalance: 0 as MSats,
             dayBuckets: [
                 {
                     dayKey: '2026-04-22',
@@ -40,6 +41,8 @@ describe('/pages/guardian-fees/[id]', () => {
                 },
             ],
             isBalanceLoading: false,
+            isOutstandingLoading: false,
+            hasOutstandingError: false,
             isWithdrawing: false,
             withdrawAll: jest.fn(),
         })

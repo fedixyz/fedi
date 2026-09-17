@@ -1,8 +1,12 @@
 import { act, waitFor } from '@testing-library/react'
 
-import { useGuardianFeeBalance } from '../../../hooks/guardianFees'
+import {
+    useGuardianFeeBalance,
+    useOutstandingGuardianFees,
+} from '../../../hooks/guardianFees'
 import { setupStore } from '../../../redux'
 import type { MSats } from '../../../types'
+import type { RpcTransactionDirection } from '../../../types/bindings'
 import { createMockFedimintBridge } from '../../utils/fedimint'
 import { renderHookWithBridge } from '../../utils/render'
 
@@ -134,5 +138,86 @@ describe('common/hooks/useGuardianFeeBalance', () => {
         unmount()
 
         expect(stream.unsubscribe).toHaveBeenCalledTimes(1)
+    })
+})
+
+type OutstandingEntry = [string, RpcTransactionDirection, MSats]
+
+const renderOutstanding = (read: jest.Mock, federationId: string | undefined) =>
+    renderHookWithBridge(
+        () => useOutstandingGuardianFees(federationId),
+        setupStore(),
+        createMockFedimintBridge({
+            getAccruedOutstandingFediFeesPerTXTypeByStream: read,
+        }),
+    )
+
+describe('common/hooks/useOutstandingGuardianFees', () => {
+    it('should read the guardian stream for the given federation', async () => {
+        const read = jest.fn().mockResolvedValue([])
+        renderOutstanding(read, FEDERATION_ID)
+
+        await waitFor(() => expect(read).toHaveBeenCalledTimes(1))
+        expect(read).toHaveBeenCalledWith({
+            federationId: FEDERATION_ID,
+            stream: 'guardian',
+        })
+    })
+
+    it('should total every module and direction the bridge reports', async () => {
+        const entries: Array<OutstandingEntry> = [
+            ['ln', 'send', 15_000 as MSats],
+            ['wallet', 'send', 9_000 as MSats],
+            ['mint', 'receive', 1_000 as MSats],
+        ]
+        const { result } = renderOutstanding(
+            jest.fn().mockResolvedValue(entries),
+            FEDERATION_ID,
+        )
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        expect(result.current.amount).toBe(25_000)
+        expect(result.current.error).toBeNull()
+    })
+
+    it('should report nothing outstanding when the ledger is empty', async () => {
+        const { result } = renderOutstanding(
+            jest.fn().mockResolvedValue([]),
+            FEDERATION_ID,
+        )
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        expect(result.current.amount).toBe(0)
+    })
+
+    it('should stay loading until the read resolves', async () => {
+        const read = jest.fn().mockReturnValue(new Promise(() => {}))
+        const { result } = renderOutstanding(read, FEDERATION_ID)
+
+        await waitFor(() => expect(read).toHaveBeenCalled())
+
+        expect(result.current.isLoading).toBe(true)
+        expect(result.current.amount).toBe(0)
+    })
+
+    it('should stop loading and report the error when the read is refused', async () => {
+        const error = new Error('read refused')
+        const { result } = renderOutstanding(
+            jest.fn().mockRejectedValue(error),
+            FEDERATION_ID,
+        )
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        expect(result.current.error).toBe(error)
+        expect(result.current.amount).toBe(0)
+    })
+
+    it('should not read without a federation id', async () => {
+        const read = jest.fn().mockResolvedValue([])
+        const { result } = renderOutstanding(read, undefined)
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        expect(read).not.toHaveBeenCalled()
+        expect(result.current.amount).toBe(0)
     })
 })

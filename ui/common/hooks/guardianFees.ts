@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import type { MSats } from '../types'
-import type { RpcGuardianRemittanceDayBucket } from '../types/bindings'
+import type {
+    RpcAmount,
+    RpcGuardianRemittanceDayBucket,
+    RpcTransactionDirection,
+} from '../types/bindings'
 import { isDev } from '../utils/environment'
 import type { BridgeError } from '../utils/errors'
+import { makeLog } from '../utils/log'
 import { useFedimint } from './fedimint'
 
+const log = makeLog('common/hooks/guardianFees')
+
 const dummyGuardianFeeBalance = 2_300_000 as MSats
+
+const dummyOutstandingGuardianFees = 410_000 as MSats
 
 const dummyGuardianFeeDayBuckets: RpcGuardianRemittanceDayBucket[] = [
     {
@@ -80,6 +89,53 @@ export function useGuardianFeeBalance(federationId?: string) {
     return { balance, isLoading, error }
 }
 
+const sumOutstandingFees = (
+    entries: Array<[string, RpcTransactionDirection, RpcAmount]>,
+): MSats => entries.reduce((total, [, , amount]) => total + amount, 0) as MSats
+
+export function useOutstandingGuardianFees(federationId?: string) {
+    const fedimint = useFedimint()
+    const [amount, setAmount] = useState<MSats>(0 as MSats)
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<unknown>(null)
+
+    useEffect(() => {
+        setAmount(0 as MSats)
+        setError(null)
+
+        if (!federationId) {
+            setIsLoading(false)
+            return
+        }
+
+        setIsLoading(true)
+        let isCurrent = true
+
+        fedimint
+            .getAccruedOutstandingFediFeesPerTXTypeByStream({
+                federationId,
+                stream: 'guardian',
+            })
+            .then(entries => {
+                if (!isCurrent) return
+                setAmount(sumOutstandingFees(entries))
+                setIsLoading(false)
+            })
+            .catch(nextError => {
+                if (!isCurrent) return
+                log.warn('Failed to read outstanding guardian fees', nextError)
+                setError(nextError)
+                setIsLoading(false)
+            })
+
+        return () => {
+            isCurrent = false
+        }
+    }, [fedimint, federationId])
+
+    return { amount, isLoading, error }
+}
+
 type GuardianFeesDashboardOptions = {
     useDummyData?: boolean
 }
@@ -99,6 +155,11 @@ export function useGuardianFeesDashboard(
     // against a federation whose real balance would then be ignored
     const { balance: liveBalance, isLoading: isLiveBalanceLoading } =
         useGuardianFeeBalance(useDummyData ? undefined : federationId)
+    const {
+        amount: liveOutstanding,
+        isLoading: isLiveOutstandingLoading,
+        error: outstandingError,
+    } = useOutstandingGuardianFees(useDummyData ? undefined : federationId)
 
     const withdrawAll = useCallback(async () => {
         if (!federationId) {
@@ -139,8 +200,13 @@ export function useGuardianFeesDashboard(
 
     return {
         currentBalance: useDummyData ? dummyGuardianFeeBalance : liveBalance,
+        outstandingBalance: useDummyData
+            ? dummyOutstandingGuardianFees
+            : liveOutstanding,
         dayBuckets,
         isBalanceLoading: useDummyData ? false : isLiveBalanceLoading,
+        isOutstandingLoading: useDummyData ? false : isLiveOutstandingLoading,
+        hasOutstandingError: useDummyData ? false : outstandingError !== null,
         isWithdrawing,
         withdrawAll,
     }

@@ -1468,6 +1468,8 @@
         "guardian-fees": {
             "daily-fees-earned": "Daily fees earned",
             "fee-history": "Fee history",
+            "outstanding-balance": "Not yet paid out",
+            "outstanding-explainer": "Members pay a guardian fee when they send. Receiving and depositing are free. Each fee waits in the member's app until every share is large enough to pay out, then the shares are paid together. Nothing is lost while a fee waits.",
             "remittance-balance": "Claimable Fees",
             "transfer-all-to-main-balance": "Transfer all to main balance",
             "transfer-success": "Guardian fees transferred"

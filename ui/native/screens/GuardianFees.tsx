@@ -38,8 +38,11 @@ const GuardianFees: React.FC<Props> = ({ route, navigation }: Props) => {
     })
     const {
         currentBalance,
+        outstandingBalance,
         dayBuckets,
         isBalanceLoading,
+        isOutstandingLoading,
+        hasOutstandingError,
         isWithdrawing,
         withdrawAll,
     } = useGuardianFeesDashboard(federationId, { useDummyData })
@@ -65,6 +68,11 @@ const GuardianFees: React.FC<Props> = ({ route, navigation }: Props) => {
 
     const currentBalanceAmounts = makeFormattedAmountsFromMSats(
         currentBalance,
+        'end',
+        true,
+    )
+    const outstandingBalanceAmounts = makeFormattedAmountsFromMSats(
+        outstandingBalance,
         'end',
         true,
     )
@@ -110,6 +118,39 @@ const GuardianFees: React.FC<Props> = ({ route, navigation }: Props) => {
                             disabled={isWithdrawDisabled}
                             containerStyle={style.balanceAction}
                         />
+                    </Column>
+
+                    <Column gap="sm" style={style.balancePanel}>
+                        {!hasOutstandingError && (
+                            <>
+                                <Text caption color={theme.colors.darkGrey}>
+                                    {t(
+                                        'feature.guardian-fees.outstanding-balance',
+                                    )}
+                                </Text>
+                                {isOutstandingLoading ? (
+                                    <ActivityIndicator size="small" />
+                                ) : (
+                                    <>
+                                        <Text h2>
+                                            {
+                                                outstandingBalanceAmounts.formattedFiat
+                                            }
+                                        </Text>
+                                        <Text
+                                            caption
+                                            color={theme.colors.darkGrey}>
+                                            {
+                                                outstandingBalanceAmounts.formattedSats
+                                            }
+                                        </Text>
+                                    </>
+                                )}
+                            </>
+                        )}
+                        <Text caption color={theme.colors.darkGrey}>
+                            {t('feature.guardian-fees.outstanding-explainer')}
+                        </Text>
                     </Column>
 
                     {dayBuckets.length > 0 && (
