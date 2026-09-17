@@ -291,6 +291,8 @@ Judge by impact, not by the commit prefix. A `feat` can be pure developer toolin
 
 For the **Summary** tab, cluster into a handful of product items written in plain language (what a user would tell a friend), each with a `kind` (New feature / Improvement / Fix) and a `track` (Native / Web / Native + web). A card goes in `features` or `fixes` only when every PR behind it is merged to master in the window. Milestone work that has not merged goes in `not_merged`, and only those cards carry a `status`: `In progress` when the issue has an open PR ready for review, `Planned` when it has a draft or nothing. Read that off `open_prs` in `window.json` rather than off the board. The track chip is what stops a reader assuming everything lands everywhere at once. Split distinct fixes into their own cards rather than lumping them. Keep it to roughly a page or two: this is a briefing, not a changelog.
 
+The App Store What's New, the Play release notes and the GitHub release body are written from these cards. Their rules are in `references/release-notes-copy.md`, and the store release skills point there rather than carrying their own.
+
 ### The card body is the hardest 20 words in the report
 
 The headline says what changes. The body adds what the headline structurally cannot: **when it fires, who hits it, how bad it was, what people did instead.** That is the whole job.

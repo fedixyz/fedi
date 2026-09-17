@@ -84,7 +84,7 @@ Success is an empty HTTP 204. Use the full build UUID from preflight, not the bu
 
 Every locale the app ships gets a What's New text. Where the text comes from is the user's call, so ask: a feature release usually wants new copy describing the work, a patch release often reuses the previous version's notes.
 
-When new copy is needed and none exists anywhere yet, the release notes have not been distilled from the release contents. That distillation is the `report-next-release` skill's job: it grounds what the release carries and describes each user-facing change in plain product language, independent of any store work. Draft the What's New from its summary cards and get the user's sign-off on the copy before writing any locale. The [release process](https://app.notion.com/p/080eb0892aa083939aaa013ee9b37082) wants public release notes ready before submission, so a missing text here is a blocker to resolve, not a field to improvise.
+When new copy is needed and none exists anywhere yet, the release notes have not been distilled from the release contents. That distillation is the `report-next-release` skill's job: it grounds what the release carries and describes each user-facing change in plain product language, independent of any store work. Draft the What's New from its summary cards by the rules in that skill's `references/release-notes-copy.md`, and get the user's sign-off on the copy before writing any locale. The [release process](https://app.notion.com/p/080eb0892aa083939aaa013ee9b37082) wants public release notes ready before submission, so a missing text here is a blocker to resolve, not a field to improvise.
 
 List the new version's localizations first (the records are auto-created), then patch each one:
 
@@ -104,6 +104,8 @@ scripts/asc.sh 'appStoreVersions/<version-id>?include=build&fields[appStoreVersi
 ```
 
 Confirm state `PREPARE_FOR_SUBMISSION`, the intended `releaseType`, and the right build number. Stop here. Preparation is where this skill's autonomy ends.
+
+End the report with the link to the page where the user acts, not a pointer to the console: `https://appstoreconnect.apple.com/apps/6448916281/distribution/ios/version/inflight` opens the production app's in-flight version, the record just prepared, with its Add for Review button. Other apps take their id from the table.
 
 ## Submitting for review (explicit user approval required)
 
