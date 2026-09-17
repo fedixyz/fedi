@@ -12,7 +12,7 @@ const prodRemoteFeatures: RemoteFeatures = {
     messageReactions: true,
     personalBackupReminder: false,
     walletServiceCreation: false,
-    miniAppSeed: false,
+    miniAppSeed: true,
 }
 // Edge-only overrides go here; with none, edge tracks production.
 const edgeRemoteFeatures: RemoteFeatures = {
