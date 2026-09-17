@@ -25,6 +25,7 @@ import {
 } from '@fedi/common/redux'
 import type { GuardianStatus } from '@fedi/common/types/bindings'
 
+import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
 import { WalletServiceDashboardHeader } from '../components/feature/walletservice/WalletServiceDashboardHeader'
 import { WalletServiceInviteSheet } from '../components/feature/walletservice/WalletServiceInviteSheet'
@@ -53,6 +54,9 @@ const MASKED_BALANCE = '••••'
 
 /** Stands in for the amount when the fee stream could not be opened. */
 const UNAVAILABLE_BALANCE = '—'
+
+const HERO_ICON_SIZE = 48
+const HERO_ICON_RADIUS = 14
 
 /**
  * Delay before the tour opens, matching the prototype. It lets the screen's
@@ -97,18 +101,14 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const [isBalanceRevealed, setIsBalanceRevealed] = useState(false)
     const [isInviteShown, setIsInviteShown] = useState(false)
 
-    const isFederationLoaded = useAppSelector(s =>
-        federationId ? Boolean(selectLoadedFederation(s, federationId)) : false,
+    const federation = useAppSelector(s =>
+        federationId ? selectLoadedFederation(s, federationId) : undefined,
     )
+    const isFederationLoaded = Boolean(federation)
     // the live name, which a rename writes to federation consensus — not
     // `intent.federationName`, which is creation-time and stands in only until
     // the federation loads
-    const federationName = useAppSelector(s =>
-        federationId
-            ? (selectLoadedFederation(s, federationId)?.name ?? null)
-            : null,
-    )
-    const name = federationName || formationName
+    const name = federation?.name || formationName
     // the same formatter call the guardian fees screen makes, so one number
     // cannot read two ways across the two screens that show it
     const { makeFormattedAmountsFromMSats } = useAmountFormatter({
@@ -234,13 +234,23 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                     {/* top-aligned: centring floats the name above the tile
                         once the attaching line makes this three rows */}
                     <Row align="start" gap={12} style={style.hero}>
-                        <Row center style={style.heroIcon}>
-                            <SvgImage
-                                name="Wallet"
-                                size={26}
-                                color={theme.colors.white}
-                            />
-                        </Row>
+                        <FederationLogo
+                            federation={federation}
+                            size={HERO_ICON_SIZE}
+                            radius={HERO_ICON_RADIUS}
+                            fallback={
+                                <Row
+                                    center
+                                    style={style.heroIcon}
+                                    testID="WalletServiceDashboard__HeroMark">
+                                    <SvgImage
+                                        name="Wallet"
+                                        size={26}
+                                        color={theme.colors.white}
+                                    />
+                                </Row>
+                            }
+                        />
                         <Column gap={3} grow shrink>
                             <Row align="center" gap="xs">
                                 <Text style={style.name} numberOfLines={1}>
@@ -507,9 +517,9 @@ const styles = (theme: Theme) =>
         },
         heroIcon: {
             backgroundColor: theme.colors.primary,
-            borderRadius: 14,
-            height: 48,
-            width: 48,
+            borderRadius: HERO_ICON_RADIUS,
+            height: HERO_ICON_SIZE,
+            width: HERO_ICON_SIZE,
         },
         name: {
             color: theme.colors.primary,

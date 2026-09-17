@@ -1,6 +1,7 @@
 import {
     act,
     cleanup,
+    fireEvent,
     screen,
     userEvent,
     waitFor,
@@ -131,6 +132,7 @@ const renderScreen = ({
     // name; that equals the creation-time intent until a rename
     federationName = formation.intent.federationName,
     renamedTo = null as string | null,
+    iconUrl = null as string | null,
     // what the guardian remittance balance stream does: a number it emits, or
     // one of the two states it can be left in
     feeBalance = 0 as number | 'pending' | 'error',
@@ -146,6 +148,7 @@ const renderScreen = ({
     federationJoined?: boolean
     federationName?: string
     renamedTo?: string | null
+    iconUrl?: string | null
     feeBalance?: number | 'pending' | 'error'
     guardianStatuses?: GuardianStatus[] | null
     hasSeenTour?: boolean
@@ -189,9 +192,14 @@ const renderScreen = ({
                                   ...mockFederation1,
                                   id: WALLET_SERVICE_FEDERATION_ID,
                                   name: federationName,
-                                  meta: renamedTo
-                                      ? { federation_name: renamedTo }
-                                      : mockFederation1.meta,
+                                  meta: {
+                                      ...(renamedTo
+                                          ? { federation_name: renamedTo }
+                                          : mockFederation1.meta),
+                                      ...(iconUrl && {
+                                          'fedi:federation_icon_url': iconUrl,
+                                      }),
+                                  },
                                   // the screen no longer reads this; it is here
                                   // so a personal balance cannot silently
                                   // become what the card shows again
@@ -290,6 +298,41 @@ describe('screens/WalletServiceDashboard', () => {
 
         expect(screen.getByText('Money Badger')).toBeOnTheScreen()
         expect(screen.queryByText('Test Wallet Service')).toBeNull()
+    })
+
+    it('should draw the icon the service publishes in the hero', async () => {
+        renderScreen({ iconUrl: 'https://example.com/icon.svg' })
+        await waitFor(() => {})
+
+        expect(screen.getByTestId('FederationLogo__Image-svg').props.uri).toBe(
+            'https://example.com/icon.svg',
+        )
+        expect(
+            screen.queryByTestId('WalletServiceDashboard__HeroMark'),
+        ).toBeNull()
+    })
+
+    it('should stand in with the wallet mark when the service publishes no icon', async () => {
+        renderScreen()
+        await waitFor(() => {})
+
+        expect(
+            screen.getByTestId('WalletServiceDashboard__HeroMark'),
+        ).toBeOnTheScreen()
+    })
+
+    it('should stand in with the wallet mark when the published icon cannot be loaded', async () => {
+        renderScreen({ iconUrl: 'https://example.com/missing.png' })
+        await waitFor(() => {})
+
+        act(() => {
+            fireEvent(screen.getByTestId('FederationLogo__Image'), 'error')
+        })
+
+        expect(
+            screen.getByTestId('WalletServiceDashboard__HeroMark'),
+        ).toBeOnTheScreen()
+        expect(screen.queryByTestId('FederationLogo__Image')).toBeNull()
     })
 
     it('should take the guardian total from the formation', async () => {
