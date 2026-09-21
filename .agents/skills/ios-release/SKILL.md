@@ -95,7 +95,7 @@ scripts/asc.sh 'appStoreVersionLocalizations/<loc-id>' -X PATCH -H 'Content-Type
   -d '{ "data": { "type": "appStoreVersionLocalizations", "id": "<loc-id>", "attributes": { "whatsNew": "<text>" } } }'
 ```
 
-Non-English texts come from the user or the translation process, never improvised. For the reuse case, `scripts/port-whats-new.py <previous-version-id> <new-version-id>` patches every locale from the previous version and fails unless the read-back matches byte for byte. Whichever path, re-read every locale at the end; a release with fresh text in one locale and stale text in another is exactly the mistake the console makes easy.
+Translate the signed-off English into every other locale yourself, keeping the previous version's What's New in each language as the reference for register and recurring terms. No translation service or API key is involved. For the reuse case, `scripts/port-whats-new.py <previous-version-id> <new-version-id>` patches every locale from the previous version and fails unless the read-back matches byte for byte. Whichever path, re-read every locale at the end; a release with fresh text in one locale and stale text in another is exactly the mistake the console makes easy.
 
 ### 4. Verify the whole record
 

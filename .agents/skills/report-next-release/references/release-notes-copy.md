@@ -16,7 +16,7 @@ The words that reach a user through the App Store What's New, the Play release n
 
 ## Per destination
 
-- App Store What's New and Play release notes: the same text in every locale the app ships, under the store caps (Play rejects a text over 500 characters). Non-English copy comes from the user or the translation process, never improvised. A patch release usually reuses the previous version's notes verbatim, so ask before writing new copy
+- App Store What's New and Play release notes: the same text in every locale the app ships, under the store caps (Play rejects a text over 500 characters). Translate the signed-off English into the other locales yourself, matching the register and recurring terms of the previous release's text in each language. A patch release usually reuses the previous version's notes verbatim, so ask before writing new copy
 - GitHub draft release body: the `Built from commit:` line CI wrote stays first. A patch continues with `As <previous version>, but` and one bullet per PR as `- #NNNN - <what the user gains or stops seeing>`, then the product-facing paragraph. A feature release clusters the bullets by product item the way the summary cards do, links the rendered report, and attaches it to the draft as `release-<major>-notes.html` and `release-<major>-notes.pdf` with `gh release upload <version> <files>`, so the notes do not depend on the link staying up. Chrome writes the PDF from the same file: `chrome --headless --print-to-pdf=<pdf> <html>`
 
 Get the user's sign-off on the copy before writing it to any store or to the draft.
