@@ -23,13 +23,20 @@ copy_deps() {
         echo "ERROR: bridge libs source not found at $BRIDGE_LIBS_SOURCE" >&2
         exit 1
     fi
+    # git cannot clean read-only nix store modes from the work dir, so the
+    # chmod must run even when a copy fails part-way
+    restore_write_modes() {
+        chmod -R u+w "$JNI_LIBS_DEST" "$FFI_LIB_DEST" 2>/dev/null || true
+    }
+    # bash skips EXIT traps on unhandled signals
+    trap restore_write_modes EXIT
+    trap 'restore_write_modes; exit 130' INT
+    trap 'restore_write_modes; exit 143' TERM
     echo "Copying from $BRIDGE_LIBS_SOURCE/jniLibs/* to $JNI_LIBS_DEST..."
     cp -r "$BRIDGE_LIBS_SOURCE"/jniLibs/* "$JNI_LIBS_DEST"/
     echo "Copying from $BRIDGE_LIBS_SOURCE/fedi-ffi/* to $FFI_LIB_DEST..."
     cp -r "$BRIDGE_LIBS_SOURCE"/fedi-ffi/* "$FFI_LIB_DEST"/
-    # Ensure copied files and directories are writable (Nix store files are read-only) so we can clean up later
-    chmod -R u+w "$JNI_LIBS_DEST" 2>/dev/null || true
-    chmod -R u+w "$FFI_LIB_DEST" 2>/dev/null || true
+    restore_write_modes
 }
 
 publish_to_maven() {
