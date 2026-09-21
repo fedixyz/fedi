@@ -281,6 +281,9 @@ export const apis: ApiDef[] = [
     defineApi(T.fedi_getLanguageCode, {
         variants: [{ label: 'Call', data: undefined }],
     }),
+    defineApi(T.fedi_getSeed, {
+        variants: [{ label: 'Request', data: undefined }],
+    }),
     defineApi(T.fedi_generateEcash, {
         inputs: [
             { key: 'ecash_amt', label: 'Amount (sats)', placeholder: '500' },
@@ -445,5 +448,63 @@ export const apis: ApiDef[] = [
             },
         ],
         variants: [{ label: 'Preview', data: c => c.pr_id || '' }],
+    }),
+    defineApi(T.fedi_saveFile, {
+        inputs: [
+            { key: 'sf_name', label: 'Filename', placeholder: 'export.json' },
+            {
+                key: 'sf_mime',
+                label: 'MIME type',
+                placeholder: 'application/json',
+            },
+            {
+                key: 'sf_body',
+                label: 'Contents',
+                placeholder: '{"hello":"world"}',
+                multiline: true,
+            },
+        ],
+        variants: [
+            {
+                label: 'Save JSON',
+                data: {
+                    filename: 'export.json',
+                    mimeType: 'application/json',
+                    contents: '{"hello":"world"}',
+                },
+            },
+            {
+                label: 'Save text',
+                data: {
+                    filename: 'note.txt',
+                    mimeType: 'text/plain',
+                    contents: 'Hello from MiniApp API debug tool',
+                },
+            },
+            {
+                label: 'Custom',
+                data: c => ({
+                    filename: c.sf_name || 'export.json',
+                    mimeType: c.sf_mime || 'application/json',
+                    contents: c.sf_body || '{"hello":"world"}',
+                }),
+            },
+            {
+                label: 'Empty (rejects)',
+                data: {
+                    filename: 'empty.txt',
+                    mimeType: 'text/plain',
+                    contents: '',
+                },
+            },
+            {
+                label: 'Bad name (rejects)',
+                data: {
+                    filename: '../secret.txt',
+                    mimeType: 'text/plain',
+                    contents: 'nope',
+                },
+            },
+        ],
     }),
 ]
