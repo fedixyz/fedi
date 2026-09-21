@@ -11,7 +11,7 @@ export class WalletPage extends BasePage {
     async joinByInvite(invite: string) {
         await this.goto(`/onboarding/join?id=${encodeURIComponent(invite)}`)
         const join = this.page.getByRole('button', {
-            name: 'Join Wallet Service',
+            name: 'Join Federation',
             exact: true,
         })
         await expect(join).toBeVisible({ timeout: JOIN_TIMEOUT })

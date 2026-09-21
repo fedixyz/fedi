@@ -171,9 +171,9 @@ export interface DeepLinkConfig {
 export const DEEP_LINKS = [
     {
         key: 'join-federation',
-        label: 'Join Wallet Service',
+        label: 'Join Federation',
         description:
-            'Shows a wallet service preview and prompts the user to join. If they are already a member, an already-joined message appears.',
+            'Shows a federation preview and prompts the user to join. If they are already a member, an already-joined message appears.',
         screen: 'join',
         params: [{ name: 'invite', label: 'Invite Code' }],
     },
@@ -189,15 +189,15 @@ export const DEEP_LINKS = [
         key: 'ecash',
         label: 'Claim Ecash',
         description:
-            'Opens the Claim Ecash screen. If the issuing wallet service is not yet joined, the user joins it automatically on claim.',
+            'Opens the Claim Ecash screen. If the issuing federation is not yet joined, the user joins it automatically on claim.',
         screen: 'ecash',
         params: [{ name: 'id', label: 'Ecash Token' }],
     },
     {
         key: 'join-federation-then-ecash',
-        label: 'Join Wallet Service + Claim Ecash',
+        label: 'Join Federation + Claim Ecash',
         description:
-            'Joins the wallet service, then takes the user to claim ecash. The join step is skipped if they are already a member.',
+            'Joins the federation, then takes the user to claim ecash. The join step is skipped if they are already a member.',
         screen: 'join-then-ecash',
         params: [
             { name: 'invite', label: 'Invite Code' },
@@ -217,9 +217,9 @@ export const DEEP_LINKS = [
     },
     {
         key: 'join-federation-then-browse',
-        label: 'Join Wallet Service + Open Mini App',
+        label: 'Join Federation + Open Mini App',
         description:
-            'Joins the wallet service, then opens a URL in the Mini Apps browser. The join step is skipped if they are already a member.',
+            'Joins the federation, then opens a URL in the Mini Apps browser. The join step is skipped if they are already a member.',
         screen: 'join-then-browse',
         params: [
             { name: 'invite', label: 'Invite Code' },
@@ -239,13 +239,13 @@ export const DEEP_LINKS = [
     },
     {
         key: 'join-community-then-federation',
-        label: 'Join Community + Join Wallet Service',
+        label: 'Join Community + Join Federation',
         description:
-            'Joins the community, then takes the user to join the wallet service. Each join step is skipped if they are already a member.',
+            'Joins the community, then takes the user to join the federation. Each join step is skipped if they are already a member.',
         screen: 'join-then-join',
         params: [
             { name: 'community', label: 'Community Invite Code' },
-            { name: 'federation', label: 'Wallet Service Invite Code' },
+            { name: 'federation', label: 'Federation Invite Code' },
         ],
     },
     {

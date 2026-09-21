@@ -129,7 +129,7 @@ describe('WalletServicePayerRow', () => {
         await user.press(await screen.findByTestId('wallet-service-payer-row'))
 
         expect(
-            await screen.findByText(/Choose an eligible Wallet Service to pay/),
+            await screen.findByText(/Choose an eligible Federation to pay/),
         ).toBeOnTheScreen()
     })
 

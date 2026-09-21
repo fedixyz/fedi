@@ -47,7 +47,7 @@ export class OnboardingJoinPage extends BasePage {
 
     joinFederationButton() {
         return this.page.getByRole('button', {
-            name: 'Join Wallet Service',
+            name: 'Join Federation',
             exact: true,
         })
     }

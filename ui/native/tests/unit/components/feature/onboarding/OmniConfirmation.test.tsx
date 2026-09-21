@@ -8,6 +8,7 @@ import {
     ParsedStabilityAddress,
 } from '@fedi/common/types'
 import { FeatureCatalog } from '@fedi/common/types/bindings'
+import i18n from '@fedi/native/localization/i18n'
 
 import { OmniConfirmation } from '../../../../../components/feature/omni/OmniConfirmation'
 import { renderWithProviders } from '../../../../utils/render'
@@ -101,7 +102,7 @@ describe('components/feature/omni/OmniConfirmation', () => {
 
             expect(
                 screen.getByText(
-                    "You're already a member of this Wallet Service.",
+                    i18n.t('feature.omni.existing-federation-membership'),
                 ),
             ).toBeOnTheScreen()
 

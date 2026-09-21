@@ -152,7 +152,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await allowPasteIfPrompted(this)
         if (
             !(await this.isTextPresent(
-                "You're already a member of this Wallet Service.",
+                "You're already a member of this Federation.",
                 true,
                 30000,
             ))
@@ -406,7 +406,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
     // instead of navigating.
     private async openWalletSwitcher(): Promise<void> {
         await this.clickElementByKey('WalletTabButton')
-        await this.waitForText('Select Wallet Service', 0, true, 10000)
+        await this.waitForText('Select Federation', 0, true, 10000)
     }
 
     catch(error: unknown) {
