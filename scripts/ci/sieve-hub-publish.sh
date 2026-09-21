@@ -34,7 +34,7 @@ sieve --version
 
 # Merged and closed PRs are reviewed too. The sweep decides which ones are
 # worth dispatching, and a hand dispatch has to be able to reach any of them.
-pr=$(gh pr view "$number" --repo "$repo" --json state,headRefName,headRefOid,isCrossRepository)
+pr=$(gh pr view "$number" --repo "$repo" --json state,headRefName,headRefOid,isCrossRepository,title,body,baseRefName)
 branch=$(jq -r '.headRefName' <<<"$pr")
 head=$(jq -r '.headRefOid' <<<"$pr")
 state=$(jq -r '.state' <<<"$pr")
@@ -63,6 +63,9 @@ cd "$workdir/repo"
 # name, so the local branch keeps the name the PR was opened from.
 git fetch --quiet --no-tags origin "refs/pull/$number/head"
 git checkout --quiet -B "$branch" FETCH_HEAD
+
+# the reviewing agent has git but not gh, so the PR's own words reach it as a file
+jq '{title, body, baseRefName, headRefName}' <<<"$pr" >sieve-pr-context.json
 
 # the agent prompt looks for screenshots/ by that exact name
 if [ -n "${SIEVE_SCREENSHOTS_DIR:-}" ] && [ -d "$SIEVE_SCREENSHOTS_DIR" ]; then
@@ -131,6 +134,13 @@ else
 fi
 
 prompt="$script_dir/sieve-hub-agent-review.md"
+if [[ "$repo" = fedibtc/fedi && "$(jq -r '.baseRefName' <<<"$pr")" = release/* ]]; then
+    # Release checkouts can predate the review skill. Use the workflow's copy.
+    prompt="$workdir/agent-prompt.md"
+    cat "$script_dir/sieve-hub-agent-review.md" >"$prompt"
+    printf '\n\n## Fedi release review scope\n\nFor this release PR, the following skill takes precedence over the generic substance and visual-review requirements. Defer feature review to the corresponding master PR.\n\n' >>"$prompt"
+    cat "$script_dir/../../.agents/skills/backport-review/SKILL.md" >>"$prompt"
+fi
 trace="$workdir/agent-trace.jsonl"
 # the workflow builds the CLI from the newest sieve release, so this runs
 # against releases that predate run records

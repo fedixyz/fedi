@@ -6,7 +6,9 @@ Pass `--host https://sieve.fedi.xyz` on every command, since the CLI defaults to
 
 ## Which skill to read
 
-Match the changed paths and read that skill in full before judging the diff. These ship in the repo under `.agents/skills/`, so every agent working here has them.
+Check the PR's base branch before its paths. For `release/*` targets, use `.agents/skills/backport-review/SKILL.md` to verify the port and production exposure. Defer feature review to the corresponding master PR.
+
+Otherwise match the changed paths and read that skill in full before judging the diff. These ship in the repo under `.agents/skills/`, so every agent working here has them.
 
 - `ui/` (web, native, shared `common`): `ui-code-review`, agreed by the UI team for TypeScript and React work. It does not cover Rust, bridge, or infra, and stretching it there judges code against rules nobody wrote for it.
 - Tests under `ui/`: `fedi-ui-test-patterns` for which kind of test a change owes and how the mocks and fixtures work here.
