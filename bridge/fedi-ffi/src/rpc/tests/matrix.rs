@@ -8,7 +8,7 @@ use fedimint_core::BitcoinHash;
 use futures::future::try_join;
 use futures::{Stream, StreamExt};
 use imbl::Vector;
-use matrix_sdk::ruma::events::room::message::MessageType;
+use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
 use matrix_sdk::timeout::timeout;
 use matrix_sdk_ui::timeline::TimelineEventItemId;
 use rand::rngs::SmallRng;
@@ -241,6 +241,55 @@ pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
 
     assert_eq!(timeline1_messages, timeline2_messages);
     assert_eq!(timeline1_messages.len(), num_messages);
+    Ok(())
+}
+
+pub async fn test_matrix_send_queue_recovers_after_failure(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
+    let m1 = td1.matrix().await?;
+    let m2 = td2.matrix().await?;
+    let user2 = m2.client.user_id().unwrap();
+    let room_id = m1.create_or_get_dm(user2).await?;
+
+    m2.wait_for_room_id(&room_id).await?;
+    m2.room_join(&room_id).await?;
+
+    // This is what the SDK does to the room after a transient send error.
+    let queue = m1
+        .client
+        .get_room(&room_id)
+        .context("sender must know the room")?
+        .send_queue();
+    queue.set_enabled(false);
+    queue
+        .send(RoomMessageEventContent::text_plain("stuck").into())
+        .await?;
+    assert!(!queue.is_enabled());
+
+    m1.send_message(&room_id, SendMessageData::text("after".to_owned()))
+        .await?;
+    assert!(queue.is_enabled());
+
+    let wanted = |body: &str| Some(body.to_owned());
+    let mut items2 = pin!(m2.room_timeline_items(&room_id).await?);
+    let mut timeline2 = Vector::new();
+    timeout(
+        apply_diffs_until(&mut timeline2, &mut items2, |items| {
+            let texts = timeline_as_text(items);
+            texts.contains(&wanted("stuck")) && texts.contains(&wanted("after"))
+        }),
+        Duration::from_secs(30),
+    )
+    .await
+    .context("both messages should reach the recipient once the queue is re-enabled")?;
+
+    let delivered: Vec<String> = timeline_as_text(&timeline2)
+        .into_iter()
+        .flatten()
+        .filter(|body| body == "stuck" || body == "after")
+        .collect();
+    assert_eq!(delivered, ["stuck", "after"]);
     Ok(())
 }
 

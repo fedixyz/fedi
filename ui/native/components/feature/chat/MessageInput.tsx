@@ -228,7 +228,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 })
             }
         } catch (e) {
-            toast.error(t, e, 'errors.chat-unavailable')
+            toast.error(t, e, 'errors.unknown-error')
         }
     }, [
         attachments,

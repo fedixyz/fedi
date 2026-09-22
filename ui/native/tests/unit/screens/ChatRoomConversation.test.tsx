@@ -1,4 +1,5 @@
 import {
+    act,
     cleanup,
     fireEvent,
     screen,
@@ -112,7 +113,19 @@ jest.mock('@fedi/common/hooks/matrix', () => {
     }
 })
 
-jest.mock('../../../components/feature/chat/MessageInput', () => () => null)
+let latestMessageInputProps: {
+    onMessageSubmitted: (body: string) => Promise<void>
+} | null = null
+
+jest.mock('../../../components/feature/chat/MessageInput', () => ({
+    __esModule: true,
+    default: (props: {
+        onMessageSubmitted: (body: string) => Promise<void>
+    }) => {
+        latestMessageInputProps = props
+        return null
+    },
+}))
 jest.mock('../../../components/feature/chat/ChatConversation', () => {
     const { Text: RNText } = jest.requireActual('react-native')
 
@@ -426,5 +439,46 @@ describe('ChatRoomConversation - default group join', () => {
                 nonce: 1,
             })
         })
+    })
+})
+
+describe('ChatRoomConversation - sending', () => {
+    beforeEach(() => {
+        jest.clearAllMocks()
+        latestMessageInputProps = null
+        ;(mockRoute as any).params = {
+            roomId: TEST_ROOM_ID,
+            scrollToMessageId: undefined,
+        }
+    })
+
+    afterEach(() => {
+        cleanup()
+    })
+
+    it('propagates a failed send so the composer keeps the draft', async () => {
+        const store = createStoreWithJoinedConversation()
+        const fedimint = createMockFedimintBridge({
+            matrixSendMessage: () => Promise.reject(new Error('send failed')),
+        })
+        ;(fedimint as any).getMatrixClient = () => ({})
+
+        renderWithProviders(
+            <ChatRoomConversation
+                navigation={mockNavigation as any}
+                route={chatRoomRoute}
+            />,
+            { store, fedimint },
+        )
+
+        const props = latestMessageInputProps
+        if (!props) throw new Error('MessageInput was not rendered')
+
+        await act(async () => {
+            await expect(
+                props.onMessageSubmitted('hello'),
+            ).rejects.toMatchObject({ message: 'send failed' })
+        })
+        expect(fedimint.matrixSendMessage).toHaveBeenCalledTimes(1)
     })
 })

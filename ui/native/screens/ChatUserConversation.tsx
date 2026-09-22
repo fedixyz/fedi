@@ -89,6 +89,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
                 ).unwrap()
             } catch (err) {
                 log.error('error sending direct message', err)
+                throw err
             } finally {
                 setIsSending(false)
             }

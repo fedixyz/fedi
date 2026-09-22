@@ -203,9 +203,10 @@ impl Matrix {
                         sync_service::State::Terminated | sync_service::State::Error(_) => {
                             this.sync_service.start().await;
                         }
-                        sync_service::State::Offline
-                        | sync_service::State::Idle
-                        | sync_service::State::Running => {}
+                        sync_service::State::Running => {
+                            this.client.send_queue().set_enabled(true).await;
+                        }
+                        sync_service::State::Offline | sync_service::State::Idle => {}
                     }
                     fedimint_core::task::sleep(Duration::from_millis(500)).await;
                 }
@@ -624,11 +625,23 @@ impl Matrix {
         ))
     }
 
+    /// The SDK disables a room's send queue after any send error and leaves
+    /// re-enabling to the app.
+    async fn ensure_send_queue_enabled(&self, room_id: &RoomId) -> anyhow::Result<()> {
+        let queue = self.room(room_id).await?.send_queue();
+        if !queue.is_enabled() {
+            info!(%room_id, "re-enabling send queue");
+            queue.set_enabled(true);
+        }
+        Ok(())
+    }
+
     pub async fn send_message(
         &self,
         room_id: &RoomId,
         data: SendMessageData,
     ) -> anyhow::Result<()> {
+        self.ensure_send_queue_enabled(room_id).await?;
         let timeline = self.timeline(room_id).await?;
         timeline
             .send(
@@ -646,6 +659,7 @@ impl Matrix {
         item_id: &TimelineEventItemId,
         reaction_key: String,
     ) -> anyhow::Result<bool> {
+        self.ensure_send_queue_enabled(room_id).await?;
         let timeline = self.timeline(room_id).await?;
         if Self::would_exceed_reaction_key_limit(&timeline, item_id, &reaction_key).await {
             anyhow::bail!(ErrorCode::MatrixReactionLimitExceeded);
@@ -678,6 +692,7 @@ impl Matrix {
         reply_to_event_id: &EventId,
         data: SendMessageData,
     ) -> anyhow::Result<()> {
+        self.ensure_send_queue_enabled(room_id).await?;
         let timeline = self.timeline(room_id).await?;
         timeline
             .send_reply(data.try_into()?, reply_to_event_id.to_owned())
@@ -1109,6 +1124,7 @@ impl Matrix {
         item_id: &TimelineEventItemId,
         new_data: SendMessageData,
     ) -> Result<()> {
+        self.ensure_send_queue_enabled(room_id).await?;
         let timeline = self.timeline(room_id).await?;
 
         timeline

@@ -10,7 +10,6 @@ import {
     useMatrixChatInvites,
 } from '@fedi/common/hooks/matrix'
 import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
-import { useToast } from '@fedi/common/hooks/toast'
 import {
     addPreviewMedia,
     getMatrixRoomPreview,
@@ -69,7 +68,6 @@ const ChatRoomConversation: React.FC<Props> = ({
     const shouldShowJoinButton = useAppSelector(s =>
         selectShouldShowJoinOnChatPreview(s, roomId),
     )
-    const toast = useToast()
     const { shouldShowHeader } = useMultispendDisplayUtils(t, roomId)
     const [isConversationAtBottom, setIsConversationAtBottom] = useState(true)
     const [pinnedScrollRequest, setPinnedScrollRequest] =
@@ -169,12 +167,12 @@ const ChatRoomConversation: React.FC<Props> = ({
                 }
             } catch (err) {
                 log.error('error sending message', err)
-                toast.error(t, 'errors.unknown-error')
+                throw err
             } finally {
                 setIsSending(false)
             }
         },
-        [chatType, dispatch, isSending, roomId, t, toast, fedimint],
+        [chatType, dispatch, isSending, roomId, fedimint],
     )
 
     const handlePinnedBannerPress = useCallback((eventId: string) => {

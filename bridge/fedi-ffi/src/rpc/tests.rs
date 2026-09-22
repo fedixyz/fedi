@@ -330,6 +330,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         matrix::test_matrix_login,
         matrix::test_matrix_access_token_expiry_repro,
         matrix::test_matrix_dms,
+        matrix::test_matrix_send_queue_recovers_after_failure,
         matrix::test_matrix_recovery,
         matrix::test_matrix_create_room,
         matrix::test_matrix_message_reactions,
