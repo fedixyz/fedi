@@ -8,7 +8,7 @@ use fedimint_client::module::oplog::OperationLogEntry;
 use fedimint_core::core::OperationId;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{apply, async_trait_maybe_send};
-use rpc_types::{FrontendMetadata, RpcFeeDetails};
+use rpc_types::{FrontendMetadata, RpcFeeDetails, RpcPayAddressLimits};
 pub use v1::WalletOpsV1;
 pub use v2::WalletOpsV2;
 
@@ -37,6 +37,15 @@ pub trait WalletOps: MaybeSend + MaybeSync {
         fed: &FederationV2,
         operation_id: OperationId,
     ) -> Result<()>;
+
+    /// Minimum and maximum spendable amounts for an onchain send to the given
+    /// address. The minimum comes from the wallet module's dust policy, the
+    /// maximum from the current balance minus estimated fees.
+    async fn pay_address_limits(
+        &self,
+        fed: &FederationV2,
+        address: bitcoin::Address<NetworkUnchecked>,
+    ) -> Result<RpcPayAddressLimits>;
 
     /// Returns the fee details for making a payment on-chain.
     /// Returns an error in case the amount exceeds the max spendable amount.

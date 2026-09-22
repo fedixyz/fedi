@@ -7,8 +7,8 @@ use fedimint_wallet_client::{DepositStateV2, WithdrawState};
 use futures::StreamExt;
 use rpc_types::error::ErrorCode;
 use rpc_types::{
-    BaseMetadata, FrontendMetadata, RpcAmount, RpcFeeDetails, RpcTransactionDirection,
-    RpcTransactionKind,
+    BaseMetadata, FrontendMetadata, RpcAmount, RpcFeeDetails, RpcPayAddressLimits,
+    RpcTransactionDirection, RpcTransactionKind,
 };
 use tracing::{error, warn};
 
@@ -157,6 +157,39 @@ impl WalletOps for WalletOpsV1 {
             .await
     }
 
+    async fn pay_address_limits(
+        &self,
+        fed: &FederationV2,
+        address: bitcoin::Address<bitcoin::address::NetworkUnchecked>,
+    ) -> Result<RpcPayAddressLimits> {
+        let wallet = fed.client.wallet()?;
+        let fee_ppms = fed
+            .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
+            .await?;
+        // TODO: need to verify against federation network, but where do we get it from?
+        let address = address.assume_checked();
+        let min_send = address.script_pubkey().minimal_non_dust();
+        let virtual_balance = fed.get_balance().await;
+        // fee estimation needs a concrete amount; use the full balance so the
+        // estimate matches a max-size send
+        let network_fees = wallet
+            .get_withdraw_fees(
+                &address,
+                bitcoin::Amount::from_sat(virtual_balance.msats / 1000),
+            )
+            .await?;
+        let max_spendable = get_max_spendable_amount(
+            virtual_balance,
+            FederationV2::total_fedi_fee_ppm(&fee_ppms),
+            Some(network_fees),
+            None,
+        );
+        Ok(RpcPayAddressLimits {
+            min_spendable: RpcAmount(Amount::from_msats(min_send.to_sat() * 1000)),
+            max_spendable: RpcAmount(max_spendable),
+        })
+    }
+
     /// Returns the fee details for making a payment on-chain.
     /// Returns an error in case the amount exceeds the max spendable amount.
     async fn preview_pay_address(
@@ -165,6 +198,14 @@ impl WalletOps for WalletOpsV1 {
         address: bitcoin::Address<bitcoin::address::NetworkUnchecked>,
         amount: bitcoin::Amount,
     ) -> Result<RpcFeeDetails> {
+        // TODO: need to verify against federation network, but where do we get it from?
+        let address = address.assume_checked();
+        let min_send = address.script_pubkey().minimal_non_dust();
+        if amount < min_send {
+            bail!(ErrorCode::BelowMinimumSendAmount(RpcAmount(
+                Amount::from_msats(min_send.to_sat() * 1000)
+            )));
+        }
         let fee_ppms = fed
             .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
             .await?;
@@ -177,13 +218,7 @@ impl WalletOps for WalletOpsV1 {
             )
             .await?;
         let wallet = fed.client.wallet()?;
-        let network_fees = wallet
-            .get_withdraw_fees(
-                // TODO: need to verify against federation network, but where do we get it from?
-                &address.assume_checked(),
-                amount,
-            )
-            .await?;
+        let network_fees = wallet.get_withdraw_fees(&address, amount).await?;
         let federation_fee = wallet.get_fee_consensus().peg_out_abs;
         let fedi_fee = FederationV2::total_fedi_fee_amount(&fees_by_stream);
         let fedi_app_fee =
@@ -221,6 +256,14 @@ impl WalletOps for WalletOpsV1 {
         frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
         let wallet = fed.client.wallet()?;
+        // TODO: verify against federation network
+        let address = address.assume_checked();
+        let min_send = address.script_pubkey().minimal_non_dust();
+        if amount < min_send {
+            bail!(ErrorCode::BelowMinimumSendAmount(RpcAmount(
+                Amount::from_msats(min_send.to_sat() * 1000)
+            )));
+        }
         let fee_ppms = fed
             .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
             .await?;
@@ -232,13 +275,7 @@ impl WalletOps for WalletOpsV1 {
                 Amount::from_msats(amount_msat),
             )
             .await?;
-        let network_fees = wallet
-            .get_withdraw_fees(
-                // TODO: verify
-                &address.clone().assume_checked(),
-                amount,
-            )
-            .await?;
+        let network_fees = wallet.get_withdraw_fees(&address, amount).await?;
         let fedi_fee = FederationV2::total_fedi_fee_amount(&fees_by_stream);
         let network_fees_msat = network_fees.amount().to_sat() * 1000;
         let est_total_spend = amount_msat + fedi_fee.msats + network_fees_msat;
@@ -258,8 +295,7 @@ impl WalletOps for WalletOpsV1 {
 
         let operation_id = wallet
             .withdraw(
-                // TODO: verify
-                &address.clone().assume_checked(),
+                &address,
                 amount,
                 network_fees,
                 BaseMetadata::from(frontend_meta),

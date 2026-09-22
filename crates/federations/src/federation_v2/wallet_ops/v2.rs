@@ -11,8 +11,8 @@ use fedimint_walletv2_client::{
 use rpc_types::error::ErrorCode;
 use rpc_types::{
     FrontendMetadata, RpcAmount, RpcFeeDetails, RpcOnchainDepositState,
-    RpcOnchainDepositTransactionData, RpcOnchainWithdrawState, RpcTransactionDirection,
-    RpcTransactionKind,
+    RpcOnchainDepositTransactionData, RpcOnchainWithdrawState, RpcPayAddressLimits,
+    RpcTransactionDirection, RpcTransactionKind,
 };
 use tracing::{error, warn};
 
@@ -24,6 +24,17 @@ use crate::federation_v2::async_trait_maybe_send;
 pub struct WalletOpsV2;
 
 impl WalletOpsV2 {
+    /// walletv2's consensus dust limit: the module rejects sends below it, so
+    /// it is the effective minimum onchain send.
+    async fn dust_limit(fed: &FederationV2) -> Result<bitcoin::Amount> {
+        let config = fed.client.config().await;
+        let (_, cfg) = config
+            .get_first_module_by_kind::<fedimint_walletv2_client::common::config::WalletClientConfig>(
+                fedimint_walletv2_client::common::KIND,
+            )?;
+        Ok(cfg.dust_limit)
+    }
+
     /// Spawns the receive subscriber for a deposit operation, deduplicated
     /// through [`FederationV2::spawn_operation_subscriber`] so the several
     /// callers that can fire for the same operation don't pile up duplicate
@@ -127,6 +138,30 @@ impl WalletOps for WalletOpsV2 {
         Ok(())
     }
 
+    async fn pay_address_limits(
+        &self,
+        fed: &FederationV2,
+        _address: bitcoin::Address<NetworkUnchecked>,
+    ) -> Result<RpcPayAddressLimits> {
+        let walletv2 = fed.client.walletv2()?;
+        let fee_ppms = fed
+            .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
+            .await?;
+        let dust_limit = Self::dust_limit(fed).await?;
+        let network_fee = walletv2.send_fee().await?;
+        let virtual_balance = fed.get_balance().await;
+        let max_spendable = get_max_spendable_amount(
+            virtual_balance,
+            FederationV2::total_fedi_fee_ppm(&fee_ppms),
+            Some(PegOutFees::from_amount(network_fee)),
+            None,
+        );
+        Ok(RpcPayAddressLimits {
+            min_spendable: RpcAmount(Amount::from_msats(dust_limit.to_sat() * 1000)),
+            max_spendable: RpcAmount(max_spendable),
+        })
+    }
+
     /// Returns the fee details for making a payment on-chain.
     /// Returns an error in case the amount exceeds the max spendable amount.
     async fn preview_pay_address(
@@ -135,6 +170,12 @@ impl WalletOps for WalletOpsV2 {
         _address: bitcoin::Address<NetworkUnchecked>,
         amount: bitcoin::Amount,
     ) -> Result<RpcFeeDetails> {
+        let dust_limit = Self::dust_limit(fed).await?;
+        if amount < dust_limit {
+            bail!(ErrorCode::BelowMinimumSendAmount(RpcAmount(
+                Amount::from_msats(dust_limit.to_sat() * 1000)
+            )));
+        }
         let fee_ppms = fed
             .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
             .await?;
@@ -186,6 +227,12 @@ impl WalletOps for WalletOpsV2 {
         _frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
         let walletv2 = fed.client.walletv2()?;
+        let dust_limit = Self::dust_limit(fed).await?;
+        if amount < dust_limit {
+            bail!(ErrorCode::BelowMinimumSendAmount(RpcAmount(
+                Amount::from_msats(dust_limit.to_sat() * 1000)
+            )));
+        }
         let fee_ppms = fed
             .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
             .await?;

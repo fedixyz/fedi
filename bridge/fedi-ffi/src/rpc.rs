@@ -72,11 +72,11 @@ use rpc_types::{
     RpcFediFeeStream, RpcFeeDetails, RpcFiatAmount, RpcGenerateEcashResponse,
     RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard, RpcInvoice,
     RpcLightningGateway, RpcLightningGatewayId, RpcMediaUploadParams, RpcOperationId,
-    RpcParseInviteCodeResult, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult,
-    RpcPublicKey, RpcReclaimLnReceiveOutcome, RpcRecoveryId, RpcRegisteredDevice,
-    RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature, RpcSignedLnurlMessage,
-    RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection, RpcTransactionListEntry,
-    SocialRecoveryQr,
+    RpcParseInviteCodeResult, RpcPayAddressLimits, RpcPayInvoiceResponse, RpcPeerId,
+    RpcPrevPayInvoiceResult, RpcPublicKey, RpcReclaimLnReceiveOutcome, RpcRecoveryId,
+    RpcRegisteredDevice, RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature,
+    RpcSignedLnurlMessage, RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection,
+    RpcTransactionListEntry, SocialRecoveryQr,
 };
 use runtime::api::{IFediApi, LiveFediApi, MockFediApi};
 use runtime::bridge_runtime::Runtime;
@@ -489,6 +489,15 @@ async fn reclaimLnReceive(
     operation_id: RpcOperationId,
 ) -> anyhow::Result<RpcReclaimLnReceiveOutcome> {
     federation.reclaim_ln_receive(operation_id.0).await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn getPayAddressLimits(
+    federation: Arc<FederationV2>,
+    address: String,
+) -> anyhow::Result<RpcPayAddressLimits> {
+    let address = address.trim().parse().context("Invalid Bitcoin Address")?;
+    federation.pay_address_limits(address).await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -2869,6 +2878,7 @@ rpc_methods!(RpcMethods {
     generateAddress,
     getPegInFees,
     recheckPeginAddress,
+    getPayAddressLimits,
     previewPayAddress,
     payAddress,
     // Ecash

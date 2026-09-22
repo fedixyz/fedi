@@ -349,6 +349,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_ecash_overissue,
         test_on_chain,
         test_on_chain_v2,
+        test_pay_address_limits,
         test_walletv2_awaiting_deposit,
         test_ecash_cancel,
         test_backup_and_recovery,
@@ -1832,6 +1833,60 @@ async fn test_on_chain_v2(_dev_fed: DevFed) -> anyhow::Result<()> {
         Err(ControlFlow::Continue(anyhow!("withdrawal not settled yet")))
     })
     .await?;
+
+    Ok(())
+}
+
+/// Onchain send limits per wallet generation, and the typed
+/// below-minimum rejection on preview and pay.
+async fn test_pay_address_limits(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let td = TestDevice::new().await?;
+    let federation = td.join_default_fed().await?;
+
+    let ecash = cli_generate_ecash(Amount::from_msats(1_000_000)).await?;
+    receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
+    wait_for_ecash_reissue(federation).await?;
+
+    let address = bitcoin_cli_new_address().await?;
+    let limits = getPayAddressLimits(federation.clone(), address.clone()).await?;
+
+    if devimint::util::supports_wallet_v2() {
+        // walletv2's consensus dust limit, from the module's default config
+        assert_eq!(limits.min_spendable.0, Amount::from_sats(10_000));
+    } else {
+        // v1's minimum is the destination script's bitcoin dust limit
+        let parsed: bitcoin::Address<bitcoin::address::NetworkUnchecked> = address.parse()?;
+        let dust = parsed.assume_checked().script_pubkey().minimal_non_dust();
+        assert_eq!(limits.min_spendable.0, Amount::from_sats(dust.to_sat()));
+    }
+    assert!(
+        limits.max_spendable.0 <= federation.get_balance().await,
+        "max spendable cannot exceed the balance"
+    );
+
+    // On kind-two the balance here is also below the minimum, pinning the
+    // ordering: the minimum check must beat the insufficient-balance check.
+    let below_min_sats = limits.min_spendable.0.sats_round_down() - 1;
+    for result in [
+        previewPayAddress(federation.clone(), address.clone(), below_min_sats)
+            .await
+            .map(|_| ()),
+        payAddress(
+            federation.clone(),
+            address.clone(),
+            below_min_sats,
+            FrontendMetadata::default(),
+        )
+        .await
+        .map(|_| ()),
+    ] {
+        let error = result.expect_err("a below-minimum send must fail");
+        assert_eq!(
+            RpcError::from_anyhow(&error).error_code,
+            Some(ErrorCode::BelowMinimumSendAmount(limits.min_spendable)),
+            "expected the typed below-minimum error, got: {error:?}"
+        );
+    }
 
     Ok(())
 }

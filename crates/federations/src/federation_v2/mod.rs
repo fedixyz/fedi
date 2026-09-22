@@ -104,12 +104,13 @@ use rpc_types::{
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
     RpcGenerateEcashResponse, RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard,
     RpcJsonClientConfig, RpcLightningGateway, RpcLightningGatewayId, RpcOnchainDepositState,
-    RpcOperationFediFeeStatus, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult,
-    RpcPublicKey, RpcReclaimLnReceiveOutcome, RpcReturningMemberStatus, RpcSPDepositState,
-    RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState,
-    RpcSPWithdrawState, RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection,
-    RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata,
-    SPv2WithdrawMetadata, SpMatrixTransferId, SpV2TransferInKind, SpV2TransferOutKind,
+    RpcOperationFediFeeStatus, RpcPayAddressLimits, RpcPayInvoiceResponse, RpcPeerId,
+    RpcPrevPayInvoiceResult, RpcPublicKey, RpcReclaimLnReceiveOutcome, RpcReturningMemberStatus,
+    RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState,
+    RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcSPv2CachedSyncResponse, RpcTransaction,
+    RpcTransactionDirection, RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata,
+    SPv2TransferMetadata, SPv2WithdrawMetadata, SpMatrixTransferId, SpV2TransferInKind,
+    SpV2TransferOutKind,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
@@ -1875,6 +1876,13 @@ impl FederationV2 {
     ) -> Result<RpcPrevPayInvoiceResult> {
         self.ln_ops.get_prev_pay_invoice_result(self, invoice).await
     }
+    pub async fn pay_address_limits(
+        &self,
+        address: Address<NetworkUnchecked>,
+    ) -> Result<RpcPayAddressLimits> {
+        self.wallet_ops.pay_address_limits(self, address).await
+    }
+
     pub async fn preview_pay_address(
         &self,
         address: Address<NetworkUnchecked>,

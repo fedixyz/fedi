@@ -68,6 +68,8 @@ pub enum ErrorCode {
     PinnedMessageLimitExceeded,
     #[error("Message reaction limit exceeded")]
     MatrixReactionLimitExceeded,
+    #[error("Send amount is below the wallet's minimum, minimum send is {0}")]
+    BelowMinimumSendAmount(RpcAmount),
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, Clone)]

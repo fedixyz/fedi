@@ -343,6 +343,14 @@ pub struct RpcFeeDetails {
     pub federation_fee: RpcAmount,
 }
 
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcPayAddressLimits {
+    pub min_spendable: RpcAmount,
+    pub max_spendable: RpcAmount,
+}
+
 #[derive(Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
