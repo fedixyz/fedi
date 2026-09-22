@@ -658,6 +658,13 @@ export class FedimintBridge {
         })
     }
 
+    async getPayAddressLimits(address: string, federationId: string) {
+        return this.rpcTyped('getPayAddressLimits', {
+            address,
+            federationId,
+        })
+    }
+
     async previewPayAddress(address: string, sats: Sats, federationId: string) {
         // FIXME: sats must be bigint to use this.rpcTyped
         return this.rpc<RpcFeeDetails>('previewPayAddress', {

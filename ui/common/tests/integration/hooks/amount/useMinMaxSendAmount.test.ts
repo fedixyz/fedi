@@ -94,4 +94,39 @@ describe('useMinMaxSendAmount hook', () => {
             })
         })
     })
+
+    describe('Onchain address', () => {
+        it('minimum and maximum come from the wallet send limits', async () => {
+            await builder.withEcashReceived(100_000_000)
+
+            const federationId = selectLastUsedFederationId(store.getState())
+            const address = await fedimint.generateAddress(federationId)
+            const limits = await fedimint.getPayAddressLimits(
+                address,
+                federationId,
+            )
+
+            const { result } = renderHookWithBridge(
+                () =>
+                    useMinMaxSendAmount({
+                        btcAddress: { address },
+                        federationId,
+                    }),
+                store,
+                fedimint,
+            )
+
+            await waitFor(() => {
+                expect(result.current.minimumAmount).toBe(
+                    amountUtils.msatToSat(limits.minSpendable),
+                )
+                expect(result.current.maximumAmount).toBe(
+                    amountUtils.msatToSat(limits.maxSpendable),
+                )
+            })
+
+            // the wallet's dust floor, not the generic 1 sat send minimum
+            expect(result.current.minimumAmount).toBeGreaterThan(1)
+        })
+    })
 })

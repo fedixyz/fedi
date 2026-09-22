@@ -329,6 +329,7 @@
         "actions-require-internet": "You're offline. Some actions require an internet connection.",
         "admin-promotion-pending-multispend": "You cannot promote group members to admins while Multispend invitation is in progress.",
         "bad-connection": "Your network connection may be unstable. Please try again later or connect to another network.",
+        "below-minimum-send": "The minimum you can send is {{sats}} sats",
         "browser-feature-not-supported": "Your browser does not support this feature.",
         "camera-unavailable": "Failed to access your camera.",
         "cancel-ecash-failed-claimed": "This ecash can't be canceled. It was already claimed.",

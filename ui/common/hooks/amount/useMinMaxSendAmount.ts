@@ -6,7 +6,7 @@ import amountUtils from '../../utils/AmountUtils'
 import { useCommonSelector } from '../redux'
 import { useLightningInvoiceAmount } from './useLightningInvoiceAmount'
 import { useMaxEcashAmount } from './useMaxEcashAmount'
-import { useMaxOnchainAmount } from './useMaxOnchainAmount'
+import { useOnchainSendLimits } from './useOnchainSendLimits'
 import { SendAmountArgs } from './useSendForm'
 
 /**
@@ -32,7 +32,7 @@ export function useMinMaxSendAmount({
         selectFederationBalance(s, federationIdToUse),
     )
 
-    const maxAmountOnchain = useMaxOnchainAmount(btcAddress, federationIdToUse)
+    const onchainLimits = useOnchainSendLimits(btcAddress, federationIdToUse)
     const maxAmountEcash = useMaxEcashAmount(ecashRequest, federationIdToUse)
     const exactAmountLightning = useLightningInvoiceAmount(
         invoice,
@@ -42,11 +42,12 @@ export function useMinMaxSendAmount({
     return useMemo(() => {
         if (balance < 1000)
             return {
-                // If balance is less than 1000 msat, set the minimum to invoiceAmount, if not undefined
-                // Otherwise, set minimum to 1 sat
-                minimumAmount: invoice?.amount
-                    ? amountUtils.msatToSat(invoice?.amount)
-                    : (1 as Sats),
+                minimumAmount:
+                    btcAddress && onchainLimits
+                        ? onchainLimits.minimumAmount
+                        : invoice?.amount
+                          ? amountUtils.msatToSat(invoice.amount)
+                          : (1 as Sats),
                 maximumAmount: 0 as Sats,
             }
 
@@ -66,10 +67,14 @@ export function useMinMaxSendAmount({
         } else if (invoice && exactAmountLightning) {
             minimumAmount = amountUtils.msatToSat(invoice.amount)
         } else {
-            if (btcAddress && maxAmountOnchain !== null) {
+            if (btcAddress && onchainLimits !== null) {
+                minimumAmount = Math.max(
+                    minimumAmount,
+                    onchainLimits.minimumAmount,
+                ) as Sats
                 maximumAmount = Math.min(
                     maximumAmount,
-                    maxAmountOnchain,
+                    onchainLimits.maximumAmount,
                 ) as Sats
             }
 
@@ -82,7 +87,7 @@ export function useMinMaxSendAmount({
         balance,
         cashuMeltSummary,
         invoice,
-        maxAmountOnchain,
+        onchainLimits,
         maxAmountEcash,
         btcAddress,
         ecashRequest,

@@ -385,17 +385,6 @@ export function useAmountInput(
     )
 
     const validation = useMemo(() => {
-        if (typeof maximumAmount === 'number' && amount > maximumAmount) {
-            return {
-                i18nKey: 'errors.invalid-amount-max',
-                amount: maximumAmount,
-                fiatValue: amountUtils.satToFiat(
-                    maximumAmount,
-                    btcToFiatRateRef.current,
-                ),
-                onlyShowOnSubmit: false,
-            } as const
-        }
         if (typeof minimumAmount === 'number' && amount < minimumAmount) {
             return {
                 i18nKey: 'errors.invalid-amount-min',
@@ -405,6 +394,17 @@ export function useAmountInput(
                     btcToFiatRateRef.current,
                 ),
                 onlyShowOnSubmit: amount === 0,
+            } as const
+        }
+        if (typeof maximumAmount === 'number' && amount > maximumAmount) {
+            return {
+                i18nKey: 'errors.invalid-amount-max',
+                amount: maximumAmount,
+                fiatValue: amountUtils.satToFiat(
+                    maximumAmount,
+                    btcToFiatRateRef.current,
+                ),
+                onlyShowOnSubmit: false,
             } as const
         }
     }, [amount, btcToFiatRateRef, minimumAmount, maximumAmount])

@@ -75,6 +75,11 @@ export const formatBridgeError = (
                 sats: amountUtils.msatToSat(errorCode.insufficientBalance),
             })
         }
+        if ('belowMinimumSendAmount' in errorCode) {
+            return t('errors.below-minimum-send', {
+                sats: amountUtils.msatToSat(errorCode.belowMinimumSendAmount),
+            })
+        }
     }
 
     return error

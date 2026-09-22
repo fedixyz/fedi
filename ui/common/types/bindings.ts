@@ -105,7 +105,8 @@ export type ErrorCode =
   | "offlineExactEcashFailed"
   | "communityDeleted"
   | "pinnedMessageLimitExceeded"
-  | "matrixReactionLimitExceeded";
+  | "matrixReactionLimitExceeded"
+  | { belowMinimumSendAmount: RpcAmount };
 
 export type Event =
   | { transaction: TransactionEvent }
@@ -1602,6 +1603,7 @@ export type RpcMethods = {
   generateAddress: [generateAddress, string];
   getPegInFees: [getPegInFees, RpcAmount];
   recheckPeginAddress: [recheckPeginAddress, null];
+  getPayAddressLimits: [getPayAddressLimits, RpcPayAddressLimits];
   previewPayAddress: [previewPayAddress, RpcFeeDetails];
   payAddress: [payAddress, RpcOperationId];
   calculateMaxGenerateEcash: [calculateMaxGenerateEcash, RpcAmount];
@@ -1950,6 +1952,11 @@ export type RpcOperationFediFeeStatus =
 export type RpcOperationId = string;
 
 export type RpcParseInviteCodeResult = { federationId: RpcFederationId };
+
+export type RpcPayAddressLimits = {
+  minSpendable: RpcAmount;
+  maxSpendable: RpcAmount;
+};
 
 export type RpcPayAddressResponse = { txid: string };
 
@@ -2944,6 +2951,11 @@ export type getMnemonic = {};
 export type getNostrPubkey = {};
 
 export type getNostrSecret = {};
+
+export type getPayAddressLimits = {
+  federationId: RpcFederationId;
+  address: string;
+};
 
 export type getPegInFees = { federationId: RpcFederationId };
 
