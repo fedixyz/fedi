@@ -42,6 +42,8 @@ use fedi_decentralized_service_liquidity_manager::{
     LiquidityFailureCode, Sha256Digest, Timestamp, Url, WalletOperationId,
 };
 use fedi_iroh_rpc::iroh::Endpoint;
+#[cfg(target_os = "ios")]
+use fedi_iroh_rpc::iroh::endpoint::PortmapperConfig;
 use fedi_iroh_rpc::iroh::endpoint::presets;
 use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::db::{
@@ -798,6 +800,13 @@ impl FederationConsensusReader for BridgeFederationConsensusReader {
     }
 }
 
+async fn bind_n0_endpoint() -> Result<Endpoint, fedi_iroh_rpc::iroh::endpoint::BindError> {
+    let builder = Endpoint::builder(presets::N0);
+    #[cfg(target_os = "ios")]
+    let builder = builder.portmapper_config(PortmapperConfig::Disabled);
+    builder.bind().await
+}
+
 /// Fedi's Iroh transport adapter for the Fleet Manager service.
 ///
 /// The endpoint is bound lazily so opening an otherwise healthy wallet does
@@ -816,7 +825,7 @@ impl FleetManagerConnector for BridgeFmanConnector {
         let endpoint = self
             .endpoint
             .get_or_try_init(|| async {
-                Endpoint::bind(presets::N0).await.map_err(|_| {
+                bind_n0_endpoint().await.map_err(|_| {
                     FleetManagerConnectorError::new(FMAN_TRANSPORT_INITIALIZATION_ERROR)
                 })
             })
@@ -874,7 +883,7 @@ impl LiquidityProviderConnector for BridgeLiquidityConnector {
         let endpoint = self
             .endpoint
             .get_or_try_init(|| async {
-                Endpoint::bind(presets::N0).await.map_err(|_| {
+                bind_n0_endpoint().await.map_err(|_| {
                     LiquidityProviderConnectorError::new(LIQUIDITY_TRANSPORT_INITIALIZATION_ERROR)
                 })
             })

@@ -6627,7 +6627,7 @@ dependencies = [
 [[package]]
 name = "iroh"
 version = "0.35.0"
-source = "git+https://github.com/fedibtc/iroh?branch=z%2Fwasm-drop-reqwest-stream#c10aee8d4e022379dba7216460f786bf6d5e5021"
+source = "git+https://github.com/fedibtc/iroh?rev=7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad#7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad"
 dependencies = [
  "aead",
  "anyhow",
@@ -6740,7 +6740,7 @@ dependencies = [
 [[package]]
 name = "iroh-base"
 version = "0.35.0"
-source = "git+https://github.com/fedibtc/iroh?branch=z%2Fwasm-drop-reqwest-stream#c10aee8d4e022379dba7216460f786bf6d5e5021"
+source = "git+https://github.com/fedibtc/iroh?rev=7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad#7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad"
 dependencies = [
  "curve25519-dalek 4.1.3",
  "data-encoding",
@@ -6925,7 +6925,7 @@ dependencies = [
 [[package]]
 name = "iroh-relay"
 version = "0.35.0"
-source = "git+https://github.com/fedibtc/iroh?branch=z%2Fwasm-drop-reqwest-stream#c10aee8d4e022379dba7216460f786bf6d5e5021"
+source = "git+https://github.com/fedibtc/iroh?rev=7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad#7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad"
 dependencies = [
  "anyhow",
  "bytes",

@@ -268,9 +268,9 @@ fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.
 fedimint-tpe = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
 fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
 fedimint-walletv2-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-iroh = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }
-iroh-base = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }
-iroh-relay = { git = "https://github.com/fedibtc/iroh", branch = "z/wasm-drop-reqwest-stream" }
+iroh = { git = "https://github.com/fedibtc/iroh", rev = "7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad" }
+iroh-base = { git = "https://github.com/fedibtc/iroh", rev = "7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad" }
+iroh-relay = { git = "https://github.com/fedibtc/iroh", rev = "7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad" }
 # drop once netwatch requires netdev 0.46, https://github.com/n0-computer/net-tools/issues/207
 netdev = { git = "https://github.com/fedibtc/netdev", rev = "acc3a9d0c9b8768f20bca7bcfc3b3546946995e7" }
 
