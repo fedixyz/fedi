@@ -1,0 +1,55 @@
+name: Build debug APK (arm64-v8a)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch/tag/SHA to build'
+        required: true
+        default: 'master'
+        type: string
+  push:
+    branches:
+      - 'feat/cup-exchange-rate-yadio'
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    name: Build debug APK and upload artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+          submodules: true
+
+      - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
+        with:
+          nix_path: nixpkgs=channel:nixos-22.05
+
+      - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+        with:
+          name: fedibtc
+
+      - name: Build Android bridge (arm64 only)
+        run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=0 CARGO_PROFILE=release ./scripts/bridge/build-bridge-android.sh
+
+      - name: Build UI dependencies
+        run: nix develop -c ./scripts/ui/build-deps.sh
+
+      - name: Run CUP rate unit tests
+        run: nix develop -c bash -lc "cd ui/common && yarn jest --ci unit/redux/fetchCurrencyPrices.test.ts"
+
+      - name: Build debug APK (dev flavor, arm64-v8a)
+        run: nix develop -c bash -lc "cd ui/native/android && ./gradlew --no-daemon app:assembleDevDebug -PreactNativeArchitectures=arm64-v8a"
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-dev-debug-arm64-v8a
+          path: ui/native/android/app/build/outputs/apk/dev/debug/app-dev-debug.apk
+          if-no-files-found: error
+          retention-days: 7
