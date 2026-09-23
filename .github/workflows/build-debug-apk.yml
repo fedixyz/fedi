@@ -1,4 +1,4 @@
-name: Build debug APK (arm64-v8a)
+name: Build dev APK (arm64-v8a)
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build-debug-apk:
-    name: Build debug APK and upload artifact
+    name: Build APK and upload artifact
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -43,13 +43,17 @@ jobs:
       - name: Run CUP rate unit tests
         run: nix develop -c bash -lc "cd ui/common && yarn jest --ci unit/redux/fetchCurrencyPrices.test.ts"
 
-      - name: Build debug APK (dev flavor, arm64-v8a)
-        run: nix develop -c bash -lc "cd ui/native/android && ./gradlew --no-daemon app:assembleDevDebug -PreactNativeArchitectures=arm64-v8a"
+      - name: Build APK (dev flavor, release, arm64-v8a)
+        # Debug variants ship without the JS bundle and need a Metro dev server.
+        # Use the dev flavor's release build type so the JS bundle (Hermes) is
+        # embedded and the APK runs standalone. The release signing config falls
+        # back to debug.keystore when no keystore.properties exists.
+        run: nix develop -c bash -lc "cd ui/native/android && ./gradlew --no-daemon app:assembleDevRelease -PreactNativeArchitectures=arm64-v8a"
 
-      - name: Upload debug APK artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-dev-debug-arm64-v8a
-          path: ui/native/android/app/build/outputs/apk/dev/debug/app-dev-debug.apk
+          name: app-dev-release-arm64-v8a
+          path: ui/native/android/app/build/outputs/apk/dev/release/app-dev-release.apk
           if-no-files-found: error
           retention-days: 7
