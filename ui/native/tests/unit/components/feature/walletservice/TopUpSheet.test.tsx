@@ -6,19 +6,20 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 
-import { setupStore } from '@fedi/common/redux'
+import { setupStore, setWalletServiceTopUpInvoice } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import {
     createMockFedimintBridge,
     type MockFedimintBridge,
 } from '@fedi/common/tests/utils/fedimint'
 import type { LoadedFederation, MSats } from '@fedi/common/types'
+import { BridgeError } from '@fedi/common/utils/errors'
 
 import TopUpSheet, {
     roundUpTopUpSats,
 } from '../../../../../components/feature/walletservice/TopUpSheet'
 import i18n from '../../../../../localization/i18n'
-import { mockAppState } from '../../../../setup/jest.setup.mocks'
+import { mockAppState, mockToast } from '../../../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../../../utils/render'
 
 // the QR renderer pulls in native-only modules (view-shot, the node build of
@@ -383,10 +384,9 @@ describe('components/feature/walletservice/TopUpSheet', () => {
     /**
      * The sheet mounts once with the screen and is only hidden between uses, so
      * it used to reopen wherever it was left: a second Top up landed straight
-     * back on the first transfer's "Funds moved", over a stale invoice the
-     * transaction listener was still watching.
+     * back on the first transfer's "Funds moved".
      */
-    it('should start over when it is reopened', async () => {
+    it('should start over when it is reopened after a settled top-up', async () => {
         const props = {
             onDismiss: jest.fn(),
             onFunded: jest.fn(),
@@ -397,19 +397,27 @@ describe('components/feature/walletservice/TopUpSheet', () => {
         }
         const fedimint = createMockFedimintBridge({
             generateInvoice: Promise.resolve('lnbc-top-up'),
+            payInvoice: Promise.resolve({}),
+            listTransactions: Promise.resolve([
+                { Ok: makeClaimedDeposit('lnbc-top-up') },
+            ]),
         })
         const { rerender } = renderWithProviders(
             <TopUpSheet show {...props} />,
-            { preloadedState: makePreloadedState([]), fedimint },
+            {
+                preloadedState: makePreloadedState([
+                    makeFederation('rich', 'Rich Wallet', 9_000_000),
+                ]),
+                fedimint,
+            },
         )
 
-        // no other wallet qualifies, so Continue opens a deposit invoice
+        await user.press(screen.getByText(i18n.t('words.send')))
+        await screen.findByText(i18n.t('feature.wallet-service.topup-moved'))
         await user.press(screen.getByText(i18n.t('words.continue')))
-        expect(
-            await screen.findByText(
-                i18n.t('feature.wallet-service.topup-waiting'),
-            ),
-        ).toBeOnTheScreen()
+        await waitFor(() => {
+            expect(props.onFunded).toHaveBeenCalledTimes(1)
+        })
 
         rerender(<TopUpSheet show={false} {...props} />)
         rerender(<TopUpSheet show {...props} />)
@@ -418,8 +426,372 @@ describe('components/feature/walletservice/TopUpSheet', () => {
             screen.getByText(i18n.t('feature.wallet-service.topup-title')),
         ).toBeOnTheScreen()
         expect(
-            screen.queryByText(i18n.t('feature.wallet-service.topup-waiting')),
+            screen.queryByText(i18n.t('feature.wallet-service.topup-moved')),
         ).toBeNull()
+    })
+
+    /**
+     * #12202: each reopen wrote a new invoice over one that was already paid
+     * and waiting on guardians, so a founder could pay twice.
+     */
+    describe('one invoice per top-up', () => {
+        const props = {
+            onDismiss: jest.fn(),
+            onFunded: jest.fn(),
+            totalMsats: TOTAL_MSATS,
+            availableMsats: AVAILABLE_MSATS,
+            payerFederationId: payerFederation.id,
+            payerFederationName: payerFederation.name,
+        }
+
+        it('should reopen on the unpaid invoice rather than write a new one', async () => {
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+                listTransactions: Promise.resolve([
+                    {
+                        Ok: makeClaimedDeposit('lnbc-top-up', {
+                            type: 'waitingForPayment',
+                        }),
+                    },
+                ]),
+            })
+            const { rerender, store } = renderWithProviders(
+                <TopUpSheet show {...props} />,
+                { preloadedState: makePreloadedState([]), fedimint },
+            )
+            await openInvoiceView(user)
+
+            rerender(<TopUpSheet show={false} {...props} />)
+            rerender(<TopUpSheet show {...props} />)
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-waiting'),
+                ),
+            ).toBeOnTheScreen()
+            expect(fedimint.generateInvoice).toHaveBeenCalledTimes(1)
+            expect(store.getState().fi.topUpInvoice).toEqual({
+                bolt11: 'lnbc-top-up',
+                payerFederationId: payerFederation.id,
+                amountMsats: 2_000_000,
+                sourceFederationId: null,
+                createdAt: expect.any(Number),
+            })
+        })
+
+        it('should settle a reopened invoice that was paid while the sheet was closed', async () => {
+            const onFunded = jest.fn()
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+                listTransactions: Promise.resolve([
+                    { Ok: makeClaimedDeposit('lnbc-held') },
+                ]),
+            })
+            const store = setupStore(makePreloadedState([]))
+            store.dispatch(
+                setWalletServiceTopUpInvoice({
+                    bolt11: 'lnbc-held',
+                    payerFederationId: payerFederation.id,
+                    amountMsats: 2_000_000 as MSats,
+                    sourceFederationId: null,
+                    createdAt: Date.now(),
+                }),
+            )
+            renderWithProviders(
+                <TopUpSheet show {...props} onFunded={onFunded} />,
+                { store, fedimint },
+            )
+
+            // checked on open, not after the first poll interval
+            await waitFor(() => {
+                expect(onFunded).toHaveBeenCalledTimes(1)
+            })
+            expect(fedimint.generateInvoice).not.toHaveBeenCalled()
+            expect(store.getState().fi.topUpInvoice).toBeNull()
+        })
+
+        it('should ignore an invoice held for a different payer', async () => {
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+            })
+            const store = setupStore(makePreloadedState([]))
+            store.dispatch(
+                setWalletServiceTopUpInvoice({
+                    bolt11: 'lnbc-other-payer',
+                    payerFederationId: 'other-payer',
+                    amountMsats: 2_000_000 as MSats,
+                    sourceFederationId: null,
+                    createdAt: Date.now(),
+                }),
+            )
+            renderWithProviders(<TopUpSheet show {...props} />, {
+                store,
+                fedimint,
+            })
+
+            expect(
+                screen.getByText(i18n.t('feature.wallet-service.topup-title')),
+            ).toBeOnTheScreen()
+        })
+
+        it('should allow a new invoice once the held one has expired', async () => {
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+                listTransactions: Promise.resolve([
+                    {
+                        Ok: makeClaimedDeposit('lnbc-top-up', {
+                            type: 'canceled',
+                        }),
+                    },
+                ]),
+            })
+            const { store } = renderWithProviders(
+                <TopUpSheet show {...props} />,
+                { preloadedState: makePreloadedState([]), fedimint },
+            )
+
+            await user.press(screen.getByText(i18n.t('words.continue')))
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-title'),
+                ),
+            ).toBeOnTheScreen()
+            expect(store.getState().fi.topUpInvoice).toBeNull()
+            expect(props.onFunded).not.toHaveBeenCalled()
+
+            await user.press(screen.getByText(i18n.t('words.continue')))
+
+            await waitFor(() => {
+                expect(fedimint.generateInvoice).toHaveBeenCalledTimes(2)
+            })
+        })
+
+        it('should stay open and say so when I have paid finds no payment', async () => {
+            const onFunded = jest.fn()
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+                listTransactions: Promise.resolve([
+                    {
+                        Ok: makeClaimedDeposit('lnbc-top-up', {
+                            type: 'waitingForPayment',
+                        }),
+                    },
+                ]),
+            })
+            renderSheet([], fedimint, onFunded)
+            await openInvoiceView(user)
+
+            await user.press(
+                screen.getByText(
+                    i18n.t('feature.wallet-service.topup-ive-paid'),
+                ),
+            )
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-not-received'),
+                ),
+            ).toBeOnTheScreen()
+            expect(onFunded).not.toHaveBeenCalled()
+        })
+
+        it('should retry a failed send by paying the same invoice again', async () => {
+            let payAttempts = 0
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+                listTransactions: Promise.resolve([]),
+                payInvoice: () => {
+                    payAttempts += 1
+                    return payAttempts === 1
+                        ? Promise.reject(new Error('gateway timed out'))
+                        : Promise.resolve({})
+                },
+            })
+            renderSheet(
+                [makeFederation('rich', 'Rich Wallet', 9_000_000)],
+                fedimint,
+            )
+
+            await user.press(screen.getByText(i18n.t('words.send')))
+            await user.press(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-send-again', {
+                        federation: 'Rich Wallet',
+                    }),
+                ),
+            )
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-moved'),
+                ),
+            ).toBeOnTheScreen()
+            expect(fedimint.generateInvoice).toHaveBeenCalledTimes(1)
+            expect(fedimint.payInvoice).toHaveBeenCalledTimes(2)
+            expect(fedimint.payInvoice).toHaveBeenNthCalledWith(
+                2,
+                'lnbc-top-up',
+                'rich',
+            )
+        })
+
+        // a sent payment still waits on guardians to claim it; closing on
+        // Continue dropped the invoice while the screen behind stayed short
+        it('should keep the invoice when Continue finds the transfer unclaimed', async () => {
+            const onFunded = jest.fn()
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+                payInvoice: Promise.resolve({}),
+                listTransactions: Promise.resolve([
+                    {
+                        Ok: makeClaimedDeposit('lnbc-top-up', {
+                            type: 'funded',
+                        }),
+                    },
+                ]),
+            })
+            const { store } = renderSheet(
+                [makeFederation('rich', 'Rich Wallet', 9_000_000)],
+                fedimint,
+                onFunded,
+            )
+
+            await user.press(screen.getByText(i18n.t('words.send')))
+            await screen.findByText(
+                i18n.t('feature.wallet-service.topup-moved'),
+            )
+            await user.press(screen.getByText(i18n.t('words.continue')))
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-not-received'),
+                ),
+            ).toBeOnTheScreen()
+            expect(onFunded).not.toHaveBeenCalled()
+            expect(store.getState().fi.topUpInvoice?.bolt11).toBe('lnbc-top-up')
+        })
+
+        // the lookback is 50 transactions, so a busy wallet can push an
+        // expired invoice out of view, where it read as "still waiting"
+        it('should expire a held invoice that is missing and past its expiry', async () => {
+            const fedimint = createMockFedimintBridge({
+                listTransactions: Promise.resolve([]),
+            })
+            const store = setupStore(makePreloadedState([]))
+            store.dispatch(
+                setWalletServiceTopUpInvoice({
+                    bolt11: 'lnbc-old',
+                    payerFederationId: payerFederation.id,
+                    amountMsats: 2_000_000 as MSats,
+                    sourceFederationId: null,
+                    createdAt: Date.now() - 25 * 60 * 60 * 1000,
+                }),
+            )
+            renderWithProviders(<TopUpSheet show {...props} />, {
+                store,
+                fedimint,
+            })
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-title'),
+                ),
+            ).toBeOnTheScreen()
+            expect(store.getState().fi.topUpInvoice).toBeNull()
+        })
+
+        it('should keep waiting on a missing invoice that has not expired', async () => {
+            const fedimint = createMockFedimintBridge({
+                listTransactions: Promise.resolve([]),
+            })
+            const store = setupStore(makePreloadedState([]))
+            store.dispatch(
+                setWalletServiceTopUpInvoice({
+                    bolt11: 'lnbc-recent',
+                    payerFederationId: payerFederation.id,
+                    amountMsats: 2_000_000 as MSats,
+                    sourceFederationId: null,
+                    createdAt: Date.now() - 23 * 60 * 60 * 1000,
+                }),
+            )
+            renderWithProviders(<TopUpSheet show {...props} />, {
+                store,
+                fedimint,
+            })
+
+            await waitFor(() => {
+                expect(fedimint.listTransactions).toHaveBeenCalled()
+            })
+            expect(
+                screen.getByText(
+                    i18n.t('feature.wallet-service.topup-waiting'),
+                ),
+            ).toBeOnTheScreen()
+            expect(store.getState().fi.topUpInvoice?.bolt11).toBe('lnbc-recent')
+        })
+
+        it('should count an already paid invoice as a finished send', async () => {
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+                payInvoice: () =>
+                    Promise.reject(
+                        new BridgeError({
+                            error: 'already paid',
+                            errorCode: 'payLnInvoiceAlreadyPaid',
+                            detail: '',
+                        }),
+                    ),
+            })
+            renderSheet(
+                [makeFederation('rich', 'Rich Wallet', 9_000_000)],
+                fedimint,
+            )
+
+            await user.press(screen.getByText(i18n.t('words.send')))
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-moved'),
+                ),
+            ).toBeOnTheScreen()
+            expect(mockToast.error).not.toHaveBeenCalled()
+        })
+    })
+
+    describe('an amount short of the gap', () => {
+        it('should allow a smaller amount and name what it leaves short', async () => {
+            // 400 can move from Part Wallet against a 1,234 sat gap
+            renderSheet([makeFederation('part', 'Part Wallet', 500_000)])
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.topup-leaves-short', {
+                        amount: '834 SATS',
+                    }),
+                ),
+            ).toBeOnTheScreen()
+            expect(screen.getByText(i18n.t('words.send'))).toBeOnTheScreen()
+        })
+
+        it('should say nothing when the amount covers the gap', () => {
+            renderSheet([makeFederation('rich', 'Rich Wallet', 9_000_000)])
+
+            expect(screen.queryByText(/short of the setup cost/)).toBeNull()
+        })
+
+        it('should not write an invoice for zero', async () => {
+            const fedimint = createMockFedimintBridge({
+                generateInvoice: Promise.resolve('lnbc-top-up'),
+            })
+            renderSheet([], fedimint)
+
+            for (let i = 0; i < 4; i += 1)
+                await user.press(screen.getByTestId('NumpadButton-backspace'))
+            await user.press(screen.getByText(i18n.t('words.continue')))
+
+            expect(fedimint.generateInvoice).not.toHaveBeenCalled()
+        })
     })
 
     it('should open a lightning invoice when the source is an external wallet', async () => {
@@ -607,6 +979,9 @@ describe('components/feature/walletservice/TopUpSheet', () => {
             generateInvoice: Promise.resolve('lnbc-top-up'),
             payInvoice: Promise.resolve({}),
             fiClientPayAndCreate: Promise.resolve({ type: 'success' }),
+            listTransactions: Promise.resolve([
+                { Ok: makeClaimedDeposit('lnbc-top-up') },
+            ]),
         })
         renderSheet(
             [makeFederation('rich', 'Rich Wallet', 2_000_000)],
@@ -624,7 +999,9 @@ describe('components/feature/walletservice/TopUpSheet', () => {
 
         await user.press(screen.getByText(i18n.t('words.continue')))
 
-        expect(onFunded).toHaveBeenCalledTimes(1)
+        await waitFor(() => {
+            expect(onFunded).toHaveBeenCalledTimes(1)
+        })
         expect(fedimint.fiClientPayAndCreate).not.toHaveBeenCalled()
     })
 
@@ -764,7 +1141,7 @@ describe('components/feature/walletservice/TopUpSheet', () => {
             expect(fedimint.listTransactions).toHaveBeenCalledWith(
                 payerFederation.id,
                 undefined,
-                10,
+                50,
             )
         }, 15000)
 

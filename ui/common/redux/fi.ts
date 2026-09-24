@@ -7,6 +7,7 @@ import {
 import { TFunction } from 'i18next'
 
 import type { CommonState } from '.'
+import { MSats } from '../types'
 import {
     FiFederationJoinEvent,
     RpcFiClientStatus,
@@ -99,6 +100,20 @@ type CreationHighWaterMark = {
     isComplete: boolean
 }
 
+/**
+ * A top-up invoice that has not settled yet. One top-up keeps one invoice, so
+ * every retry and every reopen pays the same one and cannot fund it twice.
+ */
+export type WalletServiceTopUpInvoice = {
+    bolt11: string
+    payerFederationId: string
+    amountMsats: MSats
+    /** The wallet that was told to pay it, or null for a Lightning deposit. */
+    sourceFederationId: string | null
+    /** ms since epoch; the bridge reports no expiry, so the sheet derives it. */
+    createdAt: number
+}
+
 const initialState = {
     status: null as RpcFiStatus | null,
     clientError: null as RpcFiOperationError | null,
@@ -118,6 +133,9 @@ const initialState = {
     selectionPreview: null as RpcFiSelectionPreview | null,
     // process-local for the same reason as `selectionPreview`
     replacementPreview: null as RpcFiReplacementPreview | null,
+    // process-local: the bridge keeps the receive and claims a late payment
+    // after a restart, so a forgotten invoice still lands in the balance
+    topUpInvoice: null as WalletServiceTopUpInvoice | null,
     eligiblePayers: null as RpcFiEligiblePayer[] | null,
     // held apart from `operationError`: a failed payer lookup leaves the price
     // intact and must not read as the whole quote having failed
@@ -399,6 +417,12 @@ export const fiSlice = createSlice({
         clearFiLiquidityError(state) {
             state.liquidity.errorCode = null
         },
+        setWalletServiceTopUpInvoice(
+            state,
+            action: PayloadAction<WalletServiceTopUpInvoice | null>,
+        ) {
+            state.topUpInvoice = action.payload
+        },
         /** A new guardian count invalidates the quoted seats and payers. */
         clearWalletServiceSelectionPreview(state) {
             state.selectionPreview = null
@@ -439,6 +463,9 @@ export const fiSlice = createSlice({
             state.selectionPreview = null
             state.eligiblePayers = null
             state.payerError = null
+            // setup is paid for; a later top-up for the same payer is a new
+            // amount and must not reopen this one
+            state.topUpInvoice = null
         })
         builder.addCase(createWalletService.rejected, (state, action) => {
             state.operationError = action.payload ?? null
@@ -509,6 +536,7 @@ export const {
     setWalletServiceDraft,
     clearFiOperationError,
     clearWalletServiceSelectionPreview,
+    setWalletServiceTopUpInvoice,
     setFiLiquidityOperation,
     setFiLiquidityError,
     clearFiLiquidityError,
@@ -890,6 +918,9 @@ export const selectFiFederationJoinFailure = (s: CommonState) => {
 export const selectFiOperationError = (s: CommonState) => s.fi.operationError
 
 export const selectWalletServiceDraft = (s: CommonState) => s.fi.draft
+
+export const selectWalletServiceTopUpInvoice = (s: CommonState) =>
+    s.fi.topUpInvoice
 
 export const selectWalletServiceSelectionPreview = (s: CommonState) =>
     s.fi.selectionPreview

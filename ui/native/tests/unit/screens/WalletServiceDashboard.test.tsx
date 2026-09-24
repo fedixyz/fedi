@@ -217,6 +217,7 @@ const renderScreen = ({
                     draft: { name: '', size: 10 },
                     selectionPreview: null,
                     replacementPreview: null,
+                    topUpInvoice: null,
                     eligiblePayers: null,
                     payerError: null,
                     operationError: null,
@@ -812,10 +813,12 @@ describe('screens/WalletServiceDashboard', () => {
 
     it('should show a skeleton while the fee balance has not arrived', async () => {
         renderScreen({ feeBalance: 'pending' })
-        await waitFor(() => {})
 
+        // found, not got: the render where `isWalletReady` flips still carries
+        // the hook's not-ready `isLoading: false`, so the amount shows for one
+        // frame, and a slow runner asserted on that frame
         expect(
-            screen.getByTestId('wallet-service-balance-skeleton'),
+            await screen.findByTestId('wallet-service-balance-skeleton'),
         ).toBeOnTheScreen()
         expect(screen.queryByTestId('wallet-service-balance-amount')).toBeNull()
     })

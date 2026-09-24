@@ -123,6 +123,7 @@ const renderReview = ({
             draft: { name: '', size: 7 },
             selectionPreview: null,
             replacementPreview,
+            topUpInvoice: null,
             eligiblePayers: null,
             payerError: null,
             liquidity: {

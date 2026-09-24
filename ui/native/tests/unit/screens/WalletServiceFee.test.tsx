@@ -100,6 +100,7 @@ const renderFee = ({
             eligiblePayers: null,
             operationError: null,
             replacementPreview: null,
+            topUpInvoice: null,
             payerError: null,
             liquidity: {
                 operation: null,

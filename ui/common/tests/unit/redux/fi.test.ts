@@ -217,6 +217,7 @@ const buildStore = ({
             },
             selectionPreview: null,
             replacementPreview: null,
+            topUpInvoice: null,
             eligiblePayers: null,
             payerError: null,
             liquidity: {
@@ -547,6 +548,30 @@ describe('common/redux/fi › createWalletService', () => {
         expect(
             fedimint.fiClientPayAndCreate.mock.calls[0][1].federationName,
         ).toBeNull()
+    })
+
+    it('should drop the held top-up invoice once setup is paid for', async () => {
+        const fedimint = createMockFedimintBridge({
+            fiClientPayAndCreate: () => Promise.resolve({ type: 'success' }),
+        })
+        const store = buildStore({
+            selectionPreview: makePreview(),
+            topUpInvoice: {
+                bolt11: 'lnbc-setup',
+                payerFederationId: '1',
+                amountMsats: 2_000_000 as MSats,
+                sourceFederationId: null,
+                createdAt: 0,
+            },
+        })
+
+        await store
+            .dispatch(
+                createWalletService({ fedimint, paymentFederationId: '1' }),
+            )
+            .unwrap()
+
+        expect(store.getState().fi.topUpInvoice).toBeNull()
     })
 
     it('should clear the consumed preview once the payment succeeds', async () => {

@@ -11,8 +11,12 @@ import {
     refreshFederations,
     selectEcashFeeSchedule,
     selectLoadedFederations,
+    selectWalletServiceTopUpInvoice,
+    setWalletServiceTopUpInvoice,
+    WalletServiceTopUpInvoice,
 } from '@fedi/common/redux'
 import { LoadedFederation, MSats, Sats } from '@fedi/common/types'
+import { BridgeError } from '@fedi/common/utils/errors'
 import { makeLog } from '@fedi/common/utils/log'
 import { coerceTxn } from '@fedi/common/utils/transaction'
 
@@ -56,8 +60,18 @@ const EXTERNAL_SOURCE = 'external' as const
  */
 const INVOICE_POLL_INTERVAL_MS = 5000
 
-/** How many transactions to look back over for our own invoice. */
-const INVOICE_POLL_LOOKBACK = 10
+/**
+ * How many transactions to look back over for our own invoice. An invoice kept
+ * across reopens can sit behind whatever the wallet did in the meantime.
+ */
+const INVOICE_POLL_LOOKBACK = 50
+
+/**
+ * The bridge's default invoice expiry, which applies because the sheet passes
+ * none. `parseInvoice` does not report it, and an invoice that has slid past
+ * the lookback reads as missing, so without this a dead QR code stays up.
+ */
+const INVOICE_EXPIRY_MS = 24 * 60 * 60 * 1000
 
 /** The source list is a snapshot: a wallet can drop out of `ready` mid-flow. */
 type TopUpSource = {
@@ -156,6 +170,7 @@ const useTopUpShortfall = (
         const totalSats = Number((total + BigInt(999)) / BigInt(1000))
         const sendFeeSats = Math.ceil((totalSats * sendPpm) / PPM_DENOMINATOR)
         return {
+            neededSats: (missingSats + sendFeeSats) as Sats,
             suggestedSats: roundUpTopUpSats(missingSats + sendFeeSats),
         }
     }, [totalMsats, availableMsats, sendPpm])
@@ -213,7 +228,7 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
     const payerSendPpm = useAppSelector(
         s => selectEcashFeeSchedule(s, payerFederationId)?.sendPpm ?? 0,
     )
-    const { suggestedSats } = useTopUpShortfall(
+    const { neededSats, suggestedSats } = useTopUpShortfall(
         totalMsats,
         availableMsats,
         payerSendPpm,
@@ -225,23 +240,35 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
     // compares a snapshot taken at selection time against the wallets that are
     // loaded now
     const [selectedSource, setSelectedSource] = useState<SelectedSource>(null)
-    const [invoice, setInvoice] = useState<string | null>(null)
+    // Held in the store, not here: the sheet forgot its invoice on every close,
+    // so each reopen wrote a new one and a founder could pay two of them
+    const topUpInvoice = useAppSelector(selectWalletServiceTopUpInvoice)
+    const heldInvoice =
+        topUpInvoice?.payerFederationId === payerFederationId
+            ? topUpInvoice
+            : null
+    const invoice = heldInvoice?.bolt11 ?? null
     /** What the invoice was written for, which the ask can exceed. */
     const [movedMsats, setMovedMsats] = useState<MSats | null>(null)
     const [isWorking, setIsWorking] = useState(false)
+    const [isNotReceived, setIsNotReceived] = useState(false)
+    // apart from `isWorking`, which also swaps "Funds moved" for a spinner
+    const [isChecking, setIsChecking] = useState(false)
     // guards `settleFunding`, defined below with the four checks that share it
     const hasFunded = useRef(false)
 
     /**
-     * Every open starts the sheet over.
+     * Every open starts the sheet over, except for an invoice still unpaid.
      *
      * The sheet mounts once with the screen and is only hidden between uses, so
      * without this it reopens wherever it was left: a second Top up landed
-     * straight back on "Funds moved" from the first, over a stale invoice the
-     * transaction listener was still watching. Nothing here is worth carrying
-     * across — the payer, and so the shortfall, can change between opens, which
-     * is why a prefill frozen at mount time offered the 1,000-sat floor against
-     * a 21,000-sat gap.
+     * straight back on "Funds moved" from the first. The payer, and so the
+     * shortfall, can change between opens, which is why a prefill frozen at
+     * mount time offered the 1,000-sat floor against a 21,000-sat gap.
+     *
+     * A held invoice is the exception. It may already be paid and waiting on
+     * guardians, so the sheet reopens on it and the checks below settle or
+     * expire it; offering a fresh one is what let a founder pay twice.
      *
      * `selectedSource` resets to null rather than to a wallet: the effect below
      * re-picks the best-funded source that covers the new amount.
@@ -249,11 +276,11 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
     useEffect(() => {
         if (!show) return
         setAmount(suggestedSats)
-        setView('amount')
+        setView(heldInvoice ? 'invoice' : 'amount')
         setSelectedSource(null)
-        setInvoice(null)
         setMovedMsats(null)
         setIsWorking(false)
+        setIsNotReceived(false)
         // the latch is per-use, not per-mount: the sheet outlives each open, so
         // a second top-up would find funding already "settled" by the first
         hasFunded.current = false
@@ -331,31 +358,80 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         [fedimint, amountMsats, t, payerFederationId],
     )
 
-    const moveFundsFrom = useCallback(
-        async (source: TopUpSource) => {
+    /**
+     * Pays the held invoice from one of the user's own wallets.
+     *
+     * A failed send can still be in flight, so a retry pays this same invoice
+     * again rather than a new one: the bridge then refuses a second payment of
+     * it, where a new invoice would have been paid in full a second time.
+     */
+    const sendHeldInvoice = useCallback(
+        async (bolt11: string, sourceId: string) => {
             setView('moving')
             setIsWorking(true)
             try {
-                // the wallet sends what it has when it cannot send the whole
-                // ask, so the invoice is written for what will really move
-                const sendingMsats = Math.min(
-                    amountMsats,
-                    source.sendableMsats,
-                ) as MSats
-                // the amount can still be typed above what the wallet can send,
-                // and the "funds moved" line must name the invoice, not the ask
-                setMovedMsats(sendingMsats)
-                const bolt11 = await generateTopUpInvoice(sendingMsats)
-                await fedimint.payInvoice(bolt11, source.id)
+                await fedimint.payInvoice(bolt11, sourceId)
             } catch (error) {
-                log.error('moveFundsFrom', error)
+                // the first attempt landed after all, which is what a retry
+                // was hoping to find out
+                if (
+                    error instanceof BridgeError &&
+                    error.errorCode === 'payLnInvoiceAlreadyPaid'
+                )
+                    return
+                log.error('sendHeldInvoice', error)
                 toast.error(t, error)
-                setView('source')
+                setView('invoice')
             } finally {
                 setIsWorking(false)
             }
         },
-        [fedimint, generateTopUpInvoice, amountMsats, toast, t],
+        [fedimint, toast, t],
+    )
+
+    const moveFundsFrom = useCallback(
+        async (source: TopUpSource) => {
+            setView('moving')
+            setIsWorking(true)
+            // the wallet sends what it has when it cannot send the whole ask,
+            // so the invoice is written for what will really move
+            const sendingMsats = Math.min(
+                amountMsats,
+                source.sendableMsats,
+            ) as MSats
+            // the amount can still be typed above what the wallet can send,
+            // and the "funds moved" line must name the invoice, not the ask
+            setMovedMsats(sendingMsats)
+            let bolt11: string
+            try {
+                bolt11 = await generateTopUpInvoice(sendingMsats)
+            } catch (error) {
+                log.error('moveFundsFrom', error)
+                toast.error(t, error)
+                setView('source')
+                setIsWorking(false)
+                return
+            }
+            dispatch(
+                setWalletServiceTopUpInvoice({
+                    bolt11,
+                    payerFederationId,
+                    amountMsats: sendingMsats,
+                    sourceFederationId: source.id,
+                    createdAt: Date.now(),
+                }),
+            )
+            await sendHeldInvoice(bolt11, source.id)
+        },
+        [
+            generateTopUpInvoice,
+            amountMsats,
+            dispatch,
+            payerFederationId,
+            sendHeldInvoice,
+            toast,
+            t,
+        ],
     )
 
     /**
@@ -377,7 +453,15 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         setIsWorking(true)
         try {
             const bolt11 = await generateTopUpInvoice()
-            setInvoice(bolt11)
+            dispatch(
+                setWalletServiceTopUpInvoice({
+                    bolt11,
+                    payerFederationId,
+                    amountMsats,
+                    sourceFederationId: null,
+                    createdAt: Date.now(),
+                }),
+            )
             setView('invoice')
         } catch (error) {
             log.error('startExternalDeposit', error)
@@ -385,7 +469,14 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         } finally {
             setIsWorking(false)
         }
-    }, [generateTopUpInvoice, toast, t])
+    }, [
+        generateTopUpInvoice,
+        dispatch,
+        payerFederationId,
+        amountMsats,
+        toast,
+        t,
+    ])
 
     /**
      * Funding is detected four ways, and only the first one to notice counts.
@@ -410,22 +501,63 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
     const settleFunding = useCallback(() => {
         if (hasFunded.current) return
         hasFunded.current = true
+        dispatch(setWalletServiceTopUpInvoice(null))
         onFunded()
-    }, [onFunded])
+    }, [dispatch, onFunded])
+
+    // an invoice lives 24 hours; once the bridge cancels it, nothing can pay
+    // it, so it is safe to let the user write a new one
+    const expireHeldInvoice = useCallback(() => {
+        dispatch(setWalletServiceTopUpInvoice(null))
+        setAmount(suggestedSats)
+        setView('amount')
+        toast.show({
+            content: t('feature.wallet-service.topup-invoice-expired'),
+            status: 'info',
+        })
+    }, [dispatch, suggestedSats, toast, t])
+
+    // the one reading of the invoice that all the checks below act on
+    const applyInvoiceState = useCallback(
+        (state: string | undefined) => {
+            if (state === 'claimed') settleFunding()
+            else if (state === 'canceled') expireHeldInvoice()
+        },
+        [settleFunding, expireHeldInvoice],
+    )
+
+    /** The payer's own record of the invoice, which survives a restart. */
+    const readInvoiceState = useCallback(
+        async ({ bolt11, createdAt }: WalletServiceTopUpInvoice) => {
+            const transactions = await fedimint.listTransactions(
+                payerFederationId,
+                undefined,
+                INVOICE_POLL_LOOKBACK,
+            )
+            // the list now arrives as per-entry Results; an Err entry is a
+            // transaction the bridge could not render, not a failed deposit
+            for (const entry of transactions) {
+                if (!('Ok' in entry)) continue
+                const tx = entry.Ok
+                if (tx.kind === 'lnReceive' && tx.ln_invoice === bolt11)
+                    return tx.state?.type
+            }
+            return Date.now() - createdAt > INVOICE_EXPIRY_MS
+                ? 'canceled'
+                : undefined
+        },
+        [fedimint, payerFederationId],
+    )
 
     // ① the edge: instant, whenever the app is awake to hear it
     useEffect(() => {
         if (!show || view !== 'invoice' || !invoice) return
         return fedimint.addListener('transaction', ({ transaction }) => {
             const tx = coerceTxn(transaction)
-            if (
-                tx.kind === 'lnReceive' &&
-                tx.ln_invoice === invoice &&
-                tx.state?.type === 'claimed'
-            )
-                settleFunding()
+            if (tx.kind === 'lnReceive' && tx.ln_invoice === invoice)
+                applyInvoiceState(tx.state?.type)
         })
-    }, [show, view, invoice, fedimint, settleFunding])
+    }, [show, view, invoice, fedimint, applyInvoiceState])
 
     /**
      * ② the level: the wallet can now cover setup, however that came about.
@@ -477,37 +609,23 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
      * This is the only check that names the invoice, so it is the one that
      * still works when the balance is unreadable for some other reason. A local
      * database read, and it runs only while the user is actually watching the
-     * QR code with the app in front of them.
+     * QR code with the app in front of them. It runs once straight away, so a
+     * reopened invoice that was paid or expired meanwhile resolves at once.
      */
     useEffect(() => {
-        if (!show || view !== 'invoice' || !invoice || !isForeground) return
+        if (!show || view !== 'invoice' || !heldInvoice || !isForeground) return
         let isCancelled = false
         const checkForPayment = async () => {
             try {
-                const transactions = await fedimint.listTransactions(
-                    payerFederationId,
-                    undefined,
-                    INVOICE_POLL_LOOKBACK,
-                )
-                if (isCancelled) return
-                // the list now arrives as per-entry Results; an Err entry is a
-                // transaction the bridge could not render, not a failed deposit
-                const isPaid = transactions.some(entry => {
-                    if (!('Ok' in entry)) return false
-                    const tx = entry.Ok
-                    return (
-                        tx.kind === 'lnReceive' &&
-                        tx.ln_invoice === invoice &&
-                        tx.state?.type === 'claimed'
-                    )
-                })
-                if (isPaid) settleFunding()
+                const state = await readInvoiceState(heldInvoice)
+                if (!isCancelled) applyInvoiceState(state)
             } catch (error) {
                 // a failed poll is not a failed deposit: the other three checks
                 // are still watching, so this stays out of the user's way
                 log.warn('invoice poll', error)
             }
         }
+        checkForPayment()
         const timer = setInterval(checkForPayment, INVOICE_POLL_INTERVAL_MS)
         return () => {
             isCancelled = true
@@ -516,11 +634,39 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
     }, [
         show,
         view,
-        invoice,
+        heldInvoice,
         isForeground,
-        fedimint,
-        payerFederationId,
+        readInvoiceState,
+        applyInvoiceState,
+    ])
+
+    // "I've paid", and Continue after a transfer, ask rather than assume: a
+    // paid invoice still waits on guardians to claim it, and closing on the
+    // press alone dropped it while the screen behind offered another one
+    const handleCheckPayment = useCallback(async () => {
+        if (BigInt(availableMsats) >= BigInt(totalMsats)) {
+            settleFunding()
+            return
+        }
+        if (!heldInvoice) return
+        setIsChecking(true)
+        try {
+            const state = await readInvoiceState(heldInvoice)
+            applyInvoiceState(state)
+            setIsNotReceived(state !== 'claimed' && state !== 'canceled')
+        } catch (error) {
+            log.warn('handleCheckPayment', error)
+            setIsNotReceived(true)
+        } finally {
+            setIsChecking(false)
+        }
+    }, [
+        availableMsats,
+        totalMsats,
+        heldInvoice,
         settleFunding,
+        readInvoiceState,
+        applyInvoiceState,
     ])
 
     /**
@@ -664,6 +810,17 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                             fitNumpadToSpace
                         />
                     </Column>
+                    {/* a small wallet is still worth emptying into the gap,
+                        so a short amount is allowed and only named */}
+                    {amount > 0 && amount < neededSats && (
+                        <Text style={style.fixedNote}>
+                            {t('feature.wallet-service.topup-leaves-short', {
+                                amount: formatMsats(
+                                    ((neededSats - amount) * 1000) as MSats,
+                                ),
+                            })}
+                        </Text>
+                    )}
                 </Column>
             ),
             buttons: [
@@ -674,6 +831,7 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                         ? t('words.send')
                         : t('words.continue'),
                     primary: true,
+                    disabled: amount <= 0,
                     onPress: handleSend,
                 },
             ],
@@ -814,6 +972,11 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                                 federation: payerFederationName,
                             })}
                         </Text>
+                        {isNotReceived && (
+                            <Text style={style.transferStatusDetail}>
+                                {t('feature.wallet-service.topup-not-received')}
+                            </Text>
+                        )}
                     </Column>
                 )}
             </Column>
@@ -826,13 +989,18 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                   {
                       text: t('words.continue'),
                       primary: true,
-                      onPress: settleFunding,
+                      onPress: handleCheckPayment,
                   },
               ],
     })
 
     const buildInvoiceContents = (): TopUpViewContents => {
-        const depositAmounts = makeFormattedAmountsFromMSats(amountMsats)
+        const depositAmounts = makeFormattedAmountsFromMSats(
+            heldInvoice?.amountMsats ?? amountMsats,
+        )
+        const sendingFederation = loadedFederations.find(
+            f => f.id === heldInvoice?.sourceFederationId,
+        )
         return {
             title: t('feature.wallet-service.topup-source-external'),
             body: (
@@ -859,19 +1027,44 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                         />
                     )}
                     <Text style={style.waitingText}>
-                        {t('feature.wallet-service.topup-waiting')}
+                        {t(
+                            isNotReceived
+                                ? 'feature.wallet-service.topup-not-received'
+                                : 'feature.wallet-service.topup-waiting',
+                        )}
                     </Text>
                 </Column>
             ),
             buttons: [
+                // only after a send from the user's own wallet failed: it pays
+                // the same invoice, so a send that did land cannot repeat
+                ...(heldInvoice && sendingFederation
+                    ? [
+                          {
+                              text: t(
+                                  'feature.wallet-service.topup-send-again',
+                                  {
+                                      federation: sendingFederation.name,
+                                  },
+                              ),
+                              onPress: () => {
+                                  setMovedMsats(heldInvoice.amountMsats)
+                                  sendHeldInvoice(
+                                      heldInvoice.bolt11,
+                                      sendingFederation.id,
+                                  )
+                              },
+                          },
+                      ]
+                    : []),
                 {
                     // the settled deposit advances the sheet on its own (the
-                    // transaction listener above); this is the escape hatch for
-                    // a payment the listener missed, and it only re-checks the
-                    // balance, so a premature press cannot fake funding
+                    // checks above); this is the escape hatch for a payment
+                    // they missed, and it re-reads the invoice and the balance,
+                    // so a premature press cannot fake funding
                     text: t('feature.wallet-service.topup-ive-paid'),
                     primary: true,
-                    onPress: settleFunding,
+                    onPress: handleCheckPayment,
                 },
             ],
         }
@@ -911,7 +1104,7 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
             // spins the primary button and locks the sheet while an RPC is out.
             // The external-deposit path awaits its invoice here rather than on
             // the invoice view, so this is the surface that shows that wait.
-            loading={isWorking}
+            loading={isWorking || isChecking}
             // the amount view's keypad must not scroll: at the default height
             // its bottom row sits behind the button
             tall={view === 'amount'}

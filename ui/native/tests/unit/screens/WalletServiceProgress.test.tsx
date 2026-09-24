@@ -116,6 +116,7 @@ const renderProgress = ({
             draft: { name: '', size: 7 },
             selectionPreview: null,
             replacementPreview: null,
+            topUpInvoice: null,
             eligiblePayers: null,
             operationError: null,
             payerError: null,
