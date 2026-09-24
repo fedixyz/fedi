@@ -1709,7 +1709,7 @@
             "lightning-stage-requested-detail": "Asking your chosen Liquidity Provider for a Lightning gateway",
             "lightning-stage-verifying": "Verifying with your guardians",
             "lightning-stage-verifying-detail": "Your Liquidity Provider says the gateway is built. Your guardians now agree it is live before we call it ready. This is the longest step.",
-            "lightning-takes-a-while": "This could take a while. Setup carries on in the background, so you can leave this screen.",
+            "lightning-takes-a-while": "This usually takes about 2 hours. Setup carries on in the background, so you can leave this screen and come back.",
             "lightning-title": "Add a Liquidity Provider",
             "lightning-verified": "Verified",
             "list-other-wallet-service": "Other Federation",
