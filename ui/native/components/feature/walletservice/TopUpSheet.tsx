@@ -17,6 +17,10 @@ import { makeLog } from '@fedi/common/utils/log'
 import { coerceTxn } from '@fedi/common/utils/transaction'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import {
+    PPM_DENOMINATOR,
+    sendableMsatsOf,
+} from '../../../utils/walletServiceFunds'
 import AmountInput from '../../ui/AmountInput'
 import { Eyebrow } from '../../ui/Eyebrow'
 import { Column } from '../../ui/Flex'
@@ -40,8 +44,6 @@ const TOP_UP_ROUNDING_SATS = 1_000
  */
 const TOP_UP_MIN_HEADROOM_SATS = 100
 
-const PPM_DENOMINATOR = 1_000_000
-
 /** Sentinel for "deposit over Lightning", which is not one of the wallets. */
 const EXTERNAL_SOURCE = 'external' as const
 
@@ -63,6 +65,8 @@ type TopUpSource = {
     name: string
     inviteCode: string
     balanceMsats: MSats
+    /** What the wallet can actually move, once its send fees are taken off. */
+    sendableMsats: MSats
     /** Carried for the row's logo, which reads the icon out of the meta. */
     meta: LoadedFederation['meta']
 }
@@ -157,32 +161,40 @@ const useTopUpShortfall = (
     }, [totalMsats, availableMsats, sendPpm])
 
 /**
- * Other wallets that could fund the top-up in one move. A wallet that can only
- * cover part of the amount is not offered — a partial transfer leaves the user
- * short on both sides.
+ * Other wallets that hold funds, whether or not they cover the whole amount.
  *
- * Best-funded first, so the From row can default to the wallet least likely to
- * be emptied by the transfer.
+ * A wallet that covers only part of it used to be left out, on the grounds that
+ * a partial transfer leaves the user short on both sides. In practice it left
+ * the From row empty and sent the user out of the flow for a lightning deposit,
+ * so a partial move is now offered and the payment screen states what is still
+ * needed.
+ *
+ * Filtered on what can be sent, not on the balance: a wallet holding less than
+ * the reserve can pay no invoice at all, and offering it only promises a
+ * transfer that must fail.
+ *
+ * Best-funded first, so the From row defaults to the wallet that goes furthest.
  */
 const useTopUpSources = (
     federations: LoadedFederation[],
-    amountSats: Sats,
     excludeFederationId: string,
 ) =>
-    useMemo(() => {
-        const amountMsats = amountSats * 1000
-        return federations
-            .filter(f => f.id !== excludeFederationId)
-            .filter(f => f.balance >= amountMsats)
-            .map<TopUpSource>(f => ({
-                id: f.id,
-                name: f.name,
-                inviteCode: f.inviteCode,
-                balanceMsats: f.balance,
-                meta: f.meta,
-            }))
-            .sort((a, b) => b.balanceMsats - a.balanceMsats)
-    }, [federations, excludeFederationId, amountSats])
+    useMemo(
+        () =>
+            federations
+                .filter(f => f.id !== excludeFederationId)
+                .map<TopUpSource>(f => ({
+                    id: f.id,
+                    name: f.name,
+                    inviteCode: f.inviteCode,
+                    balanceMsats: f.balance,
+                    sendableMsats: sendableMsatsOf(f),
+                    meta: f.meta,
+                }))
+                .filter(s => s.sendableMsats > 0)
+                .sort((a, b) => b.sendableMsats - a.sendableMsats),
+        [federations, excludeFederationId],
+    )
 
 const TopUpSheet: React.FC<TopUpSheetProps> = ({
     show,
@@ -214,6 +226,8 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
     // loaded now
     const [selectedSource, setSelectedSource] = useState<SelectedSource>(null)
     const [invoice, setInvoice] = useState<string | null>(null)
+    /** What the invoice was written for, which the ask can exceed. */
+    const [movedMsats, setMovedMsats] = useState<MSats | null>(null)
     const [isWorking, setIsWorking] = useState(false)
     // guards `settleFunding`, defined below with the four checks that share it
     const hasFunded = useRef(false)
@@ -238,6 +252,7 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         setView('amount')
         setSelectedSource(null)
         setInvoice(null)
+        setMovedMsats(null)
         setIsWorking(false)
         // the latch is per-use, not per-mount: the sheet outlives each open, so
         // a second top-up would find funding already "settled" by the first
@@ -245,11 +260,7 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [show])
     const loadedFederations = useAppSelector(selectLoadedFederations)
-    const sources = useTopUpSources(
-        loadedFederations,
-        amount,
-        payerFederationId,
-    )
+    const sources = useTopUpSources(loadedFederations, payerFederationId)
     const { makeFormattedAmountsFromMSats } = useAmountFormatter({
         federationId: payerFederationId,
     })
@@ -258,18 +269,45 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
         f => f.id === payerFederationId,
     )
 
+    /**
+     * Every selection re-derives the ask from the shortfall, capped at what the
+     * chosen wallet can send, so the amount on screen is what will move.
+     *
+     * Derived rather than lowered from the current amount. Lowering only goes
+     * one way: a short wallet picked by default would hold the ask down, and
+     * choosing a bigger wallet — or an external deposit, which has no cap at
+     * all — would then write an invoice short of the gap.
+     *
+     * Both writes must land in one commit. `AmountInput` is remounted on the
+     * selection below, and it seeds its displayed value from `amount` only on
+     * its first render, so an amount arriving a commit later would change what
+     * gets sent while the screen kept the old number.
+     */
+    const selectSource = useCallback(
+        (source: SelectedSource) => {
+            setSelectedSource(source)
+            if (!isFederationSource(source)) {
+                setAmount(suggestedSats)
+                return
+            }
+            const sendableSats = Math.floor(source.sendableMsats / 1000) as Sats
+            setAmount(Math.min(suggestedSats, sendableSats) as Sats)
+        },
+        [suggestedSats],
+    )
+
     // The From row defaults rather than starting empty: in the common case one
     // wallet covers the shortfall and the user only has to press Send. The
-    // selection is re-checked whenever the list changes, because editing the
-    // amount can drop the chosen wallet out of full coverage.
+    // selection is re-checked whenever the list changes, because a wallet can
+    // drop out of `ready` mid-flow.
     useEffect(() => {
         if (selectedSource === EXTERNAL_SOURCE) return
         const isStillOffered =
             isFederationSource(selectedSource) &&
             sources.some(s => s.id === selectedSource.id)
         if (isStillOffered) return
-        setSelectedSource(sources[0] ?? null)
-    }, [sources, selectedSource])
+        selectSource(sources[0] ?? null)
+    }, [sources, selectedSource, selectSource])
 
     // setup is priced in sats whatever the wallet displays by default, so the
     // balances beside each wallet stay in sats rather than half-converting
@@ -283,9 +321,9 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
 
     // the deposit always lands in the wallet that pays for setup
     const generateTopUpInvoice = useCallback(
-        () =>
+        (msats: MSats = amountMsats) =>
             fedimint.generateInvoice(
-                amountMsats,
+                msats,
                 t('phrases.wallet-service'),
                 payerFederationId,
                 null,
@@ -298,7 +336,16 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
             setView('moving')
             setIsWorking(true)
             try {
-                const bolt11 = await generateTopUpInvoice()
+                // the wallet sends what it has when it cannot send the whole
+                // ask, so the invoice is written for what will really move
+                const sendingMsats = Math.min(
+                    amountMsats,
+                    source.sendableMsats,
+                ) as MSats
+                // the amount can still be typed above what the wallet can send,
+                // and the "funds moved" line must name the invoice, not the ask
+                setMovedMsats(sendingMsats)
+                const bolt11 = await generateTopUpInvoice(sendingMsats)
                 await fedimint.payInvoice(bolt11, source.id)
             } catch (error) {
                 log.error('moveFundsFrom', error)
@@ -308,7 +355,7 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                 setIsWorking(false)
             }
         },
-        [fedimint, generateTopUpInvoice, toast, t],
+        [fedimint, generateTopUpInvoice, amountMsats, toast, t],
     )
 
     /**
@@ -560,9 +607,9 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                         </Text>
                     </Column>
 
-                    {/* nothing to pick between when no wallet covers the
-                        amount in full, so the row is left out rather than
-                        offering a choice of one */}
+                    {/* with no other funded wallet there is nothing to pick
+                        between, so the row is left out rather than offering a
+                        choice of one */}
                     {(sources.length > 0 ||
                         selectedSource === EXTERNAL_SOURCE) && (
                         <Column fullWidth gap="xs">
@@ -604,6 +651,13 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                         and labelling it costs the keypad a row */}
                     <Column fullWidth grow shrink style={style.amountInput}>
                         <AmountInput
+                            // seeds its displayed value once, so a clamped
+                            // amount only shows if the input is remounted
+                            key={
+                                isFederationSource(selectedSource)
+                                    ? selectedSource.id
+                                    : 'no-wallet'
+                            }
                             amount={amount}
                             onChangeAmount={setAmount}
                             federationId={payerFederationId}
@@ -632,7 +686,7 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
      */
     const buildSourceContents = (): TopUpViewContents => {
         const chooseSource = (source: SelectedSource) => {
-            setSelectedSource(source)
+            selectSource(source)
             setView('amount')
         }
         return {
@@ -754,7 +808,7 @@ const TopUpSheet: React.FC<TopUpSheetProps> = ({
                         <Text style={style.transferStatusDetail}>
                             {t('feature.wallet-service.topup-moved-detail', {
                                 amount: makeFormattedAmountsFromMSats(
-                                    amountMsats,
+                                    movedMsats ?? amountMsats,
                                     'none',
                                 ).formattedSats,
                                 federation: payerFederationName,

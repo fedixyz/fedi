@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
@@ -15,6 +15,7 @@ import {
     clearWalletServiceSelectionPreview,
     getWalletServiceRetryableError,
     prepareWalletServicePayment,
+    selectWalletServiceDraft,
     selectWalletServiceSelectionPreview,
     setWalletServiceDraft,
     walletServiceFaultTolerance,
@@ -55,27 +56,16 @@ export type Props = NativeStackScreenProps<
     'CreateWalletService'
 >
 
-/**
- * One window covers a walk across several presets, so stepping 7 → 10 → 13
- * costs a single selection round trip instead of three.
- */
+/** Coalesces a walk across presets into one selection round trip. */
 const PREVIEW_DEBOUNCE_MS = 350
 
-/** This screen is step 1 of the creation flow. */
 const STEP_INDEX = 0
 
-/** Filled surface behind the disclosure, a shade off the page white. */
 const DETAILS_CARD_BG = '#FAFAFA'
 
-/**
- * The setup cost line, stated rather than left to the font.
- *
- * The skeleton that stands in for it takes the same height, so the card is the
- * same size before and after the quote lands.
- */
+/** Also the skeleton's height, so the cost card cannot resize when a quote lands. */
 const TOTAL_COST_LINE_HEIGHT = 40
 
-/** The ⓘ every stat row shows, opening its explanation in a tooltip. */
 const StatHelp: React.FC<{ children: string }> = ({ children }) => {
     const { theme } = useTheme()
     return (
@@ -87,12 +77,7 @@ const StatHelp: React.FC<{ children: string }> = ({ children }) => {
     )
 }
 
-/**
- * Product copy for each guardian count, taken verbatim from the prototype's
- * `GUARDIAN_SCALE`. More guardians is more resilient but a smaller share each,
- * so revenue runs the opposite way. Every preset has its own rung — do not
- * collapse these into ranges.
- */
+/** Every preset has its own rung — do not collapse these into ranges. */
 const GUARDIAN_SCALE = {
     7: { resilience: 'resilience-basic', revenue: 'revenue-highest' },
     10: { resilience: 'resilience-good', revenue: 'revenue-high' },
@@ -105,20 +90,9 @@ const scaleFor = (size: number) =>
     GUARDIAN_SCALE[size as keyof typeof GUARDIAN_SCALE] ?? GUARDIAN_SCALE[10]
 
 /**
- * What to call a guardian in the set list.
- *
- * The bridge gained a two-word `fmanName` in `58d298e91`, but that commit sits
- * on `shaurya/fi-client-init` and carries a manifold pin bump (`0b2e2c0a` →
- * `b1f4e610`), so it is not on this branch and not on the type yet. The cast is
- * the shim: today the field is absent at runtime and this returns the id, and
- * the moment the stack rebases it starts returning real names with no further
- * change here.
- *
- * The id stays the fallback rather than a placeholder because names are not
- * unique — the bridge doc says they "can collide and never substitute for the
- * id" — so the id is the only identity that always means one guardian.
- *
- * Delete the cast once `fmanName` is on `RpcFiSelectionPreviewSeat`.
+ * `fmanName` is not on the type on this branch, so the cast is a shim that
+ * starts returning real names once the bridge change lands. Names can collide,
+ * so the id stays the fallback rather than a placeholder.
  */
 const seatDisplayName = (seat: RpcFiSelectionPreviewSeat) =>
     (seat as RpcFiSelectionPreviewSeat & { fmanName?: string }).fmanName ||
@@ -132,12 +106,16 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
     const toast = useToast()
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
     const preview = useAppSelector(selectWalletServiceSelectionPreview)
+    const draft = useAppSelector(selectWalletServiceDraft)
     const isRoutingAway = useWalletServiceEntryGuard()
 
-    const [size, setSize] = useState(RECOMMENDED_WALLET_SERVICE_SIZE)
-    // a preview is scheduled from the first render, so the summary starts in
-    // its loading shape rather than flashing an empty one
-    const [isPreviewing, setIsPreviewing] = useState(true)
+    // the draft outlives this screen, so a return lands on the count the user
+    // chose rather than back on the recommendation
+    const [size, setSize] = useState(draft.size)
+    // starts true only when a selection is about to be scheduled: the count
+    // options are locked while this is true, and a returning user has come back
+    // to change the count
+    const [isPreviewing, setIsPreviewing] = useState(() => !preview)
     const [previewError, setPreviewError] =
         useState<RpcFiOperationError | null>(null)
     const [isDetailsOpen, setIsDetailsOpen] = useState(false)
@@ -146,76 +124,90 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
     // the bridge call cannot be aborted, so a response that lands after the
     // user has backed out is dropped instead: no state update, no toast
     const isFocusedRef = useRef(true)
+    /** The count a search has been started for, set when the call goes out. */
+    const requestedSizeRef = useRef<number | null>(null)
+    const hadPreviewRef = useRef(preview !== null)
 
-    const setSizeAndQuote = useCallback(
-        async (nextSize: number) => {
-            setIsPreviewing(true)
-            dispatch(setWalletServiceDraft({ size: nextSize }))
-            try {
-                await dispatch(
-                    prepareWalletServicePayment({ fedimint }),
-                ).unwrap()
-                if (!isFocusedRef.current) return
-                setPreviewError(null)
-            } catch (error) {
-                if (!isFocusedRef.current) return
-                log.error('prepareWalletServicePayment', error)
-                const opError = error as RpcFiOperationError | undefined
-                setPreviewError(opError ?? null)
-                // too few guardians is answered by picking a smaller set, which
-                // the banner says beside the presets; a toast would scroll away
-                if (opError?.detail?.type !== 'insufficientFmanSeats') {
-                    toast.show({
-                        content: getWalletServiceRetryableError(
-                            t,
-                            opError?.code,
-                        ),
-                        status: 'error',
-                    })
-                }
-            } finally {
-                if (isFocusedRef.current) setIsPreviewing(false)
+    /**
+     * Losing a held quote frees the count to be searched for again.
+     *
+     * Without this, a count already searched for stays blocked by the ref even
+     * though its quote is gone, and the screen never recovers: flip 10 to 7 and
+     * back inside the debounce, or return from the payment screen after a
+     * reauthorization nulled the preview, and the skeleton stays for ever.
+     *
+     * It keys on the transition, not on `preview === null`. A failed search
+     * leaves the preview null throughout, so there is no transition and the ref
+     * still stops a failing 60 second call from being retried on every focus.
+     */
+    useEffect(() => {
+        if (hadPreviewRef.current && preview === null) {
+            requestedSizeRef.current = null
+        }
+        hadPreviewRef.current = preview !== null
+    }, [preview])
+
+    // the thunk reads the count from the draft, so every caller must write the
+    // draft before it gets here
+    const quoteSelection = useCallback(async () => {
+        setIsPreviewing(true)
+        try {
+            await dispatch(prepareWalletServicePayment({ fedimint })).unwrap()
+            if (!isFocusedRef.current) return
+            setPreviewError(null)
+        } catch (error) {
+            if (!isFocusedRef.current) return
+            log.error('prepareWalletServicePayment', error)
+            const opError = error as RpcFiOperationError | undefined
+            setPreviewError(opError ?? null)
+            // too few guardians is answered by picking a smaller set, which
+            // the banner says beside the presets; a toast would scroll away
+            if (opError?.detail?.type !== 'insufficientFmanSeats') {
+                toast.show({
+                    content: getWalletServiceRetryableError(t, opError?.code),
+                    status: 'error',
+                })
             }
-        },
-        [dispatch, fedimint, toast, t],
-    )
+        } finally {
+            if (isFocusedRef.current) setIsPreviewing(false)
+        }
+    }, [dispatch, fedimint, toast, t])
 
-    // the quote this screen left behind is stale the moment it returns, so
-    // every focus drops it and shows the loader until a fresh one lands
-    // (stable deps: this must not re-run when the count changes)
     useFocusEffect(
         useCallback(() => {
             isFocusedRef.current = true
-            setIsPreviewing(true)
             setPreviewError(null)
-            dispatch(clearWalletServiceSelectionPreview())
             return () => {
                 isFocusedRef.current = false
             }
-        }, [dispatch]),
+        }, []),
     )
 
-    // runs on every focus, not just mount, so returning from a later step
-    // always lands on a fresh quote rather than the one it left behind
+    // the two guards answer different questions. The held quote covers a return
+    // to the flow, where this screen has been remounted and the ref is empty.
+    // The ref covers a search already taken for this count, so a quote that
+    // comes back reporting another count cannot re-arm this effect for ever.
     useFocusEffect(
         useCallback(() => {
             // a live formation makes the bridge reject this as `busy`, and the
             // guard is already navigating away from it
             if (isRoutingAway) return
-            const timeout = setTimeout(
-                () => void setSizeAndQuote(size),
-                PREVIEW_DEBOUNCE_MS,
-            )
+            if (preview?.selected === size) return
+            if (requestedSizeRef.current === size) return
+            const timeout = setTimeout(() => {
+                requestedSizeRef.current = size
+                void quoteSelection()
+            }, PREVIEW_DEBOUNCE_MS)
             return () => clearTimeout(timeout)
-        }, [size, setSizeAndQuote, isRoutingAway]),
+        }, [size, preview, quoteSelection, isRoutingAway]),
     )
 
     const insufficientSeatsDetail =
         previewError?.detail?.type === 'insufficientFmanSeats'
             ? previewError.detail
             : null
-    // the count is locked while a search runs, so a mismatched quote should
-    // not happen — the selected check stays as a belt-and-braces dim
+    // a quote held from an earlier visit is shown rather than discarded, so the
+    // count check has to dim it when it no longer answers the chosen count
     const isSummaryStale =
         isPreviewing || (preview !== null && preview.selected !== size)
     const scale = scaleFor(size)
@@ -226,10 +218,21 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
         : null
     const canContinue =
         Boolean(preview) && !insufficientSeatsDetail && !isSubmitting
+    // the bridge refuses to spend an expired quote, so one is taken here rather
+    // than leaving the payment screen to fail
+    const isQuoteUsable =
+        preview !== null &&
+        preview.selected === size &&
+        preview.validUntil * 1000 > Date.now()
 
     const handleConfirm = useCallback(async () => {
-        setIsSubmitting(true)
         dispatch(setWalletServiceDraft({ size }))
+        if (isQuoteUsable) {
+            setIsConfirming(false)
+            navigation.navigate('ConfirmWalletService')
+            return
+        }
+        setIsSubmitting(true)
         try {
             await dispatch(prepareWalletServicePayment({ fedimint })).unwrap()
             setIsConfirming(false)
@@ -246,7 +249,7 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
         } finally {
             setIsSubmitting(false)
         }
-    }, [dispatch, fedimint, size, navigation, toast, t])
+    }, [dispatch, fedimint, size, isQuoteUsable, navigation, toast, t])
 
     const style = styles(theme)
 
@@ -294,9 +297,8 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                 option => ({
                                     label: `${option}`,
                                     value: `${option}`,
-                                    // a quote can only be for the count it was
-                                    // requested with, so the count is locked
-                                    // while a search is in flight
+                                    // a quote answers one count only, so the
+                                    // count is locked while a search runs
                                     disabled: isPreviewing && option !== size,
                                 }),
                             )}
@@ -305,9 +307,13 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                 const nextSize = Number(value)
                                 if (nextSize === size) return
                                 setSize(nextSize)
-                                // seats and totals quoted for the previous
-                                // count would mislead, so they clear at once
                                 setPreviewError(null)
+                                // the draft is written here, not when the
+                                // search starts, so a back press inside the
+                                // debounce still keeps the chosen count
+                                dispatch(
+                                    setWalletServiceDraft({ size: nextSize }),
+                                )
                                 dispatch(clearWalletServiceSelectionPreview())
                             }}
                         />
@@ -415,15 +421,12 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                             <Eyebrow>
                                 {t('feature.wallet-service.total-setup-cost')}
                             </Eyebrow>
-                            {/* Both states are the same two lines tall: a
-                                number over a caption. The card cannot change
-                                height when the quote lands, so nothing above
-                                it moves. */}
                             {totalAmounts ? (
                                 <>
-                                    {/* setup cost is quoted in sats regardless of
-                                    the wallet's display preference, and the
-                                    fiat line is the conversion, not the price */}
+                                    {/* setup cost is quoted in sats whatever
+                                        the wallet's display preference; the
+                                        fiat line is a conversion, not the
+                                        price */}
                                     <Text
                                         h1
                                         medium
@@ -456,17 +459,10 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                         </Column>
                     )}
 
-                    {/* The placeholder list stands wherever there is no card to
-                        put there — unless the not-enough banner is up, in which
-                        case no quote is coming and a placeholder would be a lie.
-
-                        Shown on "no preview", NOT on "a fetch is running".
-                        Changing the count clears the preview immediately but
-                        only arms the fetch, so `isPreviewing` stays false for
-                        the whole debounce. Gated on it, this stayed empty for
-                        that window while the cost card above was already in its
-                        loading shape, and the two placeholders started 350ms
-                        apart. On "no preview" they start together. */}
+                    {/* gated on "no preview", not on "a search is running":
+                        changing the count clears the preview at once but only
+                        arms the search, so `isPreviewing` would start this
+                        placeholder a debounce later than the cost card's */}
                     {!preview && !insufficientSeatsDetail && (
                         <Column testID="guardian-details-slot">
                             <GuardianDetailsSkeleton />
@@ -506,9 +502,7 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                         gap="md"
                                         style={style.seatRow}>
                                         {/* the seat's place in the set, not an
-                                            identity: the contract supplies no
-                                            avatar and a monogram of the id
-                                            only looks like one */}
+                                            identity */}
                                         <Text
                                             caption
                                             medium
@@ -517,15 +511,6 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                                             {index + 1}
                                         </Text>
                                         <Column gap="xxs" grow>
-                                            {/* `fmanName` lands with the stack
-                                                rebase onto `shaurya/fi-client-init`
-                                                (58d298e91, needs manifold
-                                                b1f4e610); until then the id is
-                                                the only identity there is, so
-                                                this falls back to it rather
-                                                than showing a placeholder.
-                                                Drop the cast once the rebase
-                                                puts the field on the type. */}
                                             <Text
                                                 caption
                                                 bold
@@ -566,8 +551,6 @@ const CreateWalletService: React.FC<Props> = ({ navigation }) => {
                 </Column>
             </SafeScrollArea>
 
-            {/* pinned, so the commitment stays reachable without scrolling past
-                the guardian list */}
             <WalletServiceFooter>
                 <Button
                     fullWidth

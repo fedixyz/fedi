@@ -53,6 +53,21 @@ export const MOCK_PAYER_FEDERATIONS: MockPayerFederation[] = [
         name: 'Pocket Change',
         balanceSats: 900,
     },
+    // The two sides of the reserve, so the From list's cut can be read off the
+    // screen rather than trusted. `sendableMsatsOf` subtracts
+    // TOP_UP_SEND_RESERVE_SATS, so 100 sends nothing and must not be offered
+    // while 101 sends one sat and must be. A wallet holding zero proves only
+    // the `> 0` guard; neither of these is zero.
+    {
+        id: 'mock-payer-at-reserve',
+        name: 'Reserve Exactly',
+        balanceSats: 100,
+    },
+    {
+        id: 'mock-payer-over-reserve',
+        name: 'One Over Reserve',
+        balanceSats: 101,
+    },
 ]
 
 export const MOCK_PAYER_FEDERATION_IDS = MOCK_PAYER_FEDERATIONS.map(f => f.id)

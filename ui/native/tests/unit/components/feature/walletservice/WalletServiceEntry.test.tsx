@@ -8,7 +8,10 @@ import React from 'react'
 
 import { setFiStatus, setupStore } from '@fedi/common/redux'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
-import type { RpcFiFormationSnapshot } from '@fedi/common/types/bindings'
+import type {
+    RpcFiFormationSnapshot,
+    RpcFiSelectionPreview,
+} from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
 
 import { WalletServiceEntry } from '../../../../../components/feature/walletservice/WalletServiceEntry'
@@ -41,10 +44,32 @@ const makeFormation = (
     ...overrides,
 })
 
+const makePreview = (): RpcFiSelectionPreview => ({
+    previewId: 'preview-1',
+    selected: 10,
+    totalAdvertisedMsats: '600000',
+    seen: 42,
+    eligible: 30,
+    validUntil: Math.floor(Date.now() / 1000) + 120,
+    seats: [],
+})
+
 // no WalletServiceMonitor is mounted around a bare component render, so the fi
 // status has to be seeded by hand. Leaving it unseeded is the startup window.
-const makeStore = (status?: Parameters<typeof setFiStatus>[0]) => {
-    const store = setupStore()
+const makeStore = (
+    status?: Parameters<typeof setFiStatus>[0],
+    { withQuote = false }: { withQuote?: boolean } = {},
+) => {
+    const store = setupStore(
+        withQuote
+            ? {
+                  fi: {
+                      ...setupStore().getState().fi,
+                      selectionPreview: makePreview(),
+                  },
+              }
+            : undefined,
+    )
     if (status) store.dispatch(setFiStatus(status))
     return store
 }
@@ -132,6 +157,59 @@ describe('WalletServiceEntry', () => {
         expect(mockNavigation.navigate).toHaveBeenCalledTimes(1)
         expect(fedimint.fiClientEligiblePayers).not.toHaveBeenCalled()
         expect(mockToast.show).not.toHaveBeenCalled()
+    })
+
+    it('should continue to the payment screen when a quote is held', async () => {
+        const { user } = renderEntry({
+            store: makeStore({ type: 'idle' }, { withQuote: true }),
+        })
+
+        await pressCreate(user)
+
+        await waitFor(() => {
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'ConfirmWalletService',
+            )
+        })
+        // the guardian set screen goes on the stack first, so back from the
+        // payment screen reaches it rather than this hub
+        expect(mockNavigation.navigate.mock.calls.map(call => call[0])).toEqual(
+            ['CreateWalletService', 'ConfirmWalletService'],
+        )
+    })
+
+    it('should stop at the guardian set screen when no quote is held', async () => {
+        const { user } = renderEntry()
+
+        await pressCreate(user)
+
+        await waitFor(() => {
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'CreateWalletService',
+            )
+        })
+        expect(mockNavigation.navigate).toHaveBeenCalledTimes(1)
+    })
+
+    it('should ignore a held quote once a formation is being built', async () => {
+        const { user } = renderEntry({
+            store: makeStore(
+                {
+                    type: 'formation',
+                    formation: makeFormation({ phase: 'acquiringSeats' }),
+                },
+                { withQuote: true },
+            ),
+        })
+
+        await pressCreate(user)
+
+        await waitFor(() => {
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'WalletServiceProgress',
+            )
+        })
+        expect(mockNavigation.navigate).toHaveBeenCalledTimes(1)
     })
 
     it('should resume an existing service instead of starting a new one', async () => {

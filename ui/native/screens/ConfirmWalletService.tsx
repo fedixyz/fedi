@@ -48,6 +48,7 @@ import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 import { useQuoteCountdown } from '../utils/hooks/quoteCountdown'
 import { useWalletServiceEntryGuard } from '../utils/hooks/walletServiceEntryGuard'
+import { reachableMsats } from '../utils/walletServiceFunds'
 
 const log = makeLog('ConfirmWalletService')
 
@@ -142,6 +143,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
             : (0 as MSats),
     )
     const payerBalanceMsats = String(livePayerBalance)
+    const loadedFederations = useAppSelector(selectLoadedFederations)
 
     const performQuoteRefresh = useCallback(async () => {
         setIsRefreshingQuote(true)
@@ -634,6 +636,28 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
                   ).formattedSats,
               })
             : null
+    // Everything the user could put behind the payer without leaving the app.
+    // Short of the cost even so, no sequence of transfers arrives, and both the
+    // messages above would be pointing at a route that cannot get there.
+    //
+    // Gated on the other wallets holding something, because this message only
+    // earns its place by ruling them out. With nothing to rule out the user is
+    // better served by the message that names their one wallet.
+    const reachable = reachableMsats(
+        loadedFederations,
+        paymentFederation?.id ?? '',
+        livePayerBalance,
+    )
+    const hasOtherFunds = reachable > livePayerBalance
+    const cannotReachMessage =
+        hasOtherFunds && reachable < totalMsats
+            ? t('feature.wallet-service.insufficient-body-all-wallets', {
+                  available:
+                      makeFormattedAmountsFromMSats(reachable).formattedSats,
+                  needed: makeFormattedAmountsFromMSats(totalMsats)
+                      .formattedSats,
+              })
+            : null
 
     // one slot, so the most urgent thing to know is the thing under the title.
     // A lost selection outranks the rest: it invalidates the price the other
@@ -687,7 +711,9 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
             level="warning"
             icon="AlertWarningTriangleOutline"
             title={t('feature.wallet-service.insufficient-title')}
-            message={stillShortMessage ?? insufficientMessage}
+            message={
+                cannotReachMessage ?? stillShortMessage ?? insufficientMessage
+            }
         />
     ) : null
 

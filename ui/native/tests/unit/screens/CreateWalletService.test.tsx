@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react-native'
 
 import {
     WALLET_SERVICE_SIZE_OPTIONS,
+    clearWalletServiceSelectionPreview,
     setTransactionDisplayType,
     setupStore,
 } from '@fedi/common/redux'
@@ -160,21 +161,89 @@ describe('screens/CreateWalletService', () => {
         )
     })
 
-    it('should invalidate the previous quote and show the loader on return', async () => {
-        const requested: number[] = []
-        const fedimint = makeBridge(request => {
-            requested.push(request.federationSize)
-            // the refetch never lands, so the invalidated state is observable
-            return requested.length === 1
-                ? Promise.resolve(previewResult())
-                : new Promise(() => undefined)
-        })
+    it('should keep the quote and take no new search on return', async () => {
+        const fedimint = makeBridge()
         renderScreen(fedimint)
         await settlePreview()
         expect(screen.getByText('600 SATS')).toBeOnTheScreen()
 
-        // leaving and returning re-focuses the screen with the old quote
-        // still sitting in the store
+        await act(async () => {
+            mockScreenFocus.blur()
+        })
+        await act(async () => {
+            mockScreenFocus.focus()
+        })
+        await settlePreview()
+
+        expect(screen.getByText('600 SATS')).toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.finding-guardians'),
+            ),
+        ).not.toBeOnTheScreen()
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+    })
+
+    it('should search again after a count is flipped away and back', async () => {
+        // the count already has a search against it, so without releasing that
+        // record on the lost quote the screen shows a skeleton for ever
+        const fedimint = makeBridge()
+        renderScreen(fedimint)
+        await settlePreview()
+
+        fireEvent.press(screen.getByTestId('7Tab'))
+        fireEvent.press(screen.getByTestId('10Tab'))
+        await settlePreview()
+
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenLastCalledWith(
+            expect.objectContaining({ federationSize: 10 }),
+        )
+        expect(screen.getByText('600 SATS')).toBeOnTheScreen()
+    })
+
+    it('should search again when the quote is cleared from outside', async () => {
+        // the payment screen leaves this one mounted, so the record of the
+        // search outlives a reauthorization that nulls the quote in the store
+        const fedimint = makeBridge()
+        const { store } = renderScreen(fedimint)
+        await settlePreview()
+
+        await act(async () => {
+            store.dispatch(clearWalletServiceSelectionPreview())
+        })
+        await settlePreview()
+
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(screen.getByText('600 SATS')).toBeOnTheScreen()
+    })
+
+    it('should not retry a failed search on every focus', async () => {
+        // the quote is null before and after a failure, so there is no
+        // transition to release the record — otherwise a 60 second call that
+        // keeps failing would be re-armed for ever
+        const fedimint = makeBridge(() => Promise.reject(new Error('nope')))
+        renderScreen(fedimint)
+        await settlePreview()
+
+        for (let i = 0; i < 3; i++) {
+            await act(async () => {
+                mockScreenFocus.blur()
+            })
+            await act(async () => {
+                mockScreenFocus.focus()
+            })
+            await settlePreview()
+        }
+
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+    })
+
+    it('should leave the count switcher unlocked on return', async () => {
+        const fedimint = makeBridge()
+        renderScreen(fedimint)
+        await settlePreview()
+
         await act(async () => {
             mockScreenFocus.blur()
         })
@@ -182,12 +251,53 @@ describe('screens/CreateWalletService', () => {
             mockScreenFocus.focus()
         })
 
-        expect(screen.queryByText('600 SATS')).not.toBeOnTheScreen()
-        expect(
-            screen.getByText(
-                i18n.t('feature.wallet-service.finding-guardians'),
+        fireEvent.press(screen.getByTestId('13Tab'))
+        await settlePreview()
+
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenLastCalledWith(
+            expect.objectContaining({ federationSize: 13 }),
+        )
+    })
+
+    it('should keep the chosen count on return', async () => {
+        const fedimint = makeBridge(request =>
+            Promise.resolve(
+                previewResult({ selected: request.federationSize }),
             ),
-        ).toBeOnTheScreen()
+        )
+        renderScreen(fedimint)
+        await settlePreview()
+
+        fireEvent.press(screen.getByTestId('13Tab'))
+        await settlePreview()
+        await act(async () => {
+            mockScreenFocus.blur()
+        })
+        await act(async () => {
+            mockScreenFocus.focus()
+        })
+        await settlePreview()
+
+        expect(screen.getByTestId('guardian-count-headline')).toHaveTextContent(
+            '13',
+        )
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+    })
+
+    it('should take no further search when a quote reports another count', async () => {
+        // a bridge that does not echo the requested count must not re-arm the
+        // search effect for ever
+        const fedimint = makeBridge()
+        renderScreen(fedimint)
+        await settlePreview()
+
+        fireEvent.press(screen.getByTestId('13Tab'))
+        await settlePreview()
+        await settlePreview()
+        await settlePreview()
+
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
     })
 
     it('should drop a response that lands after the user has backed out', async () => {
@@ -427,11 +537,31 @@ describe('screens/CreateWalletService', () => {
         expect(mockNavigation.navigate).not.toHaveBeenCalled()
     })
 
-    it('should prepare the payment and navigate once the count is confirmed', async () => {
+    it('should navigate on a valid quote without a second search', async () => {
         const fedimint = makeBridge()
         renderScreen(fedimint)
         await settlePreview()
 
+        await act(async () => {
+            fireEvent.press(screen.getByTestId('wallet-service-continue'))
+        })
+        await act(async () => {
+            fireEvent.press(screen.getByTestId('confirm-count-submit'))
+        })
+
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(mockNavigation.navigate).toHaveBeenCalledWith(
+            'ConfirmWalletService',
+        )
+    })
+
+    it('should search again on confirm when the quote has expired', async () => {
+        const fedimint = makeBridge()
+        renderScreen(fedimint)
+        await settlePreview()
+
+        // the bridge refuses an expired quote, so the screen takes a fresh one
+        jest.setSystemTime(FIXED_NOW_MS + 121_000)
         await act(async () => {
             fireEvent.press(screen.getByTestId('wallet-service-continue'))
         })

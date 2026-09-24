@@ -1663,6 +1663,7 @@
             "guardians-confirmed-count": "{{confirmed}} of {{total}} guardians confirmed",
             "guardians-label": "Guardians",
             "insufficient-body": "{{federation}} has {{available}} — you need {{needed}}. Top up to continue.",
+            "insufficient-body-all-wallets": "Your Federations hold {{available}} in total — you need {{needed}}. Deposit from an external wallet, or go back and choose fewer guardians.",
             "insufficient-title": "Not enough funds to set up your Federation",
             "invite-link": "Invite link",
             "invite-subtitle": "Anyone who scans gets an invite. They'll join as a member.",

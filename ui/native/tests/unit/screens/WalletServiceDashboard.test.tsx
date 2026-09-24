@@ -323,10 +323,14 @@ describe('screens/WalletServiceDashboard', () => {
 
     it('should stand in with the wallet mark when the published icon cannot be loaded', async () => {
         renderScreen({ iconUrl: 'https://example.com/missing.png' })
-        await waitFor(() => {})
+        // `FederationLogo` resets its fallback in an effect keyed on the url.
+        // Firing the error before that effect has flushed lets the reset land
+        // after it and the mark never appears — wait for the image itself, so
+        // the render that carries the url is committed and its effect run.
+        const image = await screen.findByTestId('FederationLogo__Image')
 
         act(() => {
-            fireEvent(screen.getByTestId('FederationLogo__Image'), 'error')
+            fireEvent(image, 'error')
         })
 
         expect(

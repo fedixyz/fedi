@@ -440,6 +440,75 @@ describe('screens/ConfirmWalletService', () => {
         expect(screen.queryByTestId('SendConfirmButton')).toBeNull()
     })
 
+    // the wallets hold 500 + (400 - 100 reserve) = 800 against a 1,500 cost,
+    // so no sequence of transfers arrives and "top up to continue" would be
+    // pointing at a route that cannot get there
+    it('should state the total across wallets when transfers cannot close the gap', () => {
+        const state = makePreloadedState([eligiblePayer], BROKE_BALANCE_MSATS)
+        renderWithProviders(
+            <ConfirmWalletService
+                navigation={mockNavigation as any}
+                route={{} as any}
+            />,
+            {
+                preloadedState: {
+                    ...state,
+                    federation: {
+                        ...state.federation,
+                        federations: [
+                            ...state.federation.federations,
+                            {
+                                ...mockFederation1,
+                                id: 'other',
+                                name: 'Other Wallet',
+                                balance: 400_000 as MSats,
+                            },
+                        ],
+                    },
+                },
+            },
+        )
+
+        expect(screen.getByText(/Federations hold 800 SATS/)).toBeOnTheScreen()
+        expect(screen.getByText(/you need 1,500 SATS/)).toBeOnTheScreen()
+        // the old line offers a route that cannot arrive
+        expect(screen.queryByText(/test-federation has 500 SATS/)).toBeNull()
+    })
+
+    // 500 + (1,200 - 100 reserve) = 1,600 covers the 1,500 cost, so the user
+    // is told about their own wallet and sent to top it up
+    it('should keep the single wallet message when transfers can close the gap', () => {
+        const state = makePreloadedState([eligiblePayer], BROKE_BALANCE_MSATS)
+        renderWithProviders(
+            <ConfirmWalletService
+                navigation={mockNavigation as any}
+                route={{} as any}
+            />,
+            {
+                preloadedState: {
+                    ...state,
+                    federation: {
+                        ...state.federation,
+                        federations: [
+                            ...state.federation.federations,
+                            {
+                                ...mockFederation1,
+                                id: 'other',
+                                name: 'Other Wallet',
+                                balance: 1_200_000 as MSats,
+                            },
+                        ],
+                    },
+                },
+            },
+        )
+
+        expect(
+            screen.getByText(/test-federation has 500 SATS/),
+        ).toBeOnTheScreen()
+        expect(screen.queryByText(/Federations hold/)).toBeNull()
+    })
+
     /**
      * A shortfall the top-up has not closed is still a shortfall, so the banner
      * stays put while the sheet is open. It once looked like the header was

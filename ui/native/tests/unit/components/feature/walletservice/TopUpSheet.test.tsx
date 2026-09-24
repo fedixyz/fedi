@@ -265,24 +265,19 @@ describe('components/feature/walletservice/TopUpSheet', () => {
         expect(screen.getByText(i18n.t('words.send'))).toBeOnTheScreen()
     })
 
-    it('should offer only other federations that cover the rounded up ask in full', async () => {
-        // the ask is 2,000 sats, so 2,000,000 msats covers it and 1,999,999 does not
+    it('should offer a wallet that covers only part of the ask', async () => {
+        // the ask is 2,000 sats. A wallet holding 500 used to be left out
+        // entirely, which emptied the From row and sent the user out of the
+        // flow for a lightning deposit
         renderSheet([
-            makeFederation('rich', 'Rich Wallet', 2_000_000),
-            makeFederation('poor', 'Poor Wallet', 1_999_999),
+            makeFederation('rich', 'Rich Wallet', 9_000_000),
+            makeFederation('part', 'Part Wallet', 500_000),
         ])
 
         await user.press(screen.getByTestId('topup-source'))
 
-        expect(
-            await screen.findByText(
-                i18n.t('feature.wallet-service.topup-source-title', {
-                    amount: '2,000 SATS',
-                }),
-            ),
-        ).toBeOnTheScreen()
-        expect(screen.getByText('Rich Wallet')).toBeOnTheScreen()
-        expect(screen.queryByText('Poor Wallet')).toBeNull()
+        expect(await screen.findByText('Rich Wallet')).toBeOnTheScreen()
+        expect(screen.getByText('Part Wallet')).toBeOnTheScreen()
         // the wallet that is short is what we are topping up, never a source
         expect(screen.queryByText(payerFederation.name)).toBeNull()
         expect(
@@ -290,6 +285,71 @@ describe('components/feature/walletservice/TopUpSheet', () => {
                 i18n.t('feature.wallet-service.topup-source-external'),
             ),
         ).toBeOnTheScreen()
+    })
+
+    it('should leave out a wallet that cannot cover the send reserve', async () => {
+        // 60 sats cannot pay any invoice once routing is allowed for, so
+        // offering it would only promise a transfer that must fail
+        renderSheet([
+            makeFederation('rich', 'Rich Wallet', 9_000_000),
+            makeFederation('dust', 'Dust Wallet', 60_000),
+        ])
+
+        await user.press(screen.getByTestId('topup-source'))
+
+        expect(await screen.findByText('Rich Wallet')).toBeOnTheScreen()
+        expect(screen.queryByText('Dust Wallet')).toBeNull()
+    })
+
+    it('should show the lowered ask after switching to a smaller wallet', async () => {
+        // the amount input seeds its displayed value once, so a clamp that
+        // arrived a commit later left the 2,000 sat ask on screen while only
+        // 400 would move
+        renderSheet([
+            makeFederation('rich', 'Rich Wallet', 9_000_000),
+            makeFederation('part', 'Part Wallet', 500_000),
+        ])
+
+        expect(screen.getByText('2,000')).toBeOnTheScreen()
+
+        await user.press(screen.getByTestId('topup-source'))
+        await user.press(await screen.findByText('Part Wallet'))
+
+        expect(await screen.findByText('400')).toBeOnTheScreen()
+        expect(screen.queryByText('2,000')).toBeNull()
+    })
+
+    it('should restore the full ask when a wallet that covers it is chosen', async () => {
+        // only 400 could move from Part Wallet. Moving back to a wallet that
+        // covers the gap has to raise the ask again, or the user sends 400 from
+        // a wallet holding 9,000 and is still short
+        renderSheet([
+            makeFederation('part', 'Part Wallet', 500_000),
+            makeFederation('rich', 'Rich Wallet', 9_000_000),
+        ])
+
+        await user.press(screen.getByTestId('topup-source'))
+        await user.press(await screen.findByText('Part Wallet'))
+        expect(await screen.findByText('400')).toBeOnTheScreen()
+
+        await user.press(screen.getByTestId('topup-source'))
+        await user.press(await screen.findByText('Rich Wallet'))
+
+        expect(await screen.findByText('2,000')).toBeOnTheScreen()
+        expect(screen.queryByText('400')).toBeNull()
+    })
+
+    it('should restore the full ask for an external deposit', async () => {
+        // an outside deposit has no sendable cap, so a lowered ask would write
+        // a lightning invoice short of the gap
+        renderSheet([makeFederation('part', 'Part Wallet', 500_000)])
+
+        expect(await screen.findByText('400')).toBeOnTheScreen()
+
+        await user.press(screen.getByTestId('topup-source'))
+        await user.press(await screen.findByTestId('topup-source-external'))
+
+        expect(await screen.findByText('2,000')).toBeOnTheScreen()
     })
 
     // decision ④, 21 Aug: V3.5 moved the money the moment a row was tapped
@@ -469,7 +529,7 @@ describe('components/feature/walletservice/TopUpSheet', () => {
             payInvoice: Promise.resolve({}),
         })
         renderSheet(
-            [makeFederation('rich', 'Rich Wallet', 2_000_000)],
+            [makeFederation('rich', 'Rich Wallet', 9_000_000)],
             fedimint,
         )
 
@@ -487,6 +547,58 @@ describe('components/feature/walletservice/TopUpSheet', () => {
             payerFederation.id,
             null,
         )
+    })
+
+    it('should write the invoice for what a part funded wallet can send', async () => {
+        const fedimint = createMockFedimintBridge({
+            generateInvoice: Promise.resolve('lnbc-top-up'),
+            payInvoice: Promise.resolve({}),
+        })
+        // 500 sats held, 100 reserved for routing, so 400 moves against a
+        // 2,000 sat ask
+        renderSheet([makeFederation('part', 'Part Wallet', 500_000)], fedimint)
+
+        await user.press(screen.getByText(i18n.t('words.send')))
+
+        await waitFor(() => {
+            expect(fedimint.generateInvoice).toHaveBeenCalledWith(
+                400_000,
+                i18n.t('phrases.wallet-service'),
+                payerFederation.id,
+                null,
+            )
+        })
+        expect(fedimint.payInvoice).toHaveBeenCalledWith('lnbc-top-up', 'part')
+    })
+
+    it('should name the invoice, not the ask, once the funds have moved', async () => {
+        const fedimint = createMockFedimintBridge({
+            generateInvoice: Promise.resolve('lnbc-top-up'),
+            payInvoice: Promise.resolve({}),
+        })
+        // 500 sats held, so 400 can move. Typing a trailing zero raises the ask
+        // to 4,000, which the invoice caps and the success line must not repeat
+        renderSheet([makeFederation('part', 'Part Wallet', 500_000)], fedimint)
+        await user.press(screen.getByTestId('NumpadButton-0'))
+
+        await user.press(screen.getByText(i18n.t('words.send')))
+
+        await waitFor(() => {
+            expect(fedimint.generateInvoice).toHaveBeenCalledWith(
+                400_000,
+                i18n.t('phrases.wallet-service'),
+                payerFederation.id,
+                null,
+            )
+        })
+        expect(
+            await screen.findByText(
+                i18n.t('feature.wallet-service.topup-moved-detail', {
+                    amount: '400',
+                    federation: payerFederation.name,
+                }),
+            ),
+        ).toBeOnTheScreen()
     })
 
     it('should hand back to the confirm screen without paying for setup', async () => {

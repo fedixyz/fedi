@@ -3,7 +3,10 @@ import { Button } from '@rneui/themed'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { selectWalletServiceFlowStatus } from '@fedi/common/redux'
+import {
+    selectWalletServiceFlowStatus,
+    selectWalletServiceSelectionPreview,
+} from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import type { NavigationHook } from '../../../types/navigation'
@@ -29,6 +32,7 @@ export const WalletServiceEntry: React.FC = () => {
     const walletServiceFlowStatus = useAppSelector(
         selectWalletServiceFlowStatus,
     )
+    const preview = useAppSelector(selectWalletServiceSelectionPreview)
     // the first fi status is still in flight, so we cannot tell an existing
     // formation from none and must not route on it yet
     const isFlowStatusLoading = walletServiceFlowStatus === 'unknown'
@@ -44,7 +48,11 @@ export const WalletServiceEntry: React.FC = () => {
             return
         }
         navigation.navigate('CreateWalletService')
-    }, [isFlowStatusLoading, walletServiceFlowStatus, navigation])
+        // two pushes, not one: the payment screen's back button has to reach
+        // the guardian set screen. Sent straight there it would reach this hub
+        // instead, and pressing Create again would bring the user back round
+        if (preview) navigation.navigate('ConfirmWalletService')
+    }, [isFlowStatusLoading, walletServiceFlowStatus, preview, navigation])
 
     return (
         <>
