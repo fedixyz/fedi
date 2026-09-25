@@ -446,23 +446,6 @@
         "type": "github"
       }
     },
-    "credential-sdk-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1786414554,
-        "narHash": "sha256-EPQsUfytUfzzXrPgHsS9R+QElNf/tjUP6+6Ob1foNgA=",
-        "owner": "fedibtc",
-        "repo": "credential-sdk",
-        "rev": "3be33fc6d8c5b40073934bad2cbe649d1646e440",
-        "type": "github"
-      },
-      "original": {
-        "owner": "fedibtc",
-        "repo": "credential-sdk",
-        "rev": "3be33fc6d8c5b40073934bad2cbe649d1646e440",
-        "type": "github"
-      }
-    },
     "devshell": {
       "inputs": {
         "nixpkgs": [
@@ -1285,17 +1268,17 @@
     "manifold-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1789117311,
-        "narHash": "sha256-NB1Mia29P90zi2VT7Zq398hLJQCG3u6f7QW2vgg6mOk=",
+        "lastModified": 1790365830,
+        "narHash": "sha256-Ix3T0/Q7N9C1Io0yO6X/rJReF3ckpw5sfajfJ2fZaQ8=",
         "owner": "fedibtc",
         "repo": "manifold",
-        "rev": "48c8c941907cd26f0554bf1ca6f52eaf56e4b7de",
+        "rev": "8f1c2732febc0bfebdaf748ffef31460acb9f69b",
         "type": "github"
       },
       "original": {
         "owner": "fedibtc",
         "repo": "manifold",
-        "rev": "48c8c941907cd26f0554bf1ca6f52eaf56e4b7de",
+        "rev": "8f1c2732febc0bfebdaf748ffef31460acb9f69b",
         "type": "github"
       }
     },
@@ -1516,12 +1499,28 @@
         "type": "github"
       }
     },
+    "peerbadge-sdk-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788528334,
+        "narHash": "sha256-jXxNn8LYzcb7pQ0bDBIg6bJ568jjAtj8ESBPuLhwHSc=",
+        "owner": "fedibtc",
+        "repo": "peerbadge-sdk",
+        "rev": "ad6e954301f6684dcef14b070332d7171b61a408",
+        "type": "github"
+      },
+      "original": {
+        "owner": "fedibtc",
+        "repo": "peerbadge-sdk",
+        "rev": "ad6e954301f6684dcef14b070332d7171b61a408",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "android-nixpkgs": "android-nixpkgs",
         "andy": "andy",
         "cargo-deluxe": "cargo-deluxe",
-        "credential-sdk-src": "credential-sdk-src",
         "fedimint-pkgs": "fedimint-pkgs",
         "fenix": "fenix_4",
         "flake-utils": "flake-utils_12",
@@ -1531,6 +1530,7 @@
         "manifold-src": "manifold-src",
         "nixpkgs": "nixpkgs_8",
         "nixpkgs-unstable": "nixpkgs-unstable_2",
+        "peerbadge-sdk-src": "peerbadge-sdk-src",
         "sieve": "sieve",
         "wild": "wild_3"
       }

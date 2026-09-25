@@ -40,13 +40,13 @@
 
     # FI sources are fetched by Nix, then exposed to Cargo as a local path
     # dependency. Keep these revisions aligned with Manifold's fi-client and
-    # credential-sdk input.
+    # peerbadge-sdk input.
     manifold-src = {
-      url = "github:fedibtc/manifold/48c8c941907cd26f0554bf1ca6f52eaf56e4b7de";
+      url = "github:fedibtc/manifold/8f1c2732febc0bfebdaf748ffef31460acb9f69b";
       flake = false;
     };
-    credential-sdk-src = {
-      url = "github:fedibtc/credential-sdk/3be33fc6d8c5b40073934bad2cbe649d1646e440";
+    peerbadge-sdk-src = {
+      url = "github:fedibtc/peerbadge-sdk/ad6e954301f6684dcef14b070332d7171b61a408";
       flake = false;
     };
 
@@ -88,7 +88,7 @@
       andy,
       llm-agents,
       manifold-src,
-      credential-sdk-src,
+      peerbadge-sdk-src,
       sieve,
       ...
     }:
@@ -164,13 +164,13 @@
           exec ${pkgs.nodejs_22}/bin/npm exec --yes --package vercel@51.6.1 -- vercel "$@"
         '';
 
-        # Manifold's workspace uses a Nix-provided credential-sdk path. Build
+        # Manifold's workspace uses a Nix-provided peerbadge-sdk path. Build
         # the same source layout here so Cargo uses the pinned input.
         manifoldSource = pkgs.runCommand "manifold-fi-client-source" { } ''
           cp -a ${manifold-src} "$out"
           chmod -R u+w "$out"
           mkdir -p "$out/.nix-deps"
-          ln -s ${credential-sdk-src} "$out/.nix-deps/credential-sdk"
+          ln -s ${peerbadge-sdk-src} "$out/.nix-deps/peerbadge-sdk"
         '';
 
         linkExternalDeps = pkgs.writeShellScriptBin "link-external-deps" ''

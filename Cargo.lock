@@ -3393,33 +3393,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fedi-credential-sdk-protocol"
-version = "0.0.5"
-dependencies = [
- "blind-rsa-signatures",
- "hex",
- "nostr",
- "serde",
- "serde_json",
- "serde_json_canonicalizer",
- "serde_with",
- "sha2 0.10.9",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "fedi-credential-sdk-schemas"
-version = "0.0.5"
-dependencies = [
- "fedi-credential-sdk-protocol",
- "nostr",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "fedi-debug"
 version = "0.0.0"
 dependencies = [
@@ -3436,11 +3409,11 @@ dependencies = [
 name = "fedi-decentralized-domain"
 version = "0.1.0"
 dependencies = [
- "fedi-credential-sdk-protocol",
- "fedi-credential-sdk-schemas",
  "fedimint-core",
  "hex",
  "nostr",
+ "peerbadge-protocol",
+ "peerbadge-schemas",
  "semver",
  "serde",
  "serde_json",
@@ -3485,10 +3458,10 @@ dependencies = [
 name = "fedi-decentralized-nostr"
 version = "0.1.0"
 dependencies = [
- "fedi-credential-sdk-protocol",
  "fedi-decentralized-domain",
  "fedi-decentralized-service-fleet-manager",
  "nostr",
+ "peerbadge-protocol",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -3513,13 +3486,13 @@ name = "fedi-decentralized-peer-badge-verifier"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "fedi-credential-sdk-protocol",
  "fedi-decentralized-domain",
  "fedi-decentralized-manifold-environment",
  "fedi-decentralized-nostr",
  "fedi-decentralized-nostr-clients",
  "fedimint-core",
  "nostr-sdk",
+ "peerbadge-protocol",
  "serde_json",
  "thiserror 2.0.18",
 ]
@@ -3564,9 +3537,9 @@ name = "fedi-decentralized-service-liquidity-manager"
 version = "0.1.0"
 dependencies = [
  "ciborium",
- "fedi-credential-sdk-protocol",
  "fedi-decentralized-services",
  "fedi-iroh-rpc",
+ "peerbadge-protocol",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -9514,6 +9487,33 @@ checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
 dependencies = [
  "digest 0.10.7",
  "hmac",
+]
+
+[[package]]
+name = "peerbadge-protocol"
+version = "0.1.0"
+dependencies = [
+ "blind-rsa-signatures",
+ "hex",
+ "nostr",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "serde_with",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "peerbadge-schemas"
+version = "0.1.0"
+dependencies = [
+ "nostr",
+ "peerbadge-protocol",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
