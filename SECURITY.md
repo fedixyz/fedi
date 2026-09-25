@@ -84,6 +84,14 @@ also contain provider identity, endpoint hints, amount bounds, semantic hashes,
 and progress; exclude them from routine UI and support logs. Provider-private
 failure reasons do not cross the RPC projection.
 
+Exported FLIP diagnostic logs may include only a provider's public identifier, a
+FLIP request identifier, an enumerated operation status or outcome, and a
+bounded protocol or application error code. Those fields may correlate a
+request with its outcome, but do not authorize logging an operation snapshot or
+any private payload. In particular, support logs must exclude invite codes,
+credential documents, endpoint capabilities, raw requests, response payloads,
+and free-form error text.
+
 Liquidity `start` and `resume` mutations share the task-group-owned FI driver,
 so dropping an RPC caller discards only its response while accepted work keeps
 one serialized owner. Bridge shutdown may cancel an in-flight call only at the
