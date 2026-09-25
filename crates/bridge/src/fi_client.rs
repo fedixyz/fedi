@@ -1366,7 +1366,7 @@ async fn reconcile_one_liquidity_step<Current, CurrentFuture, Resume, ResumeFutu
         LiquidityRecoveryStep::ReadCurrent => match current().await {
             Ok(operation) => recovery.record_current(operation),
             Err(error) => {
-                tracing::debug!(
+                tracing::warn!(
                     error_code = ?error.code(),
                     "FI current liquidity operation read will retry"
                 );
@@ -1389,7 +1389,7 @@ async fn reconcile_one_liquidity_step<Current, CurrentFuture, Resume, ResumeFutu
             match result {
                 Ok(operation) => recovery.record_resume_success(operation),
                 Err(error) => {
-                    tracing::debug!(
+                    tracing::warn!(
                         error_code = ?error.code(),
                         "FI liquidity reconciliation will retry"
                     );
@@ -2821,6 +2821,22 @@ fn liquidity_item_to_rpc(item: AllocationItemStatus) -> RpcFiLiquidityItemStatus
 }
 
 fn liquidity_operation_to_rpc(snapshot: LiquidityOperationSnapshot) -> RpcFiLiquidityOperation {
+    if let Some(code) = &snapshot.rejection_code {
+        tracing::warn!(request_id = %snapshot.operation_id.0, provider = %snapshot.provider_pubkey.0,
+            rejection_code = %code, "FLIP rejected liquidity request");
+    }
+    for item in &snapshot.item_statuses {
+        if matches!(
+            item.status,
+            ItemAllocationStatus::Failed
+                | ItemAllocationStatus::ActionRequired
+                | ItemAllocationStatus::Cancelled
+        ) {
+            tracing::warn!(request_id = %snapshot.operation_id.0, provider = %snapshot.provider_pubkey.0,
+                status = ?item.status, failure_code = ?item.failure.as_ref().map(|failure| failure.code),
+                "FLIP liquidity provisioning needs attention");
+        }
+    }
     RpcFiLiquidityOperation {
         operation_id: snapshot.operation_id.0,
         formation_id: snapshot.formation_id.0,
@@ -2850,9 +2866,12 @@ fn liquidity_operation_result(
         Ok(snapshot) => RpcFiLiquidityOperationResult::Operation {
             operation: liquidity_operation_to_rpc(snapshot),
         },
-        Err(error) => RpcFiLiquidityOperationResult::Error {
-            error: fi_error_to_rpc(&error),
-        },
+        Err(error) => {
+            tracing::warn!(error_code = ?error.code(), "an FI liquidity operation failed");
+            RpcFiLiquidityOperationResult::Error {
+                error: fi_error_to_rpc(&error),
+            }
+        }
     }
 }
 
