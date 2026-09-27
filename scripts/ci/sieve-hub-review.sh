@@ -54,5 +54,6 @@ echo '::endgroup::'
 # the generic linux sieve binary does not run on NixOS, and claude-code is
 # unfree, which nix only honors on an impure eval
 NIXPKGS_ALLOW_UNFREE=1 nix shell --impure "github:fedibtc/sieve/${rev}#sieve" \
-    nixpkgs#claude-code nixpkgs#gh nixpkgs#jq nixpkgs#git \
+    github:NixOS/nixpkgs/8d5d270900d3fc75655ea2d9d248b234f6631439#claude-code \
+    nixpkgs#gh nixpkgs#jq nixpkgs#git \
     --command "$script_dir/sieve-hub-publish.sh"

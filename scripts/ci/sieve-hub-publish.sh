@@ -19,7 +19,7 @@ number=${PR_NUMBER:?PR_NUMBER is required}
 
 script_dir=$(cd "$(dirname "$0")" && pwd)
 # A cheaper model regresses this to the recap the agent path exists to replace.
-agent_model=${SIEVE_AGENT_MODEL:-claude-opus-5}
+agent_model=${SIEVE_AGENT_MODEL:-claude-opus-5-5}
 
 if [ -z "${GH_TOKEN:-}" ]; then
     echo "::error::GH_TOKEN is required"
