@@ -170,17 +170,21 @@ async fn cli_submit_guardian_fee_meta(
     remittance_account: String,
     guardian_fee_send_ppm: u64,
 ) -> anyhow::Result<()> {
-    let fed_size = std::env::var("FM_FED_SIZE")
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(4);
-    let meta_json = serde_json::json!({
+    cli_submit_meta(&serde_json::json!({
         "stability_pool_disabled": "false",
         "multispend_disabled": "false",
         "fedi:guardian_fee_send_ppm": guardian_fee_send_ppm.to_string(),
         "fedi:guardian_fee_remittance_account": remittance_account,
-    })
-    .to_string();
+    }))
+    .await
+}
+
+async fn cli_submit_meta(meta: &serde_json::Value) -> anyhow::Result<()> {
+    let fed_size = std::env::var("FM_FED_SIZE")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(4);
+    let meta_json = meta.to_string();
 
     for peer in 0..fed_size {
         cmd!(
@@ -199,6 +203,19 @@ async fn cli_submit_guardian_fee_meta(
     }
 
     Ok(())
+}
+
+async fn cli_wait_for_meta(expected: &serde_json::Value) -> anyhow::Result<()> {
+    retry("wait meta consensus", aggressive_backoff(), || async {
+        let consensus = cmd!(FedimintCli, "module", "meta", "get")
+            .out_json()
+            .await?;
+        if consensus.get("value") != Some(expected) {
+            bail!("meta document not in consensus yet");
+        }
+        Ok(())
+    })
+    .await
 }
 
 async fn cli_wait_for_guardian_fee_meta(expected_send_ppm: u64) -> anyhow::Result<()> {
@@ -4287,6 +4304,76 @@ async fn test_recurring_lnurl(_dev_fed: DevFed) -> anyhow::Result<()> {
     let lnurl2 = federation.get_recurringd_lnurl().await?;
     // lnurl must stay the same for the same recurringd target
     assert_eq!(lnurl1, lnurl2);
+    Ok(())
+}
+
+async fn publish_meta_and_read_on_new_device(
+    meta: &serde_json::Value,
+) -> anyhow::Result<BTreeMap<String, String>> {
+    cli_submit_meta(meta).await?;
+    cli_wait_for_meta(meta).await?;
+
+    let td = TestDevice::new().await?;
+    let federation = td.join_default_fed().await?;
+    assert!(
+        supportsRecurringdLnurl(federation.clone()).await?,
+        "no lnurl support with meta {meta}"
+    );
+    let lnurl = getRecurringdLnurl(federation.clone()).await?;
+    assert!(lnurl.starts_with("lnurl"));
+    Ok(federation.get_cached_meta().await)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_lnurl_support_from_native_and_string_wrapped_meta() -> anyhow::Result<()> {
+    if !devimint::util::supports_lnv1() {
+        info!("Skipping on a kind-two federation, lnv2 supports lnurl without reading meta");
+        return Ok(());
+    }
+
+    let dev_fed = DevFed::new_with_setup(4).await?;
+    std::env::remove_var("TEST_BRIDGE_RECURRINGD_API");
+
+    let td = TestDevice::new().await?;
+    let federation = td.join_default_fed().await?;
+    assert!(
+        !supportsRecurringdLnurl(federation.clone()).await?,
+        "lnurl support has to come from meta"
+    );
+
+    let recurringd_api = dev_fed.recurringd.api_url.to_string();
+    let gateway_id = &dev_fed.gw_lnd.gateway_id;
+    let native_meta = serde_json::json!({
+        "stability_pool_disabled": false,
+        "multispend_disabled": false,
+        "max_invoice_msats": 1_000_000_000u64,
+        "vetted_gateways": [gateway_id],
+        "recurringd_api": recurringd_api,
+    });
+    let string_wrapped_meta = serde_json::json!({
+        "stability_pool_disabled": "false",
+        "multispend_disabled": "false",
+        "max_invoice_msats": "1000000000",
+        "vetted_gateways": format!(r#"["{gateway_id}"]"#),
+        "recurringd_api": format!(r#""{recurringd_api}""#),
+    });
+
+    let native_text = publish_meta_and_read_on_new_device(&native_meta).await?;
+    let string_wrapped_text = publish_meta_and_read_on_new_device(&string_wrapped_meta).await?;
+
+    let expected_text = BTreeMap::from([
+        ("stability_pool_disabled".to_string(), "false".to_string()),
+        ("multispend_disabled".to_string(), "false".to_string()),
+        ("max_invoice_msats".to_string(), "1000000000".to_string()),
+        (
+            "vetted_gateways".to_string(),
+            format!(r#"["{gateway_id}"]"#),
+        ),
+        ("recurringd_api".to_string(), recurringd_api),
+    ]);
+    assert_eq!(native_text, expected_text);
+    assert_eq!(string_wrapped_text, expected_text);
+
     Ok(())
 }
 
