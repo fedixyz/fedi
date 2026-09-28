@@ -1,93 +1,100 @@
 # Documentation Audit Report
 
-Review date: 2026-09-14
+Review date: 2026-09-28
 
 ## Scope
 
 - Review mode: incremental.
-- Current workflow run: [34807727783](https://github.com/fedibtc/fedi/actions/runs/34807727783), `Weekly Documentation Updater`, head [3ba8c9d7181c56dffe67f1688f12dfbcdd107d9c](https://github.com/fedibtc/fedi/commit/3ba8c9d7181c56dffe67f1688f12dfbcdd107d9c).
-- Previous successful run: [34084792755](https://github.com/fedibtc/fedi/actions/runs/34084792755), completed 2026-09-07T05:01:53Z at [4b02f9cda31a8834ccf194e6ea3c5f3539afc81d](https://github.com/fedibtc/fedi/commit/4b02f9cda31a8834ccf194e6ea3c5f3539afc81d).
-- Boundary used: repository changes after [34084792755](https://github.com/fedibtc/fedi/actions/runs/34084792755) through current head [3ba8c9d7181c56dffe67f1688f12dfbcdd107d9c](https://github.com/fedibtc/fedi/commit/3ba8c9d7181c56dffe67f1688f12dfbcdd107d9c), based on GitHub Actions run history, merged PR metadata, commit metadata, and PR changed-file lists.
-- Tracked Markdown inventory: 99 files.
+- Current workflow run: [36379899685](https://github.com/fedibtc/fedi/actions/runs/36379899685), `Weekly Documentation Updater`, head [cd798fc9d069c9702908bf25e9590f2dc1a901a1](https://github.com/fedibtc/fedi/commit/cd798fc9d069c9702908bf25e9590f2dc1a901a1).
+- Previous successful run: [35562642113](https://github.com/fedibtc/fedi/actions/runs/35562642113), completed 2026-09-21T05:02:15Z at [15c8bf5e0c6ed67c26e1671dc53d6b98ff406b7a](https://github.com/fedibtc/fedi/commit/15c8bf5e0c6ed67c26e1671dc53d6b98ff406b7a).
+- Boundary used: repository changes after [35562642113](https://github.com/fedibtc/fedi/actions/runs/35562642113) through current head [cd798fc9d069c9702908bf25e9590f2dc1a901a1](https://github.com/fedibtc/fedi/commit/cd798fc9d069c9702908bf25e9590f2dc1a901a1), based on GitHub Actions run history, merged PR metadata, commit metadata, and PR changed-file lists.
+- Tracked Markdown inventory: 102 files.
 
 ## Changed Areas Driving Review
 
 Key merged PRs and commits mapped to tracked docs:
 
-- [#12091](https://github.com/fedibtc/fedi/pull/12091) merged the previous updater report and added this audit file to the tracked Markdown inventory.
-- [#12149](https://github.com/fedibtc/fedi/pull/12149) updated Manifold to [11f735b47674d526b4f8e393858b39f6c3a2c5ca](https://github.com/fedibtc/manifold/commit/11f735b47674d526b4f8e393858b39f6c3a2c5ca) and Fedimint crates to `v0.11.2-fedi4`.
-- [#12176](https://github.com/fedibtc/fedi/pull/12176) and [#12177](https://github.com/fedibtc/fedi/pull/12177) changed FI formation projection so `Formed + Unsynced` remains `formed`, added `dkgComplete`, renamed the abandonment reason to `dkgComplete`, and regenerated bindings.
-- [#12128](https://github.com/fedibtc/fedi/pull/12128), [#12146](https://github.com/fedibtc/fedi/pull/12146), [#12147](https://github.com/fedibtc/fedi/pull/12147), [#12158](https://github.com/fedibtc/fedi/pull/12158), and [#12175](https://github.com/fedibtc/fedi/pull/12175) changed Wallet Service status monitoring, join failure handling, metadata read-through, and simulator behavior.
-- [#12167](https://github.com/fedibtc/fedi/pull/12167), [#12168](https://github.com/fedibtc/fedi/pull/12168), and [#12174](https://github.com/fedibtc/fedi/pull/12174) replaced the Wallet Service knob simulator with scripted devtools and moved those devtools under `ui/native`.
-- [#12148](https://github.com/fedibtc/fedi/pull/12148) bounded new mint-v1 FI seat-payment outputs while preserving recovery of already-journaled oversized payments.
-- [#12140](https://github.com/fedibtc/fedi/pull/12140) made devimint await Esplora before the client peg-in.
-- [#12108](https://github.com/fedibtc/fedi/pull/12108), [#12135](https://github.com/fedibtc/fedi/pull/12135), [#12152](https://github.com/fedibtc/fedi/pull/12152), [#12088](https://github.com/fedibtc/fedi/pull/12088), and [#12100](https://github.com/fedibtc/fedi/pull/12100) changed web and native E2E tests or runners.
-- [#12109](https://github.com/fedibtc/fedi/pull/12109) changed the Edge release notification to link to the GitHub release page instead of a direct APK asset.
-- [#11944](https://github.com/fedibtc/fedi/pull/11944) added the iOS Edge Firebase config and removed the stale Nightly resource from the Edge target.
-- [#12116](https://github.com/fedibtc/fedi/pull/12116), [#12117](https://github.com/fedibtc/fedi/pull/12117), [#12118](https://github.com/fedibtc/fedi/pull/12118), [#12125](https://github.com/fedibtc/fedi/pull/12125), and [#12129](https://github.com/fedibtc/fedi/pull/12129) changed multispend and USDT runtime behavior without changing a tracked user guide.
+- [#12230](https://github.com/fedibtc/fedi/pull/12230) added `fedi_getSeed` and `fedi_saveFile` coverage to the miniapp API debugger.
+- [#12220](https://github.com/fedibtc/fedi/pull/12220) changed Android, iOS, and report release-note skills so agents translate signed-off English themselves instead of depending on a translation process or API key.
+- [#12217](https://github.com/fedibtc/fedi/pull/12217) added the backport-review skill and changed Sieve review publishing so release-branch reviews use that backport guidance.
+- [#11929](https://github.com/fedibtc/fedi/pull/11929) made Android bridge library installation restore writable modes even when a copy fails or is interrupted.
+- [#12213](https://github.com/fedibtc/fedi/pull/12213) changed Matrix send recovery and native chat send-error handling without changing a tracked user-facing chat guide.
+- [#11881](https://github.com/fedibtc/fedi/pull/11881) and [#11882](https://github.com/fedibtc/fedi/pull/11882) added `getPayAddressLimits`, typed below-minimum send errors, and UI enforcement for onchain wallet send limits.
+- [#12198](https://github.com/fedibtc/fedi/pull/12198) changed user-facing naming from Wallet Service to Federation and Lightning provider to Liquidity Provider in code, localization, and tests.
+- [#12256](https://github.com/fedibtc/fedi/pull/12256) synced the 26.9.2 native version bump to master.
+- [#12181](https://github.com/fedibtc/fedi/pull/12181) added bounded FI/FLIP diagnostic warnings for liquidity outcomes and recovery failures.
+- [#12265](https://github.com/fedibtc/fedi/pull/12265) updated `SECURITY.md` to permit only bounded FLIP support diagnostics.
+- [#12219](https://github.com/fedibtc/fedi/pull/12219) updated Manifold to [8f1c2732febc0bfebdaf748ffef31460acb9f69b](https://github.com/fedibtc/manifold/commit/8f1c2732febc0bfebdaf748ffef31460acb9f69b) and switched the pinned credential input to PeerBadge SDK [ad6e954301f6684dcef14b070332d7171b61a408](https://github.com/fedibtc/peerbadge-sdk/commit/ad6e954301f6684dcef14b070332d7171b61a408).
+- [#12266](https://github.com/fedibtc/fedi/pull/12266) changed Sieve hub reviews to default to `claude-opus-5-5` and pinned a newer `claude-code` package for that workflow.
 
 ## Markdown Selected For Review
 
-- `.agents/skills/fedi-ui-test-patterns/SKILL.md`
+- `.agents/skills/android-release/SKILL.md`
+- `.agents/skills/backport-review/SKILL.md`
+- `.agents/skills/ios-release/SKILL.md`
+- `.agents/skills/report-next-release/references/release-notes-copy.md`
+- `.sieve/review-policy.md`
 - `HACKING.md`
 - `SECURITY.md`
 - `bridge/README.md`
-- `bridge/debugging.md`
-- `bridge/fedi-swift/README.md`
 - `documentation-audit-report.md`
-- `ui/docs/TESTING.md`
-- `ui/native/README.md`
-- `ui/native/android/fastlane/README.md`
+- `scripts/ci/sieve-hub-agent-review.md`
+- `ui/docs/MINI_APP_SEEDS.md`
+- `ui/injections/README.md`
 - `ui/native/docs/cicd.md`
-- `ui/native/ios/fastlane/README.md`
-- `ui/native/tests/README.md`
 
 ## Implementation Sources Checked
 
 - GitHub Actions run history for workflow ID `286820929`.
-- GitHub merged PR search results, commit list, and PR changed-file lists for the incremental interval.
+- GitHub merged PR search results and PR changed-file lists for the incremental interval.
 - `git ls-files '*.md'` for the tracked Markdown inventory.
-- `.github/workflows/e2e-tests.yml`, `.github/workflows/release-edge.yml`, `scripts/ci/e2e-pipeline.sh`, `scripts/ci/notify-edge-release.sh`, `scripts/ui/run-e2e.sh`, `scripts/ui/run-e2e-web.sh`, and `ui/native/tests/appium/registry.ts`.
-- `SECURITY.md`, `HACKING.md`, `crates/bridge/src/fi_client.rs`, `crates/bridge/src/fi_client/tests.rs`, `crates/bridge/src/fi_payments.rs`, `crates/fedimint/devi/src/devfed.rs`, `crates/rpc-types/src/fi_client.rs`, `ui/common/redux/fi.ts`, and `ui/common/types/bindings.ts`.
-- `flake.nix`, `Cargo.toml`, and PR changed-file metadata for the dependency pin updates.
-- `ui/native/ios/FediReactNative.xcodeproj/project.pbxproj`, `ui/native/ios/firebase-edge/GoogleService-Info.plist`, and generated Fastlane READMEs for iOS/Android release documentation.
+- `flake.nix`, `flake.lock`, and `Cargo.lock` for the Manifold and PeerBadge SDK inputs.
+- `scripts/ci/sieve-hub-publish.sh`, `scripts/ci/sieve-hub-review.sh`, `.sieve/review-policy.md`, and `.agents/skills/backport-review/SKILL.md` for Sieve review behavior.
+- `.agents/skills/android-release/SKILL.md`, `.agents/skills/ios-release/SKILL.md`, and `.agents/skills/report-next-release/references/release-notes-copy.md` for release-note guidance.
+- `scripts/bridge/install-bridge-android.sh` and `bridge/README.md` for Android bridge artifact installation.
+- `ui/web/src/components/MiniappApiDebugger/apis.ts`, `ui/docs/MINI_APP_SEEDS.md`, and `ui/injections/README.md` for miniapp seed and save-file APIs.
+- `bridge/fedi-ffi/src/rpc.rs`, `crates/federations/src/federation_v2/wallet_ops/`, `crates/rpc-types/src/`, `ui/common/hooks/amount/`, `ui/common/utils/fedimint.ts`, and `ui/common/utils/format.ts` for onchain send limits.
+- `crates/bridge/src/fi_client.rs`, `SECURITY.md`, and `HACKING.md` for FI/FLIP diagnostics and lifecycle/security wording.
+- `ui/native/docs/cicd.md`, `scripts/ui/bump-version-native.sh`, and native version files for the 26.9.2 version bump.
 
 ## Findings And Changes
 
-- `SECURITY.md` was stale for FI launch recovery. It said an unsynced persisted `Formed` record is projected as `PublishingSeatBindings`; current bridge projection keeps `Formed` and reports the recheck through `freshness`. Updated the security boundary wording.
-- `HACKING.md` had the same stale FI lifecycle statement. Updated it to say `Formed + Unsynced` stays `formed`, `freshness` carries the launch recheck, and only fresh `Formed` is maintenance-ready.
-- `HACKING.md` was stale for Fedimint pins after [#12149](https://github.com/fedibtc/fedi/pull/12149). Updated the fork note to reflect upstream Nix `fedimint/fedimint` `v0.11.2` and Fedi Cargo tag `v0.11.2-fedi4`.
-- `ui/docs/TESTING.md`, `ui/native/docs/cicd.md`, and `ui/native/tests/README.md` remain current for the reviewed E2E runner/test changes, including `scripts/ui/run-e2e-web.sh --with-devfed`, CI web E2E behavior, and current Appium menu entries.
-- `ui/native/README.md`, `ui/native/ios/fastlane/README.md`, and `ui/native/android/fastlane/README.md` remain current for the reviewed Edge Firebase and Fastlane changes; no generated Fastlane lane documentation changed.
-- `.agents/skills/fedi-ui-test-patterns/SKILL.md`, `bridge/README.md`, `bridge/debugging.md`, and `bridge/fedi-swift/README.md` remain current for the reviewed test-helper, bridge, and Swift-package changes.
+- `HACKING.md` was stale after [#12219](https://github.com/fedibtc/fedi/pull/12219). It still said Nix materializes a pinned Credential SDK input; current `flake.nix` materializes `peerbadge-sdk-src`. Updated the fork note to say PeerBadge SDK.
+- `SECURITY.md` remains current for [#12181](https://github.com/fedibtc/fedi/pull/12181) and [#12265](https://github.com/fedibtc/fedi/pull/12265): exported FLIP diagnostics are bounded to public provider id, request id, enumerated status/outcome, and bounded error codes, while private payloads and free-form text remain excluded.
+- `.agents/skills/android-release/SKILL.md`, `.agents/skills/ios-release/SKILL.md`, and `.agents/skills/report-next-release/references/release-notes-copy.md` remain current for [#12220](https://github.com/fedibtc/fedi/pull/12220): they now direct agents to translate signed-off English themselves using previous localized release notes as reference.
+- `.agents/skills/backport-review/SKILL.md`, `.sieve/review-policy.md`, and `scripts/ci/sieve-hub-agent-review.md` remain current for [#12217](https://github.com/fedibtc/fedi/pull/12217) and [#12266](https://github.com/fedibtc/fedi/pull/12266).
+- `bridge/README.md` remains current for [#11929](https://github.com/fedibtc/fedi/pull/11929). Its Android build description still matches the two-step build/install flow, and the writable-mode trap is an implementation hardening rather than a documented manual step.
+- `ui/docs/MINI_APP_SEEDS.md` and `ui/injections/README.md` remain current for [#12230](https://github.com/fedibtc/fedi/pull/12230): seed and save-file API behavior was already documented, and the PR only expanded the debug tool surface.
+- No tracked Markdown file currently documents the new `getPayAddressLimits` RPC or the onchain minimum-send UX from [#11881](https://github.com/fedibtc/fedi/pull/11881) and [#11882](https://github.com/fedibtc/fedi/pull/11882), so there was no stale user guide to correct.
+- `ui/native/docs/cicd.md` remains current for [#12256](https://github.com/fedibtc/fedi/pull/12256); the version bump was produced by the documented native version workflow shape.
 
 ## Per-Document Status
 
 | File | Status |
 | --- | --- |
-| `.agents/skills/fedi-ui-test-patterns/SKILL.md` | Reviewed; no change needed. |
-| `HACKING.md` | Updated FI lifecycle and Fedimint pin notes. |
-| `SECURITY.md` | Updated FI launch-recovery projection wording. |
+| `.agents/skills/android-release/SKILL.md` | Reviewed; no change needed. |
+| `.agents/skills/backport-review/SKILL.md` | Reviewed; no change needed. |
+| `.agents/skills/ios-release/SKILL.md` | Reviewed; no change needed. |
+| `.agents/skills/report-next-release/references/release-notes-copy.md` | Reviewed; no change needed. |
+| `.sieve/review-policy.md` | Reviewed; no change needed. |
+| `HACKING.md` | Updated the Nix FI dependency note from Credential SDK to PeerBadge SDK. |
+| `SECURITY.md` | Reviewed; no change needed. |
 | `bridge/README.md` | Reviewed; no change needed. |
-| `bridge/debugging.md` | Reviewed; no change needed. |
-| `bridge/fedi-swift/README.md` | Reviewed; no change needed. |
 | `documentation-audit-report.md` | Updated for this incremental run. |
-| `ui/docs/TESTING.md` | Reviewed; no change needed. |
-| `ui/native/README.md` | Reviewed; no change needed. |
-| `ui/native/android/fastlane/README.md` | Reviewed; no change needed. |
+| `scripts/ci/sieve-hub-agent-review.md` | Reviewed; no change needed. |
+| `ui/docs/MINI_APP_SEEDS.md` | Reviewed; no change needed. |
+| `ui/injections/README.md` | Reviewed; no change needed. |
 | `ui/native/docs/cicd.md` | Reviewed; no change needed. |
-| `ui/native/ios/fastlane/README.md` | Reviewed; no change needed. |
-| `ui/native/tests/README.md` | Reviewed; no change needed. |
 
 ## Validation
 
-- Ran `git ls-files '*.md'` and counted 99 tracked Markdown files.
+- Ran `git ls-files '*.md'` and counted 102 tracked Markdown files.
 - Cross-checked the previous successful updater run with the GitHub Actions API.
-- Cross-checked recent merged PRs, commits, and changed files with GitHub read APIs.
-- Verified selected documentation against current workflows, E2E scripts, Appium registry, bridge/FI implementation files, release workflow files, Fastlane generated docs, and dependency pins with `rg` and `sed`.
+- Cross-checked recent merged PRs and changed files with GitHub read APIs.
+- Verified selected documentation against current scripts, security policy, bridge/FI implementation files, miniapp API implementation, native versioning files, and dependency pins with `rg` and `sed`.
 - Ran `git diff --check`.
 - No test suite was run because the changes are Markdown-only.
 
 ## Unresolved Areas
 
-- The local checkout is shallow at [3ba8c9d7181c56dffe67f1688f12dfbcdd107d9c](https://github.com/fedibtc/fedi/commit/3ba8c9d7181c56dffe67f1688f12dfbcdd107d9c), and the unauthenticated Git remote cannot fetch private history. Changed-file scope was therefore built from GitHub run, PR, and commit metadata rather than a local `git diff` against [4b02f9cda31a8834ccf194e6ea3c5f3539afc81d](https://github.com/fedibtc/fedi/commit/4b02f9cda31a8834ccf194e6ea3c5f3539afc81d).
+- The local checkout does not contain [15c8bf5e0c6ed67c26e1671dc53d6b98ff406b7a](https://github.com/fedibtc/fedi/commit/15c8bf5e0c6ed67c26e1671dc53d6b98ff406b7a), and the unauthenticated Git remote cannot fetch private history. Changed-file scope was therefore built from GitHub run and PR metadata rather than a local `git diff` against [15c8bf5e0c6ed67c26e1671dc53d6b98ff406b7a](https://github.com/fedibtc/fedi/commit/15c8bf5e0c6ed67c26e1671dc53d6b98ff406b7a).
