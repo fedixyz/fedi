@@ -2042,6 +2042,7 @@ pub(crate) fn start_fi_driver(
         formation_state: formation_state.clone(),
     };
 
+    let app_state = runtime.app_state.clone();
     runtime
         .task_group
         .spawn_cancellable("fi-client::operation-driver", async move {
@@ -2057,7 +2058,7 @@ pub(crate) fn start_fi_driver(
                 let _ = client.restore_from_manifold_profile(&profile).await;
             }
             run_supervised_driver_loop(
-                client,
+                Arc::new(FiBackend { client, app_state }),
                 liquidity_connector,
                 formation_state,
                 receiver,
@@ -2090,8 +2091,21 @@ trait FiDriverBackend: MaybeSend + MaybeSync {
     async fn sleep(&self, delay: Duration);
 }
 
+struct FiBackend {
+    client: Arc<BridgeFiClient>,
+    app_state: runtime::storage::AppState,
+}
+
+impl std::ops::Deref for FiBackend {
+    type Target = BridgeFiClient;
+
+    fn deref(&self) -> &Self::Target {
+        &self.client
+    }
+}
+
 #[apply(async_trait_maybe_send!)]
-impl FiDriverBackend for BridgeFiClient {
+impl FiDriverBackend for FiBackend {
     fn status(&self) -> FiStatus {
         FiClient::status(self)
     }
@@ -2140,7 +2154,26 @@ impl FiDriverBackend for BridgeFiClient {
                 self.abandon_formation(FormationRunOptions::default()).await,
             )),
             FiDriverOperation::Resume => {
-                FiDriverResponse::Formation(operation_result(self.resume().await))
+                let started = fedimint_core::runtime::Instant::now();
+                tracing::info!("FI resume started");
+                let result = self.resume().await;
+                let elapsed_ms = started.elapsed().as_millis();
+                match &result {
+                    Ok(()) => tracing::info!(elapsed_ms, "FI resume completed"),
+                    Err(error) => {
+                        let sensitive = self
+                            .app_state
+                            .with_read_lock(|state| state.sensitive_log.unwrap_or(false))
+                            .await;
+                        tracing::warn!(
+                            elapsed_ms,
+                            error_code = ?error.code(),
+                            details = ?sensitive.then(|| error.to_string()),
+                            "FI resume failed"
+                        );
+                    }
+                }
+                FiDriverResponse::Formation(operation_result(result))
             }
             FiDriverOperation::AuthorizePayments { authorization_id } => {
                 FiDriverResponse::Formation(operation_result(
