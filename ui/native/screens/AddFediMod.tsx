@@ -163,6 +163,7 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
                             returnKeyType="done"
                         />
                         <Input
+                            testID="MiniAppTitleInput"
                             value={title}
                             onChangeText={setTitle}
                             placeholder={t('feature.fedimods.mod-title')}

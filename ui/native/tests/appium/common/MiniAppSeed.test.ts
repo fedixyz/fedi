@@ -18,10 +18,15 @@ const RESULT_TIMEOUT = 20_000
 const DENY = en.words.deny
 const APPROVE = en.words.approve
 const ALLOW = en.words.allow
+const SAVE = en.words.save
 const CONSENT_TITLE = en.feature.fedimods['seed-request-title']
 const CONSENT_DESCRIPTION = en.feature.fedimods['seed-request-description']
 const INSTALLED_MINI_APP_TITLE = 'E2E Install'
 const INSTALLED_MINI_APP_URL = 'https://example.com/fedi-e2e-mini-app'
+const CUSTOM_MINI_APP_TITLE = 'E2E Custom'
+const CUSTOM_MINI_APP_URL = 'https://example.com'
+const CUSTOM_MINI_APP_ADDRESS = 'example.com'
+const CUSTOM_MINI_APP_PAGE_TITLE = 'Example Domain'
 
 export class MiniAppSeed extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
@@ -96,6 +101,8 @@ export class MiniAppSeed extends AppiumTestBase {
                 'Installed mini app was not visible on the Mods tab',
             )
         }
+
+        await this.addCustomMiniApp()
         await this.clickElementByKey('HomeTabButton')
         console.log('Mini-app seed test complete')
     }
@@ -189,6 +196,46 @@ export class MiniAppSeed extends AppiumTestBase {
         if (!(await this.isTextPresent(CONSENT_DESCRIPTION))) {
             throw new Error('Mini-app seed consent warning was not displayed')
         }
+    }
+
+    private async addCustomMiniApp(): Promise<void> {
+        await this.clickElementByKey('PlusButton')
+        await this.clickOnText(en.feature.fedimods['enter-site-link'], 0, true)
+        await this.typeIntoElementByKey('MiniAppUrlInput', CUSTOM_MINI_APP_URL)
+        await this.waitForPageTitle()
+        await this.typeIntoElementByKey(
+            'MiniAppTitleInput',
+            CUSTOM_MINI_APP_TITLE,
+        )
+        await this.dismissKeyboard()
+        await this.clickOnText(SAVE, 0, true)
+        await this.waitForElementGone('MiniAppTitleInput')
+
+        if (!(await this.isTextPresent(CUSTOM_MINI_APP_TITLE, true, 10000))) {
+            throw new Error('Custom mini app was not visible on the Mods tab')
+        }
+
+        await this.clickOnText(CUSTOM_MINI_APP_TITLE, 0, true)
+        if (!(await this.isTextPresent(CUSTOM_MINI_APP_ADDRESS, true, 10000))) {
+            throw new Error(
+                `Custom mini app did not open ${CUSTOM_MINI_APP_ADDRESS}`,
+            )
+        }
+        await this.clickElementByKey('CloseMiniAppButton')
+    }
+
+    // A title typed before the site's metadata fetch lands gets overwritten.
+    private async waitForPageTitle(): Promise<void> {
+        await this.driver.waitUntil(
+            async () =>
+                (await this.getTextByKey('MiniAppTitleInput')) ===
+                CUSTOM_MINI_APP_PAGE_TITLE,
+            {
+                timeout: RESULT_TIMEOUT,
+                interval: 500,
+                timeoutMsg: `Mini app title was not filled with the page title "${CUSTOM_MINI_APP_PAGE_TITLE}"`,
+            },
+        )
     }
 
     private async waitForSeedResult(): Promise<SeedRequestResult> {
