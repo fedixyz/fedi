@@ -169,6 +169,8 @@ pub struct MockFediApi {
     // Takes precedence over the fixed invoice: mints one for the requested
     // amount, which the bridge validates against its request
     fedi_fee_invoice_generator: Option<FediFeeInvoiceGenerator>,
+
+    fedi_fee_schedule: Option<FediFeeSchedule>,
 }
 
 impl MockFediApi {
@@ -178,6 +180,10 @@ impl MockFediApi {
 
     pub fn set_fedi_fee_invoice_generator(&mut self, generator: FediFeeInvoiceGenerator) {
         self.fedi_fee_invoice_generator = Some(generator);
+    }
+
+    pub fn set_fedi_fee_schedule(&mut self, schedule: FediFeeSchedule) {
+        self.fedi_fee_schedule = Some(schedule);
     }
 }
 
@@ -372,7 +378,7 @@ impl IFediApi for LiveFediApi {
 #[apply(async_trait_maybe_send!)]
 impl IFediApi for MockFediApi {
     async fn fetch_fedi_fee_schedule(&self, _network: Network) -> anyhow::Result<FediFeeSchedule> {
-        Ok(FediFeeSchedule::default())
+        Ok(self.fedi_fee_schedule.clone().unwrap_or_default())
     }
 
     async fn fetch_fedi_fee_invoice(

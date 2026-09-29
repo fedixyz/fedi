@@ -44,7 +44,9 @@ use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use runtime::storage::BRIDGE_DB_PREFIX;
-use runtime::storage::state::{CommunityJson, DatabaseInfo};
+use runtime::storage::state::{
+    CommunityJson, DatabaseInfo, FederationInfo, FediFeeSchedule, ModuleFediFeeSchedule,
+};
 use stability_pool_client::common::Account;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -345,6 +347,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
     let tests = tests_array![
         test_join_and_leave_and_join,
         test_join_concurrent,
+        test_fee_schedule_applies_to_joined_federation,
         matrix::test_matrix_login,
         matrix::test_matrix_access_token_expiry_repro,
         matrix::test_matrix_dms,
@@ -550,6 +553,93 @@ async fn test_join_concurrent(_dev_fed: DevFed) -> anyhow::Result<()> {
         assert_eq!(federation.get_balance().await, amount);
     }
     Ok(())
+}
+
+async fn test_fee_schedule_applies_to_joined_federation(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let mut served = FediFeeSchedule::default();
+    served.modules.insert(
+        fedimint_wallet_client::KIND,
+        ModuleFediFeeSchedule {
+            send_ppm: 5000,
+            receive_ppm: 0,
+        },
+    );
+    served.modules.insert(
+        fedimint_ln_common::KIND,
+        ModuleFediFeeSchedule {
+            send_ppm: 0,
+            receive_ppm: 0,
+        },
+    );
+    let mut fedi_api = MockFediApi::default();
+    fedi_api.set_fedi_fee_schedule(served.clone());
+    let mut td = TestDevice::new().await?;
+    td.with_fedi_api(Arc::new(fedi_api));
+
+    let federation_id;
+    {
+        let bridge = td.bridge_full().await?;
+        federation_id = td.join_default_fed().await?.rpc_federation_id().0;
+        let info = joined_federation_info(bridge, &federation_id).await?;
+        assert_eq!(
+            info.network,
+            Some(bitcoin::Network::Regtest),
+            "join records the federation's network"
+        );
+        // older installs have no stored network; the next load must backfill it
+        bridge
+            .runtime
+            .app_state
+            .with_write_lock(|state| {
+                if let Some(info) = state.joined_federations.get_mut(&federation_id) {
+                    info.network = None;
+                }
+            })
+            .await?;
+        td.shutdown().await?;
+    }
+
+    {
+        let bridge = td.bridge_full().await?;
+        wait_for_federation_loading(bridge, &federation_id).await?;
+        let info = joined_federation_info(bridge, &federation_id).await?;
+        assert_eq!(
+            info.network,
+            Some(bitcoin::Network::Regtest),
+            "loading backfills the federation's network"
+        );
+        td.shutdown().await?;
+    }
+
+    {
+        let bridge = td.bridge_full().await?;
+        devimint::util::poll("waiting for the served fee schedule", || async {
+            let info = joined_federation_info(bridge, &federation_id)
+                .await
+                .map_err(ControlFlow::Break)?;
+            if info.fedi_fee_schedule == served {
+                Ok(())
+            } else {
+                Err(ControlFlow::Continue(anyhow!(
+                    "the federation still runs the default fee schedule"
+                )))
+            }
+        })
+        .await?;
+    }
+    Ok(())
+}
+
+async fn joined_federation_info(
+    bridge: &BridgeFull,
+    federation_id: &str,
+) -> anyhow::Result<FederationInfo> {
+    bridge
+        .runtime
+        .app_state
+        .with_read_lock(|state| state.joined_federations.get(federation_id).cloned())
+        .await
+        .context("joined federation must be in app state")
 }
 
 async fn wait_for_federation_loading(
@@ -1472,12 +1562,7 @@ async fn wait_for_ecash_reissue(federation: &FederationV2) -> Result<(), anyhow:
 }
 
 async fn federation_db_prefix(bridge: &BridgeFull, federation_id: &str) -> anyhow::Result<Vec<u8>> {
-    let federation_info = bridge
-        .runtime
-        .app_state
-        .with_read_lock(|state| state.joined_federations.get(federation_id).cloned())
-        .await
-        .context("joined federation must be in app state")?;
+    let federation_info = joined_federation_info(bridge, federation_id).await?;
     let DatabaseInfo::DatabasePrefix(prefix) = federation_info.database else {
         bail!("test federations live under a db prefix");
     };

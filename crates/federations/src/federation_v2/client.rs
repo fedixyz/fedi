@@ -1,3 +1,4 @@
+use bitcoin::Network;
 use fedimint_client::{Client, ClientModuleInstance};
 use fedimint_ln_client::LightningClientModule;
 use fedimint_lnv2_client::LightningClientModule as LightningV2ClientModule;
@@ -20,6 +21,9 @@ pub trait ClientExt {
 
     /// Attempt to get the first wallet v2 client module instance.
     fn walletv2(&self) -> anyhow::Result<ClientModuleInstance<'_, WalletV2ClientModule>>;
+
+    /// The bitcoin network from whichever wallet module the federation has.
+    fn network(&self) -> Option<Network>;
 
     /// Attempt to get the first stability pool client module instance.
     fn sp(&self) -> anyhow::Result<ClientModuleInstance<'_, StabilityPoolClientModule>>;
@@ -51,6 +55,13 @@ impl ClientExt for Client {
 
     fn walletv2(&self) -> anyhow::Result<ClientModuleInstance<'_, WalletV2ClientModule>> {
         self.get_first_module::<WalletV2ClientModule>()
+    }
+
+    fn network(&self) -> Option<Network> {
+        self.wallet()
+            .map(|wallet| wallet.get_network())
+            .or_else(|_| self.walletv2().map(|wallet| wallet.get_network()))
+            .ok()
     }
 
     fn sp(&self) -> anyhow::Result<ClientModuleInstance<'_, StabilityPoolClientModule>> {

@@ -1210,7 +1210,7 @@ impl FederationV2 {
                 .join(federation_db.clone(), client_secret)
                 .await?
         };
-        let network = client.wallet().ok().map(|wallet| wallet.get_network());
+        let network = client.network();
         let this = Self::new(
             runtime.clone(),
             client,
@@ -5229,7 +5229,7 @@ async fn maybe_backfill_federation_network(
     federation_id: FederationId,
     client: &ClientHandle,
 ) {
-    if let Ok(network) = client.wallet().map(|wallet| wallet.get_network()) {
+    if let Some(network) = client.network() {
         let network_backfill_res = runtime
             .app_state
             .with_write_lock(|state| {
