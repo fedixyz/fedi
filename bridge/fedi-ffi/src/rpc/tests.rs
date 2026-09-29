@@ -89,6 +89,7 @@ fn raw_fi_rpc_allowlist_excludes_formation_orchestration() {
             "fiClientPreviewReplacements",
             "fiClientPreviewSelection",
             "fiClientRegisterPushInstallation",
+            "fiClientRestartDkg",
             "fiClientResume",
             "fiClientScheduleReset",
             "fiClientSetGuardianFee",

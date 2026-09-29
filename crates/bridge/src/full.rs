@@ -376,6 +376,13 @@ impl BridgeFull {
         }
     }
 
+    pub async fn fi_restart_dkg(&self) -> RpcFiOperationResult {
+        match &self.fi_driver {
+            Some(driver) => driver.restart_dkg().await,
+            None => self.fi_initialization_failure(),
+        }
+    }
+
     pub async fn fi_schedule_reset(&self) -> RpcFiOperationResult {
         match self.runtime.schedule_fi_client_reset().await {
             Ok(()) => RpcFiOperationResult::Success,

@@ -2029,10 +2029,13 @@ impl FiDriverBackend for TestDriverBackend {
 
     async fn execute(
         &self,
-        _operation: FiDriverOperation,
+        operation: FiDriverOperation,
         _liquidity_connector: &BridgeLiquidityConnector,
     ) -> FiDriverResponse {
         self.calls.fetch_add(1, AtomicOrdering::SeqCst);
+        if matches!(operation, FiDriverOperation::RestartDkg) {
+            return FiDriverResponse::Formation(RpcFiOperationResult::Success);
+        }
         let mut guard = TestExecutionGuard {
             cancelled: &self.cancelled_in_flight,
             completed: false,
@@ -2320,6 +2323,104 @@ async fn production_supervisor_reconciles_nonterminal_and_formed_unsynced_restar
         FormationFreshness::Unsynced,
     ))
     .await;
+}
+
+async fn start_blocked_resume(
+    status: FiStatus,
+) -> (
+    FiCommandSender,
+    Arc<FormationLocalState>,
+    Arc<TestDriverBackend>,
+    TaskGroup,
+) {
+    let (sender, receiver) = mpsc::channel(FI_DRIVER_QUEUE_CAPACITY);
+    let operation_active = Arc::new(AtomicBool::new(false));
+    let driver = FiCommandSender {
+        sender,
+        operation_active: operation_active.clone(),
+    };
+    let formation_state = test_formation_local_state();
+    let backend = Arc::new(TestDriverBackend::new(status, None, true));
+    let task_group = TaskGroup::new();
+    task_group.spawn_cancellable("FI DKG restart supervisor test", {
+        let backend = backend.clone();
+        let formation_state = formation_state.clone();
+        async move {
+            run_supervised_driver_loop(
+                backend,
+                Arc::new(BridgeLiquidityConnector::default()),
+                formation_state,
+                receiver,
+                operation_active,
+            )
+            .await;
+        }
+    });
+    tokio::time::timeout(Duration::from_secs(2), backend.started.notified())
+        .await
+        .expect("the background resume starts");
+    (driver, formation_state, backend, task_group)
+}
+
+#[tokio::test]
+async fn dkg_restart_cancels_a_background_resume_waiting_on_dkg() {
+    let (driver, formation_state, backend, task_group) = start_blocked_resume(test_formation(
+        FormationPhase::DkgUnderway,
+        FormationFreshness::Fresh,
+    ))
+    .await;
+
+    assert_eq!(
+        tokio::time::timeout(
+            Duration::from_secs(4),
+            driver.request_restart_dkg(&formation_state.dkg_restart_requested),
+        )
+        .await
+        .expect("the restart does not wait for the resume run to time out"),
+        RpcFiOperationResult::Success
+    );
+    assert!(backend.cancelled_in_flight.load(AtomicOrdering::SeqCst));
+    assert_eq!(backend.calls.load(AtomicOrdering::SeqCst), 2);
+
+    drop(driver);
+    task_group
+        .shutdown_join_all(Duration::from_secs(2))
+        .await
+        .expect("the restart supervisor shuts down");
+}
+
+#[tokio::test]
+async fn dkg_restart_leaves_a_resume_outside_dkg_running() {
+    let (driver, formation_state, backend, task_group) = start_blocked_resume(test_formation(
+        FormationPhase::AcquiringSeats,
+        FormationFreshness::Fresh,
+    ))
+    .await;
+
+    assert_eq!(
+        tokio::time::timeout(
+            Duration::from_secs(4),
+            driver.request_restart_dkg(&formation_state.dkg_restart_requested),
+        )
+        .await
+        .expect("the restart gives up while the resume keeps its claim"),
+        operation_error_result(
+            RpcFiErrorCode::Busy,
+            "An FI operation is already in progress",
+        )
+    );
+    assert!(!backend.cancelled_in_flight.load(AtomicOrdering::SeqCst));
+    assert_eq!(backend.calls.load(AtomicOrdering::SeqCst), 1);
+
+    backend.release.notify_one();
+    tokio::time::timeout(Duration::from_secs(2), backend.completed.notified())
+        .await
+        .expect("the resume finishes on its own");
+    drop(driver);
+    task_group
+        .shutdown_join_all(Duration::from_secs(2))
+        .await
+        .expect("the restart supervisor shuts down");
 }
 
 struct LiquidityResponseBackend {

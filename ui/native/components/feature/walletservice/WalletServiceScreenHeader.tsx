@@ -42,13 +42,22 @@ export const WalletServiceScreenHeader: React.FC<{
      * heading green, which is the screen's business, not this component's.
      */
     titleStyle?: TextStyle
+    onTitlePress?: () => void
     /** Zero-based step. Omit to hide the dots entirely. */
     step?: number
     backButton?: boolean
     onBackButtonPress?: () => void
     /** The screen's single notification slot. */
     children?: React.ReactNode
-}> = ({ title, titleStyle, step, backButton, onBackButtonPress, children }) => {
+}> = ({
+    title,
+    titleStyle,
+    onTitlePress,
+    step,
+    backButton,
+    onBackButtonPress,
+    children,
+}) => {
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
     const style = styles(theme)
@@ -87,7 +96,9 @@ export const WalletServiceScreenHeader: React.FC<{
                     },
                 ]}>
                 <Column gap="lg">
-                    <ScreenTitle style={titleStyle}>{title}</ScreenTitle>
+                    <ScreenTitle style={titleStyle} onPress={onTitlePress}>
+                        {title}
+                    </ScreenTitle>
                     {children}
                 </Column>
             </SafeAreaContainer>

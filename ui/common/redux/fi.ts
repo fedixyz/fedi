@@ -853,6 +853,22 @@ export const resumeWalletService = createAsyncThunk<
     }
 })
 
+export const restartWalletServiceDkg = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge },
+    { state: CommonState; rejectValue: RpcFiOperationError }
+>(
+    'fi/restartWalletServiceDkg',
+    async ({ fedimint }, { getState, rejectWithValue }) => {
+        log.info('restartWalletServiceDkg requested', fiLogContext(getState()))
+        const result = await fedimint.fiClientRestartDkg()
+        if (result.type === 'error') {
+            log.error('restartWalletServiceDkg', result.error)
+            return rejectWithValue(result.error)
+        }
+    },
+)
+
 /*** Selectors ***/
 
 /**
@@ -873,6 +889,11 @@ export const selectIsWalletServiceCreationReleased = (s: CommonState) =>
 export const selectIsWalletServiceCreationEnabled = (s: CommonState) =>
     selectIsWalletServiceCreationReleased(s) ||
     selectManifoldCreationOverrideEnabled(s)
+
+// Requiring the creation flag here would hide the offer from users who
+// unlocked creation with the tap override.
+export const selectIsWalletServiceDkgRestartEnabled = (s: CommonState) =>
+    Boolean(selectFeatureFlag(s, 'wallet_service_dkg_restart'))
 
 export const selectFiStatus = (s: CommonState) => s.fi.status
 
@@ -937,6 +958,17 @@ export const selectWalletServiceEligiblePayerIds = createSelector(
 
 export const selectFiFormation = (s: CommonState) =>
     s.fi.status?.type === 'formation' ? s.fi.status.formation : null
+
+export const selectIsWalletServiceWaitingOnDkg = (s: CommonState) => {
+    const formation = selectFiFormation(s)
+    return (
+        formation !== null &&
+        (formation.phase === 'preparingDkg' ||
+            formation.phase === 'dkgUnderway') &&
+        formation.actionRequired === null &&
+        formation.seats.every(seat => seat.guardianCode !== null)
+    )
+}
 
 export const selectWalletServiceFormationId = (s: CommonState) => {
     const status = selectFiStatus(s)

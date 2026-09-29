@@ -92,6 +92,10 @@ pub struct RemoteFeatures {
     /// cached/older payload that omits the field.
     #[serde(default)]
     pub mini_app_seed: bool,
+    /// `#[serde(default)]` so the new bridge stays deserializable against any
+    /// cached/older payload that omits the field.
+    #[serde(default)]
+    pub wallet_service_dkg_restart: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -193,6 +197,10 @@ pub struct FeatureCatalog {
     /// switch for future requests; it cannot revoke seeds that already left
     /// the app.
     pub mini_app_seed: Option<MiniAppSeedFeatureConfig>,
+
+    /// Gates the offer to restart a stuck DKG on the wallet service setup
+    /// progress screen.
+    pub wallet_service_dkg_restart: Option<WalletServiceDkgRestartFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -339,6 +347,10 @@ pub struct MiniAppSeedFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct WalletServiceDkgRestartFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -405,6 +417,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.wallet_service_dkg_restart = if remote_features.wallet_service_dkg_restart {
+            Some(WalletServiceDkgRestartFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -452,6 +469,7 @@ impl FeatureCatalog {
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
+            wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -512,6 +530,7 @@ impl FeatureCatalog {
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
+            wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -570,6 +589,7 @@ impl FeatureCatalog {
             personal_backup_reminder: Some(PersonalBackupReminderFeatureConfig {}),
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
+            wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -632,6 +652,7 @@ impl FeatureCatalog {
             personal_backup_reminder: None,
             wallet_service_creation: None,
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
+            wallet_service_dkg_restart: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -747,5 +768,6 @@ mod tests {
         assert!(!remote_features.personal_backup_reminder);
         assert!(!remote_features.wallet_service_creation);
         assert!(!remote_features.mini_app_seed);
+        assert!(!remote_features.wallet_service_dkg_restart);
     }
 }

@@ -26,6 +26,7 @@ import {
     selectIsWalletServiceFormed,
     selectIsWalletServiceMaintenanceReady,
     selectIsWalletServiceUsable,
+    selectIsWalletServiceWaitingOnDkg,
     selectIsWalletServiceWalletReady,
     selectWalletServiceCreationProgress,
     selectWalletServiceFormationId,
@@ -1929,6 +1930,55 @@ describe('common/redux/fi › selectWalletServiceGuardianProgress', () => {
             total: 4,
         })
     })
+})
+
+describe('common/redux/fi › selectIsWalletServiceWaitingOnDkg', () => {
+    const seatWithCode = (index: number, guardianCode: string | null) => ({
+        index,
+        fmanId: null,
+        fmanName: null,
+        locator: `locator-${index}`,
+        seatId: `seat-${index}`,
+        guardianCode,
+        phase: 'guardianCodeReady' as const,
+        freshness: 'fresh' as const,
+    })
+    const ready = [seatWithCode(0, 'code-0'), seatWithCode(1, 'code-1')]
+
+    it.each([
+        ['preparing DKG', true, { phase: 'preparingDkg', seats: ready }],
+        ['running DKG', true, { phase: 'dkgUnderway', seats: ready }],
+        ['acquiring seats', false, { phase: 'acquiringSeats', seats: ready }],
+        ['past DKG', false, { phase: 'dkgComplete', seats: ready }],
+        [
+            'missing a guardian code',
+            false,
+            {
+                phase: 'preparingDkg',
+                seats: [seatWithCode(0, 'code-0'), seatWithCode(1, null)],
+            },
+        ],
+        [
+            'parked on a decision',
+            false,
+            {
+                phase: 'preparingDkg',
+                seats: ready,
+                actionRequired: makeActionRequired(),
+            },
+        ],
+    ] as const)(
+        'should treat a formation %s as waiting on DKG: %s',
+        (_, expected, overrides) => {
+            const store = buildFormationStore(
+                overrides as Partial<RpcFiFormationSnapshot>,
+            )
+
+            expect(selectIsWalletServiceWaitingOnDkg(store.getState())).toBe(
+                expected,
+            )
+        },
+    )
 })
 
 describe('common/redux/fi › selectWalletServicePaymentShortfall', () => {

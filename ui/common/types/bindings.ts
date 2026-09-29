@@ -250,6 +250,11 @@ export type FeatureCatalog = {
    */
   mini_app_seed: MiniAppSeedFeatureConfig | null;
   /**
+   * Gates the offer to restart a stuck DKG on the wallet service setup
+   * progress screen.
+   */
+  wallet_service_dkg_restart: WalletServiceDkgRestartFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -537,6 +542,11 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   miniAppSeed: boolean;
+  /**
+   * `#[serde(default)]` so the new bridge stays deserializable against any
+   * cached/older payload that omits the field.
+   */
+  walletServiceDkgRestart: boolean;
 };
 
 export type RpcAccountId = string;
@@ -1551,6 +1561,7 @@ export type RpcMethods = {
   fiClientResume: [fiClientResume, RpcFiOperationResult];
   fiClientAbandon: [fiClientAbandon, RpcFiOperationResult];
   fiClientDecommission: [fiClientDecommission, RpcFiDecommissionResult];
+  fiClientRestartDkg: [fiClientRestartDkg, RpcFiOperationResult];
   fiClientScheduleReset: [fiClientScheduleReset, RpcFiOperationResult];
   fiClientLiquidityDiscover: [
     fiClientLiquidityDiscover,
@@ -2751,6 +2762,8 @@ export type VectorDiff<T> =
 
 export type WalletServiceCreationFeatureConfig = Record<string, never>;
 
+export type WalletServiceDkgRestartFeatureConfig = Record<string, never>;
+
 /**
  * Withdrawal request with extra data accumulated over events.
  */
@@ -2880,6 +2893,8 @@ export type fiClientRegisterPushInstallation = {
   fcmToken: string;
   platform: RpcFiPushPlatform;
 };
+
+export type fiClientRestartDkg = {};
 
 export type fiClientResume = {};
 

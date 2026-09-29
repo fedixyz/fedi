@@ -22,6 +22,7 @@ import {
     getWalletServiceErrorKey,
     getWalletServiceRetryableError,
     isTerminalWalletServiceError,
+    restartWalletServiceDkg,
     selectFiClientError,
     selectFiFederationJoinFailure,
     selectFiLastErrorCode,
@@ -29,7 +30,9 @@ import {
     selectFiReplacementRequirements,
     selectFiStatus,
     selectFederationBalance,
+    selectIsWalletServiceDkgRestartEnabled,
     selectIsWalletServiceFormed,
+    selectIsWalletServiceWaitingOnDkg,
     selectLoadedFederation,
     selectWalletServiceCreationProgress,
     selectWalletServiceGuardianProgress,
@@ -41,6 +44,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { MilestoneRow } from '../components/feature/walletservice/MilestoneRow'
 import { RecoveryProgress } from '../components/feature/walletservice/RecoveryProgress'
+import { ServiceSheet } from '../components/feature/walletservice/ServiceSheet'
 import TopUpSheet from '../components/feature/walletservice/TopUpSheet'
 import { WalletServiceScreenHeader } from '../components/feature/walletservice/WalletServiceScreenHeader'
 import ConfettiBurst from '../components/ui/ConfettiBurst'
@@ -87,6 +91,8 @@ const ERROR_DAMPING = {
 }
 
 const RECOVERY_LONG_WAIT_MS = 60_000
+
+const RESTART_TAP_COUNT = 21
 
 const STAGES = [
     {
@@ -153,6 +159,13 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
     )
     const guardianProgress = useAppSelector(selectWalletServiceGuardianProgress)
     const clientError = useAppSelector(selectFiClientError)
+    const isDkgRestartEnabled = useAppSelector(
+        selectIsWalletServiceDkgRestartEnabled,
+    )
+    const isWaitingOnDkg = useAppSelector(selectIsWalletServiceWaitingOnDkg)
+    const [titleTapCount, setTitleTapCount] = useState(0)
+    const [showRestartSheet, setShowRestartSheet] = useState(false)
+    const [isRestarting, setIsRestarting] = useState(false)
     const [isAuthorizing, setIsAuthorizing] = useState(false)
     const [showTopUp, setShowTopUp] = useState(false)
     const [showConfetti, setShowConfetti] = useState(false)
@@ -338,6 +351,34 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
             setIsAuthorizing(false)
         }
     }, [dispatch, fedimint, paymentRequirements, toast, t])
+
+    const handleTitlePress = () => {
+        if (isWaitingOnDkg) setTitleTapCount(count => count + 1)
+    }
+
+    const handleRestartDkg = useCallback(async () => {
+        setIsRestarting(true)
+        try {
+            await dispatch(restartWalletServiceDkg({ fedimint })).unwrap()
+            toast.show({
+                content: t('feature.wallet-service.restart-sent'),
+                status: 'success',
+            })
+            setShowRestartSheet(false)
+            setTitleTapCount(0)
+        } catch (error) {
+            log.error('restartWalletServiceDkg', error)
+            toast.show({
+                content: getWalletServiceRetryableError(
+                    t,
+                    (error as RpcFiOperationError | undefined)?.code,
+                ),
+                status: 'error',
+            })
+        } finally {
+            setIsRestarting(false)
+        }
+    }, [dispatch, fedimint, toast, t])
 
     const style = styles(theme)
 
@@ -546,7 +587,10 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
                         : 'feature.wallet-service.progress-title',
                 )}
                 // the heading turns green on success, alongside the ready mark
-                titleStyle={isComplete ? style.titleReady : undefined}>
+                titleStyle={isComplete ? style.titleReady : undefined}
+                onTitlePress={
+                    isDkgRestartEnabled ? handleTitlePress : undefined
+                }>
                 {messageBanner}
             </WalletServiceScreenHeader>
             <SafeScrollArea edges="notop" padding="lg">
@@ -597,6 +641,22 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
                             </Text>
                         </Row>
                     )}
+
+                    {isDkgRestartEnabled &&
+                        isWaitingOnDkg &&
+                        titleTapCount >= RESTART_TAP_COUNT &&
+                        !clientError &&
+                        !isTerminalError && (
+                            <Text
+                                caption
+                                center
+                                color={theme.colors.darkGrey}
+                                style={style.restartHint}
+                                testID="restart-dkg-hint"
+                                onPress={() => setShowRestartSheet(true)}>
+                                {t('feature.wallet-service.restart-hint')}
+                            </Text>
+                        )}
                 </Column>
             </SafeScrollArea>
 
@@ -664,6 +724,27 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
                     payerFederationName={shortfallFederation.name}
                 />
             )}
+
+            <ServiceSheet
+                show={showRestartSheet}
+                loading={isRestarting}
+                onDismiss={() => setShowRestartSheet(false)}
+                title={t('feature.wallet-service.restart-title')}
+                description={t('feature.wallet-service.restart-body')}
+                buttons={[
+                    {
+                        text: t('feature.wallet-service.restart-button'),
+                        primary: true,
+                        testID: 'restart-dkg-button',
+                        onPress: handleRestartDkg,
+                    },
+                    {
+                        text: t('feature.wallet-service.restart-keep-waiting'),
+                        testID: 'restart-dkg-keep-waiting',
+                        onPress: () => setShowRestartSheet(false),
+                    },
+                ]}
+            />
         </>
     )
 }
@@ -692,6 +773,9 @@ const styles = (theme: Theme) =>
             color: WARNING_BANNER_AMBER,
             fontSize: fediTheme.fontSizes.caption,
             lineHeight: 20,
+        },
+        restartHint: {
+            textDecorationLine: 'underline',
         },
         readyMark: {
             alignItems: 'center',

@@ -15,11 +15,15 @@ export const ScreenTitle: React.FC<{
     children: React.ReactNode
     style?: TextStyle
     testID?: string
-}> = ({ children, style, testID }) => {
+    onPress?: () => void
+}> = ({ children, style, testID, onPress }) => {
     const { theme } = useTheme()
 
     return (
-        <Text testID={testID} style={[styles(theme).title, style]}>
+        <Text
+            testID={testID}
+            style={[styles(theme).title, style]}
+            onPress={onPress}>
             {children}
         </Text>
     )

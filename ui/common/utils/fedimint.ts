@@ -189,6 +189,10 @@ export class FedimintBridge {
         return this.rpcTyped('fiClientDecommission', {})
     }
 
+    async fiClientRestartDkg() {
+        return this.rpcTyped('fiClientRestartDkg', {})
+    }
+
     /** Wipe all local FI protocol state when an internal build next starts. */
     async fiClientScheduleReset() {
         return this.rpcTyped('fiClientScheduleReset', {})

@@ -1553,6 +1553,11 @@ async fn fiClientDecommission(bridge: &BridgeFull) -> anyhow::Result<RpcFiDecomm
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn fiClientRestartDkg(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
+    Ok(bridge.fi_restart_dkg().await)
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn fiClientScheduleReset(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
     Ok(bridge.fi_schedule_reset().await)
 }
@@ -2847,6 +2852,7 @@ rpc_methods!(RpcMethods {
     fiClientResume,
     fiClientAbandon,
     fiClientDecommission,
+    fiClientRestartDkg,
     fiClientScheduleReset,
     fiClientLiquidityDiscover,
     fiClientLiquidityStart,

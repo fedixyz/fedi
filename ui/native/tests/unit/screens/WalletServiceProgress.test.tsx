@@ -2,6 +2,7 @@ import { Button } from '@rneui/themed'
 import {
     act,
     cleanup,
+    fireEvent,
     screen,
     userEvent,
     waitFor,
@@ -10,10 +11,12 @@ import {
 import React from 'react'
 
 import {
+    setFeatureFlags,
     setFederations,
     setFiClientStatus,
     setFiFederationJoin,
     setFiStatus,
+    setManifoldCreationOverrideEnabled,
     setupStore,
     upsertFederation,
 } from '@fedi/common/redux'
@@ -21,6 +24,7 @@ import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { MSats } from '@fedi/common/types'
 import {
+    FeatureCatalog,
     RpcFiFormationSnapshot,
     RpcFiOperationError,
     RpcFiSeatProgress,
@@ -41,6 +45,13 @@ import { renderWithProviders } from '../../utils/render'
 const mockLaunchZendesk = jest.fn()
 jest.mock('../../../utils/hooks/support', () => ({
     useLaunchZendesk: () => ({ launchZendesk: mockLaunchZendesk }),
+}))
+
+// the react-native jest preset sets `__DEV__`, which forces the creation flag
+// on. Pinning `isDev` to false keeps the creation override the only way in.
+jest.mock('@fedi/common/utils/environment', () => ({
+    ...jest.requireActual('@fedi/common/utils/environment'),
+    isDev: jest.fn(() => false),
 }))
 
 const WS_FED = 'ws-federation-1'
@@ -92,6 +103,9 @@ const renderProgress = ({
     clientError = null,
     status,
     joinFailedBeforeMount = false,
+    bridgeMethods = {},
+    featureFlags = {},
+    manifoldCreationOverride = false,
 }: {
     formation?: RpcFiFormationSnapshot
     clientError?: RpcFiOperationError | null
@@ -102,10 +116,14 @@ const renderProgress = ({
      * bridge's retained report.
      */
     joinFailedBeforeMount?: boolean
+    bridgeMethods?: Parameters<typeof createMockFedimintBridge>[0]
+    featureFlags?: Partial<FeatureCatalog>
+    manifoldCreationOverride?: boolean
 } = {}) => {
     const user = userEvent.setup()
     const fedimint = createMockFedimintBridge({
         parseInviteCode: async () => ({ federationId: WS_FED }),
+        ...bridgeMethods,
     })
     const store = setupStore({
         fi: {
@@ -132,6 +150,8 @@ const renderProgress = ({
     // snapshot arrives this way, and it is the reducer that records how far
     // the formation has got. A client error arrives on the same stream, after
     // the status, which is why it cannot simply be preloaded either.
+    store.dispatch(setFeatureFlags(featureFlags as FeatureCatalog))
+    store.dispatch(setManifoldCreationOverrideEnabled(manifoldCreationOverride))
     store.dispatch(setFiStatus(status ?? { type: 'formation', formation }))
     if (clientError)
         store.dispatch(
@@ -614,6 +634,114 @@ describe('WalletServiceProgress screen', () => {
                 ),
             ).toBeOnTheScreen()
             expect(screen.queryByTestId('reconnecting-note')).toBeNull()
+        })
+    })
+
+    describe('restart DKG offer', () => {
+        const dkgRestartOn = { wallet_service_dkg_restart: {} }
+
+        const waitingOnDkg = makeFormation({
+            phase: 'preparingDkg',
+            seats: [0, 1].map(index => ({
+                index,
+                fmanId: `fman-${index}`,
+                fmanName: `seat ${index}`,
+                locator: `{"fman":${index}}`,
+                seatId: `seat-${index}`,
+                guardianCode: `code-${index}`,
+                phase: 'guardianCodeReady' as const,
+                freshness: 'fresh' as const,
+            })),
+            milestones: {
+                ecashSent: true,
+                guardiansConfirmed: true,
+                walletServiceCreated: false,
+            },
+        })
+
+        const restarted = {
+            fiClientRestartDkg: () => Promise.resolve({ type: 'success' }),
+        }
+
+        const tapTitle = (times: number) => {
+            const title = screen.getByText(
+                i18n.t('feature.wallet-service.progress-title'),
+            )
+            for (let tap = 0; tap < times; tap++) fireEvent.press(title)
+        }
+
+        it('should offer a restart only after 21 taps on the title while waiting on DKG', () => {
+            renderProgress({
+                formation: waitingOnDkg,
+                featureFlags: dkgRestartOn,
+            })
+
+            tapTitle(20)
+            expect(screen.queryByTestId('restart-dkg-hint')).toBeNull()
+
+            tapTitle(1)
+            expect(screen.getByTestId('restart-dkg-hint')).toHaveTextContent(
+                i18n.t('feature.wallet-service.restart-hint'),
+            )
+        })
+
+        it('should never offer a restart before DKG', () => {
+            renderProgress({
+                formation: makeFormation({ phase: 'acquiringSeats' }),
+                featureFlags: dkgRestartOn,
+            })
+
+            tapTitle(21)
+
+            expect(screen.queryByTestId('restart-dkg-hint')).toBeNull()
+        })
+
+        it('should never offer a restart while its flag is off', () => {
+            renderProgress({
+                formation: waitingOnDkg,
+                featureFlags: { wallet_service_creation: {} },
+            })
+
+            tapTitle(21)
+
+            expect(screen.queryByTestId('restart-dkg-hint')).toBeNull()
+        })
+
+        it('should offer a restart to a user who unlocked creation with the tap override', () => {
+            renderProgress({
+                formation: waitingOnDkg,
+                featureFlags: dkgRestartOn,
+                manifoldCreationOverride: true,
+            })
+
+            tapTitle(21)
+
+            expect(screen.getByTestId('restart-dkg-hint')).toBeOnTheScreen()
+        })
+
+        it('should restart DKG from the sheet and need another 21 taps to offer it again', async () => {
+            const { fedimint } = renderProgress({
+                formation: waitingOnDkg,
+                bridgeMethods: restarted,
+                featureFlags: dkgRestartOn,
+            })
+            tapTitle(21)
+
+            fireEvent.press(screen.getByTestId('restart-dkg-hint'))
+            expect(
+                screen.getByText(i18n.t('feature.wallet-service.restart-body')),
+            ).toBeOnTheScreen()
+            fireEvent.press(screen.getByTestId('restart-dkg-button'))
+
+            await waitFor(() =>
+                expect(fedimint.fiClientRestartDkg).toHaveBeenCalledTimes(1),
+            )
+            await waitFor(() =>
+                expect(screen.queryByTestId('restart-dkg-hint')).toBeNull(),
+            )
+
+            tapTitle(21)
+            expect(screen.getByTestId('restart-dkg-hint')).toBeOnTheScreen()
         })
     })
 

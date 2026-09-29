@@ -578,6 +578,8 @@ export class FiSimulator implements FiWorld {
                 return this.resume()
             case 'fiClientAbandon':
                 return this.abandon()
+            case 'fiClientRestartDkg':
+                return this.restartDkg()
             case 'fiClientAuthorizeReplacementPayments':
                 return this.authorizePayments(payload.authorizationId as string)
             case 'fiClientPreviewReplacements':
@@ -1274,6 +1276,17 @@ export class FiSimulator implements FiWorld {
             }
         }
         this.reset()
+        return { type: 'success' }
+    }
+
+    private restartDkg(): RpcFiOperationResult {
+        const phase = this.currentFormation()?.phase
+        if (phase !== 'preparingDkg' && phase !== 'dkgUnderway') {
+            return {
+                type: 'error',
+                error: error('noActiveFormation', 'no DKG to restart'),
+            }
+        }
         return { type: 'success' }
     }
 

@@ -29,7 +29,7 @@ use fedi_decentralized_peer_badge_verifier::PeerBadgeVerifier;
 use fedi_decentralized_service_fleet_manager::{
     DkgCompletionCallback, FLEET_MANAGER_ALPN, FederationId, FleetManagerError,
     FleetManagerServiceClient, GetAvailabilityRequest, GetAvailabilityResponse, GetQuoteRequest,
-    GetQuoteResponse, InviteCode, Locator, SignedResponse,
+    GetQuoteResponse, InviteCode, Locator, ServiceStatus, SignedResponse,
 };
 use fedi_decentralized_service_liquidity_manager::{
     AllocationItemStatus, AllocationItemTarget, BitcoinNetwork, CompletionEvidence,
@@ -57,16 +57,17 @@ use fedimint_derive_secret::DerivableSecret;
 #[cfg(test)]
 use fi_client::FiId;
 use fi_client::{
-    AbandonUnavailableReason, FI_LIQUIDITY_OPERATION_PAGE_MAX, FederationConsensusError,
-    FederationConsensusReader, FederationConsensusSnapshot, FederationMetadataUpdate,
-    FederationName, FederationSize, FedimintFederationId, FedimintdVersion, FedimintdVersionRange,
-    FiClient, FiError, FiErrorCode, FiFeeAccountError, FiFeeAccountProvider, FiIdentity, FiResult,
-    FiStatus, FleetManagerCallError, FleetManagerConnector, FleetManagerConnectorError,
-    FmanDiscoveryOptions, FmanReplacementApproval, FmanReplacementPreview, FmanSelectionApproval,
-    FmanSelectionPreview, FmanSelectionRequest, FormationActionRequired, FormationFreshness,
-    FormationId, FormationIntent, FormationPhase, FormationRunOptions, FormationSnapshot,
-    GatewayApiUrl, GuardianFeeAccount, GuardianFeePpm, GuardianReplacementRequirements,
-    LiquidityDiscovery, LiquidityOperationId, LiquidityOperationPage, LiquidityOperationPhase,
+    AbandonUnavailableReason, DkgRestartResult, FI_LIQUIDITY_OPERATION_PAGE_MAX,
+    FederationConsensusError, FederationConsensusReader, FederationConsensusSnapshot,
+    FederationMetadataUpdate, FederationName, FederationSize, FedimintFederationId,
+    FedimintdVersion, FedimintdVersionRange, FiClient, FiError, FiErrorCode, FiFeeAccountError,
+    FiFeeAccountProvider, FiIdentity, FiResult, FiStatus, FleetManagerCallError,
+    FleetManagerConnector, FleetManagerConnectorError, FmanDiscoveryOptions,
+    FmanReplacementApproval, FmanReplacementPreview, FmanSelectionApproval, FmanSelectionPreview,
+    FmanSelectionRequest, FormationActionRequired, FormationFreshness, FormationId,
+    FormationIntent, FormationPhase, FormationRunOptions, FormationSnapshot, GatewayApiUrl,
+    GuardianFeeAccount, GuardianFeePpm, GuardianReplacementRequirements, LiquidityDiscovery,
+    LiquidityOperationId, LiquidityOperationPage, LiquidityOperationPhase,
     LiquidityOperationSnapshot, LiquidityProviderConnector, LiquidityProviderConnectorError,
     LiquidityRequestIntent, MAX_GUARDIAN_FEE_PPM, MaintenanceRunOptions, PaymentAuthorizationId,
     PlanPreference, ResolvedFormationIntent, RestoredFormationSnapshot, SeatPhase,
@@ -104,7 +105,7 @@ use runtime::constants::FI_CLIENT_CHILD_ID;
 use runtime::db::{FederationPendingRejoinFromScratchKeyPrefix, FiFederationAutoJoinCompletedKey};
 use runtime::features::FiManifoldEnvironment;
 use sp_transfer::services::SptServices;
-use tokio::sync::{Mutex, OnceCell, OwnedMutexGuard, mpsc, oneshot, watch};
+use tokio::sync::{Mutex, Notify, OnceCell, OwnedMutexGuard, mpsc, oneshot, watch};
 use tokio_stream::wrappers::WatchStream;
 
 use crate::fi_payments::BridgeFiPayments;
@@ -129,6 +130,8 @@ const FEDIMINTD_MINIMUM: &str = "0.11.2";
 const FEDIMINTD_MAXIMUM_EXCLUSIVE: &str = "0.14.0";
 const FI_RESUME_INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const FI_RESUME_MAX_BACKOFF: Duration = Duration::from_secs(5 * 60);
+const FI_RESTART_ATTEMPTS: u32 = 40;
+const FI_RESTART_RETRY_DELAY: Duration = Duration::from_millis(50);
 const FMAN_TRANSPORT_INITIALIZATION_ERROR: &str = "Fleet Manager transport initialization failed";
 const FMAN_CONNECTION_ERROR: &str = "Fleet Manager connection failed";
 const FMAN_CALL_ERROR: &str = "Fleet Manager call failed";
@@ -975,6 +978,7 @@ struct FormationLocalState {
     formation_push: FormationPushCoordinator,
     selection: Mutex<Option<StoredSelection>>,
     replacement: Mutex<Option<StoredReplacement>>,
+    dkg_restart_requested: Notify,
 }
 
 /// Best-effort: a missing or failing push gateway must not block formation.
@@ -1045,6 +1049,7 @@ enum FiDriverOperation {
     },
     Abandon,
     Resume,
+    RestartDkg,
     AuthorizePayments {
         authorization_id: PaymentAuthorizationId,
     },
@@ -1301,6 +1306,7 @@ impl FormationLocalState {
             formation_push: FormationPushCoordinator::new(push_gateway, environment),
             selection: Mutex::new(None),
             replacement: Mutex::new(None),
+            dkg_restart_requested: Notify::new(),
         }
     }
 
@@ -1650,6 +1656,12 @@ impl BridgeFiDriver {
         self.commands.request(FiDriverOperation::Abandon).await
     }
 
+    pub(crate) async fn restart_dkg(&self) -> RpcFiOperationResult {
+        self.commands
+            .request_restart_dkg(&self.formation_state.dkg_restart_requested)
+            .await
+    }
+
     pub(crate) async fn preview_replacements(&self) -> RpcFiReplacementPreviewResult {
         let Some(_claim) = self.commands.try_claim_operation() else {
             return RpcFiReplacementPreviewResult::Error {
@@ -1919,6 +1931,24 @@ impl FiCommandSender {
         }
     }
 
+    async fn request_restart_dkg(&self, dkg_restart_requested: &Notify) -> RpcFiOperationResult {
+        let mut attempt = 1;
+        loop {
+            dkg_restart_requested.notify_waiters();
+            let result = self.request(FiDriverOperation::RestartDkg).await;
+            // a cancelled resume releases its claim and driver lease a moment later
+            let busy = matches!(
+                &result,
+                RpcFiOperationResult::Error { error } if matches!(error.code, RpcFiErrorCode::Busy)
+            );
+            if !busy || attempt == FI_RESTART_ATTEMPTS {
+                return result;
+            }
+            attempt += 1;
+            fedimint_core::task::sleep(FI_RESTART_RETRY_DELAY).await;
+        }
+    }
+
     async fn request_liquidity(
         &self,
         operation: FiDriverOperation,
@@ -2175,6 +2205,9 @@ impl FiDriverBackend for FiBackend {
                 }
                 FiDriverResponse::Formation(operation_result(result))
             }
+            FiDriverOperation::RestartDkg => FiDriverResponse::Formation(restart_dkg_result(
+                self.restart_dkg(FormationRunOptions::default()).await,
+            )),
             FiDriverOperation::AuthorizePayments { authorization_id } => {
                 FiDriverResponse::Formation(operation_result(
                     self.authorize_payments(authorization_id, FormationRunOptions::default())
@@ -2237,7 +2270,8 @@ async fn run_supervised_driver_loop<B: FiDriverBackend + 'static>(
 ) {
     // Reconcile an active durable formation immediately on launch. Subsequent
     // failures use the product backoff; commands preempt only the sleep, never
-    // an in-flight wallet/network effect.
+    // an in-flight wallet/network effect. The one exception is a DKG restart,
+    // which cancels a resume that is only polling a stuck DKG.
     let mut formation_retry_delay = Duration::ZERO;
     let mut liquidity_recovery = LiquidityLaunchRecovery::new();
     loop {
@@ -2256,11 +2290,19 @@ async fn run_supervised_driver_loop<B: FiDriverBackend + 'static>(
                         continue;
                     };
                     let before = backend.status();
-                    let result = backend
-                        .execute(FiDriverOperation::Resume, &liquidity_connector)
-                        .await;
+                    let result = resume_unless_dkg_restart_requested(
+                        backend.as_ref(),
+                        &liquidity_connector,
+                        &formation_state.dkg_restart_requested,
+                    )
+                    .await;
                     let after = backend.status();
                     drop(claim);
+                    let Some(result) = result else {
+                        tracing::info!("FI formation reconciliation gave way to a DKG restart");
+                        formation_retry_delay = next_retry_delay(formation_retry_delay, true);
+                        continue;
+                    };
                     if let FiDriverResponse::Formation(RpcFiOperationResult::Error { error }) =
                         &result
                     {
@@ -2395,6 +2437,37 @@ fn should_resume_liquidity_on_launch(snapshot: &LiquidityOperationSnapshot) -> b
     }
 }
 
+/// Manifold's DKG restart takes the same run guard as resume, and a resume
+/// polling a stuck DKG holds it until its run timeout.
+async fn resume_unless_dkg_restart_requested<B: FiDriverBackend>(
+    backend: &B,
+    liquidity_connector: &BridgeLiquidityConnector,
+    dkg_restart_requested: &Notify,
+) -> Option<FiDriverResponse> {
+    let mut resume =
+        std::pin::pin!(backend.execute(FiDriverOperation::Resume, liquidity_connector));
+    loop {
+        tokio::select! {
+            biased;
+            response = &mut resume => return Some(response),
+            () = dkg_restart_requested.notified() => {
+                if is_waiting_on_dkg(&backend.status()) {
+                    return None;
+                }
+            }
+        }
+    }
+}
+
+fn is_waiting_on_dkg(status: &FiStatus) -> bool {
+    matches!(
+        status,
+        FiStatus::Formation(formation)
+            if matches!(formation.phase, FormationPhase::PreparingDkg | FormationPhase::DkgUnderway)
+                && formation.action_required.is_none()
+    )
+}
+
 fn next_retry_delay(previous: Duration, progress: bool) -> Duration {
     if progress || previous.is_zero() {
         FI_RESUME_INITIAL_BACKOFF
@@ -2476,6 +2549,18 @@ fn driver_response_is_success(response: &FiDriverResponse) -> bool {
         FiDriverResponse::Formation(RpcFiOperationResult::Success)
             | FiDriverResponse::Liquidity(RpcFiLiquidityOperationResult::Operation { .. })
     )
+}
+
+fn restart_dkg_result(result: FiResult<Vec<DkgRestartResult>>) -> RpcFiOperationResult {
+    operation_result(result.and_then(|seats| {
+        seats.into_iter().try_for_each(|seat| match seat.result? {
+            ServiceStatus::DkgInProcess | ServiceStatus::Running => Ok(()),
+            status => Err(FiError::FleetManager {
+                index: seat.index,
+                message: format!("guardian reported {status}"),
+            }),
+        })
+    }))
 }
 
 fn operation_result(result: FiResult<()>) -> RpcFiOperationResult {

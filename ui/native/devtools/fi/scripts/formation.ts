@@ -87,6 +87,12 @@ export const formationFails: FiScript = script('formation.fails', [
     checkpoint('retrying'),
 ])
 
+export const formationDkgStuck: FiScript = script('formation.dkgStuck', [
+    ...PAY_AND_CREATE_STEPS,
+    ...walk(TO_DKG),
+    checkpoint('dkgStuck'),
+])
+
 export const formationFailsTerminally: FiScript = script(
     'formation.failsTerminally',
     [
@@ -236,6 +242,7 @@ export const formationGuardianDroppedOutNoCandidates: FiScript = script(
 export const FORMATION_SCRIPTS: FiScript[] = [
     formationHappyPath,
     formationFails,
+    formationDkgStuck,
     formationFailsTerminally,
     formationReconnecting,
     formationCreatedJoinFails,

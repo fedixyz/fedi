@@ -3,6 +3,7 @@ import {
     formationAuthorizePayments,
     formationAuthorizePaymentsShort,
     formationCreatedJoinFails,
+    formationDkgStuck,
     formationFails,
     formationFailsTerminally,
     formationGuardianDroppedOut,
@@ -206,6 +207,12 @@ export const FI_SCREEN_GROUPS: FiScreenGroup[] = [
                 'Progress: DKG underway',
                 formationHappyPath,
                 'dkgUnderway',
+            ),
+            progress(
+                'formation.dkgStuck',
+                'Progress: DKG stuck',
+                formationDkgStuck,
+                'dkgStuck',
             ),
             replaceReview(
                 'formation.replaceGuardian',
