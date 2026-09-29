@@ -46,6 +46,8 @@ The Summary is not a shorter Full report, it is a higher one. It goes wrong by a
 
 **The card grids ship three layouts and default to All.** A `Layout` switch on the section heading regroups them in the browser. All is the authored order in two flat sections. Status and Platform both group into collapsible panels, with one Expand all control rather than a click per panel. Platform groups on the whole platform set, so a change that lands everywhere appears once instead of once per platform. Leave the default alone unless a release genuinely reads better grouped, and never hand-order cards to fake a grouping the switch already does.
 
+**A platform filter narrows the summary to one platform.** It renders under the lanes when the cards span two or more platforms. It hides the other track's lane, every card that does not land on the chosen platform, and any section left empty. `?platform=ios`, `?platform=android` or `?platform=web` on the report URL opens it preselected, so one report serves every release it covers. A web release links the report with `?platform=web` instead of carrying its own notes.
+
 ## Merged is the line between the two card sections
 
 **"What users will get" is a statement of fact, so everything in it is on master.** A card goes there only when the PRs behind it merged to master inside the window. Not an open PR, not a PR that is ready for review, not a milestone issue in a promising board column. The bar is deliberately higher than "has a PR": an open PR can sit for months, and this report has already been wrong once by promoting one. If it is not on master when you write the card, it is not in this section.

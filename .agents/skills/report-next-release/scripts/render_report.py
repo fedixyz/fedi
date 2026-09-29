@@ -154,6 +154,7 @@ PLATFORM_SVG = {
 }
 
 PLATFORM_JS = json.dumps({"order": list(PLATFORM_ORDER), "label": PLATFORM_LABEL})
+LANE_PLATS = {"native": "ios android", "web": "web"}
 
 LAYOUTS = (("all", "All"), ("status", "Status"), ("platform", "Platform"))
 # Every merged card has the same status, so grouping on it yields one panel.
@@ -231,7 +232,7 @@ def track_lanes(tracks):
                 strong = ' class="qe"' if field == emph else ""
                 tail = f' <span class="qn">{esc(note)}</span>' if note else ""
                 bits.append(f'<span{strong}>{esc(val)}</span>{tail}')
-            out.append(f'<div class="lane quiet"><span class="lname">{label}</span>'
+            out.append(f'<div class="lane quiet" data-plat="{LANE_PLATS[key]}"><span class="lname">{label}</span>'
                        + '<span class="qsep">&#8594;</span>'.join(bits) + '</div>')
             continue
 
@@ -242,7 +243,7 @@ def track_lanes(tracks):
             stops.append(f'<div class="{cls}"><div class="sl">{esc(stop_label)}</div>'
                          f'<div class="sv">{esc(val)}</div>{note_html}</div>')
         row = '<div class="arrow">&#8594;</div>'.join(stops)
-        out.append(f'<div class="lane"><div class="lname">{label}</div>'
+        out.append(f'<div class="lane" data-plat="{LANE_PLATS[key]}"><div class="lname">{label}</div>'
                    f'<div class="lrow">{row}</div></div>')
 
     out.append('</div>')
@@ -444,6 +445,18 @@ def layout_switch(layouts):
             '<button class="lbtn lall" hidden>Expand all</button></div>')
 
 
+def platform_filter(summary):
+    """`?platform=web` in the URL preselects a button, so a release can link its own view."""
+    cards = [it for key in ("features", "fixes", "not_merged") for it in summary.get(key) or []]
+    present = [p for p in PLATFORM_ORDER if any(p in card_platforms(it) for it in cards)]
+    if len(present) < 2:
+        return ""
+    btns = ['<button class="lbtn active" data-p="">All</button>']
+    btns += [f'<button class="lbtn" data-p="{p}">{PLATFORM_LABEL[p]}</button>' for p in present]
+    return ('<div class="lswitch pfilter" role="group" aria-label="Show changes for">'
+            '<span class="lswitch-l">Show changes for</span>' + "".join(btns) + '</div>')
+
+
 def render_summary(data):
     s = data.get("summary", {})
     budget(s.get("title"), 90, "summary.title")
@@ -453,7 +466,8 @@ def render_summary(data):
         parts.append(f'<p class="lede">{esc(s["lede"])}</p>')
     parts.append(track_lanes(data.get("tracks")))
     parts.append(backport_banner(data.get("backport")))
-    sw = layout_switch(MERGED_LAYOUTS) if (s.get("features") or s.get("fixes")) else ""
+    parts.append(platform_filter(s))
+    sw =layout_switch(MERGED_LAYOUTS) if (s.get("features") or s.get("fixes")) else ""
     merged = ['<section class="cardsec" id="merged">',
               f'<div class="h2row"><h2>What users will get</h2>{sw}</div>']
     if s.get("features"):
@@ -842,9 +856,11 @@ details summary{{cursor:pointer;color:var(--acc);font-weight:600;margin:8px 0}}
 .lswitch-l{{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-weight:700;margin-right:5px}}
 .lbtn{{appearance:none;background:var(--card2);border:1px solid var(--line);color:var(--mut);font:600 11.5px/1 inherit;padding:6px 11px;border-radius:999px;cursor:pointer}}
 .lbtn:hover{{color:var(--tx);border-color:var(--acc-bd)}}
-.lbtn.active{{color:#fff;background:var(--acc);border-color:var(--acc)}}
+.lbtn.active{{color:var(--tx);background:var(--acc-bg);border-color:var(--acc)}}
 .lall{{margin-left:10px;border-style:dashed}}
 .lall[hidden]{{display:none}}
+.pfilter{{margin:18px 0 0}}
+.tabpane [hidden]{{display:none!important}}
 details.gwrap>summary .gcount{{color:var(--acc)}}
 /* in a group summary the marks lead the label, so undo the card row's margin-left:auto */
 details.gwrap>summary>.pmarks{{margin-left:0;display:inline-flex}}
@@ -996,6 +1012,7 @@ document.querySelectorAll('.tab').forEach(function(t){{
       }});
       if (allBtn) allBtn.hidden = mode === 'all';
       syncAll();
+      if (window.rnrFilter) window.rnrFilter();
     }}
     if (allBtn) {{
       allBtn.addEventListener('click', function(){{
@@ -1022,6 +1039,46 @@ document.querySelectorAll('.tab').forEach(function(t){{
     var sec = t.closest('.cardsec');
     if (sec && sec.syncAll) sec.syncAll();
   }}, true);
+}})();
+(function(){{
+  var bar = document.querySelector('.pfilter');
+  if (!bar) return;
+  var btns = [].slice.call(bar.querySelectorAll('button[data-p]'));
+  var valid = btns.map(function(b){{ return b.dataset.p; }});
+  var current = '';
+  function has(el, p){{ return (' ' + (el.dataset.plat || '') + ' ').indexOf(' ' + p + ' ') > -1; }}
+  function apply(){{
+    var p = current;
+    btns.forEach(function(b){{ b.classList.toggle('active', b.dataset.p === p); }});
+    document.querySelectorAll('.scard, .lane[data-plat]').forEach(function(el){{
+      el.hidden = !!p && !has(el, p);
+    }});
+    document.querySelectorAll('.scards, details.gwrap, .cardsec').forEach(function(box){{
+      var all = box.querySelectorAll('.scard');
+      if (!all.length) return;
+      var n = [].filter.call(all, function(c){{ return !c.hidden; }}).length;
+      box.hidden = !n;
+      var prev = box.previousElementSibling;
+      if (prev && prev.hasAttribute('data-sub')) prev.hidden = !n;
+      var count = box.querySelector(':scope > summary .gcount, :scope > summary .cnt');
+      if (count) count.textContent = n;
+      var note = box.querySelector(':scope > summary .tknote');
+      if (note) note.hidden = !!p;
+    }});
+  }}
+  window.rnrFilter = apply;
+  btns.forEach(function(b){{
+    b.addEventListener('click', function(){{
+      current = b.dataset.p;
+      apply();
+      var u = new URL(location.href);
+      if (current) u.searchParams.set('platform', current); else u.searchParams.delete('platform');
+      history.replaceState(null, '', u);
+    }});
+  }});
+  var q = new URLSearchParams(location.search).get('platform');
+  current = valid.indexOf(q) > 0 ? q : '';
+  apply();
 }})();
 var btn = document.getElementById('themebtn');
 function paintBtn(){{ btn.textContent = document.documentElement.dataset.theme === 'dark' ? 'Light' : 'Dark'; }}
