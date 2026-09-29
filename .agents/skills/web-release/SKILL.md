@@ -9,12 +9,13 @@ Use this skill to ship web changes to production at `app.fedi.xyz`. This is what
 
 ## Mental Model
 
-Production is deployed by manually dispatching the `vercel-prod.yml` workflow against a `web/X.Y.Z` git **tag**. Two hard constraints shape the whole process:
+Production is deployed by manually dispatching the `vercel-prod.yml` workflow against a `web/X.Y.Z` git **tag**, and the tag comes from publishing a draft GitHub release of the same name. This matches the native release. The draft names the commit it ships and carries the release notes, and publishing it creates the tag. Three hard constraints shape the whole process:
 
 1. Deploys run from a tag, never a branch. The `Production` GitHub environment permits deployment only from refs matching `web/*` of type `tag`. Dispatching against a branch is rejected by the environment protection rule before any build runs.
-2. Releases are cut from the previous release tag, not from `master`. `master` accumulates web commits that are not yet released. Deploying `master` would ship all of them. A release tag is the previous release tag plus only the specific commits intended for this deploy.
+2. Releases are cut from the previous release tag, not from `master`. `master` accumulates web commits that are not yet released. Deploying `master` would ship all of them. A release tag is the previous release tag plus only the specific commits intended for this deploy. When the previous web tag is the commit a native release branch was cut from, as `web/26.9.0` is for `release/26.9`, cut the web release from that branch at the native build commit. The branch is then the tag plus the backports.
+3. A draft has no tag. GitHub creates the tag at the draft's target commit when someone publishes, so the branch holding that commit has to stay until then.
 
-So a release is: take the last `web/X.Y.Z` tag, add only the commits you want, tag it as the next version, and deploy that tag.
+So a release is: take the last `web/X.Y.Z` tag, add only the commits you want, bump the version, stage a draft release on that commit with its notes, then publish the draft and deploy its tag when it should go live.
 
 The deploy runs on a self-hosted linux runner: it builds the wasm bridge in release mode (`WASM_BUILD_PROFILE=release`), then `vercel pull/build/deploy --prod`. `VERCEL_ENV=production` on that deployment is what makes the `/api/features` handler serve `prodRemoteFeatures`.
 
@@ -26,7 +27,7 @@ Staging (`vercel-staging.yml`) is separate and auto-deploys from `master`; it is
 
 - The commits you want to release are already merged to `master`, or exist on a branch you can cherry-pick from.
 - The corresponding native build for this cycle is already shipped, if the change is a flag that only takes effect on a specific app version. Check that against the `Built from commit:` line in the newest published GitHub release, not against the `26.X.Y` tag. GitHub cuts that tag at publish time, and it has named a commit that never shipped. The `android-release` skill covers the lifecycle.
-- You have push access and permission to dispatch the production workflow. Dispatching touches live production, so get an explicit go before step 5.
+- You have push access and permission to publish releases and dispatch the production workflow. Publishing and dispatching touch live production, so get an explicit go before step 6.
 
 ## Steps
 
@@ -42,9 +43,11 @@ Say the latest is `web/26.6.1` and you are cutting `web/26.6.2`.
 **1. Cut a branch off the previous release tag and add only the intended commits.**
 
 ```bash
-git checkout -b web/26.6.2 web/26.6.1
+git checkout -b web-release/26.6.2 web/26.6.1
 git cherry-pick <sha> [<sha> ...]   # only the commits for this release
 ```
+
+Never name the branch `web/26.6.2`. A branch sharing the tag's name makes later ref lookups ambiguous.
 
 The release lineage usually lags `master`, so cherry-picks may conflict. Resolve each conflict to keep only the intended change, dropping unrelated keys or lines that exist on `master` but not on this lineage.
 
@@ -60,39 +63,47 @@ Use yarn here. `npm version` rewrites `ui/yarn.lock` and drops a stray `ui/packa
 **3. Verify the diff is exactly what you intend.**
 
 ```bash
-git diff web/26.6.1..web/26.6.2
-git diff --stat web/26.6.1..web/26.6.2
+git diff web/26.6.1..HEAD
+git diff --stat web/26.6.1..HEAD
 ```
 
 Confirm the delta against the previous tag is the intended change and nothing else. This is the safety net that catches an over-broad cherry-pick.
 
-**4. Tag the release commit, then remove the branch.**
-
-The environment deploys from a tag, and a branch sharing the tag's name makes `--ref` ambiguous. Create the tag and delete the branch so the ref resolves unambiguously to the tag:
+**4. Push the branch and stage a draft release on its head.**
 
 ```bash
-git tag web/26.6.2                              # lightweight, matches existing release tags
-git push origin refs/tags/web/26.6.2
-git checkout master
-git branch -D web/26.6.2
-git push origin --delete refs/heads/web/26.6.2  # fully-qualified: tag and branch share the name
-git ls-remote origin | grep 'web/26.6.2'        # expect ONLY refs/tags/web/26.6.2
+git push -u origin web-release/26.6.2
+sha=$(git rev-parse HEAD)
+gh release create web/26.6.2 --repo fedibtc/fedi --draft --latest=false \
+  --target "$sha" --title "Fedi Web 26.6.2" --notes "Built from commit: $sha"
+git ls-remote origin refs/tags/web/26.6.2   # expect nothing until publish
 ```
 
-**5. Dispatch the production deploy on the tag.** Live production, so confirm the go first.
+`--latest=false` keeps the native release as the repository's latest. The draft is invisible outside the repo and ships nothing.
+
+**5. Link the release report from the draft.** The body is the `Built from commit:` line and a link to the release report filtered to web, as the `report-next-release` skill's `references/release-notes-copy.md` sets out. Get sign-off, then:
 
 ```bash
+gh release edit web/26.6.2 --repo fedibtc/fedi --notes-file <file>
+```
+
+**6. Publish the draft and deploy its tag.** Live production, so confirm the go first. Publishing creates the tag at the draft's target commit. When the web release goes with a native release, do both when the native one goes out.
+
+```bash
+gh release edit web/26.6.2 --repo fedibtc/fedi --draft=false
+git ls-remote origin refs/tags/web/26.6.2        # the tag now exists
 gh workflow run vercel-prod.yml --repo fedibtc/fedi --ref web/26.6.2
 gh run list --repo fedibtc/fedi --workflow vercel-prod.yml --limit 1 \
   --json databaseId,status,url
 gh run watch <run-id> --repo fedibtc/fedi --exit-status
+git push origin --delete web-release/26.6.2   # the tag holds the commit now
 ```
 
-A run that fails within seconds with zero steps means the ref was not an allowed tag. Recheck step 4.
+A run that fails within seconds with zero steps means the ref was not an allowed tag.
 
 A run that fails in its first minute saying `ui/web/package.json says X, tag says Y` means step 2 was skipped, or bumped to the wrong number.
 
-**6. Verify live.**
+**7. Verify live.**
 
 ```bash
 curl -s https://app.fedi.xyz/api/features
@@ -118,11 +129,12 @@ Land that as a normal PR to `master`, then release it via the steps above. The f
 ## Rollback
 
 - Fastest: Vercel dashboard, the project's Deployments, promote the previous production deployment (instant rollback).
-- Or cut a new patch tag that reverts the change and deploy it the same way.
+- Or cut a new patch release that reverts the change and ship it the same way.
 
 ## Reference
 
 - Deploy workflow: `.github/workflows/vercel-prod.yml` (`workflow_dispatch` only)
+- `deploy-public-apk-to-github.yml` fires on every published release and skips `web/*` ones
 - Deploy script: `scripts/ci/vercel-prod.sh`
 - Version: `ui/web/package.json`, inlined by `ui/web/next.config.ts`, reported by `ui/web/src/pages/api/version.ts`
 - Production env policy: `gh api repos/fedibtc/fedi/environments/Production/deployment-branch-policies`

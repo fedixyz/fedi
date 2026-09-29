@@ -15,6 +15,7 @@ permissions:
 
 jobs:
     deploy-public-apk:
+        if: ${{ !startsWith(github.event.release.tag_name, 'web/') }}
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout script in repo
