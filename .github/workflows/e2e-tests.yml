@@ -30,6 +30,7 @@ on:
                     - multispend
                     - backupRestore
                     - pinProtection
+                    - deepLinks
                 default: all
             skip_bridge_build:
                 description: 'Skip bridge builds (use cached artifacts from previous run)'

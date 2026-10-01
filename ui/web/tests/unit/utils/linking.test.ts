@@ -1,6 +1,17 @@
 import { getDeepLinkPath } from '../../../src/utils/linking'
 
 describe('utils/linking', () => {
+    it.each(['?', '#'])(
+        'should send a Manifold creation link to Wallet on web with a %s separator',
+        separator => {
+            expect(
+                getDeepLinkPath(
+                    `https://app.fedi.xyz/link${separator}screen=create-manifold`,
+                ),
+            ).toBe('/wallet')
+        },
+    )
+
     describe('processDeepLink', () => {
         it('should return the correct path for valid deep links', () => {
             expect(

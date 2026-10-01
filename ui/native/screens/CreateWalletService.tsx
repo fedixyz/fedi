@@ -3,7 +3,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
@@ -15,7 +15,9 @@ import {
     clearWalletServiceSelectionPreview,
     getWalletServiceRetryableError,
     prepareWalletServicePayment,
+    selectIsWalletServiceCreationEnabled,
     selectWalletServiceDraft,
+    selectWalletServiceFlowStatus,
     selectWalletServiceSelectionPreview,
     setWalletServiceDraft,
     walletServiceFaultTolerance,
@@ -46,6 +48,7 @@ import { Switcher } from '../components/ui/Switcher'
 import { WalletServiceFooter } from '../components/ui/WalletServiceFooter'
 import { WarningBanner } from '../components/ui/WarningBanner'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { resetToWallets } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 import { useWalletServiceEntryGuard } from '../utils/hooks/walletServiceEntryGuard'
 
@@ -98,7 +101,36 @@ const seatDisplayName = (seat: RpcFiSelectionPreviewSeat) =>
     (seat as RpcFiSelectionPreviewSeat & { fmanName?: string }).fmanName ||
     seat.fmanId
 
-const CreateWalletService: React.FC<Props> = ({ navigation }) => {
+const CreateWalletService: React.FC<Props> = props => {
+    const { t } = useTranslation()
+    const isEnabled = useAppSelector(selectIsWalletServiceCreationEnabled)
+    const flowStatus = useAppSelector(selectWalletServiceFlowStatus)
+    const { navigation } = props
+
+    useEffect(() => {
+        if (!isEnabled) navigation.dispatch(resetToWallets())
+    }, [isEnabled, navigation])
+
+    if (!isEnabled) return null
+
+    if (flowStatus === 'unknown') {
+        return (
+            <>
+                <WalletServiceScreenHeader
+                    backButton
+                    title={t('feature.wallet-service.guardian-set-title')}
+                />
+                <Column center grow>
+                    <ActivityIndicator />
+                </Column>
+            </>
+        )
+    }
+
+    return <CreateWalletServiceContent {...props} />
+}
+
+const CreateWalletServiceContent: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()

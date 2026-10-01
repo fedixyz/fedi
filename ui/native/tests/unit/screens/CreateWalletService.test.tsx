@@ -3,18 +3,26 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react-native'
 import {
     WALLET_SERVICE_SIZE_OPTIONS,
     clearWalletServiceSelectionPreview,
+    setFeatureFlags,
+    setFiStatus,
+    setManifoldCreationOverrideEnabled,
     setTransactionDisplayType,
     setupStore,
 } from '@fedi/common/redux'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
+    FeatureCatalog,
+    RpcFiFormationSnapshot,
+    RpcFiStatus,
     RpcFiSelectionPreview,
     RpcFiSelectionPreviewRequest,
     RpcFiSelectionPreviewResult,
 } from '@fedi/common/types/bindings'
+import { isDev } from '@fedi/common/utils/environment'
 
 import i18n from '../../../localization/i18n'
 import CreateWalletService from '../../../screens/CreateWalletService'
+import { resetToWallets, reset } from '../../../state/navigation'
 import {
     mockNavigation,
     mockRoute,
@@ -22,6 +30,11 @@ import {
     mockToast,
 } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
+
+jest.mock('@fedi/common/utils/environment', () => ({
+    ...jest.requireActual('@fedi/common/utils/environment'),
+    isDev: jest.fn(() => false),
+}))
 
 const FIXED_NOW_MS = 1_700_000_000_000
 const NOW_SECS = FIXED_NOW_MS / 1000
@@ -88,8 +101,24 @@ const makeBridge = (
         fiClientEligiblePayers: { type: 'payers', payers: [] },
     })
 
-const renderScreen = (fedimint: ReturnType<typeof makeBridge>) => {
+const makeStore = ({
+    enabled = true,
+    status = { type: 'idle' },
+}: { enabled?: boolean; status?: RpcFiStatus | null } = {}) => {
     const store = setupStore()
+    store.dispatch(
+        setFeatureFlags(
+            (enabled ? { wallet_service_creation: {} } : {}) as FeatureCatalog,
+        ),
+    )
+    if (status) store.dispatch(setFiStatus(status))
+    return store
+}
+
+const renderScreen = (
+    fedimint: ReturnType<typeof makeBridge>,
+    store = makeStore(),
+) => {
     // amounts default to fiat, which the zero test rate collapses to one value
     // for every seat; sats keeps each advertised price distinguishable
     store.dispatch(setTransactionDisplayType('sats'))
@@ -112,6 +141,7 @@ const settlePreview = async (ms = PAST_DEBOUNCE_MS) => {
 describe('screens/CreateWalletService', () => {
     beforeEach(() => {
         jest.clearAllMocks()
+        jest.mocked(isDev).mockReturnValue(false)
         jest.useFakeTimers({ now: FIXED_NOW_MS })
     })
 
@@ -119,6 +149,109 @@ describe('screens/CreateWalletService', () => {
         cleanup()
         jest.useRealTimers()
     })
+
+    it('should return to Wallet without requesting a quote when creation is disabled', async () => {
+        const fedimint = makeBridge()
+        renderScreen(fedimint, makeStore({ enabled: false }))
+        await settlePreview()
+
+        expect(mockNavigation.dispatch).toHaveBeenCalledWith(resetToWallets())
+        expect(
+            screen.queryByTestId('guardian-count-headline'),
+        ).not.toBeOnTheScreen()
+        expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+        expect(fedimint.fiClientEligiblePayers).not.toHaveBeenCalled()
+    })
+
+    it('should allow creation through the existing Manifold override', async () => {
+        const store = makeStore({ enabled: false })
+        store.dispatch(setManifoldCreationOverrideEnabled(true))
+        const fedimint = makeBridge()
+        renderScreen(fedimint, store)
+        await settlePreview()
+
+        expect(screen.getByTestId('guardian-count-headline')).toBeOnTheScreen()
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(mockNavigation.dispatch).not.toHaveBeenCalled()
+    })
+
+    it('should cancel the pending quote when the creation flag is disabled', async () => {
+        const fedimint = makeBridge()
+        const store = makeStore()
+        renderScreen(fedimint, store)
+
+        act(() => store.dispatch(setFeatureFlags({} as FeatureCatalog)))
+        await settlePreview()
+
+        expect(mockNavigation.dispatch).toHaveBeenCalledWith(resetToWallets())
+        expect(
+            screen.queryByTestId('guardian-count-headline'),
+        ).not.toBeOnTheScreen()
+        expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+    })
+
+    it('should wait for the initial status before requesting a creation quote', async () => {
+        const fedimint = makeBridge()
+        const store = makeStore({ status: null })
+        renderScreen(fedimint, store)
+        await settlePreview()
+
+        expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+        expect(
+            screen.queryByTestId('guardian-count-headline'),
+        ).not.toBeOnTheScreen()
+        expect(screen.getByTestId('HeaderBackButton')).toBeOnTheScreen()
+
+        act(() => store.dispatch(setFiStatus({ type: 'idle' })))
+        await settlePreview()
+
+        expect(screen.getByTestId('guardian-count-headline')).toBeOnTheScreen()
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+        ['acquiringSeats', 'WalletServiceProgress'],
+        ['formed', 'WalletServiceDashboard'],
+    ] as const)(
+        'should resume %s without requesting a new quote',
+        async (phase, destination) => {
+            const formation: RpcFiFormationSnapshot = {
+                formationId: 'existing-formation',
+                phase,
+                intent: {
+                    federationName: 'Existing service',
+                    federationSize: 7,
+                    guardianFeePpm: 0,
+                    plan: 'infiniteBestEffort',
+                    maxTotalMsats: null,
+                },
+                seats: [],
+                freshness: 'fresh',
+                actionRequired: null,
+                paymentOutputsStarted: true,
+                milestones: {
+                    ecashSent: false,
+                    guardiansConfirmed: false,
+                    walletServiceCreated: false,
+                },
+                inviteCode: null,
+                lastError: null,
+            }
+            const store = makeStore({ status: null })
+            const fedimint = makeBridge()
+            renderScreen(fedimint, store)
+            await settlePreview()
+            act(() =>
+                store.dispatch(setFiStatus({ type: 'formation', formation })),
+            )
+            await settlePreview()
+
+            expect(mockNavigation.dispatch).toHaveBeenCalledWith(
+                reset(destination),
+            )
+            expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+        },
+    )
 
     it('should render every preset count and no custom entry', async () => {
         renderScreen(makeBridge())

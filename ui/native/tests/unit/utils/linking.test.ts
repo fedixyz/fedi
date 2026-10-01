@@ -1,13 +1,42 @@
 import {
     DEEP_LINKS,
+    getNavigationLink,
     normalizeCommunityInviteCode,
     normalizeDeepLink,
     stripFediPrefix,
 } from '@fedi/common/utils/linking'
 
+import { resetToHomeWithScreen } from '../../../state/navigation'
 import * as linking from '../../../utils/linking'
 
 describe('linking', () => {
+    describe('Manifold creation links', () => {
+        it.each([
+            'fedi://create-manifold',
+            'fedi:create-manifold',
+            'https://app.fedi.xyz/link?screen=create-manifold',
+            'https://app.fedi.xyz/link#screen=create-manifold',
+            'https://link.fedi.xyz/link?screen=create-manifold',
+        ])(
+            'should open creation with Wallet as the back destination for %s',
+            url => {
+                const path = getNavigationLink(url) ?? ''
+                expect(linking.getInternalLinkRoute(path)).toEqual({
+                    routes: [{ name: 'CreateWalletService', params: {} }],
+                })
+                expect(linking.getInternalLinkNavigationArgs(path)).toEqual([
+                    'CreateWalletService',
+                    {},
+                ])
+                expect(linking.getInternalLinkResetAction(path)).toMatchObject(
+                    resetToHomeWithScreen('Wallet', {
+                        name: 'CreateWalletService',
+                    }),
+                )
+            },
+        )
+    })
+
     describe('getInternalLinkRoute', () => {
         describe('when a TabsNavigator normalized deep link path with fedi:// prefix and without query string params is passed', () => {
             it('should return the correct route', () => {

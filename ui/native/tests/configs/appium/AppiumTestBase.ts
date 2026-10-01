@@ -1202,7 +1202,7 @@ export class AppiumTestBase {
                 {
                     action: 'android.intent.action.VIEW',
                     uri: url,
-                    appPackage: pkg,
+                    package: pkg,
                 },
             ])
         } else {

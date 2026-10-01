@@ -52,6 +52,7 @@ export const getDeepLinkPath = (url: string): string => {
             // TODO: remove legacy /federations deeplink after some time...
             case 'federations':
             case 'wallet':
+            case 'create-manifold':
                 return walletRoute
             case 'ecash': {
                 const token = params.get('token') || params.get('id')

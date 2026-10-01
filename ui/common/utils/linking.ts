@@ -149,6 +149,7 @@ export const DEEP_LINK_SCREENS = [
     'browser',
     'ecash',
     'join',
+    'create-manifold',
     'join-then-ecash',
     'join-then-browse',
     'join-then-join',
@@ -305,6 +306,14 @@ export const DEEP_LINKS = [
             'Opens the Share Logs form, pre-filled with a support ticket number when provided.',
         screen: 'share-logs',
         params: [{ name: 'ticketNumber', label: 'Ticket Number' }],
+    },
+    {
+        key: 'create-manifold',
+        label: 'Create on Manifold',
+        description:
+            'Opens Manifold creation in the mobile app when enabled. Web opens the Wallet page.',
+        screen: 'create-manifold',
+        params: [],
     },
 ] as const satisfies readonly DeepLinkConfig[]
 

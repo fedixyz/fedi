@@ -105,6 +105,10 @@ type ScreenMapper = (
 
 // `satisfies` requires every DeepLinkableScreen, while allowing back-compat aliases like `federations`/`miniapps`.
 export const screenMap = {
+    'create-manifold': () => ({
+        kind: 'root',
+        screen: 'CreateWalletService',
+    }),
     wallet: () => ({ kind: 'tab', screen: 'Wallet' }),
     // 'federations' is for backwards compatibility (can be removed at a later date)
     federations: () => ({ kind: 'tab', screen: 'Wallet' }),

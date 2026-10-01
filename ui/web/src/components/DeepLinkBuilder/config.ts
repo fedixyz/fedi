@@ -77,6 +77,7 @@ const urlBrowser: ParamUI = {
 
 // Keyed by DeepLinkKey so adding a deep link in common without enriching it here fails to compile.
 const enrichments: Record<DeepLinkKey, BuilderEnrichment> = {
+    'create-manifold': { category: 'onboarding' },
     'join-federation': {
         category: 'onboarding',
         paramUI: { invite: inviteFederation },

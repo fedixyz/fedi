@@ -86,9 +86,9 @@ describe('SelectPublicChats', () => {
             { store, fedimint },
         )
 
-        const oneText = await screen.getByText('one')
-        const twoText = await screen.getByText('two')
-        const threeText = await screen.getByText('three')
+        const oneText = await screen.findByText('one')
+        const twoText = await screen.findByText('two')
+        const threeText = await screen.findByText('three')
 
         await user.press(oneText)
         await user.press(twoText)
