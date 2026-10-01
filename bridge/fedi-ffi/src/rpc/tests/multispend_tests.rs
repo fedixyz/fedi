@@ -14,7 +14,7 @@ use multispend::{
 };
 use rpc_types::matrix::{RpcRoomId, RpcUserId};
 use rpc_types::{RpcEventId, RpcFederationId, RpcPublicKey};
-use stability_pool_client::common::{AccountType, AccountUnchecked};
+use stability_pool_client::common::{AccountId, AccountType, AccountUnchecked};
 
 use super::*;
 
@@ -521,6 +521,348 @@ pub async fn test_multispend_last_seen_cache_churn_does_not_panic(
             Ok(Ok(_)) => {}
         }
     }
+
+    Ok(())
+}
+
+/// Wait until a device's scanner shows the withdrawal request with a
+/// submission status matching `done`.
+async fn wait_for_withdrawal_status(
+    bridge: &BridgeFull,
+    room_id: &RoomId,
+    request_id: &RpcEventId,
+    done: fn(&multispend::WithdrawTxSubmissionStatus) -> bool,
+) -> anyhow::Result<()> {
+    retry(
+        "wait for withdrawal status",
+        multispend_sync_backoff(),
+        || async {
+            match matrixMultispendEventData(
+                &bridge.matrix,
+                RpcRoomId(room_id.to_string()),
+                request_id.clone(),
+            )
+            .await?
+            {
+                Some(MsEventData::WithdrawalRequest(request))
+                    if done(&request.tx_submission_status) =>
+                {
+                    Ok(())
+                }
+                other => anyhow::bail!("withdrawal not settled yet: {other:?}"),
+            }
+        },
+    )
+    .await
+}
+
+/// Staged plus locked balance of a group account.
+async fn group_balance(federation: &FederationV2, account_id: AccountId) -> anyhow::Result<Amount> {
+    let sync = federation.multispend_group_sync_info(account_id).await?;
+    Ok(sync.staged_balance + sync.locked_balance)
+}
+
+/// Request a withdrawal from td1, approve it from td2 and return its id.
+async fn request_and_approve_withdrawal(
+    td1: &TestDevice,
+    td2: &TestDevice,
+    room_id: &RoomId,
+    amount: RpcFiatAmount,
+) -> anyhow::Result<RpcEventId> {
+    let bridge2 = td2.bridge_full().await?;
+    matrixSendMultispendWithdrawalRequest(
+        td1.bridge_full().await?,
+        RpcRoomId(room_id.to_string()),
+        amount,
+        "withdraw".to_string(),
+    )
+    .await?;
+    let request_id = RpcEventId(
+        td1.matrix()
+            .await?
+            .timeline(room_id)
+            .await?
+            .latest_event_id()
+            .await
+            .context("no latest event")?
+            .to_string(),
+    );
+    retry(
+        "wait for td2 to scan withdrawal request",
+        multispend_sync_backoff(),
+        || async {
+            matrixMultispendEventData(
+                &bridge2.matrix,
+                RpcRoomId(room_id.to_string()),
+                request_id.clone(),
+            )
+            .await?
+            .context("request not scanned yet")
+        },
+    )
+    .await?;
+    matrixSendMultispendWithdrawalApprove(
+        bridge2,
+        RpcRoomId(room_id.to_string()),
+        request_id.clone(),
+    )
+    .await?;
+    Ok(request_id)
+}
+
+/// A device recovered from seed rebuilds its multispend state by rescanning
+/// the whole room. Replaying the approvals of withdrawals it requested must not
+/// submit them to the federation again: a withdrawal the federation already
+/// executed would be refused and reported as a failure in the room, and one
+/// the federation refused at the time could now go through.
+pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
+    _dev_fed: DevFed,
+) -> anyhow::Result<()> {
+    if should_skip_test_using_stock_fedimintd() {
+        return Ok(());
+    }
+    let mut td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
+    let bridge1 = td1.bridge_full().await?;
+    let bridge2 = td2.bridge_full().await?;
+    let matrix1 = td1.matrix().await?;
+    let matrix2 = td2.matrix().await?;
+    let fed1 = td1.join_default_fed().await?;
+    let fed2 = td2.join_default_fed().await?;
+
+    // invitations need a non-DM room where td1 sees td2 as an active member
+    let mut request = ::matrix::create_room::Request::default();
+    request.name = Some("multispend test group".to_string());
+    let room_id = matrix1.room_create(request).await?;
+    matrix1
+        .room_invite_user_by_id(&room_id, matrix2.client.user_id().unwrap())
+        .await?;
+    matrix2.wait_for_room_id(&room_id).await?;
+    matrix2.room_join(&room_id).await?;
+    retry(
+        "wait for td1 to see td2 joined",
+        multispend_sync_backoff(),
+        || async {
+            let room = matrix1.client.get_room(&room_id).context("no room")?;
+            let members = room.members(matrix_sdk::RoomMemberships::ACTIVE).await?;
+            anyhow::ensure!(members.len() > 1);
+            Ok(())
+        },
+    )
+    .await?;
+
+    // 1-of-2 stable group: td2's approval alone settles td1's requests
+    let user1 = RpcUserId(matrix1.client.user_id().unwrap().to_string());
+    let user2 = RpcUserId(matrix2.client.user_id().unwrap().to_string());
+    matrixSendMultispendGroupInvitation(
+        bridge1,
+        RpcRoomId(room_id.to_string()),
+        BTreeSet::from([user1, user2]),
+        1,
+        fed1.rpc_federation_id(),
+        "test".to_string(),
+    )
+    .await?;
+    let invitation_event_id = RpcEventId(
+        matrix1
+            .timeline(&room_id)
+            .await?
+            .latest_event_id()
+            .await
+            .unwrap()
+            .to_string(),
+    );
+    retry(
+        "wait for td2 to scan invitation",
+        multispend_sync_backoff(),
+        || async {
+            matrixMultispendEventData(
+                &bridge2.matrix,
+                RpcRoomId(room_id.to_string()),
+                invitation_event_id.clone(),
+            )
+            .await?
+            .context("invitation not scanned yet")
+        },
+    )
+    .await?;
+    matrixApproveMultispendGroupInvitation(
+        bridge2,
+        RpcRoomId(room_id.to_string()),
+        invitation_event_id,
+    )
+    .await?;
+    let multispend_matrix1 = td1.multispend().await?;
+    let group = retry(
+        "wait for group finalization",
+        multispend_sync_backoff(),
+        || async {
+            multispend_matrix1
+                .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+                .await?
+                .context("not finalized")
+        },
+    )
+    .await?;
+    let group_account_id = group.spv2_account.id();
+
+    // fund td1's seeker account, then the group
+    let ecash = cli_generate_ecash(Amount::from_sats(500_000)).await?;
+    receiveEcash(fed1.clone(), ecash, FrontendMetadata::default()).await?;
+    wait_for_ecash_reissue(fed1).await?;
+    spv2DepositToSeek(
+        fed1.clone(),
+        RpcAmount(Amount::from_sats(400_000)),
+        FrontendMetadata::default(),
+    )
+    .await?;
+    retry(
+        "wait for seeker deposit",
+        multispend_sync_backoff(),
+        || async {
+            anyhow::ensure!(td1.event_sink().num_events_of_type("spv2Deposit".into()) >= 3);
+            Ok(())
+        },
+    )
+    .await?;
+    let group_room_id = RpcRoomId(room_id.to_string());
+    let deposit_to_group = |amount: RpcFiatAmount| {
+        let group_room_id = group_room_id.clone();
+        async move {
+            let balance_before = group_balance(fed1, group_account_id).await?;
+            matrixMultispendDeposit(
+                bridge1,
+                group_room_id,
+                amount,
+                "deposit".to_string(),
+                FrontendMetadata::default(),
+            )
+            .await?;
+            retry(
+                "wait for group deposit",
+                multispend_sync_backoff(),
+                || async {
+                    anyhow::ensure!(group_balance(fed1, group_account_id).await? > balance_before);
+                    Ok(())
+                },
+            )
+            .await
+        }
+    };
+    deposit_to_group(RpcFiatAmount(10_00)).await?;
+
+    // more than the group holds: the federation refuses it
+    let refused_id =
+        request_and_approve_withdrawal(&td1, &td2, &room_id, RpcFiatAmount(20_00)).await?;
+    wait_for_withdrawal_status(bridge1, &room_id, &refused_id, |status| {
+        matches!(
+            status,
+            multispend::WithdrawTxSubmissionStatus::Rejected { .. }
+        )
+    })
+    .await?;
+    let executed_id =
+        request_and_approve_withdrawal(&td1, &td2, &room_id, RpcFiatAmount(5_00)).await?;
+    wait_for_withdrawal_status(bridge1, &room_id, &executed_id, |status| {
+        matches!(
+            status,
+            multispend::WithdrawTxSubmissionStatus::Accepted { .. }
+        )
+    })
+    .await?;
+    // the group can now cover the refused withdrawal
+    deposit_to_group(RpcFiatAmount(25_00)).await?;
+    // the deposit notification reaches the room after the transfer lands; wait
+    // for it so the room is settled before recovery
+    retry(
+        "wait for td2 to list both deposits and withdrawals",
+        multispend_sync_backoff(),
+        || async {
+            let events =
+                matrixMultispendListEvents(&bridge2.matrix, group_room_id.clone(), None, 10)
+                    .await?;
+            anyhow::ensure!(events.len() == 4, "listed {} events", events.len());
+            Ok(())
+        },
+    )
+    .await?;
+
+    let group_before = group_balance(fed2, group_account_id).await?;
+    let latest_event_before = matrix2.timeline(&room_id).await?.latest_event_id().await;
+
+    backupNow(fed1.clone()).await?;
+    sleep_in_test(
+        "matrix needs some time to upload room keys",
+        Duration::from_secs(10),
+    )
+    .await;
+    let mnemonic = getMnemonic(bridge1.runtime.clone()).await?;
+    td1.shutdown().await?;
+
+    let mut td1 = TestDevice::new().await?;
+    let onboarding = td1.bridge_maybe_onboarding().await?;
+    restoreMnemonic(onboarding.try_get()?, mnemonic).await?;
+    onboardTransferExistingDeviceRegistration(onboarding.try_get()?, 0).await?;
+    let bridge1 = td1.bridge_full().await?;
+    join_test_fed_recovery(bridge1, false).await?;
+    retry(
+        "wait for federation recovery",
+        multispend_sync_backoff(),
+        || async {
+            anyhow::ensure!(
+                td1.event_sink()
+                    .num_events_of_type("recoveryComplete".into())
+                    == 1
+            );
+            Ok(())
+        },
+    )
+    .await?;
+
+    // the user opening the group scans the whole room history
+    td1.matrix().await?.wait_for_room_id(&room_id).await?;
+    let multispend_matrix1 = td1.multispend().await?;
+    multispend_matrix1
+        .rescanner
+        .wait_for_scanned(&room_id)
+        .await;
+    wait_for_withdrawal_status(bridge1, &room_id, &refused_id, |status| {
+        matches!(
+            status,
+            multispend::WithdrawTxSubmissionStatus::Rejected { .. }
+        )
+    })
+    .await?;
+    wait_for_withdrawal_status(bridge1, &room_id, &executed_id, |status| {
+        matches!(
+            status,
+            multispend::WithdrawTxSubmissionStatus::Accepted { .. }
+        )
+    })
+    .await?;
+
+    // the withdrawal service only drains its queue when woken by a scan or on
+    // launch, so relaunch the app on the recovered data as well
+    td1.shutdown().await?;
+    td1.bridge_full().await?;
+
+    // a resubmission is refused or executed within seconds
+    sleep_in_test(
+        "give a resubmission time to reach the federation",
+        Duration::from_secs(20),
+    )
+    .await;
+    // seeker fees shave a few msats each cycle; a withdrawal moves $20
+    let group_after = group_balance(fed2, group_account_id).await?;
+    assert!(
+        group_before.msats.saturating_sub(group_after.msats) < Amount::from_sats(1_000).msats,
+        "group balance dropped from {group_before} to {group_after} after recovery"
+    );
+    assert_eq!(
+        matrix2.timeline(&room_id).await?.latest_event_id().await,
+        latest_event_before,
+        "recovered device posted into the room"
+    );
 
     Ok(())
 }

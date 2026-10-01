@@ -224,9 +224,16 @@ impl_db_record!(
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct MultispendPendingApprovedWithdrawalRequestKeyPrefix;
 
+#[derive(Debug, Clone, Encodable, Decodable)]
+pub struct MultispendPendingApprovedWithdrawalRequestKeyRequestPrefix {
+    pub room_id: RpcRoomId,
+    pub request_event_id: RpcEventId,
+}
+
 impl_db_lookup!(
     key = MultispendPendingApprovedWithdrawalRequestKey,
     query_prefix = MultispendPendingApprovedWithdrawalRequestKeyPrefix,
+    query_prefix = MultispendPendingApprovedWithdrawalRequestKeyRequestPrefix,
 );
 
 /// When a withdrawal request has the required number of votes, the requestor

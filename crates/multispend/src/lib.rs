@@ -10,7 +10,8 @@ use db::{
     MultispendChronologicalEventData, MultispendChronologicalEventKeyPrefix,
     MultispendDepositEventKey, MultispendGroupStatus, MultispendGroupStatusKey,
     MultispendInvalidEvent, MultispendInvitationKey, MultispendPendingApprovedWithdrawalRequestKey,
-    MultispendWithdrawRequestKey, insert_multispend_chronological_event,
+    MultispendPendingApprovedWithdrawalRequestKeyRequestPrefix, MultispendWithdrawRequestKey,
+    insert_multispend_chronological_event,
 };
 use fedimint_core::core::OperationId;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
@@ -556,8 +557,20 @@ pub async fn process_event_db_raw(
                     )
                     .await;
                 }
-                WithdrawalProcessResponseOutcome::Completed => {
-                    context.refresh_account_info = true;
+                outcome @ (WithdrawalProcessResponseOutcome::Completed
+                | WithdrawalProcessResponseOutcome::TxRejected) => {
+                    if matches!(outcome, WithdrawalProcessResponseOutcome::Completed) {
+                        context.refresh_account_info = true;
+                    }
+                    // A rescan from scratch replays the approval before this response,
+                    // so drop the submission it queued.
+                    dbtx.remove_by_prefix(
+                        &MultispendPendingApprovedWithdrawalRequestKeyRequestPrefix {
+                            room_id: room_id.clone(),
+                            request_event_id: request,
+                        },
+                    )
+                    .await;
                 }
                 _ => {}
             }
@@ -708,8 +721,10 @@ mod tests {
     use fedimint_core::db::Database;
     use fedimint_core::db::mem_impl::MemDatabase;
     use fedimint_core::module::registry::ModuleDecoderRegistry;
+    use stability_pool_client::common::{FiatAmount, TransferRequestId};
 
     use super::*;
+    use crate::db::MultispendPendingApprovedWithdrawalRequestKeyPrefix;
 
     fn gen_test_pubkey() -> RpcPublicKey {
         let (_, pk) = secp256k1::SECP256K1.generate_keypair(&mut rand::thread_rng());
@@ -812,5 +827,154 @@ mod tests {
         } else {
             panic!("Expected to find group invitation data");
         };
+    }
+
+    #[tokio::test]
+    async fn test_rescan_does_not_requeue_settled_withdrawals() {
+        let user1 = RpcUserId("@alice:example.com".to_string());
+        let user2 = RpcUserId("@bob:example.com".to_string());
+        let room_id = RpcRoomId("test_room".to_string());
+        let invitation_id = RpcEventId("$invitation".to_string());
+        let request_id = RpcEventId("$withdrawal".to_string());
+        let keys = [1, 2].map(|byte| {
+            secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, &[byte; 32]).unwrap()
+        });
+        let invitation = GroupInvitation {
+            signers: BTreeSet::from([user1.clone(), user2.clone()]),
+            threshold: 2,
+            federation_invite_code: "fed11qgqrgvnhwden5te0v9k8q6rp9ekh2arfdeukuet595cr2ttpd3jhq6rzve6zuer9wchxvetyd938gcewvdhk6tcqqysptkuvknc7erjgf4em3zfh90kffqf9srujn6q53d6r056e4apze5cw27h75".to_string(),
+            federation_name: "test".to_string(),
+        };
+        let account: Account = AccountUnchecked {
+            acc_type: AccountType::Seeker,
+            pub_keys: keys.iter().map(|key| key.public_key()).collect(),
+            threshold: 2,
+        }
+        .try_into()
+        .unwrap();
+        let recipient: Account = AccountUnchecked {
+            acc_type: AccountType::Seeker,
+            pub_keys: BTreeSet::from([keys[0].public_key()]),
+            threshold: 1,
+        }
+        .try_into()
+        .unwrap();
+        let request = TransferRequest::new(
+            1,
+            account,
+            FiatAmount(100),
+            recipient.id(),
+            vec![],
+            u64::MAX,
+            None,
+        )
+        .unwrap();
+        let message = secp256k1::Message::from(&TransferRequestId::from(&request));
+        let mut queue_counts = Vec::new();
+        for terminal_response in [
+            None,
+            Some(WithdrawalResponseType::Complete {
+                fiat_amount: RpcFiatAmount(100),
+                txid: RpcTransactionId(
+                    "0000000000000000000000000000000000000000000000000000000000000001"
+                        .parse()
+                        .unwrap(),
+                ),
+            }),
+            Some(WithdrawalResponseType::TxRejected {
+                error: "transfer rejected".to_string(),
+            }),
+        ] {
+            let db = Database::new(MemDatabase::new(), ModuleDecoderRegistry::default());
+            let mut tx = db.begin_transaction().await;
+            let mut context = MultispendContext {
+                our_id: user1.clone(),
+                check_pending_approved_withdrawal_requests: false,
+                refresh_account_info: false,
+            };
+            let mut events = vec![
+                (
+                    user1.clone(),
+                    invitation_id.clone(),
+                    MultispendEvent::GroupInvitation {
+                        invitation: invitation.clone(),
+                        proposer_pubkey: RpcPublicKey(keys[0].public_key()),
+                    },
+                ),
+                (
+                    user2.clone(),
+                    RpcEventId("$accept".to_string()),
+                    MultispendEvent::GroupInvitationVote {
+                        invitation: invitation_id.clone(),
+                        vote: MultispendGroupVoteType::Accept {
+                            member_pubkey: RpcPublicKey(keys[1].public_key()),
+                        },
+                    },
+                ),
+                (
+                    user1.clone(),
+                    request_id.clone(),
+                    MultispendEvent::WithdrawalRequest {
+                        request: request.clone(),
+                        description: "withdrawal".to_string(),
+                    },
+                ),
+            ];
+            for (index, user) in [user1.clone(), user2.clone()].into_iter().enumerate() {
+                events.push((
+                    user,
+                    RpcEventId(format!("$approval{index}")),
+                    MultispendEvent::WithdrawalResponse {
+                        request: request_id.clone(),
+                        response: WithdrawalResponseType::Approve {
+                            signature: RpcSignature(
+                                secp256k1::SECP256K1
+                                    .sign_schnorr_no_aux_rand(&message, &keys[index]),
+                            ),
+                        },
+                    },
+                ));
+            }
+            if let Some(response) = terminal_response {
+                events.push((
+                    user1.clone(),
+                    RpcEventId("$terminal".to_string()),
+                    MultispendEvent::WithdrawalResponse {
+                        request: request_id.clone(),
+                        response,
+                    },
+                ));
+            }
+            // Replay the room into an empty database in one transaction, like the
+            // rescanner.
+            for (index, (sender, event_id, event)) in events.into_iter().enumerate() {
+                process_event_db_raw(
+                    &mut tx.to_ref_nc(),
+                    &room_id,
+                    sender,
+                    event_id,
+                    event,
+                    index as u64,
+                    &mut context,
+                )
+                .await
+                .unwrap();
+            }
+            queue_counts.push(
+                tx.find_by_prefix(&MultispendPendingApprovedWithdrawalRequestKeyPrefix)
+                    .await
+                    .count()
+                    .await,
+            );
+        }
+        assert_eq!(
+            queue_counts[0], 1,
+            "approval without a terminal response must stay queued"
+        );
+        assert_eq!(
+            queue_counts,
+            [1, 0, 0],
+            "queue counts for approval-only, Complete, TxRejected"
+        );
     }
 }
