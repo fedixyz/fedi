@@ -13,7 +13,7 @@ const prodRemoteFeatures: RemoteFeatures = {
     personalBackupReminder: false,
     walletServiceCreation: false,
     miniAppSeed: true,
-    walletServiceDkgRestart: false,
+    walletServiceDkgRestart: true,
 }
 // Edge-only overrides go here; with none, edge tracks production.
 const edgeRemoteFeatures: RemoteFeatures = {

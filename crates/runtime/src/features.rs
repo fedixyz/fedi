@@ -652,7 +652,7 @@ impl FeatureCatalog {
             personal_backup_reminder: None,
             wallet_service_creation: None,
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
-            wallet_service_dkg_restart: None,
+            wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
