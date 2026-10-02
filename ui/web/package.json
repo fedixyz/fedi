@@ -37,6 +37,7 @@
         "@radix-ui/react-tooltip": "^1.0.7",
         "@reduxjs/toolkit": "^2.8.2",
         "@stitches/react": "^1.2.8",
+        "@vercel/oidc-aws-credentials-provider": "^3.3.9",
         "i18next": "^23.16.5",
         "i18next-browser-languagedetector": "^7.0.1",
         "next": "15.5.7",

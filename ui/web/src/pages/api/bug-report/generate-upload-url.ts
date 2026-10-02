@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { awsCredentialsProvider } from '@vercel/oidc-aws-credentials-provider'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { z } from 'zod'
 
@@ -19,12 +20,18 @@ export default async function handler(
         return
     }
 
+    const roleArn = process.env.AWS_ROLE_ARN
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
     const region = process.env.AWS_REGION
     const bucket = process.env.AWS_BUG_REPORT_BUCKET_NAME
-    if (!accessKeyId || !secretAccessKey || !region || !bucket) {
+    if (
+        (!roleArn && (!accessKeyId || !secretAccessKey)) ||
+        !region ||
+        !bucket
+    ) {
         console.error('Missing required environment variable for S3 upload', {
+            AWS_ROLE_ARN: !!roleArn,
             AWS_ACCESS_KEY_ID: !!accessKeyId,
             AWS_SECRET_ACCESS_KEY: !!secretAccessKey,
             AWS_REGION: !!region,
@@ -48,10 +55,9 @@ export default async function handler(
     try {
         const client = new S3Client({
             region,
-            credentials: {
-                accessKeyId,
-                secretAccessKey,
-            },
+            credentials: roleArn
+                ? awsCredentialsProvider({ roleArn })
+                : undefined,
         })
         const command = new PutObjectCommand({
             Bucket: bucket,
