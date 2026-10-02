@@ -3,11 +3,16 @@ name: Build dev APK (arm64-v8a)
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Branch/tag/SHA to build'
+      branch:
+        description: 'Branch to build the APK from'
         required: true
         default: 'master'
-        type: string
+        type: choice
+        options:
+          - master
+          - feat/cup-exchange-rate-yadio
+          - feature/iroh-connector
+          - fedi-cuba
   push:
     branches:
       - 'feat/cup-exchange-rate-yadio'
@@ -23,7 +28,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.ref || github.ref_name }}
+          ref: ${{ inputs.branch || github.ref_name }}
           submodules: true
 
       - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
