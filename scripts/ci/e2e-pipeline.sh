@@ -393,7 +393,7 @@ run_pipeline_android() {
     local summary_rows=""
 
     # Two boot modes from start-android-emulators.sh:
-    #   count == 1: master's android-14 AVD (cross-OS pair booted in CI, tests run on android-14).
+    #   count == 1: android-14 is emulator-5556 in CI, emulator-5554 locally.
     #   count >= 2: android-14-a + android-14-b clones for multi-actor.
     local avd_a=""
     local device_a="emulator-5554"
@@ -406,6 +406,9 @@ run_pipeline_android() {
         echo "🧪 Running $tests on $avd_a (a) + $avd_b (b)..."
     else
         avd_a="android-14"
+        if [[ -n "${CI:-}" ]]; then
+            device_a="emulator-5556"
+        fi
         echo "🧪 Running $tests on $avd_a..."
     fi
 
