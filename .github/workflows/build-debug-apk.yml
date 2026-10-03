@@ -13,6 +13,7 @@ on:
           - feat/cup-exchange-rate-yadio
           - feature/iroh-connector
           - fedi-cuba
+          - dev/fedi-cuba
   push:
     branches:
       - 'feat/cup-exchange-rate-yadio'
@@ -47,6 +48,9 @@ jobs:
 
       - name: Run CUP rate unit tests
         run: nix develop -c bash -lc "cd ui/common && yarn jest --ci unit/redux/fetchCurrencyPrices.test.ts"
+
+      - name: Run federation discovery unit tests
+        run: nix develop -c bash -lc "cd ui/common && yarn jest --ci unit/utils/FederationUtils.test.ts"
 
       - name: Build APK (dev flavor, release, arm64-v8a)
         # Debug variants ship without the JS bundle and need a Metro dev server.
