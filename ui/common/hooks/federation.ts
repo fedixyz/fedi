@@ -64,7 +64,7 @@ import {
     shouldShowOfflineWallet,
     shouldShowSocialRecovery,
 } from '../utils/FederationUtils'
-import { BridgeError } from '../utils/errors'
+import { BridgeError, isPeerConnectionError } from '../utils/errors'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
@@ -525,7 +525,11 @@ export function useFederationPreview(t: TFunction, invite: string) {
     )
 
     const handleCode = useCallback(
-        async (code: string, onSuccess?: (type: InviteCodeType) => void) => {
+        async (
+            code: string,
+            onSuccess?: (type: InviteCodeType) => void,
+            onError?: (err: unknown) => void,
+        ) => {
             try {
                 setIsFetchingPreview(true)
                 const codeType = detectInviteCodeType(code)
@@ -564,8 +568,13 @@ export function useFederationPreview(t: TFunction, invite: string) {
             } catch (err) {
                 log.error('handleCode', err)
 
+                if (onError) {
+                    onError(err)
+                    return
+                }
+
                 if (err instanceof BridgeError) {
-                    if (err.error.includes('Failed to connect to peer')) {
+                    if (isPeerConnectionError(err)) {
                         toast.show({
                             content: t('errors.network-connection-failed'),
                             status: 'error',

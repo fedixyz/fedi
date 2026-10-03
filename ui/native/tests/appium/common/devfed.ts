@@ -48,9 +48,7 @@ export async function fetchDevfedText(pathAndQuery: string): Promise<string> {
 // nothing.
 export async function reverseDevfedPortsIntoDevices(): Promise<void> {
     if (currentPlatform !== Platform.ANDROID) return
-    const body = await fetchDevfedText('/ports')
-    const ports: number[] = JSON.parse(body).ports
-    if (!ports?.length) throw new Error(`ports response had no ports: ${body}`)
+    const ports = await fetchDevfedPorts()
     for (const handle of AppiumManager.activeHandles()) {
         const udid = AppiumManager.deviceId(handle)
         if (!udid) continue
@@ -65,6 +63,24 @@ export async function reverseDevfedPortsIntoDevices(): Promise<void> {
         }
         console.log(`[devfed] reversed ${ports.length} fed ports into ${udid}`)
     }
+}
+
+export async function removeDevfedPortsFromDevice(
+    handle: string,
+): Promise<void> {
+    const udid = AppiumManager.deviceId(handle)
+    if (!udid) throw new Error(`no device id for actor ${handle}`)
+    for (const port of await fetchDevfedPorts()) {
+        execFileSync('adb', ['-s', udid, 'reverse', '--remove', `tcp:${port}`])
+    }
+    console.log(`[devfed] removed the fed ports from ${udid}`)
+}
+
+async function fetchDevfedPorts(): Promise<number[]> {
+    const body = await fetchDevfedText('/ports')
+    const ports: number[] = JSON.parse(body).ports
+    if (!ports?.length) throw new Error(`ports response had no ports: ${body}`)
+    return ports
 }
 
 export async function getDevfedInvite(): Promise<string> {

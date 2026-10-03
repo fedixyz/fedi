@@ -3,10 +3,12 @@ import {
     AppiumTestBase,
     MATRIX_TIMEOUT,
 } from '../../configs/appium/AppiumTestBase'
+import { Platform, currentPlatform } from '../../configs/appium/types'
 import { setupOnboardedLocalFed } from '../fixtures/setupOnboardedLocalFed'
 import {
     generateDevfedEcash,
     getDevfedInvite,
+    removeDevfedPortsFromDevice,
     reverseDevfedPortsIntoDevices,
 } from './devfed'
 import {
@@ -22,9 +24,9 @@ import {
 // Money moving inside a direct message. Ecash underneath, but the claim runs
 // off the chat event rather than a copied token.
 //
-// A same-federation payment is claimed by the recipient as soon as their
-// device sees it, so there is no tap-to-receive leg. That only appears when
-// the recipient is outside the sending federation.
+// Bob starts outside alice's federation, so he accepts her first payment
+// and joins her federation from the receive sheet. Later payments are claimed
+// as soon as his device sees them.
 //
 // Cancelling a sent payment is not covered. The cancel control only exists
 // while the payment is still pending, and two devices that are both online
@@ -51,11 +53,11 @@ export class ChatPayments extends AppiumTestBase {
         const alice: AppiumTestBase = this
         const bob = await this.spawnActor('b')
 
-        console.log('[phase0] join local fed and fund alice')
+        console.log('[phase0] join local fed and fund alice, bob joins nothing')
         await reverseDevfedPortsIntoDevices()
         const invite = await getDevfedInvite()
         await setupOnboardedLocalFed(alice, invite)
-        await setupOnboardedLocalFed(bob, invite)
+        await onboardWithoutFederation(bob)
         await redeemEcash(alice, await generateDevfedEcash(FUND_SATS * 1000))
         await alice.waitForText('Ecash claimed', 0, true, 120000)
         await alice.clickOnText('Go to wallet', 0, true)
@@ -77,25 +79,22 @@ export class ChatPayments extends AppiumTestBase {
         // connection request before the room is theirs.
         await enterRoom(bob, aliceProfile.displayName)
 
-        console.log('[phase2] alice sends, bob receives')
-        // Both opening balances are read before anything is sent. The
-        // recipient's device claims the moment it renders the bubble, so a
-        // reading taken afterwards already has the payment in it.
+        console.log('[phase2] alice sends, bob joins her fed to receive')
         const aliceStart = await balanceOnWallet(alice)
-        const bobStart = await balanceOnWallet(bob)
 
         // Reading a balance steps out of the room, so every chat action has
         // to open it again.
         await enterRoom(alice, bobProfile.displayName)
         await sendChatPayment(alice, SEND_SATS)
-        await alice.waitForText('Paid', 0, true, MATRIX_TIMEOUT)
 
         await enterRoom(bob, aliceProfile.displayName)
+        await joinFederationToReceive(bob)
         await bob.waitForText('Received', 0, true, MATRIX_TIMEOUT)
+        await alice.waitForText('Paid', 0, true, MATRIX_TIMEOUT)
         const bobAfterReceive = await balanceOnWallet(bob)
-        if (bobAfterReceive !== bobStart + SEND_SATS) {
+        if (bobAfterReceive !== SEND_SATS) {
             throw new Error(
-                `bob has ${bobAfterReceive} sats after the chat payment, expected ${bobStart + SEND_SATS}`,
+                `bob has ${bobAfterReceive} sats after the chat payment, expected ${SEND_SATS}`,
             )
         }
         const aliceAfterSend = await balanceOnWallet(alice)
@@ -139,6 +138,30 @@ export class ChatPayments extends AppiumTestBase {
 }
 
 type Profile = { userId: string; displayName: string }
+
+async function onboardWithoutFederation(t: AppiumTestBase): Promise<void> {
+    await t.clickElementByKey('Get started')
+    await t.clickElementByKey('No')
+    await t.waitForElementDisplayed('ManualSetupButton', 90000)
+}
+
+// ios simulators share the host's loopback, so only android can cut one
+// device off the fed.
+async function joinFederationToReceive(t: AppiumTestBase): Promise<void> {
+    const cutOff = currentPlatform === Platform.ANDROID
+    if (cutOff) await removeDevfedPortsFromDevice(t.handle)
+    await t.clickOnText('Accept', 0, true, MATRIX_TIMEOUT)
+    if (cutOff) {
+        await t.waitForElementDisplayed('ReceiveForeignEcashIssue', 60000)
+        await t.saveScreenshot('receive-sheet-unreachable')
+        await reverseDevfedPortsIntoDevices()
+        await t.clickElementByKey('ReceiveForeignEcashRetryButton')
+    }
+    await t.waitForText('Join new federation', 0, true, 60000)
+    await t.saveScreenshot('receive-sheet-join')
+    await t.clickOnText('Join new federation', 0, true)
+    await t.clickElementByKey('JoinFederationButton', 60000)
+}
 
 // The settings drawer carries both halves of a person's identity: the member
 // QR shares a universal link holding the matrix id, and the name sits beside

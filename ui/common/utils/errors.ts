@@ -50,3 +50,10 @@ export class BridgeError extends TaggedError<'BridgeError'> {
         this.message = `BridgeError: ${this.error}`
     }
 }
+
+export function isPeerConnectionError(e: unknown): e is BridgeError {
+    return (
+        e instanceof BridgeError &&
+        e.error.includes('Failed to connect to peer')
+    )
+}
