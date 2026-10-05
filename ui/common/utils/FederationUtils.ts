@@ -598,16 +598,11 @@ export const getCommunityPreview = async (
 
 export const coerceLoadedFederation = (
     federation: { init_state: 'ready' } & RpcFederation,
+    status: FederationStatus = 'unknown',
 ): LoadedFederation => {
-    /*
-     *  Client-side network failure will cause getFederationStatus to
-     *  hang and timeout after 10 seconds so we assume online by default
-     *  and instead fetch the status in the background. This should mean
-     *  a smoother UX since we avoid flickering indicators
-     */
     return {
         ...federation,
-        status: 'online',
+        status,
     }
 }
 
@@ -659,28 +654,6 @@ export const switchGateway = async (
     gatewayId: RpcLightningGatewayId | null,
 ): Promise<void> => {
     await fedimint.setGatewayOverride(gatewayId, federationId)
-}
-
-export const getFederationStatus = async (
-    fedimint: FedimintBridge,
-    federationId: Federation['id'],
-): Promise<FederationStatus> => {
-    const guardianStatuses = await fedimint.getGuardianStatus(federationId)
-    const offlineGuardians = guardianStatuses.filter(status => {
-        // Guardian is online
-        if ('online' in status) return false
-        // TODO: handle other unusual states we may see here to qualify connection health?
-        else return true
-    })
-    if (offlineGuardians.length === 0) {
-        return 'online'
-    }
-    // A federation can achieve consensus if 3f + 1 guardians are online,
-    // where f is the number of "faulty" guardians.
-    if (3 * offlineGuardians.length + 1 <= guardianStatuses.length) {
-        return 'unstable'
-    }
-    return 'offline'
 }
 
 export const getGatewaysList = async (

@@ -22,18 +22,19 @@ export default function FederationStatusAvatar({
     const { t } = useTranslation()
 
     const popupInfo = usePopupFederationInfo(federation.meta ?? {})
-    const { status, statusIcon, statusIconColor } =
+    const { showHealthWarning, statusIcon, statusIconColor } =
         useFederationStatus<SvgIconName>({
             federationId: federation.id,
             t,
             statusIconMap: {
+                unknown: 'Dot',
                 online: 'Dot',
                 unstable: 'Dot',
                 offline: 'Dot',
             },
         })
 
-    const shouldShowDot = status !== 'online' || popupInfo
+    const shouldShowDot = showHealthWarning || popupInfo
 
     return (
         <AvatarContainer size={size}>

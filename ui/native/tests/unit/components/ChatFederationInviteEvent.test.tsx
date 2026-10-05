@@ -103,6 +103,9 @@ function storeWithJoinedFederation() {
             guardianitoBot: null,
             selectedFederationId: null,
             simulateRecoveryByFederation: {},
+            guardianStatusRequests: {},
+            guardianHealth: {},
+            isGuardianMonitoringActive: true,
         },
     })
     return store

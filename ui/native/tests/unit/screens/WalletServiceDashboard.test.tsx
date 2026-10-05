@@ -364,23 +364,31 @@ describe('screens/WalletServiceDashboard', () => {
 
         expect(
             await screen.findByText(
-                i18n.t('feature.wallet-service.dashboard-live-guardians', {
-                    online: 7,
-                    total: 7,
-                }),
+                i18n.t(
+                    'feature.wallet-service.dashboard-guardian-reachability',
+                    {
+                        status: i18n.t('words.online'),
+                        online: 7,
+                        total: 7,
+                    },
+                ),
             ),
         ).toBeOnTheScreen()
     })
 
-    it('should show an offline guardian count when some guardians are not reachable', async () => {
+    it('should not call a federation offline after one partial guardian result', async () => {
         renderScreen({ guardianStatuses: makeGuardianStatuses(5, 7) })
 
         expect(
             await screen.findByText(
-                i18n.t('feature.wallet-service.dashboard-offline-guardians', {
-                    online: 5,
-                    total: 7,
-                }),
+                i18n.t(
+                    'feature.wallet-service.dashboard-guardian-reachability',
+                    {
+                        status: i18n.t('words.unknown'),
+                        online: 5,
+                        total: 7,
+                    },
+                ),
             ),
         ).toBeOnTheScreen()
     })

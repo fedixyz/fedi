@@ -21,6 +21,14 @@ export function initializeWebStore() {
         storage: asyncLocalStorage,
         i18n,
         detectLanguage,
+        isForeground: () => document.visibilityState === 'visible',
+        subscribeForeground: onChange => {
+            const listener = () =>
+                onChange(document.visibilityState === 'visible')
+            document.addEventListener('visibilitychange', listener)
+            return () =>
+                document.removeEventListener('visibilitychange', listener)
+        },
     })
 
     return unsubscribe

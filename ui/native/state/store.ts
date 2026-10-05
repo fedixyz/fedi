@@ -41,6 +41,17 @@ export function initializeNativeStore() {
         fedimint,
         storage,
         i18n,
+        isForeground: () => RNAppState.currentState === 'active',
+        subscribeForeground: onChange => {
+            const subscription = RNAppState.addEventListener(
+                'change',
+                state => {
+                    if (state === 'active' || state === 'background')
+                        onChange(state === 'active')
+                },
+            )
+            return () => subscription.remove()
+        },
     })
 
     // Subscribe to native bridge events and dispatch ready state when complete

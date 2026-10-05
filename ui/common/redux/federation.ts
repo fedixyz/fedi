@@ -32,6 +32,7 @@ import {
     StabilityPoolConfig,
 } from '../types'
 import {
+    GuardianStatus,
     GuardianitoBot,
     RpcFederationId,
     RpcFederationPreview,
@@ -50,7 +51,6 @@ import {
     getFederationMaxStableBalanceMsats,
     getFederationName,
     getFederationPinnedMessage,
-    getFederationStatus,
     getFederationWelcomeMessage,
     hasMultispendModule,
     hasMultispendEnabled,
@@ -61,10 +61,16 @@ import {
     getPreviewFromLoadedFederation,
     shouldShowInviteCode,
 } from '../utils/FederationUtils'
+import {
+    FederationHealth,
+    GUARDIAN_CACHE_TTL,
+    observeFederationHealth,
+} from '../utils/federationHealth'
 import type { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { makeChatFromUnjoinedRoomPreview } from '../utils/matrix'
 import { upsertListItem } from '../utils/redux'
+import { setIsInternetUnreachable } from './environment'
 import { loadFromStorage } from './storage'
 
 const log = makeLog('common/redux/federation')
@@ -94,6 +100,12 @@ const initialState = {
     selectedFederationId: null as Federation['id'] | null,
     // this is a developer setting used for testing only
     simulateRecoveryByFederation: {} as Record<Federation['id'], boolean>,
+    guardianStatusRequests: {} as Record<Federation['id'], string | undefined>,
+    guardianHealth: {} as Record<
+        Federation['id'],
+        FederationHealth | undefined
+    >,
+    isGuardianMonitoringActive: true,
 }
 
 export type FederationState = typeof initialState
@@ -106,6 +118,8 @@ function removeFederationBookkeeping(
     federationId: Federation['id'],
 ) {
     state.federations = state.federations.filter(fed => fed.id !== federationId)
+    delete state.guardianStatusRequests[federationId]
+    delete state.guardianHealth[federationId]
     if (state.federations.length === 0) {
         state.payFromFederationId = null
     } else {
@@ -211,6 +225,10 @@ export const federationSlice = createSlice({
                         case 'loading':
                         case 'failed':
                             updatedFederation = federationToUpsert
+                            delete state.guardianHealth[existingFederation.id]
+                            delete state.guardianStatusRequests[
+                                existingFederation.id
+                            ]
                             break
                         case 'ready':
                         default:
@@ -287,11 +305,50 @@ export const federationSlice = createSlice({
         },
         upsertFederation(state, action: PayloadAction<Federation>) {
             if (!action.payload.id) return
+            if (action.payload.init_state !== 'ready') {
+                delete state.guardianHealth[action.payload.id]
+                delete state.guardianStatusRequests[action.payload.id]
+            }
             state.federations = upsertListItem<Federation>(
                 state.federations,
                 action.payload,
                 ['meta'],
             )
+        },
+        updateFederationHealth(
+            state,
+            action: PayloadAction<{
+                federationId: Federation['id']
+                guardians: GuardianStatus[]
+                checkedAt: number
+                requestId: string
+            }>,
+        ) {
+            const { federationId, guardians, checkedAt, requestId } =
+                action.payload
+            if (state.guardianStatusRequests[federationId] !== requestId) return
+            const federation = state.federations.find(
+                f => f.id === federationId,
+            )
+            if (federation?.init_state !== 'ready') return
+            const { health, status } = observeFederationHealth(
+                guardians,
+                checkedAt,
+                state.guardianHealth[federationId],
+                federation.status,
+            )
+            state.guardianHealth[federationId] = health
+            federation.status = status
+        },
+        setGuardianMonitoringActive(state, action: PayloadAction<boolean>) {
+            if (state.isGuardianMonitoringActive === action.payload) return
+            state.isGuardianMonitoringActive = action.payload
+            state.guardianHealth = {}
+            state.guardianStatusRequests = {}
+            for (const federation of state.federations) {
+                if (federation.init_state === 'ready')
+                    federation.status = 'unknown'
+            }
         },
         updateFederationBalance(
             state,
@@ -514,6 +571,32 @@ export const federationSlice = createSlice({
         },
     },
     extraReducers: builder => {
+        builder.addCase(setIsInternetUnreachable, (state, action) => {
+            if (action.payload) {
+                state.guardianHealth = {}
+                state.guardianStatusRequests = {}
+                for (const federation of state.federations) {
+                    if (federation.init_state === 'ready')
+                        federation.status = 'unknown'
+                }
+            }
+        })
+        builder.addCase(refreshGuardianStatuses.pending, (state, action) => {
+            state.guardianStatusRequests[action.meta.arg.federation.id] =
+                action.meta.requestId
+        })
+        builder.addCase(refreshGuardianStatuses.fulfilled, (state, action) => {
+            const id = action.meta.arg.federation.id
+            if (state.guardianStatusRequests[id] === action.meta.requestId) {
+                delete state.guardianStatusRequests[id]
+            }
+        })
+        builder.addCase(refreshGuardianStatuses.rejected, (state, action) => {
+            const id = action.meta.arg.federation.id
+            if (state.guardianStatusRequests[id] === action.meta.requestId) {
+                delete state.guardianStatusRequests[id]
+            }
+        })
         builder.addCase(preloadFederationLists.fulfilled, (state, action) => {
             state.publicFederations = action.payload.publicFederations
             state.autoSelectFederations = action.payload.autoSelectFederations
@@ -619,6 +702,8 @@ export const {
     setAutoSelectFederations,
     upsertCommunity,
     upsertFederation,
+    updateFederationHealth,
+    setGuardianMonitoringActive,
     updateFederationBalance,
     mergeFederationMeta,
     setLastUsedFederationId,
@@ -757,20 +842,18 @@ export const refreshFederations = createAsyncThunk<
             case 'failed':
                 return f
             case 'ready': {
-                const loadedFederation = coerceLoadedFederation(f)
-
-                dispatch(
-                    refreshGuardianStatuses({
-                        fedimint,
-                        federation: loadedFederation,
-                    }),
+                return coerceLoadedFederation(
+                    f,
+                    selectLoadedFederation(getState(), f.id)?.status,
                 )
-                return loadedFederation
             }
         }
     })
 
     dispatch(setFederations(federations))
+    for (const federation of selectLoadedFederations(getState())) {
+        dispatch(refreshGuardianStatuses({ fedimint, federation }))
+    }
 
     // Process federation metadata for default chats
     log.info(`processing meta for ${federations.length} federations`)
@@ -811,7 +894,7 @@ export const refreshGuardianStatuses = createAsyncThunk<
     { state: CommonState }
 >(
     'federation/refreshGuardianStatuses',
-    async ({ fedimint, federation }, { dispatch, getState }) => {
+    async ({ fedimint, federation }, { dispatch, getState, requestId }) => {
         // Don't bother refreshing if we know internet is unreachable
         const isInternetUnreachable = selectIsInternetUnreachable(getState())
         log.info(
@@ -821,24 +904,45 @@ export const refreshGuardianStatuses = createAsyncThunk<
         )
         if (isInternetUnreachable) return
 
-        // TODO: move this logic to the bridge?
         try {
-            const updatedStatus = await getFederationStatus(
-                fedimint,
-                federation.id,
-            )
+            const guardians = await fedimint.getGuardianStatus(federation.id)
+            if (selectIsInternetUnreachable(getState())) return
             dispatch(
-                upsertFederation({
-                    ...federation,
-                    status: updatedStatus,
+                updateFederationHealth({
+                    federationId: federation.id,
+                    guardians,
+                    checkedAt: Date.now(),
+                    requestId,
                 }),
             )
         } catch (error) {
+            dispatch(
+                updateFederationHealth({
+                    federationId: federation.id,
+                    guardians: [],
+                    checkedAt: Date.now(),
+                    requestId,
+                }),
+            )
             log.error(
                 `Error in guardian status fetch for federation ${federation.id}:`,
                 error,
             )
         }
+    },
+    {
+        condition: ({ federation }, { getState }) => {
+            const state = getState()
+            const previous = state.federation.guardianHealth[federation.id]
+            const age = previous ? Date.now() - previous.checkedAt : undefined
+            return (
+                state.federation.isGuardianMonitoringActive &&
+                !selectIsInternetUnreachable(state) &&
+                !state.federation.guardianStatusRequests[federation.id] &&
+                !!selectLoadedFederation(state, federation.id) &&
+                (age === undefined || age < 0 || age >= GUARDIAN_CACHE_TTL)
+            )
+        },
     },
 )
 
@@ -1075,15 +1179,17 @@ export const joinFederation = createAsyncThunk<
             code,
             recoverFromScratch,
         )
-        const status = await getFederationStatus(fedimint, joinResult.id)
-        const federation = {
-            ...joinResult,
-            status,
-            init_state: 'ready',
+        let joinedFederation = selectLoadedFederation(getState(), joinResult.id)
+        if (!joinedFederation) {
+            joinedFederation = coerceLoadedFederation({
+                ...joinResult,
+                init_state: 'ready',
+            })
+            dispatch(upsertFederation(joinedFederation))
         }
-
-        const joinedFederation = selectFederation(getState(), federation.id)
-        if (!joinedFederation) throw new Error('errors.unknown-error')
+        dispatch(
+            refreshGuardianStatuses({ fedimint, federation: joinedFederation }),
+        )
 
         dispatch(setLastUsedFederationId(joinedFederation.id))
         return joinedFederation
@@ -1377,22 +1483,6 @@ export const selectAlphabeticallySortedCommunities = createSelector(
 export const selectFederationIds = createSelector(
     selectFederations,
     federations => federations.map(f => f.id),
-)
-
-export const selectShouldShowDegradedStatus = createSelector(
-    (s: CommonState) => selectIsInternetUnreachable(s),
-    (_s: CommonState, federation: Federation | undefined) => federation,
-    (isInternetUnreachable, federation) => {
-        // dont show if there is a local internet problem
-        if (isInternetUnreachable) return false
-        const federationStatus =
-            federation && 'status' in federation ? federation.status : undefined
-        // dont show if we dont know the status yet
-        if (!federationStatus) return false
-        // dont show if the federation is online
-        if (federationStatus === 'online') return false
-        else return true
-    },
 )
 
 export const selectFederation = (s: CommonState, id: string) =>

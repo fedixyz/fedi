@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FALLBACK_LIMIT_MSATS } from '@fedi/common/constants/limits'
+import { useGuardianStatus } from '@fedi/common/hooks/federation'
 import { LoadedFederation } from '@fedi/common/types'
-import { GuardianStatus } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import {
     getFederationMaxBalanceMsats,
@@ -11,7 +10,6 @@ import {
 } from '@fedi/common/utils/FederationUtils'
 import { formatLargeNumber } from '@fedi/common/utils/format'
 
-import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 import { CircularLoader } from '../CircularLoader'
 import { Column, Row } from '../Flex'
@@ -22,9 +20,8 @@ function FederationDetailStats({
 }: {
     federation: LoadedFederation
 }) {
-    const [guardianStatuses, setGuardianStatuses] =
-        useState<Array<GuardianStatus> | null>(null)
-    const [isLoadingGuardians, setIsLoadingGuardians] = useState(true)
+    const { guardians: guardianStatuses, isLoading: isLoadingGuardians } =
+        useGuardianStatus(federation.id)
 
     const { t } = useTranslation()
 
@@ -44,18 +41,11 @@ function FederationDetailStats({
         'K',
     )} ${t('words.sats').toUpperCase()}`
 
-    useEffect(() => {
-        fedimint
-            .getGuardianStatus(federation.id)
-            .then(setGuardianStatuses)
-            .finally(() => setIsLoadingGuardians(false))
-    }, [federation.id])
-
     return (
         <Container>
             <Column align="center" grow gap="xs">
                 <Text variant="small" weight="medium">
-                    {t('words.guardians')}
+                    {t('feature.federations.guardians-reachable')}
                 </Text>
                 {isLoadingGuardians ? (
                     <CircularLoader size="md" />

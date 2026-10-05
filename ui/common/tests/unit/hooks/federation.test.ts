@@ -22,7 +22,7 @@ import {
     mockFederation2,
 } from '../../mock-data/federation'
 import { createMockFedimintBridge } from '../../utils/fedimint'
-import { renderHookWithState } from '../../utils/render'
+import { renderHookWithState, renderHookWithBridge } from '../../utils/render'
 
 describe('common/hooks/federation', () => {
     let store: ReturnType<typeof setupStore>
@@ -103,24 +103,26 @@ describe('common/hooks/federation', () => {
     describe('useFederationStatus', () => {
         it('should correctly display the status for an online federation', async () => {
             store.dispatch(setFederations([mockFederation1]))
-            const { result } = renderHookWithState(
+            const { result } = renderHookWithBridge(
                 () =>
                     useFederationStatus({
                         federationId: mockFederation1.id,
                         t,
                         statusIconMap: {
+                            unknown: 'Dot',
                             online: 'Online',
                             offline: 'Offline',
                             unstable: 'Info',
                         },
                     }),
                 store,
+                createMockFedimintBridge(),
             )
 
             expect(result.current.status).toBe('online')
             expect(result.current.statusText).toBe(t('words.status'))
             expect(result.current.statusMessage).toBe(
-                t('feature.federations.connection-status-online'),
+                t('feature.federations.guardian-connection-online'),
             )
             expect(result.current.statusIcon).toBe('Online')
             expect(result.current.statusIconColor).toBe(theme.colors.success)
@@ -133,24 +135,26 @@ describe('common/hooks/federation', () => {
             } as LoadedFederation
             mockOfflineFederation.status = 'offline'
             store.dispatch(setFederations([mockOfflineFederation]))
-            const { result } = renderHookWithState(
+            const { result } = renderHookWithBridge(
                 () =>
                     useFederationStatus({
                         federationId: mockFederation1.id,
                         t,
                         statusIconMap: {
+                            unknown: 'Dot',
                             online: 'Online',
                             offline: 'Offline',
                             unstable: 'Info',
                         },
                     }),
                 store,
+                createMockFedimintBridge(),
             )
 
             expect(result.current.status).toBe('offline')
             expect(result.current.statusText).toBe(t('words.status'))
             expect(result.current.statusMessage).toBe(
-                t('feature.federations.connection-status-offline'),
+                t('feature.federations.guardian-connection-offline'),
             )
             expect(result.current.statusIcon).toBe('Offline')
             expect(result.current.statusIconColor).toBe(theme.colors.red)
@@ -163,59 +167,61 @@ describe('common/hooks/federation', () => {
             } as LoadedFederation
             mockUnstableFederation.status = 'unstable'
             store.dispatch(setFederations([mockUnstableFederation]))
-            const { result } = renderHookWithState(
+            const { result } = renderHookWithBridge(
                 () =>
                     useFederationStatus({
                         federationId: mockFederation1.id,
                         t,
                         statusIconMap: {
+                            unknown: 'Dot',
                             online: 'Online',
                             offline: 'Offline',
                             unstable: 'Info',
                         },
                     }),
                 store,
+                createMockFedimintBridge(),
             )
 
             expect(result.current.status).toBe('unstable')
             expect(result.current.statusText).toBe(t('words.status'))
             expect(result.current.statusMessage).toBe(
-                t('feature.federations.connection-status-unstable'),
+                t('feature.federations.guardian-connection-limited'),
             )
             expect(result.current.statusIcon).toBe('Info')
             expect(result.current.statusIconColor).toBe(
                 theme.colors.lightOrange,
             )
-            expect(result.current.statusWord).toBe(t('words.unstable'))
+            expect(result.current.statusWord).toBe(t('words.online'))
         })
 
         it('should let the user know if they are not connected to the internet', async () => {
             store.dispatch(setFederations([mockFederation1]))
             store.dispatch(setIsInternetUnreachable(true))
-            const { result } = renderHookWithState(
+            const { result } = renderHookWithBridge(
                 () =>
                     useFederationStatus({
                         federationId: mockFederation1.id,
                         t,
                         statusIconMap: {
+                            unknown: 'Dot',
                             online: 'Online',
                             offline: 'Offline',
                             unstable: 'Info',
                         },
                     }),
                 store,
+                createMockFedimintBridge(),
             )
 
-            expect(result.current.status).toBe('online')
-            expect(result.current.statusText).toBe(
-                t('feature.federations.last-known-status'),
-            )
+            expect(result.current.status).toBe('unknown')
+            expect(result.current.statusText).toBe(t('words.status'))
             expect(result.current.statusMessage).toBe(
                 t('feature.federations.please-reconnect'),
             )
-            expect(result.current.statusIcon).toBe('Online')
-            expect(result.current.statusIconColor).toBe(theme.colors.success)
-            expect(result.current.statusWord).toBe(t('words.online'))
+            expect(result.current.statusIcon).toBe('Dot')
+            expect(result.current.statusIconColor).toBe(theme.colors.grey)
+            expect(result.current.statusWord).toBe(t('words.unknown'))
         })
     })
 
