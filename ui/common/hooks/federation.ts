@@ -32,6 +32,7 @@ import {
     checkFederationForAutojoinCommunities,
     refreshFederations,
     refreshGuardianStatuses,
+    selectGuardianHealthSimulation,
     checkFederationPreview,
     selectIsInternetUnreachable,
     createGuardianitoBot,
@@ -824,9 +825,15 @@ export function useGuardianStatus(federationId?: string) {
         if (federation)
             dispatch(refreshGuardianStatuses({ fedimint, federation }))
     }, [dispatch, fedimint, federation])
+    const simulation = useCommonSelector(s =>
+        selectGuardianHealthSimulation(s, federationId ?? ''),
+    )
+    const displayedHealth = simulation?.health ?? health
     return {
-        guardians: health?.guardians.length ? health.guardians : undefined,
-        isLoading: !!pending && !health,
+        guardians: displayedHealth?.guardians.length
+            ? displayedHealth.guardians
+            : undefined,
+        isLoading: !simulation && !!pending && !health,
     }
 }
 
@@ -843,10 +850,14 @@ export function useFederationStatus<I>({
         selectLoadedFederation(s, federationId),
     )
 
-    const status = federation?.status ?? 'unknown'
-    const health = useCommonSelector(
+    const simulation = useCommonSelector(s =>
+        selectGuardianHealthSimulation(s, federationId),
+    )
+    const status = simulation?.status ?? federation?.status ?? 'unknown'
+    const observedHealth = useCommonSelector(
         s => s.federation.guardianHealth[federationId],
     )
+    const health = simulation?.health ?? observedHealth
     const isInternetUnreachable = useCommonSelector(selectIsInternetUnreachable)
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
 
@@ -874,7 +885,7 @@ export function useFederationStatus<I>({
         (status === 'unstable' && health?.belowQuorumSince !== undefined)
     ) {
         statusText = t('feature.federations.last-known-status')
-        statusMessage = t('feature.federations.guardian-connection-checking')
+        statusMessage = t('feature.federations.guardian-connection-limited')
     }
 
     if (popupInfo?.ended) {

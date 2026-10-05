@@ -103,6 +103,7 @@ function storeWithJoinedFederation() {
             guardianitoBot: null,
             selectedFederationId: null,
             simulateRecoveryByFederation: {},
+            guardianHealthSimulation: {},
             guardianStatusRequests: {},
             guardianHealth: {},
             isGuardianMonitoringActive: true,

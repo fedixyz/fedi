@@ -61,6 +61,7 @@ import {
     getPreviewFromLoadedFederation,
     shouldShowInviteCode,
 } from '../utils/FederationUtils'
+import { isDev } from '../utils/environment'
 import {
     FederationHealth,
     GUARDIAN_CACHE_TTL,
@@ -74,6 +75,11 @@ import { setIsInternetUnreachable } from './environment'
 import { loadFromStorage } from './storage'
 
 const log = makeLog('common/redux/federation')
+
+export type GuardianHealthSimulation = {
+    guardians: GuardianStatus[]
+    mode: 'recent' | 'sustained' | 'unknown'
+}
 
 /*** Initial State ***/
 
@@ -100,6 +106,10 @@ const initialState = {
     selectedFederationId: null as Federation['id'] | null,
     // this is a developer setting used for testing only
     simulateRecoveryByFederation: {} as Record<Federation['id'], boolean>,
+    guardianHealthSimulation: {} as Record<
+        Federation['id'],
+        GuardianHealthSimulation | undefined
+    >,
     guardianStatusRequests: {} as Record<Federation['id'], string | undefined>,
     guardianHealth: {} as Record<
         Federation['id'],
@@ -120,6 +130,7 @@ function removeFederationBookkeeping(
     state.federations = state.federations.filter(fed => fed.id !== federationId)
     delete state.guardianStatusRequests[federationId]
     delete state.guardianHealth[federationId]
+    delete state.guardianHealthSimulation[federationId]
     if (state.federations.length === 0) {
         state.payFromFederationId = null
     } else {
@@ -559,6 +570,18 @@ export const federationSlice = createSlice({
         setSelectedFederationId(state, action: PayloadAction<string>) {
             state.selectedFederationId = action.payload
         },
+        setGuardianHealthSimulation(
+            state,
+            action: PayloadAction<{
+                federationId: Federation['id']
+                simulation?: GuardianHealthSimulation
+            }>,
+        ) {
+            const { federationId, simulation } = action.payload
+            if (simulation)
+                state.guardianHealthSimulation[federationId] = simulation
+            else delete state.guardianHealthSimulation[federationId]
+        },
         setSimulateRecovery(
             state,
             action: PayloadAction<{
@@ -722,6 +745,7 @@ export const {
     migrateCommunityV1ToV2,
     setSelectedFederationId,
     setSimulateRecovery,
+    setGuardianHealthSimulation,
 } = federationSlice.actions
 
 /*** Async thunk actions */
@@ -1328,6 +1352,38 @@ export const createGuardianitoBot = createAsyncThunk<
 
 export const selectSimulateRecoveryByFederation = (s: CommonState) =>
     s.federation.simulateRecoveryByFederation
+
+export const selectCanSimulateGuardianHealth = (s: CommonState) =>
+    isDev() || s.environment.appFlavor === 'nightly'
+
+// keep simulated health out of wallet selectors.
+export const selectGuardianHealthSimulation = createSelector(
+    (s: CommonState, federationId: string) =>
+        selectCanSimulateGuardianHealth(s)
+            ? s.federation.guardianHealthSimulation[federationId]
+            : undefined,
+    simulation => {
+        if (!simulation) return undefined
+        const guardians =
+            simulation.mode === 'unknown' ? [] : simulation.guardians
+        const checkedAt = 6 * 60_000
+        const since = simulation.mode === 'sustained' ? 0 : checkedAt
+        return {
+            ...simulation,
+            ...observeFederationHealth(
+                guardians,
+                checkedAt,
+                {
+                    guardians,
+                    checkedAt,
+                    partialSince: since,
+                    belowQuorumSince: since,
+                },
+                'online',
+            ),
+        }
+    },
+)
 
 export const selectLoadedFederations = createSelector(
     (s: CommonState) => s.federation.federations,

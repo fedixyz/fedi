@@ -43,9 +43,9 @@ function FederationDetailStats({
 
     return (
         <Container>
-            <Column align="center" grow gap="xs">
+            <Column align="center" grow basis={false} gap="xs">
                 <Text variant="small" weight="medium">
-                    {t('feature.federations.guardians-reachable')}
+                    {t('words.guardians')}
                 </Text>
                 {isLoadingGuardians ? (
                     <CircularLoader size="md" />
@@ -57,7 +57,7 @@ function FederationDetailStats({
                     </Text>
                 )}
             </Column>
-            <Column align="center" grow gap="xs">
+            <Column align="center" grow basis={false} gap="xs">
                 <Text variant="small" weight="medium">
                     {t('feature.federations.wallet-balance')}
                 </Text>
@@ -65,7 +65,7 @@ function FederationDetailStats({
                     {formattedWalletBalance}
                 </Text>
             </Column>
-            <Column align="center" grow gap="xs">
+            <Column align="center" grow basis={false} gap="xs">
                 <Text variant="small" weight="medium">
                     {t('feature.federations.spend-limit')}
                 </Text>
