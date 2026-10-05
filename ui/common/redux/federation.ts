@@ -61,7 +61,7 @@ import {
     getPreviewFromLoadedFederation,
     shouldShowInviteCode,
 } from '../utils/FederationUtils'
-import { isDev } from '../utils/environment'
+import { isDev, isNightly } from '../utils/environment'
 import {
     FederationHealth,
     GUARDIAN_CACHE_TTL,
@@ -1354,7 +1354,7 @@ export const selectSimulateRecoveryByFederation = (s: CommonState) =>
     s.federation.simulateRecoveryByFederation
 
 export const selectCanSimulateGuardianHealth = (s: CommonState) =>
-    isDev() || s.environment.appFlavor === 'nightly'
+    isDev() || (isNightly() && s.environment.appFlavor === 'nightly')
 
 // keep simulated health out of wallet selectors.
 export const selectGuardianHealthSimulation = createSelector(
