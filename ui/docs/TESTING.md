@@ -216,7 +216,9 @@ Useful options:
 ./scripts/ui/run-e2e-web.sh -- --grep 'onboarding'
 ```
 
-The default local port is `34157`. Set `WEB_E2E_PORT` to override it. Use `--with-devfed` or set `WEB_E2E_WITH_DEVFED=1` when running payment specs that need a local devimint federation. In CI, the `End-to-end tests` workflow runs the web job with `platforms=web` or `platforms=all`, starts the wrapper with `--with-devfed`, uploads `ui/web/test-results/`, and serves the app as a nightly production build because the bridge-backed web e2e flow depends on nightly feature behavior.
+The default local port is `34157`. Set `WEB_E2E_PORT` to override it. Use `--with-devfed` or set `WEB_E2E_WITH_DEVFED=1` when running payment specs that need a local devimint federation. Set `FEDI_FEDERATION_KIND=two` to run walletv2-specific payment coverage against a kind-two federation; omit it or set `one` for the default kind-one federation.
+
+In CI, the `End-to-end tests` workflow runs the web job with `platforms=web` or `platforms=all` across `one` and `two` federation kinds. The kind-two leg runs `payments.spec.ts`; the kind-one leg runs the selected web suite unless `tests=payments`, which also narrows to the payment spec. Each leg starts the wrapper with `--with-devfed`, uploads `ui/web/test-results/` as `web-e2e-results-<kind>`, and serves the app as a nightly production build because the bridge-backed web e2e flow depends on nightly feature behavior.
 
 ## Test Configuration
 

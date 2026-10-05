@@ -19,10 +19,9 @@ Submitting a bug report does the following:
 
 To use these endpoints, you need to provide the following environment variables:
 
--   `AWS_ACCESS_KEY_ID`
--   `AWS_SECRET_ACCESS_KEY`
 -   `AWS_REGION`
 -   `AWS_BUG_REPORT_BUCKET_NAME`
+-   either `AWS_ROLE_ARN` for Vercel OIDC credentials, or both `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for the default AWS credential chain
 
 The easiest way to do this is to copy `ui/web/.env.development` to `ui/web/.env.local` and fill in the values.
 
@@ -30,7 +29,10 @@ The easiest way to do this is to copy `ui/web/.env.development` to `ui/web/.env.
 
 1. [Create a new S3 bucket](https://s3.console.aws.amazon.com/s3/bucket/create?region=us-east-1) with default permissions
     - Note the bucket name and region, fill out `AWS_REGION` and `AWS_BUG_REPORT_BUCKET_NAME` accordingly
-2. [Create a new IAM Policy](https://us-east-1.console.aws.amazon.com/iam/home?region=us-east-1#/policies/create) that provides write access to the bucket
+2. Configure AWS credentials:
+    - In Vercel production and staging, set `AWS_ROLE_ARN` to an IAM role trusted by Vercel OIDC. The route uses `@vercel/oidc-aws-credentials-provider` when this variable is set.
+    - For local development or other environments without `AWS_ROLE_ARN`, provide `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+3. [Create a new IAM Policy](https://us-east-1.console.aws.amazon.com/iam/home?region=us-east-1#/policies/create) that provides write access to the bucket
     ```json
     {
         "Version": "2012-10-17",
@@ -44,8 +46,8 @@ The easiest way to do this is to copy `ui/web/.env.development` to `ui/web/.env.
         ]
     }
     ```
-3. [Create a new IAM user](https://us-east-1.console.aws.amazon.com/iam/home?region=us-east-1#/users/create) with that IAM Policy attached to it
-4. Create an access key for the IAM user
+4. If you are using static local credentials, [create a new IAM user](https://us-east-1.console.aws.amazon.com/iam/home?region=us-east-1#/users/create) with that IAM Policy attached to it
+5. Create an access key for the IAM user
     - Select "Application running outside AWS"
     - Copy the access key and secret access key to `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` respectively
 

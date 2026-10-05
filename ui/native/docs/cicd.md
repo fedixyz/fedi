@@ -44,8 +44,8 @@ Developers should be sure their PRs pass these checks before requesting a review
 The end-to-end workflow runs scheduled and manual e2e coverage across native and web:
 
 - [End-to-end tests](https://github.com/fedibtc/fedi/actions/workflows/e2e-tests.yml) accepts `platforms=all`, `android`, `ios`, or `web`.
-- Android and iOS jobs run the Appium pipeline through `scripts/ci/e2e-pipeline.sh` on self-hosted macOS GUI runners.
-- The web job runs `scripts/ui/run-e2e-web.sh --with-devfed` on a self-hosted Linux runner, starts the built web app with nightly environment variables plus a local devimint federation for payment specs, and uploads Playwright results from `ui/web/test-results/`.
+- Android and iOS jobs run the Appium pipeline through `scripts/ci/e2e-pipeline.sh` on self-hosted macOS GUI runners. Scheduled, `tests=all`, and `tests=payments` runs cover both `FEDI_FEDERATION_KIND=one` and `two`; other selected suites run the kind-one leg only. The kind-two mobile leg is narrowed to the payments suite.
+- The web job runs `scripts/ui/run-e2e-web.sh --with-devfed` on a self-hosted Linux runner for both federation kinds. The kind-two leg runs `payments.spec.ts`; the kind-one leg runs the selected web suite unless `tests=payments`, which also narrows to the payment spec. Each leg starts the built web app with nightly environment variables plus a local devimint federation and uploads Playwright results from `ui/web/test-results/` as `web-e2e-results-<kind>`.
 
 # Deployments
 
