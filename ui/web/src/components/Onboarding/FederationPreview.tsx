@@ -32,7 +32,7 @@ const FederationPreview: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
 
-    const showJoinFederation = shouldShowJoinFederation(federation.meta)
+    const showJoinFederation = shouldShowJoinFederation(federation)
     const [recoverFromScratch, setRecoverFromScratch] = useState(false)
     const [joinAnyways, setJoinAnyways] = useState(false)
     const tosUrl = getFederationTosUrl(federation.meta)

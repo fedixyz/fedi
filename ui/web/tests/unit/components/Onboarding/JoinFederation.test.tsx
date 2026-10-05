@@ -22,7 +22,12 @@ const communityPreviewState = (id: string) => ({
     isFetchingPreview: false,
     federationPreview: undefined,
     setFederationPreview: jest.fn(),
-    communityPreview: { id, name: id, meta: {} },
+    communityPreview: {
+        id,
+        name: id,
+        meta: {},
+        returningMemberStatus: { type: 'unknown' },
+    },
     setCommunityPreview: jest.fn(),
     handleCode: jest.fn(),
     handleJoin: (onSuccess?: (type: string) => void) =>

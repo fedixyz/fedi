@@ -60,6 +60,7 @@ describe('common/hooks/pay', () => {
                 buildNotJoinedEcash(),
                 createMockFederationPreview({
                     meta: { new_members_disabled: 'true' },
+                    returningMemberStatus: { type: 'newMember' },
                 }),
             )
 
@@ -68,6 +69,23 @@ describe('common/hooks/pay', () => {
             await waitFor(() => {
                 expect(result.current.loading).toBe(false)
                 expect(result.current.newMembersDisabled).toBe(true)
+            })
+        })
+
+        it('should let a returning member claim when new members are disabled', async () => {
+            const { result } = renderWithPreview(
+                buildNotJoinedEcash(),
+                createMockFederationPreview({
+                    meta: { new_members_disabled: 'true' },
+                    returningMemberStatus: { type: 'returningMember' },
+                }),
+            )
+
+            await act(() => result.current.parseEcash(NOT_JOINED_TOKEN))
+
+            await waitFor(() => {
+                expect(result.current.loading).toBe(false)
+                expect(result.current.newMembersDisabled).toBe(false)
             })
         })
 

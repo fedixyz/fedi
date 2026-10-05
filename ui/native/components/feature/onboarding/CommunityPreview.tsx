@@ -40,7 +40,7 @@ const CommunityPreview: React.FC<Props> = ({
     const { theme } = useTheme()
     const { t } = useTranslation()
 
-    const showJoinFederation = shouldShowJoinFederation(community.meta)
+    const showJoinFederation = shouldShowJoinFederation(community)
     const [showTopShadow, setShowTopShadow] = useState(false)
     const [showBottomShadow, setShowBottomShadow] = useState(true)
     const tosUrl = getFederationTosUrl(community.meta)
