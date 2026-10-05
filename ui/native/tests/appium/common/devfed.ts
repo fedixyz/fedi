@@ -18,12 +18,15 @@ function devfedBaseUrl(): string {
 
 // The fed is a freshly launched local process; the first funding calls can
 // race a connection reset ("fetch failed") before it settles.
-export async function fetchDevfedText(pathAndQuery: string): Promise<string> {
+export async function fetchDevfedText(
+    pathAndQuery: string,
+    init?: RequestInit,
+): Promise<string> {
     const url = `${devfedBaseUrl()}${pathAndQuery}`
     let lastErr: unknown
     for (let attempt = 1; attempt <= 5; attempt++) {
         try {
-            const res = await fetch(url)
+            const res = await fetch(url, init)
             const body = await res.text()
             if (!res.ok) {
                 throw new Error(`${pathAndQuery} ${res.status}: ${body}`)
@@ -37,7 +40,7 @@ export async function fetchDevfedText(pathAndQuery: string): Promise<string> {
         }
     }
     throw new Error(
-        `dev-fed GET ${pathAndQuery} failed after 5 attempts: ${(lastErr as Error).message}`,
+        `dev-fed ${init?.method ?? 'GET'} ${pathAndQuery} failed after 5 attempts: ${(lastErr as Error).message}`,
     )
 }
 
@@ -95,4 +98,40 @@ export async function generateDevfedEcash(msats: number): Promise<string> {
     const ecash = JSON.parse(body).ecash
     if (!ecash) throw new Error(`generate_ecash response had no ecash: ${body}`)
     return ecash
+}
+
+export async function setDevfedMeta(
+    fields: Record<string, string>,
+): Promise<void> {
+    await fetchDevfedText('/meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+    })
+    console.log(`[devfed] meta set: ${JSON.stringify(fields)}`)
+}
+
+// Only moves when a seed backs up for the first time. A repeat backup replaces
+// the old one.
+export async function getDevfedBackupCount(): Promise<number> {
+    const body = await fetchDevfedText('/backup_count')
+    const count = JSON.parse(body).backup_count
+    if (typeof count !== 'number') {
+        throw new Error(`backup_count response had no count: ${body}`)
+    }
+    return count
+}
+
+export async function waitForDevfedBackupCountAbove(
+    count: number,
+    timeout = 180000,
+): Promise<void> {
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+        if ((await getDevfedBackupCount()) > count) return
+        await new Promise(r => setTimeout(r, 5000))
+    }
+    throw new Error(
+        `no new backup reached the dev fed within ${timeout / 1000}s`,
+    )
 }
