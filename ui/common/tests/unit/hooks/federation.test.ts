@@ -222,6 +222,7 @@ describe('common/hooks/federation', () => {
             expect(result.current.statusIcon).toBe('Dot')
             expect(result.current.statusIconColor).toBe(theme.colors.grey)
             expect(result.current.statusWord).toBe(t('words.unknown'))
+            expect(result.current.showHealthWarning).toBe(false)
         })
     })
 

@@ -278,6 +278,7 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                             ) : (
                                 <Row align="center" gap={6}>
                                     <Row
+                                        testID="wallet-service-status-dot"
                                         style={[
                                             style.liveDot,
                                             {

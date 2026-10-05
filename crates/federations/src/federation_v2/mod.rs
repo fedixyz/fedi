@@ -225,6 +225,9 @@ mod wallet_ops;
 pub const GUARDIAN_STATUS_TIMEOUT: Duration = Duration::from_secs(60);
 pub const GUARDIAN_STATUS_CACHE_TTL_SECS: u64 = 30;
 
+#[cfg(test)]
+mod guardian_status_tests;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FediConfig {
     pub client_config: ClientConfig,
