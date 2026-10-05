@@ -1353,13 +1353,12 @@ export const createGuardianitoBot = createAsyncThunk<
 export const selectSimulateRecoveryByFederation = (s: CommonState) =>
     s.federation.simulateRecoveryByFederation
 
-export const selectCanSimulateGuardianHealth = (s: CommonState) =>
-    isDev() || (isNightly() && s.environment.appFlavor === 'nightly')
+export const selectCanSimulateGuardianHealth = () => isDev() || isNightly()
 
 // keep simulated health out of wallet selectors.
 export const selectGuardianHealthSimulation = createSelector(
     (s: CommonState, federationId: string) =>
-        selectCanSimulateGuardianHealth(s)
+        selectCanSimulateGuardianHealth()
             ? s.federation.guardianHealthSimulation[federationId]
             : undefined,
     simulation => {
