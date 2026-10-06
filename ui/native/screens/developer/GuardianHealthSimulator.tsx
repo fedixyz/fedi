@@ -28,7 +28,7 @@ const GuardianHealthSimulator = ({
     const guardians: GuardianStatus[] =
         simulation?.guardians ??
         nodes.map(node => ({
-            online: { guardian: node.url, latency_ms: 0 },
+            online: { guardian: node.url, fman_name: null, latency_ms: 0 },
         }))
     const update = (next: GuardianHealthSimulation | undefined) => {
         dispatch(
@@ -43,8 +43,8 @@ const GuardianHealthSimulator = ({
         const guardian = nodes[index].url
         const next = [...guardians]
         next[index] = online
-            ? { online: { guardian, latency_ms: 0 } }
-            : { timeout: { guardian, elapsed: 'simulated' } }
+            ? { online: { guardian, fman_name: null, latency_ms: 0 } }
+            : { timeout: { guardian, fman_name: null, elapsed: 'simulated' } }
         update({ guardians: next, mode: simulation?.mode ?? 'sustained' })
     }
 

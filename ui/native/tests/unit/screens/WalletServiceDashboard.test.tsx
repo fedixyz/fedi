@@ -77,10 +77,10 @@ const makeGuardianStatuses = (
     total: number,
 ): GuardianStatus[] => [
     ...Array.from({ length: online }, (_, i) => ({
-        online: { guardian: `g${i}`, latency_ms: 50 },
+        online: { guardian: `g${i}`, fman_name: null, latency_ms: 50 },
     })),
     ...Array.from({ length: total - online }, (_, i) => ({
-        timeout: { guardian: `g${online + i}`, elapsed: '5s' },
+        timeout: { guardian: `g${online + i}`, fman_name: null, elapsed: '5s' },
     })),
 ]
 

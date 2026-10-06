@@ -80,6 +80,7 @@ communities = { path = "crates/communities" }
 debug-tools = { path = "crates/debug-tools" }
 device-registration = { path = "crates/device-registration" }
 fi-client = { path = ".nix-deps/manifold/crates/fi-client" }
+fedi-decentralized-domain = { path = ".nix-deps/manifold/crates/domain" }
 fedi-decentralized-federation-preview = { path = ".nix-deps/manifold/crates/federation-preview" }
 fedi-decentralized-manifold-environment = { path = ".nix-deps/manifold/crates/manifold-environment" }
 fedi-decentralized-nostr-clients = { path = ".nix-deps/manifold/crates/nostr-clients" }

@@ -354,9 +354,20 @@ export type GroupInvitationWithKeys = {
 };
 
 export type GuardianStatus =
-  | { online: { guardian: string; latency_ms: number } }
-  | { error: { guardian: string; error: string } }
-  | { timeout: { guardian: string; elapsed: string } };
+  | {
+      online: {
+        guardian: string;
+        /**
+         * Null when the cached FMan mapping is missing or invalid.
+         */
+        fman_name: string | null;
+        latency_ms: number;
+      };
+    }
+  | { error: { guardian: string; fman_name: string | null; error: string } }
+  | {
+      timeout: { guardian: string; fman_name: string | null; elapsed: string };
+    };
 
 export type GuardianitoBot = { bot_user_id: string; bot_room_id: string };
 

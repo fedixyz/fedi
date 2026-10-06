@@ -29,6 +29,10 @@ use db::{
     TransactionNotesKey,
 };
 use device_registration::DeviceRegistrationService;
+use fedi_decentralized_domain::{
+    FMAN_SEAT_BINDINGS_META_FIELD_KEY, FmanSeatBindings, federation_seats,
+};
+use fedi_decentralized_service_fleet_manager::FmanName;
 use fedi_social_client::common::VerificationDocument;
 use fedi_social_client::{
     FediSocialClientInit, RecoveryFile, RecoveryId, SOCIAL_RECOVERY_SECRET_CHILD_ID, SocialBackup,
@@ -483,6 +487,7 @@ pub struct FederationV2 {
     pub guardian_status_cache:
         Mutex<Option<(std::time::SystemTime, Result<Vec<GuardianStatus>, String>)>>,
     pub spt_notifications: Arc<dyn SptNotifications>,
+    pub meta_source: meta::RefreshableMeta,
 }
 
 /// Info about a federation fetching during preview. it is used during joining
@@ -510,11 +515,9 @@ impl FederationV2 {
     }
 
     /// Instantiate Federation from FediConfig
-    async fn build_client_builder() -> anyhow::Result<ClientBuilder> {
+    async fn build_client_builder(meta: meta::RefreshableMeta) -> anyhow::Result<ClientBuilder> {
         let mut client_builder = fedimint_client::Client::builder().await?;
-        client_builder.with_meta_service(MetaService::new(MetaModuleMetaSourceWithFallback::new(
-            LegacyMetaSourceWithExternalUrl::default(),
-        )));
+        client_builder.with_meta_service(MetaService::new(meta));
         client_builder.with_module_inits(Self::module_inits());
         let client_builder = client_builder
             .with_iroh_enable_dht(false)
@@ -625,6 +628,7 @@ impl FederationV2 {
         multispend_services: Arc<dyn MultispendNotifications>,
         spt_notifications: Arc<dyn SptNotifications>,
         device_registration_service: Arc<DeviceRegistrationService>,
+        meta_source: meta::RefreshableMeta,
     ) -> anyhow::Result<Arc<Self>> {
         let recovering = client.has_pending_recoveries();
         let client_config = client.config().await;
@@ -798,6 +802,7 @@ impl FederationV2 {
             spv2_sweeper_service: Default::default(),
             lnurl_receives_service: Default::default(),
             guardian_status_cache: Mutex::new(None),
+            meta_source,
         }))
     }
 
@@ -1028,7 +1033,8 @@ impl FederationV2 {
                 .global_db
                 .with_prefix(prefix.consensus_encode_to_vec()),
         };
-        let client_builder = Self::build_client_builder().await?;
+        let meta_source = meta::RefreshableMeta::default();
+        let client_builder = Self::build_client_builder(meta_source.clone()).await?;
         let config = Client::get_config_from_db(&federation_db)
             .await
             .context("config not found in database")?;
@@ -1067,6 +1073,7 @@ impl FederationV2 {
             multispend_services,
             spt_notifications,
             device_registration_service,
+            meta_source,
         )
         .await?;
         federation.start_background_tasks_if_ready().await;
@@ -1162,7 +1169,8 @@ impl FederationV2 {
         dbtx.insert_entry(&InviteCodeKey, &invite_code_string).await;
         dbtx.commit_tx().await;
 
-        let client_builder = Self::build_client_builder().await?;
+        let meta_source = meta::RefreshableMeta::default();
+        let client_builder = Self::build_client_builder(meta_source.clone()).await?;
         let federation_id = info.federation_id;
         let client_secret =
             fedimint_client::RootSecret::Custom(Self::client_root_secret_from_root_mnemonic(
@@ -1225,6 +1233,7 @@ impl FederationV2 {
             multispend_services,
             spt_notifications,
             device_registration_service,
+            meta_source,
         )
         .await?;
 
@@ -1602,13 +1611,40 @@ impl FederationV2 {
         )
     }
 
+    /// Derive display names from the cached directory, keyed by guardian peer
+    /// id.
+    fn guardian_names(
+        config: &ClientConfig,
+        bindings: Option<FmanSeatBindings>,
+    ) -> anyhow::Result<BTreeMap<PeerId, String>> {
+        let Some(bindings) = bindings else {
+            return Ok(BTreeMap::new());
+        };
+        bindings
+            .verify_for_federation(&federation_seats(config)?)?
+            .into_iter()
+            .map(|binding| {
+                Ok((
+                    binding.peer_id.0.parse()?,
+                    FmanName::from_fman_id(binding.fman_pubkey.0.parse()?).to_string(),
+                ))
+            })
+            .collect()
+    }
+
     pub async fn guardian_status_no_cache(&self) -> anyhow::Result<Vec<GuardianStatus>> {
+        let bindings =
+            get_meta_field::<FmanSeatBindings>(&self.client, FMAN_SEAT_BINDINGS_META_FIELD_KEY)
+                .await;
+        let names = Self::guardian_names(&self.client.config().await, bindings).unwrap_or_default();
+        let names = &names;
         let futures =
             self.client
                 .get_peer_urls()
                 .await
                 .into_iter()
                 .map(|(peer_id, guardian)| async move {
+                    let fman_name = names.get(&peer_id).cloned();
                     let start = fedimint_core::time::now();
                     match timeout(
                         GUARDIAN_STATUS_TIMEOUT,
@@ -1626,6 +1662,7 @@ impl FederationV2 {
                             info!("Received guardian status response");
                             GuardianStatus::Online {
                                 guardian: guardian.to_string(),
+                                fman_name,
                                 latency_ms: fedimint_core::time::now()
                                     .duration_since(start)
                                     .unwrap_or_default()
@@ -1638,6 +1675,7 @@ impl FederationV2 {
                             info!("Guardian status request failed");
                             GuardianStatus::Error {
                                 guardian: guardian.to_string(),
+                                fman_name,
                                 error: error.to_string(),
                             }
                         }
@@ -1645,6 +1683,7 @@ impl FederationV2 {
                             info!("Guardian status request timed out");
                             GuardianStatus::Timeout {
                                 guardian: guardian.to_string(),
+                                fman_name,
                                 elapsed: elapsed.to_string(),
                             }
                         }
@@ -5479,9 +5518,90 @@ impl FederationPrefetchedInfo {
 }
 #[cfg(test)]
 mod tests {
+    use fedi_decentralized_domain::test_support::test_config;
+    use fedi_decentralized_domain::{
+        FmanPeerAttestation, FmanPeerAttestationStatement, ProtocolV1, Pubkey,
+        SchnorrSignatureProof, Timestamp,
+    };
+    use fedimint_client_module::meta::MetaFieldValue;
     use fedimint_core::core::ModuleKind;
+    use nostr::secp256k1::Message;
+    use nostr::{Keys, SecretKey};
+    use serde_json::json;
 
     use super::*;
+
+    fn directory(config: &ClientConfig) -> FmanSeatBindings {
+        let federation = federation_seats(config).unwrap();
+        let bindings = federation
+            .seats()
+            .iter()
+            .enumerate()
+            .rev()
+            .map(|(index, seat)| {
+                let keys = Keys::new(SecretKey::from_slice(&[index as u8 + 1; 32]).unwrap());
+                let attestation = FmanPeerAttestationStatement {
+                    fman_pubkey: Pubkey(keys.public_key().to_string()),
+                    federation_id: federation.federation_id().clone(),
+                    federation_config_hash: federation.federation_config_hash().clone(),
+                    peer_id: seat.peer_id.clone(),
+                    guardian_identity: seat.guardian_identity.clone(),
+                    guardian_fee_account: Account::single(
+                        seat.guardian_identity.0.parse().unwrap(),
+                        AccountType::BtcDepositor,
+                    ),
+                    issued_at: Timestamp(1),
+                };
+                let proof = SchnorrSignatureProof {
+                    signature: keys
+                        .sign_schnorr(&Message::from_digest(attestation.digest().unwrap())),
+                };
+                FmanPeerAttestation {
+                    version: ProtocolV1,
+                    attestation,
+                    proof,
+                }
+            });
+        FmanSeatBindings::new(bindings).unwrap()
+    }
+
+    fn cached_directory(directory: &FmanSeatBindings) -> FmanSeatBindings {
+        // Exercise the JSON unwrapping and typed decoding used by get_meta_field.
+        let MetaFieldValue(value) =
+            serde_json::from_value(json!(directory.canonical_string().unwrap())).unwrap();
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn cached_guardian_names_follow_peer_ids_without_formation_state() {
+        let config = test_config(3);
+        let bindings = cached_directory(&directory(&config));
+        let names = FederationV2::guardian_names(&config, Some(bindings)).unwrap();
+        for peer in [2_u16, 0, 1] {
+            let keys = Keys::new(SecretKey::from_slice(&[peer as u8 + 1; 32]).unwrap());
+            assert_eq!(
+                names[&peer.into()],
+                FmanName::from_fman_id(keys.public_key()).to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn missing_or_invalid_guardian_directory_does_not_supply_names() {
+        let config = test_config(2);
+        assert!(
+            FederationV2::guardian_names(&config, None)
+                .unwrap()
+                .is_empty()
+        );
+        let bindings = cached_directory(&directory(&config));
+        assert!(FederationV2::guardian_names(&test_config(3), Some(bindings)).is_err());
+
+        let mut forged = directory(&config).seat_bindings().to_vec();
+        forged[0].attestation.fman_pubkey = forged[1].attestation.fman_pubkey.clone();
+        let bindings = cached_directory(&FmanSeatBindings::new(forged).unwrap());
+        assert!(FederationV2::guardian_names(&config, Some(bindings)).is_err());
+    }
 
     fn shape(names: &[&'static str]) -> Vec<ModuleKind> {
         names

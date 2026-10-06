@@ -42,6 +42,7 @@ describe('guardian display simulation', () => {
                         {
                             timeout: {
                                 guardian: 'guardian',
+                                fman_name: null,
                                 elapsed: 'simulated',
                             },
                         },

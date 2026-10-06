@@ -199,9 +199,22 @@ pub struct RpcFederationPreview {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum GuardianStatus {
-    Online { guardian: String, latency_ms: u32 },
-    Error { guardian: String, error: String },
-    Timeout { guardian: String, elapsed: String },
+    Online {
+        guardian: String,
+        /// Null when the cached FMan mapping is missing or invalid.
+        fman_name: Option<String>,
+        latency_ms: u32,
+    },
+    Error {
+        guardian: String,
+        fman_name: Option<String>,
+        error: String,
+    },
+    Timeout {
+        guardian: String,
+        fman_name: Option<String>,
+        elapsed: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
