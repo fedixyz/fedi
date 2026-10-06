@@ -947,7 +947,11 @@ describe('FiSimulator', () => {
             const { seats } = await currentFormation(simulator)
             expect(statuses).toHaveLength(10)
             expect(statuses[0]).toEqual({
-                online: { guardian: seats[0]?.fmanName, latency_ms: 1 },
+                online: {
+                    guardian: seats[0]?.fmanName,
+                    fman_name: seats[0]?.fmanName,
+                    latency_ms: 1,
+                },
             })
         })
 

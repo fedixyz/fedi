@@ -20,7 +20,7 @@ import { createMockFedimintBridge } from '../../utils/fedimint'
 import { mockStorageApi } from '../../utils/render'
 
 const reachable: GuardianStatus[] = [
-    { online: { guardian: 'guardian', latency_ms: 1 } },
+    { online: { guardian: 'guardian', fman_name: null, latency_ms: 1 } },
 ]
 
 describe('guardian monitoring', () => {

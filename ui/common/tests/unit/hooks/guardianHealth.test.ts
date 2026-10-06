@@ -32,10 +32,17 @@ describe('guardian observations through bridge, store, and hooks', () => {
             getGuardianStatus: async (): Promise<GuardianStatus[]> =>
                 Array.from({ length: 10 }, (_, index) =>
                     index < online
-                        ? { online: { guardian: `g${index}`, latency_ms: 10 } }
+                        ? {
+                              online: {
+                                  guardian: `g${index}`,
+                                  fman_name: null,
+                                  latency_ms: 10,
+                              },
+                          }
                         : {
                               timeout: {
                                   guardian: `g${index}`,
+                                  fman_name: null,
                                   elapsed: '60s',
                               },
                           },

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use fedimint_api_client::api::DynGlobalApi;
@@ -9,7 +10,9 @@ use fedimint_client_module::meta::{
 use fedimint_core::config::ClientConfig;
 use fedimint_core::util::{backoff_util, retry};
 use fedimint_core::{apply, async_trait_maybe_send};
+use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
 use serde::de::DeserializeOwned;
+use tokio::sync::Notify;
 use tracing::warn;
 
 pub type MetaEntries = BTreeMap<String, String>;
@@ -106,11 +109,49 @@ impl MetaSource for LegacyMetaSourceWithExternalUrl {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct RefreshableMeta {
+    // notify_one retains a refresh requested while the service is still fetching.
+    pub refresh: Arc<Notify>,
+    source: MetaModuleMetaSourceWithFallback<LegacyMetaSourceWithExternalUrl>,
+}
+
+#[apply(async_trait_maybe_send!)]
+impl MetaSource for RefreshableMeta {
+    async fn wait_for_update(&self) {
+        tokio::select! {
+            _ = self.refresh.notified() => {},
+            _ = self.source.wait_for_update() => {},
+        }
+    }
+
+    async fn fetch(
+        &self,
+        config: &ClientConfig,
+        api: &DynGlobalApi,
+        kind: FetchKind,
+        revision: Option<u64>,
+    ) -> anyhow::Result<MetaValues> {
+        self.source.fetch(config, api, kind, revision).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use futures::FutureExt;
     use serde_json::json;
 
-    use super::{MetaFieldValue, meta_entries_from_values, meta_value_to_string};
+    use super::*;
+
+    #[tokio::test]
+    async fn refresh_before_wait_is_not_lost() {
+        let source = RefreshableMeta::default();
+        assert!(source.wait_for_update().now_or_never().is_none());
+        source.refresh.notify_one();
+        tokio::time::timeout(Duration::from_secs(1), source.wait_for_update())
+            .await
+            .expect("refresh should wake the metadata service");
+    }
 
     #[test]
     fn meta_field_value_unwraps_string_wrapped_json() {

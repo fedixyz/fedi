@@ -9,6 +9,8 @@ test-support = []
 
 [dependencies]
 api-types = { workspace = true }
+fedi-decentralized-domain = { workspace = true }
+fedi-decentralized-service-fleet-manager = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-client = { workspace = true }
 fedimint-connectors = { workspace = true }
@@ -85,5 +87,6 @@ fedimint-build = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
+nostr = { workspace = true }
 fedimint-cursed-redb = { workspace = true }
 tempfile = { workspace = true }

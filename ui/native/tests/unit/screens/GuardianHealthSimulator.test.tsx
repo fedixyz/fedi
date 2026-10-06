@@ -43,7 +43,7 @@ const federation = {
 }
 const guardians: GuardianStatus[] = Object.values(federation.nodes).map(
     node => ({
-        online: { guardian: node.url, latency_ms: 10 },
+        online: { guardian: node.url, fman_name: null, latency_ms: 10 },
     }),
 )
 

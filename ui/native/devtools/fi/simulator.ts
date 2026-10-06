@@ -954,11 +954,12 @@ export class FiSimulator implements FiWorld {
                 online: {
                     guardian:
                         seat.fmanName ?? seat.fmanId ?? `seat ${seat.index}`,
+                    fman_name: seat.fmanName,
                     latency_ms: 1,
                 },
             }))
         // one healthy guardian is all the status coercion needs
-        return [{ online: { guardian: 'sim', latency_ms: 1 } }]
+        return [{ online: { guardian: 'sim', fman_name: null, latency_ms: 1 } }]
     }
 
     /*** Money rails, for mock payers only ***/
