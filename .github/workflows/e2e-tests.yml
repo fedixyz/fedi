@@ -56,10 +56,14 @@ permissions:
 
 jobs:
     android-e2e:
-        name: 'Android e2e tests'
+        name: 'Android e2e tests (${{ matrix.federation_kind }})'
         if: ${{ contains(fromJSON('["all", "android"]'), inputs.platforms || 'all') }}
         runs-on: [self-hosted, macos, arm64, macstadium, gui]
         timeout-minutes: 120
+        strategy:
+            fail-fast: false
+            matrix:
+                federation_kind: ${{ (inputs.tests == 'all' || inputs.tests == 'payments' || github.event_name == 'schedule') && fromJSON('["one", "two"]') || fromJSON('["one"]') }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
@@ -73,7 +77,8 @@ jobs:
 
             - name: Android e2e pipeline
               env:
-                  TESTS_TO_RUN: ${{ inputs.tests || 'all' }}
+                  TESTS_TO_RUN: ${{ matrix.federation_kind == 'two' && 'payments' || inputs.tests || 'all' }}
+                  FEDI_FEDERATION_KIND: ${{ matrix.federation_kind }}
                   SKIP_BRIDGE: ${{ inputs.skip_bridge_build && '1' || '' }}
                   FAIL_FAST: ${{ inputs.fail_fast && '1' || '' }}
                   CLEAN_UI_FILES: ${{ inputs.clean_ui_files && '1' || '' }}
@@ -84,7 +89,7 @@ jobs:
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               if: ${{ always() }}
               with:
-                  name: android-logs
+                  name: android-logs-${{ matrix.federation_kind }}
                   include-hidden-files: true
                   path: |
                       ./ui/.appium/*.log
@@ -93,10 +98,15 @@ jobs:
                       ./**/screenshots/*.png
 
     web-e2e:
-        name: 'Web e2e tests'
+        name: 'Web e2e tests (${{ matrix.federation_kind }})'
         if: ${{ contains(fromJSON('["all", "web"]'), inputs.platforms || 'all') }}
         runs-on: [self-hosted, linux]
         timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            max-parallel: 1
+            matrix:
+                federation_kind: [one, two]
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
@@ -109,22 +119,34 @@ jobs:
               continue-on-error: true
 
             - name: Web e2e pipeline
-              run: nix develop -c ./scripts/ui/run-e2e-web.sh --with-devfed
+              env:
+                  TESTS_TO_RUN: ${{ inputs.tests || 'all' }}
+                  FEDI_FEDERATION_KIND: ${{ matrix.federation_kind }}
+              run: |
+                  if [ "$FEDI_FEDERATION_KIND" = "two" ] || [ "$TESTS_TO_RUN" = "payments" ]; then
+                      nix develop -c ./scripts/ui/run-e2e-web.sh --with-devfed -- payments.spec.ts
+                  else
+                      nix develop -c ./scripts/ui/run-e2e-web.sh --with-devfed
+                  fi
 
             - name: Upload test results
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               if: ${{ always() }}
               with:
-                  name: web-e2e-results
+                  name: web-e2e-results-${{ matrix.federation_kind }}
                   include-hidden-files: true
                   path: ./ui/web/test-results/
                   if-no-files-found: ignore
 
     ios-e2e:
-        name: 'iOS e2e tests'
+        name: 'iOS e2e tests (${{ matrix.federation_kind }})'
         if: ${{ contains(fromJSON('["all", "ios"]'), inputs.platforms || 'all') }}
         runs-on: [self-hosted, macos, arm64, macstadium, gui]
         timeout-minutes: 120
+        strategy:
+            fail-fast: false
+            matrix:
+                federation_kind: ${{ (inputs.tests == 'all' || inputs.tests == 'payments' || github.event_name == 'schedule') && fromJSON('["one", "two"]') || fromJSON('["one"]') }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
@@ -138,7 +160,8 @@ jobs:
 
             - name: iOS e2e pipeline
               env:
-                  TESTS_TO_RUN: ${{ inputs.tests || 'all' }}
+                  TESTS_TO_RUN: ${{ matrix.federation_kind == 'two' && 'payments' || inputs.tests || 'all' }}
+                  FEDI_FEDERATION_KIND: ${{ matrix.federation_kind }}
                   SKIP_BRIDGE: ${{ inputs.skip_bridge_build && '1' || '' }}
                   FAIL_FAST: ${{ inputs.fail_fast && '1' || '' }}
                   CLEAN_UI_FILES: ${{ inputs.clean_ui_files && '1' || '' }}
@@ -149,7 +172,7 @@ jobs:
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               if: ${{ always() }}
               with:
-                  name: ios-logs
+                  name: ios-logs-${{ matrix.federation_kind }}
                   include-hidden-files: true
                   path: |
                       ./ui/.appium/*.log

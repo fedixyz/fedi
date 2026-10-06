@@ -6,7 +6,10 @@ import { StyleSheet, View } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
-import { useFedimint } from '@fedi/common/hooks/fedimint'
+import {
+    useFederationStatus,
+    useGuardianStatus,
+} from '@fedi/common/hooks/federation'
 import {
     useWalletServiceFederationId,
     useWalletServiceRecoveryStage,
@@ -23,7 +26,6 @@ import {
     selectWalletServiceGuardianCount,
     selectLoadedFederation,
 } from '@fedi/common/redux'
-import type { GuardianStatus } from '@fedi/common/types/bindings'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
@@ -67,7 +69,6 @@ const TOUR_DELAY_MS = 620
 const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const fedimint = useFedimint()
     const formationName = useAppSelector(selectFiFormationName)
     const inviteCode = useAppSelector(selectFiInviteCode)
     const isUnsynced = useAppSelector(selectFiIsUnsynced)
@@ -95,16 +96,15 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     } = useGuardianFeeBalance(
         isWalletReady ? (federationId ?? undefined) : undefined,
     )
-    const [guardianStatuses, setGuardianStatuses] = useState<
-        GuardianStatus[] | null
-    >(null)
+    const { guardians: guardianStatuses } = useGuardianStatus(
+        isWalletReady ? (federationId ?? undefined) : undefined,
+    )
     const [isBalanceRevealed, setIsBalanceRevealed] = useState(false)
     const [isInviteShown, setIsInviteShown] = useState(false)
 
     const federation = useAppSelector(s =>
         federationId ? selectLoadedFederation(s, federationId) : undefined,
     )
-    const isFederationLoaded = Boolean(federation)
     // the live name, which a rename writes to federation consensus — not
     // `intent.federationName`, which is creation-time and stands in only until
     // the federation loads
@@ -120,32 +120,19 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
         true,
     )
 
-    useEffect(() => {
-        // `getGuardianStatus` requires the federation to already be joined
-        // and loaded — the bridge auto-joins it once formation completes,
-        // but that join races this screen's mount, so wait for it rather
-        // than retrying on a timer.
-        if (!federationId || !isFederationLoaded) return
-        let isMounted = true
-        fedimint
-            .getGuardianStatus(federationId)
-            .then(statuses => {
-                if (isMounted) setGuardianStatuses(statuses)
-            })
-            .catch(() => {
-                // leave guardianStatuses null — the guardian row falls back
-                // to the plain count rather than claiming a status
-            })
-        return () => {
-            isMounted = false
-        }
-    }, [federationId, isFederationLoaded, fedimint])
-
     const onlineGuardians = guardianStatuses
         ? guardianStatuses.filter(g => 'online' in g).length
         : null
-    const isLive =
-        onlineGuardians !== null && onlineGuardians === totalGuardians
+    const { statusWord, statusIconColor } = useFederationStatus({
+        federationId: federationId ?? '',
+        t,
+        statusIconMap: {
+            online: 'Dot',
+            unstable: 'Dot',
+            offline: 'Dot',
+            unknown: 'Dot',
+        },
+    })
 
     // A `backupEligible` restored service reaches this screen before its
     // federation is joined, so the join can still fail underneath it. The
@@ -291,19 +278,22 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                             ) : (
                                 <Row align="center" gap={6}>
                                     <Row
+                                        testID="wallet-service-status-dot"
                                         style={[
                                             style.liveDot,
-                                            !isLive && style.liveDotDown,
+                                            {
+                                                backgroundColor:
+                                                    statusIconColor,
+                                            },
                                         ]}
                                     />
                                     <Text
                                         style={style.status}
                                         numberOfLines={1}>
                                         {t(
-                                            isLive
-                                                ? 'feature.wallet-service.dashboard-live-guardians'
-                                                : 'feature.wallet-service.dashboard-offline-guardians',
+                                            'feature.wallet-service.dashboard-guardian-reachability',
                                             {
+                                                status: statusWord,
                                                 online: onlineGuardians,
                                                 total: totalGuardians,
                                             },
@@ -533,9 +523,6 @@ const styles = (theme: Theme) =>
             paddingHorizontal: 0,
             paddingVertical: 0,
             width: 'auto',
-        },
-        liveDotDown: {
-            backgroundColor: theme.colors.grey,
         },
         liveDot: {
             backgroundColor: SERVICE_GREEN,

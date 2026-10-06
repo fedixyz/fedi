@@ -37,6 +37,7 @@ const buildStore = ({
             ],
             recentlyUsedFederationIds: [],
             simulateRecoveryByFederation: {},
+            guardianHealthSimulation: {},
         },
         environment: {
             onboardingMethod,

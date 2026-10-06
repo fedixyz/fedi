@@ -21,6 +21,7 @@ export function FederationStatus({ federationId }: { federationId: string }) {
         federationId,
         t,
         statusIconMap: {
+            unknown: 'Dot',
             offline: 'AlertWarningTriangle',
             online: 'Dot',
             unstable: 'Info',

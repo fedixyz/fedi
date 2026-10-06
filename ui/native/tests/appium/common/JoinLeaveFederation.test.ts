@@ -8,11 +8,20 @@ import {
     acceptCameraPermissionIfPresent,
     allowPasteIfPrompted,
 } from '../fixtures/setupOnboardedLocalFed'
+import {
+    getDevfedBackupCount,
+    getDevfedInvite,
+    reverseDevfedPortsIntoDevices,
+    setDevfedMeta,
+    waitForDevfedBackupCountAbove,
+} from './devfed'
 
 // E-Cash Club is the one pasteable federation the runner can reach: the
 // suite's own list-joins prove it, while the other federations in
 // meta-federations.json are external and their previews time out on CI.
 const INVITE_PREVIEW_FEDERATION_NAME = 'E-Cash Club'
+const DEVFED_NAME = 'Devimint Federation'
+const NEW_MEMBERS_DISABLED_NOTICE = 'You cannot join this federation.'
 
 type PublicFederationMeta = {
     federation_name?: string
@@ -400,6 +409,88 @@ export class JoinLeaveFederation extends AppiumTestBase {
         )
         await this.clickElementByKey('HomeTabButton')
         // END of the process of pasting the invite of a joined federation
+
+        await reverseDevfedPortsIntoDevices()
+        const devfedInvite = await getDevfedInvite()
+        const backupCountBeforeJoin = await getDevfedBackupCount()
+        await this.joinFederationByPastedInvite(
+            devfedInvite,
+            DEVFED_NAME,
+            'DevimintFederationDetailsButton',
+        )
+        // the preview only knows a former member by their backup, so leaving
+        // before it lands makes this seed look new
+        await waitForDevfedBackupCountAbove(backupCountBeforeJoin)
+        await this.clickElementByKey('AvatarButton')
+        await this.leaveFederationViaAccordion(
+            'DevimintFederationFedAccordionButton',
+            'DevimintFederationLeaveFederationButton',
+            DEVFED_NAME,
+        )
+        await this.clickElementByKey('HeaderCloseButton')
+
+        await setDevfedMeta({ new_members_disabled: 'true' })
+        try {
+            await this.openPastedInvitePreview(bob, devfedInvite)
+            if (
+                !(await bob.isTextPresent(
+                    NEW_MEMBERS_DISABLED_NOTICE,
+                    true,
+                    45000,
+                ))
+            ) {
+                throw new Error(
+                    'Failed - a new member sees no notice when the federation has disabled new members',
+                )
+            }
+            if (await bob.elementIsDisplayed('JoinFederationButton', 2000)) {
+                throw new Error(
+                    'Failed - a new member can join a federation that has disabled new members',
+                )
+            }
+
+            await this.openPastedInvitePreview(this, devfedInvite)
+            if (
+                !(await this.elementIsDisplayed('JoinFederationButton', 45000))
+            ) {
+                throw new Error(
+                    'Failed - a former member cannot rejoin a federation that has disabled new members',
+                )
+            }
+            if (
+                !(await this.elementIsDisplayed(
+                    'RecoverFromScratchSwitch',
+                    2000,
+                ))
+            ) {
+                throw new Error(
+                    'Failed - the preview does not treat the former member as returning',
+                )
+            }
+            await this.clickElementByKey('JoinFederationButton')
+            await this.waitForElementDisplayed(
+                'DevimintFederationDetailsButton',
+                45000,
+            )
+        } finally {
+            // the dev fed is shared with the suites that run after this one
+            await setDevfedMeta({ new_members_disabled: 'false' })
+        }
+        // END of the process of rejoining a federation that has disabled new members
+    }
+
+    private async openPastedInvitePreview(
+        actor: AppiumTestBase,
+        invite: string,
+    ): Promise<void> {
+        await actor.clickElementByKey('HomeTabButton')
+        await actor.clickElementByKey('PlusButton')
+        await actor.clickElementByKey('joinTab')
+        await acceptCameraPermissionIfPresent(actor)
+        await actor.setClipboard(invite)
+        await actor.clickElementByKey('PasteButton')
+        await allowPasteIfPrompted(actor)
+        await actor.clickOnText('Continue', 0, true)
     }
 
     // Tapping the wallet tab while it is focused opens the switcher overlay

@@ -31,6 +31,8 @@ import {
     refreshCommunities,
     checkFederationForAutojoinCommunities,
     refreshFederations,
+    refreshGuardianStatuses,
+    selectGuardianHealthSimulation,
     checkFederationPreview,
     selectIsInternetUnreachable,
     createGuardianitoBot,
@@ -64,7 +66,7 @@ import {
     shouldShowOfflineWallet,
     shouldShowSocialRecovery,
 } from '../utils/FederationUtils'
-import { BridgeError } from '../utils/errors'
+import { BridgeError, isPeerConnectionError } from '../utils/errors'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
@@ -525,7 +527,11 @@ export function useFederationPreview(t: TFunction, invite: string) {
     )
 
     const handleCode = useCallback(
-        async (code: string, onSuccess?: (type: InviteCodeType) => void) => {
+        async (
+            code: string,
+            onSuccess?: (type: InviteCodeType) => void,
+            onError?: (err: unknown) => void,
+        ) => {
             try {
                 setIsFetchingPreview(true)
                 const codeType = detectInviteCodeType(code)
@@ -564,8 +570,13 @@ export function useFederationPreview(t: TFunction, invite: string) {
             } catch (err) {
                 log.error('handleCode', err)
 
+                if (onError) {
+                    onError(err)
+                    return
+                }
+
                 if (err instanceof BridgeError) {
-                    if (err.error.includes('Failed to connect to peer')) {
+                    if (isPeerConnectionError(err)) {
                         toast.show({
                             content: t('errors.network-connection-failed'),
                             status: 'error',
@@ -796,6 +807,36 @@ export function useCommunityInviteCode(inviteCode: string) {
     }
 }
 
+export function useGuardianStatus(federationId?: string) {
+    const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
+    const federation = useCommonSelector(s =>
+        federationId ? selectLoadedFederation(s, federationId) : undefined,
+    )
+    const health = useCommonSelector(s =>
+        federationId ? s.federation.guardianHealth[federationId] : undefined,
+    )
+    const pending = useCommonSelector(s =>
+        federationId
+            ? s.federation.guardianStatusRequests[federationId]
+            : undefined,
+    )
+    useEffect(() => {
+        if (federation)
+            dispatch(refreshGuardianStatuses({ fedimint, federation }))
+    }, [dispatch, fedimint, federation])
+    const simulation = useCommonSelector(s =>
+        selectGuardianHealthSimulation(s, federationId ?? ''),
+    )
+    const displayedHealth = simulation?.health ?? health
+    return {
+        guardians: displayedHealth?.guardians.length
+            ? displayedHealth.guardians
+            : undefined,
+        isLoading: !simulation && !!pending && !health,
+    }
+}
+
 export function useFederationStatus<I>({
     federationId,
     t,
@@ -809,11 +850,18 @@ export function useFederationStatus<I>({
         selectLoadedFederation(s, federationId),
     )
 
-    const status = federation?.status ?? 'offline'
+    const simulation = useCommonSelector(s =>
+        selectGuardianHealthSimulation(s, federationId),
+    )
+    const status = simulation?.status ?? federation?.status ?? 'unknown'
+    const observedHealth = useCommonSelector(
+        s => s.federation.guardianHealth[federationId],
+    )
+    const health = simulation?.health ?? observedHealth
     const isInternetUnreachable = useCommonSelector(selectIsInternetUnreachable)
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
 
-    let statusMessage = t('feature.federations.connection-status-offline')
+    let statusMessage = t('feature.federations.guardian-connection-offline')
     let statusIconColor = theme.colors.red
     let statusWord = t('words.offline')
     let statusText = t('words.status')
@@ -821,11 +869,23 @@ export function useFederationStatus<I>({
     if (status === 'online') {
         statusIconColor = theme.colors.success
         statusWord = t('words.online')
-        statusMessage = t('feature.federations.connection-status-online')
+        statusMessage = t('feature.federations.guardian-connection-online')
     } else if (status === 'unstable') {
         statusIconColor = theme.colors.lightOrange
-        statusWord = t('words.unstable')
-        statusMessage = t('feature.federations.connection-status-unstable')
+        statusWord = t('words.online')
+        statusMessage = t('feature.federations.guardian-connection-limited')
+    } else if (status === 'unknown') {
+        statusIconColor = theme.colors.grey
+        statusWord = t('words.unknown')
+        statusMessage = t('feature.federations.guardian-connection-unknown')
+    }
+
+    if (
+        (status === 'online' && health?.partialSince !== undefined) ||
+        (status === 'unstable' && health?.belowQuorumSince !== undefined)
+    ) {
+        statusText = t('feature.federations.last-known-status')
+        statusMessage = t('feature.federations.guardian-connection-limited')
     }
 
     if (popupInfo?.ended) {
@@ -838,11 +898,15 @@ export function useFederationStatus<I>({
 
     if (isInternetUnreachable) {
         statusMessage = t('feature.federations.please-reconnect')
-        statusText = t('feature.federations.last-known-status')
+        if (status !== 'unknown')
+            statusText = t('feature.federations.last-known-status')
     }
 
     return {
         status,
+        showHealthWarning:
+            !isInternetUnreachable &&
+            (status === 'offline' || status === 'unstable'),
         statusText,
         statusMessage,
         statusIcon: statusIconMap[status],

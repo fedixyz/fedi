@@ -1,16 +1,26 @@
 import { act, waitFor } from '@testing-library/react'
 
-import { useParseEcash } from '../../../hooks/pay'
-import { setFederations, setupStore } from '../../../redux'
-import { LoadedFederation, MSats } from '../../../types'
-import { RpcEcashInfo, RpcFederationPreview } from '../../../types/bindings'
+import { useParseEcash, useSendEcash } from '../../../hooks/pay'
+import {
+    refreshGuardianStatuses,
+    setFederations,
+    setIsInternetUnreachable,
+    setupStore,
+} from '../../../redux'
+import { LoadedFederation, MSats, Sats } from '../../../types'
+import {
+    GuardianStatus,
+    RpcEcashInfo,
+    RpcFederationPreview,
+} from '../../../types/bindings'
 import * as FederationUtils from '../../../utils/FederationUtils'
+import { BridgeError } from '../../../utils/errors'
 import {
     createMockFederationPreview,
     mockFederation1,
 } from '../../mock-data/federation'
 import { createMockFedimintBridge } from '../../utils/fedimint'
-import { renderHookWithState } from '../../utils/render'
+import { renderHookWithBridge, renderHookWithState } from '../../utils/render'
 
 const NOT_JOINED_TOKEN = 'token-not-joined'
 const JOINED_TOKEN = 'token-joined'
@@ -25,6 +35,91 @@ const buildJoinedEcash = (): RpcEcashInfo => ({
     federation_type: 'joined',
     federation_id: mockFederation1.id,
     amount: 10000 as MSats,
+})
+
+describe('ecash generation during connection trouble', () => {
+    it.each([false, true])(
+        'can send with internet unreachable=%s while a health check is pending',
+        async internetUnreachable => {
+            const store = setupStore()
+            store.dispatch(
+                setFederations([
+                    { ...mockFederation1, status: 'offline' as const },
+                ]),
+            )
+            let complete!: (guardians: GuardianStatus[]) => void
+            const generated = {
+                ecash: 'test-ecash',
+                operationId: 'test-operation',
+            }
+            const fedimint = createMockFedimintBridge({
+                getGuardianStatus: () =>
+                    new Promise<GuardianStatus[]>(resolve => {
+                        complete = resolve
+                    }),
+                generateEcash: async () => generated,
+            })
+            const pending = store.dispatch(
+                refreshGuardianStatuses({
+                    fedimint,
+                    federation: mockFederation1,
+                }),
+            )
+            if (internetUnreachable)
+                store.dispatch(setIsInternetUnreachable(true))
+            const { result, unmount } = renderHookWithBridge(
+                () => useSendEcash(mockFederation1.id),
+                store,
+                fedimint,
+            )
+            await act(async () => {
+                expect(await result.current.generateEcash(5 as Sats)).toEqual(
+                    generated,
+                )
+            })
+            expect(fedimint.generateEcash).toHaveBeenCalledWith(
+                5000,
+                mockFederation1.id,
+                true,
+                expect.anything(),
+            )
+            expect(result.current.notes).toBe(generated.ecash)
+            expect(result.current.isGeneratingEcash).toBe(false)
+            await act(async () => {
+                complete([])
+                await pending
+            })
+            unmount()
+        },
+    )
+
+    it('clears the busy state and returns an offline send failure to the screen', async () => {
+        const store = setupStore()
+        store.dispatch(setFederations([mockFederation1]))
+        store.dispatch(setIsInternetUnreachable(true))
+        const error = new BridgeError({
+            error: 'offline send failed',
+            detail: 'exact denominations unavailable',
+            errorCode: 'offlineExactEcashFailed',
+        })
+        const fedimint = createMockFedimintBridge({
+            generateEcash: async () => {
+                throw error
+            },
+        })
+        const { result } = renderHookWithBridge(
+            () => useSendEcash(mockFederation1.id),
+            store,
+            fedimint,
+        )
+        await act(async () => {
+            await expect(result.current.generateEcash(5 as Sats)).rejects.toBe(
+                error,
+            )
+        })
+        expect(result.current.isGeneratingEcash).toBe(false)
+        expect(result.current.notes).toBeNull()
+    })
 })
 
 describe('common/hooks/pay', () => {
@@ -60,6 +155,7 @@ describe('common/hooks/pay', () => {
                 buildNotJoinedEcash(),
                 createMockFederationPreview({
                     meta: { new_members_disabled: 'true' },
+                    returningMemberStatus: { type: 'newMember' },
                 }),
             )
 
@@ -68,6 +164,23 @@ describe('common/hooks/pay', () => {
             await waitFor(() => {
                 expect(result.current.loading).toBe(false)
                 expect(result.current.newMembersDisabled).toBe(true)
+            })
+        })
+
+        it('should let a returning member claim when new members are disabled', async () => {
+            const { result } = renderWithPreview(
+                buildNotJoinedEcash(),
+                createMockFederationPreview({
+                    meta: { new_members_disabled: 'true' },
+                    returningMemberStatus: { type: 'returningMember' },
+                }),
+            )
+
+            await act(() => result.current.parseEcash(NOT_JOINED_TOKEN))
+
+            await waitFor(() => {
+                expect(result.current.loading).toBe(false)
+                expect(result.current.newMembersDisabled).toBe(false)
             })
         })
 

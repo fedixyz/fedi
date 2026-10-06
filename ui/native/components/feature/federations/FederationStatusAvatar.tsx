@@ -22,11 +22,12 @@ export default function FederationStatusAvatar({
     const { t } = useTranslation()
 
     const popupInfo = usePopupFederationInfo(federation.meta ?? {})
-    const { status, statusIcon, statusIconColor } =
+    const { showHealthWarning, statusIcon, statusIconColor } =
         useFederationStatus<SvgImageName>({
             federationId: federation.id,
             t,
             statusIconMap: {
+                unknown: 'Dot',
                 online: 'Dot',
                 unstable: 'Dot',
                 offline: 'Dot',
@@ -34,7 +35,7 @@ export default function FederationStatusAvatar({
         })
 
     // If `popupInfo` is present, that means the federation is either ending or ended
-    const shouldShowDot = status !== 'online' || popupInfo
+    const shouldShowDot = showHealthWarning || popupInfo
 
     const style = styles(theme)
 

@@ -45,6 +45,55 @@ describe('components/feature/onboarding/FederationPreview', () => {
         },
     )
 
+    describe('when the federation has disabled new members', () => {
+        const meta = { new_members_disabled: 'true' }
+
+        it('should keep a new member from joining', () => {
+            renderWithProviders(
+                <FederationPreview
+                    federation={createMockFederationPreview({
+                        meta,
+                        returningMemberStatus: { type: 'newMember' },
+                    })}
+                    onJoin={() => Promise.resolve()}
+                    onBack={() => {}}
+                    isJoining={false}
+                />,
+            )
+
+            expect(screen.queryByTestId('JoinFederationButton')).toBeNull()
+            expect(
+                screen.getByText(
+                    i18n.t('feature.federations.new-members-disabled'),
+                ),
+            ).toBeOnTheScreen()
+        })
+
+        it('should let a returning member rejoin', async () => {
+            const user = userEvent.setup()
+            const onJoin = jest.fn()
+            renderWithProviders(
+                <FederationPreview
+                    federation={createMockFederationPreview({
+                        meta,
+                        returningMemberStatus: { type: 'returningMember' },
+                    })}
+                    onJoin={onJoin}
+                    onBack={() => {}}
+                    isJoining={false}
+                />,
+            )
+
+            expect(
+                screen.queryByText(
+                    i18n.t('feature.federations.new-members-disabled'),
+                ),
+            ).toBeNull()
+            await user.press(screen.getByTestId('JoinFederationButton'))
+            expect(onJoin).toHaveBeenCalled()
+        })
+    })
+
     describe('when the component is rendered with a federation that has a welcome message', () => {
         it('should render the welcome message container', async () => {
             const federation = createMockFederationPreview({

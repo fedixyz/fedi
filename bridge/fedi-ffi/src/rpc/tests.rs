@@ -4535,7 +4535,8 @@ async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
                 .await;
             }
         })
-        .await??;
+        .await
+        .context("offline federation ready event exceeded two seconds")??;
 
         // Ensure balance is still the same
         assert_eq!(rpc_federation.balance.0, original_balance);
@@ -4544,39 +4545,61 @@ async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
             .federations
             .get_federation_maybe_recovering(&rpc_federation.id.0)?;
 
-        // Attempt to repeatedly generateEcash for exactly 3msat.
-        // After using up all locally held 1msat notes, bridge should throw
-        // error. This is because we are offline, and generateEcash
-        // shouldn't even attempt reissuing.
-        let mut count = 0;
-        loop {
-            if let Err(e) = generateEcash(
-                federation.clone(),
-                RpcAmount(Amount::from_msats(3)),
-                false,
-                FrontendMetadata::default(),
-            )
-            .await
-            {
-                if RpcError::from_anyhow(&e)
-                    .error_code
-                    .is_some_and(|code| code == ErrorCode::OfflineExactEcashFailed)
+        let wallet_check = async {
+            assert_eq!(
+                fedimint_core::task::timeout(Duration::from_secs(2), federation.get_balance())
+                    .await
+                    .context("cached balance blocked during guardian probes")?,
+                original_balance,
+            );
+
+            // repeated 3msat sends exhaust local 1msat notes and require reissuing.
+            let mut count = 0;
+            loop {
+                if let Err(e) = generateEcash(
+                    federation.clone(),
+                    RpcAmount(Amount::from_msats(3)),
+                    false,
+                    FrontendMetadata::default(),
+                )
+                .await
                 {
-                    break;
+                    if RpcError::from_anyhow(&e)
+                        .error_code
+                        .is_some_and(|code| code == ErrorCode::OfflineExactEcashFailed)
+                    {
+                        break;
+                    }
                 }
-            }
 
-            count += 1;
-            if count == 10 {
-                bail!("Expected generateEcash to eventually error when offline");
-            }
+                count += 1;
+                if count == 10 {
+                    bail!("Expected generateEcash to eventually error when offline");
+                }
 
-            fedimint_core::task::sleep_in_test(
-                "retrying generateEcash until failure",
-                Duration::from_millis(100),
-            )
-            .await;
-        }
+                fedimint_core::task::sleep_in_test(
+                    "retrying generateEcash until failure",
+                    Duration::from_millis(100),
+                )
+                .await;
+            }
+            Ok::<(), anyhow::Error>(())
+        };
+        let (first, second, wallet) = tokio::join!(
+            biased;
+            getGuardianStatus(federation.clone()),
+            getGuardianStatus(federation.clone()),
+            fedimint_core::task::timeout(Duration::from_secs(30), wallet_check),
+        );
+        wallet.context("offline mint v1 wallet checks exceeded thirty seconds")??;
+        let first = first?;
+        assert_eq!(first.len(), 4);
+        assert!(
+            first
+                .iter()
+                .all(|status| !matches!(status, GuardianStatus::Online { .. }))
+        );
+        assert_eq!(serde_json::to_value(first)?, serde_json::to_value(second?)?);
     }
     Ok(())
 }
@@ -4658,7 +4681,8 @@ async fn test_bridge_handles_federation_offline_v2() -> anyhow::Result<()> {
                 .await;
             }
         })
-        .await??;
+        .await
+        .context("offline federation ready event exceeded two seconds")??;
 
         assert_eq!(
             rpc_federation.balance.0, original_balance,
@@ -4669,94 +4693,98 @@ async fn test_bridge_handles_federation_offline_v2() -> anyhow::Result<()> {
             .federations
             .get_federation_maybe_recovering(&rpc_federation.id.0)?;
 
-        // A mintv2 receive submits a transaction, so it cannot settle while the
-        // federation is unreachable. The call itself may return Ok and fail in
-        // the state machine, so accept either shape and require only that the
-        // reissue does not report Done.
-        let receive_result = receiveEcash(
-            federation.clone(),
-            ecash_for_offline_receive,
-            FrontendMetadata::default(),
-        )
-        .await;
+        let wallet_check = async {
+            assert_eq!(
+                fedimint_core::task::timeout(Duration::from_secs(2), federation.get_balance())
+                    .await
+                    .context("cached balance blocked during guardian probes")?,
+                original_balance,
+            );
 
-        if receive_result.is_ok() {
-            let settled = fedimint_core::task::timeout(
-                Duration::from_secs(5),
-                wait_for_ecash_reissue(&federation),
+            // receiveEcash can return before its reissue state machine completes.
+            let receive_result = receiveEcash(
+                federation.clone(),
+                ecash_for_offline_receive,
+                FrontendMetadata::default(),
             )
             .await;
 
-            assert!(
-                matches!(settled, Err(_) | Ok(Err(_))),
-                "a mintv2 receive must not settle while the federation is offline"
-            );
+            if receive_result.is_ok() {
+                let settled = fedimint_core::task::timeout(
+                    Duration::from_secs(5),
+                    wait_for_ecash_reissue(&federation),
+                )
+                .await;
 
-            // The receive is deterministically in flight (it cannot reach a
-            // terminal state while the federation is down), so its history
-            // entry must show as issuing, never as missing or failed.
-            let txns = federation.list_transactions(usize::MAX, None).await;
-            assert!(
-                matches!(
-                    txns.first(),
-                    Some(Ok(RpcTransactionListEntry {
-                        transaction: RpcTransaction {
-                            kind: RpcTransactionKind::OobReceive {
-                                state: Some(RpcOOBReissueState::Issuing),
+                assert!(
+                    matches!(settled, Err(_) | Ok(Err(_))),
+                    "a mintv2 receive must not settle while the federation is offline"
+                );
+
+                let txns = federation.list_transactions(usize::MAX, None).await;
+                assert!(
+                    matches!(
+                        txns.first(),
+                        Some(Ok(RpcTransactionListEntry {
+                            transaction: RpcTransaction {
+                                kind: RpcTransactionKind::OobReceive {
+                                    state: Some(RpcOOBReissueState::Issuing),
+                                },
+                                ..
                             },
                             ..
-                        },
-                        ..
-                    }))
-                ),
-                "an in-flight receive must list as issuing, got {:?}",
-                txns.first()
+                        }))
+                    ),
+                    "an in-flight receive must list as issuing, got {:?}",
+                    txns.first()
+                );
+            }
+
+            assert_eq!(
+                federation.get_balance().await,
+                original_balance,
+                "an offline receive must not credit the balance"
             );
-        }
 
-        // Checked on both branches, so the test cannot report success merely
-        // because the receive call errored for some unrelated reason. Whatever
-        // shape the failure took, nothing may have been credited.
-        assert_eq!(
-            federation.get_balance().await,
-            original_balance,
-            "an offline receive must not credit the balance"
+            // available denominations determine whether the send needs consensus.
+            let generate_result = fedimint_core::task::timeout(
+                REISSUE_ECASH_TIMEOUT + Duration::from_secs(30),
+                generateEcash(
+                    federation.clone(),
+                    // leave room for fees so the send reaches denomination selection.
+                    RpcAmount(Amount::from_msats(original_balance.msats * 3 / 4)),
+                    false,
+                    FrontendMetadata::default(),
+                ),
+            )
+            .await
+            .expect("offline ecash generation must complete within the bounded window");
+            match generate_result {
+                Ok(_) => {}
+                Err(e) => assert!(
+                    RpcError::from_anyhow(&e)
+                        .error_code
+                        .is_some_and(|code| code == ErrorCode::OfflineExactEcashFailed),
+                    "offline change-making must fail with OfflineExactEcashFailed, got {e:?}"
+                ),
+            }
+            Ok::<(), anyhow::Error>(())
+        };
+        let (first, second, wallet) = tokio::join!(
+            biased;
+            getGuardianStatus(federation.clone()),
+            getGuardianStatus(federation.clone()),
+            fedimint_core::task::timeout(REISSUE_ECASH_TIMEOUT + Duration::from_secs(45), wallet_check),
         );
-
-        // Generating ecash offline either succeeds instantly (exact
-        // denominations on hand, a pure local operation) or needs a
-        // change-making consensus round, which cannot complete offline and
-        // must fail within its bounded window instead of hanging on the
-        // federation-wide spend guard forever. Which path runs depends on the
-        // wallet's denominations, so accept both, but require bounded
-        // completion.
-        let generate_result = fedimint_core::task::timeout(
-            REISSUE_ECASH_TIMEOUT + Duration::from_secs(30),
-            generateEcash(
-                federation.clone(),
-                // Comfortably below the fee-adjusted virtual balance (an
-                // amount at the balance edge can bounce off the insufficient
-                // balance check instead of exercising the send)
-                RpcAmount(Amount::from_msats(original_balance.msats * 3 / 4)),
-                false,
-                FrontendMetadata::default(),
-            ),
-        )
-        .await
-        .expect("offline ecash generation must complete within the bounded window");
-        match generate_result {
-            // Exact denominations were on hand, a pure local operation.
-            Ok(_) => {}
-            // Change-making hit the bounded consensus wait; any other error
-            // means the generation failed for an unrelated reason and the
-            // bounded-wait path was not exercised.
-            Err(e) => assert!(
-                RpcError::from_anyhow(&e)
-                    .error_code
-                    .is_some_and(|code| code == ErrorCode::OfflineExactEcashFailed),
-                "offline change-making must fail with OfflineExactEcashFailed, got {e:?}"
-            ),
-        }
+        wallet.context("offline mint v2 wallet checks exceeded their deadline")??;
+        let first = first?;
+        assert_eq!(first.len(), 4);
+        assert!(
+            first
+                .iter()
+                .all(|status| !matches!(status, GuardianStatus::Online { .. }))
+        );
+        assert_eq!(serde_json::to_value(first)?, serde_json::to_value(second?)?);
     }
 
     Ok(())

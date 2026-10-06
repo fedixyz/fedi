@@ -139,6 +139,7 @@ describe('useAmountInput hook', () => {
                 amount: minimumAmount,
                 fiatValue: 0.5, // 500 sats = 0.50 USD
                 onlyShowOnSubmit: false,
+                canUseSuggestedAmount: true,
             })
         })
 
@@ -164,6 +165,7 @@ describe('useAmountInput hook', () => {
                 amount: minimumAmount,
                 fiatValue: 0.5, // 500 sats = 0.50 USD
                 onlyShowOnSubmit: true,
+                canUseSuggestedAmount: true,
             })
         })
 
@@ -190,6 +192,7 @@ describe('useAmountInput hook', () => {
                 amount: maximumAmount,
                 fiatValue: 1.0, // 1000 sats = 1.00 USD
                 onlyShowOnSubmit: false,
+                canUseSuggestedAmount: true,
             })
         })
 

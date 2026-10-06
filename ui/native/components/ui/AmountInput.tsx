@@ -145,13 +145,16 @@ const AmountInput: React.FC<Props> = ({
             handleChangeSats(validation.amount.toString())
         }
         const suggestionStyle: StyleProp<TextStyle> = [style.errorSuggestion]
-        if (!readOnly) {
+        const canPressSuggestion = !readOnly && validation.canUseSuggestedAmount
+        if (canPressSuggestion) {
             suggestionStyle.push(style.clickableSuggestion)
         }
         // TODO: Make only underlined suggestion pressable, <Trans /> doesn't like <Pressable /> as a component
         // TODO: Make this wiggle when submitAttempts is incremented
         error = (
-            <Pressable onPress={handlePressSuggestion} disabled={readOnly}>
+            <Pressable
+                onPress={handlePressSuggestion}
+                disabled={!canPressSuggestion}>
                 <Text style={style.error} caption testID="amount-input-error">
                     <Trans
                         i18nKey={validation.i18nKey}

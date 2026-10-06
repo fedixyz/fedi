@@ -1,4 +1,10 @@
 /* eslint-disable no-console */
+import {
+    generateOnchainTestEcash,
+    getOnchainTestFederation,
+    ONCHAIN_TEST_ADDRESS,
+} from '@fedi/common/tests/utils/onchainTestFederation'
+
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 import {
     acceptCameraPermissionIfPresent,
@@ -21,6 +27,7 @@ import {
     enterAmount,
     generateLightningInvoice,
     generateOnchainReceiveAddress,
+    goToWallet,
     payLightningInvoiceByDeepLink,
     readWalletSats,
     redeemEcash,
@@ -30,8 +37,8 @@ import {
 
 // Funding is hermetic: a devimint regtest lightning federation runs on the host
 // (launched by scripts/bridge/run-remote.sh --with-devfed wrapping the runner).
-// The invite and minted ecash come from the remote-server HTTP endpoints on the
-// host loopback via REMOTE_BRIDGE_PORT. The fed binds to the host loopback,
+// The host's devimint client supplies funding, and the invite comes from the
+// remote-server HTTP endpoint via REMOTE_BRIDGE_PORT. The fed binds to loopback,
 // which an android emulator cannot see, so the test forwards its ports in with
 // adb reverse (reverseDevfedPortsIntoDevices). ios simulators reach the host
 // loopback directly and need no forwarding.
@@ -49,7 +56,7 @@ const REGTEST_DESTINATION_ADDRESS = 'mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn'
 
 export class Payments extends AppiumTestBase {
     // No registry prerequisites: a local fed's invite is only known at
-    // runtime, so execute() onboards and joins both actors itself.
+    // runtime, so execute() onboards and joins each actor it uses.
     static prerequisites = [] as const
     // 'walletUsed' has no fixture; declaring it makes the runner reset to a
     // fresh account after this test so a later test never inherits a funded
@@ -59,6 +66,9 @@ export class Payments extends AppiumTestBase {
 
     async execute(): Promise<void> {
         console.log('Starting Payments test')
+        const kind = await this.checkOnchainPayments()
+        if (kind === 'two') return
+        await this.resetAppToFresh()
 
         // eslint-disable-next-line @typescript-eslint/no-this-alias, consistent-this
         const alice: AppiumTestBase = this
@@ -226,6 +236,247 @@ export class Payments extends AppiumTestBase {
             sats: ONCHAIN_SEND_SATS,
         })
         console.log('[phase7] on-chain send confirmed')
+    }
+
+    private async checkOnchainPayments(): Promise<'one' | 'two'> {
+        const { kind, minimum } = getOnchainTestFederation()
+        const minimumMessage = `The minimum you can send is ${minimum.toLocaleString('en-US')} sats`
+        console.log(`[payments:onchain] kind=${kind}, minimum=${minimum}`)
+        await reverseDevfedPortsIntoDevices()
+        await setupOnboardedLocalFed(this, await getDevfedInvite())
+        await goToWallet(this)
+        await this.assertBalance(0)
+
+        await this.openOnchainAmount(ONCHAIN_TEST_ADDRESS, true)
+        await this.assertAmount(0)
+        if (await this.elementIsDisplayed('amount-input-error', 1000)) {
+            throw new Error('Zero amount shows an error before submission')
+        }
+        await this.assertBlocked(minimumMessage)
+        await this.replaceAmount(100000)
+        await this.assertBlocked(minimumMessage)
+        await this.leaveOnchainAmount(true)
+        await this.assertBalance(0)
+        console.log(
+            '[payments:onchain] zero balance: submit feedback and blocked navigation passed',
+        )
+
+        await this.fundOnchainWallet(generateOnchainTestEcash(583))
+        let lowBalance = 0
+        await this.driver.waitUntil(
+            async () => {
+                lowBalance = await readWalletSats(this)
+                return lowBalance >= 581 && lowBalance <= 583
+            },
+            { timeout: 120000, timeoutMsg: 'Expected about 583 sats' },
+        )
+        await this.openOnchainAmount()
+        for (const amount of [1, 583, 5836, 10000, 100000]) {
+            await this.replaceAmount(amount)
+            await this.assertMinimum(minimumMessage)
+            await this.clickOnText(minimumMessage, 0, true)
+            await this.assertAmount(amount)
+            await this.assertBlocked(minimumMessage)
+            await this.assertAmount(amount)
+            console.log(
+                `[payments:onchain] balance=${lowBalance}, typed=${amount}: minimum retained, suggestion inert, navigation blocked`,
+            )
+        }
+        await this.saveScreenshot(`payments-onchain-${kind}-unaffordable`)
+        await this.clickElementByKey('AmountUnitSwitcher')
+        await this.driver.waitUntil(
+            async () =>
+                (await this.getTextByKey('AmountInputLabel')).toUpperCase() ===
+                'USD',
+            { timeout: 5000, timeoutMsg: 'Amount input did not switch to USD' },
+        )
+        await this.replaceAmount(1)
+        await this.assertMinimum(minimumMessage)
+        const fiatBefore = await this.getTextByKey('AmountInputValue')
+        await this.clickOnText(minimumMessage, 0, true)
+        if ((await this.getTextByKey('AmountInputValue')) !== fiatBefore) {
+            throw new Error('Unaffordable suggestion changed the fiat input')
+        }
+        await this.assertBlocked(minimumMessage)
+        if ((await this.getTextByKey('AmountInputValue')) !== fiatBefore) {
+            throw new Error('Blocked submission changed the fiat input')
+        }
+        await this.saveScreenshot(`payments-onchain-${kind}-fiat`)
+        await ensureSatsMode(this)
+        await this.leaveOnchainAmount()
+        await this.assertBalance(lowBalance)
+
+        await this.openOnchainAmount(
+            `bitcoin:${ONCHAIN_TEST_ADDRESS}?amount=0.001`,
+        )
+        await this.assertAmount(100000)
+        await this.assertMinimum(minimumMessage)
+        await this.clickOnText(minimumMessage, 0, true)
+        await this.assertAmount(100000)
+        if (await this.elementIsDisplayed('NumpadButton-1', 1000)) {
+            throw new Error('Fixed BIP21 request unexpectedly has a keypad')
+        }
+        await this.assertBlocked(minimumMessage)
+        await this.assertAmount(100000)
+        await this.leaveOnchainAmount()
+        await this.assertBalance(lowBalance)
+        console.log(
+            '[payments:onchain] fiat and fixed BIP21 requests passed; balance unchanged',
+        )
+
+        await this.fundOnchainWallet(
+            generateOnchainTestEcash(100000, 'atLeast'),
+        )
+        let fundedBalance = 0
+        await this.driver.waitUntil(
+            async () => {
+                fundedBalance = await readWalletSats(this)
+                return fundedBalance >= 99000
+            },
+            { timeout: 120000, timeoutMsg: 'Funded wallet balance is too low' },
+        )
+        await this.openOnchainAmount()
+        await this.replaceAmount(minimum - 1)
+        await this.waitForText(minimumMessage, 0, true, 30000)
+        await this.clickOnText(minimumMessage, 0, true)
+        await this.assertAmount(minimum)
+        if (await this.elementIsDisplayed('amount-input-error', 1000)) {
+            throw new Error(
+                'Affordable minimum suggestion did not clear the error',
+            )
+        }
+        await this.clickOnText('Continue', 0, true)
+        await this.waitForElementDisplayed('OnchainSendDetailsButton', 30000)
+        await this.clickElementByKey('HeaderBackButton')
+
+        await this.replaceAmount(fundedBalance + 100000)
+        await this.waitForElementDisplayed('amount-input-error')
+        let maxMessage = ''
+        let maximum = NaN
+        await this.driver.waitUntil(
+            async () => {
+                maxMessage = await this.getTextByKey('amount-input-error')
+                const match = maxMessage.match(
+                    /^The max you can send is ([\d,]+) sats$/i,
+                )
+                maximum = match ? Number(match[1].replace(/,/g, '')) : NaN
+                return maximum >= minimum && maximum < fundedBalance
+            },
+            { timeout: 30000, timeoutMsg: 'Expected a fee-adjusted maximum' },
+        )
+        await this.clickOnText(maxMessage, 0, true)
+        await this.assertAmount(maximum)
+        if (await this.elementIsDisplayed('amount-input-error', 1000)) {
+            throw new Error(
+                'Affordable maximum suggestion did not clear the error',
+            )
+        }
+        await this.clickOnText('Continue', 0, true)
+        await this.waitForElementDisplayed('OnchainSendDetailsButton', 30000)
+        await this.saveScreenshot(
+            `payments-onchain-${kind}-funded-confirmation`,
+        )
+        await this.clickElementByKey('HeaderBackButton')
+        await this.leaveOnchainAmount()
+        await this.assertBalance(fundedBalance)
+        console.log(
+            `[payments:onchain] funded: minimum ${minimum} and maximum ${maximum} suggestions reached confirmation; balance unchanged`,
+        )
+        return kind
+    }
+
+    private async openOnchainAmount(
+        destination = ONCHAIN_TEST_ADDRESS,
+        fromScanner = false,
+    ) {
+        await goToWallet(this)
+        if (fromScanner) {
+            await this.clickElementByKey('ScanTabButton')
+        } else {
+            await this.clickOnText('Send', 0, true)
+        }
+        await acceptCameraPermissionIfPresent(this)
+        await this.setClipboard(destination)
+        await this.clickElementByKey('PasteButton')
+        await allowPasteIfPrompted(this)
+        if (fromScanner) {
+            await this.waitForText(
+                'This is a bitcoin onchain payment, do you want to pay it?',
+                0,
+                true,
+                30000,
+            )
+            await this.clickOnText('Continue', 0, true)
+        }
+        await this.waitForElementDisplayed('AmountInputValue', 30000)
+        await ensureSatsMode(this)
+    }
+
+    private async leaveOnchainAmount(fromScanner = false) {
+        await this.clickElementByKey('HeaderBackButton')
+        if (!fromScanner) await this.clickElementByKey('HeaderBackButton')
+        await goToWallet(this)
+    }
+
+    private async fundOnchainWallet(ecash: string) {
+        await redeemEcash(this, ecash)
+        await this.waitForText('Ecash claimed', 0, true, 120000)
+        await this.clickOnText('Go to wallet', 0, true)
+        await waitForWalletReceive(this)
+    }
+
+    private async assertBalance(expected: number) {
+        const actual = await readWalletSats(this)
+        if (actual !== expected) {
+            throw new Error(
+                `Balance changed: expected ${expected}, got ${actual}`,
+            )
+        }
+    }
+
+    private async assertAmount(expected: number) {
+        await this.driver.waitUntil(
+            async () =>
+                Number(
+                    (await this.getTextByKey('AmountInputValue')).replace(
+                        /,/g,
+                        '',
+                    ),
+                ) === expected,
+            { timeout: 5000, timeoutMsg: `Amount did not remain ${expected}` },
+        )
+    }
+
+    private async replaceAmount(amount: number) {
+        const current = (await this.getTextByKey('AmountInputValue')).replace(
+            /\D/g,
+            '',
+        )
+        for (let i = 0; i < current.length + 3; i++) {
+            await this.clickElementByKey('NumpadButton-backspace')
+        }
+        await this.assertAmount(0)
+        await enterAmount(this, amount)
+    }
+
+    private async assertMinimum(message: string) {
+        await this.waitForText(message, 0, true, 30000)
+        const actual = await this.getTextByKey('amount-input-error')
+        if (
+            actual !== message ||
+            (await this.isTextPresent('The max you can send', false, 500))
+        ) {
+            throw new Error(`Conflicting low-balance feedback: ${actual}`)
+        }
+    }
+
+    private async assertBlocked(message: string) {
+        await this.clickOnText('Continue', 0, true)
+        await this.assertMinimum(message)
+        if (await this.elementIsDisplayed('OnchainSendDetailsButton', 1000)) {
+            throw new Error('Unaffordable amount reached confirmation')
+        }
+        await this.waitForElementDisplayed('AmountInputValue')
     }
 }
 

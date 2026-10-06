@@ -471,8 +471,8 @@ export function useParseEcash() {
     const federation = loadedFederation || federationPreview
     const newMembersDisabled =
         parsedEcash?.federation_type === 'notJoined' &&
-        !!federation?.meta &&
-        !shouldShowJoinFederation(federation.meta)
+        !!federationPreview &&
+        !shouldShowJoinFederation(federationPreview)
 
     return {
         parseEcash: parseEcashFn,

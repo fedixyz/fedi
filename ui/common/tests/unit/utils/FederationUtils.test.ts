@@ -9,6 +9,7 @@ import {
     getFederationDefaultCurrency,
     getCommunityFediMods,
     shouldShowInviteCode,
+    shouldShowJoinFederation,
     fetchPublicFederations,
     fetchAutoSelectFederations,
     switchGateway,
@@ -212,6 +213,42 @@ describe('FederationUtils', () => {
             const showInviteCode = shouldShowInviteCode(fedWithNoMetadata.meta)
 
             expect(showInviteCode).toEqual(true)
+        })
+    })
+    describe('shouldShowJoinFederation', () => {
+        const newMembersDisabled = { new_members_disabled: 'true' }
+
+        it('should let a new member join an open federation', () => {
+            expect(
+                shouldShowJoinFederation({
+                    meta: {},
+                    returningMemberStatus: { type: 'newMember' },
+                }),
+            ).toBe(true)
+        })
+        it('should keep a new member out when new members are disabled', () => {
+            expect(
+                shouldShowJoinFederation({
+                    meta: newMembersDisabled,
+                    returningMemberStatus: { type: 'newMember' },
+                }),
+            ).toBe(false)
+        })
+        it('should let a returning member rejoin when new members are disabled', () => {
+            expect(
+                shouldShowJoinFederation({
+                    meta: newMembersDisabled,
+                    returningMemberStatus: { type: 'returningMember' },
+                }),
+            ).toBe(true)
+        })
+        it('should treat an unknown member status as a new member', () => {
+            expect(
+                shouldShowJoinFederation({
+                    meta: newMembersDisabled,
+                    returningMemberStatus: { type: 'unknown' },
+                }),
+            ).toBe(false)
         })
     })
     describe('getFederationFediMods', () => {

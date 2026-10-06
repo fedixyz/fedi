@@ -22,6 +22,7 @@ import {
     setMessageToEdit,
 } from '../redux'
 import { getDisplayNameValidator, parseData } from '../utils/chat'
+import { isPeerConnectionError } from '../utils/errors'
 import { makeLog } from '../utils/log'
 import { useMinMaxRequestAmount, useMinMaxSendAmount } from './amount'
 import { useFederationPreview } from './federation'
@@ -446,6 +447,19 @@ export function useMessageInputState(roomId: string) {
     }
 }
 
+export type ForeignEcashIssue =
+    | 'unreadable'
+    | 'no-invite'
+    | 'unreachable'
+    | 'invalid-invite'
+
+const foreignEcashIssueMessages = {
+    unreadable: 'feature.receive.foreign-ecash-unreadable',
+    'no-invite': 'feature.receive.foreign-ecash-no-invite',
+    unreachable: 'feature.receive.foreign-ecash-unreachable',
+    'invalid-invite': 'feature.receive.foreign-ecash-invalid-invite',
+} as const
+
 /**
  * Hook for handling joining a federation before receiving a foreign ecash payment
  * Automatically handles parsing the ecash payment and previewing the federation
@@ -455,6 +469,8 @@ export function useAcceptForeignEcash(
     paymentEvent: MatrixPaymentEvent,
 ) {
     const [inviteCode, setInviteCode] = useState<string | null>(null)
+    const [isParsing, setIsParsing] = useState(!!paymentEvent.content.ecash)
+    const [issue, setIssue] = useState<ForeignEcashIssue | null>(null)
     const [showFederationPreview, setShowFederationPreview] =
         useState<boolean>(false)
     const [hideOtherMethods, setHideOtherMethods] = useState<boolean>(true)
@@ -493,27 +509,54 @@ export function useAcceptForeignEcash(
                     return
                 }
 
-                setInviteCode(
-                    parsed.federation_invite || federationInviteCode || '',
-                )
+                const code = parsed.federation_invite || federationInviteCode
+                setInviteCode(code || '')
+                if (!code) setIssue('no-invite')
             })
+            .catch(err => {
+                log.error('failed to parse foreign ecash', err)
+                setIssue('unreadable')
+            })
+            .finally(() => setIsParsing(false))
     }, [paymentEvent.content.ecash, federationInviteCode, dispatch, fedimint])
+
+    const fetchPreview = useCallback(
+        (code: string) => {
+            setIssue(null)
+            return handleCode(code, undefined, err =>
+                setIssue(
+                    isPeerConnectionError(err)
+                        ? 'unreachable'
+                        : 'invalid-invite',
+                ),
+            )
+        },
+        [handleCode],
+    )
 
     useEffect(() => {
         if (!inviteCode) return
         // skip handling the code if we already have a preview
         if (federationPreview) return
-        handleCode(inviteCode)
-    }, [federationPreview, inviteCode, handleCode])
+        fetchPreview(inviteCode)
+    }, [federationPreview, inviteCode, fetchPreview])
+
+    const retry = useCallback(() => {
+        if (inviteCode) fetchPreview(inviteCode)
+    }, [inviteCode, fetchPreview])
 
     return {
         isJoining,
-        isFetchingPreview,
+        isLoading: isParsing || isFetchingPreview,
         federationPreview,
         handleJoin,
         showFederationPreview,
         setShowFederationPreview,
         hideOtherMethods,
         setHideOtherMethods,
+        issue,
+        issueMessage: issue ? t(foreignEcashIssueMessages[issue]) : null,
+        canRetry: issue === 'unreachable',
+        retry,
     }
 }

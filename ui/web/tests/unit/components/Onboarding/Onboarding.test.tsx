@@ -41,7 +41,12 @@ const previewBase = {
 const communityPreviewState = (id: string) => ({
     ...previewBase,
     federationPreview: undefined,
-    communityPreview: { id, name: id, meta: {} },
+    communityPreview: {
+        id,
+        name: id,
+        meta: {},
+        returningMemberStatus: { type: 'unknown' },
+    },
     handleJoin: (onSuccess?: (type: string) => void) =>
         onSuccess?.('community'),
 })
