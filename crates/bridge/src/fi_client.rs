@@ -413,6 +413,12 @@ pub(crate) fn start_fi_federation_auto_join(
                     &on_joined,
                 )
                 .await;
+                let formed = status.wait_for(|s| formed_federation_id(s).is_ok());
+                if formed.await.is_ok()
+                    && let Ok(federation) = federations.get_federation(&federation_id)
+                {
+                    federation.meta_source.refresh.notify_one();
+                }
                 return;
             }
         });

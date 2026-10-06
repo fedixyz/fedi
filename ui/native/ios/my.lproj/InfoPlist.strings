@@ -5,8 +5,8 @@
   Created by Someone on 01/01/2025.
 
 */
-"NSCameraUsageDescription" = "Fedi needs access to the camera to scan QR codes";
-"NSLocationWhenInUseUsageDescription" = "Fedi does not use your location";
-"NSMicrophoneUsageDescription" = "Fedi needs access to your microphone to record a social backup video";
-"NSPhotoLibraryAddUsageDescription" = "Fedi needs access to save photos to your photo library";
-"NSPhotoLibraryUsageDescription" = "Fedi needs access to your photo library to select media for your avatar and chat attachments";
+"NSCameraUsageDescription" = "QR ကုဒ်များကို စကင်န်ဖတ်ရန် Fedi သည် ကင်မရာကို အသုံးပြုခွင့် လိုအပ်ပါသည်";
+"NSLocationWhenInUseUsageDescription" = "Fedi သည် သင့်တည်နေရာကို အသုံးမပြုပါ";
+"NSMicrophoneUsageDescription" = "လူမှုရေးအရန် ဗီဒီယို မှတ်တမ်းတင်ရန် Fedi သည် သင့်မိုက်ခရိုဖုန်းကို အသုံးပြုခွင့် လိုအပ်ပါသည်";
+"NSPhotoLibraryAddUsageDescription" = "သင့်ဓာတ်ပုံစုစည်းမှုထဲသို့ ဓာတ်ပုံများ သိမ်းဆည်းရန် Fedi သည် အသုံးပြုခွင့် လိုအပ်ပါသည်";
+"NSPhotoLibraryUsageDescription" = "သင့်အဗာတာနှင့် စကားပြောခန်း ပူးတွဲဖိုင်များအတွက် မီဒီယာ ရွေးချယ်ရန် Fedi သည် သင့်ဓာတ်ပုံစုစည်းမှုကို အသုံးပြုခွင့် လိုအပ်ပါသည်";

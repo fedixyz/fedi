@@ -9,6 +9,8 @@ user-invocable: true
 
 For `release/*` PRs, review the port and its production effect. Feature review belongs on the corresponding master PR, not the release PR.
 
+The shape a backport branch and its PR are expected to have is defined in `.agents/skills/backport/SKILL.md`. Read it for what the body lists and how the version bump is committed.
+
 ## Read first
 
 Start with the PR title, source branch, and listed PRs in `sieve-pr-context.json`. Outside the hub, use `gh pr view --json title,body,baseRefName,headRefName`.

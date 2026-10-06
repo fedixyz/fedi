@@ -20,7 +20,13 @@ const mockFederation3 = { ...mockFederation1, id: '3' }
 
 describe('common/redux/federation guardian refresh', () => {
     const reachable: GuardianStatus[] = [
-        { online: { guardian: 'wss://guardian.example', latency_ms: 10 } },
+        {
+            online: {
+                guardian: 'wss://guardian.example',
+                fman_name: null,
+                latency_ms: 10,
+            },
+        },
     ]
 
     it('should preserve balance updates received during a health check', async () => {
@@ -86,7 +92,13 @@ describe('common/redux/federation guardian refresh', () => {
         )
         store.dispatch(setIsInternetUnreachable(true))
         complete([
-            { timeout: { guardian: 'wss://guardian.example', elapsed: '10s' } },
+            {
+                timeout: {
+                    guardian: 'wss://guardian.example',
+                    fman_name: null,
+                    elapsed: '10s',
+                },
+            },
         ])
         await pending.unwrap()
         expect(

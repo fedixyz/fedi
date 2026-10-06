@@ -42,6 +42,8 @@ impl DevFed {
         trace!(target: LOG_DEVIMINT, "Starting dev fed");
         let (process_mgr, _) = Self::process_setup(fed_size).await?;
         let dev_fed = DevJitFed::new(&process_mgr, false, false)?;
+        // lnd rejects channel opens while peg-ins mine new blocks
+        dev_fed.finalize(&process_mgr).await?;
 
         debug!(target: LOG_DEVIMINT, "Peging in client and gateways");
 
@@ -196,7 +198,6 @@ impl DevFed {
         unsafe { std::env::set_var("DEVI_SYNAPSE_SERVER", &synapse.url) };
         unsafe { std::env::set_var("DEVI_NOSTR_RELAY", &nostr_relay.url) };
 
-        dev_fed.finalize(&process_mgr).await?;
         info!(target: LOG_DEVIMINT, "Devfed ready");
 
         let devimint = dev_fed.to_dev_fed(&process_mgr).await?;

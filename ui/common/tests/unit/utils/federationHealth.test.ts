@@ -8,8 +8,20 @@ import {
 function guardians(total: number, online: number): GuardianStatus[] {
     return Array.from({ length: total }, (_, i) =>
         i < online
-            ? { online: { guardian: `guardian-${i}`, latency_ms: 5 } }
-            : { timeout: { guardian: `guardian-${i}`, elapsed: '10s' } },
+            ? {
+                  online: {
+                      guardian: `guardian-${i}`,
+                      fman_name: null,
+                      latency_ms: 5,
+                  },
+              }
+            : {
+                  timeout: {
+                      guardian: `guardian-${i}`,
+                      fman_name: null,
+                      elapsed: '10s',
+                  },
+              },
     )
 }
 
@@ -103,7 +115,11 @@ describe('federation reachability', () => {
         const previous = observeFederationHealth(guardians(4, 0), 0).health
         const changed = guardians(4, 0)
         changed[0] = {
-            error: { guardian: 'replacement', error: 'unreachable' },
+            error: {
+                guardian: 'replacement',
+                fman_name: null,
+                error: 'unreachable',
+            },
         }
         expect(
             observeFederationHealth(changed, 30_000, previous, 'offline')

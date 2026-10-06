@@ -11,9 +11,9 @@ import sys
 import tempfile
 import time
 
-MAX_BYTES = 16 * 1024**3
-MAX_FILES = 100_000
-MAX_SECONDS = 30
+MAX_BYTES = 128 * 1024**3
+MAX_FILES = 500_000
+MAX_SECONDS = 180
 
 
 def run(*args, cwd, env=None, timeout=60):
