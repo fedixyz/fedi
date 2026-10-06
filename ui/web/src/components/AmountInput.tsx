@@ -96,7 +96,7 @@ export const AmountInput: React.FC<Props> = ({
         // 4. Fade in input container
         // 5. Re-enable field wrap transitions
         const handleClickValidationAmount = () => {
-            if (readOnly) return
+            if (readOnly || !validation.canUseSuggestedAmount) return
             const containerEl = amountInputContainerElRef.current
             if (!containerEl) {
                 handleChangeSats(validation.amount.toString())
@@ -129,11 +129,14 @@ export const AmountInput: React.FC<Props> = ({
             <Trans
                 i18nKey={validation.i18nKey}
                 components={{
-                    suggestion: (
-                        <ErrorAmountButton
-                            onClick={handleClickValidationAmount}
-                        />
-                    ),
+                    suggestion:
+                        validation.canUseSuggestedAmount && !readOnly ? (
+                            <ErrorAmountButton
+                                onClick={handleClickValidationAmount}
+                            />
+                        ) : (
+                            <span />
+                        ),
                 }}
                 values={{
                     verb: verb?.toLowerCase() || t('words.send'),
@@ -187,7 +190,7 @@ export const AmountInput: React.FC<Props> = ({
                         {switcherEnabled && (
                             <>
                                 <SnugInput>
-                                    <div>
+                                    <div data-testid="AmountInputSats">
                                         {satsValue}{' '}
                                         <Currency>{t('words.sats')}</Currency>
                                     </div>
@@ -207,6 +210,7 @@ export const AmountInput: React.FC<Props> = ({
                     </FieldWrap>
                     {error && (
                         <Error
+                            data-testid="amount-input-error"
                             needsReminder={submitAttempts > 1}
                             ref={errorElRef}>
                             <Text variant="caption" weight="medium">
@@ -222,6 +226,11 @@ export const AmountInput: React.FC<Props> = ({
                     {numpadButtons.map(btn => (
                         <NumpadButton
                             key={btn}
+                            data-testid={
+                                btn === 'backspace'
+                                    ? 'AmountInputBackspace'
+                                    : undefined
+                            }
                             isPlaceholder={btn === null}
                             onClick={() => handleNumpadPress(btn)}>
                             {btn === 'backspace' ? (

@@ -50,12 +50,22 @@ const initializePushNotificationListeners = () => {
     //Initalise Push Notification Listeners
     ///////////////////////////////
 
-    messaging().onMessage(async m => {
+    // FCM listeners require a default Firebase App, which dev flavors without
+    // a google-services.json don't have. Initialize lazily so the app doesn't
+    // crash at startup when messaging is unavailable.
+    let messagingModule = null
+    try {
+        messagingModule = messaging()
+    } catch (error) {
+        log.warn('Firebase not initialized, skipping FCM listeners', error)
+    }
+
+    messagingModule?.onMessage(async m => {
         await handleFCMNotification(m, true) // isForeground = true
     })
 
     // Dispatches FCM notifications when app is closed
-    messaging().setBackgroundMessageHandler(async m => {
+    messagingModule?.setBackgroundMessageHandler(async m => {
         await handleFCMNotification(m, false) // isForeground = false
     })
 

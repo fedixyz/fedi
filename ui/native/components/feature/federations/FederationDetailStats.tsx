@@ -1,11 +1,9 @@
 import { Divider, Text, Theme, useTheme } from '@rneui/themed'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { FALLBACK_LIMIT_MSATS } from '@fedi/common/constants/limits'
-import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { GuardianStatus } from '@fedi/common/types/bindings'
+import { useGuardianStatus } from '@fedi/common/hooks/federation'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import {
     getFederationMaxBalanceMsats,
@@ -21,13 +19,11 @@ function FederationDetailStats({
 }: {
     federation: LoadedFederation
 }) {
-    const [guardianStatuses, setGuardianStatuses] =
-        useState<Array<GuardianStatus> | null>(null)
-    const [isLoadingGuardians, setIsLoadingGuardians] = useState(true)
+    const { guardians: guardianStatuses, isLoading: isLoadingGuardians } =
+        useGuardianStatus(federation.id)
 
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const fedimint = useFedimint()
 
     const totalGuardians = guardianStatuses ? guardianStatuses.length : 0
     const onlineGuardians = guardianStatuses
@@ -45,18 +41,11 @@ function FederationDetailStats({
         'K',
     )} ${t('words.sats').toUpperCase()}`
 
-    useEffect(() => {
-        fedimint
-            .getGuardianStatus(federation.id)
-            .then(setGuardianStatuses)
-            .finally(() => setIsLoadingGuardians(false))
-    }, [federation.id, fedimint])
-
     const style = styles(theme)
 
     return (
         <Row style={style.container}>
-            <Column align="center" grow gap="xs">
+            <Column align="center" grow basis={false} gap="xs">
                 <Text small medium>
                     {t('words.guardians')}
                 </Text>
@@ -71,7 +60,7 @@ function FederationDetailStats({
                 )}
             </Column>
             <Divider orientation="vertical" />
-            <Column align="center" grow gap="xs">
+            <Column align="center" grow basis={false} gap="xs">
                 <Text small medium>
                     {t('feature.federations.wallet-balance')}
                 </Text>
@@ -80,7 +69,7 @@ function FederationDetailStats({
                 </Text>
             </Column>
             <Divider orientation="vertical" />
-            <Column align="center" grow gap="xs">
+            <Column align="center" grow basis={false} gap="xs">
                 <Text small medium>
                     {t('feature.federations.spend-limit')}
                 </Text>

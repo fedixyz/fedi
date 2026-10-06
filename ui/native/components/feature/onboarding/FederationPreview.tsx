@@ -43,7 +43,7 @@ const FederationPreview: React.FC<Props> = ({
     const { theme } = useTheme()
     const { t } = useTranslation()
 
-    const showJoinFederation = shouldShowJoinFederation(federation.meta)
+    const showJoinFederation = shouldShowJoinFederation(federation)
     const [selectedRecoverFromScratch, setSelectedRecoverFromScratch] =
         useState(false)
     const [joinAnyways, setJoinAnyways] = useState(false)

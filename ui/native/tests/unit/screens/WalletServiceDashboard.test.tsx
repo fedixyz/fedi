@@ -8,7 +8,9 @@ import {
 } from '@testing-library/react-native'
 import { ScrollView, StyleSheet } from 'react-native'
 
+import { theme } from '@fedi/common/constants/theme'
 import {
+    refreshGuardianStatuses,
     setFederations,
     setFiFederationJoin,
     setupStore,
@@ -364,26 +366,101 @@ describe('screens/WalletServiceDashboard', () => {
 
         expect(
             await screen.findByText(
-                i18n.t('feature.wallet-service.dashboard-live-guardians', {
-                    online: 7,
-                    total: 7,
-                }),
+                i18n.t(
+                    'feature.wallet-service.dashboard-guardian-reachability',
+                    {
+                        status: i18n.t('words.online'),
+                        online: 7,
+                        total: 7,
+                    },
+                ),
             ),
         ).toBeOnTheScreen()
     })
 
-    it('should show an offline guardian count when some guardians are not reachable', async () => {
+    it('should not call a federation offline after one partial guardian result', async () => {
         renderScreen({ guardianStatuses: makeGuardianStatuses(5, 7) })
 
         expect(
             await screen.findByText(
-                i18n.t('feature.wallet-service.dashboard-offline-guardians', {
-                    online: 5,
-                    total: 7,
-                }),
+                i18n.t(
+                    'feature.wallet-service.dashboard-guardian-reachability',
+                    {
+                        status: i18n.t('words.unknown'),
+                        online: 5,
+                        total: 7,
+                    },
+                ),
             ),
         ).toBeOnTheScreen()
     })
+
+    it.each([
+        [4, 210, 'offline', theme.colors.red],
+        [5, 385, 'online', theme.colors.lightOrange],
+        [6, 385, 'online', theme.colors.lightOrange],
+    ] as const)(
+        'should show the shared status after sustained %i of seven reachability',
+        async (online, seconds, word, color) => {
+            const statuses = makeGuardianStatuses(online, 7)
+            const { store } = renderScreen({ guardianStatuses: statuses })
+            await screen.findByText(
+                i18n.t(
+                    'feature.wallet-service.dashboard-guardian-reachability',
+                    {
+                        status: i18n.t('words.unknown'),
+                        online,
+                        total: 7,
+                    },
+                ),
+            )
+            const initial =
+                store.getState().federation.guardianHealth[
+                    WALLET_SERVICE_FEDERATION_ID
+                ]?.checkedAt
+            if (initial === undefined) throw new Error('missing observation')
+            const fedimint = createMockFedimintBridge({
+                getGuardianStatus: async () => statuses,
+            })
+            const now = jest.spyOn(Date, 'now')
+            try {
+                for (let elapsed = 35; elapsed <= seconds; elapsed += 35) {
+                    now.mockReturnValue(initial + elapsed * 1000)
+                    await act(async () => {
+                        await store.dispatch(
+                            refreshGuardianStatuses({
+                                fedimint,
+                                federation: {
+                                    ...mockFederation1,
+                                    id: WALLET_SERVICE_FEDERATION_ID,
+                                },
+                            }),
+                        )
+                    })
+                }
+                expect(
+                    screen.getByText(
+                        i18n.t(
+                            'feature.wallet-service.dashboard-guardian-reachability',
+                            {
+                                status: i18n.t(`words.${word}`),
+                                online,
+                                total: 7,
+                            },
+                        ),
+                    ),
+                ).toBeOnTheScreen()
+                expect(
+                    StyleSheet.flatten(
+                        screen.getByTestId('wallet-service-status-dot').props
+                            .style,
+                    ).backgroundColor,
+                ).toBe(color)
+            } finally {
+                now.mockRestore()
+            }
+        },
+    )
 
     it('should not claim guardian liveness before the federation has joined', async () => {
         renderScreen({ federationJoined: false })

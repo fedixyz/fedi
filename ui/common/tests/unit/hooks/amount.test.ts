@@ -52,12 +52,43 @@ describe('common/hooks/amount', () => {
             },
         )
 
+        describe.each([0, 583, 2_000])('with a maximum of %i sats', maximum => {
+            it.each([0, 583, 5_836, 10_000, 100_000])(
+                'should keep the minimum as non-actionable feedback for %i sats',
+                amount => {
+                    store.dispatch({
+                        type: fetchCurrencyPrices.fulfilled.type,
+                        payload: { btcUsdRate: 100_000, fiatUsdRates: {} },
+                    })
+                    const { result } = renderHookWithState(
+                        () =>
+                            useAmountInput(
+                                amount as Sats,
+                                undefined,
+                                10_000 as Sats,
+                                maximum as Sats,
+                            ),
+                        store,
+                    )
+                    expect(result.current.validation).toEqual({
+                        i18nKey: 'errors.invalid-amount-min',
+                        amount: 10_000,
+                        fiatValue: 10,
+                        onlyShowOnSubmit: amount === 0,
+                        canUseSuggestedAmount: false,
+                    })
+                },
+            )
+        })
+    })
+
+    describe('affordable amount ranges', () => {
         it.each([
-            [0, 'errors.invalid-amount-min', 10_000, true],
-            [5_000, 'errors.invalid-amount-min', 10_000, false],
-            [10_000, 'errors.invalid-amount-max', 2_000, false],
+            [0, 'errors.invalid-amount-min', 294, true],
+            [293, 'errors.invalid-amount-min', 294, false],
+            [50_001, 'errors.invalid-amount-max', 50_000, false],
         ] as const)(
-            'shows the applicable limit for %i sats when the wallet cannot afford the minimum',
+            'should keep actionable limit feedback for %i sats',
             (amount, i18nKey, limit, onlyShowOnSubmit) => {
                 store.dispatch({
                     type: fetchCurrencyPrices.fulfilled.type,
@@ -68,19 +99,51 @@ describe('common/hooks/amount', () => {
                         useAmountInput(
                             amount as Sats,
                             undefined,
-                            10_000 as Sats,
-                            2_000 as Sats,
+                            294 as Sats,
+                            50_000 as Sats,
                         ),
                     store,
                 )
                 expect(result.current.validation).toEqual({
                     i18nKey,
                     amount: limit,
-                    fiatValue: limit / 1000,
+                    fiatValue: Number((limit / 1000).toFixed(2)),
                     onlyShowOnSubmit,
+                    canUseSuggestedAmount: true,
                 })
             },
         )
+
+        it.each([294, 1_000, 50_000])(
+            'should accept %i sats inside the range',
+            amount => {
+                const { result } = renderHookWithState(
+                    () =>
+                        useAmountInput(
+                            amount as Sats,
+                            undefined,
+                            294 as Sats,
+                            50_000 as Sats,
+                        ),
+                    store,
+                )
+                expect(result.current.validation).toBeUndefined()
+            },
+        )
+
+        it('should accept an exact amount when the minimum equals the maximum', () => {
+            const { result } = renderHookWithState(
+                () =>
+                    useAmountInput(
+                        10_000 as Sats,
+                        undefined,
+                        10_000 as Sats,
+                        10_000 as Sats,
+                    ),
+                store,
+            )
+            expect(result.current.validation).toBeUndefined()
+        })
     })
 
     describe('useTotalBalance', () => {

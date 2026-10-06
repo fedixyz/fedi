@@ -97,6 +97,7 @@ const formedStore = (
             // `selectLoadedFederations` indexes this map per federation, so an
             // absent one throws rather than reading as "not recovering"
             simulateRecoveryByFederation: {},
+            guardianHealthSimulation: {},
         },
         fi: {
             status: {

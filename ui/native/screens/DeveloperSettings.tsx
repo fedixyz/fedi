@@ -91,6 +91,7 @@ import {
     startLogSpikeSimulator,
     stopLogSpikeSimulator,
 } from '../utils/logSpikeSimulator'
+import GuardianHealthSimulator from './developer/GuardianHealthSimulator'
 
 const log = makeLog('DeveloperSettings')
 
@@ -1376,6 +1377,10 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         }}
                     />
                 </View>
+
+                {paymentFederation && (
+                    <GuardianHealthSimulator federation={paymentFederation} />
+                )}
 
                 <SettingsSection title="Guardian Status">
                     {guardianOnlineStatus.map((n, index) => {

@@ -1,4 +1,4 @@
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
@@ -29,19 +29,22 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
     const { theme } = useTheme()
     const {
         isJoining,
-        isFetchingPreview,
+        isLoading,
         federationPreview,
         handleJoin,
         showFederationPreview,
         setShowFederationPreview,
         hideOtherMethods,
         setHideOtherMethods,
+        issueMessage,
+        canRetry,
+        retry,
     } = useAcceptForeignEcash(t, paymentEvent)
 
     const style = styles(theme)
 
     const renderOverlayContents = () => {
-        if (isFetchingPreview) return <ActivityIndicator />
+        if (isLoading) return <ActivityIndicator />
         if (federationPreview && showFederationPreview) {
             return (
                 <FederationPreview
@@ -92,7 +95,25 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                         </View>
                     </Pressable>
                 ) : (
-                    <Text center>{t('errors.unknown-ecash-issuer')}</Text>
+                    <Column gap="md" fullWidth>
+                        {issueMessage ? (
+                            <Text center testID="ReceiveForeignEcashIssue">
+                                {issueMessage}
+                            </Text>
+                        ) : (
+                            <Text center>
+                                {t('errors.unknown-ecash-issuer')}
+                            </Text>
+                        )}
+                        {canRetry && (
+                            <Button
+                                fullWidth
+                                title={t('words.retry')}
+                                onPress={retry}
+                                testID="ReceiveForeignEcashRetryButton"
+                            />
+                        )}
+                    </Column>
                 )}
 
                 {!hideOtherMethods && (

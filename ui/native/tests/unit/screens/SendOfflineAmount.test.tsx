@@ -12,6 +12,7 @@ import {
     setCurrencyLocale,
     setFederations,
     setPayFromFederationId,
+    setIsInternetUnreachable,
     setTransactionDisplayType,
     setupStore,
 } from '@fedi/common/redux'
@@ -131,6 +132,26 @@ describe('SendOfflineAmount screen', () => {
         await waitFor(() => expect(amountFiat).toBeOnTheScreen())
         await waitFor(() => expect(amountSats).toBeOnTheScreen())
         await waitFor(() => expect(currency).toBeOnTheScreen())
+    })
+
+    it('should let an offline user enter an ecash amount and continue', async () => {
+        store.dispatch(setFederations([mockFederation1]))
+        store.dispatch(setPayFromFederationId(mockFederation1.id))
+        store.dispatch(setIsInternetUnreachable(true))
+        store.dispatch(setAmountInputType('sats'))
+        renderWithProviders(
+            <SendOfflineAmount
+                navigation={mockNavigation as any}
+                route={mockRoute as any}
+            />,
+            { store, fedimint: mockFedimint },
+        )
+        await user.press(screen.getByText('5'))
+        await user.press(screen.getByText(i18n.t('words.next')))
+        expect(mockNavigation.navigate).toHaveBeenCalledWith(
+            'ConfirmSendEcash',
+            { amount: 5, notes: '' },
+        )
     })
 
     it('should prevent the user from sending more than the max ecash send balance', async () => {

@@ -289,7 +289,7 @@ export function setupRemoteBridgeTests(): RemoteBridgeTestContext {
 
     afterEach(async () => {
         if (cleanupStore) {
-            cleanupStore()
+            await act(async () => cleanupStore())
         }
         if (context.bridge) {
             context.bridge.shutdown()

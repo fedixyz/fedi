@@ -84,5 +84,6 @@ rusqlite = { version = "*", features = ["bundled"] }
 fedimint-build = { workspace = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 fedimint-cursed-redb = { workspace = true }
 tempfile = { workspace = true }

@@ -29,7 +29,7 @@ const CommunityPreview: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
 
-    const showJoinFederation = shouldShowJoinFederation(community.meta)
+    const showJoinFederation = shouldShowJoinFederation(community)
     const tosUrl = getFederationTosUrl(community.meta)
     const welcomeMessage = getFederationWelcomeMessage(community.meta)
 

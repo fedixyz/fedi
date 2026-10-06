@@ -6,6 +6,7 @@ import { MatrixPaymentEvent } from '@fedi/common/types'
 import { RpcFederationPreview } from '@fedi/common/types/bindings'
 
 import { styled } from '../../styles'
+import { Button } from '../Button'
 import { Dialog } from '../Dialog'
 import { FederationAvatar } from '../FederationAvatar'
 import { Column, Row } from '../Flex'
@@ -27,17 +28,20 @@ export const ReceiveForeignEcashOverlay = ({
     const { t } = useTranslation()
     const {
         isJoining,
-        isFetchingPreview,
+        isLoading,
         federationPreview,
         handleJoin,
         showFederationPreview,
         setShowFederationPreview,
         hideOtherMethods,
         setHideOtherMethods,
+        issueMessage,
+        canRetry,
+        retry,
     } = useAcceptForeignEcash(t, paymentEvent)
 
     const renderOverlayContents = () => {
-        if (isFetchingPreview) return null
+        if (isLoading) return null
         if (federationPreview && showFederationPreview) {
             return (
                 <FederationPreview
@@ -62,7 +66,16 @@ export const ReceiveForeignEcashOverlay = ({
                         onJoin={() => setShowFederationPreview(true)}
                     />
                 ) : (
-                    <Text center>{t('errors.unknown-ecash-issuer')}</Text>
+                    <Column gap="sm">
+                        <Text center>
+                            {issueMessage ?? t('errors.unknown-ecash-issuer')}
+                        </Text>
+                        {canRetry && (
+                            <Button width="full" onClick={retry}>
+                                {t('words.retry')}
+                            </Button>
+                        )}
+                    </Column>
                 )}
                 {!hideOtherMethods && (
                     <RejectPaymentCard

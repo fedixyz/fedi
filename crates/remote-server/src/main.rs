@@ -153,6 +153,8 @@ async fn main() -> Result<()> {
         .route("/invite_code", get(handle_invite_code))
         .route("/generate_ecash/:amount", get(handle_generate_ecash))
         .route("/ports", get(handle_ports))
+        .route("/meta", post(handle_submit_meta))
+        .route("/backup_count", get(handle_backup_count))
         .layer(cors)
         .with_state(state);
     let mut listenfd = ListenFd::from_env();
@@ -480,5 +482,84 @@ async fn handle_generate_ecash(
 
     Ok(Json(serde_json::json!({
         "ecash": ecash_string
+    })))
+}
+
+// A submitted value replaces the whole meta, so carry over the fields set at
+// fed startup.
+async fn handle_submit_meta(
+    State(state): State<AppState>,
+    Json(fields): Json<serde_json::Map<String, serde_json::Value>>,
+) -> Result<Json<serde_json::Value>, RemoteRpcError> {
+    let dev_fed = state
+        .dev_fed
+        .as_ref()
+        .context("Dev federation not available - server must be started with --with-devfed")?;
+    let client = dev_fed.fed.internal_client().await?;
+
+    let current = cmd!(client, "module", "meta", "get").out_json().await?;
+    let mut meta = current["value"].as_object().cloned().unwrap_or_default();
+    meta.extend(fields);
+    let meta = serde_json::Value::Object(meta);
+    let meta_json = meta.to_string();
+
+    for peer in dev_fed.fed.members.keys() {
+        cmd!(
+            client,
+            "--our-id",
+            peer,
+            "--password",
+            "pass",
+            "module",
+            "meta",
+            "submit",
+            &meta_json,
+        )
+        .run()
+        .await?;
+    }
+
+    let meta_ref = &meta;
+    devimint::util::poll("meta consensus", move || async move {
+        let current = cmd!(client, "module", "meta", "get")
+            .out_json()
+            .await
+            .map_err(std::ops::ControlFlow::Continue)?;
+        if current["value"] == *meta_ref {
+            Ok(())
+        } else {
+            Err(std::ops::ControlFlow::Continue(anyhow::anyhow!(
+                "meta consensus is still {current}"
+            )))
+        }
+    })
+    .await?;
+
+    Ok(Json(serde_json::json!({ "meta": meta })))
+}
+
+async fn handle_backup_count(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, RemoteRpcError> {
+    let dev_fed = state
+        .dev_fed
+        .as_ref()
+        .context("Dev federation not available - server must be started with --with-devfed")?;
+    let client = dev_fed.fed.internal_client().await?;
+
+    let stats = cmd!(
+        client,
+        "--our-id",
+        "0",
+        "--password",
+        "pass",
+        "admin",
+        "backup-statistics"
+    )
+    .out_json()
+    .await?;
+
+    Ok(Json(serde_json::json!({
+        "backup_count": stats["num_backups"]
     })))
 }

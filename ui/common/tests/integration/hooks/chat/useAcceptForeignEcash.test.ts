@@ -111,13 +111,14 @@ describe('useCreateMatrixRoom', () => {
 
         // initial federation preview load state
         expect(result.current.federationPreview).toBeFalsy()
-        expect(result.current.isFetchingPreview).toBeFalsy()
+        expect(result.current.isLoading).toBe(true)
 
         // when the federation preview is loaded
         await waitFor(() => {
-            expect(result.current.isFetchingPreview).toBeFalsy()
+            expect(result.current.isLoading).toBe(false)
             expect(result.current.federationPreview).toBeTruthy()
         })
+        expect(result.current.issue).toBeNull()
 
         // Join the federation
         await act(() => result.current.handleJoin())

@@ -16,13 +16,14 @@ import {
     coerceCommunity,
     coerceLoadedFederation,
 } from '../utils/FederationUtils'
+import { GUARDIAN_REFRESH_INTERVAL } from '../utils/federationHealth'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { hasStorageStateChanged } from '../utils/storage'
 import { analyticsSlice } from './analytics'
 import { browserSlice } from './browser'
 import { currencySlice, refreshHistoricalCurrencyRates } from './currency'
-import { environmentSlice } from './environment'
+import { environmentSlice, selectIsInternetUnreachable } from './environment'
 import {
     federationSlice,
     joinFederation,
@@ -31,6 +32,9 @@ import {
     processFederationMeta,
     refreshFederations,
     refreshGuardianStatuses,
+    selectLoadedFederation,
+    selectLoadedFederations,
+    setGuardianMonitoringActive,
     tryRejoinFederationsPendingScratchRejoin,
     updateFederationBalance,
     upsertCommunity,
@@ -125,19 +129,43 @@ export type RootState = ReturnType<typeof rootReducer>
  * Sets up any initial redux behavior that is consistent across all platforms.
  */
 export function initializeCommonStore({
-    store: { dispatch },
+    store: { dispatch, getState, subscribe },
     fedimint,
     storage,
     i18n,
     detectLanguage,
+    isForeground = () => true,
+    subscribeForeground,
 }: {
     store: ReturnType<typeof setupStore>
     fedimint: FedimintBridge
     storage: StorageApi
     i18n: I18n
     detectLanguage?: () => Promise<string>
+    isForeground?: () => boolean
+    subscribeForeground?: (onChange: (active: boolean) => void) => () => void
 }) {
     const receivedPayments = new Set<string>()
+    const refreshHealth = () => {
+        if (!isForeground()) return
+        for (const federation of selectLoadedFederations(getState())) {
+            dispatch(refreshGuardianStatuses({ fedimint, federation }))
+        }
+    }
+    dispatch(setGuardianMonitoringActive(isForeground()))
+    const unsubscribeForeground = subscribeForeground?.(active => {
+        dispatch(setGuardianMonitoringActive(active))
+        if (active) refreshHealth()
+    })
+    let internetUnreachable = selectIsInternetUnreachable(getState())
+    const unsubscribeNetwork = subscribe(() => {
+        const next = selectIsInternetUnreachable(getState())
+        if (next === internetUnreachable) return
+        internetUnreachable = next
+        if (!next) refreshHealth()
+    })
+    const healthInterval = setInterval(refreshHealth, GUARDIAN_REFRESH_INTERVAL)
+    refreshHealth()
 
     dispatch(refreshHistoricalCurrencyRates({ fedimint }))
         .unwrap()
@@ -169,7 +197,10 @@ export function initializeCommonStore({
                     break
                 // For ready states we prepare the full loaded federation with meta + status updates
                 case 'ready': {
-                    let loadedFederation = coerceLoadedFederation(event)
+                    let loadedFederation = coerceLoadedFederation(
+                        event,
+                        selectLoadedFederation(getState(), event.id)?.status,
+                    )
                     dispatch(upsertFederation(loadedFederation))
 
                     if ('meta' in loadedFederation) {
@@ -354,6 +385,10 @@ export function initializeCommonStore({
     })
 
     return () => {
+        clearInterval(healthInterval)
+        unsubscribeForeground?.()
+        unsubscribeNetwork()
+        dispatch(setGuardianMonitoringActive(false))
         unsubscribeFederation()
         unsubscribeNonceReuseCheckFailed()
         unsubscribeFiFederationJoin()

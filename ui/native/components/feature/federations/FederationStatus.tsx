@@ -22,6 +22,7 @@ const FederationStatus = ({ federationId }: { federationId: string }) => {
         federationId,
         t,
         statusIconMap: {
+            unknown: 'Dot',
             offline: 'Dot',
             online: 'Dot',
             unstable: 'Info',

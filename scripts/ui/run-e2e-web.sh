@@ -11,9 +11,13 @@ port_in_use() {
 
 default_web_e2e_port() {
   if [[ -n "${CI:-}" && "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ ]]; then
-    local port=$((20000 + (GITHUB_RUN_ID % 12000)))
+    local federation_offset=0
+    if [[ "${FEDI_FEDERATION_KIND:-one}" == "two" ]]; then
+      federation_offset=1
+    fi
+    local port=$((20000 + (GITHUB_RUN_ID % 6000) * 2 + federation_offset))
     while port_in_use "$port"; do
-      port=$((port + 1))
+      port=$((port + 2))
     done
     echo "$port"
   else
