@@ -28,6 +28,6 @@ jobs:
 
             - name: Open Versioning PR
               run: |
-                  nix-shell -p gh --command "gh pr create --repo fedibtc/fedi --base master -H ${{ steps.versioning.outputs.BRANCH_NAME }} --title 'bump version: v${{ steps.versioning.outputs.NEW_VERSION }}' --body 'This PR includes a version bump commit from a release branch for v${{steps.versioning.outputs.NEW_VERSION}}'"
+                  nix-shell -p gh --command "gh pr create --repo fedibtc/fedi --base master -H ${{ steps.versioning.outputs.BRANCH_NAME }} --label 'sync versioning' --title 'bump version: v${{ steps.versioning.outputs.NEW_VERSION }}' --body 'This PR includes a version bump commit from a release branch for v${{steps.versioning.outputs.NEW_VERSION}}'"
               env:
                   GITHUB_TOKEN: ${{ secrets.GH_PAT_FEDI_CI_CREATE_PRS }}
