@@ -72,7 +72,7 @@ export const i18nLanguages: Record<keyof typeof resources, string> = {
     fr: 'Français',
     id: 'Bahasa Indonesia',
     tl: 'Tagalog',
-    my: 'ဘာသာမန်',
+    my: 'မြန်မာ',
     pt: 'Português',
     ar: 'العربية',
     ara: 'Juba Arabic',
