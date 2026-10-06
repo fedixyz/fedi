@@ -7,6 +7,6 @@
 */
 "NSCameraUsageDescription" = "Fedi ikenera kwinjira kuri kamera kugira ngo isikane kode za QR";
 "NSLocationWhenInUseUsageDescription" = "Fedi ntabwo ikoresha aho uherereye";
-"NSMicrophoneUsageDescription" = "Fedi ikenera kwinjira kuri mikoro yawe kugira ngo yandike videwo y'ubwiherero rusange";
+"NSMicrophoneUsageDescription" = "Fedi ikenera kwinjira kuri mikoro yawe kugira ngo yandike videwo ya kopi y'ububiko rusange";
 "NSPhotoLibraryAddUsageDescription" = "Fedi ikenera uburenganzira bwo kubika amafoto mu isomero ry'amafoto yawe";
 "NSPhotoLibraryUsageDescription" = "Fedi ikenera kwinjira mu isomero ry'amafoto yawe kugira ngo uhitemo amashusho ya avatar yawe n'umugereka mu biganiro";
