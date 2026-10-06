@@ -17,7 +17,8 @@
         "i18n:export-csv": "ts-node ./scripts/i18n-export-csv.ts",
         "i18n:import-csv": "ts-node ./scripts/i18n-import-csv.ts",
         "i18n:unused": "ts-node ./scripts/i18n-unused.ts",
-        "i18n:sync-plist": "ts-node ./scripts/i18n-sync-plist.ts"
+        "i18n:sync-plist": "ts-node ./scripts/i18n-sync-plist.ts",
+        "i18n:sweep": "ts-node ./scripts/i18n-sweep.ts"
     },
     "dependencies": {
         "@reduxjs/toolkit": "^2.8.2",

@@ -123,3 +123,22 @@ Pulls iOS' purpose strings from localisation files and writes them into appropri
 ```bash
 yarn run i18n:sync-plist
 ```
+
+# Translation sweep
+
+Brings every locale in line with English. `localization/translation-baseline.json` records the English each locale was last translated from, and the commit that last wrote it marks the last sweep. The `translate-fedi-strings` agent skill in `.agents/skills` runs a whole sweep.
+
+```bash
+yarn run i18n:sweep report <workFile?>
+yarn run i18n:sweep apply <translationsFile>
+yarn run i18n:sweep finish
+```
+
+## Syntax
+
+-   `report` - lists per locale the keys that are missing, stale (the English changed after the locale's value was translated), copied (English text pasted into a locale after the last sweep), and the keys English no longer has
+    -   If `<workFile>` is provided, writes every row to it, including the previous English and current translation of each stale key
+-   `apply` - writes a `{ "<locale>": { "<key>": "<translation>" } }` file into the locale files
+    -   Only accepts keys from the report, so existing translations stay as they are
+    -   Writes nothing if any value drops or changes a placeholder, tag or line break
+-   `finish` - fails while missing or stale keys remain, then removes keys English no longer has and rewrites the baseline
