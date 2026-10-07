@@ -121,6 +121,7 @@ export const ServiceSheet: React.FC<{
                     <Column
                         fullWidth
                         gap="lg"
+                        shrink={tall}
                         style={[
                             style.sheetInset,
                             { paddingBottom: keyboardInset },
