@@ -20,6 +20,8 @@ export interface ServiceSheetButton {
     /** Filled ink pill; everything else is an outlined pill. */
     primary?: boolean
     disabled?: boolean
+    /** Spinner in place of this button only. */
+    loading?: boolean
     testID?: string
     onPress: () => void
 }
@@ -140,7 +142,8 @@ export const ServiceSheet: React.FC<{
                         )}
                         <Column fullWidth gap={8}>
                             {buttons.map(button =>
-                                loading && button.primary ? (
+                                (loading && button.primary) ||
+                                button.loading ? (
                                     // the journey's own ring rather than the
                                     // platform's spokes, in a box the height
                                     // of the button it replaces so the sheet
