@@ -262,7 +262,9 @@ impl WalletOps for WalletOpsV2 {
             )));
         }
 
-        let operation_id = walletv2.send(address, amount, None).await?;
+        let operation_id = walletv2
+            .send(address, amount, None, serde_json::Value::Null)
+            .await?;
         fed.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
             .await?;
         drop(spend_guard);

@@ -8,10 +8,10 @@
 
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    # Keep this stock upstream tag aligned with the Fedimint version used by
+    # Keep this fork tag aligned with the Fedimint version used by
     # devimint in Cargo.toml; a mismatch makes the upstream bridge test time out during setup.
     fedimint-pkgs = {
-      url = "github:fedimint/fedimint?ref=v0.11.2";
+      url = "github:fedibtc/fedimint?ref=v0.12.0-fedi11";
     };
 
     fenix = {

@@ -24,10 +24,9 @@ use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
     ApiEndpoint, ApiError, ApiVersion, CoreConsensusVersion, InputMeta, ModuleCommon,
-    ModuleConsensusVersion, ModuleInit, SupportedModuleApiVersions, TransactionItemAmounts,
-    api_endpoint,
+    ModuleConsensusVersion, ModuleInit, TransactionItemAmounts, admin_api_endpoint,
+    public_api_endpoint,
 };
-use fedimint_core::net::auth::check_auth;
 use fedimint_core::{InPoint, NumPeersExt, OutPoint, PeerId, push_db_pair_items};
 use fedimint_server::core::config::PeerHandleOps;
 use fedimint_server::core::{
@@ -117,10 +116,6 @@ impl ServerModuleInit for FediSocialInit {
 
     fn versions(&self, _core: CoreConsensusVersion) -> &[ModuleConsensusVersion] {
         &[CONSENSUS_VERSION]
-    }
-
-    fn supported_api_versions(&self) -> SupportedModuleApiVersions {
-        SupportedModuleApiVersions::from_raw((2, 0), (2, 0), &[(0, 0)])
     }
 
     async fn init(&self, args: &ServerModuleInitArgs<Self>) -> anyhow::Result<Self::Module> {
@@ -267,7 +262,7 @@ impl ServerModule for FediSocial {
     fn api_endpoints(&self) -> Vec<ApiEndpoint<Self>> {
         vec![
             // user's call to make a backup (usually when creating the account)
-            api_endpoint! {
+            public_api_endpoint! {
                 "backup",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: SignedBackupRequest| -> () {
@@ -279,7 +274,7 @@ impl ServerModule for FediSocial {
                 }
             },
             // user's call to initiate the recovery process
-            api_endpoint! {
+            public_api_endpoint! {
                 "recover",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: SignedRecoveryRequest| -> () {
@@ -291,21 +286,19 @@ impl ServerModule for FediSocial {
                 }
             },
             // guardian's call to download verification document
-            api_endpoint! {
+            admin_api_endpoint! {
                 "get_verification",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: RecoveryId| -> Option<VerificationDocument> {
-                    check_auth(context)?;
                     module
                         .handle_get_verification(&mut context.db().begin_transaction_nc().await, request).await
                 }
             },
             // guardian's call to approve the recovery and produce decryption share
-            api_endpoint! {
+            admin_api_endpoint! {
                 "approve_recovery",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, req: RecoveryId| -> () {
-                    check_auth(context)?;
                     let db = context.db();
                     let mut dbtx = db.begin_transaction().await;
                     module.handle_approve_recovery(&mut dbtx.to_ref_nc(), req).await?;
@@ -313,7 +306,7 @@ impl ServerModule for FediSocial {
                     Ok(())
                 }
             },
-            api_endpoint! {
+            public_api_endpoint! {
                 "decryption_share",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: RecoveryId| -> Option<EncryptedRecoveryShare> {

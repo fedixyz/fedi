@@ -34,7 +34,7 @@ use fedimint_core::db::{DatabaseTransaction, DatabaseVersion, IDatabaseTransacti
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
     Amounts, ApiEndpoint, CoreConsensusVersion, InputMeta, ModuleConsensusVersion, ModuleInit,
-    SupportedModuleApiVersions, TransactionItemAmounts,
+    TransactionItemAmounts,
 };
 use fedimint_core::{Amount, InPoint, NumPeersExt, OutPoint, PeerId, TransactionId};
 use fedimint_server_core::config::PeerHandleOps;
@@ -83,10 +83,6 @@ impl ServerModuleInit for StabilityPoolInit {
 
     fn versions(&self, _core: CoreConsensusVersion) -> &[ModuleConsensusVersion] {
         &[CONSENSUS_VERSION]
-    }
-
-    fn supported_api_versions(&self) -> SupportedModuleApiVersions {
-        SupportedModuleApiVersions::from_raw((2, 0), (2, 0), &[(0, 0)])
     }
 
     async fn init(&self, args: &ServerModuleInitArgs<Self>) -> anyhow::Result<Self::Module> {

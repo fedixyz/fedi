@@ -656,7 +656,7 @@ impl StabilityPoolClientModule {
 
         let client_ctx = self.client_ctx.clone();
         Ok(
-            self.client_ctx.outcome_or_updates(operation, operation_id, move || {
+            self.client_ctx.outcome_or_updates(&operation, operation_id, |state| matches!(state, StabilityPoolDepositOperationState::TxRejected(_) | StabilityPoolDepositOperationState::PrimaryOutputError(_) | StabilityPoolDepositOperationState::Success), move || {
                 stream! {
                     yield StabilityPoolDepositOperationState::Initiated;
 
@@ -761,7 +761,7 @@ impl StabilityPoolClientModule {
         let module = self.clone();
 
         Ok(
-            self.client_ctx.outcome_or_updates(operation, operation_id, move || {
+            self.client_ctx.outcome_or_updates(&operation, operation_id, |state| matches!(state, StabilityPoolWithdrawalOperationState::InvalidOperationType | StabilityPoolWithdrawalOperationState::TxRejected(_) | StabilityPoolWithdrawalOperationState::PrimaryOutputError(_) | StabilityPoolWithdrawalOperationState::Success(_) | StabilityPoolWithdrawalOperationState::CancellationSubmissionFailure(_) | StabilityPoolWithdrawalOperationState::AwaitCycleTurnoverError(_) | StabilityPoolWithdrawalOperationState::WithdrawIdleSubmissionFailure(_)), move || {
                 stream! {
                     match operation_meta {
                         StabilityPoolMeta::Deposit { .. } => {
