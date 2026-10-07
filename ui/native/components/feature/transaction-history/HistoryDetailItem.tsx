@@ -13,6 +13,7 @@ interface BaseProps {
     label: React.ReactNode
     noBorder?: boolean
     onPress?: () => void
+    testID?: string
 }
 
 interface StringProps extends BaseProps {
@@ -81,7 +82,10 @@ export const HistoryDetailItem: React.FC<HistoryDetailItemProps> = props => {
     ]
     if (props.onPress) {
         return (
-            <Pressable style={containerStyle} onPress={props.onPress}>
+            <Pressable
+                style={containerStyle}
+                onPress={props.onPress}
+                testID={props.testID}>
                 <Text caption medium>
                     {props.label}
                 </Text>
