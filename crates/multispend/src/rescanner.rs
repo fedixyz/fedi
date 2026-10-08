@@ -26,6 +26,7 @@ use matrix_sdk_base::crypto::types::events::UtdCause;
 use rpc_types::RpcEventId;
 use runtime::bridge_runtime::Runtime;
 use tokio::sync::Notify;
+use tokio::sync::broadcast::error::RecvError;
 use tracing::{debug, error, info, instrument, warn};
 
 use super::db::MultispendScannerLastEventKey;
@@ -63,6 +64,8 @@ struct MultispendRoom {
     idle_notify: Notify,
     // notification for refreshing balance of multispend account
     account_info_refresh: Notify,
+    /// synced events the next rescan waits for in the event cache
+    synced_events: RwLock<Vec<OwnedEventId>>,
 }
 
 impl RoomRescannerManager {
@@ -146,10 +149,24 @@ impl RoomRescannerManager {
     // Just sets the room state to `Queued` and background service will eventually
     // completes.
     pub fn queue_rescan(self: &Arc<Self>, room_id: &RoomId) {
+        self.queue_rescan_inner(room_id, None);
+    }
+
+    /// Queues a rescan that first waits for the event cache to hold `event_id`.
+    pub fn queue_rescan_for_synced_event(
+        self: &Arc<Self>,
+        room_id: &RoomId,
+        event_id: OwnedEventId,
+    ) {
+        self.queue_rescan_inner(room_id, Some(event_id));
+    }
+
+    fn queue_rescan_inner(self: &Arc<Self>, room_id: &RoomId, synced_event: Option<OwnedEventId>) {
         let mut states = self.rescan_states.write();
         match states.entry(room_id.to_owned()) {
             // if task was running, just update the state, the task will pick this up.
             Entry::Occupied(room_state) => {
+                room_state.get().synced_events.write().extend(synced_event);
                 *room_state.get().state.write() = RoomRescanState::Queued;
                 room_state.get().task_wakeup.notify_one();
             }
@@ -160,6 +177,7 @@ impl RoomRescannerManager {
                     task_wakeup: Notify::new(),
                     idle_notify: Notify::new(),
                     account_info_refresh: Notify::new(),
+                    synced_events: RwLock::new(synced_event.into_iter().collect()),
                 });
                 v.insert(room_state.clone());
                 drop(states);
@@ -192,6 +210,8 @@ impl RoomRescannerManager {
 
             info!("Started rescanning room");
 
+            let synced_events = std::mem::take(&mut *room_state.synced_events.write());
+
             // Perform the rescanning
             let db = self.runtime.multispend_db();
             let mut dbtx = db.begin_transaction().await;
@@ -207,7 +227,12 @@ impl RoomRescannerManager {
                 ),
             };
             if let Err(err) = self
-                .process_multispend_events(room_id, &mut dbtx.to_ref_nc(), &mut context)
+                .process_multispend_events(
+                    room_id,
+                    &mut dbtx.to_ref_nc(),
+                    &mut context,
+                    &synced_events,
+                )
                 .await
             {
                 warn!(?err, "Error rescanning room");
@@ -250,11 +275,13 @@ impl RoomRescannerManager {
         room_id: &RoomId,
         dbtx: &mut DatabaseTransaction<'_>,
         context: &mut MultispendContext,
+        synced_events: &[OwnedEventId],
     ) -> anyhow::Result<()> {
         let room = self
             .client
             .get_room(room_id)
             .context("room doesn't exist")?;
+        wait_for_synced_events(&room, synced_events).await;
         // we maintain what event was last scanned by this process. this makes process
         // incremental. even if this called multispend, the subsequent calls will be
         // fast and noop if there are no event.
@@ -331,6 +358,46 @@ impl RoomRescannerManager {
         }
 
         Ok(())
+    }
+}
+
+const SYNCED_EVENT_CACHE_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Sync runs event handlers before the event cache stores the same response,
+/// so a rescan queued by the handler waits for its events to reach the cache.
+async fn wait_for_synced_events(room: &Room, event_ids: &[OwnedEventId]) {
+    if event_ids.is_empty() {
+        return;
+    }
+    let wait = async {
+        let (room_event_cache, _tasks) = room
+            .event_cache()
+            .await
+            .map_err(event_cache_error_to_anyhow)?;
+        let (mut loaded_events, mut cache_subscription) = room_event_cache.subscribe().await?;
+        loop {
+            let all_loaded = event_ids.iter().all(|event_id| {
+                loaded_events
+                    .iter()
+                    .any(|event| event.event_id().is_some_and(|id| id == *event_id))
+            });
+            if all_loaded {
+                return anyhow::Ok(());
+            }
+            match cache_subscription.recv().await {
+                Ok(_) | Err(RecvError::Lagged(_)) => {}
+                Err(RecvError::Closed) => anyhow::bail!("event cache closed"),
+            }
+            loaded_events = room_event_cache.subscribe().await?.0;
+        }
+    };
+    match fedimint_core::task::timeout(SYNCED_EVENT_CACHE_TIMEOUT, wait).await {
+        Ok(Ok(())) => {}
+        Ok(Err(err)) => warn!(?err, "failed to wait for synced events in the event cache"),
+        Err(_) => warn!(
+            ?event_ids,
+            "synced events did not reach the event cache in time"
+        ),
     }
 }
 

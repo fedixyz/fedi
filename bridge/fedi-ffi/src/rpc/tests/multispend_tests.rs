@@ -6,8 +6,10 @@ use anyhow::Context;
 use bitcoin::secp256k1;
 use fedimint_core::util::backoff_util::{FibonacciBackoff, custom_backoff};
 use fedimint_core::util::retry;
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
 use matrix_sdk::ruma::RoomId;
+use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
+use multispend::db::MultispendScannerLastEventKey;
 use multispend::{
     FinalizedGroup, GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendEvent,
     MultispendGroupVoteType,
@@ -863,6 +865,99 @@ pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
         latest_event_before,
         "recovered device posted into the room"
     );
+
+    Ok(())
+}
+
+pub async fn test_multispend_rescan_processes_every_synced_event(
+    _dev_fed: DevFed,
+) -> anyhow::Result<()> {
+    // a sync response reaches the event cache room by room in room id order, so
+    // rooms sorting before the multispend room delay it past the queued rescan
+    const FILLER_ROOMS: usize = 11;
+    const EVENTS: usize = 20;
+
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
+    let matrix1 = td1.matrix().await?;
+    let matrix2 = td2.matrix().await?;
+    let multispend_matrix1 = td1.multispend().await?;
+
+    let mut room_ids = Vec::new();
+    for i in 0..=FILLER_ROOMS {
+        let mut request = ::matrix::create_room::Request::default();
+        request.name = Some(format!("rescan race {i}"));
+        let room_id = matrix1.room_create(request).await?;
+        matrix1
+            .room_invite_user_by_id(&room_id, matrix2.client.user_id().unwrap())
+            .await?;
+        matrix2.wait_for_room_id(&room_id).await?;
+        matrix2.room_join(&room_id).await?;
+        room_ids.push(room_id);
+    }
+    room_ids.sort();
+    let multispend_room_id = room_ids.pop().context("rooms were created")?;
+    let multispend_room = matrix2
+        .client
+        .get_room(&multispend_room_id)
+        .context("td2 joined the multispend room")?;
+    let filler_rooms = room_ids
+        .iter()
+        .map(|room_id| {
+            matrix2
+                .client
+                .get_room(room_id)
+                .context("td2 joined the filler room")
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    multispend_matrix1
+        .mark_room_for_scanning(&multispend_room_id)
+        .await;
+    multispend_matrix1
+        .rescanner
+        .wait_for_scanned(&multispend_room_id)
+        .await;
+    let mut scans = std::pin::pin!(
+        multispend_matrix1
+            .rescanner
+            .scan_complete_stream(&multispend_room_id)
+    );
+    // the stream yields once before any scan completes
+    scans.next().await;
+
+    let last_scanned_key = MultispendScannerLastEventKey(RpcRoomId(multispend_room_id.to_string()));
+    for i in 0..EVENTS {
+        let fillers = futures::future::join_all(filler_rooms.iter().map(|room| async move {
+            room.send(RoomMessageEventContent::text_plain(format!("filler {i}")))
+                .await
+        }));
+        let (filler_results, sent) = futures::join!(fillers, async {
+            multispend_room
+                .send(RoomMessageEventContent::text_plain(format!("rescan {i}")))
+                .await
+        });
+        for result in filler_results {
+            result?;
+        }
+        let event_id = sent?.response.event_id;
+        fedimint_core::task::timeout(Duration::from_secs(120), scans.next())
+            .await
+            .context("td1 never rescanned the multispend room")?;
+        let last_scanned = multispend_matrix1
+            .runtime
+            .multispend_db()
+            .begin_transaction_nc()
+            .await
+            .get_value(&last_scanned_key)
+            .await;
+        anyhow::ensure!(
+            last_scanned
+                .as_ref()
+                .is_some_and(|last| last.0 == event_id.as_str()),
+            "event {i} ({event_id}) reached td1 but its rescan stopped at {last_scanned:?}"
+        );
+    }
 
     Ok(())
 }

@@ -91,7 +91,8 @@ impl MultispendMatrix {
 
                     // anytime we see an event in room marked as multispend, we rescan the room.
                     if this.is_marked_room_for_scanning(room_id).await {
-                        this.rescanner.queue_rescan(room_id);
+                        this.rescanner
+                            .queue_rescan_for_synced_event(room_id, event_id.to_owned());
                     }
 
                     if is_multispend {
