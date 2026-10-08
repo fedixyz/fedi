@@ -74,8 +74,7 @@ pub enum DbKeyPrefix {
     AccountHistory,
 
     /// TransferRequestId => ()
-    /// Every [`TransferRequest`] coming to the client is hashed and stored in
-    /// the server DB to guard against replay attacks.
+    /// Hashes of accepted fiat and BTC transfer requests, to prevent replay.
     TransferRequests,
 
     /// PeerId => voted module consensus version.

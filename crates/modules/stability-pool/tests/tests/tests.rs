@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,8 +16,9 @@ use fedimint_core::secp256k1::schnorr;
 use fedimint_core::task::sleep_in_test;
 use stability_pool_common::{
     Account, AccountHistoryItem, AccountHistoryItemKind, AccountId, AccountType, ActiveDeposits,
-    BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION, BtcBalanceDepositMetadata, FeeRate, FiatAmount,
-    FiatOrAll, Provide, Seek, SignedTransferRequest, SyncResponse, TransferRequest,
+    BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION, BTC_TRANSFER_CONSENSUS_VERSION,
+    BtcBalanceDepositMetadata, FeeRate, FiatAmount, FiatOrAll, Provide, Seek,
+    SignedBtcTransferRequest, SignedTransferRequest, SyncResponse, TransferRequest,
 };
 use tracing::info;
 
@@ -86,10 +88,14 @@ async fn flaky_starter_test() -> anyhow::Result<()> {
 
     // Create another seeker for transfer tests
     let seeker2 = Arc::new(ForkedClient::new("seeker2").await?);
-    seeker2.join_federation(invite_code).await?;
+    seeker2.join_federation(invite_code.clone()).await?;
     transfer_tests(seeker, seeker2, provider).await?;
 
     btc_balance_deposit_upgrade_test(&btc_depositor).await?;
+
+    let btc_depositor2 = ForkedClient::new("btc-depositor-test-2").await?;
+    btc_depositor2.join_federation(invite_code).await?;
+    btc_transfer_test(&btc_depositor, &btc_depositor2).await?;
 
     Ok(())
 }
@@ -135,6 +141,61 @@ async fn btc_balance_deposit_upgrade_test(btc_depositor: &ForkedClient) -> anyho
             amount,
             ..
         }] if *history_metadata == metadata && *amount == deposit_amount
+    );
+
+    Ok(())
+}
+
+async fn btc_transfer_test(from: &ForkedClient, to: &ForkedClient) -> anyhow::Result<()> {
+    from.wait_for_module_consensus_version(BTC_TRANSFER_CONSENSUS_VERSION)
+        .await?;
+
+    let from_before = from
+        .deposit_to_btc_balance(500_000, BtcBalanceDepositMetadata(vec![9, 9]))
+        .await?
+        .sync_response
+        .staged_balance;
+    let to_before = to.btc_balance().await?;
+    let to_account = to.get_account(AccountType::BtcDepositor).await?.id();
+
+    // one cent is 100_000 msats at the mock price, so this is not a whole cent
+    let transfer_amount = Amount::from_msats(300_001);
+    let signed_request = from
+        .simple_btc_transfer(to_account, transfer_amount.msats)
+        .await?;
+    let signature_json = cmd!(
+        from,
+        "module",
+        "multi_sig_stability_pool",
+        "sign-transfer",
+        "--account-type",
+        "btc-depositor",
+        serde_json::to_string(signed_request.details())?,
+    )
+    .out_json()
+    .await?;
+    let signed_request = SignedBtcTransferRequest::new(
+        signed_request.details().clone(),
+        BTreeMap::from([(0, serde_json::from_value(signature_json)?)]),
+    )?;
+    to.btc_transfer(signed_request.clone()).await?;
+
+    assert!(to.btc_transfer(signed_request).await.is_err());
+
+    let above_balance = from_before.msats - transfer_amount.msats + 1;
+    let signed_request = from.simple_btc_transfer(to_account, above_balance).await?;
+    assert!(from.btc_transfer(signed_request).await.is_err());
+
+    assert_eq!(from.btc_balance().await? + transfer_amount, from_before);
+    assert_eq!(to.btc_balance().await?, to_before + transfer_amount);
+
+    let ecash_before = to.balance().await?;
+    to.withdraw(AccountType::BtcDepositor, FiatOrAll::All)
+        .await?;
+    assert_eq!(to.btc_balance().await?, Amount::ZERO);
+    assert_eq!(
+        to.balance().await?,
+        ecash_before + to_before.msats + transfer_amount.msats
     );
 
     Ok(())
@@ -784,6 +845,13 @@ async fn transfer_tests(
             FiatAmount(8),
         )
         .await?;
+    let signature = seeker1
+        .sign_transfer_request(signed_request.details().clone())
+        .await?;
+    let signed_request = SignedTransferRequest::new(
+        signed_request.details().clone(),
+        BTreeMap::from([(0, signature)]),
+    )?;
     seeker2.transfer(signed_request).await?;
 
     // Verify end state of staged and locked seeks for seeker1 and seeker2
@@ -889,12 +957,20 @@ impl ForkedClient {
     }
 
     async fn get_account(&self, account_type: AccountType) -> anyhow::Result<Account> {
-        let pubkey_json = cmd!(self, "module", "multi_sig_stability_pool", "pubkey",)
-            .out_json()
-            .await?;
-        let pubkey = serde_json::from_value(pubkey_json)?;
-
-        Ok(Account::single(pubkey, account_type))
+        let account_type_str = match account_type {
+            AccountType::Seeker => "seeker",
+            AccountType::Provider => "provider",
+            AccountType::BtcDepositor => "btc-depositor",
+        };
+        let mut command = cmd!(self, "module", "multi_sig_stability_pool", "pubkey");
+        if account_type != AccountType::Seeker {
+            command = command.args(["--account-type", account_type_str]);
+        }
+        let pubkey_json = command.out_json().await?;
+        Ok(Account::single(
+            serde_json::from_value(pubkey_json)?,
+            account_type,
+        ))
     }
 
     async fn get_sp_account_info(&self, account_type: AccountType) -> anyhow::Result<AccountInfo> {
@@ -1005,7 +1081,6 @@ impl ForkedClient {
         self.get_sp_account_info(account_type).await
     }
 
-    #[allow(unused)]
     async fn sign_transfer_request(
         &self,
         request: TransferRequest,
@@ -1046,6 +1121,49 @@ impl ForkedClient {
             "module",
             "multi_sig_stability_pool",
             "transfer",
+            serde_json::to_string(&signed_request)?,
+        )
+        .out_json()
+        .await?;
+        Ok(())
+    }
+
+    async fn btc_balance(&self) -> anyhow::Result<Amount> {
+        Ok(self
+            .get_sp_account_info(AccountType::BtcDepositor)
+            .await?
+            .sync_response
+            .staged_balance)
+    }
+
+    async fn simple_btc_transfer(
+        &self,
+        to_account: AccountId,
+        amount_msats: u64,
+    ) -> anyhow::Result<SignedBtcTransferRequest> {
+        let signed_request_json = cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "simple-transfer",
+            "--account-type",
+            "btc-depositor",
+            to_account,
+            amount_msats.to_string(),
+        )
+        .out_json()
+        .await?;
+        Ok(serde_json::from_value(signed_request_json)?)
+    }
+
+    async fn btc_transfer(&self, signed_request: SignedBtcTransferRequest) -> anyhow::Result<()> {
+        cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "transfer",
+            "--account-type",
+            "btc-depositor",
             serde_json::to_string(&signed_request)?,
         )
         .out_json()
@@ -1100,7 +1218,7 @@ impl ForkedClient {
         expected_version: ModuleConsensusVersion,
     ) -> anyhow::Result<()> {
         for _ in 0..30 {
-            if self.module_consensus_version().await? == expected_version {
+            if self.module_consensus_version().await? >= expected_version {
                 return Ok(());
             }
             sleep_in_test(

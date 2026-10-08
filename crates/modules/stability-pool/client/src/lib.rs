@@ -42,11 +42,12 @@ use serde::{Deserialize, Serialize};
 pub use stability_pool_common as common;
 use stability_pool_common::{
     Account, AccountId, AccountType, ActiveDeposits, BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
-    BtcBalanceDepositMetadata, DepositToBtcBalanceOutput, DepositToProvideOutput,
-    DepositToSeekOutput, FeeRate, FiatAmount, FiatOrAll, KIND, SignedTransferRequest,
-    StabilityPoolInputV0, StabilityPoolOutputV0, StabilityPoolOutputV1, TransferOutput,
-    TransferRequest, TransferRequestId, UnlockForWithdrawalInput, UnlockRequestStatus,
-    WithdrawalInput,
+    BTC_TRANSFER_CONSENSUS_VERSION, BtcBalanceDepositMetadata, BtcTransferOutput,
+    BtcTransferRequest, DepositToBtcBalanceOutput, DepositToProvideOutput, DepositToSeekOutput,
+    FeeRate, FiatAmount, FiatOrAll, KIND, SignedBtcTransferRequest, SignedTransferRequest,
+    StabilityPoolInputV0, StabilityPoolOutputV0, StabilityPoolOutputV1, StabilityPoolOutputV2,
+    TransferOutput, TransferRequest, TransferRequestId, UnlockForWithdrawalInput,
+    UnlockRequestStatus, WithdrawalInput,
 };
 use tracing::info;
 
@@ -171,7 +172,9 @@ impl ClientModule for StabilityPoolClientModule {
         );
 
         match command {
-            CliCommand::Pubkey => Ok(serde_json::to_value(self.client_key_pair.public_key())?),
+            CliCommand::Pubkey { account_type } => Ok(serde_json::to_value(
+                self.our_keypair(account_type.into()).public_key(),
+            )?),
 
             CliCommand::AccountInfo { account_type } => {
                 let sync_service = StabilityPoolSyncService::new(
@@ -322,32 +325,94 @@ impl ClientModule for StabilityPoolClientModule {
                 Ok(serde_json::Value::String("withdraw success".to_string()))
             }
 
-            CliCommand::SignTransfer { request } => {
-                Ok(serde_json::to_value(self.sign_transfer_request(&request))?)
+            CliCommand::SignTransfer {
+                account_type,
+                request,
+            } => {
+                let (sender_type, request_id) = match account_type {
+                    AccountTypeArg::BtcDepositor => {
+                        let request: BtcTransferRequest = parse_json_value(&request)?;
+                        (request.from().acc_type(), TransferRequestId::from(&request))
+                    }
+                    AccountTypeArg::Seeker | AccountTypeArg::Provider => {
+                        let request: TransferRequest = parse_json_value(&request)?;
+                        (request.from().acc_type(), TransferRequestId::from(&request))
+                    }
+                };
+                Ok(serde_json::to_value(
+                    self.sign_transfer(sender_type, request_id),
+                )?)
             }
 
-            CliCommand::SimpleTransfer { to_account, amount } => {
-                let request = TransferRequest::new(
-                    rand::thread_rng().r#gen(),
-                    self.our_account(AccountType::Seeker),
-                    amount,
-                    to_account,
-                    vec![],
-                    u64::MAX,
-                    None,
-                )?;
-
-                let signature = self.sign_transfer_request(&request);
-                let mut signatures = BTreeMap::new();
-                signatures.insert(0, signature);
-
-                Ok(serde_json::to_value(SignedTransferRequest::new(
-                    request, signatures,
-                )?)?)
+            CliCommand::SimpleTransfer {
+                account_type,
+                to_account,
+                amount,
+                new_fee_rate,
+            } => {
+                let account_type = account_type.into();
+                let from = self.our_account(account_type);
+                let nonce = rand::thread_rng().r#gen();
+                match account_type {
+                    AccountType::BtcDepositor => {
+                        ensure!(
+                            new_fee_rate.is_none(),
+                            "Fee rate only applies to provider-to-provider transfer"
+                        );
+                        let request = BtcTransferRequest::new(
+                            nonce,
+                            from,
+                            amount.parse()?,
+                            to_account,
+                            vec![],
+                            u64::MAX,
+                        )?;
+                        let signature =
+                            self.sign_transfer(account_type, TransferRequestId::from(&request));
+                        Ok(serde_json::to_value(SignedBtcTransferRequest::new(
+                            request,
+                            BTreeMap::from([(0, signature)]),
+                        )?)?)
+                    }
+                    AccountType::Seeker | AccountType::Provider => {
+                        let request = TransferRequest::new(
+                            nonce,
+                            from,
+                            parse_json_value(&amount)?,
+                            to_account,
+                            vec![],
+                            u64::MAX,
+                            new_fee_rate,
+                        )?;
+                        let signature =
+                            self.sign_transfer(account_type, TransferRequestId::from(&request));
+                        Ok(serde_json::to_value(SignedTransferRequest::new(
+                            request,
+                            BTreeMap::from([(0, signature)]),
+                        )?)?)
+                    }
+                }
             }
 
-            CliCommand::Transfer { request } => {
-                let operation_id = self.transfer(request, ()).await?;
+            CliCommand::Transfer {
+                account_type,
+                request,
+            } => {
+                let output = match account_type {
+                    AccountTypeArg::BtcDepositor => StabilityPoolOutput::V2(
+                        StabilityPoolOutputV2::BtcTransfer(BtcTransferOutput {
+                            signed_request: parse_json_value(&request)?,
+                        }),
+                    ),
+                    AccountTypeArg::Seeker | AccountTypeArg::Provider => {
+                        StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(TransferOutput {
+                            signed_request: parse_json_value(&request)?,
+                        }))
+                    }
+                };
+                let operation_id = self
+                    .submit_transfer(output, account_type.into(), ())
+                    .await?;
                 let mut updates = self
                     .subscribe_transfer_operation(operation_id)
                     .await?
@@ -532,6 +597,14 @@ pub enum StabilityPoolMeta {
     Transfer {
         txid: TransactionId,
         signed_request: SignedTransferRequest,
+        #[serde(default)]
+        extra_meta: serde_json::Value,
+    },
+    /// Submit request to transfer an msat amount between two btc-depositor
+    /// accounts.
+    BtcTransfer {
+        txid: TransactionId,
+        signed_request: SignedBtcTransferRequest,
         #[serde(default)]
         extra_meta: serde_json::Value,
     },
@@ -892,33 +965,57 @@ impl StabilityPoolClientModule {
         )
     }
 
+    // Keep the typed fiat API used by the bridge.
     pub fn sign_transfer_request(&self, request: &TransferRequest) -> schnorr::Signature {
-        let message = secp256k1::Message::from(&TransferRequestId::from(request));
-        self.our_keypair(request.from().acc_type())
-            .sign_schnorr(message)
+        self.sign_transfer(request.from().acc_type(), TransferRequestId::from(request))
     }
 
+    pub fn sign_transfer(
+        &self,
+        account_type: AccountType,
+        request_id: TransferRequestId,
+    ) -> schnorr::Signature {
+        self.our_keypair(account_type)
+            .sign_schnorr(secp256k1::Message::from(&request_id))
+    }
+
+    // Keep the bridge's existing fiat submission and seeker-account recording.
     pub async fn transfer(
         &self,
         signed_request: SignedTransferRequest,
         extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<OperationId> {
-        let transfer_output = TransferOutput { signed_request };
-
-        let (operation_id, txid) = submit_tx_with_output(
-            self,
-            StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(transfer_output)),
+        self.submit_transfer(
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(TransferOutput {
+                signed_request,
+            })),
+            AccountType::Seeker,
             extra_meta,
         )
-        .await?;
+        .await
+    }
 
-        // Record this transfer locally since we are the one initiating it. We assume
-        // that our seeker-type account is the one involved in this transfer, either as
-        // sender or receiver.
+    pub async fn submit_transfer(
+        &self,
+        output: StabilityPoolOutput,
+        account_type: AccountType,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<OperationId> {
+        match &output {
+            StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(_))
+            | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(_)) => {}
+            StabilityPoolOutput::V2(StabilityPoolOutputV2::BtcTransfer(_)) => ensure!(
+                self.module_api.module_consensus_version().await? >= BTC_TRANSFER_CONSENSUS_VERSION,
+                "Stability pool module consensus version doesn't support btc transfers"
+            ),
+            _ => bail!("Output is not a transfer"),
+        }
+        let (operation_id, txid) = submit_tx_with_output(self, output, extra_meta).await?;
+
         let mut dbtx = self.db.begin_transaction().await;
         dbtx.insert_entry(
             &RecordedTransferItemKey {
-                account_id: self.our_account(AccountType::Seeker).id(),
+                account_id: self.our_account(account_type).id(),
                 txid,
             },
             &operation_id,
@@ -934,7 +1031,8 @@ impl StabilityPoolClientModule {
     ) -> anyhow::Result<UpdateStreamOrOutcome<StabilityPoolTransferOperationState>> {
         let operation = stability_pool_operation(&self.client_ctx, operation_id).await?;
         let txid = match operation.meta::<StabilityPoolMeta>() {
-            StabilityPoolMeta::Transfer { txid, .. } => txid,
+            StabilityPoolMeta::Transfer { txid, .. }
+            | StabilityPoolMeta::BtcTransfer { txid, .. } => txid,
             _ => bail!("Operation is not of type transfer"),
         };
 
@@ -1352,6 +1450,13 @@ fn output_meta_generator(
                 extra_meta: extra_meta.clone(),
             }
         }
+        StabilityPoolOutput::V2(StabilityPoolOutputV2::BtcTransfer(output)) => {
+            StabilityPoolMeta::BtcTransfer {
+                txid: out_point_range.txid,
+                signed_request: output.signed_request,
+                extra_meta: extra_meta.clone(),
+            }
+        }
         StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToSeek(..))
         | StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToProvide(..))
         | StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToSeek(..))
@@ -1385,7 +1490,8 @@ fn amount_for_output(output: &StabilityPoolOutput) -> Amount {
             output.seek_request.0
         }
         StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(_))
-        | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(_)) => Amount::ZERO,
+        | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(_))
+        | StabilityPoolOutput::V2(StabilityPoolOutputV2::BtcTransfer(_)) => Amount::ZERO,
         StabilityPoolOutput::Default { variant, .. } => {
             panic!("unexpected unknown stability-pool output variant in client bundle: {variant}")
         }
@@ -1523,8 +1629,11 @@ fn parse_json_value<T: DeserializeOwned>(s: &str) -> Result<T, serde_json::Error
 
 #[derive(Parser, Debug, Serialize)]
 pub enum CliCommand {
-    /// Get the public key of this client
-    Pubkey,
+    /// Get the public key for this client's account type
+    Pubkey {
+        #[arg(long, value_enum, default_value = "seeker")]
+        account_type: AccountTypeArg,
+    },
     /// Get account info for seeker or provider account
     AccountInfo {
         #[arg(value_enum)]
@@ -1572,22 +1681,29 @@ pub enum CliCommand {
         #[arg(value_parser = parse_withdrawal_amount)]
         amount: FiatOrAll,
     },
-    /// Sign a transfer request
+    /// Sign a transfer request (BTC-depositor requests use msats)
     SignTransfer {
-        #[arg(value_parser = parse_json_value::<TransferRequest>)]
-        request: TransferRequest,
+        #[arg(long, value_enum, default_value = "seeker")]
+        account_type: AccountTypeArg,
+        /// Request JSON in the selected account type's format
+        request: String,
     },
-    /// Convenience CLI command to get a signed transfer request for sending
-    /// amount to given account
+    /// Create a signed transfer request; amounts are fiat units, or msats for
+    /// BTC
     SimpleTransfer {
+        #[arg(long, value_enum, default_value = "seeker")]
+        account_type: AccountTypeArg,
         to_account: AccountId,
-        #[arg(value_parser = parse_json_value::<FiatAmount>)]
-        amount: FiatAmount,
+        amount: String,
+        #[arg(long, value_parser = parse_json_value::<FeeRate>, required_if_eq("account_type", "provider"))]
+        new_fee_rate: Option<FeeRate>,
     },
     /// Submit a signed transfer request
     Transfer {
-        #[arg(value_parser = parse_json_value::<SignedTransferRequest>)]
-        request: SignedTransferRequest,
+        #[arg(long, value_enum, default_value = "seeker")]
+        account_type: AccountTypeArg,
+        /// Signed request JSON in the selected account type's format
+        request: String,
     },
     /// Withdraw idle balance only. This is meant for a provider to sweep their
     /// earned fees, but may also be used by seeker in case of any errors with
@@ -1651,6 +1767,29 @@ mod tests {
             db,
             module_root_secret,
         }
+    }
+
+    #[test]
+    fn simple_provider_transfer_requires_a_fee_rate() {
+        let keypair = Keypair::from_secret_key(
+            secp256k1::SECP256K1,
+            &secp256k1::SecretKey::from_slice(&[1; 32]).unwrap(),
+        );
+        let to = Account::single(keypair.public_key(), AccountType::Provider)
+            .id()
+            .to_string();
+        let args = [
+            "stability-pool",
+            "simple-transfer",
+            "--account-type",
+            "provider",
+            &to,
+            "10",
+        ];
+        assert!(CliCommand::try_parse_from(args).is_err());
+        assert!(
+            CliCommand::try_parse_from(args.into_iter().chain(["--new-fee-rate", "0"])).is_ok()
+        );
     }
 
     #[test]

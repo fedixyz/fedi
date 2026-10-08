@@ -15,11 +15,11 @@ use common::config::{
     StabilityPoolConfigConsensus, StabilityPoolConfigPrivate,
 };
 use common::{
-    BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION, CONSENSUS_VERSION, INITIAL_MODULE_CONSENSUS_VERSION,
-    Provide, Seek, StabilityPoolCommonGen, StabilityPoolConsensusItem, StabilityPoolInput,
-    StabilityPoolInputError, StabilityPoolModuleTypes, StabilityPoolOutput,
-    StabilityPoolOutputError, StabilityPoolOutputOutcome, StabilityPoolOutputOutcomeV0,
-    UnlockRequest,
+    BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION, BTC_TRANSFER_CONSENSUS_VERSION, CONSENSUS_VERSION,
+    INITIAL_MODULE_CONSENSUS_VERSION, Provide, Seek, StabilityPoolCommonGen,
+    StabilityPoolConsensusItem, StabilityPoolInput, StabilityPoolInputError,
+    StabilityPoolModuleTypes, StabilityPoolOutput, StabilityPoolOutputError,
+    StabilityPoolOutputOutcome, StabilityPoolOutputOutcomeV0, UnlockRequest,
 };
 use db::{
     ConsensusVersionVoteKey, ConsensusVersionVotePrefix, ConsensusVersionVotingActivationKey,
@@ -43,6 +43,7 @@ use fedimint_core::module::{
     Amounts, ApiEndpoint, ApiRequestErased, CoreConsensusVersion, InputMeta,
     ModuleConsensusVersion, ModuleInit, TransactionItemAmounts,
 };
+use fedimint_core::secp256k1::schnorr;
 use fedimint_core::task::{MaybeSend, MaybeSync, TaskGroup, sleep};
 use fedimint_core::{Amount, InPoint, NumPeersExt, OutPoint, PeerId, TransactionId};
 use fedimint_server_core::config::PeerHandleOps;
@@ -56,11 +57,11 @@ use oracle::{AggregateOracle, MockOracle, Oracle};
 pub use stability_pool_common as common;
 use stability_pool_common::endpoint_constants::SUPPORTED_MODULE_CONSENSUS_VERSION_ENDPOINT;
 use stability_pool_common::{
-    AccountHistoryItem, AccountHistoryItemKind, AccountId, AccountType, CycleInfo, Deposit,
-    DepositToBtcBalanceOutput, DepositToProvideOutput, DepositToSeekOutput, FeeRate, FiatAmount,
-    FiatOrAll, SignedTransferRequest, StabilityPoolInputV0, StabilityPoolOutputV0,
-    StabilityPoolOutputV1, TransferOutput, TransferRequestId, UnlockForWithdrawalInput,
-    WithdrawalInput,
+    Account, AccountHistoryItem, AccountHistoryItemKind, AccountId, AccountType, CycleInfo,
+    Deposit, DepositToBtcBalanceOutput, DepositToProvideOutput, DepositToSeekOutput, FeeRate,
+    FiatAmount, FiatOrAll, SignedBtcTransferRequest, SignedTransferRequest, StabilityPoolInputV0,
+    StabilityPoolOutputV0, StabilityPoolOutputV1, StabilityPoolOutputV2, TransferRequestId,
+    UnlockForWithdrawalInput, WithdrawalInput, verify_transfer_signatures,
 };
 use tokio::sync::{Mutex, RwLock, watch};
 use tracing::{info, warn};
@@ -644,6 +645,9 @@ impl ServerModule for StabilityPool {
             | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(t)) => {
                 t.signed_request.details().from().id()
             }
+            StabilityPoolOutput::V2(StabilityPoolOutputV2::BtcTransfer(t)) => {
+                t.signed_request.details().from().id()
+            }
             StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToBtcBalance(s)) => s.account_id,
             StabilityPoolOutput::Default { variant, .. } => {
                 return Err(StabilityPoolOutputError::UnknownOutputVariant(format!(
@@ -708,7 +712,32 @@ impl ServerModule for StabilityPool {
             }
             StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(transfer))
             | StabilityPoolOutput::V1(StabilityPoolOutputV1::Transfer(transfer)) => {
-                process_transfer_output(self.cfg.clone(), dbtx, outpoint.txid, transfer).await
+                process_transfer_output(
+                    self.cfg.clone(),
+                    dbtx,
+                    outpoint.txid,
+                    (&transfer.signed_request).into(),
+                )
+                .await
+            }
+            StabilityPoolOutput::V2(StabilityPoolOutputV2::BtcTransfer(btc_transfer))
+                if account_id.acc_type() == AccountType::BtcDepositor =>
+            {
+                if self.consensus_module_consensus_version(dbtx).await
+                    < BTC_TRANSFER_CONSENSUS_VERSION
+                {
+                    return Err(StabilityPoolOutputError::UnknownOutputVariant(
+                        "BtcTransfer requires module consensus version 2.2".to_string(),
+                    ));
+                }
+
+                process_transfer_output(
+                    self.cfg.clone(),
+                    dbtx,
+                    outpoint.txid,
+                    (&btc_transfer.signed_request).into(),
+                )
+                .await
             }
             StabilityPoolOutput::Default { variant, .. } => {
                 Err(StabilityPoolOutputError::UnknownOutputVariant(format!(
@@ -1143,13 +1172,66 @@ async fn process_deposit_to_provide_output(
     })
 }
 
+#[derive(Clone, Copy)]
+enum TransferAmount {
+    Fiat(FiatAmount),
+    Msats(Amount),
+}
+
+// A borrowed view for processing; the original request still determines the
+// hash.
+struct TransferDetails<'a> {
+    from: &'a Account,
+    to: AccountId,
+    amount: TransferAmount,
+    meta: &'a [u8],
+    valid_until_cycle: u64,
+    new_fee_rate: Option<FeeRate>,
+    request_id: TransferRequestId,
+    signatures: &'a BTreeMap<u64, schnorr::Signature>,
+}
+
+impl<'a> From<&'a SignedTransferRequest> for TransferDetails<'a> {
+    fn from(signed: &'a SignedTransferRequest) -> Self {
+        let request = signed.details();
+        Self {
+            from: request.from(),
+            to: *request.to(),
+            amount: TransferAmount::Fiat(request.amount()),
+            meta: request.meta(),
+            valid_until_cycle: request.valid_until_cycle(),
+            new_fee_rate: request.new_fee_rate(),
+            request_id: TransferRequestId::from(request),
+            signatures: signed.signatures(),
+        }
+    }
+}
+
+impl<'a> From<&'a SignedBtcTransferRequest> for TransferDetails<'a> {
+    fn from(signed: &'a SignedBtcTransferRequest) -> Self {
+        let request = signed.details();
+        Self {
+            from: request.from(),
+            to: *request.to(),
+            amount: TransferAmount::Msats(request.amount()),
+            meta: request.meta(),
+            valid_until_cycle: request.valid_until_cycle(),
+            new_fee_rate: None,
+            request_id: TransferRequestId::from(request),
+            signatures: signed.signatures(),
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn process_transfer_output_inner<M, K>(
+    config: &StabilityPoolConfig,
     dbtx: &mut DatabaseTransaction<'_>,
     txid: TransactionId,
-    signed_request: &SignedTransferRequest,
+    transfer: &TransferDetails<'_>,
+    total_to_transfer: Amount,
     cycle_info: CycleInfo,
-    locked_deposits_map: &mut BTreeMap<AccountId, Vec<Deposit<M>>>,
+    locked_deposits_map: Option<&mut BTreeMap<AccountId, Vec<Deposit<M>>>>,
     from_staged_deposits_key: K,
     to_staged_deposits_key: K,
     new_deposit_meta: M,
@@ -1158,20 +1240,7 @@ where
     M: MaybeSend + MaybeSync + Clone,
     K: DatabaseKey + DatabaseRecord<Value = Vec<Deposit<M>>> + MaybeSend + MaybeSync,
 {
-    // Ensure signatures are valid
-    signed_request
-        .validate_signatures()
-        .map_err(|e| StabilityPoolOutputError::InvalidTransferRequest(e.to_string()))?;
-
-    // Prevent replay attacks
-    db::ensure_unique_transfer_request_and_log(
-        &TransferRequestId::from(signed_request.details()),
-        dbtx,
-    )
-    .await
-    .map_err(|e| StabilityPoolOutputError::InvalidTransferRequest(e.to_string()))?;
-
-    // Calculate the total btc amount to transfer
+    let from = transfer.from.id();
     let mut from_staged_deposits = dbtx
         .get_value(&from_staged_deposits_key)
         .await
@@ -1181,21 +1250,26 @@ where
         .map(|d| d.amount)
         .sum::<Amount>();
     let from_locked_deposits_sum = locked_deposits_map
-        .get(&signed_request.details().from().id())
-        .unwrap_or(&vec![])
-        .iter()
+        .as_ref()
+        .and_then(|deposits| deposits.get(&from))
+        .into_iter()
+        .flatten()
         .map(|d| d.amount)
         .sum::<Amount>();
-    let total_to_transfer = signed_request
-        .details()
-        .amount()
-        .to_btc_amount(cycle_info.start_price)
-        .map_err(|e| StabilityPoolOutputError::InvalidTransferRequest(e.to_string()))?;
 
     if total_to_transfer > from_staged_deposits_sum + from_locked_deposits_sum {
         return Err(StabilityPoolOutputError::InvalidTransferRequest(
             "Insufficient from account balance".to_string(),
         ));
+    }
+
+    // Keep the minimum for partial msat transfers without trapping a small
+    // remainder.
+    if let TransferAmount::Msats(_) = transfer.amount
+        && total_to_transfer < config.consensus.min_allowed_seek
+        && total_to_transfer != from_staged_deposits_sum
+    {
+        return Err(StabilityPoolOutputError::AmountTooLow);
     }
 
     // We can use the same sequence for both staged and locked deposit in case both
@@ -1235,8 +1309,8 @@ where
             AccountHistoryItem {
                 cycle: cycle_info,
                 kind: AccountHistoryItemKind::StagedTransferOut {
-                    to: *signed_request.details().to(),
-                    meta: signed_request.details().meta().to_vec(),
+                    to: transfer.to,
+                    meta: transfer.meta.to_vec(),
                 },
                 txid,
                 deposit_sequence: d.sequence,
@@ -1246,8 +1320,8 @@ where
         to_account_history_items.push(AccountHistoryItem {
             cycle: cycle_info,
             kind: AccountHistoryItemKind::StagedTransferIn {
-                from: signed_request.details().from().id(),
-                meta: signed_request.details().meta().to_vec(),
+                from,
+                meta: transfer.meta.to_vec(),
             },
             txid,
             deposit_sequence: new_to_staged_deposit.sequence,
@@ -1256,11 +1330,11 @@ where
     }
 
     // If needed, drain locked deposits in reverse as well.
-    if left_to_transfer != Amount::ZERO {
+    if let Some(locked_deposits_map) = locked_deposits_map
+        && left_to_transfer != Amount::ZERO
+    {
         let drained_locked_deposits = drain_in_reverse(
-            locked_deposits_map
-                .get_mut(&signed_request.details().from().id())
-                .unwrap_or(&mut vec![]),
+            locked_deposits_map.get_mut(&from).unwrap_or(&mut vec![]),
             left_to_transfer,
         );
         let amount = drained_locked_deposits.iter().map(|d| d.amount).sum();
@@ -1272,7 +1346,7 @@ where
             txid,
         };
         locked_deposits_map
-            .entry(*signed_request.details().to())
+            .entry(transfer.to)
             .or_default()
             .push(new_to_locked_deposit.clone());
 
@@ -1281,8 +1355,8 @@ where
             AccountHistoryItem {
                 cycle: cycle_info,
                 kind: AccountHistoryItemKind::LockedTransferOut {
-                    to: *signed_request.details().to(),
-                    meta: signed_request.details().meta().to_vec(),
+                    to: transfer.to,
+                    meta: transfer.meta.to_vec(),
                 },
                 txid,
                 deposit_sequence: d.sequence,
@@ -1292,8 +1366,8 @@ where
         to_account_history_items.push(AccountHistoryItem {
             cycle: cycle_info,
             kind: AccountHistoryItemKind::LockedTransferIn {
-                from: signed_request.details().from().id(),
-                meta: signed_request.details().meta().to_vec(),
+                from,
+                meta: transfer.meta.to_vec(),
             },
             txid,
             deposit_sequence: new_to_locked_deposit.sequence,
@@ -1301,18 +1375,8 @@ where
         });
     }
 
-    db::add_account_history_items(
-        dbtx,
-        signed_request.details().from().id(),
-        from_account_history_items,
-    )
-    .await;
-    db::add_account_history_items(
-        dbtx,
-        *signed_request.details().to(),
-        to_account_history_items,
-    )
-    .await;
+    db::add_account_history_items(dbtx, from, from_account_history_items).await;
+    db::add_account_history_items(dbtx, transfer.to, to_account_history_items).await;
 
     Ok(())
 }
@@ -1321,13 +1385,12 @@ async fn process_transfer_output(
     config: StabilityPoolConfig,
     dbtx: &mut DatabaseTransaction<'_>,
     txid: TransactionId,
-    output: &TransferOutput,
+    transfer: TransferDetails<'_>,
 ) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
-    let TransferOutput { signed_request } = output;
     // Ensure account types match
-    if signed_request.details().from().acc_type() != signed_request.details().to().acc_type() {
+    if transfer.from.acc_type() != transfer.to.acc_type() {
         return Err(StabilityPoolOutputError::InvalidTransferRequest(
-            "Cannot cross-transfer between seeker and provider".to_string(),
+            "From and to account types must match".to_string(),
         ));
     }
 
@@ -1343,54 +1406,87 @@ async fn process_transfer_output(
     };
     let cycle_info = CycleInfo::from(&current_cycle);
 
-    if signed_request.details().valid_until_cycle() < current_cycle.index {
+    if transfer.valid_until_cycle < current_cycle.index {
         return Err(StabilityPoolOutputError::InvalidTransferRequest(
             "Transfer request has expired".to_string(),
         ));
     }
 
-    // Handle provider and seeker separately
-    match signed_request.details().from().acc_type() {
-        AccountType::Seeker | AccountType::BtcDepositor => {
+    if transfer.from.acc_type() == AccountType::Provider {
+        let Some(fee_rate) = transfer.new_fee_rate else {
+            return Err(StabilityPoolOutputError::InvalidTransferRequest(
+                "Missing fee rate for provider-to-provider transfer".to_string(),
+            ));
+        };
+        if config.consensus.max_allowed_provide_fee_rate_ppb < fee_rate.0 {
+            return Err(StabilityPoolOutputError::FeeRateTooHigh);
+        }
+    }
+
+    verify_transfer_signatures(transfer.from, &transfer.request_id, transfer.signatures)
+        .map_err(|e| StabilityPoolOutputError::InvalidTransferRequest(e.to_string()))?;
+    db::ensure_unique_transfer_request_and_log(&transfer.request_id, dbtx)
+        .await
+        .map_err(|e| StabilityPoolOutputError::InvalidTransferRequest(e.to_string()))?;
+
+    let amount = match transfer.amount {
+        TransferAmount::Fiat(amount) => amount
+            .to_btc_amount(cycle_info.start_price)
+            .map_err(|e| StabilityPoolOutputError::InvalidTransferRequest(e.to_string()))?,
+        TransferAmount::Msats(amount) => amount,
+    };
+    match transfer.from.acc_type() {
+        AccountType::Seeker => {
             process_transfer_output_inner(
+                &config,
                 dbtx,
                 txid,
-                signed_request,
+                &transfer,
+                amount,
                 cycle_info,
-                &mut current_cycle.locked_seeks,
-                StagedSeeksKey(signed_request.details().from().id()),
-                StagedSeeksKey(*signed_request.details().to()),
+                Some(&mut current_cycle.locked_seeks),
+                StagedSeeksKey(transfer.from.id()),
+                StagedSeeksKey(transfer.to),
                 (),
             )
             .await
         }
         AccountType::Provider => {
-            if let Some(fee_rate) = signed_request.details().new_fee_rate() {
-                if config.consensus.max_allowed_provide_fee_rate_ppb < fee_rate.0 {
-                    return Err(StabilityPoolOutputError::FeeRateTooHigh);
-                }
-                process_transfer_output_inner(
-                    dbtx,
-                    txid,
-                    signed_request,
-                    cycle_info,
-                    &mut current_cycle.locked_provides,
-                    StagedProvidesKey(signed_request.details().from().id()),
-                    StagedProvidesKey(*signed_request.details().to()),
-                    fee_rate,
-                )
-                .await
-            } else {
-                return Err(StabilityPoolOutputError::InvalidTransferRequest(
-                    "Missing fee rate for provider-to-provider transfer".to_string(),
-                ));
-            }
+            process_transfer_output_inner(
+                &config,
+                dbtx,
+                txid,
+                &transfer,
+                amount,
+                cycle_info,
+                Some(&mut current_cycle.locked_provides),
+                StagedProvidesKey(transfer.from.id()),
+                StagedProvidesKey(transfer.to),
+                transfer.new_fee_rate.expect("provider fee checked above"),
+            )
+            .await
+        }
+        AccountType::BtcDepositor => {
+            process_transfer_output_inner(
+                &config,
+                dbtx,
+                txid,
+                &transfer,
+                amount,
+                cycle_info,
+                None,
+                StagedSeeksKey(transfer.from.id()),
+                StagedSeeksKey(transfer.to),
+                (),
+            )
+            .await
         }
     }?;
 
-    // If call to inner function was successful, write the updated current cycle
-    // to the DB
-    dbtx.insert_entry(&CurrentCycleKey, &current_cycle).await;
+    // Only seeker and provider transfers can change locked deposits.
+    if transfer.from.acc_type() != AccountType::BtcDepositor {
+        dbtx.insert_entry(&CurrentCycleKey, &current_cycle).await;
+    }
     Ok(TransactionItemAmounts {
         amounts: Amounts::ZERO,
         fees: Amounts::ZERO,
@@ -2242,8 +2338,17 @@ where
 #[cfg(test)]
 mod tests {
     use fedimint_core::BitcoinHash;
+    use fedimint_core::db::Database;
+    use fedimint_core::db::mem_impl::MemDatabase;
+    use fedimint_core::encoding::{Decodable, Encodable};
+    use fedimint_core::secp256k1::{Keypair, Message, SECP256K1, schnorr};
+    use stability_pool_common::{
+        Account, BtcTransferOutput, BtcTransferRequest, SignedBtcTransferRequest,
+    };
 
     use super::*;
+
+    const CYCLE_INDEX: u64 = 10;
 
     fn seek(sequence: u64, msats: u64) -> Seek {
         Seek {
@@ -2252,6 +2357,339 @@ mod tests {
             meta: (),
             txid: TransactionId::all_zeros(),
         }
+    }
+
+    fn account(key_byte: u8, acc_type: AccountType) -> (Keypair, Account) {
+        let keypair =
+            Keypair::from_seckey_slice(SECP256K1, &[key_byte; 32]).expect("valid secret key");
+        (keypair, Account::single(keypair.public_key(), acc_type))
+    }
+
+    fn sign(keypair: &Keypair, request: &BtcTransferRequest) -> BTreeMap<u64, schnorr::Signature> {
+        let message = Message::from(&TransferRequestId::from(request));
+        BTreeMap::from([(0, SECP256K1.sign_schnorr_no_aux_rand(&message, keypair))])
+    }
+
+    fn btc_transfer(keypair: &Keypair, request: BtcTransferRequest) -> StabilityPoolOutput {
+        let signatures = sign(keypair, &request);
+        let signed_request =
+            SignedBtcTransferRequest::new(request, signatures).expect("valid signatures");
+        StabilityPoolOutput::V2(StabilityPoolOutputV2::BtcTransfer(BtcTransferOutput {
+            signed_request,
+        }))
+    }
+
+    fn decoded_request(from: &Account, to: AccountId, msats: u64) -> BtcTransferRequest {
+        let bytes = (
+            0u64,
+            from,
+            Amount::from_msats(msats),
+            to,
+            Vec::<u8>::new(),
+            CYCLE_INDEX,
+        )
+            .consensus_encode_to_vec();
+        BtcTransferRequest::consensus_decode_whole(&bytes, &Default::default())
+            .expect("decodes without the constructor checks")
+    }
+
+    fn rejection_reason(
+        result: Result<TransactionItemAmounts, StabilityPoolOutputError>,
+    ) -> String {
+        match result {
+            Err(StabilityPoolOutputError::InvalidTransferRequest(reason)) => reason,
+            other => panic!("expected a rejected transfer request, got {other:?}"),
+        }
+    }
+
+    struct BtcTransferFixture {
+        db: Database,
+        from_key: Keypair,
+        from: Account,
+        to: AccountId,
+        min_allowed_seek: Amount,
+    }
+
+    impl BtcTransferFixture {
+        async fn new(active_version: ModuleConsensusVersion) -> Self {
+            let (from_key, from) = account(1, AccountType::BtcDepositor);
+            let (_, to) = account(2, AccountType::BtcDepositor);
+
+            let db = Database::new(MemDatabase::new(), Default::default());
+            let mut dbtx = db.begin_transaction().await;
+            dbtx.insert_entry(&ConsensusVersionVoteKey(PeerId::from(0)), &active_version)
+                .await;
+            dbtx.insert_entry(
+                &CurrentCycleKey,
+                &Cycle {
+                    index: CYCLE_INDEX,
+                    start_time: UNIX_EPOCH,
+                    start_price: FiatAmount(1_000_000),
+                    fee_rate: FeeRate(0),
+                    locked_seeks: BTreeMap::new(),
+                    locked_provides: BTreeMap::new(),
+                },
+            )
+            .await;
+            dbtx.insert_entry(
+                &StagedSeeksKey(from.id()),
+                &vec![seek(0, 200_000), seek(1, 300_000)],
+            )
+            .await;
+            dbtx.commit_tx().await;
+
+            Self {
+                db,
+                from_key,
+                from,
+                to: to.id(),
+                min_allowed_seek: Amount::ZERO,
+            }
+        }
+
+        fn request(&self, msats: u64, valid_until_cycle: u64) -> BtcTransferRequest {
+            BtcTransferRequest::new(
+                0,
+                self.from.clone(),
+                Amount::from_msats(msats),
+                self.to,
+                vec![],
+                valid_until_cycle,
+            )
+            .expect("valid request")
+        }
+
+        fn transfer(&self, msats: u64) -> StabilityPoolOutput {
+            btc_transfer(&self.from_key, self.request(msats, CYCLE_INDEX))
+        }
+
+        // commits only an accepted output, like consensus does
+        async fn submit(
+            &self,
+            output: &StabilityPoolOutput,
+        ) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
+            let module = StabilityPool {
+                cfg: StabilityPoolConfig {
+                    private: StabilityPoolConfigPrivate,
+                    consensus: StabilityPoolConfigConsensus {
+                        consensus_threshold: 1,
+                        oracle_config: OracleConfig::Mock,
+                        cycle_duration: Duration::from_secs(60),
+                        collateral_ratio: CollateralRatio {
+                            provider: 1,
+                            seeker: 1,
+                        },
+                        min_allowed_seek: self.min_allowed_seek,
+                        min_allowed_provide: Amount::ZERO,
+                        max_allowed_provide_fee_rate_ppb: 0,
+                        min_allowed_cancellation_bps: 0,
+                    },
+                },
+                prefetched_price: Default::default(),
+                last_consensus_proposal: Default::default(),
+                peer_supported_consensus_version: watch::channel(None).1,
+            };
+            let out_point = OutPoint {
+                txid: TransactionId::all_zeros(),
+                out_idx: 0,
+            };
+
+            let mut dbtx = self.db.begin_transaction().await;
+            let result = module
+                .process_output(&mut dbtx.to_ref_nc(), output, out_point)
+                .await;
+            if result.is_ok() {
+                dbtx.commit_tx().await;
+            }
+            result
+        }
+
+        async fn staged_msats(&self, account_id: AccountId) -> u64 {
+            self.db
+                .begin_transaction_nc()
+                .await
+                .get_value(&StagedSeeksKey(account_id))
+                .await
+                .unwrap_or_default()
+                .iter()
+                .map(|seek| seek.amount.msats)
+                .sum()
+        }
+
+        async fn balances(&self) -> (u64, u64) {
+            (
+                self.staged_msats(self.from.id()).await,
+                self.staged_msats(self.to).await,
+            )
+        }
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_moves_exact_msats() {
+        let fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+
+        // one cent is 100_000 msats at this price, so this is not a whole cent
+        fixture
+            .submit(&fixture.transfer(300_001))
+            .await
+            .expect("transfer accepted");
+
+        assert_eq!(fixture.balances().await, (199_999, 300_001));
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_rejects_amount_below_min_allowed_seek() {
+        let mut fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+        fixture.min_allowed_seek = Amount::from_msats(100_000);
+
+        assert!(matches!(
+            fixture.submit(&fixture.transfer(99_999)).await,
+            Err(StabilityPoolOutputError::AmountTooLow)
+        ));
+        assert_eq!(fixture.balances().await, (500_000, 0));
+
+        fixture
+            .submit(&fixture.transfer(100_000))
+            .await
+            .expect("transfer accepted");
+        assert_eq!(fixture.balances().await, (400_000, 100_000));
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_can_empty_a_balance_below_the_minimum() {
+        // Cover both the FMan and standalone-server deposit minimums.
+        for minimum_msats in [10_000, 100_000] {
+            let mut fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+            fixture.min_allowed_seek = Amount::from_msats(minimum_msats);
+            let remainder = minimum_msats - 1;
+
+            fixture
+                .submit(&fixture.transfer(500_000 - remainder))
+                .await
+                .expect("partial transfer above the minimum succeeds");
+            assert!(matches!(
+                fixture.submit(&fixture.transfer(remainder - 1)).await,
+                Err(StabilityPoolOutputError::AmountTooLow)
+            ));
+            assert_eq!(fixture.balances().await, (remainder, 500_000 - remainder));
+
+            fixture
+                .submit(&fixture.transfer(remainder))
+                .await
+                .expect("the entire remainder can be withdrawn");
+            assert_eq!(fixture.balances().await, (0, 500_000));
+        }
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_needs_module_consensus_version_2_2() {
+        let fixture = BtcTransferFixture::new(BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION).await;
+
+        assert!(matches!(
+            fixture.submit(&fixture.transfer(100_000)).await,
+            Err(StabilityPoolOutputError::UnknownOutputVariant(_))
+        ));
+        assert_eq!(fixture.balances().await, (500_000, 0));
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_rejects_replayed_request() {
+        let fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+        let output = fixture.transfer(100_000);
+
+        fixture.submit(&output).await.expect("transfer accepted");
+
+        assert!(rejection_reason(fixture.submit(&output).await).contains("re-used"));
+        assert_eq!(fixture.balances().await, (400_000, 100_000));
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_rejects_amount_above_balance() {
+        let fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+
+        let result = fixture.submit(&fixture.transfer(500_001)).await;
+
+        assert!(rejection_reason(result).contains("Insufficient"));
+        assert_eq!(fixture.balances().await, (500_000, 0));
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_rejects_expired_request() {
+        let fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+        let output = btc_transfer(&fixture.from_key, fixture.request(100_000, CYCLE_INDEX - 1));
+
+        assert!(rejection_reason(fixture.submit(&output).await).contains("expired"));
+        assert_eq!(fixture.balances().await, (500_000, 0));
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_rejects_other_account_types() {
+        let fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+        let (seeker_key, seeker) = account(2, AccountType::Seeker);
+        let to_seeker = btc_transfer(
+            &fixture.from_key,
+            decoded_request(&fixture.from, seeker.id(), 100_000),
+        );
+        let from_seeker = btc_transfer(&seeker_key, decoded_request(&seeker, fixture.to, 100_000));
+
+        assert!(
+            rejection_reason(fixture.submit(&to_seeker).await).contains("account types must match")
+        );
+        assert!(matches!(
+            fixture.submit(&from_seeker).await,
+            Err(StabilityPoolOutputError::InvalidAccountTypeForOperation)
+        ));
+        assert_eq!(fixture.balances().await, (500_000, 0));
+    }
+
+    #[tokio::test]
+    async fn zero_btc_transfer_creates_no_deposits_or_history() {
+        let mut fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+        fixture.min_allowed_seek = Amount::from_msats(100_000);
+        let mut dbtx = fixture.db.begin_transaction().await;
+        dbtx.remove_entry(&StagedSeeksKey(fixture.from.id())).await;
+        dbtx.commit_tx().await;
+
+        let output = btc_transfer(
+            &fixture.from_key,
+            decoded_request(&fixture.from, fixture.to, 0),
+        );
+        fixture
+            .submit(&output)
+            .await
+            .expect("zero transfer accepted");
+
+        let mut dbtx = fixture.db.begin_transaction_nc().await;
+        assert_eq!(dbtx.get_value(&db::DepositSequenceKey).await, Some(1));
+        for account_id in [fixture.from.id(), fixture.to] {
+            assert!(dbtx.get_value(&StagedSeeksKey(account_id)).await.is_none());
+            assert_eq!(db::account_history_count(&mut dbtx, account_id).await, 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn btc_transfer_rejects_amount_changed_after_signing() {
+        let fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
+        let signatures = sign(&fixture.from_key, &fixture.request(1, CYCLE_INDEX));
+
+        let mut bytes = vec![];
+        signatures
+            .consensus_encode(&mut bytes)
+            .expect("writes to a vec");
+        fixture
+            .request(400_000, CYCLE_INDEX)
+            .consensus_encode(&mut bytes)
+            .expect("writes to a vec");
+        let signed_request =
+            SignedBtcTransferRequest::consensus_decode_whole(&bytes, &Default::default())
+                .expect("decodes without checking signatures");
+        let output =
+            StabilityPoolOutput::V2(StabilityPoolOutputV2::BtcTransfer(BtcTransferOutput {
+                signed_request,
+            }));
+
+        rejection_reason(fixture.submit(&output).await);
+        assert_eq!(fixture.balances().await, (500_000, 0));
     }
 
     #[test]

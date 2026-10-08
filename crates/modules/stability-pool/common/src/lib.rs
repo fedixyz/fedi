@@ -26,7 +26,7 @@ use config::StabilityPoolClientConfig;
 
 pub const KIND: ModuleKind = ModuleKind::from_static_str("multi_sig_stability_pool");
 /// Highest stability-pool module consensus version this binary understands.
-pub const CONSENSUS_VERSION: ModuleConsensusVersion = ModuleConsensusVersion::new(2, 1);
+pub const CONSENSUS_VERSION: ModuleConsensusVersion = ModuleConsensusVersion::new(2, 2);
 /// Federations that have not activated any upgrade yet are treated as 2.0.
 pub const INITIAL_MODULE_CONSENSUS_VERSION: ModuleConsensusVersion =
     ModuleConsensusVersion::new(2, 0);
@@ -34,6 +34,10 @@ pub const INITIAL_MODULE_CONSENSUS_VERSION: ModuleConsensusVersion =
 /// module consensus version.
 pub const BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION: ModuleConsensusVersion =
     ModuleConsensusVersion::new(2, 1);
+/// `BtcTransfer` is only valid once the federation activates this module
+/// consensus version.
+pub const BTC_TRANSFER_CONSENSUS_VERSION: ModuleConsensusVersion =
+    ModuleConsensusVersion::new(2, 2);
 
 pub const MSATS_PER_BTC: u128 = 100_000_000_000;
 
@@ -478,10 +482,18 @@ pub struct TransferOutput {
     pub signed_request: SignedTransferRequest,
 }
 
+/// Represents a module output for transferring an exact msat amount from one
+/// btc-depositor account to another, with no price conversion.
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize, Encodable, Decodable)]
+pub struct BtcTransferOutput {
+    pub signed_request: SignedBtcTransferRequest,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Deserialize, Serialize, Encodable, Decodable)]
 pub enum StabilityPoolOutput {
     V0(StabilityPoolOutputV0),
     V1(StabilityPoolOutputV1),
+    V2(StabilityPoolOutputV2),
     #[encodable_default]
     Default {
         variant: u64,
@@ -523,6 +535,14 @@ pub enum StabilityPoolOutputV1 {
     DepositToProvide(DepositToProvideOutput),
     Transfer(TransferOutput),
     DepositToBtcBalance(DepositToBtcBalanceOutput),
+}
+
+/// Versioned stability-pool outputs introduced under module consensus version
+/// 2.2. V2 only holds the outputs added at 2.2. Earlier outputs stay on V0 and
+/// V1.
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize, Encodable, Decodable)]
+pub enum StabilityPoolOutputV2 {
+    BtcTransfer(BtcTransferOutput),
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Encodable, Decodable, Serialize, Deserialize)]
@@ -646,10 +666,39 @@ impl From<&TransferRequest> for TransferRequestId {
     }
 }
 
+impl From<&BtcTransferRequest> for TransferRequestId {
+    fn from(value: &BtcTransferRequest) -> Self {
+        Self(value.consensus_hash())
+    }
+}
+
 impl From<&TransferRequestId> for secp256k1::Message {
     fn from(value: &TransferRequestId) -> Self {
         Self::from_digest(value.0.to_byte_array())
     }
+}
+
+/// Verify a transfer's signatures against its original request hash.
+pub fn verify_transfer_signatures(
+    from: &Account,
+    request_id: &TransferRequestId,
+    signatures: &BTreeMap<u64, schnorr::Signature>,
+) -> anyhow::Result<()> {
+    ensure!(
+        signatures.len() >= from.threshold.try_into()?,
+        "Signature threshold not met"
+    );
+
+    let message = secp256k1::Message::from(request_id);
+    for (idx, sig) in signatures {
+        let pubkey = from
+            .pub_keys
+            .iter()
+            .nth((*idx).try_into()?)
+            .ok_or(anyhow!("Invalid pubkey index"))?;
+        sig.verify(&message, &pubkey.x_only_public_key().0)?;
+    }
+    Ok(())
 }
 
 /// Requires at least a threshold number of valid signatures, with the signed
@@ -679,25 +728,11 @@ impl SignedTransferRequest {
     }
 
     pub fn validate_signatures(&self) -> anyhow::Result<()> {
-        ensure!(
-            self.signatures.len() >= self.transfer_request.from.threshold.try_into()?,
-            "Signature threshold not met"
-        );
-
-        let message = secp256k1::Message::from(&TransferRequestId::from(&self.transfer_request));
-        for (idx, sig) in self.signatures.iter() {
-            let pubkey = self
-                .transfer_request
-                .from
-                .pub_keys
-                .iter()
-                .nth((*idx).try_into()?)
-                .ok_or(anyhow!("Invalid pubkey index"))?;
-
-            sig.verify(&message, &pubkey.x_only_public_key().0)?;
-        }
-
-        Ok(())
+        verify_transfer_signatures(
+            self.transfer_request.from(),
+            &TransferRequestId::from(&self.transfer_request),
+            &self.signatures,
+        )
     }
 
     pub fn signatures(&self) -> &BTreeMap<u64, schnorr::Signature> {
@@ -705,6 +740,106 @@ impl SignedTransferRequest {
     }
 
     pub fn details(&self) -> &TransferRequest {
+        &self.transfer_request
+    }
+}
+
+/// A [`TransferRequest`] between btc-depositor accounts whose amount is in
+/// msats instead of fiat.
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize, Encodable, Decodable)]
+pub struct BtcTransferRequest {
+    nonce: u64,
+    from: Account,
+    transfer_amount: Amount,
+    to: AccountId,
+    meta: Vec<u8>,
+    valid_until_cycle: u64,
+}
+
+impl BtcTransferRequest {
+    pub fn new(
+        nonce: u64,
+        from: Account,
+        transfer_amount: Amount,
+        to: AccountId,
+        meta: Vec<u8>,
+        valid_until_cycle: u64,
+    ) -> anyhow::Result<Self> {
+        ensure!(
+            from.acc_type == AccountType::BtcDepositor && to.acc_type == AccountType::BtcDepositor,
+            "BtcTransfer requires both accounts to be BtcDepositor accounts"
+        );
+        ensure!(from.id() != to, "From and to cannot be the same");
+        ensure!(
+            transfer_amount != Amount::ZERO,
+            "Transfer amount must not be 0"
+        );
+
+        Ok(Self {
+            nonce,
+            from,
+            transfer_amount,
+            to,
+            meta,
+            valid_until_cycle,
+        })
+    }
+
+    pub fn from(&self) -> &Account {
+        &self.from
+    }
+
+    pub fn amount(&self) -> Amount {
+        self.transfer_amount
+    }
+
+    pub fn to(&self) -> &AccountId {
+        &self.to
+    }
+
+    pub fn valid_until_cycle(&self) -> u64 {
+        self.valid_until_cycle
+    }
+
+    pub fn meta(&self) -> &[u8] {
+        &self.meta
+    }
+}
+
+/// Signed the same way as a [`SignedTransferRequest`], with the
+/// [`BtcTransferRequest`] as the message.
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize, Encodable, Decodable)]
+pub struct SignedBtcTransferRequest {
+    signatures: BTreeMap<u64, schnorr::Signature>,
+    transfer_request: BtcTransferRequest,
+}
+
+impl SignedBtcTransferRequest {
+    pub fn new(
+        transfer_request: BtcTransferRequest,
+        signatures: BTreeMap<u64, schnorr::Signature>,
+    ) -> anyhow::Result<Self> {
+        let this = Self {
+            signatures,
+            transfer_request,
+        };
+        this.validate_signatures()?;
+        Ok(this)
+    }
+
+    pub fn validate_signatures(&self) -> anyhow::Result<()> {
+        verify_transfer_signatures(
+            self.transfer_request.from(),
+            &TransferRequestId::from(&self.transfer_request),
+            &self.signatures,
+        )
+    }
+
+    pub fn signatures(&self) -> &BTreeMap<u64, schnorr::Signature> {
+        &self.signatures
+    }
+
+    pub fn details(&self) -> &BtcTransferRequest {
         &self.transfer_request
     }
 }
@@ -1012,11 +1147,29 @@ impl Display for StabilityPoolOutputV1 {
     }
 }
 
+impl Display for StabilityPoolOutputV2 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StabilityPoolOutputV2::BtcTransfer(transfer_output) => write!(
+                f,
+                "Transfer {} msats from btc-balance account {} to account {}",
+                transfer_output
+                    .signed_request
+                    .transfer_request
+                    .transfer_amount,
+                transfer_output.signed_request.transfer_request.from.id(),
+                transfer_output.signed_request.transfer_request.to,
+            ),
+        }
+    }
+}
+
 impl Display for StabilityPoolOutput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StabilityPoolOutput::V0(inner) => Display::fmt(inner, f),
             StabilityPoolOutput::V1(inner) => Display::fmt(inner, f),
+            StabilityPoolOutput::V2(inner) => Display::fmt(inner, f),
             StabilityPoolOutput::Default { variant, .. } => {
                 write!(f, "Unknown variant (variant={variant})")
             }
@@ -1268,15 +1421,44 @@ pub enum AccountHistoryItemKind {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use fedimint_core::Amount;
     use fedimint_core::encoding::{Decodable, Encodable};
     use proptest::collection::vec;
     use proptest::prelude::*;
+    use secp256k1::{Keypair, Message, SECP256K1};
 
-    use super::{BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION, FiatAmount, StabilityPoolConsensusItem};
+    use super::{
+        Account, AccountId, AccountType, AccountUnchecked, BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
+        BtcTransferRequest, FiatAmount, SignedBtcTransferRequest, SignedTransferRequest,
+        StabilityPoolConsensusItem, TransferRequest, TransferRequestId,
+    };
 
     fn price_strategy() -> impl Strategy<Value = FiatAmount> {
         (20_000_u64 * 100..200_000_u64 * 100).prop_map(FiatAmount)
+    }
+
+    fn keypair(byte: u8) -> Keypair {
+        Keypair::from_seckey_slice(SECP256K1, &[byte; 32]).expect("valid secret key")
+    }
+
+    fn account(keys: &[Keypair], threshold: u64, acc_type: AccountType) -> Account {
+        AccountUnchecked {
+            acc_type,
+            pub_keys: keys.iter().map(Keypair::public_key).collect(),
+            threshold,
+        }
+        .try_into()
+        .expect("valid account")
+    }
+
+    fn btc_transfer_request(
+        from: Account,
+        to: AccountId,
+        msats: u64,
+    ) -> anyhow::Result<BtcTransferRequest> {
+        BtcTransferRequest::new(0, from, Amount::from_msats(msats), to, vec![], 10)
     }
 
     proptest! {
@@ -1375,6 +1557,77 @@ mod tests {
             prop_assert!(parts_sum_fiat <= total_fiat.0 + 1);
             prop_assert!(total_fiat.0 <= parts_sum_fiat + underflow_bound);
         }
+    }
+
+    #[test]
+    fn btc_transfer_request_validates_accounts_and_amount() {
+        let btc = |byte| account(&[keypair(byte)], 1, AccountType::BtcDepositor);
+        let seeker = |byte| account(&[keypair(byte)], 1, AccountType::Seeker);
+
+        assert!(btc_transfer_request(btc(1), btc(2).id(), 1).is_ok());
+        assert!(btc_transfer_request(seeker(1), btc(2).id(), 1).is_err());
+        assert!(btc_transfer_request(btc(1), seeker(2).id(), 1).is_err());
+        assert!(btc_transfer_request(btc(1), btc(1).id(), 1).is_err());
+        assert!(btc_transfer_request(btc(1), btc(2).id(), 0).is_err());
+    }
+
+    #[test]
+    fn signed_btc_transfer_request_enforces_threshold() {
+        let keys = [keypair(1), keypair(2), keypair(3)];
+        let from = account(&keys, 2, AccountType::BtcDepositor);
+        let to = account(&[keypair(4)], 1, AccountType::BtcDepositor).id();
+        let request = btc_transfer_request(from.clone(), to, 1).expect("valid request");
+        let message = Message::from(&TransferRequestId::from(&request));
+
+        let index_of = |key: &Keypair| {
+            from.pub_keys()
+                .position(|pub_key| *pub_key == key.public_key())
+                .expect("key belongs to the account") as u64
+        };
+        let sign = |key: &Keypair| SECP256K1.sign_schnorr_no_aux_rand(&message, key);
+        let signed = |signatures: [(u64, secp256k1::schnorr::Signature); 2]| {
+            SignedBtcTransferRequest::new(request.clone(), BTreeMap::from(signatures))
+        };
+
+        let first = (index_of(&keys[0]), sign(&keys[0]));
+        let second = (index_of(&keys[1]), sign(&keys[1]));
+
+        assert!(signed([first, second]).is_ok());
+        assert!(signed([first, first]).is_err());
+        assert!(signed([first, (second.0, first.1)]).is_err());
+        assert!(signed([first, (second.0, sign(&keypair(5)))]).is_err());
+        assert!(signed([first, (3, second.1)]).is_err());
+    }
+
+    #[test]
+    fn transfer_signatures_do_not_cross_between_fiat_and_btc_requests() {
+        let key = keypair(1);
+        let from = account(&[key], 1, AccountType::BtcDepositor);
+        let to = account(&[keypair(2)], 1, AccountType::BtcDepositor).id();
+
+        let fiat_request =
+            TransferRequest::new(0, from.clone(), FiatAmount(5), to, vec![], 10, None)
+                .expect("valid request");
+        let btc_request = btc_transfer_request(from, to, 5).expect("valid request");
+
+        let fiat_signature = SECP256K1.sign_schnorr_no_aux_rand(
+            &Message::from(&TransferRequestId::from(&fiat_request)),
+            &key,
+        );
+        let btc_signature = SECP256K1
+            .sign_schnorr_no_aux_rand(&Message::from(&TransferRequestId::from(&btc_request)), &key);
+
+        let fiat_signed = |signature| {
+            SignedTransferRequest::new(fiat_request.clone(), BTreeMap::from([(0, signature)]))
+        };
+        let btc_signed = |signature| {
+            SignedBtcTransferRequest::new(btc_request.clone(), BTreeMap::from([(0, signature)]))
+        };
+
+        assert!(fiat_signed(fiat_signature).is_ok());
+        assert!(btc_signed(btc_signature).is_ok());
+        assert!(fiat_signed(btc_signature).is_err());
+        assert!(btc_signed(fiat_signature).is_err());
     }
 
     #[test]

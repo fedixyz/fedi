@@ -2065,6 +2065,7 @@ impl FederationV2 {
                 // No subscription necessary for variant ExternalTransferIn, since we only become
                 // aware of the transfer after it has already been completed
                 StabilityPoolMeta::ExternalTransferIn { .. } => (),
+                StabilityPoolMeta::BtcTransfer { .. } => (),
             },
             // FIXME: should I return an error or just log something?
             _ => {
@@ -3518,6 +3519,7 @@ impl FederationV2 {
                     // TXs to sweep idle balance shouldn't log in history
                     return Ok(None);
                 }
+                StabilityPoolMeta::BtcTransfer { .. } => return Ok(None),
                 StabilityPoolMeta::ExternalTransferIn { txid } => {
                     frontend_metadata = None;
                     transaction_kind = RpcTransactionKind::SPV2TransferIn {
