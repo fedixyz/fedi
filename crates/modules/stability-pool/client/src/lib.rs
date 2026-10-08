@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{ffi, iter};
 
-use anyhow::{bail, ensure};
+use anyhow::{Context as _, bail, ensure};
 use async_stream::stream;
 use clap::{Parser, ValueEnum};
 use common::config::StabilityPoolClientConfig;
@@ -716,10 +716,18 @@ impl StabilityPoolClientModule {
             account_id.acc_type() == AccountType::BtcDepositor,
             "DepositToBtcBalance requires a btc-balance account"
         );
+        let observed_version = self
+            .module_api
+            .module_consensus_version()
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to query stability pool module consensus version for btc-balance deposits (required >= {BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION})"
+                )
+            })?;
         ensure!(
-            self.module_api.module_consensus_version().await?
-                >= BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
-            "Stability pool module consensus version doesn't support btc-balance deposits"
+            observed_version >= BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
+            "Stability pool module consensus version doesn't support btc-balance deposits (observed {observed_version}, required >= {BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION})"
         );
         Ok(())
     }

@@ -459,6 +459,7 @@ impl GuardianFeeRemittanceService {
             Ok(spv2) => spv2,
             Err(error) => {
                 error!(
+                    federation_id = %fed.federation_id(),
                     ?error,
                     "Failed to access stability-pool client for remittance"
                 );
@@ -469,7 +470,11 @@ impl GuardianFeeRemittanceService {
         let spv2 = spv2_instance.inner().clone();
         let recipients = guardian_fee_config.recipients;
         if let Err(error) = validate_guardian_fee_recipients(&recipients) {
-            error!(?error, "Guardian fee recipient policy is invalid");
+            error!(
+                federation_id = %fed.federation_id(),
+                ?error,
+                "Guardian fee recipient policy is invalid"
+            );
             return;
         }
         for recipient in &recipients {
@@ -478,6 +483,7 @@ impl GuardianFeeRemittanceService {
                 .await
             {
                 error!(
+                    federation_id = %fed.federation_id(),
                     ?error,
                     "Guardian fee remittance account is not currently deposit-capable"
                 );
@@ -651,7 +657,11 @@ impl GuardianFeeRemittanceService {
             Ok(SubmissionResult::Submitted(operation_id)) => operation_id,
             Ok(SubmissionResult::Noop) => return,
             Err(error) => {
-                error!(?error, "Failed to create guardian fee remittance operation");
+                error!(
+                    federation_id = %fed.federation_id(),
+                    ?error,
+                    "Failed to create guardian fee remittance operation"
+                );
                 return;
             }
         };
