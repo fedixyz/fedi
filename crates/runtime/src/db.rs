@@ -6,7 +6,7 @@ use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{impl_db_lookup, impl_db_record};
 
-use crate::features::RemoteFeatures;
+use crate::features::{FiManifoldEnvironment, RemoteFeatures};
 
 #[repr(u8)]
 pub enum BridgeDbPrefix {
@@ -33,6 +33,10 @@ pub enum BridgeDbPrefix {
     FiFederationAutoJoinCompleted = 0x08,
     // Internal-build request to clear the FI client namespace on next launch
     FiClientResetPending = 0x09,
+    // Environment owning FI state in the single 0x07 namespace.
+    FiClientEnvironmentOwner = 0x0a,
+    // Internal-build Manifold selection, committed together with its test-state reset.
+    FiManifoldEnvironmentSelection = 0x0b,
 }
 
 #[derive(Debug, Decodable, Encodable)]
@@ -95,6 +99,38 @@ impl_db_record!(
     key = FiClientResetPendingKey,
     value = (),
     db_prefix = BridgeDbPrefix::FiClientResetPending,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct FiClientEnvironmentOwnerKey;
+
+impl_db_record!(
+    key = FiClientEnvironmentOwnerKey,
+    value = FiManifoldEnvironment,
+    db_prefix = BridgeDbPrefix::FiClientEnvironmentOwner,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct FiManifoldEnvironmentSelectionKey;
+
+// JSON keeps the selection independent of numeric enum discriminants.
+impl DatabaseValue for FiManifoldEnvironment {
+    fn from_bytes(
+        data: &[u8],
+        _modules: &ModuleDecoderRegistry,
+    ) -> std::result::Result<Self, DecodingError> {
+        serde_json::from_slice(data).map_err(DecodingError::other)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("FI Manifold environment must serialize")
+    }
+}
+
+impl_db_record!(
+    key = FiManifoldEnvironmentSelectionKey,
+    value = FiManifoldEnvironment,
+    db_prefix = BridgeDbPrefix::FiManifoldEnvironmentSelection,
 );
 
 #[allow(async_fn_in_trait)]

@@ -24,6 +24,7 @@ use rpc_types::fi_client::{
 };
 use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
+use runtime::features::FiManifoldEnvironment;
 use runtime::storage::state::{DeviceIdentifier, ModuleFediFeeSchedule, OnboardingMethod};
 use serde::Serialize;
 use sp_transfer::services::SptServices;
@@ -390,10 +391,13 @@ impl BridgeFull {
                 tracing::warn!(%error, "failed to schedule FI client reset");
                 RpcFiOperationResult::Error {
                     error: RpcFiOperationError {
-                        code: if self.runtime.fi_client_reset_is_allowed() {
-                            RpcFiErrorCode::Storage
-                        } else {
+                        code: if !self.runtime.fi_client_reset_is_allowed()
+                            || self.runtime.fi_manifold_environment().await
+                                == FiManifoldEnvironment::Production
+                        {
                             RpcFiErrorCode::CapabilityUnavailable
+                        } else {
+                            RpcFiErrorCode::Storage
                         },
                         message: "Wallet-service test reset could not be scheduled".to_owned(),
                         detail: None,
@@ -505,11 +509,12 @@ impl BridgeFull {
         )
         .map(Arc::new)
         .map_err(Arc::new);
-        // a failed apply leaves the wipe pending, so this formation predates the
-        // environment now selected and must not open against its relay and issuers
+        // A failed reset or owner check leaves FI state intact. Do not open
+        // it against a possibly different environment's relays and issuers.
         let fi_client = if fi_reset_failed {
             Err(Arc::new(fi_client::FiError::Storage(
-                "the scheduled wallet-service wipe has not run yet".to_owned(),
+                "wallet-service environment ownership or scheduled reset could not be verified"
+                    .to_owned(),
             )))
         } else {
             open_fi_client(&runtime, federations.clone(), fi_manifold_environment)

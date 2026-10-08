@@ -225,6 +225,10 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const canResetFi = isDev() || isExperimental()
     const [fiManifoldEnvironment, setFiManifoldEnvironment] =
         useState<FiManifoldEnvironment | null>(null)
+    const canWipeFi =
+        canResetFi &&
+        (fiManifoldEnvironment === 'Development' ||
+            fiManifoldEnvironment === 'Staging')
 
     // This is a partial refactor of state management from context to redux
     const reduxDispatch = useAppDispatch()
@@ -522,7 +526,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         if (environment === fiManifoldEnvironment) return
         Alert.alert(
             `Use the ${environment.toLowerCase()} Manifold environment?`,
-            'This also wipes all wallet-service test state, because a wallet service formed against the other environment would stay in the way. Restart immediately afterwards. Any federation you already joined stays joined.',
+            'This wipes this app’s wallet-service test state on the next launch. Switching to Production cannot be reversed without reinstalling. Restart immediately afterwards. Any federation you already joined stays joined.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -739,7 +743,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     containerStyle={style.buttonContainer}
                     onPress={handleAbandonFormation}
                 />
-                {canResetFi && (
+                {canWipeFi && (
                     <Button
                         title="Reset wallet service"
                         containerStyle={style.buttonContainer}
@@ -751,21 +755,24 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         <Text small style={style.switchLabel}>
                             {`Manifold environment: ${fiManifoldEnvironment.toLowerCase()}. This picks the Nostr relay the wallet service flow discovers Fleet Managers on, whose trust badges it accepts, and the Bitcoin network it forms on. Takes effect on the next restart.`}
                         </Text>
-                        {MANIFOLD_ENVIRONMENTS.map(environment => (
-                            <Button
-                                key={environment}
-                                day
-                                title={
-                                    environment === fiManifoldEnvironment
-                                        ? `✓ ${environment}`
-                                        : environment
-                                }
-                                containerStyle={style.buttonContainer}
-                                onPress={() =>
-                                    handleSelectManifoldEnvironment(environment)
-                                }
-                            />
-                        ))}
+                        {fiManifoldEnvironment !== 'Production' &&
+                            MANIFOLD_ENVIRONMENTS.map(environment => (
+                                <Button
+                                    key={environment}
+                                    day
+                                    title={
+                                        environment === fiManifoldEnvironment
+                                            ? `✓ ${environment}`
+                                            : environment
+                                    }
+                                    containerStyle={style.buttonContainer}
+                                    onPress={() =>
+                                        handleSelectManifoldEnvironment(
+                                            environment,
+                                        )
+                                    }
+                                />
+                            ))}
                     </>
                 )}
                 <View style={style.switchWrapper}>
