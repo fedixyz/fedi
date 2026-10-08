@@ -4,6 +4,21 @@ import {
     allowPasteIfPrompted,
 } from '../fixtures/setupOnboardedLocalFed'
 
+// The bridge's built-in schedule (FediFeeSchedule::default in
+// crates/runtime/src/storage/state.rs). The fetched schedules are keyed by
+// mainnet and signet, so a regtest join stores this one.
+export const DEFAULT_FEDI_FEE_PPM = {
+    ecash: 2100,
+    lightning: 2100,
+    onchain: 0,
+} as const
+
+// The bridge rounds the msat fee up, the UI rounds each row down to sats.
+export function fediFeeSats(sats: number, ppm: number): number {
+    const feeMsats = Math.ceil((sats * ppm) / 1000)
+    return Math.floor(feeMsats / 1000)
+}
+
 // Tapping WalletTabButton while already on the wallet tab opens the wallet
 // switcher overlay instead of navigating, so only tap it when the wallet
 // action buttons aren't already on screen. Clear the backup reminder first: it
@@ -192,6 +207,7 @@ export function isBitcoinAddress(value: string): boolean {
 export async function payLightningInvoiceByDeepLink(
     t: AppiumTestBase,
     invoice: string,
+    sats: number,
 ): Promise<void> {
     await goToWallet(t)
     await t.openDeepLink(`lightning:${invoice}`)
@@ -203,6 +219,12 @@ export async function payLightningInvoiceByDeepLink(
     )
     await t.clickOnText('Continue', 0, true)
     await t.waitForElementDisplayed('SendConfirmButton', 30000)
+    // The dev fed gateway routes for free and its base fees are disabled.
+    await assertSendFeeBreakdown(t, {
+        'Fedi fee': fediFeeSats(sats, DEFAULT_FEDI_FEE_PPM.lightning),
+        'Federation fee': 0,
+        'Lightning Network': 0,
+    })
     await t.clickElementByKey('SendConfirmButton')
 }
 
@@ -217,7 +239,10 @@ export async function sendEcash(
     await enterAmount(t, sats)
     await t.clickOnText('Next', 0, true)
     await t.waitForElementDisplayed('SendConfirmButton', 30000)
-    await assertEcashFeeDetailsVisible(t)
+    await assertSendFeeBreakdown(t, {
+        'Fedi fee': fediFeeSats(sats, DEFAULT_FEDI_FEE_PPM.ecash),
+        'Federation fee': 0,
+    })
     await t.clickElementByKey('SendConfirmButton')
     // Offline-send warning is a native Alert.alert dialog.
     await t.acceptAlert('Continue')
@@ -228,21 +253,75 @@ export async function sendEcash(
     return ecash
 }
 
-export async function assertEcashFeeDetailsVisible(
+export async function assertSendFeeBreakdown(
     t: AppiumTestBase,
+    expected: Record<string, number>,
 ): Promise<void> {
     // The fee row is collapsed behind a "Show details" toggle.
     await t.clickOnText('Show details', 0, true)
-    if (!(await t.elementIsDisplayed('fee-info-button', 5000))) {
-        throw new Error('ecash send is missing the fee details row')
-    }
-    await t.clickElementByKey('fee-info-button')
-    for (const line of ['Fee details', 'Fedi fee', 'Federation fee']) {
-        if (!(await t.isTextPresent(line, true, 5000))) {
-            throw new Error(`ecash fee breakdown is missing "${line}"`)
-        }
-    }
+    await openFeeBreakdown(t)
+    await assertFeeBreakdown(t, expected)
     await t.clickElementByKey('fee-breakdown-close')
+}
+
+export async function openFeeBreakdown(
+    t: AppiumTestBase,
+    key = 'fee-info-button',
+): Promise<void> {
+    if (!(await t.elementIsDisplayed(key, 5000))) {
+        throw new Error('the fee details row is missing')
+    }
+    await t.clickElementByKey(key)
+    if (!(await t.isTextPresent('Fee details', true, 10000))) {
+        throw new Error('the fee breakdown did not open')
+    }
+}
+
+// Each breakdown row reads as "fiat (N SATS)" in the default fiat display and
+// "N SATS (fiat)" in sats display, so only the sats figure is kept.
+export async function readFeeBreakdown(
+    t: AppiumTestBase,
+): Promise<Record<string, number>> {
+    const rows: Record<string, number> = {}
+    for (let i = 0; i < 8; i++) {
+        const key = `fee-breakdown-item-${i}`
+        if (
+            !(await t.elementIsDisplayed(
+                `${key}-label`,
+                i === 0 ? 10000 : 1500,
+            ))
+        ) {
+            break
+        }
+        const label = (await t.getTextByKey(`${key}-label`)).trim()
+        const value = await t.getTextByKey(`${key}-value`)
+        const match = value.match(/(\d[\d,]*) SATS/)
+        if (!match) {
+            throw new Error(
+                `fee breakdown row "${label}" has no sats amount: "${value}"`,
+            )
+        }
+        rows[label] = parseInt(match[1].replace(/,/g, ''), 10)
+    }
+    if (Object.keys(rows).length === 0) {
+        throw new Error('the fee breakdown has no rows')
+    }
+    return rows
+}
+
+export async function assertFeeBreakdown(
+    t: AppiumTestBase,
+    expected: Record<string, number>,
+): Promise<void> {
+    const rows = await readFeeBreakdown(t)
+    const wrong = Object.entries(expected).filter(
+        ([label, sats]) => rows[label] !== sats,
+    )
+    if (wrong.length > 0) {
+        throw new Error(
+            `fee breakdown mismatch: expected ${JSON.stringify(expected)}, got ${JSON.stringify(rows)}`,
+        )
+    }
 }
 
 // The cancel control has no testID, and its label is unique on that screen.
@@ -356,6 +435,10 @@ export async function assertNewestTransaction(
         // Omit when the amount is not known up front, as with a stable
         // balance deposit entered in fiat at the live rate.
         sats?: number
+        // Sends record the Fedi fee inside the amount, so with it the amount
+        // is matched exactly. Omit for an on-chain send, whose amount also
+        // carries a variable miner fee.
+        feeSats?: number
     },
 ): Promise<void> {
     await goToWallet(t)
@@ -392,26 +475,54 @@ export async function assertNewestTransaction(
     }
 
     // Send entries carry their fee inside txn.amount (a 2,000 sats
-    // lightning send renders as "2,004 SATS" on the dev fed), so bound the
-    // amount instead of matching it exactly; receives are exact and pass
-    // the bound trivially. Read the amount by key: a text search for
-    // " SATS" matches the whole overlay on ios, where the accessibility
-    // tree concatenates child labels.
+    // lightning send renders as "2,004 SATS" on the dev fed). Without a
+    // known fee, bound the amount instead of matching it exactly. Read the
+    // amount by key: a text search for " SATS" matches the whole overlay on
+    // ios, where the accessibility tree concatenates child labels.
     if (expected.sats !== undefined) {
         const satsText = (
             await t.getTextByKey('HistoryDetailSecondaryAmount')
         ).trim()
         const shownSats = parseInt(satsText.replace(/[^0-9]/g, ''), 10)
-        const feeAllowance = Math.max(10, Math.ceil(expected.sats * 0.01))
-        if (
-            Number.isNaN(shownSats) ||
-            shownSats < expected.sats ||
-            shownSats > expected.sats + feeAllowance
-        ) {
+        if (expected.feeSats !== undefined) {
+            const total = expected.sats + expected.feeSats
+            if (shownSats !== total) {
+                throw new Error(
+                    `newest transaction shows "${satsText}", expected ${total} sats (${expected.sats} plus a ${expected.feeSats} sat Fedi fee)`,
+                )
+            }
+        } else {
+            const feeAllowance = Math.max(10, Math.ceil(expected.sats * 0.01))
+            if (
+                Number.isNaN(shownSats) ||
+                shownSats < expected.sats ||
+                shownSats > expected.sats + feeAllowance
+            ) {
+                throw new Error(
+                    `newest transaction shows "${satsText}", expected ${expected.sats} sats plus at most ${feeAllowance} in fees`,
+                )
+            }
+        }
+    }
+
+    if (expected.feeSats !== undefined) {
+        await openFeeBreakdown(t, 'HistoryDetailFeesButton')
+        const rows = await readFeeBreakdown(t)
+        // The Fedi fee row only renders once the fee status has settled, so
+        // the always-present total is the row that must match.
+        if (rows['Total Fees'] !== expected.feeSats) {
             throw new Error(
-                `newest transaction shows "${satsText}", expected ${expected.sats} sats plus at most ${feeAllowance} in fees`,
+                `newest transaction total fees should be ${expected.feeSats} sats, got ${JSON.stringify(rows)}`,
             )
         }
+        if ('Fedi fee' in rows && rows['Fedi fee'] !== expected.feeSats) {
+            throw new Error(
+                `newest transaction Fedi fee should be ${expected.feeSats} sats, got ${JSON.stringify(rows)}`,
+            )
+        }
+        // In the history overlay the close control returns to the detail.
+        await t.clickElementByKey('fee-breakdown-close')
+        await t.waitForElementDisplayed('HistoryDetailCloseButton', 10000)
     }
 
     let statusSeen = false
@@ -478,16 +589,10 @@ export async function cancelNewestEcashSendFromHistory(
         await t.getTextByKey('HistoryDetailSecondaryAmount')
     ).trim()
     const shownSats = parseInt(satsText.replace(/[^0-9]/g, ''), 10)
-    // At-least note selection can overspend by a sat or two, so allow the
-    // same fee margin as assertNewestTransaction.
-    const feeAllowance = Math.max(10, Math.ceil(sats * 0.01))
-    if (
-        Number.isNaN(shownSats) ||
-        shownSats < sats ||
-        shownSats > sats + feeAllowance
-    ) {
+    const total = sats + fediFeeSats(sats, DEFAULT_FEDI_FEE_PPM.ecash)
+    if (shownSats !== total) {
         throw new Error(
-            `uncanceled ecash history detail shows "${satsText}", expected ${sats} sats plus at most ${feeAllowance} in fees`,
+            `uncanceled ecash history detail shows "${satsText}", expected ${total} sats including the Fedi fee`,
         )
     }
 

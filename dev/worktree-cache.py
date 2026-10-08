@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -14,6 +15,7 @@ import time
 MAX_BYTES = 128 * 1024**3
 MAX_FILES = 500_000
 MAX_SECONDS = 180
+CARGO_CONFIGS = (".cargo/config", ".cargo/config.toml")
 
 
 def run(*args, cwd, env=None, timeout=60):
@@ -21,14 +23,65 @@ def run(*args, cwd, env=None, timeout=60):
                                    stderr=subprocess.PIPE, timeout=timeout).strip()
 
 
-def matching_inputs(a, b):
-    for name in ("Cargo.lock", "flake.lock", "flake.nix", ".cargo/config", ".cargo/config.toml"):
+def matching_inputs(a, b, names=CARGO_CONFIGS + ("Cargo.lock",)):
+    for name in names:
         left, right = a / name, b / name
         if left.exists() != right.exists():
             return False
         if left.is_file() and left.read_bytes() != right.read_bytes():
             return False
     return True
+
+
+def locked_packages(root):
+    lock = root / "Cargo.lock"
+    text = lock.read_text() if lock.is_file() else ""
+    return {name.replace("_", "-") for name in re.findall(r'^name = "([^"]+)"$', text, re.M)}
+
+
+def rustc_version():
+    try:
+        return subprocess.run(["rustc", "-vV"], capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+
+
+def recorded_rustc(target):
+    try:
+        outputs = json.loads((target / ".rustc_info.json").read_text())["outputs"].values()
+    except (OSError, ValueError, KeyError, AttributeError):
+        return ""
+    return next((o.get("stdout", "") for o in outputs if o.get("stdout", "").startswith("rustc ")), "")
+
+
+def donor_score(source, wanted):
+    compiled, entries = set(), 0
+    with os.scandir(source / "deps") as scan:
+        for entry in scan:
+            entries += 1
+            if entry.name.endswith(".rlib"):
+                compiled.add(entry.name[3:].rsplit("-", 1)[0].replace("_", "-"))
+    return len(compiled & wanted), -entries
+
+
+def ranked_donors(root, candidates):
+    wanted = locked_packages(root)
+    rustc = rustc_version()
+    ranked = []
+    for donor in candidates:
+        source = donor / "target-nix" / "debug"
+        if donor == root or source.resolve() != source or not (source / ".cargo-lock").is_file():
+            continue
+        if not (source / "deps").is_dir() or not matching_inputs(root, donor, CARGO_CONFIGS):
+            continue
+        if not rustc or recorded_rustc(donor / "target-nix") != rustc:
+            continue
+        exact = matching_inputs(root, donor, ("Cargo.lock",))
+        coverage, entries = donor_score(source, wanted)
+        # a twentieth step: a donor with one extra crate must not outrank a leaner one with the same lockfile
+        ranked.append(((coverage * 20 // max(len(wanted), 1), exact, entries), exact, donor))
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [(donor, exact) for _, exact, donor in ranked]
 
 
 def files_to_clone(source, deadline):
@@ -49,7 +102,7 @@ def files_to_clone(source, deadline):
                 files.append(path.relative_to(source))
                 if total > MAX_BYTES or len(files) > MAX_FILES or time.monotonic() > deadline:
                     raise ValueError("donor exceeds the preparation budget")
-    return files
+    return files, total
 
 
 def clone_files(source, destination, files, deadline):
@@ -93,20 +146,18 @@ def prepare(root):
             if partial.is_dir() and not partial.is_symlink():
                 shutil.rmtree(partial)
         if (target / "debug").exists():
+            print(f"worktree cache: {target / 'debug'} already exists, left as is", file=sys.stderr)
             return
-        deadline = time.monotonic() + MAX_SECONDS
-        for donor in candidates:
+        started = time.monotonic()
+        deadline = started + MAX_SECONDS
+        for donor, exact in ranked_donors(root, candidates):
             if time.monotonic() > deadline:
                 break
             source = donor / "target-nix" / "debug"
-            if donor == root or source.resolve() != source or not (source / ".cargo-lock").is_file():
-                continue
-            if not matching_inputs(root, donor):
-                continue
             try:
                 with (source / ".cargo-lock").open("r") as source_lock:
                     fcntl.flock(source_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    files = files_to_clone(source, deadline)
+                    files, total = files_to_clone(source, deadline)
                     if not files:
                         continue
                     with tempfile.TemporaryDirectory(prefix=".worktree-cache-", dir=target) as temporary:
@@ -130,7 +181,9 @@ def prepare(root):
                         # Local sources may differ even when their mtimes match.
                         run(*command, cwd=root, env=env, timeout=max(1, deadline - time.monotonic()))
                         publish(staged_debug, target / "debug")
-                print(f"worktree cache: reused host dependencies from {donor}", file=sys.stderr)
+                note = "" if exact else ", different Cargo.lock so cargo rebuilds what changed"
+                print(f"worktree cache: reused host dependencies from {donor}: {len(files)} files, "
+                      f"{total / 1024**3:.1f} GiB shared, {time.monotonic() - started:.0f} s{note}", file=sys.stderr)
                 return
             except BlockingIOError:
                 continue

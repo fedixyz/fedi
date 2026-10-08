@@ -10,6 +10,7 @@ import {
     useFederationStatus,
     useGuardianStatus,
 } from '@fedi/common/hooks/federation'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     useWalletServiceFederationId,
     useWalletServiceRecoveryStage,
@@ -25,11 +26,17 @@ import {
     selectIsWalletServiceLightningRunning,
     selectWalletServiceGuardianCount,
     selectLoadedFederation,
+    refreshGuardianStatuses as refreshGuardianStatusesThunk,
 } from '@fedi/common/redux'
+import { readGuardianStatus } from '@fedi/common/utils/federationHealth'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
 import { WalletServiceDashboardHeader } from '../components/feature/walletservice/WalletServiceDashboardHeader'
+import {
+    GuardiansOfflineBanner,
+    WalletServiceGuardiansSheet,
+} from '../components/feature/walletservice/WalletServiceGuardiansSheet'
 import { WalletServiceInviteSheet } from '../components/feature/walletservice/WalletServiceInviteSheet'
 import { WalletServiceJoinFailed } from '../components/feature/walletservice/WalletServiceJoinFailed'
 import {
@@ -43,7 +50,7 @@ import { SafeScrollArea } from '../components/ui/SafeArea'
 import { Skeleton } from '../components/ui/Skeleton'
 import SvgImage from '../components/ui/SvgImage'
 import { SERVICE_CARD_BG, SERVICE_GREEN } from '../constants/walletServiceTheme'
-import { useAppSelector } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -69,6 +76,8 @@ const TOUR_DELAY_MS = 620
 const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
+    const fedimint = useFedimint()
+    const dispatch = useAppDispatch()
     const formationName = useAppSelector(selectFiFormationName)
     const inviteCode = useAppSelector(selectFiInviteCode)
     const isUnsynced = useAppSelector(selectFiIsUnsynced)
@@ -101,6 +110,7 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     )
     const [isBalanceRevealed, setIsBalanceRevealed] = useState(false)
     const [isInviteShown, setIsInviteShown] = useState(false)
+    const [isGuardiansShown, setIsGuardiansShown] = useState(false)
 
     const federation = useAppSelector(s =>
         federationId ? selectLoadedFederation(s, federationId) : undefined,
@@ -120,10 +130,17 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
         true,
     )
 
+    const refreshAndShowGuardians = () => {
+        if (federation)
+            dispatch(refreshGuardianStatusesThunk({ fedimint, federation }))
+        setIsGuardiansShown(true)
+    }
+
     const onlineGuardians = guardianStatuses
-        ? guardianStatuses.filter(g => 'online' in g).length
+        ? guardianStatuses.filter(g => readGuardianStatus(g).isResponding)
+              .length
         : null
-    const { statusWord, statusIconColor } = useFederationStatus({
+    const { status: federationStatus, statusIconColor } = useFederationStatus({
         federationId: federationId ?? '',
         t,
         statusIconMap: {
@@ -276,30 +293,40 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                                     )}
                                 </Text>
                             ) : (
-                                <Row align="center" gap={6}>
-                                    <Row
-                                        testID="wallet-service-status-dot"
-                                        style={[
-                                            style.liveDot,
-                                            {
-                                                backgroundColor:
-                                                    statusIconColor,
-                                            },
-                                        ]}
-                                    />
-                                    <Text
-                                        style={style.status}
-                                        numberOfLines={1}>
-                                        {t(
-                                            'feature.wallet-service.dashboard-guardian-reachability',
-                                            {
-                                                status: statusWord,
-                                                online: onlineGuardians,
-                                                total: totalGuardians,
-                                            },
-                                        )}
-                                    </Text>
-                                </Row>
+                                <Pressable
+                                    testID="wallet-service-guardians"
+                                    containerStyle={style.guardiansRow}
+                                    hitSlop={10}
+                                    onPress={refreshAndShowGuardians}>
+                                    <Row align="center" gap={6}>
+                                        <Row
+                                            testID="wallet-service-status-dot"
+                                            style={[
+                                                style.liveDot,
+                                                {
+                                                    backgroundColor:
+                                                        statusIconColor,
+                                                },
+                                            ]}
+                                        />
+                                        <Text
+                                            style={style.status}
+                                            numberOfLines={1}>
+                                            {t(
+                                                'feature.wallet-service.guardians-count',
+                                                {
+                                                    online: onlineGuardians,
+                                                    total: totalGuardians,
+                                                },
+                                            )}
+                                        </Text>
+                                        <SvgImage
+                                            name="ChevronRightSmall"
+                                            size={12}
+                                            color={theme.colors.darkGrey}
+                                        />
+                                    </Row>
+                                </Pressable>
                             )}
                             {isAttachingLightning && (
                                 <Pressable
@@ -455,6 +482,13 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                             containerStyle={style.withdrawButton}
                         />
                     </View>
+                    {guardianStatuses && federationStatus === 'offline' && (
+                        <View style={style.offlineBanner}>
+                            <GuardiansOfflineBanner
+                                total={guardianStatuses.length}
+                            />
+                        </View>
+                    )}
                 </Column>
             </SafeScrollArea>
 
@@ -467,6 +501,16 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                 onLastStep={completeTour}
                 onDone={handleTourDone}
             />
+
+            {guardianStatuses && (
+                <WalletServiceGuardiansSheet
+                    show={isGuardiansShown}
+                    statuses={guardianStatuses}
+                    federationStatus={federationStatus}
+                    statusColor={statusIconColor}
+                    onDismiss={() => setIsGuardiansShown(false)}
+                />
+            )}
 
             {inviteCode && (
                 <WalletServiceInviteSheet
@@ -500,6 +544,11 @@ const styles = (theme: Theme) =>
             color: theme.colors.orange,
             fontSize: fediTheme.fontSizes.caption,
             lineHeight: 21,
+        },
+        guardiansRow: {
+            alignSelf: 'flex-start',
+            paddingHorizontal: 0,
+            paddingVertical: 0,
         },
         hero: {
             paddingBottom: 18,
@@ -583,6 +632,9 @@ const styles = (theme: Theme) =>
         withdrawButton: {
             marginTop: 14,
             width: '100%',
+        },
+        offlineBanner: {
+            marginTop: 14,
         },
     })
 

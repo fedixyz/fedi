@@ -8,6 +8,7 @@ import { Row } from '../../ui/Flex'
 
 export type FeeBreakdownItemProps = DetailItem & {
     noBorder?: boolean
+    testID?: string
 }
 
 export const FeeBreakdownItem: React.FC<FeeBreakdownItemProps> = props => {
@@ -22,10 +23,19 @@ export const FeeBreakdownItem: React.FC<FeeBreakdownItemProps> = props => {
 
     return (
         <Row align="center" justify="between" style={containerStyle}>
-            <Text caption bold style={style.labelText} numberOfLines={2}>
+            <Text
+                caption
+                bold
+                style={style.labelText}
+                numberOfLines={2}
+                testID={props.testID && `${props.testID}-label`}>
                 {props.label}
             </Text>
-            <Text caption style={style.valueText} numberOfLines={2}>
+            <Text
+                caption
+                style={style.valueText}
+                numberOfLines={2}
+                testID={props.testID && `${props.testID}-value`}>
                 {props.value}
             </Text>
         </Row>

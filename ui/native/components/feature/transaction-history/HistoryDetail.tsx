@@ -307,6 +307,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                     <HistoryDetailItem
                         label={t('words.fees')}
                         onPress={() => onPressFees()}
+                        testID="HistoryDetailFeesButton"
                         value={
                             <View style={style.inlineFee}>
                                 <Text caption>{`${fees}`}</Text>

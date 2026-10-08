@@ -152,35 +152,35 @@ matrix-sdk-ui = { git = "https://github.com/fedibtc/matrix-rust-sdk", tag = "fed
 
 fedimint_threshold_crypto = { version = "0.2.1", package = "fedimint-threshold-crypto" }
 
-fedimintd = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-cli = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-build = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-server = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-server-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-client-module = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-tbs = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-eventlog = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-mintv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-walletv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-lnv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-aead = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-rocksdb = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-bip39 = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-logging = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-portalloc = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-cursed-redb = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-devimint = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-ln-gateway = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
+fedimintd = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-cli = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-build = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-server = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-server-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-client-module = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-tbs = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-eventlog = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-mintv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-walletv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-lnv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-aead = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-rocksdb = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-bip39 = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-logging = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-portalloc = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-cursed-redb = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+devimint = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+ln-gateway = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
 
 
 # Uncomment these to use local fedimint v2
@@ -255,20 +255,20 @@ debug = false
 [patch.crates-io]
 # https://github.com/mozilla/uniffi-rs/issues/1938
 uniffi = { git = "https://github.com/mozilla/uniffi-rs", rev = "f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8" }
-# Manifold accepts Fedi's source-neutral 0.11 prerelease API range. Route every
+# Manifold accepts Fedi's source-neutral 0.12 API range. Route every
 # Fedimint crate it consumes directly to the same Fedi release as this workspace
 # so native and WASM builds share one compatible dependency graph.
-fedimint-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-lnv2-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-logging = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-tpe = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
-fedimint-walletv2-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.11.2-fedi5" }
+fedimint-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-connectors = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-lnv2-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-logging = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-tpe = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-walletv2-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
 iroh = { git = "https://github.com/fedibtc/iroh", rev = "7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad" }
 iroh-base = { git = "https://github.com/fedibtc/iroh", rev = "7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad" }
 iroh-relay = { git = "https://github.com/fedibtc/iroh", rev = "7e9cab7fd8c46a4fcc09a9a5fd59a716884197ad" }

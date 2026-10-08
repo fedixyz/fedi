@@ -60,6 +60,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
                     <FeeBreakdownItem
                         key={idx}
                         {...item}
+                        testID={`fee-breakdown-item-${idx}`}
                         // Hide the border on the last item, if we're not
                         // rendering the notes field as the last item.
                         noBorder={idx === feeItems.length - 1}

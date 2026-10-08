@@ -4,9 +4,9 @@ use std::time::SystemTime;
 use fedimint_core::Amount;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::{
-    ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion, ModuleConsensusVersion, api_endpoint,
+    ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion, ModuleConsensusVersion,
+    admin_api_endpoint, public_api_endpoint,
 };
-use fedimint_core::net::auth::check_auth;
 use futures::{StreamExt, stream};
 use stability_pool_common::endpoint_constants::{
     ACTIVATE_CONSENSUS_VERSION_VOTING_ENDPOINT, MODULE_CONSENSUS_VERSION_ENDPOINT,
@@ -26,7 +26,7 @@ use crate::db::{
 
 pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
     vec![
-        api_endpoint! {
+        public_api_endpoint! {
             "account_history",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: AccountHistoryRequest| -> Vec<AccountHistoryItem> {
@@ -36,7 +36,7 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
                 Ok(get_account_history_items(&mut context.db().begin_transaction_nc().await, request.account_id, request.range.start..request.range.end).await)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             MODULE_CONSENSUS_VERSION_ENDPOINT,
             ApiVersion::new(0, 1),
             async |module: &StabilityPool, context, _request: ()| -> ModuleConsensusVersion {
@@ -45,18 +45,17 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
                 Ok(module.consensus_module_consensus_version(&mut dbtx).await)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             SUPPORTED_MODULE_CONSENSUS_VERSION_ENDPOINT,
             ApiVersion::new(0, 1),
             async |_module: &StabilityPool, _context, _request: ()| -> ModuleConsensusVersion {
                 Ok(CONSENSUS_VERSION)
             }
         },
-        api_endpoint! {
+        admin_api_endpoint! {
             ACTIVATE_CONSENSUS_VERSION_VOTING_ENDPOINT,
             ApiVersion::new(0, 1),
             async |_module: &StabilityPool, context, _request: ()| -> () {
-                check_auth(context)?;
                 let db = context.db();
                 let mut dbtx = db.begin_transaction().await;
                 dbtx.to_ref()
@@ -66,35 +65,35 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
                 Ok(())
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "sync",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: AccountId| -> SyncResponse {
                 sync(&mut context.db().begin_transaction_nc().await, request).await
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "active_deposits",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: AccountId| -> ActiveDeposits {
                 active_deposits(&mut context.db().begin_transaction_nc().await, request).await
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "unlock_request_status",
             ApiVersion::new(0, 0),
             async |module: &StabilityPool, context, request: AccountId| -> UnlockRequestStatus {
                 Ok(unlock_request_status(context, request, module).await?)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "liquidity_stats",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, _request: ()| -> LiquidityStats {
                 Ok(liquidity_stats(&mut context.db().begin_transaction_nc().await).await?)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "average_fee_rate",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: u64| -> FeeRate {

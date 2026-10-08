@@ -2341,17 +2341,20 @@ async fn test_on_chain_with_fedi_fees_with_restart(
 
 async fn test_ecash_cancel(_dev_fed: DevFed) -> anyhow::Result<()> {
     let td = TestDevice::new().await?;
-    let federation = td.join_default_fed().await?;
+    let (bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+    let send_fee_ppm = 21_000;
+    setMintModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), send_fee_ppm, 0).await?;
 
     // receive ecash
-    let ecash_receive_amount = fedimint_core::Amount::from_msats(100);
+    let ecash_receive_amount = fedimint_core::Amount::from_msats(10_000);
     let ecash = cli_generate_ecash(ecash_receive_amount).await?;
     let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
     receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
     wait_for_ecash_reissue(federation.as_ref()).await?;
 
     // check balance
-    balance_after_receiving_ecash(federation.as_ref(), ecash_receive_amount).await;
+    let balance_before_send =
+        balance_after_receiving_ecash(federation.as_ref(), ecash_receive_amount).await;
 
     // spend half of received ecash
     let send_ecash = generateEcash(
@@ -2363,7 +2366,7 @@ async fn test_ecash_cancel(_dev_fed: DevFed) -> anyhow::Result<()> {
     .await?
     .ecash;
     let send_ecash_amount = amount_from_ecash(send_ecash.clone()).await?;
-    let balance_after_send = federation.get_balance().await;
+    let send_fee = Amount::from_msats((send_ecash_amount.msats * send_fee_ppm).div_ceil(MILLION));
 
     let oob_send_state = |entry: &_| match entry {
         Ok(RpcTransactionListEntry {
@@ -2407,8 +2410,11 @@ async fn test_ecash_cancel(_dev_fed: DevFed) -> anyhow::Result<()> {
         .parse()?;
     wait_for_operation_settlement(federation.as_ref(), cancel_operation_id).await;
     // Cancel reclaims the ecash notes. The original send fee stays charged.
+    // Derive the expectation from the configured fee, not a balance read that
+    // can race the pending-to-accrued fee transition. The fee exceeds the
+    // mintv2 balance tolerance, so a refunded send fee still fails this check.
     assert_balance_close_enough(
-        balance_after_send + send_ecash_amount,
+        balance_before_send - send_fee,
         federation.get_balance().await,
     );
     let (send_state, _) = listTransactions(federation.clone(), None, None)

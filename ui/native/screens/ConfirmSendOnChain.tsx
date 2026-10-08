@@ -103,6 +103,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
                     </View>
                     <Pressable
                         style={[style.detailItem, style.bottomBorder]}
+                        testID="fee-info-button"
                         onPress={() => setShowFeeBreakdown(true)}>
                         <Text
                             caption

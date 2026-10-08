@@ -299,7 +299,7 @@ pub async fn use_lnd_gateway(federation: &FederationV2) -> anyhow::Result<()> {
         gateways = federation.list_gateways().await?;
     }
     for gateway in gateways {
-        if gateway.node_pub_key.0 == lnd_node_pubkey {
+        if gateway.node_pub_key.0 == lnd_node_pubkey && !gateway.api.starts_with("iroh:") {
             federation.set_gateway_override(Some(gateway.id)).await?;
             return Ok(());
         }

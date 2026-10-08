@@ -18,6 +18,7 @@ import {
 
 import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -41,6 +42,7 @@ import {
     setOnchainDepositsEnabled,
     setStableBalanceEnabled,
     selectPaymentFederation,
+    selectLoadedFederation,
     selectSimulateRecoveryByFederation,
     setSimulateRecovery,
     clearSessionCount,
@@ -92,6 +94,7 @@ import {
     stopLogSpikeSimulator,
 } from '../utils/logSpikeSimulator'
 import GuardianHealthSimulator from './developer/GuardianHealthSimulator'
+import WalletServiceGuardianStates from './developer/WalletServiceGuardianStates'
 
 const log = makeLog('DeveloperSettings')
 
@@ -160,6 +163,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         GuardianStatus[]
     >([])
     const paymentFederation = useAppSelector(selectPaymentFederation)
+    const walletServiceFederationId = useWalletServiceFederationId()
+    const walletServiceFederation = useAppSelector(s =>
+        walletServiceFederationId
+            ? selectLoadedFederation(s, walletServiceFederationId)
+            : undefined,
+    )
     const selectedFiatCurrency = useAppSelector(s =>
         selectCurrency(s, paymentFederation?.id),
     )
@@ -1380,6 +1389,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
 
                 {paymentFederation && (
                     <GuardianHealthSimulator federation={paymentFederation} />
+                )}
+
+                {walletServiceFederation && (
+                    <WalletServiceGuardianStates
+                        federation={walletServiceFederation}
+                    />
                 )}
 
                 <SettingsSection title="Guardian Status">

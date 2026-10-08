@@ -273,7 +273,7 @@ export type RootStackParamList = {
         | undefined
     Transactions: { federationId: Federation['id'] }
     UploadAvatarImage: undefined
-    CreateWalletService: undefined
+    CreateWalletService: { enableCreationOverride?: 'true' } | undefined
     ConfirmWalletService: undefined
     WalletServiceProgress: undefined
     WalletServiceReplaceReview: undefined

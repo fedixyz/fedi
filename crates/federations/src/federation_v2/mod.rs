@@ -519,9 +519,7 @@ impl FederationV2 {
         let mut client_builder = fedimint_client::Client::builder().await?;
         client_builder.with_meta_service(MetaService::new(meta));
         client_builder.with_module_inits(Self::module_inits());
-        let client_builder = client_builder
-            .with_iroh_enable_dht(false)
-            .with_iroh_enable_next(false);
+        let client_builder = client_builder.with_iroh_enable_dht(false);
         Ok(client_builder)
     }
 

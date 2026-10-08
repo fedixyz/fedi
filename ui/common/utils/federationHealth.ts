@@ -15,6 +15,14 @@ export type FederationHealth = {
     partialSince?: number
 }
 
+export const guardianQuorum = (total: number) =>
+    total - Math.floor((total - 1) / 3)
+
+export const readGuardianStatus = (status: GuardianStatus) => {
+    const { guardian, fman_name } = Object.values(status)[0]
+    return { guardian, fman_name, isResponding: 'online' in status }
+}
+
 export function observeFederationHealth(
     guardians: GuardianStatus[],
     checkedAt: number,
@@ -28,14 +36,16 @@ export function observeFederationHealth(
         guardians.length === previous.guardians.length &&
         guardians.every(
             (guardian, index) =>
-                Object.values(guardian)[0].guardian ===
-                Object.values(previous.guardians[index])[0].guardian,
+                readGuardianStatus(guardian).guardian ===
+                readGuardianStatus(previous.guardians[index]).guardian,
         )
     const health: FederationHealth = { guardians, checkedAt }
     if (guardians.length === 0) return { health, status: 'unknown' }
 
-    const online = guardians.filter(g => 'online' in g).length
-    const quorum = guardians.length - Math.floor((guardians.length - 1) / 3)
+    const online = guardians.filter(
+        g => readGuardianStatus(g).isResponding,
+    ).length
+    const quorum = guardianQuorum(guardians.length)
     if (online === guardians.length) {
         return { health, status: 'online' }
     }

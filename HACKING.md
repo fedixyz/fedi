@@ -62,9 +62,12 @@ test "$(git config --local --get commit.template || true)" != misc/git-hooks/com
 | `nix develop .#xcode` | Anything touching Xcode: iOS bridge, CocoaPods, TestFlight |
 | `nix develop .#lint` | The lint tools alone (`semgrep`, `treefmt`); what CI's lint job uses |
 | `nix develop .#vercel` | Deploying the PWA |
+| `nix develop .#worktree` | The default shell, plus seeding of a linked worktree's `target-nix` from another checkout's build |
 
 The `xcode` shell is impure: it symlinks your host's `/Applications/Xcode.app`. Run
 `just install-xcode` if you need one.
+
+On macOS, entering `nix develop .#worktree` in a linked worktree seeds its `target-nix/debug` from the most complete compatible build on the machine with APFS clones, so the first build compiles only the workspace crates. The default shell seeds nothing. [optimize-worktrees](.agents/skills/optimize-worktrees/SKILL.md) lists the command shapes that keep that reuse.
 
 ### First build
 
@@ -337,9 +340,9 @@ with `--with-devfed`. `just clear-remote-bridge` wipes its state.
 
 ### Fedimint is a fork
 
-The `fedimint-pkgs` flake input currently follows upstream `fedimint/fedimint` at tag `v0.11.2`,
+The `fedimint-pkgs` flake input currently follows the Fedi fork at tag `v0.12.0-fedi11`,
 while the workspace dependencies and Cargo patches route Fedimint crates to the Fedi fork tag
-`v0.11.2-fedi5`. Nix separately materializes the pinned Manifold and PeerBadge SDK inputs into
+`v0.12.0-fedi11`. Nix separately materializes the pinned Manifold and PeerBadge SDK inputs into
 `.nix-deps`. `matrix-rust-sdk`, `uniffi`, and `iroh` are likewise pinned to Fedi forks, so upstream
 documentation may not match the behavior you observe.
 

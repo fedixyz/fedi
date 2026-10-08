@@ -1,4 +1,4 @@
-"""Run with nix develop .#worktree --command python3 dev/tests/test-worktree-cache.py."""
+"""Run with nix develop --command python3 dev/tests/test-worktree-cache.py."""
 import fcntl
 import hashlib
 import importlib.util
@@ -32,9 +32,9 @@ def environment(root):
                          "CARGO_BUILD_TARGET_DIR": str(root / "target-nix")}
 
 
-def build(root, env=None):
-    output = command(root, "cargo", "build", "--locked", "--offline", "--message-format=json",
-                     env=env or environment(root))
+def build(root, env=None, locked=True):
+    output = command(root, "cargo", "build", *(["--locked"] if locked else []), "--offline",
+                     "--message-format=json", env=env or environment(root))
     return [json.loads(line) for line in output.splitlines()
             if json.loads(line).get("reason") == "compiler-artifact"]
 
@@ -189,6 +189,43 @@ external = { path = "../external" }
         command(b, "cargo", "clean", env=environment(b))
         assert original.exists() and (c / "target-nix/debug").exists()
         print("PASS: symlink refusal, atomic no-overwrite, existing target untouched, compatibility, private clean")
+
+        d = base / "d"
+        command(a, "git", "worktree", "add", "--detach", str(d), "HEAD")
+        write(d / "Cargo.lock", (a / "Cargo.lock").read_text() + "\n# different lockfile\n")
+        assert not cache.matching_inputs(a, d)
+        cache.prepare(d)
+        assert next((d / "target-nix/debug/deps").glob("libitoa-*.rlib"), None) is not None
+        artifacts = build(d, locked=False)
+        assert next(item for item in artifacts if item["target"]["name"] == "itoa")["fresh"]
+        assert command(d, str(d / "target-nix/debug/worktree-probe")).strip() == "A7"
+        print("PASS: a changed lockfile still receives a donor with the same toolchain")
+
+        wanted = {"itoa", "local"}
+        rank = base / "rank"
+        roots = {name: rank / name for name in ("me", "check-only", "full", "bloated", "fat")}
+        for name, root in roots.items():
+            write(root / "Cargo.lock", 'name = "itoa"\nname = "local"\n')
+            if name != "me":
+                write(root / "target-nix/debug/.cargo-lock", "")
+                (root / "target-nix/debug/deps").mkdir()
+                write(root / "target-nix/.rustc_info.json", json.dumps({"outputs": {"0": {"stdout": cache.rustc_version()}}}))
+        write(roots["check-only"] / "target-nix/debug/deps/libitoa-aaaa.rmeta", "")
+        write(roots["full"] / "target-nix/debug/deps/libitoa-aaaa.rlib", "")
+        write(roots["full"] / "target-nix/debug/deps/liblocal-aaaa.rlib", "")
+        write(roots["bloated"] / "target-nix/debug/deps/libitoa-aaaa.rlib", "")
+        write(roots["bloated"] / "target-nix/debug/deps/libitoa-bbbb.rlib", "")
+        write(roots["bloated"] / "target-nix/debug/deps/liblocal-aaaa.rlib", "")
+        write(roots["bloated"] / "Cargo.lock", 'name = "itoa"\nname = "local"\nname = "extra"\n')
+        for name in ("itoa-aaaa.rlib", "itoa-bbbb.rlib", "local-aaaa.rlib", "local-aaaa.rmeta"):
+            write(roots["fat"] / "target-nix/debug/deps" / f"lib{name}", "")
+        ordered = cache.ranked_donors(roots["me"], [roots["check-only"], roots["fat"], roots["bloated"], roots["full"], roots["me"]])
+        assert [donor.name for donor, _ in ordered] == ["full", "fat", "bloated", "check-only"], ordered
+        assert [exact for _, exact in ordered] == [True, True, False, True]
+        write(roots["full"] / "target-nix/.rustc_info.json", json.dumps({"outputs": {"0": {"stdout": "rustc 0.0.0 (other)\n"}}}))
+        write(roots["fat"] / "target-nix/.rustc_info.json", json.dumps({"outputs": {"0": {"stdout": "rustc 0.0.0 (other)\n"}}}))
+        assert [donor.name for donor, _ in cache.ranked_donors(roots["me"], list(roots.values()))] == ["bloated", "check-only"]
+        print("PASS: complete builds beat check builds, same lockfile then fewest files break ties, another rustc never donates")
 
 
 if __name__ == "__main__":

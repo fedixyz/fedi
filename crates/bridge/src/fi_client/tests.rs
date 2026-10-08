@@ -1548,6 +1548,20 @@ fn liquidity_intent_rejects_provider_allowlists() {
 }
 
 #[test]
+fn liquidity_failure_logs_preserve_known_codes_but_hide_unknown_remote_text() {
+    assert_eq!(
+        liquidity_failure_log_code(&LiquidityFailureCode::InsufficientProviderFunds),
+        "insufficient_provider_funds"
+    );
+    assert_eq!(
+        liquidity_failure_log_code(&LiquidityFailureCode::Unknown(
+            "untrusted remote detail".to_owned()
+        )),
+        "unknown"
+    );
+}
+
+#[test]
 fn liquidity_snapshot_projects_authoritative_evidence_without_private_failure_reason() {
     const PRIVATE_PROVIDER_REASON: &str = "private provider diagnostics";
     let snapshot = LiquidityOperationSnapshot {
@@ -1605,7 +1619,7 @@ fn liquidity_snapshot_projects_authoritative_evidence_without_private_failure_re
         gateway_view_verified: true,
     };
 
-    let rpc = liquidity_operation_to_rpc(snapshot);
+    let rpc = liquidity_operation_to_rpc(snapshot.clone());
     assert_eq!(rpc.details_payload_hash, "2a".repeat(32));
     assert!(rpc.gateway_view_verified);
     assert_eq!(rpc.item_statuses.len(), 2);
@@ -1626,6 +1640,38 @@ fn liquidity_snapshot_projects_authoritative_evidence_without_private_failure_re
     );
     let serialized = serde_json::to_string(&rpc).expect("RPC projection serializes");
     assert!(!serialized.contains(PRIVATE_PROVIDER_REASON));
+
+    // The failure vocabulary is open: a future provider must not hide an
+    // operation or its siblings in status/current/history projections.
+    for code in ["future_failure_code", "gateway_attribution_abandoned"] {
+        let mut stored = serde_json::to_value(&snapshot).unwrap();
+        stored["item_statuses"][1]["failure"]["code"] = serde_json::json!(code);
+        let recovered: LiquidityOperationSnapshot = serde_json::from_value(stored).unwrap();
+        let rpc = liquidity_operation_to_rpc(recovered.clone());
+        assert_eq!(rpc.item_statuses.len(), 2);
+        assert_eq!(rpc.item_statuses[1].phase, RpcFiLiquidityItemPhase::Failed);
+        assert_eq!(rpc.item_statuses[1].failure_code.as_deref(), Some(code));
+        assert_eq!(
+            rpc.item_statuses[0].phase,
+            RpcFiLiquidityItemPhase::Completed
+        );
+        assert!(rpc.item_statuses[0].completion_evidence.is_some());
+        assert!(
+            !serde_json::to_string(&rpc)
+                .unwrap()
+                .contains(PRIVATE_PROVIDER_REASON)
+        );
+        let RpcFiLiquidityOperationPageResult::Page { page } =
+            liquidity_operation_page_to_rpc(LiquidityOperationPage {
+                operations: vec![recovered],
+                next_after: Some(LiquidityOperationId("next-operation".to_owned())),
+            })
+        else {
+            panic!("a future failure code must not make history unreadable");
+        };
+        assert_eq!(page.operations, vec![rpc]);
+        assert_eq!(page.next_after.as_deref(), Some("next-operation"));
+    }
 }
 
 #[test]
