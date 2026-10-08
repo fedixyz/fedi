@@ -857,7 +857,7 @@ impl StabilityPoolClientModule {
 
         let client_ctx = self.client_ctx.clone();
         Ok(
-            self.client_ctx.outcome_or_updates(operation, operation_id, move || {
+            self.client_ctx.outcome_or_updates(&operation, operation_id, |state| matches!(state, StabilityPoolDepositOperationState::Success | StabilityPoolDepositOperationState::TxRejected(_) | StabilityPoolDepositOperationState::PrimaryOutputError(_)), move || {
                 stream! {
                     yield StabilityPoolDepositOperationState::Initiated;
 
@@ -931,9 +931,17 @@ impl StabilityPoolClientModule {
         };
 
         let client_ctx = self.client_ctx.clone();
-        Ok(self
-            .client_ctx
-            .outcome_or_updates(operation, operation_id, move || {
+        Ok(self.client_ctx.outcome_or_updates(
+            &operation,
+            operation_id,
+            |state| {
+                matches!(
+                    state,
+                    StabilityPoolTransferOperationState::Success
+                        | StabilityPoolTransferOperationState::TxRejected(_)
+                )
+            },
+            move || {
                 stream! {
                     yield StabilityPoolTransferOperationState::Initiated;
 
@@ -943,7 +951,8 @@ impl StabilityPoolClientModule {
                         Err(e) => yield StabilityPoolTransferOperationState::TxRejected(e),
                     }
                 }
-            }))
+            },
+        ))
     }
 
     pub async fn withdraw(
@@ -1022,7 +1031,7 @@ impl StabilityPoolClientModule {
 
         Ok(self
             .client_ctx
-            .outcome_or_updates(operation, operation_id, move || {
+            .outcome_or_updates(&operation, operation_id, |state| matches!(state, StabilityPoolWithdrawalOperationState::Success(_) | StabilityPoolWithdrawalOperationState::UnlockTxRejected(_) | StabilityPoolWithdrawalOperationState::UnlockProcessingError(_) | StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(_) | StabilityPoolWithdrawalOperationState::PrimaryOutputError(_)), move || {
                 stream! {
                     match next_withdrawal_state(&mut operation_stream).await {
                         StabilityPoolWithdrawalState::Created => {
@@ -1140,7 +1149,7 @@ impl StabilityPoolClientModule {
 
         let client_ctx = self.client_ctx.clone();
         Ok(
-            self.client_ctx.outcome_or_updates(operation, operation_id, move || {
+            self.client_ctx.outcome_or_updates(&operation, operation_id, |state| matches!(state, StabilityPoolWithdrawalOperationState::Success(_) | StabilityPoolWithdrawalOperationState::UnlockTxRejected(_) | StabilityPoolWithdrawalOperationState::UnlockProcessingError(_) | StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(_) | StabilityPoolWithdrawalOperationState::PrimaryOutputError(_)), move || {
                 stream! {
                     yield StabilityPoolWithdrawalOperationState::WithdrawalInitiated(amount);
 

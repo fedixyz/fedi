@@ -118,6 +118,7 @@ const makeStore = ({
 const renderScreen = (
     fedimint: ReturnType<typeof makeBridge>,
     store = makeStore(),
+    route: object = mockRoute,
 ) => {
     // amounts default to fiat, which the zero test rate collapses to one value
     // for every seat; sats keeps each advertised price distinguishable
@@ -125,7 +126,7 @@ const renderScreen = (
     return renderWithProviders(
         <CreateWalletService
             navigation={mockNavigation as any}
-            route={mockRoute as any}
+            route={route as any}
         />,
         { fedimint, store },
     )
@@ -161,6 +162,38 @@ describe('screens/CreateWalletService', () => {
         ).not.toBeOnTheScreen()
         expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
         expect(fedimint.fiClientEligiblePayers).not.toHaveBeenCalled()
+    })
+
+    it('should turn on the Manifold override and open creation from the link when creation is disabled', async () => {
+        const store = makeStore({ enabled: false })
+        const fedimint = makeBridge()
+        renderScreen(fedimint, store, {
+            params: { enableCreationOverride: 'true' },
+        })
+        await settlePreview()
+
+        expect(
+            store.getState().environment.manifoldCreationOverrideEnabled,
+        ).toBe(true)
+        expect(screen.getByTestId('guardian-count-headline')).toBeOnTheScreen()
+        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(mockNavigation.dispatch).not.toHaveBeenCalledWith(
+            resetToWallets(),
+        )
+    })
+
+    it('should open creation from the link without touching the Manifold override when the flag is enabled', async () => {
+        const store = makeStore()
+        const fedimint = makeBridge()
+        renderScreen(fedimint, store, {
+            params: { enableCreationOverride: 'true' },
+        })
+        await settlePreview()
+
+        expect(screen.getByTestId('guardian-count-headline')).toBeOnTheScreen()
+        expect(
+            store.getState().environment.manifoldCreationOverrideEnabled,
+        ).toBe(false)
     })
 
     it('should allow creation through the existing Manifold override', async () => {

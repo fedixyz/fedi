@@ -5,6 +5,7 @@ import {
     screen,
     userEvent,
     waitFor,
+    within,
 } from '@testing-library/react-native'
 import { ScrollView, StyleSheet } from 'react-native'
 
@@ -24,6 +25,7 @@ import type {
     RpcFiLiquidityOperation,
     RpcFiStatus,
 } from '@fedi/common/types/bindings'
+import { guardianQuorum } from '@fedi/common/utils/federationHealth'
 
 import i18n from '../../../localization/i18n'
 import WalletServiceDashboard from '../../../screens/WalletServiceDashboard'
@@ -68,6 +70,9 @@ jest.mock(
         },
     }),
 )
+
+/** Records every guardian status fetch the screen makes. */
+const mockGuardianStatusCalls = jest.fn()
 
 /** Records every guardian remittance balance subscribe the screen opens. */
 const mockFeeBalanceSubscribe = jest.fn()
@@ -139,6 +144,7 @@ const renderScreen = ({
     // one of the two states it can be left in
     feeBalance = 0 as number | 'pending' | 'error',
     guardianStatuses = null as GuardianStatus[] | null,
+    refreshedGuardianStatuses = null as GuardianStatus[] | null,
     hasSeenTour = true,
     // what the app-wide monitor has found; the dashboard is where a user lands
     // after walking away from an attach, so it has to report one
@@ -153,6 +159,7 @@ const renderScreen = ({
     iconUrl?: string | null
     feeBalance?: number | 'pending' | 'error'
     guardianStatuses?: GuardianStatus[] | null
+    refreshedGuardianStatuses?: GuardianStatus[] | null
     hasSeenTour?: boolean
     liquidity?: RpcFiLiquidityOperation | null
     status?: RpcFiStatus
@@ -163,7 +170,14 @@ const renderScreen = ({
         parseInviteCode: async () => ({
             federationId: WALLET_SERVICE_FEDERATION_ID,
         }),
-        getGuardianStatus: async () => guardianStatuses ?? [],
+        getGuardianStatus: async () => {
+            const statuses =
+                mockGuardianStatusCalls.mock.calls.length > 0
+                    ? (refreshedGuardianStatuses ?? guardianStatuses)
+                    : guardianStatuses
+            mockGuardianStatusCalls()
+            return statuses ?? []
+        },
         spv2GuardianRemittanceBalance: (args: {
             federationId: string
             callback: (balance: MSats) => void
@@ -361,106 +375,240 @@ describe('screens/WalletServiceDashboard', () => {
         ).toBeOnTheScreen()
     })
 
+    const guardiansCount = (online: number, total: number) =>
+        i18n.t('feature.wallet-service.guardians-count', { online, total })
+
+    const dotColor = (testID: string) =>
+        StyleSheet.flatten(screen.getByTestId(testID).props.style)
+            .backgroundColor
+
+    const offlineMessage = (total: number) =>
+        i18n.t('feature.wallet-service.federation-offline', {
+            quorum: guardianQuorum(total),
+            total,
+        })
+
+    const sustain = async (
+        store: ReturnType<typeof renderScreen>['store'],
+        statuses: GuardianStatus[],
+        seconds: number,
+    ) => {
+        const initial =
+            store.getState().federation.guardianHealth[
+                WALLET_SERVICE_FEDERATION_ID
+            ]?.checkedAt
+        if (initial === undefined) throw new Error('missing observation')
+        const fedimint = createMockFedimintBridge({
+            getGuardianStatus: async () => statuses,
+        })
+        const now = jest.spyOn(Date, 'now')
+        try {
+            for (let elapsed = 35; elapsed <= seconds; elapsed += 35) {
+                now.mockReturnValue(initial + elapsed * 1000)
+                await act(async () => {
+                    await store.dispatch(
+                        refreshGuardianStatuses({
+                            fedimint,
+                            federation: {
+                                ...mockFederation1,
+                                id: WALLET_SERVICE_FEDERATION_ID,
+                            },
+                        }),
+                    )
+                })
+            }
+        } finally {
+            now.mockRestore()
+        }
+        return initial + Math.floor(seconds / 35) * 35_000
+    }
+
     it('should show a live guardian count once the federation is joined and all guardians are online', async () => {
         renderScreen({ guardianStatuses: makeGuardianStatuses(7, 7) })
 
-        expect(
-            await screen.findByText(
-                i18n.t(
-                    'feature.wallet-service.dashboard-guardian-reachability',
-                    {
-                        status: i18n.t('words.online'),
-                        online: 7,
-                        total: 7,
-                    },
-                ),
-            ),
-        ).toBeOnTheScreen()
+        expect(await screen.findByText(guardiansCount(7, 7))).toBeOnTheScreen()
+        expect(dotColor('wallet-service-status-dot')).toBe(theme.colors.success)
     })
 
     it('should not call a federation offline after one partial guardian result', async () => {
-        renderScreen({ guardianStatuses: makeGuardianStatuses(5, 7) })
+        renderScreen({ guardianStatuses: makeGuardianStatuses(2, 7) })
+
+        expect(await screen.findByText(guardiansCount(2, 7))).toBeOnTheScreen()
+        expect(dotColor('wallet-service-status-dot')).toBe(theme.colors.grey)
+        expect(screen.queryByText(offlineMessage(7))).not.toBeOnTheScreen()
+    })
+
+    it.each([
+        [4, 210, theme.colors.red],
+        [5, 385, theme.colors.lightOrange],
+        [6, 385, theme.colors.lightOrange],
+    ] as const)(
+        'should colour the status dot after sustained %i of seven reachability',
+        async (online, seconds, color) => {
+            const statuses = makeGuardianStatuses(online, 7)
+            const { store } = renderScreen({ guardianStatuses: statuses })
+            await screen.findByText(guardiansCount(online, 7))
+
+            await sustain(store, statuses, seconds)
+
+            expect(dotColor('wallet-service-status-dot')).toBe(color)
+        },
+    )
+
+    it('should warn under the withdraw button once the federation is offline', async () => {
+        const statuses = makeGuardianStatuses(4, 7)
+        const { store } = renderScreen({ guardianStatuses: statuses })
+        await screen.findByText(guardiansCount(4, 7))
+
+        await sustain(store, statuses, 210)
+
+        expect(screen.getByText(offlineMessage(7))).toBeOnTheScreen()
+    })
+
+    it('should list guardians that are not responding first, then the rest in seat order', async () => {
+        renderScreen({
+            guardianStatuses: [
+                {
+                    online: {
+                        guardian: 'g0',
+                        fman_name: 'Alice',
+                        latency_ms: 50,
+                    },
+                },
+                {
+                    error: {
+                        guardian: 'g1',
+                        fman_name: 'Bob',
+                        error: 'refused',
+                    },
+                },
+                {
+                    online: {
+                        guardian: 'g2',
+                        fman_name: 'Carol',
+                        latency_ms: 50,
+                    },
+                },
+                {
+                    timeout: {
+                        guardian: 'g3',
+                        fman_name: 'Dave',
+                        elapsed: '10s',
+                    },
+                },
+            ],
+        })
+
+        await user.press(await screen.findByTestId('wallet-service-guardians'))
+
+        const row = (index: number) =>
+            within(screen.getByTestId(`wallet-service-guardian-${index}`))
+        const notResponding = i18n.t(
+            'feature.wallet-service.guardian-not-responding',
+        )
+        const online = i18n.t('feature.wallet-service.guardian-online')
+        expect(row(0).getByText('Bob')).toBeOnTheScreen()
+        expect(row(0).getByText(notResponding)).toBeOnTheScreen()
+        expect(row(1).getByText('Dave')).toBeOnTheScreen()
+        expect(row(1).getByText(notResponding)).toBeOnTheScreen()
+        expect(row(2).getByText('Alice')).toBeOnTheScreen()
+        expect(row(2).getByText(online)).toBeOnTheScreen()
+        expect(row(3).getByText('Carol')).toBeOnTheScreen()
+        expect(row(3).getByText(online)).toBeOnTheScreen()
+    })
+
+    it('should name a guardian by its seat while its fleet manager name is unknown', async () => {
+        renderScreen({ guardianStatuses: makeGuardianStatuses(2, 3) })
+
+        await user.press(await screen.findByTestId('wallet-service-guardians'))
 
         expect(
-            await screen.findByText(
-                i18n.t(
-                    'feature.wallet-service.dashboard-guardian-reachability',
-                    {
-                        status: i18n.t('words.unknown'),
-                        online: 5,
-                        total: 7,
-                    },
-                ),
+            within(screen.getByTestId('wallet-service-guardian-0')).getByText(
+                i18n.t('feature.wallet-service.guardian-fallback-name', {
+                    number: 3,
+                }),
+            ),
+        ).toBeOnTheScreen()
+        expect(screen.queryByText('g2')).not.toBeOnTheScreen()
+    })
+
+    it('should say the federation is online when every guardian responds', async () => {
+        renderScreen({ guardianStatuses: makeGuardianStatuses(7, 7) })
+
+        await user.press(await screen.findByTestId('wallet-service-guardians'))
+
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.federation-online'),
             ),
         ).toBeOnTheScreen()
     })
 
-    it.each([
-        [4, 210, 'offline', theme.colors.red],
-        [5, 385, 'online', theme.colors.lightOrange],
-        [6, 385, 'online', theme.colors.lightOrange],
-    ] as const)(
-        'should show the shared status after sustained %i of seven reachability',
-        async (online, seconds, word, color) => {
-            const statuses = makeGuardianStatuses(online, 7)
-            const { store } = renderScreen({ guardianStatuses: statuses })
-            await screen.findByText(
-                i18n.t(
-                    'feature.wallet-service.dashboard-guardian-reachability',
-                    {
-                        status: i18n.t('words.unknown'),
-                        online,
-                        total: 7,
-                    },
-                ),
-            )
-            const initial =
-                store.getState().federation.guardianHealth[
-                    WALLET_SERVICE_FEDERATION_ID
-                ]?.checkedAt
-            if (initial === undefined) throw new Error('missing observation')
-            const fedimint = createMockFedimintBridge({
-                getGuardianStatus: async () => statuses,
-            })
-            const now = jest.spyOn(Date, 'now')
-            try {
-                for (let elapsed = 35; elapsed <= seconds; elapsed += 35) {
-                    now.mockReturnValue(initial + elapsed * 1000)
-                    await act(async () => {
-                        await store.dispatch(
-                            refreshGuardianStatuses({
-                                fedimint,
-                                federation: {
-                                    ...mockFederation1,
-                                    id: WALLET_SERVICE_FEDERATION_ID,
-                                },
-                            }),
-                        )
-                    })
-                }
-                expect(
-                    screen.getByText(
-                        i18n.t(
-                            'feature.wallet-service.dashboard-guardian-reachability',
-                            {
-                                status: i18n.t(`words.${word}`),
-                                online,
-                                total: 7,
-                            },
-                        ),
-                    ),
-                ).toBeOnTheScreen()
-                expect(
-                    StyleSheet.flatten(
-                        screen.getByTestId('wallet-service-status-dot').props
-                            .style,
-                    ).backgroundColor,
-                ).toBe(color)
-            } finally {
-                now.mockRestore()
-            }
-        },
-    )
+    it('should say how many guardians the federation needs while some are not responding', async () => {
+        renderScreen({ guardianStatuses: makeGuardianStatuses(9, 10) })
+
+        await user.press(await screen.findByTestId('wallet-service-guardians'))
+
+        expect(
+            screen.getByText(
+                i18n.t('feature.wallet-service.federation-online-degraded', {
+                    quorum: 7,
+                    total: 10,
+                }),
+            ),
+        ).toBeOnTheScreen()
+    })
+
+    it('should put the offline warning in the sheet header once the federation is offline', async () => {
+        const statuses = makeGuardianStatuses(4, 7)
+        const { store } = renderScreen({ guardianStatuses: statuses })
+        await screen.findByText(guardiansCount(4, 7))
+        const lastCheck = await sustain(store, statuses, 210)
+
+        const now = jest.spyOn(Date, 'now').mockReturnValue(lastCheck)
+        try {
+            await user.press(screen.getByTestId('wallet-service-guardians'))
+        } finally {
+            now.mockRestore()
+        }
+
+        expect(screen.getAllByText(offlineMessage(7))).toHaveLength(2)
+        expect(dotColor('wallet-service-guardians-status-dot')).toBe(
+            theme.colors.red,
+        )
+    })
+
+    it('should check the guardians again when the list is opened', async () => {
+        renderScreen({
+            guardianStatuses: makeGuardianStatuses(0, 1),
+            refreshedGuardianStatuses: makeGuardianStatuses(1, 1),
+        })
+        const trigger = await screen.findByTestId('wallet-service-guardians')
+
+        const now = jest.spyOn(Date, 'now')
+        now.mockReturnValue(Date.now() + 31_000)
+        try {
+            await user.press(trigger)
+        } finally {
+            now.mockRestore()
+        }
+
+        expect(
+            await within(
+                screen.getByTestId('wallet-service-guardian-0'),
+            ).findByText(i18n.t('feature.wallet-service.guardian-online')),
+        ).toBeOnTheScreen()
+    })
+
+    it('should not offer the guardian list before the statuses have loaded', async () => {
+        renderScreen({ federationJoined: false })
+
+        await waitFor(() => {
+            expect(
+                screen.queryByTestId('wallet-service-guardians'),
+            ).not.toBeOnTheScreen()
+        })
+    })
 
     it('should not claim guardian liveness before the federation has joined', async () => {
         renderScreen({ federationJoined: false })

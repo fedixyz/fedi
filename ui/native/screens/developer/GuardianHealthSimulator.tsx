@@ -11,6 +11,7 @@ import type { GuardianStatus } from '@fedi/common/types/bindings'
 
 import { Column, Row } from '../../components/ui/Flex'
 import { useAppDispatch, useAppSelector } from '../../state/hooks'
+import { simulatedGuardian } from './simulatedGuardian'
 
 const GuardianHealthSimulator = ({
     federation,
@@ -27,9 +28,7 @@ const GuardianHealthSimulator = ({
     const nodes = Object.values(federation.nodes)
     const guardians: GuardianStatus[] =
         simulation?.guardians ??
-        nodes.map(node => ({
-            online: { guardian: node.url, fman_name: null, latency_ms: 0 },
-        }))
+        nodes.map(node => simulatedGuardian(node.url, true))
     const update = (next: GuardianHealthSimulation | undefined) => {
         dispatch(
             setGuardianHealthSimulation({
@@ -40,11 +39,8 @@ const GuardianHealthSimulator = ({
     }
 
     const setGuardianOnline = (index: number, online: boolean) => {
-        const guardian = nodes[index].url
         const next = [...guardians]
-        next[index] = online
-            ? { online: { guardian, fman_name: null, latency_ms: 0 } }
-            : { timeout: { guardian, fman_name: null, elapsed: 'simulated' } }
+        next[index] = simulatedGuardian(nodes[index].url, online)
         update({ guardians: next, mode: simulation?.mode ?? 'sustained' })
     }
 

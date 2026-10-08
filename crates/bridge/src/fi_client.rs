@@ -33,13 +33,13 @@ use fedi_decentralized_service_fleet_manager::{
 };
 use fedi_decentralized_service_liquidity_manager::{
     AllocationItemStatus, AllocationItemTarget, BitcoinNetwork, CompletionEvidence,
-    ItemAllocationStatus, LiquidityAmountBounds, PUBLIC_LIQUIDITY_API_ALPN, Pubkey,
-    PublicLiquidityApiClient, Sats, SourceType,
+    ItemAllocationStatus, LiquidityAmountBounds, LiquidityFailureCode, PUBLIC_LIQUIDITY_API_ALPN,
+    Pubkey, PublicLiquidityApiClient, Sats, SourceType,
 };
 #[cfg(test)]
 use fedi_decentralized_service_liquidity_manager::{
-    GatewayCompletionEvidence, GatewayId, GatewayName, ItemId, LiquidityFailure,
-    LiquidityFailureCode, Sha256Digest, Timestamp, Url, WalletOperationId,
+    GatewayCompletionEvidence, GatewayId, GatewayName, ItemId, LiquidityFailure, Sha256Digest,
+    Timestamp, Url, WalletOperationId,
 };
 use fedi_iroh_rpc::iroh::Endpoint;
 #[cfg(target_os = "ios")]
@@ -2944,6 +2944,14 @@ fn liquidity_item_to_rpc(item: AllocationItemStatus) -> RpcFiLiquidityItemStatus
     }
 }
 
+fn liquidity_failure_log_code(code: &LiquidityFailureCode) -> &str {
+    match code {
+        // Future codes are opaque remote text, not safe diagnostic fields.
+        LiquidityFailureCode::Unknown(_) => "unknown",
+        known => known.as_str(),
+    }
+}
+
 fn liquidity_operation_to_rpc(snapshot: LiquidityOperationSnapshot) -> RpcFiLiquidityOperation {
     if let Some(code) = &snapshot.rejection_code {
         tracing::warn!(request_id = %snapshot.operation_id.0, provider = %snapshot.provider_pubkey.0,
@@ -2957,7 +2965,7 @@ fn liquidity_operation_to_rpc(snapshot: LiquidityOperationSnapshot) -> RpcFiLiqu
                 | ItemAllocationStatus::Cancelled
         ) {
             tracing::warn!(request_id = %snapshot.operation_id.0, provider = %snapshot.provider_pubkey.0,
-                status = ?item.status, failure_code = ?item.failure.as_ref().map(|failure| failure.code),
+                status = ?item.status, failure_code = ?item.failure.as_ref().map(|failure| liquidity_failure_log_code(&failure.code)),
                 "FLIP liquidity provisioning needs attention");
         }
     }

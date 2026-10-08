@@ -2,7 +2,9 @@ use std::time::UNIX_EPOCH;
 
 use fedimint_core::Amount;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
-use fedimint_core::module::{ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion, api_endpoint};
+use fedimint_core::module::{
+    ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion, public_api_endpoint,
+};
 use futures::{StreamExt, stream};
 use secp256k1::PublicKey;
 use stability_pool_common_old::{AccountInfo, LiquidityStats};
@@ -16,49 +18,49 @@ use crate::db::{
 
 pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
     vec![
-        api_endpoint! {
+        public_api_endpoint! {
             "account_info",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: PublicKey| -> AccountInfo {
                 Ok(account_info(&mut context.db().begin_transaction_nc().await, request).await)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "current_cycle_index",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, _request: ()| -> u64 {
                 Ok(current_cycle_index(&mut context.db().begin_transaction_nc().await).await?)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "next_cycle_start_time",
             ApiVersion::new(0, 0),
             async |module: &StabilityPool, context, _request: ()| -> u64 {
                 Ok(next_cycle_start_time(&mut context.db().begin_transaction_nc().await, module).await?)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "cycle_start_price",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, _request: ()| -> u64 {
                 Ok(cycle_start_price(&mut context.db().begin_transaction_nc().await).await?)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "wait_cancellation_processed",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: PublicKey| -> Amount {
                 Ok(wait_cancellation_processed(context, request).await?)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "liquidity_stats",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, _request: ()| -> LiquidityStats {
                 Ok(liquidity_stats(&mut context.db().begin_transaction_nc().await).await?)
             }
         },
-        api_endpoint! {
+        public_api_endpoint! {
             "average_fee_rate",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: u64| -> u64 {

@@ -442,7 +442,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
     )
 
     const providerBanner: LightningBanner | null =
-        gatewayStatus === 'failed'
+        gatewayStatus === 'failed' && !isRequestingGateway
             ? {
                   tone: 'error',
                   message: isGatewayErrorRetryable
@@ -712,6 +712,8 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                                           : 'feature.wallet-service.lightning-attach-action',
                                   ),
                                   primary: true,
+                                  testID: 'lightning-attach-action',
+                                  loading: isRequestingGateway,
                                   // nothing may be requested against a state we
                                   // have not read back yet
                                   disabled:

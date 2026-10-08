@@ -22,15 +22,21 @@ describe('linking', () => {
             url => {
                 const path = getNavigationLink(url) ?? ''
                 expect(linking.getInternalLinkRoute(path)).toEqual({
-                    routes: [{ name: 'CreateWalletService', params: {} }],
+                    routes: [
+                        {
+                            name: 'CreateWalletService',
+                            params: { enableCreationOverride: 'true' },
+                        },
+                    ],
                 })
                 expect(linking.getInternalLinkNavigationArgs(path)).toEqual([
                     'CreateWalletService',
-                    {},
+                    { enableCreationOverride: 'true' },
                 ])
                 expect(linking.getInternalLinkResetAction(path)).toMatchObject(
                     resetToHomeWithScreen('Wallet', {
                         name: 'CreateWalletService',
+                        params: { enableCreationOverride: 'true' },
                     }),
                 )
             },

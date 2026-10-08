@@ -311,7 +311,7 @@ export const DEEP_LINKS = [
         key: 'create-manifold',
         label: 'Create on Manifold',
         description:
-            'Opens Manifold creation in the mobile app when enabled. Web opens the Wallet page.',
+            'Opens Manifold creation in the mobile app. Web opens the Wallet page.',
         screen: 'create-manifold',
         params: [],
     },

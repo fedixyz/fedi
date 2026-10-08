@@ -17,7 +17,9 @@ import {
     reverseDevfedPortsIntoDevices,
 } from './devfed'
 import {
+    DEFAULT_FEDI_FEE_PPM,
     assertBackupReminderAction,
+    assertFeeBreakdown,
     assertNewestTransaction,
     assertNewestTransactionNotesCanBeEdited,
     cancelNewestEcashSendFromHistory,
@@ -25,9 +27,11 @@ import {
     dismissSendSuccess,
     ensureSatsMode,
     enterAmount,
+    fediFeeSats,
     generateLightningInvoice,
     generateOnchainReceiveAddress,
     goToWallet,
+    openFeeBreakdown,
     payLightningInvoiceByDeepLink,
     readWalletSats,
     redeemEcash,
@@ -49,6 +53,12 @@ const ECASH_SATS = 1000
 const ECASH_CANCEL_SATS = 500
 const ONCHAIN_SEND_SATS = 1000
 const CHAT_PAYMENT_SATS = 500
+const LN_P2P_FEE_SATS = fediFeeSats(LN_P2P_SATS, DEFAULT_FEDI_FEE_PPM.lightning)
+const ECASH_FEE_SATS = fediFeeSats(ECASH_SATS, DEFAULT_FEDI_FEE_PPM.ecash)
+const CHAT_PAYMENT_FEE_SATS = fediFeeSats(
+    CHAT_PAYMENT_SATS,
+    DEFAULT_FEDI_FEE_PPM.ecash,
+)
 const DIRECT_CHAT_MESSAGE = 'Direct chat setup for payment'
 // bitcoin-address-validation accepts legacy testnet addresses, whose version
 // bytes are also valid for regtest on-chain payments in the local dev fed.
@@ -100,6 +110,7 @@ export class Payments extends AppiumTestBase {
             type: 'ecash',
             statuses: ['Complete'],
             sats: FUND_SATS,
+            feeSats: 0,
         })
         await assertNewestTransactionNotesCanBeEdited(alice, 'e2e funding note')
         console.log('[phase1] alice funded, history entry checked')
@@ -114,7 +125,7 @@ export class Payments extends AppiumTestBase {
         // Phase 3: alice -> bob over external lightning URI.
         console.log('[phase3] alice -> bob external lightning URI')
         const bobInvoice = await generateLightningInvoice(bob, LN_P2P_SATS)
-        await payLightningInvoiceByDeepLink(alice, bobInvoice)
+        await payLightningInvoiceByDeepLink(alice, bobInvoice, LN_P2P_SATS)
         await alice.waitForText('You sent', 0, true, 60000)
         await bob.waitForText('You received', 0, true, 120000)
         await dismissSendSuccess(alice)
@@ -124,12 +135,14 @@ export class Payments extends AppiumTestBase {
             type: 'Lightning',
             statuses: ['Sent'],
             sats: LN_P2P_SATS,
+            feeSats: LN_P2P_FEE_SATS,
         })
         await assertNewestTransaction(bob, {
             title: 'You received',
             type: 'Lightning',
             statuses: ['Received'],
             sats: LN_P2P_SATS,
+            feeSats: 0,
         })
         console.log(
             '[phase3] external lightning URI transfer confirmed on both devices',
@@ -155,6 +168,7 @@ export class Payments extends AppiumTestBase {
             type: 'ecash',
             statuses: ['Complete'],
             sats: ECASH_SATS,
+            feeSats: 0,
         })
         // Bob is still on the ecash QR screen from sendEcash; the header
         // close returns straight to the tabs.
@@ -164,6 +178,7 @@ export class Payments extends AppiumTestBase {
             type: 'ecash',
             statuses: ['Sent'],
             sats: ECASH_SATS,
+            feeSats: ECASH_FEE_SATS,
         })
         console.log('[phase4] ecash transfer confirmed')
 
@@ -180,6 +195,7 @@ export class Payments extends AppiumTestBase {
             type: 'ecash',
             statuses: ['Sent'],
             sats: CHAT_PAYMENT_SATS,
+            feeSats: CHAT_PAYMENT_FEE_SATS,
         })
         console.log('[phase5] chat payment confirmed')
 
@@ -210,6 +226,15 @@ export class Payments extends AppiumTestBase {
                 )
             }
         }
+        await openFeeBreakdown(alice)
+        await assertFeeBreakdown(alice, {
+            'Fedi fee': fediFeeSats(
+                ONCHAIN_SEND_SATS,
+                DEFAULT_FEDI_FEE_PPM.onchain,
+            ),
+            'Federation fee': 0,
+        })
+        await alice.clickElementByKey('fee-breakdown-close')
 
         await alice.clickElementByKey('SendConfirmButton')
         await alice.waitForText('You sent', 0, true, 120000)

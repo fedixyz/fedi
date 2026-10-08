@@ -108,6 +108,7 @@ export const screenMap = {
     'create-manifold': () => ({
         kind: 'root',
         screen: 'CreateWalletService',
+        params: { enableCreationOverride: 'true' },
     }),
     wallet: () => ({ kind: 'tab', screen: 'Wallet' }),
     // 'federations' is for backwards compatibility (can be removed at a later date)

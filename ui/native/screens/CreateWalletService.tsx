@@ -19,6 +19,7 @@ import {
     selectWalletServiceDraft,
     selectWalletServiceFlowStatus,
     selectWalletServiceSelectionPreview,
+    setManifoldCreationOverrideEnabled,
     setWalletServiceDraft,
     walletServiceFaultTolerance,
 } from '@fedi/common/redux'
@@ -103,13 +104,17 @@ const seatDisplayName = (seat: RpcFiSelectionPreviewSeat) =>
 
 const CreateWalletService: React.FC<Props> = props => {
     const { t } = useTranslation()
+    const dispatch = useAppDispatch()
     const isEnabled = useAppSelector(selectIsWalletServiceCreationEnabled)
     const flowStatus = useAppSelector(selectWalletServiceFlowStatus)
-    const { navigation } = props
+    const { navigation, route } = props
+    const enablesOverride = route.params?.enableCreationOverride === 'true'
 
     useEffect(() => {
-        if (!isEnabled) navigation.dispatch(resetToWallets())
-    }, [isEnabled, navigation])
+        if (isEnabled) return
+        if (enablesOverride) dispatch(setManifoldCreationOverrideEnabled(true))
+        else navigation.dispatch(resetToWallets())
+    }, [isEnabled, enablesOverride, dispatch, navigation])
 
     if (!isEnabled) return null
 

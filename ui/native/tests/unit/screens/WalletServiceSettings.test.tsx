@@ -14,6 +14,7 @@ import {
     selectLoadedFederation,
     setFederations,
     setFiLiquidityOperation,
+    setFiLiquidityRequesting,
     setFiStatus,
     setupStore,
 } from '@fedi/common/redux'
@@ -911,6 +912,58 @@ describe('screens/WalletServiceSettings', () => {
             (button: { text: string }) => button.text === i18n.t('words.done'),
         )
         expect(done?.disabled).toBeFalsy()
+    })
+
+    describe('after a rejected attach', () => {
+        const rejected = {
+            formationId: 'formation-1',
+            phase: 'rejected',
+            gatewayViewVerified: false,
+            rejectionCode: 'provider_unavailable',
+        } as never
+        const tryAgain = new RegExp(
+            i18n.t('feature.wallet-service.try-again-hint'),
+        )
+
+        const openWhileRequesting = async () => {
+            const store = setupStore()
+            renderScreen({ liquidity: rejected, store })
+            act(() => {
+                store.dispatch(setFiLiquidityRequesting(true))
+            })
+            await user.press(screen.getByTestId('settings-lightning-row'))
+        }
+
+        it('should invite a retry once the request has settled', async () => {
+            renderScreen({ liquidity: rejected })
+
+            await user.press(screen.getByTestId('settings-lightning-row'))
+
+            expect(screen.getByText(tryAgain)).toBeOnTheScreen()
+            expect(
+                screen.getByRole('button', { name: i18n.t('words.retry') }),
+            ).toBeEnabled()
+        })
+
+        it('should show a spinner in place of Retry while a request is running', async () => {
+            await openWhileRequesting()
+
+            expect(
+                screen.getByTestId('lightning-attach-action-busy'),
+            ).toBeOnTheScreen()
+            expect(
+                screen.queryByRole('button', { name: i18n.t('words.retry') }),
+            ).toBeNull()
+            expect(
+                screen.getByRole('button', { name: i18n.t('words.done') }),
+            ).toBeEnabled()
+        })
+
+        it('should not ask the operator to try again while a request is running', async () => {
+            await openWhileRequesting()
+
+            expect(screen.queryByText(tryAgain)).toBeNull()
+        })
     })
 
     // the header chevron and hardware back are separate paths out, so a lock on
