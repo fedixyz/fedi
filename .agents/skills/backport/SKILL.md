@@ -22,7 +22,7 @@ A patch release `26.M.P` is a set of master PRs cherry-picked onto `release/26.M
 - `git cherry-pick -x <sha>` of each master PR's squash commit, one pick per PR, in master merge order (`gh pr view N --json mergedAt,mergeCommit`). Master order keeps later picks applying on the lines earlier picks changed. A terminology or i18n PR picked after the fixes that touch its strings conflicts on every string it renamed
 - only commits already on master. A PR that is still open on master waits, listed in the PR body as unchecked
 - after each pick, compare `git show <pick> | git patch-id --stable` with the master commit. A pick that needed conflict resolution gets its adaptation named on its bullet in the PR body
-- the version bump is its own commit, last on the branch: `chore: bump version for 26.M.P`. It moves `ui/native/package.json`, `ui/native/android/app/build.gradle` and the four Info.plists under `ui/native/ios` (FediReactNative, FediReactNativeTests, FediNightly, FediNova). `FediEdge-Info.plist` stays. The `bump-version-native-ui.yml` workflow makes the same commit on a runner but skips the plists whenever agvtool is missing, so make the commit locally and check the six files
+- the version bump is its own commit, last on the branch: `chore: bump version for 26.M.P`. The version-bump skill covers the files and the commands
 
 ## Backport PR
 
