@@ -81,7 +81,7 @@ git ls-remote origin refs/tags/web/26.6.2   # expect nothing until publish
 
 `--latest=false` keeps the native release as the repository's latest. The draft is invisible outside the repo and ships nothing.
 
-**5. Link the release report from the draft.** The body is the `Built from commit:` line and a link to the release report filtered to web, as the `report-next-release` skill's `references/release-notes-copy.md` sets out. Write it to the draft:
+**5. Link the release report from the draft.** The body is the `Built from commit:` line and a link to the release report on the release notes site, filtered to web, as the `report-next-release` skill's `references/release-notes-copy.md` sets out. Write it to the draft:
 
 ```bash
 gh release edit web/26.6.2 --repo fedibtc/fedi --notes-file <file>

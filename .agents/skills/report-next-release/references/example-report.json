@@ -16,18 +16,7 @@
    "baseline": "26.6.0 tag, 6 June (merge-base of master and release/26.6)",
    "in_window": "119 PRs merged to master",
    "milestone": "26.7.0, 16 open issues",
-   "note": "release/26.6 is what is in production: master at the cut plus the 26.6.1 backport. App store approval is not visible in git, so the published GitHub release is the strongest in-repo signal.",
-   "glance": {
-    "live": "26.6.1",
-    "live_note": "out since 14 July",
-    "waiting": "15 user-facing changes",
-    "waiting_note": "waiting 51 days",
-    "next": "26.7.0",
-    "next_note": "not out yet",
-    "in_flight": "26.7.0",
-    "in_flight_note": "in app store review, 12 days",
-    "emph": "in_flight"
-   }
+   "note": "release/26.6 is what is in production: master at the cut plus the 26.6.1 backport. App store approval is not visible in git, so the published GitHub release is the strongest in-repo signal."
   },
   "web": {
    "current": "web/26.6.2, deployed 13 July",
@@ -35,17 +24,8 @@
    "baseline": "web/26.6.0, 5 June (newest web tag that is on master)",
    "in_window": "16 user-facing web PRs merged to master",
    "milestone": "web-26.7, 5 open issues",
-   "note": "web/26.6.1 and web/26.6.2 are cherry-pick lineages, each carrying one feature-flag flip. app.fedi.xyz serves /api/features to both apps, so a flag deploy is a web deploy. They are not the baseline; web/26.6.0 is.",
-   "glance": {
-    "live": "web/26.6.2",
-    "live_note": "one feature switched on, 13 July",
-    "waiting": "16 user-facing changes",
-    "waiting_note": "nothing new in 52 days",
-    "next": "web/26.7.0",
-    "next_note": "not out yet"
-   }
-  },
-  "focus": "none"
+   "note": "web/26.6.1 and web/26.6.2 are cherry-pick lineages, each carrying one feature-flag flip. app.fedi.xyz serves /api/features to both apps, so a flag deploy is a web deploy. They are not the baseline; web/26.6.0 is."
+  }
  },
  "backport": {
   "in_progress": true,
@@ -68,6 +48,23 @@
  "summary": {
   "title": "Group chats you can ask to join, emoji reactions, and a nudge to back up your wallet",
   "lede": "The web app catches up on chat: reactions, message actions and requesting to join a private group. The native app gets a backup reminder and a run of crash and layout fixes.",
+  "platforms": [
+   "ios",
+   "android",
+   "web"
+  ],
+  "quirks": [
+   "Reactions and message actions reach the web app only. The native app already has them."
+  ],
+  "release_notes": {
+   "store": "Ask to join private groups, react to messages, and get a reminder to back up your wallet, plus bug fixes.",
+   "bullets": [
+    {
+     "number": 11115,
+     "text": "chat: groups"
+    }
+   ]
+  },
   "features": [
    {
     "headline": "Request to join private and community groups",

@@ -17,12 +17,15 @@ Usage:
 Design choices that matter (learned the hard way, keep them):
   - THE TWO TABS ARE DIFFERENT ALTITUDES, enforced here rather than trusted to
     the prose. Every sha, tag, baseline, merge-base, day count and PR number
-    belongs on Full report. Summary gets the lane and one line on the patch.
+    belongs on Full report. Summary gets a scope line (which apps, anything
+    unusual about this release), the suggested store notes, and the cards.
   - DARK BY DEFAULT, with a light toggle that persists to localStorage. Do not
     hardcode a hex outside the two :root blocks, or one theme breaks.
   - Two release tracks, always. Native and web have different "already released"
     baselines, so a single current version is always wrong for one of them.
-  - MERGED IS THE LINE BETWEEN THE TWO CARD SECTIONS. "What users will get"
+    That state is Full report's. The Summary says which apps a release
+    updates and never where the release is in the pipeline.
+  - MERGED IS THE LINE BETWEEN THE TWO CARD SECTIONS. "In this release"
     holds only work on master and its cards carry no status chip, because the
     section is the status. Milestone work that has not merged renders in a
     collapsed "Not in this release yet" section with an In progress or Planned
@@ -42,6 +45,8 @@ import html
 import json
 import re
 import sys
+
+SITE = "https://release-notes.apps.fedibtc.com"
 
 # ---- chip vocab -> color class -------------------------------------------
 KIND_CLS = {"New feature": "k-feat", "Improvement": "k-imp", "Fix": "k-fix"}
@@ -72,7 +77,8 @@ WARNINGS = []
 
 
 def warn(msg):
-    WARNINGS.append(msg)
+    if msg not in WARNINGS:
+        WARNINGS.append(msg)
 
 
 def budget(text, limit, field):
@@ -137,13 +143,8 @@ def review_url(repo, rows):
 
 
 # --------------------------------------------------------------------------
-# Release tracks (native and web). Two renderers, one per altitude.
+# Release scope (Summary) and release tracks (Full report).
 # --------------------------------------------------------------------------
-# Keep chronological: a cut build is ahead of anything still queued on master.
-STOPS = (("live", "Live now"), ("in_flight", "In flight"),
-         ("waiting", "Waiting to go out"), ("next", "Next"))
-STOP_FIELDS = tuple(f for f, _ in STOPS)
-
 # Fixed slot order, so android-only and ios-only read off the same positions.
 PLATFORM_ORDER = ("ios", "android", "web")
 PLATFORM_LABEL = {"ios": "iOS", "android": "Android", "web": "Web app"}
@@ -154,7 +155,20 @@ PLATFORM_SVG = {
 }
 
 PLATFORM_JS = json.dumps({"order": list(PLATFORM_ORDER), "label": PLATFORM_LABEL})
-LANE_PLATS = {"native": "ios android", "web": "web"}
+SCOPE_WORDS = {
+    ("ios", "android", "web"): "native app and web app",
+    ("ios", "android"): "native app, iPhone and Android",
+    ("ios",): "native app, iPhone only",
+    ("android",): "native app, Android only",
+    ("web",): "web app only",
+    ("ios", "web"): "iPhone and the web app",
+    ("android", "web"): "Android and the web app",
+}
+PROGRESS_WORDS = (
+    r"\bnot out\b", r"\bbeing built\b", r"\bin (app store |store )?review\b", r"\bwould carry\b",
+    r"\bwaiting\b", r"\bpending\b", r"\bawaiting\b", r"\bsubmitted\b", r"\bin flight\b",
+    r"\bnot started\b", r"\bnot cut\b", r"\bnot yet\b",
+)
 
 LAYOUTS = (("all", "All"), ("status", "Status"), ("platform", "Platform"))
 # Every merged card has the same status, so grouping on it yields one panel.
@@ -180,73 +194,79 @@ def scan_summary_jargon(summary_html):
                  "vocabulary. Rewrite the sentence for a reader who does not know the release process.")
 
 
-def track_lanes(tracks):
-    """Summary hero. Stops only, nothing more specific: sha, baseline, lineage and
-    raw counts all belong to track_cards(). Prominence is authored, not computed:
-    nothing here can tell an anomaly from a normal month."""
-    if not tracks:
+def summary_platforms(summary):
+    """Explicit summary.platforms wins. Otherwise the union of what the merged
+    cards land on, so an iOS-only release reads iOS-only without being told."""
+    p = summary.get("platforms")
+    if p:
+        return [x for x in PLATFORM_ORDER if x in p]
+    cards = [it for key in ("features", "fixes") for it in summary.get(key) or []]
+    return [x for x in PLATFORM_ORDER if any(x in card_platforms(it) for it in cards)]
+
+
+def scope_words(plats):
+    return SCOPE_WORDS.get(tuple(plats)) or " and ".join(PLATFORM_LABEL[p] for p in plats)
+
+
+def summary_quirks(data):
+    """The patch headline is a quirk too. Its fallback sentence is generated only
+    for a report about a different release: on a report about the patch itself
+    the scope line already says what the patch is."""
+    s = data.get("summary") or {}
+    quirks = [q for q in (s.get("quirks") or []) if q]
+    bp = data.get("backport") or {}
+    if bp.get("in_progress"):
+        headline = bp.get("headline")
+        if not headline and bp.get("version") != data.get("next_release"):
+            n = len(bp.get("items", []))
+            headline = f'{bp.get("version", "A patch")} goes out first with {n} fix{"es" if n != 1 else ""}, not counted here.'
+            warn("backport has no 'headline', so the quirk line is generated. Write one sentence "
+                 "a non-technical reader gets. See SKILL.md step 8.")
+        if headline:
+            quirks.append(headline)
+    for q in quirks:
+        budget(q, 140, "summary quirk")
+        for pat in PROGRESS_WORDS:
+            m = re.search(pat, q, re.I)
+            if m:
+                warn(f"summary quirk says {m.group(0)!r} in \"{q}\". The scope line describes the "
+                     "release, not its progress. Drop the clause, or move it to the tracks block on Full report.")
+                break
+    return quirks
+
+
+def release_scope(data):
+    """Nothing here about where the release is in the pipeline. That is
+    track_cards() on Full report."""
+    s = data.get("summary") or {}
+    plats = summary_platforms(s)
+    if not plats:
+        warn("summary.platforms is empty and no merged card names a platform, so the scope line "
+             "cannot say which apps this release updates. Set summary.platforms.")
+    ver = data.get("next_release") or ""
+    row = [f'<div class="scope-row"><span class="scope-ver">{esc(ver)}</span>']
+    if plats:
+        row.append(platform_marks(plats, "pmarks scope-marks"))
+        row.append(f'<span class="scope-words">{esc(scope_words(plats))}</span>')
+    row.append('</div>')
+    quirks = "".join(f'<div class="quirk">{esc(q)}</div>' for q in summary_quirks(data))
+    return f'<div class="scope">{"".join(row)}{quirks}</div>'
+
+
+def store_notes_block(summary):
+    """The store text sits on the Summary so the people who sign it off read it
+    next to the cards it was written from."""
+    rn = summary.get("release_notes") or {}
+    store = rn.get("store")
+    if not store:
+        warn("summary.release_notes.store is missing, so the Summary carries no suggested store text. "
+             "Write it from the cards by references/release-notes-copy.md. See SKILL.md step 7.")
         return ""
-    # One expanded lane at most, named in tracks.focus. Two of them is 330px of
-    # hero restating the title, and both tracks being interesting is this repo's
-    # normal state, so a per-track flag chooses "full" nearly every month.
-    focus = tracks.get("focus")
-    if focus not in (None, "native", "web", "none"):
-        warn(f"tracks.focus is {focus!r}, not 'native', 'web' or 'none'. No lane is expanded.")
-        focus = None
-    out = ['<div class="lanes">']
-    for key, label in (("native", "Native app"), ("web", "Web app")):
-        t = tracks.get(key)
-        if not isinstance(t, dict):
-            continue
-        g = t.get("glance")
-        if not g:
-            warn(f"tracks.{key} has no 'glance' block, so the summary is falling back to the "
-                 "long fields and reads as detail. See SKILL.md step 1.")
-            g = {"live": t.get("current", ""), "waiting": t.get("in_window", ""), "next": t.get("next", "")}
-
-        emph = g.get("emph") or "waiting"
-        if emph not in STOP_FIELDS:
-            warn(f"tracks.{key}.glance.emph is {emph!r}, not one of {', '.join(STOP_FIELDS)}. "
-                 "Falling back to 'waiting'.")
-            emph = "waiting"
-        if g.get("prominence"):
-            warn(f"tracks.{key}.glance.prominence is set but no longer read. Name the one "
-                 "track worth expanding in tracks.focus instead.")
-        quiet = key != focus
-
-        cells = []
-        for field, stop_label in STOPS:
-            val = g.get(field) or ""
-            if not val:
-                continue
-            note = g.get(field + "_note") or ""
-            budget(val, 34, f"tracks.{key}.glance.{field}")
-            budget(note, 42, f"tracks.{key}.glance.{field}_note")
-            cells.append((field, stop_label, val, note))
-        if not cells:
-            continue
-
-        if quiet:
-            bits = []
-            for field, stop_label, val, note in cells:
-                strong = ' class="qe"' if field == emph else ""
-                tail = f' <span class="qn">{esc(note)}</span>' if note else ""
-                bits.append(f'<span{strong}>{esc(val)}</span>{tail}')
-            out.append(f'<div class="lane quiet" data-plat="{LANE_PLATS[key]}"><span class="lname">{label}</span>'
-                       + '<span class="qsep">&#8594;</span>'.join(bits) + '</div>')
-            continue
-
-        stops = []
-        for field, stop_label, val, note in cells:
-            note_html = f'<div class="sn">{esc(note)}</div>' if note else ""
-            cls = "stop emph" if field == emph else "stop"
-            stops.append(f'<div class="{cls}"><div class="sl">{esc(stop_label)}</div>'
-                         f'<div class="sv">{esc(val)}</div>{note_html}</div>')
-        row = '<div class="arrow">&#8594;</div>'.join(stops)
-        out.append(f'<div class="lane" data-plat="{LANE_PLATS[key]}"><div class="lname">{label}</div>'
-                   f'<div class="lrow">{row}</div></div>')
-
-    out.append('</div>')
+    budget(store, 500, "summary.release_notes.store")
+    out = ['<section class="notes"><div class="notes-label">Suggested release notes</div>',
+           f'<p class="notes-store">{esc(store)}</p>',
+           '<div class="notes-meta">App Store and Google Play, the same text in every language</div>']
+    out.append('</section>')
     return "\n".join(out)
 
 
@@ -293,7 +313,7 @@ def card_platforms(it):
     return []
 
 
-def platform_marks(active):
+def platform_marks(active, cls="pmarks"):
     """Emits all three slots every time; inactive ones render dimmed in place."""
     if not active:
         return ""
@@ -304,7 +324,7 @@ def platform_marks(active):
                      f'title="{PLATFORM_LABEL[p]}{"" if on else " (not affected)"}">'
                      f'{PLATFORM_SVG[p]}</span>')
     label = " and ".join(PLATFORM_LABEL[p] for p in active)
-    return f'<span class="pmarks" aria-label="{esc(label)}">{"".join(cells)}</span>'
+    return f'<span class="{cls}" aria-label="{esc(label)}">{"".join(cells)}</span>'
 
 
 def summary_cards(items, section, with_status):
@@ -337,26 +357,6 @@ def summary_cards(items, section, with_status):
             f'{body_html}</article>'
         )
     return "\n".join(out)
-
-
-def backport_banner(bp):
-    """One line only. The full note lists the cherry-picked PRs by number, so it
-    renders on the full tab instead."""
-    if not bp:
-        return ""
-    headline = bp.get("headline")
-    if not headline:
-        if bp.get("in_progress"):
-            ver = bp.get("version", "A patch")
-            n = len(bp.get("items", []))
-            headline = f'{ver} is in progress: {n} fix{"es" if n != 1 else ""} go out before this release.'
-        else:
-            headline = "No patch is in progress."
-        warn("backport has no 'headline', so the summary line is generated. Write one sentence "
-             "a non-technical reader gets. See SKILL.md step 8.")
-    budget(headline, 180, "backport.headline")
-    cls = "bpbanner" if bp.get("in_progress") else "bpbanner none"
-    return f'<div class="{cls}">{esc(headline)}</div>'
 
 
 def not_merged_section(summary):
@@ -464,12 +464,16 @@ def render_summary(data):
     parts = [f'<h1>{esc(s.get("title","At a glance"))}</h1>']
     if s.get("lede"):
         parts.append(f'<p class="lede">{esc(s["lede"])}</p>')
-    parts.append(track_lanes(data.get("tracks")))
-    parts.append(backport_banner(data.get("backport")))
+    tracks = data.get("tracks") or {}
+    if tracks.get("focus") or any(isinstance(tracks.get(k), dict) and tracks[k].get("glance") for k in ("native", "web")):
+        warn("tracks.focus and tracks.*.glance are no longer read. The Summary describes the release "
+             "through summary.platforms and summary.quirks, and the pipeline state stays on Full report.")
+    parts.append(release_scope(data))
+    parts.append(store_notes_block(s))
     parts.append(platform_filter(s))
     sw =layout_switch(MERGED_LAYOUTS) if (s.get("features") or s.get("fixes")) else ""
     merged = ['<section class="cardsec" id="merged">',
-              f'<div class="h2row"><h2>What users will get</h2>{sw}</div>']
+              f'<div class="h2row"><h2>In this release</h2>{sw}</div>']
     if s.get("features"):
         merged.append('<div class="subhead" data-sub>New features and improvements</div>')
         merged.append(f'<div class="scards" data-grid>{summary_cards(s["features"], "features", False)}</div>')
@@ -639,6 +643,36 @@ def backport_full(bp, repo):
     return head + sub + "\n".join(items)
 
 
+def release_notes_full(data):
+    """Ready to paste. The Built from commit line is CI's, so the GitHub body
+    here starts after it."""
+    s = data.get("summary") or {}
+    rn = s.get("release_notes") or {}
+    if not rn:
+        return ""
+    repo = data.get("repo", "")
+    parts = ['<h2>Release notes draft</h2>',
+             '<p class="sub">The store text, then the GitHub release body that follows the Built from commit line CI writes.</p>',
+             '<div class="card">']
+    if rn.get("store"):
+        parts.append(f'<h4>App Store and Google Play</h4><p>{esc(rn["store"])}</p>')
+    parts.append('<h4>GitHub release</h4>')
+    version = str(data.get("next_release", ""))
+    if version:
+        url = f'{SITE}/{version if version.count(".") >= 2 else version + ".0"}/'
+        parts.append(f'<p>Release notes: <a href="{esc(url)}">{esc(url)}</a></p>')
+    bullets = rn.get("bullets") or []
+    if bullets:
+        parts.append('<ul class="prlist">')
+        for b in bullets:
+            n = b.get("number")
+            link = f'<a href="{pr_url(repo, n)}">#{esc(n)}</a> - ' if n else ""
+            parts.append(f'<li>{link}{esc(b.get("text", ""))}</li>')
+        parts.append('</ul>')
+    parts.append('</div>')
+    return "\n".join(parts)
+
+
 def render_full(data):
     repo = data.get("repo", "")
     w = data.get("window", {})
@@ -665,6 +699,8 @@ def render_full(data):
 
     if data.get("intro"):
         parts.append(f'<div class="note">{esc(data["intro"])}</div>')
+
+    parts.append(release_notes_full(data))
 
     parts.append(f'<h2>User-facing changes <span class="cnt">{nfeat}</span></h2>')
     parts.append(f'<div class="card">{theme_groups(data.get("user_facing"), repo)}</div>')
@@ -820,25 +856,16 @@ details summary{{cursor:pointer;color:var(--acc);font-weight:600;margin:8px 0}}
 .themebtn{{margin-left:auto;margin-bottom:8px;appearance:none;background:var(--card2);border:1px solid var(--line);color:var(--mut);font:600 12px/1 inherit;padding:7px 12px;border-radius:20px;cursor:pointer}}
 .themebtn:hover{{color:var(--tx);border-color:var(--acc)}}
 .tabpane{{display:none}} .tabpane.active{{display:block}}
-.bpbanner{{background:var(--acc-bg);border:1px solid var(--acc-bd);border-radius:10px;padding:11px 16px;margin:0 0 6px;font-size:14px}}
-.bpbanner.none{{background:transparent;border:none;padding:0 2px;color:var(--mut);font-size:13.5px}}
-.lanes{{display:grid;gap:12px;margin:20px 0 24px}}
-.lane{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px 16px}}
-.lname{{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin-bottom:10px}}
-.lrow{{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}}
-.stop{{flex:1 1 190px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 13px}}
-.stop.emph{{border-color:var(--acc-bd);background:var(--acc-bg)}}
-.sl{{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-weight:700}}
-.sv{{font-size:17px;font-weight:700;margin-top:3px;line-height:1.25}}
-.stop.emph .sv{{color:var(--acc)}}
-.sn{{color:var(--mut);font-size:12.5px;margin-top:3px}}
-.arrow{{align-self:center;color:var(--mut);font-size:17px;flex:0 0 auto}}
-@media (max-width:640px){{.arrow{{display:none}}}}
-.lane.quiet{{display:flex;align-items:baseline;flex-wrap:wrap;gap:7px;padding:10px 16px;font-size:14px;color:var(--tx2)}}
-.lane.quiet .lname{{margin:0 4px 0 0}}
-.lane.quiet .qe{{color:var(--acc);font-weight:700}}
-.qn{{color:var(--mut);font-size:13px}}
-.qsep{{color:var(--mut)}}
+.scope{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px;margin:16px 0 12px;font-size:14px;color:var(--tx2)}}
+.scope-row{{display:flex;align-items:center;flex-wrap:wrap;gap:10px}}
+.scope-ver{{font-weight:700;font-size:16px;color:var(--tx)}}
+.scope-marks{{margin-left:0}}
+.scope-marks .pm svg{{width:18px;height:18px}}
+.quirk{{color:var(--tx2);font-size:13.5px;margin-top:6px;line-height:1.5}}
+.notes{{background:var(--acc-bg);border:1px solid var(--acc-bd);border-radius:12px;padding:14px 18px;margin:0 0 18px}}
+.notes-label{{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin-bottom:6px}}
+.notes-store{{margin:0;font-size:16px;line-height:1.5;color:var(--tx)}}
+.notes-meta{{color:var(--mut);font-size:12.5px;margin-top:4px}}
 .exit{{background:var(--acc-bg);border:1px solid var(--acc-bd);border-radius:12px;padding:14px 18px;margin:26px 0 4px}}
 .exit-label{{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin-bottom:6px}}
 .exit ul{{margin:0;padding-left:18px}} .exit li{{margin:5px 0;font-size:14px;line-height:1.5}}
@@ -1050,7 +1077,7 @@ document.querySelectorAll('.tab').forEach(function(t){{
   function apply(){{
     var p = current;
     btns.forEach(function(b){{ b.classList.toggle('active', b.dataset.p === p); }});
-    document.querySelectorAll('.scard, .lane[data-plat]').forEach(function(el){{
+    document.querySelectorAll('.scard').forEach(function(el){{
       el.hidden = !!p && !has(el, p);
     }});
     document.querySelectorAll('.scards, details.gwrap, .cardsec').forEach(function(box){{
@@ -1099,6 +1126,13 @@ def render_briefing(data):
     s = data.get("summary", {})
     rel = data.get("next_release", "the next release")
     lines = [f"**{rel} at a glance** (as of {data.get('generated_at','')})", ""]
+    plats = summary_platforms(s)
+    quirks = " ".join(summary_quirks(data))
+    scope = f"- Scope: {rel} for the {scope_words(plats)}." if plats else f"- Scope: {rel}."
+    lines.append(scope + (f" {quirks}" if quirks else ""))
+    store = (s.get("release_notes") or {}).get("store")
+    if store:
+        lines.append(f"- Suggested store notes: {store}")
     tracks = data.get("tracks") or {}
     for key, label in (("native", "Native"), ("web", "Web")):
         t = tracks.get(key)
