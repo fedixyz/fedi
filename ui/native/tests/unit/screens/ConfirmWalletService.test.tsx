@@ -149,10 +149,10 @@ const reauthorizationError = {
     type: 'error' as const,
     error: {
         code: 'selectionReauthorizationRequired' as const,
-        message: 'guardian replaced',
+        message: 'preview expired',
         detail: {
             type: 'selectionReauthorizationRequired' as const,
-            reason: 'guardianReplaced' as const,
+            reason: 'previewExpired' as const,
         },
     },
 }
@@ -216,7 +216,7 @@ describe('screens/ConfirmWalletService', () => {
         ).toBeOnTheScreen()
     })
 
-    it('should show the guardian set changed banner instead of leaving the screen', async () => {
+    it('should ask to review an expired approval without leaving the screen', async () => {
         const fedimint = createMockFedimintBridge({
             fiClientPayAndCreate: Promise.resolve(reauthorizationError),
         })
@@ -237,9 +237,10 @@ describe('screens/ConfirmWalletService', () => {
 
         await user.press(screen.getByTestId('SendConfirmButton'))
 
+        expect(await screen.findByText('Review setup again')).toBeOnTheScreen()
         expect(
-            await screen.findByText(
-                i18n.t('feature.wallet-service.set-changed-title'),
+            screen.getByText(
+                'Your setup approval is no longer valid. Get a fresh quote, then review and confirm before paying.',
             ),
         ).toBeOnTheScreen()
         expect(mockNavigation.goBack).not.toHaveBeenCalled()
@@ -360,6 +361,8 @@ describe('screens/ConfirmWalletService', () => {
             expect(fedimint.fiClientPreviewSelection).toHaveBeenCalled()
         })
         expect(fedimint.fiClientEligiblePayers).toHaveBeenCalled()
+        // Reviewing a fresh preview does not approve another payment.
+        expect(fedimint.fiClientPayAndCreate).toHaveBeenCalledTimes(1)
         expect(mockNavigation.goBack).not.toHaveBeenCalled()
         expect(
             screen.queryByText(
