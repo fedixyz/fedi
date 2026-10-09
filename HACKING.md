@@ -206,6 +206,13 @@ item if the FI client could not open. `fiClientSubscribe` emits the watch channe
 first, keeps `rpcStream` private, and returns an `UnsubscribeFn`. Every FI millisatoshi value in
 these DTOs is a base-10 JSON string; convert it to `bigint` before arithmetic.
 
+Fedi passes its restored-mnemonic hint when opening `fi-client`. Manifold
+starts and retries the backup check, reports `FiStatus::Recovery` on the FI
+status watch, and guards FI mutations. The bridge holds its RPC command queue
+until status is ready and maps retryable failure to `RpcFiStatus::Recovery`.
+Manifold stores a completed lookup by environment in the FI database for
+ordinary relaunches.
+
 Formation commands are accepted by one `Runtime.task_group`-owned driver and executed serially.
 Once accepted, disconnecting or cancelling the RPC caller does not cancel the operation. Bridge
 shutdown does cancel in-flight work at a resumable durable checkpoint, and bridge launch calls

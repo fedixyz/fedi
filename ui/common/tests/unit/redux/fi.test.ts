@@ -1118,6 +1118,20 @@ describe('common/redux/fi › selectWalletServiceFlowStatus', () => {
         expect(selectWalletServiceFlowStatus(store.getState())).toBe('none')
     })
 
+    it.each([null, makeError('registry', 'relay unavailable')])(
+        'should keep the formation unknown until backup lookup completes',
+        error => {
+            const store = buildStore({ status: { type: 'recovery', error } })
+
+            expect(selectWalletServiceFlowStatus(store.getState())).toBe(
+                'unknown',
+            )
+
+            store.dispatch(setFiStatus({ type: 'idle' }))
+            expect(selectWalletServiceFlowStatus(store.getState())).toBe('none')
+        },
+    )
+
     it('should report inProgress while a restored backup is reconciling', () => {
         const store = buildStore({
             status: {

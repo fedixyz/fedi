@@ -1692,10 +1692,10 @@ fn liquidity_page_projection_preserves_exclusive_cursor() {
 }
 
 #[test]
-fn selection_preview_uses_manifolds_two_minute_capability_window() {
+fn selection_preview_uses_manifolds_five_minute_capability_window() {
     assert_eq!(
         fi_client::FMAN_SELECTION_PREVIEW_VALIDITY,
-        Duration::from_secs(2 * 60)
+        Duration::from_secs(5 * 60)
     );
 }
 
@@ -2000,6 +2000,50 @@ async fn fi_status_stream_emits_current_formation_and_typed_init_failure() {
         })
     );
     assert!(failed.next().await.is_none());
+}
+
+#[tokio::test]
+async fn recovery_status_tracks_gate_without_calling_idle_success() {
+    let (status_sender, status) = watch::channel(FiStatus::Recovery { last_error: None });
+    let mut stream = fi_client_status_stream(Ok(status));
+    assert_eq!(
+        stream.next().await,
+        Some(RpcFiClientStatus::Ready {
+            status: RpcFiStatus::Recovery { error: None },
+        })
+    );
+
+    let error = operation_error(
+        RpcFiErrorCode::Registry,
+        fi_error_message(RpcFiErrorCode::Registry),
+    );
+    status_sender.send_replace(FiStatus::Recovery {
+        last_error: Some(FiErrorCode::Registry),
+    });
+    assert_eq!(
+        stream.next().await,
+        Some(RpcFiClientStatus::Ready {
+            status: RpcFiStatus::Recovery { error: Some(error) },
+        })
+    );
+    status_sender.send_replace(FiStatus::Idle);
+    assert_eq!(
+        stream.next().await,
+        Some(RpcFiClientStatus::Ready {
+            status: RpcFiStatus::Idle
+        })
+    );
+
+    // The same status stream publishes restored facts once recovery is ready.
+    status_sender.send_replace(FiStatus::Restored(test_restored_formation(
+        FormationFreshness::Unsynced,
+    )));
+    assert!(matches!(
+        stream.next().await,
+        Some(RpcFiClientStatus::Ready {
+            status: RpcFiStatus::Restored { .. }
+        })
+    ));
 }
 
 #[test]

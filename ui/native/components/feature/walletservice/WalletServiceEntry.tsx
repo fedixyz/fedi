@@ -4,6 +4,9 @@ import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+    getWalletServiceErrorKey,
+    selectFiClientError,
+    selectFiStatus,
     selectWalletServiceFlowStatus,
     selectWalletServiceSelectionPreview,
 } from '@fedi/common/redux'
@@ -11,6 +14,7 @@ import {
 import { useAppSelector } from '../../../state/hooks'
 import type { NavigationHook } from '../../../types/navigation'
 import { WalletServiceFooter } from '../../ui/WalletServiceFooter'
+import { WarningBanner } from '../../ui/WarningBanner'
 import { WalletServiceIntro } from './WalletServiceIntro'
 
 /**
@@ -33,8 +37,10 @@ export const WalletServiceEntry: React.FC = () => {
         selectWalletServiceFlowStatus,
     )
     const preview = useAppSelector(selectWalletServiceSelectionPreview)
-    // the first fi status is still in flight, so we cannot tell an existing
-    // formation from none and must not route on it yet
+    const clientError = useAppSelector(selectFiClientError)
+    const isCheckingBackup = useAppSelector(selectFiStatus)?.type === 'recovery'
+    // Initial status or backup lookup has not established whether a formation
+    // exists, so stay on this hub until the bridge can answer.
     const isFlowStatusLoading = walletServiceFlowStatus === 'unknown'
 
     const handleCreate = useCallback(() => {
@@ -59,6 +65,18 @@ export const WalletServiceEntry: React.FC = () => {
             <WalletServiceIntro />
             {/* pinned below the scroll area, as the design's `.cta-bar` is */}
             <WalletServiceFooter>
+                {clientError && (
+                    <WarningBanner
+                        level="error"
+                        icon="AlertWarningTriangleOutline"
+                        title={t('feature.wallet-service.client-error')}
+                        message={t(
+                            isCheckingBackup
+                                ? 'feature.wallet-service.recovery-check-failed'
+                                : getWalletServiceErrorKey(clientError.code),
+                        )}
+                    />
+                )}
                 <Button
                     fullWidth
                     testID="WalletServiceEntryButton"

@@ -329,7 +329,7 @@ export class FiSimulator implements FiWorld {
      */
     private ensureWalletServiceFederation() {
         const status = this.status
-        if (status.type === 'idle')
+        if (status.type !== 'formation' && status.type !== 'restored')
             throw new Error(
                 'formWalletService needs a formation or restored status',
             )

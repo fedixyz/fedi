@@ -694,6 +694,57 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn scheduled_reset_clears_recovery_completion_but_not_neighbouring_state() {
+        let db = MemDatabase::new().into_database();
+        let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
+        let environment = FiManifoldEnvironment::Staging;
+        apply_scheduled_fi_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
+            .await
+            .unwrap();
+        let fi_db = bridge_db.with_prefix(vec![BridgeDbPrefix::FiClientPrefix as u8]);
+        let neighbour_db =
+            bridge_db.with_prefix(vec![BridgeDbPrefix::FiFederationAutoJoinCompleted as u8]);
+        let mut tx = fi_db.begin_transaction().await;
+        for key in [0x00, 0x04, 0x08] {
+            tx.raw_insert_bytes(&[key], b"fi state").await.unwrap();
+        }
+        tx.commit_tx().await;
+        let mut tx = neighbour_db.begin_transaction().await;
+        tx.raw_insert_bytes(&[0], b"keep").await.unwrap();
+        tx.commit_tx().await;
+
+        schedule_fi_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
+            .await
+            .unwrap();
+        assert!(
+            apply_scheduled_fi_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
+                .await
+                .unwrap()
+        );
+        let mut tx = fi_db.begin_transaction_nc().await;
+        for key in [0x00, 0x04, 0x08] {
+            assert!(tx.raw_get_bytes(&[key]).await.unwrap().is_none());
+        }
+        assert_eq!(
+            neighbour_db
+                .begin_transaction_nc()
+                .await
+                .raw_get_bytes(&[0])
+                .await
+                .unwrap(),
+            Some(b"keep".to_vec())
+        );
+        assert!(
+            bridge_db
+                .begin_transaction_nc()
+                .await
+                .get_value(&FiClientResetPendingKey)
+                .await
+                .is_none()
+        );
+    }
+
     #[test]
     fn reset_is_internal_only() {
         for environment in [

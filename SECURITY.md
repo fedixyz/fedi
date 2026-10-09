@@ -19,9 +19,19 @@ The bridge derives the stable FI key-family root at child id 17 of the app root
 and opens `fi-client` inside the globally reserved database prefix `0x07`.
 Manifold owns the protocol-signing, Nostr-author, and backup-encryption children
 below that scoped root. Changing either scope changes durable identity or
-storage ownership and requires an explicit migration. A restored-seed launch
-with no local FI state queries the canonical Manifold relays before allowing a
-new formation; absence of a backup is normal and does not fail bridge startup.
+storage ownership and requires an explicit migration. For a restored mnemonic in
+a fresh FI database and selected Manifold environment, `fi-client` checks the
+canonical relays before allowing a new formation. It claims its mutation guard
+before returning from open, and Fedi holds its RPC command queue until recovery
+completes. Manifold records a completed restored-or-no-backup check in its FI
+namespace, scoped by the environment within that database; a fresh installation
+or environment needs a new check. Authenticated import and completion commit
+atomically, and an internal FI reset clears both. Relay failures and incomplete
+reads never complete the check: they remain visible as retryable recovery state
+and keep FI creation gated without failing bridge startup. A successful empty
+result is a deployment-policy quorum of complete relay reads, not proof of
+absence on every relay.
+
 Fedi commits an internal environment switch and its queued FI wipe in one
 transaction. Switching away from Production is refused, and a namespace
 without a known non-Production owner cannot be wiped. Production selection is

@@ -229,6 +229,11 @@ const summarizeFiClientStatus = (status: RpcFiClientStatus) => {
             errorMessage: status.error.message,
         }
     if (status.status.type === 'idle') return { state: 'idle' as const }
+    if (status.status.type === 'recovery')
+        return {
+            state: 'recovery' as const,
+            errorCode: status.status.error?.code ?? null,
+        }
     if (status.status.type === 'restored') {
         const { formation } = status.status
         return {
@@ -906,7 +911,10 @@ export const selectIsFiRecoveryComplete = (s: CommonState) =>
     s.fi.status.formation.phase === 'formed' &&
     s.fi.status.formation.freshness === 'fresh'
 
-export const selectFiClientError = (s: CommonState) => s.fi.clientError
+// Include retryable backup lookup errors carried by an otherwise ready client.
+export const selectFiClientError = (s: CommonState) =>
+    s.fi.clientError ??
+    (s.fi.status?.type === 'recovery' ? s.fi.status.error : null)
 
 /**
  * Whether a recorded join failure is no longer about anything.
@@ -1239,6 +1247,8 @@ export const selectWalletServiceFlowStatus = createSelector(
         isStaleFailure,
     ): 'unknown' | 'none' | 'inProgress' | 'formed' => {
         if (!status) return 'unknown'
+        // Backup lookup has not established whether a formation exists yet.
+        if (status.type === 'recovery') return 'unknown'
         if (status.type === 'restored') {
             const { phase, freshness, backupEligible } = status.formation
             if (phase !== 'formed') return 'inProgress'

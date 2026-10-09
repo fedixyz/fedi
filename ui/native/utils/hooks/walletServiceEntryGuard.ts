@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { useEffect } from 'react'
 
 import {
+    selectFiStatus,
     selectHasWalletServiceCommitted,
     selectWalletServiceFlowStatus,
 } from '@fedi/common/redux'
@@ -37,6 +38,7 @@ import { NavigationHook } from '../../types/navigation'
 export function useWalletServiceEntryGuard() {
     const navigation = useNavigation<NavigationHook>()
     const flowStatus = useAppSelector(selectWalletServiceFlowStatus)
+    const isRecovering = useAppSelector(selectFiStatus)?.type === 'recovery'
     const hasCommitted = useAppSelector(selectHasWalletServiceCommitted)
     const isRoutingToProgress = flowStatus === 'inProgress' && hasCommitted
 
@@ -50,8 +52,11 @@ export function useWalletServiceEntryGuard() {
 
     /**
      * Callers gate their quote RPC on this: the bridge serves one FI operation
-     * at a time, so a live formation answers `fiClientPreviewSelection` with
+     * at a time. Backup lookup also blocks quotes until it ends.
+     * A live formation answers `fiClientPreviewSelection` with
      * `busy` — including the uncommitted window this hook stays put for.
      */
-    return flowStatus === 'inProgress' || flowStatus === 'formed'
+    return (
+        isRecovering || flowStatus === 'inProgress' || flowStatus === 'formed'
+    )
 }

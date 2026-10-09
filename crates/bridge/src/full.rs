@@ -517,20 +517,22 @@ impl BridgeFull {
                     .to_owned(),
             )))
         } else {
-            open_fi_client(&runtime, federations.clone(), fi_manifold_environment)
-                .await
-                .map(Arc::new)
-                .map_err(Arc::new)
+            open_fi_client(
+                &runtime,
+                federations.clone(),
+                fi_manifold_environment,
+                runtime.app_state.onboarding_method().await == Some(OnboardingMethod::Restored),
+            )
+            .await
+            .map(Arc::new)
+            .map_err(Arc::new)
         };
-        let restore_fi_on_launch =
-            runtime.app_state.onboarding_method().await == Some(OnboardingMethod::Restored);
         let fi_driver = fi_client.as_ref().ok().map(|client| {
             start_fi_driver(
                 &runtime,
                 client.clone(),
                 federations.clone(),
                 fi_push_gateway.clone(),
-                restore_fi_on_launch,
                 fi_manifold_environment,
             )
         });

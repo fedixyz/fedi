@@ -1751,6 +1751,7 @@
             "quote-valid-for": "Quote valid for {{remaining}}",
             "recommended": "Recommended",
             "reconnecting": "Reconnecting to your guardians. Setup is still running.",
+            "recovery-check-failed": "Couldn't finish checking for your Federation backup. We'll keep trying.",
             "recovery-failed-body": "Nothing on this device can retry it. Contact Fedi Support and quote your Federation name.",
             "recovery-failed-title": "Your Federation could not be reconnected",
             "recovery-stage-found": "Backup found",

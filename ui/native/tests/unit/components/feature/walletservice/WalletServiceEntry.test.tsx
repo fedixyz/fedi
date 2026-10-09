@@ -1,4 +1,5 @@
 import {
+    act,
     cleanup,
     screen,
     userEvent,
@@ -6,7 +7,7 @@ import {
 } from '@testing-library/react-native'
 import React from 'react'
 
-import { setFiStatus, setupStore } from '@fedi/common/redux'
+import { setFiClientStatus, setFiStatus, setupStore } from '@fedi/common/redux'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type {
     RpcFiFormationSnapshot,
@@ -139,6 +140,121 @@ describe('WalletServiceEntry', () => {
         await pressCreate(user)
 
         expect(mockNavigation.navigate).not.toHaveBeenCalled()
+    })
+
+    it('keeps recovery on the hub and enables Create after an empty lookup', async () => {
+        const store = makeStore({ type: 'recovery', error: null })
+        const { user } = renderEntry({ store })
+
+        expect(screen.getByTestId('WalletServiceEntryButton')).toBeDisabled()
+        await pressCreate(user)
+        expect(mockNavigation.navigate).not.toHaveBeenCalled()
+
+        act(() => {
+            store.dispatch(
+                setFiClientStatus({
+                    type: 'ready',
+                    status: {
+                        type: 'recovery',
+                        error: {
+                            code: 'registry',
+                            message: 'relay unavailable',
+                            detail: null,
+                        },
+                    },
+                }),
+            )
+        })
+        expect(
+            screen.getByText(i18n.t('feature.wallet-service.client-error')),
+        ).toBeOnTheScreen()
+        expect(
+            screen.getByText(
+                "Couldn't finish checking for your Federation backup. We'll keep trying.",
+            ),
+        ).toBeOnTheScreen()
+        expect(
+            screen.queryByText("Couldn't reach the guardian directory."),
+        ).not.toBeOnTheScreen()
+        expect(screen.getByTestId('WalletServiceEntryButton')).toBeDisabled()
+        await pressCreate(user)
+        expect(mockNavigation.navigate).not.toHaveBeenCalled()
+
+        act(() => {
+            store.dispatch(
+                setFiClientStatus({
+                    type: 'ready',
+                    status: { type: 'idle' },
+                }),
+            )
+        })
+        expect(
+            screen.queryByText(i18n.t('feature.wallet-service.client-error')),
+        ).not.toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                "Couldn't finish checking for your Federation backup. We'll keep trying.",
+            ),
+        ).not.toBeOnTheScreen()
+        expect(screen.getByTestId('WalletServiceEntryButton')).toBeEnabled()
+        expect(mockNavigation.navigate).not.toHaveBeenCalled()
+
+        await pressCreate(user)
+        expect(mockNavigation.navigate.mock.calls.map(call => call[0])).toEqual(
+            ['CreateWalletService'],
+        )
+    })
+
+    it('keeps the guardian directory message for client errors outside recovery', () => {
+        const store = makeStore({ type: 'idle' })
+        store.dispatch(
+            setFiClientStatus({
+                type: 'failed',
+                error: {
+                    code: 'registry',
+                    message: 'registry unavailable',
+                    detail: null,
+                },
+            }),
+        )
+        renderEntry({ store })
+
+        expect(
+            screen.getByText("Couldn't reach the guardian directory."),
+        ).toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                "Couldn't finish checking for your Federation backup. We'll keep trying.",
+            ),
+        ).not.toBeOnTheScreen()
+        expect(screen.getByTestId('WalletServiceEntryButton')).toBeEnabled()
+    })
+
+    it('enables the existing recovery route when a backup is found', async () => {
+        const store = makeStore({ type: 'recovery', error: null })
+        const { user } = renderEntry({ store })
+        act(() => {
+            store.dispatch(
+                setFiStatus({
+                    type: 'restored',
+                    formation: {
+                        snapshotGeneration: 1,
+                        formationId: 'restored-formation',
+                        federationInvite: 'invite',
+                        federationName: 'Restored service',
+                        seats: [],
+                        phase: 'formed',
+                        freshness: 'unsynced',
+                        backupEligible: false,
+                    },
+                }),
+            )
+        })
+        expect(mockNavigation.navigate).not.toHaveBeenCalled()
+        await pressCreate(user)
+        expect(mockNavigation.navigate.mock.calls.map(call => call[0])).toEqual(
+            ['WalletServiceProgress'],
+        )
     })
 
     // the 23 July decision: no hindrance on federation membership until the

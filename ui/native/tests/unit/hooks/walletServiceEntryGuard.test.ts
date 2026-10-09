@@ -48,6 +48,23 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
         expect(result.current).toBe(false)
     })
 
+    it('blocks quotes during backup lookup without routing, then releases on Idle', () => {
+        const store = setupStore()
+        store.dispatch(setFiStatus({ type: 'recovery', error: null }))
+        const { result } = renderHookWithProviders(
+            () => useWalletServiceEntryGuard(),
+            { store },
+        )
+        expect(result.current).toBe(true)
+        expect(mockNavigation.dispatch).not.toHaveBeenCalled()
+
+        act(() => {
+            store.dispatch(setFiStatus({ type: 'idle' }))
+        })
+        expect(result.current).toBe(false)
+        expect(mockNavigation.dispatch).not.toHaveBeenCalled()
+    })
+
     it('should stay put when no formation exists', () => {
         const store = setupStore()
         store.dispatch(setFiStatus({ type: 'idle' }))

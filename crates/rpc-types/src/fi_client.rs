@@ -857,6 +857,11 @@ pub struct RpcFiRestoredFormationSnapshot {
 #[ts(export)]
 pub enum RpcFiStatus {
     Idle,
+    /// A restored mnemonic is still checking the selected Manifold deployment.
+    /// An error is retryable; FI creation remains gated until completion.
+    Recovery {
+        error: Option<RpcFiOperationError>,
+    },
     Formation {
         formation: Box<RpcFiFormationSnapshot>,
     },

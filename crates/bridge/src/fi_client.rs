@@ -57,11 +57,11 @@ use fedimint_derive_secret::DerivableSecret;
 #[cfg(test)]
 use fi_client::FiId;
 use fi_client::{
-    AbandonUnavailableReason, DkgRestartResult, FI_LIQUIDITY_OPERATION_PAGE_MAX,
-    FederationConsensusError, FederationConsensusReader, FederationConsensusSnapshot,
-    FederationMetadataUpdate, FederationName, FederationSize, FedimintFederationId,
-    FedimintdVersion, FedimintdVersionRange, FiClient, FiError, FiErrorCode, FiFeeAccountError,
-    FiFeeAccountProvider, FiIdentity, FiResult, FiStatus, FleetManagerCallError,
+    AbandonUnavailableReason, BackupRecoveryHint, DkgRestartResult,
+    FI_LIQUIDITY_OPERATION_PAGE_MAX, FederationConsensusError, FederationConsensusReader,
+    FederationConsensusSnapshot, FederationMetadataUpdate, FederationName, FederationSize,
+    FedimintFederationId, FedimintdVersion, FedimintdVersionRange, FiClient, FiError, FiErrorCode,
+    FiFeeAccountError, FiFeeAccountProvider, FiIdentity, FiResult, FiStatus, FleetManagerCallError,
     FleetManagerConnector, FleetManagerConnectorError, FmanDiscoveryOptions,
     FmanReplacementApproval, FmanReplacementPreview, FmanSelectionApproval, FmanSelectionPreview,
     FmanSelectionRequest, FormationActionRequired, FormationFreshness, FormationId,
@@ -143,6 +143,7 @@ pub(crate) async fn open_fi_client(
     runtime: &Runtime,
     federations: Arc<Federations>,
     environment: FiManifoldEnvironment,
+    restored_mnemonic: bool,
 ) -> FiResult<BridgeFiClient> {
     let database = runtime.fi_client_db();
     migrate_fi_guardian_fee_field(&database).await?;
@@ -161,7 +162,7 @@ pub(crate) async fn open_fi_client(
     };
     // Paid formation and guardian-fee policy both depend on deployment-owned
     // authorities from this exact Manifold profile.
-    FiClient::open_with_manifold_profile(
+    FiClient::open_with_manifold_profile_and_recovery(
         database,
         identity,
         BridgeFiPayments::new(federations.clone()),
@@ -171,6 +172,11 @@ pub(crate) async fn open_fi_client(
         consensus_reader,
         BridgeFiFeeAccountProvider { federations },
         profile,
+        if restored_mnemonic {
+            BackupRecoveryHint::RestoredMnemonic
+        } else {
+            BackupRecoveryHint::Skip
+        },
     )
     .await
 }
@@ -653,7 +659,10 @@ fn formed_federation_invite(status: &FiStatus) -> Option<(String, String)> {
         {
             formation.federation_invite.0.clone()
         }
-        FiStatus::Idle | FiStatus::Formation(_) | FiStatus::Restored(_) => return None,
+        FiStatus::Idle
+        | FiStatus::Recovery { .. }
+        | FiStatus::Formation(_)
+        | FiStatus::Restored(_) => return None,
     };
     let federation_id = FedimintInviteCode::from_str(&invite_code)
         .ok()?
@@ -2050,7 +2059,6 @@ pub(crate) fn start_fi_driver(
     client: Arc<BridgeFiClient>,
     federations: Arc<Federations>,
     push_gateway: Result<Arc<BridgeFiPushGateway>, Arc<FiPushError>>,
-    restore_on_launch: bool,
     environment: FiManifoldEnvironment,
 ) -> BridgeFiDriver {
     let (sender, receiver) = mpsc::channel(FI_DRIVER_QUEUE_CAPACITY);
@@ -2058,16 +2066,13 @@ pub(crate) fn start_fi_driver(
     let push_gateway: FormationPushGatewayHandle =
         push_gateway.map(|gateway| gateway as Arc<dyn FormationPushGateway>);
     let formation_state = Arc::new(FormationLocalState::new(push_gateway, environment));
-    let restore_profile =
-        (restore_on_launch && matches!(client.status(), FiStatus::Idle)).then(|| {
-            manifold_environment(environment)
-                .profile()
-                .expect("the Manifold profile was validated when the FI client opened")
-        });
-    // Claim synchronously, before `BridgeFull` can expose the driver. The
-    // background task releases it whether relay lookup restores a backup or
-    // reports the normal no-backup result.
-    let operation_active = Arc::new(AtomicBool::new(restore_profile.is_some()));
+    // Manifold claims its own mutation guard before `open` returns. The
+    // bridge claims its command queue synchronously before exposing the driver.
+    let mut status = client.observe();
+    let operation_active = Arc::new(AtomicBool::new(matches!(
+        &*status.borrow(),
+        FiStatus::Recovery { .. }
+    )));
     let driver = BridgeFiDriver {
         commands: FiCommandSender {
             sender,
@@ -2082,16 +2087,17 @@ pub(crate) fn start_fi_driver(
     runtime
         .task_group
         .spawn_cancellable("fi-client::operation-driver", async move {
-            if let Some(profile) = restore_profile {
-                // Relay lookup can take up to the profile timeout. It belongs
-                // to this runtime-owned driver, not bridge initialization, and
-                // holds the global FI mutation claim so a competing formation
-                // cannot start through the RPC queue while recovery is in
-                // flight. No backup is normal and leaves the client idle.
+            if operation_active.load(Ordering::Acquire) {
+                // Manifold owns lookup, backoff, and durable completion. Keep
+                // the bridge command queue closed until FI status is ready.
                 let _claim = FiDriverOperationClaim {
                     operation_active: operation_active.clone(),
                 };
-                let _ = client.restore_from_manifold_profile(&profile).await;
+                while matches!(&*status.borrow(), FiStatus::Recovery { .. }) {
+                    if status.changed().await.is_err() {
+                        return;
+                    }
+                }
             }
             run_supervised_driver_loop(
                 Arc::new(FiBackend { client, app_state }),
@@ -2632,7 +2638,7 @@ fn guardian_fee_from_rpc(value: u32) -> Result<GuardianFeePpm, RpcFiOperationErr
 
 fn formed_federation_id(status: &FiStatus) -> Result<String, RpcFiOperationError> {
     let invite = match status {
-        FiStatus::Idle => {
+        FiStatus::Idle | FiStatus::Recovery { .. } => {
             return Err(operation_error(
                 RpcFiErrorCode::NoActiveFormation,
                 "No created FI federation is available for maintenance",
@@ -3025,6 +3031,12 @@ fn liquidity_operation_page_to_rpc(
 pub fn fi_status_to_rpc(status: FiStatus) -> RpcFiStatus {
     match status {
         FiStatus::Idle => RpcFiStatus::Idle,
+        FiStatus::Recovery { last_error } => RpcFiStatus::Recovery {
+            error: last_error.map(|code| {
+                let code = fi_error_code_to_rpc(code);
+                operation_error(code, fi_error_message(code))
+            }),
+        },
         FiStatus::Formation(formation) => RpcFiStatus::Formation {
             formation: Box::new(formation_snapshot_to_rpc(formation)),
         },
