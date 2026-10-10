@@ -65,7 +65,7 @@ jobs:
             matrix:
                 federation_kind: ${{ (inputs.tests == 'all' || inputs.tests == 'payments' || github.event_name == 'schedule') && fromJSON('["one", "two"]') || fromJSON('["one"]') }}
         steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
@@ -108,7 +108,7 @@ jobs:
             matrix:
                 federation_kind: [one, two]
         steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
@@ -148,7 +148,7 @@ jobs:
             matrix:
                 federation_kind: ${{ (inputs.tests == 'all' || inputs.tests == 'payments' || github.event_name == 'schedule') && fromJSON('["one", "two"]') || fromJSON('["one"]') }}
         steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
