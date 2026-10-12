@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyCU6KjuRLR7WVVbnM7mr_XxlaMc2h3D7IM</string>
+	<string>AIzaSyDZkFGLNhkiVzViMNVubd0oE5UwwFQK6vw</string>
 	<key>BUNDLE_ID</key>
 	<string>org.fedi.nightly</string>
 	<key>GCM_SENDER_ID</key>
-	<string>1089468211130</string>
+	<string>60784352126</string>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:1089468211130:ios:67d5032bf8ed01858d8783</string>
+	<string>1:60784352126:ios:8335a08c586aa47d27f12f</string>
 	<key>IS_ADS_ENABLED</key>
 	<false/>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -30,8 +30,8 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>PROJECT_ID</key>
-	<string>fedi-matrix-push-notifications</string>
+	<string>fedi-push-notification-staging</string>
 	<key>STORAGE_BUCKET</key>
-	<string>fedi-matrix-push-notifications.appspot.com</string>
+	<string>fedi-push-notification-staging.firebasestorage.app</string>
 </dict>
 </plist>

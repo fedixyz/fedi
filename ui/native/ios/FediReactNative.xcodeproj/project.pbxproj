@@ -79,7 +79,7 @@
 		51CBCA312F782322003D650C /* AlbertSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 727A4AA578294BB8B29DFF97 /* AlbertSans-SemiBold.ttf */; };
 		51CBCA322F782322003D650C /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A1E81D992D4A9F92009B406B /* InfoPlist.strings */; };
 		51CBCA332F782322003D650C /* AlbertSans-SemiBoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7807C962FEA411DAE116582 /* AlbertSans-SemiBoldItalic.ttf */; };
-		51CBCA342F782322003D650C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FA38AC8F2BFE7945007C7E9E /* GoogleService-Info.plist */; };
+		51CBCA342F782322003D650C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 7A1F0C2E9B4D4E6FA3C5D8E1 /* GoogleService-Info.plist */; };
 		51CBCA352F782322003D650C /* AlbertSans-Thin.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 0665FD33D8CC4EE5B91F83C7 /* AlbertSans-Thin.ttf */; };
 		51CBCA362F782322003D650C /* AlbertSans-ThinItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 2CA9C347DB3A4A33A044ADBB /* AlbertSans-ThinItalic.ttf */; };
 		51CBCA372F782322003D650C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 69BE1F7188AC9CF2966C017E /* PrivacyInfo.xcprivacy */; };
@@ -234,6 +234,7 @@
 		F7B1CDB0D2F786D1C27ACB0B /* Pods-FediReactNative-FediEdge.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FediReactNative-FediEdge.debug.xcconfig"; path = "Target Support Files/Pods-FediReactNative-FediEdge/Pods-FediReactNative-FediEdge.debug.xcconfig"; sourceTree = "<group>"; };
 		FA38AC8D2BFE793B007C7E9E /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "firebase-alpha/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		FA38AC8F2BFE7945007C7E9E /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "firebase-nightly/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		7A1F0C2E9B4D4E6FA3C5D8E1 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "firebase-nova/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		FA38AC922BFE7E28007C7E9E /* FediNightly-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "FediNightly-Info.plist"; sourceTree = "<group>"; };
 		FA52DADFB3BE42105C86D221 /* Pods-FediReactNative-FediReactNativeTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FediReactNative-FediReactNativeTests.debug.xcconfig"; path = "Target Support Files/Pods-FediReactNative-FediReactNativeTests/Pods-FediReactNative-FediReactNativeTests.debug.xcconfig"; sourceTree = "<group>"; };
 		FAB825F92BAD160D00B7EFD0 /* SimpleLaunch.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = SimpleLaunch.storyboard; sourceTree = "<group>"; };
@@ -314,6 +315,7 @@
 				FA38AC8D2BFE793B007C7E9E /* GoogleService-Info.plist */,
 				FA38AC8F2BFE7945007C7E9E /* GoogleService-Info.plist */,
 				C455582D40A3A9B463BB3153 /* GoogleService-Info.plist */,
+				7A1F0C2E9B4D4E6FA3C5D8E1 /* GoogleService-Info.plist */,
 				FAB825F92BAD160D00B7EFD0 /* SimpleLaunch.storyboard */,
 				51AEF46B2A2BDBC600887043 /* FediReactNative.entitlements */,
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
