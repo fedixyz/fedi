@@ -88,6 +88,10 @@ rc_invites:
   per_second: 1000
   burst_count: 1000
 
+rc_room_creation:
+ per_second: 1000
+ burst_count: 1000
+
 max_upload_size: 1000M
 session_lifetime: 1m
 refresh_token_lifetime: 30s
