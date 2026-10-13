@@ -53,6 +53,7 @@ export class AppiumTestBase {
     readonly handle: string
     // Cleared by resetAppToFresh, whose reinstall resets the OS grant.
     private iosNotificationPromptHandled = false
+    private hasPeerActor = false
 
     constructor(handle: string = 'a') {
         this.handle = handle
@@ -74,6 +75,8 @@ export class AppiumTestBase {
         }
         const actor = new AppiumTestBase(handle)
         await actor.initialize()
+        this.hasPeerActor = true
+        actor.hasPeerActor = true
         return actor
     }
 
@@ -375,6 +378,7 @@ export class AppiumTestBase {
             exactMatch,
             timeout,
         )
+        await this.acceptIosNotificationPromptBeforeGesture()
         await element.click()
     }
 
@@ -469,6 +473,7 @@ export class AppiumTestBase {
         const startTime = Date.now()
         while (Date.now() - startTime < timeout) {
             if (await this.isElementClickable(element)) {
+                await this.acceptIosNotificationPromptBeforeGesture()
                 await element.click()
                 console.log(`Successfully clicked element: ${key}`)
                 return
@@ -537,6 +542,7 @@ export class AppiumTestBase {
     ): Promise<void> {
         console.log(`Attempting to type into element: ${key}`)
         const element = await this.waitForElementDisplayed(key, timeout)
+        await this.acceptIosNotificationPromptBeforeGesture()
         await element.setValue(text)
         console.log(`Successfully typed into element: ${key}`)
     }
@@ -685,6 +691,7 @@ export class AppiumTestBase {
                 coordinates,
                 scrollDuration,
             )
+            await this.acceptIosNotificationPromptBeforeGesture()
             await this.driver.performActions(actions)
             await this.driver.releaseActions()
 
@@ -805,6 +812,7 @@ export class AppiumTestBase {
         const { width, height } = await element.getSize()
         const centerX = Math.round(x + width / 2)
         const centerY = Math.round(y + height / 2)
+        await this.acceptIosNotificationPromptBeforeGesture()
         await this.driver.performActions([
             {
                 type: 'pointer',
@@ -1088,13 +1096,8 @@ export class AppiumTestBase {
         )
     }
 
-    // NotificationContext fires the iOS notification prompt once chatList is
-    // non-empty. It's a Springboard alert that overlays the app (invisible to
-    // element finders) and blocks the next tap in the chat (invite capture)
-    // and backup/restore (group create, recovery) flows. Poll for it and
-    // accept: accepting grants the permission, so it won't fire again until
-    // resetAppToFresh reinstalls. No-op on Android (auto-granted), once
-    // handled, or while no prompt is up.
+    // NotificationContext raises the iOS notification prompt once chatList is
+    // non-empty. Elements stay findable under it, but every gesture is swallowed.
     async acceptIosNotificationPromptIfPresent(
         maxWaitMs = 10000,
     ): Promise<void> {
@@ -1106,35 +1109,93 @@ export class AppiumTestBase {
         }
         const deadline = Date.now() + maxWaitMs
         while (Date.now() < deadline) {
-            let buttons: string[] | null = null
-            try {
-                buttons = (await this.driver.executeScript('mobile: alert', [
-                    { action: 'getButtons' },
-                ])) as string[]
-            } catch {
-                /* no prompt up yet; poll again shortly */
-            }
-            if (Array.isArray(buttons) && buttons.length > 0) {
-                // Anchor to the start so "Don't Allow" is never matched.
-                const allow = buttons.find(b => /^(allow|ok)/i.test(b))
-                if (allow) {
-                    await this.driver.executeScript('mobile: alert', [
-                        { action: 'accept', buttonLabel: allow },
-                    ])
-                    this.iosNotificationPromptHandled = true
-                    // Settle the dismiss animation before the next query.
-                    await new Promise(r => setTimeout(r, 1500))
-                    console.log('Accepted the iOS notification prompt')
-                }
+            const alert = await this.readIosAlert()
+            if (alert) {
+                await this.acceptIosNotificationPrompt(alert)
                 return
             }
             await new Promise(r => setTimeout(r, 500))
         }
     }
 
+    // Only a peer's chat raises the prompt at a moment no step controls.
+    private async acceptIosNotificationPromptBeforeGesture(): Promise<void> {
+        if (!this.hasPeerActor) {
+            return
+        }
+        await this.acceptIosNotificationPromptIfUp()
+    }
+
+    private async acceptIosNotificationPromptIfUp(): Promise<void> {
+        if (
+            currentPlatform !== Platform.IOS ||
+            this.iosNotificationPromptHandled
+        ) {
+            return
+        }
+        const alert = await this.readIosAlert()
+        if (alert) {
+            await this.acceptIosNotificationPrompt(alert)
+        }
+    }
+
+    private async readIosAlert(): Promise<{
+        text: string
+        buttons: string[]
+    } | null> {
+        const text = await this.readIosAlertTextWithoutRetries()
+        if (text === null) {
+            return null
+        }
+        try {
+            const buttons = (await this.driver.executeScript('mobile: alert', [
+                { action: 'getButtons' },
+            ])) as string[]
+            return { text, buttons: Array.isArray(buttons) ? buttons : [] }
+        } catch {
+            return null
+        }
+    }
+
+    // webdriverio retries a failed command three times with backoff, which
+    // turns a lookup with no alert up into a two second pause.
+    private async readIosAlertTextWithoutRetries(): Promise<string | null> {
+        const retries = this.driver.options.connectionRetryCount
+        this.driver.options.connectionRetryCount = 0
+        try {
+            return await this.driver.getAlertText()
+        } catch {
+            return null
+        } finally {
+            this.driver.options.connectionRetryCount = retries
+        }
+    }
+
+    // The camera, paste and photo prompts also offer Allow; accepting one
+    // here would mark this prompt handled while it is still pending.
+    private async acceptIosNotificationPrompt(alert: {
+        text: string
+        buttons: string[]
+    }): Promise<void> {
+        if (!/notifications/i.test(alert.text)) {
+            return
+        }
+        // Anchor to the start so "Don't Allow" is never matched.
+        const allow = alert.buttons.find(b => /^(allow|ok)/i.test(b))
+        if (!allow) {
+            return
+        }
+        await this.driver.executeScript('mobile: alert', [
+            { action: 'accept', buttonLabel: allow },
+        ])
+        this.iosNotificationPromptHandled = true
+        // Settle the dismiss animation before the next query.
+        await new Promise(r => setTimeout(r, 1500))
+        console.log('Accepted the iOS notification prompt')
+    }
+
     async resetAppToFresh(): Promise<void> {
         console.log('Resetting app to fresh-install state...')
-        this.iosNotificationPromptHandled = false
         switch (currentPlatform) {
             case Platform.IOS: {
                 const bundleId = process.env.BUNDLE_ID || 'org.fedi.alpha'
@@ -1144,6 +1205,8 @@ export class AppiumTestBase {
                         'resetAppToFresh requires BUNDLE_PATH to point at the cached .app',
                     )
                 }
+                // The prompt outlives the uninstall.
+                await this.acceptIosNotificationPromptIfUp()
                 await this.driver.executeScript('mobile: terminateApp', [
                     { bundleId },
                 ])
@@ -1156,6 +1219,7 @@ export class AppiumTestBase {
                 await this.driver.executeScript('mobile: launchApp', [
                     { bundleId },
                 ])
+                await this.acceptIosNotificationPromptIfUp()
                 break
             }
             case Platform.ANDROID: {
@@ -1190,6 +1254,7 @@ export class AppiumTestBase {
             case Platform.PWA:
                 throw new Error('resetAppToFresh is not implemented for PWA')
         }
+        this.iosNotificationPromptHandled = false
         console.log('App reset complete')
     }
 
