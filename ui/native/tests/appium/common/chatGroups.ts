@@ -202,8 +202,10 @@ export async function respondToOnlyKnock(
     // The tab bar is hidden on stacked screens, and responding can leave the
     // request detail on the stack, so the depth back to the chat list varies.
     for (let i = 0; i < 6; i++) {
-        if (await t.elementIsDisplayed('ChatTabButton', 1000)) return
-        await t.clickElementByKey('HeaderBackButton')
+        if (await t.elementIsDisplayed('ChatTabButton', 3000)) return
+        if (await t.elementIsDisplayed('HeaderBackButton', 1000)) {
+            await t.clickElementByKey('HeaderBackButton')
+        }
     }
     await t.waitForElementDisplayed('ChatTabButton', MATRIX_TIMEOUT)
 }
