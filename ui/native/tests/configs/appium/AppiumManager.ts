@@ -37,6 +37,9 @@ const getCapabilities = (handle: string): AppiumConfig => {
     const commonCaps = {
         'appium:platformVersion': config.PLATFORM_VERSION || '',
         'appium:app': config.BUNDLE_PATH || process.env.BUNDLE_PATH || '',
+        // 0 disables the idle reaper. A parked actor idles past any fixed
+        // limit while the primary drives a long phase.
+        'appium:newCommandTimeout': 0,
     }
 
     if (currentPlatform === Platform.ANDROID) {
@@ -65,9 +68,6 @@ const getCapabilities = (handle: string): AppiumConfig => {
             'appium:autoGrantPermissions': true,
             'appium:uiautomator2ServerInstallTimeout': 120000,
             'appium:uiautomator2ServerLaunchTimeout': 120000,
-            // Default 60s tears the secondary session down while the
-            // primary drives a long multi-step phase.
-            'appium:newCommandTimeout': 600,
             // UiAutomator2 server port per session. Collisions between
             // sessions hang the second driver init silently.
             'appium:systemPort': 8200 + idx * 100,
@@ -97,7 +97,6 @@ const getCapabilities = (handle: string): AppiumConfig => {
             'appium:wdaConnectionTimeout': 120000,
             'appium:simulatorStartupTimeout': 120000,
             'appium:connectHardwareKeyboard': false,
-            'appium:newCommandTimeout': 600,
             // WDA port per session; sharing this kills the prior session
             // (see appium/appium#20512).
             'appium:wdaLocalPort': 8100 + idx * 100,
