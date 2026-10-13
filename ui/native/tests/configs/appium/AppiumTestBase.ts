@@ -21,6 +21,13 @@ const DEFAULT_SCROLL_OPTIONS: Required<ScrollOptions> = {
     scrollPercentage: 10,
 }
 
+const OPPOSITE_SCROLL_DIRECTION: Record<ScrollDirection, ScrollDirection> = {
+    down: 'up',
+    up: 'down',
+    left: 'right',
+    right: 'left',
+}
+
 export const DEFAULT_TIMEOUT = 20000
 
 export const COLD_START_TIMEOUT = 60000
@@ -704,6 +711,8 @@ export class AppiumTestBase {
         }
     }
 
+    // Screens keep their scroll offset between steps, so the element can be
+    // on either side. The sweep back is twice as long to pass the start.
     private async scrollUntilFound(
         findElementFn: () => Promise<ChainablePromiseElement | null>,
         elementDescription: string,
@@ -718,7 +727,7 @@ export class AppiumTestBase {
         } = config
 
         // Check if element is already visible
-        let element = await findElementFn()
+        const element = await findElementFn()
         if (await this.isElementVisible(element)) {
             console.log(`Element ${elementDescription} is already visible`)
             return element
@@ -728,39 +737,60 @@ export class AppiumTestBase {
             `Starting W3C Actions scroll search for element ${elementDescription}`,
         )
 
-        // Perform scroll attempts
-        for (let i = 0; i < maxScrolls; i++) {
-            try {
-                await this.scroll(
-                    scrollDirection,
-                    scrollDuration,
-                    scrollPercentage,
-                )
+        const sweeps: [ScrollDirection, number][] = [
+            [scrollDirection, maxScrolls],
+            [OPPOSITE_SCROLL_DIRECTION[scrollDirection], maxScrolls * 2],
+        ]
+        for (const [direction, scrolls] of sweeps) {
+            const found = await this.sweepForElement(
+                findElementFn,
+                direction,
+                scrolls,
+                scrollDuration,
+                scrollPercentage,
+            )
+            if (found) {
+                return found
+            }
+        }
 
-                element = await findElementFn()
+        console.log(
+            `Element ${elementDescription} not found after ${maxScrolls * 3} scroll attempts`,
+        )
+        return null
+    }
+
+    private async sweepForElement(
+        findElementFn: () => Promise<ChainablePromiseElement | null>,
+        direction: ScrollDirection,
+        scrolls: number,
+        scrollDuration: number,
+        scrollPercentage: Percentage,
+    ): Promise<ChainablePromiseElement | null> {
+        for (let i = 0; i < scrolls; i++) {
+            try {
+                await this.scroll(direction, scrollDuration, scrollPercentage)
+
+                const element = await findElementFn()
                 if (await this.isElementVisible(element)) {
                     console.log(
-                        `Element found and visible after ${i + 1} scroll(s)`,
+                        `Element found and visible after ${i + 1} scroll(s) ${direction}`,
                     )
                     return element
                 }
             } catch (error) {
                 console.error(
-                    `Scroll attempt ${i + 1} in direction ${scrollDirection} failed:`,
+                    `Scroll attempt ${i + 1} in direction ${direction} failed:`,
                     error instanceof Error ? error.message : error,
                 )
                 // Continue to next attempt
             }
         }
-
-        console.log(
-            `Element ${elementDescription} not found after ${maxScrolls} scroll attempts`,
-        )
         return null
     }
     /**
      * scrollOptions sets options to control scroll helper functions. e.g. scrollOptions: {param1, param2...}
-     * @param maxScrolls How many scrolls to perform within the functions.
+     * @param maxScrolls How many scrolls to perform in scrollDirection before sweeping back the other way.
      * @param scrollDirection Tells the functions the direction to scroll in.
      * @param scrollDuration Duration of the scroll in milliseconds. A smaller duration usually means a stronger scroll.
      * @param scrollPercentage How far down the screen to scroll. Accepted values are from 1 to 100.
