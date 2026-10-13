@@ -131,13 +131,13 @@ const MG_NOUNS = [
 /**
  * Two-word display name for an MG.
  *
- * The bridge derives the name from `fman_id` and treats it as decoration: names
+ * The bridge derives the name from `mg_id` and treats it as decoration: names
  * can collide and never substitute for the id. Deriving it here the same way
  * names the same seat the same way on every run, and keeps collisions possible
  * rather than papering over them.
  */
-const mgNameFor = (fmanId: string): string => {
-    const digest = Array.from(fmanId).reduce(
+const mgNameFor = (mgId: string): string => {
+    const digest = Array.from(mgId).reduce(
         (acc, char) => (acc * 33 + char.charCodeAt(0)) >>> 0,
         5381,
     )
@@ -415,7 +415,7 @@ export class FaSimulator implements FaWorld {
     }
 
     /**
-     * The `fiFederationJoin` event, on the same channel the `federation` event
+     * The `faFederationJoin` event, on the same channel the `federation` event
      * uses. Without it the app never learns a rejoin failed, and the terminal
      * failure screen cannot be reached in dev.
      *
@@ -433,7 +433,7 @@ export class FaSimulator implements FaWorld {
             state,
         }
         this.lastJoinEvent = event
-        this.eventEmitter?.('fiFederationJoin', event)
+        this.eventEmitter?.('faFederationJoin', event)
     }
 
     /** Return to a pristine `idle` client. */
@@ -615,7 +615,7 @@ export class FaSimulator implements FaWorld {
         // along with it. A formed wallet service seeded before the bridge was
         // attached has no other way to report its join at all.
         if (this.lastJoinEvent)
-            this.eventEmitter?.('fiFederationJoin', this.lastJoinEvent)
+            this.eventEmitter?.('faFederationJoin', this.lastJoinEvent)
         return { type: 'ready', status: this.status }
     }
 
@@ -952,14 +952,13 @@ export class FaSimulator implements FaWorld {
             // about a formation that reached `formed`
             return formation.seats.map(seat => ({
                 online: {
-                    guardian:
-                        seat.fmanName ?? seat.fmanId ?? `seat ${seat.index}`,
-                    fman_name: seat.fmanName,
+                    guardian: seat.mgName ?? seat.mgId ?? `seat ${seat.index}`,
+                    mg_name: seat.mgName,
                     latency_ms: 1,
                 },
             }))
         // one healthy guardian is all the status coercion needs
-        return [{ online: { guardian: 'sim', fman_name: null, latency_ms: 1 } }]
+        return [{ online: { guardian: 'sim', mg_name: null, latency_ms: 1 } }]
     }
 
     /*** Money rails, for mock payers only ***/
@@ -1144,7 +1143,7 @@ export class FaSimulator implements FaWorld {
                     'selection',
                     'not enough verified manifold guardians for this size',
                     {
-                        type: 'insufficientFmanSeats',
+                        type: 'insufficientMgSeats',
                         requested,
                         selected: eligible,
                         seen: this.fleet.seen,
@@ -1155,10 +1154,10 @@ export class FaSimulator implements FaWorld {
         }
 
         const seats = Array.from({ length: requested }, (_, index) => {
-            const fmanId = `mg_${String(index + 1).padStart(2, '0')}_${this.hash(index)}`
+            const mgId = `mg_${String(index + 1).padStart(2, '0')}_${this.hash(index)}`
             return {
-                fmanId,
-                fmanName: mgNameFor(fmanId),
+                mgId,
+                mgName: mgNameFor(mgId),
                 advertisedPriceMsats: String(
                     seatPriceMsats(index, requested, this.seatPriceMsats),
                 ),
@@ -1207,7 +1206,7 @@ export class FaSimulator implements FaWorld {
                         type: 'selectionReauthorizationRequired',
                         reason: isExpired
                             ? 'previewExpired'
-                            : 'selectedFmanUnavailable',
+                            : 'selectedMgUnavailable',
                     },
                 ),
             }
@@ -1327,11 +1326,11 @@ export class FaSimulator implements FaWorld {
         const requested = required.requirements.seats.length
         const previewId = `replacement_preview_${this.nextId++}`
         const seats = required.requirements.seats.map(seat => {
-            const fmanId = `mg_replacement_${this.hash(seat.index)}`
+            const mgId = `mg_replacement_${this.hash(seat.index)}`
             return {
                 index: seat.index,
-                fmanId,
-                fmanName: mgNameFor(fmanId),
+                mgId,
+                mgName: mgNameFor(mgId),
                 advertisedPriceMsats: String(
                     seatPriceMsats(seat.index, requested, this.seatPriceMsats),
                 ),
@@ -1582,9 +1581,9 @@ export class FaSimulator implements FaWorld {
             },
             seats: preview.seats.map((seat, index) => ({
                 index,
-                fmanId: seat.fmanId,
-                fmanName: seat.fmanName,
-                locator: JSON.stringify({ v: 1, fmanId: seat.fmanId }),
+                mgId: seat.mgId,
+                mgName: seat.mgName,
+                locator: JSON.stringify({ v: 1, mgId: seat.mgId }),
                 seatId: null,
                 guardianCode: null,
                 phase: 'selected',

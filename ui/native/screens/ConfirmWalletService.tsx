@@ -156,7 +156,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
             const opError = error as RpcFaOperationError | undefined
             // too few guardians has its own banner and redirect; a toast
             // would scroll away and leave a dead pay button unexplained
-            if (opError?.detail?.type === 'insufficientFmanSeats') {
+            if (opError?.detail?.type === 'insufficientMgSeats') {
                 setInsufficientSeats({
                     requested: opError.detail.requested,
                     eligible: opError.detail.eligible,

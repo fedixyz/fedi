@@ -117,7 +117,7 @@ export type WalletServiceTopUpInvoice = {
 const initialState = {
     status: null as RpcFaStatus | null,
     clientError: null as RpcFaOperationError | null,
-    // process-local: the bridge re-emits the last `fiFederationJoin` state on
+    // process-local: the bridge re-emits the last `faFederationJoin` state on
     // every `faClientStatus` read, so a fresh subscribe or foreground refresh
     // recovers this without needing it to survive rehydration
     federationJoin: null as FaFederationJoinEvent | null,
@@ -1444,9 +1444,10 @@ const FA_ERROR_MESSAGE_KEYS = {
     busy: 'feature.wallet-service.error-busy',
     capabilityUnavailable:
         'feature.wallet-service.error-capability-unavailable',
-    fleetManager: 'feature.wallet-service.error-fleet-manager',
+    manifoldGuardian: 'feature.wallet-service.error-fleet-manager',
     identity: 'feature.wallet-service.error-generic',
-    invalidFleetManagers: 'feature.wallet-service.error-invalid-fleet-managers',
+    invalidManifoldGuardians:
+        'feature.wallet-service.error-invalid-fleet-managers',
     invalidIntent: 'feature.wallet-service.error-invalid-intent',
     invalidOptions: 'feature.wallet-service.error-invalid-options',
     liquidity: 'feature.wallet-service.error-liquidity',
@@ -1490,7 +1491,7 @@ export const getWalletServiceErrorKey = (
  * The error, followed by the invitation to repeat the action that failed.
  *
  * The two are separate strings because whether the user can act is a property
- * of the screen, not of the error code. The same `fleetManager` failure is
+ * of the screen, not of the error code. The same `manifoldGuardian` failure is
  * answerable on the confirm screen, where the pay button is still there, and
  * unanswerable on the progress screen, where the driver retries on its own and
  * there is nothing to press. One string cannot be right in both places.

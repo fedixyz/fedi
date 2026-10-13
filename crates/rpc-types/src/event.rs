@@ -309,8 +309,6 @@ pub enum Event {
     CommunityMetadataUpdated(CommunityMetadataUpdatedEvent),
     NonceReuseCheckFailed(NonceReuseCheckFailedEvent),
     CommunityMigratedToV2(CommunityMigratedToV2Event),
-    #[ts(rename = "fiFederationJoin")]
-    #[strum(serialize = "fiFederationJoin")]
     FaFederationJoin(FaFederationJoinEvent),
 }
 
@@ -543,7 +541,7 @@ fn serialize_event(event: &Event) -> (String, String) {
         Event::CommunityMetadataUpdated(event) => ("communityMetadataUpdated".into(), body(event)),
         Event::CommunityMigratedToV2(event) => ("communityMigratedToV2".into(), body(event)),
         Event::NonceReuseCheckFailed(event) => ("nonceReuseCheckFailed".into(), body(event)),
-        Event::FaFederationJoin(event) => ("fiFederationJoin".into(), body(event)),
+        Event::FaFederationJoin(event) => ("faFederationJoin".into(), body(event)),
     }
 }
 

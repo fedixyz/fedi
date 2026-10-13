@@ -27,8 +27,8 @@ const makeReplacementRequirements =
         seats: [
             {
                 index: 0,
-                previousFmanId: 'mg-old-0',
-                previousFmanName: 'old oak',
+                previousMgId: 'mg-old-0',
+                previousMgName: 'old oak',
                 previousQuoteId: 'quote-0',
                 previousLocator: 'locator-0',
             },
@@ -49,8 +49,8 @@ const makePreview = (
     seats: [
         {
             index: 0,
-            fmanId: 'mg-replacement-0',
-            fmanName: 'replacement zero',
+            mgId: 'mg-replacement-0',
+            mgName: 'replacement zero',
             advertisedPriceMsats: '21000',
             provenance: 'registry',
         },
@@ -173,8 +173,8 @@ describe('WalletServiceReplaceReview screen', () => {
                 seats: [
                     {
                         index: 0,
-                        fmanId: 'mg-0',
-                        fmanName: 'seat zero',
+                        mgId: 'mg-0',
+                        mgName: 'seat zero',
                         advertisedPriceMsats: '21000',
                         provenance: 'registry',
                     },
@@ -252,7 +252,7 @@ describe('WalletServiceReplaceReview screen', () => {
                     code: 'selection',
                     message: 'not enough candidates',
                     detail: {
-                        type: 'insufficientFmanSeats',
+                        type: 'insufficientMgSeats',
                         requested: 1,
                         selected: 0,
                         seen: 3,

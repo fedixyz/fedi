@@ -72,12 +72,12 @@ export function formationAt(
             maxTotalMsats: String(size * price),
         },
         seats: Array.from({ length: size }, (_, i) => {
-            const fmanId = `mg_${seed.formationId}_${i}`
+            const mgId = `mg_${seed.formationId}_${i}`
             return {
                 index: i,
-                fmanId,
-                fmanName: `guardian ${i + 1}`,
-                locator: JSON.stringify({ v: 1, fmanId }),
+                mgId,
+                mgName: `guardian ${i + 1}`,
+                locator: JSON.stringify({ v: 1, mgId }),
                 seatId: reached('acquiringSeats') ? `seat_${i}` : null,
                 guardianCode: reached('preparingDkg') ? `code_${i}` : null,
                 phase: seatPhase,
@@ -146,8 +146,8 @@ export function withAuthorization(
                 maxTotalMsats: formation.intent.maxTotalMsats,
                 seats: seats.map(seat => ({
                     index: seat.index,
-                    fmanId: seat.fmanId,
-                    fmanName: seat.fmanName,
+                    mgId: seat.mgId,
+                    mgName: seat.mgName,
                     quoteId: `quote_${seat.index}`,
                     paymentFederationId: payerFederationId,
                     amountMsats: String(Math.floor(totalMsats / seats.length)),
@@ -174,8 +174,8 @@ export function withReplacement(
                 seats: [
                     {
                         index: refused.index,
-                        previousFmanId: refused.fmanId,
-                        previousFmanName: refused.fmanName,
+                        previousMgId: refused.mgId,
+                        previousMgName: refused.mgName,
                         previousQuoteId: `quote_${refused.index}`,
                         previousLocator: refused.locator,
                     },
@@ -213,7 +213,7 @@ export function restoredStatus(
             federationInvite: `fed1${'sim'.padEnd(40, '0')}${seed.formationId}`,
             federationName,
             seats: Array.from({ length: RESTORED_SEAT_COUNT }, (_, index) => ({
-                fmanId: `mg_${seed.formationId}_${index}`,
+                mgId: `mg_${seed.formationId}_${index}`,
                 seatId: `seat_${index}`,
                 locator: '{"version":1}',
             })),

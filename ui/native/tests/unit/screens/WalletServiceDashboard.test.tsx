@@ -82,10 +82,10 @@ const makeGuardianStatuses = (
     total: number,
 ): GuardianStatus[] => [
     ...Array.from({ length: online }, (_, i) => ({
-        online: { guardian: `g${i}`, fman_name: null, latency_ms: 50 },
+        online: { guardian: `g${i}`, mg_name: null, latency_ms: 50 },
     })),
     ...Array.from({ length: total - online }, (_, i) => ({
-        timeout: { guardian: `g${online + i}`, fman_name: null, elapsed: '5s' },
+        timeout: { guardian: `g${online + i}`, mg_name: null, elapsed: '5s' },
     })),
 ]
 
@@ -471,28 +471,28 @@ describe('screens/WalletServiceDashboard', () => {
                 {
                     online: {
                         guardian: 'g0',
-                        fman_name: 'Alice',
+                        mg_name: 'Alice',
                         latency_ms: 50,
                     },
                 },
                 {
                     error: {
                         guardian: 'g1',
-                        fman_name: 'Bob',
+                        mg_name: 'Bob',
                         error: 'refused',
                     },
                 },
                 {
                     online: {
                         guardian: 'g2',
-                        fman_name: 'Carol',
+                        mg_name: 'Carol',
                         latency_ms: 50,
                     },
                 },
                 {
                     timeout: {
                         guardian: 'g3',
-                        fman_name: 'Dave',
+                        mg_name: 'Dave',
                         elapsed: '10s',
                     },
                 },
@@ -683,7 +683,7 @@ describe('screens/WalletServiceDashboard', () => {
         )
     })
 
-    // The bridge reports a failed `fiFederationJoin` on the created path too,
+    // The bridge reports a failed `faFederationJoin` on the created path too,
     // where the flow status stays `formed` and this screen is where the user
     // belongs. Handing that one to WalletServiceProgress lands it on the
     // *creation* checklist — confetti, then Continue into fee onboarding —

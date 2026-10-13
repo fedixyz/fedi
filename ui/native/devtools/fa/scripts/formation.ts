@@ -81,7 +81,7 @@ export const formationFails: FaScript = script('formation.fails', [
     ...walk(TO_DKG),
     stream(ctx =>
         formationStatus(
-            withError(formationAt(ctx, 'dkgUnderway'), 'fleetManager'),
+            withError(formationAt(ctx, 'dkgUnderway'), 'manifoldGuardian'),
         ),
     ),
     checkpoint('retrying'),
@@ -225,7 +225,7 @@ export const formationGuardianDroppedOutNoCandidates: FaScript = script(
                 code: 'selection',
                 message: 'not enough verified replacement candidates',
                 detail: {
-                    type: 'insufficientFmanSeats',
+                    type: 'insufficientMgSeats',
                     requested: 1,
                     selected: 0,
                     seen: 42,

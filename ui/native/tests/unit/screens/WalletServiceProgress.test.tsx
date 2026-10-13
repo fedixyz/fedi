@@ -591,7 +591,7 @@ describe('WalletServiceProgress screen', () => {
 
         it('should hold a raised banner through the next optimistic clear', () => {
             const { store } = renderProgress({
-                formation: makeFormation({ lastError: 'fleetManager' }),
+                formation: makeFormation({ lastError: 'manifoldGuardian' }),
             })
 
             act(() => {
@@ -644,8 +644,8 @@ describe('WalletServiceProgress screen', () => {
             phase: 'preparingDkg',
             seats: [0, 1].map(index => ({
                 index,
-                fmanId: `mg-${index}`,
-                fmanName: `seat ${index}`,
+                mgId: `mg-${index}`,
+                mgName: `seat ${index}`,
                 locator: `{"mg":${index}}`,
                 seatId: `seat-${index}`,
                 guardianCode: `code-${index}`,
@@ -768,8 +768,8 @@ describe('WalletServiceProgress screen', () => {
                         seats: [
                             {
                                 index: 0,
-                                previousFmanId: 'mg-old-0',
-                                previousFmanName: 'old oak',
+                                previousMgId: 'mg-old-0',
+                                previousMgName: 'old oak',
                                 previousQuoteId: 'quote-0',
                                 previousLocator: 'locator-0',
                             },
@@ -803,8 +803,8 @@ describe('WalletServiceProgress screen', () => {
                         seats: [
                             {
                                 index: 0,
-                                previousFmanId: 'mg-old-0',
-                                previousFmanName: 'old oak',
+                                previousMgId: 'mg-old-0',
+                                previousMgName: 'old oak',
                                 previousQuoteId: 'quote-0',
                                 previousLocator: 'locator-0',
                             },
@@ -909,8 +909,8 @@ describe('WalletServiceProgress screen', () => {
         const seatsAt = (phase: RpcFaSeatProgress['phase']) =>
             Array.from({ length: 3 }, (_, index) => ({
                 index,
-                fmanId: `mg-${index}`,
-                fmanName: `seat ${index}`,
+                mgId: `mg-${index}`,
+                mgName: `seat ${index}`,
                 locator: `{"mg":${index}}`,
                 seatId: `seat-${index}`,
                 guardianCode: null,
@@ -1073,8 +1073,8 @@ describe('WalletServiceProgress screen', () => {
                 seats: [
                     {
                         index: 0,
-                        fmanId: 'mg-0',
-                        fmanName: 'seat zero',
+                        mgId: 'mg-0',
+                        mgName: 'seat zero',
                         locator: 'locator-0',
                         seatId: 'seat-0',
                         guardianCode: 'code-0',
@@ -1083,8 +1083,8 @@ describe('WalletServiceProgress screen', () => {
                     },
                     {
                         index: 1,
-                        fmanId: null,
-                        fmanName: null,
+                        mgId: null,
+                        mgName: null,
                         locator: 'locator-1',
                         seatId: null,
                         guardianCode: null,
@@ -1121,8 +1121,8 @@ describe('WalletServiceProgress screen', () => {
                     seats: [
                         {
                             index: 0,
-                            previousFmanId: 'mg-old-0',
-                            previousFmanName: 'old oak',
+                            previousMgId: 'mg-old-0',
+                            previousMgName: 'old oak',
                             previousQuoteId: 'quote-0',
                             previousLocator: 'locator-0',
                         },
@@ -1167,8 +1167,8 @@ describe('WalletServiceProgress screen', () => {
                                 seats: [
                                     {
                                         index: 1,
-                                        previousFmanId: 'mg-old-1',
-                                        previousFmanName: 'old oak',
+                                        previousMgId: 'mg-old-1',
+                                        previousMgName: 'old oak',
                                         previousQuoteId: 'quote-1',
                                         previousLocator: 'locator-1',
                                     },
@@ -1199,8 +1199,8 @@ describe('WalletServiceProgress screen', () => {
                     seats: [
                         {
                             index: 0,
-                            fmanId: 'mg-0',
-                            fmanName: 'seat zero',
+                            mgId: 'mg-0',
+                            mgName: 'seat zero',
                             quoteId: 'quote-0',
                             paymentFederationId: mockFederation1.id,
                             amountMsats,

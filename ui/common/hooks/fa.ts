@@ -374,7 +374,7 @@ const TERMINAL_LIQUIDITY_ERROR_CODES: ReadonlySet<string> =
     new Set<RpcFaErrorCode>([
         'capabilityUnavailable',
         'identity',
-        'invalidFleetManagers',
+        'invalidManifoldGuardians',
         'invalidIntent',
         'invalidOptions',
         'noActiveFormation',

@@ -108,7 +108,7 @@ const makeRestoredFormation = (
     federationName: 'Restored Federation',
     seats: [
         {
-            fmanId: 'mg-1',
+            mgId: 'mg-1',
             seatId: 'seat-1',
             locator: 'locator-1',
         },
@@ -126,8 +126,8 @@ const makePaymentRequirements = (): RpcFaPaymentRequirements => ({
     seats: [
         {
             index: 0,
-            fmanId: 'mg-0',
-            fmanName: 'amber alder',
+            mgId: 'mg-0',
+            mgName: 'amber alder',
             quoteId: 'quote-0',
             paymentFederationId: 'federation-0',
             amountMsats: '21000',
@@ -146,8 +146,8 @@ const makeReplacementRequirements =
         seats: [
             {
                 index: 0,
-                previousFmanId: 'mg-0',
-                previousFmanName: 'amber alder',
+                previousMgId: 'mg-0',
+                previousMgName: 'amber alder',
                 previousQuoteId: 'quote-0',
                 previousLocator: 'locator-0',
             },
@@ -168,8 +168,8 @@ const makeReplacementPreview = (
     seats: [
         {
             index: 0,
-            fmanId: 'mg-replacement-0',
-            fmanName: 'brisk basalt',
+            mgId: 'mg-replacement-0',
+            mgName: 'brisk basalt',
             advertisedPriceMsats: '21000',
             provenance: 'registry',
         },
@@ -188,8 +188,8 @@ const makePreview = (
     validUntil: 1754900000,
     seats: [
         {
-            fmanId: 'mg-0',
-            fmanName: 'amber alder',
+            mgId: 'mg-0',
+            mgName: 'amber alder',
             advertisedPriceMsats: '21000',
             provenance: 'registry',
         },
@@ -1534,9 +1534,9 @@ describe('common/redux/fi › getWalletServiceErrorKey', () => {
             'capabilityUnavailable',
             'feature.wallet-service.error-capability-unavailable',
         ],
-        ['fleetManager', 'feature.wallet-service.error-fleet-manager'],
+        ['manifoldGuardian', 'feature.wallet-service.error-fleet-manager'],
         [
-            'invalidFleetManagers',
+            'invalidManifoldGuardians',
             'feature.wallet-service.error-invalid-fleet-managers',
         ],
         ['invalidIntent', 'feature.wallet-service.error-invalid-intent'],
@@ -1898,8 +1898,8 @@ describe('common/redux/fi › selectWalletServiceGuardianProgress', () => {
                 // phases, and a pinned MG really does report null for both.
                 {
                     index: 0,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     locator: 'locator-0',
                     seatId: 'seat-0',
                     guardianCode: 'code-0',
@@ -1908,8 +1908,8 @@ describe('common/redux/fi › selectWalletServiceGuardianProgress', () => {
                 },
                 {
                     index: 1,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     locator: 'locator-1',
                     seatId: 'seat-1',
                     guardianCode: null,
@@ -1918,8 +1918,8 @@ describe('common/redux/fi › selectWalletServiceGuardianProgress', () => {
                 },
                 {
                     index: 2,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     locator: 'locator-2',
                     seatId: 'seat-2',
                     guardianCode: null,
@@ -1928,8 +1928,8 @@ describe('common/redux/fi › selectWalletServiceGuardianProgress', () => {
                 },
                 {
                     index: 3,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     locator: 'locator-3',
                     seatId: null,
                     guardianCode: null,
@@ -1949,8 +1949,8 @@ describe('common/redux/fi › selectWalletServiceGuardianProgress', () => {
 describe('common/redux/fi › selectIsWalletServiceWaitingOnDkg', () => {
     const seatWithCode = (index: number, guardianCode: string | null) => ({
         index,
-        fmanId: null,
-        fmanName: null,
+        mgId: null,
+        mgName: null,
         locator: `locator-${index}`,
         seatId: `seat-${index}`,
         guardianCode,
@@ -2029,8 +2029,8 @@ describe('common/redux/fi › selectWalletServicePaymentShortfall', () => {
             seats: [
                 {
                     index: 0,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     quoteId: 'quote-0',
                     paymentFederationId: 'federation-a',
                     amountMsats: '21000',
@@ -2052,16 +2052,16 @@ describe('common/redux/fi › selectWalletServicePaymentShortfall', () => {
             seats: [
                 {
                     index: 0,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     quoteId: 'quote-0',
                     paymentFederationId: 'federation-a',
                     amountMsats: '21000',
                 },
                 {
                     index: 1,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     quoteId: 'quote-1',
                     paymentFederationId: 'federation-a',
                     amountMsats: '21000',
@@ -2088,16 +2088,16 @@ describe('common/redux/fi › selectWalletServicePaymentShortfall', () => {
             seats: [
                 {
                     index: 0,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     quoteId: 'quote-0',
                     paymentFederationId: 'federation-a',
                     amountMsats: '21000',
                 },
                 {
                     index: 1,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     quoteId: 'quote-1',
                     paymentFederationId: 'federation-b',
                     amountMsats: '21000',
@@ -2124,8 +2124,8 @@ describe('common/redux/fi › selectWalletServicePaymentShortfall', () => {
             seats: [
                 {
                     index: 0,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     quoteId: 'quote-0',
                     paymentFederationId: 'federation-a',
                     amountMsats: '21000',
@@ -2153,8 +2153,8 @@ describe('common/redux/fi › selectWalletServicePaymentShortfall', () => {
             seats: [
                 {
                     index: 0,
-                    fmanId: null,
-                    fmanName: null,
+                    mgId: null,
+                    mgName: null,
                     quoteId: 'quote-0',
                     paymentFederationId: 'federation-a',
                     amountMsats: '21000',
@@ -2220,8 +2220,8 @@ describe('common/redux/fi › describeFaClientStatusChange', () => {
         phase: RpcFaSeatProgress['phase'],
     ): RpcFaSeatProgress => ({
         index,
-        fmanId: `mg-${index}`,
-        fmanName: 'two words',
+        mgId: `mg-${index}`,
+        mgName: 'two words',
         locator: `locator-${index}`,
         seatId: null,
         guardianCode: null,

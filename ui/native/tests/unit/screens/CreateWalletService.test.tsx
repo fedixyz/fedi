@@ -42,8 +42,8 @@ const NOW_SECS = FIXED_NOW_MS / 1000
 const PAST_DEBOUNCE_MS = 400
 
 const makeSeat = (index: number, priceMsats: string) => ({
-    fmanId: `mg_0${index}`,
-    fmanName: '',
+    mgId: `mg_0${index}`,
+    mgName: '',
     advertisedPriceMsats: priceMsats,
     provenance: 'fedi_attested',
 })
@@ -83,7 +83,7 @@ const insufficientSeatsResult = (
         code: 'selection',
         message: 'not enough verified manifold guardians for this size',
         detail: {
-            type: 'insufficientFmanSeats',
+            type: 'insufficientMgSeats',
             requested,
             selected: eligible,
             seen: eligible + 3,
@@ -591,7 +591,7 @@ describe('screens/CreateWalletService', () => {
         expect(
             screen.getAllByText(i18n.t('feature.wallet-service.seat-selected')),
         ).toHaveLength(3)
-        // blank `fmanName`s, so each row names the guardian by the only
+        // blank `mgName`s, so each row names the guardian by the only
         // identity there is — never a placeholder
         expect(screen.getByText('mg_01')).toBeOnTheScreen()
         expect(screen.getByText('mg_02')).toBeOnTheScreen()
@@ -603,7 +603,7 @@ describe('screens/CreateWalletService', () => {
         expect(screen.getByText('3')).toBeOnTheScreen()
     })
 
-    // `fmanName` arrives with the stack rebase onto `shaurya/fi-client-init`.
+    // `mgName` arrives with the stack rebase onto `shaurya/fi-client-init`.
     // This locks in that the screen picks it up with no further change, and
     // that a blank name still falls back to the id rather than rendering empty.
     it('should prefer the guardian display name once the bridge sends one', async () => {
@@ -613,8 +613,8 @@ describe('screens/CreateWalletService', () => {
                 preview: {
                     ...makePreview(),
                     seats: [
-                        { ...makeSeat(1, '100000'), fmanName: 'Bright Otter' },
-                        { ...makeSeat(2, '200000'), fmanName: '' },
+                        { ...makeSeat(1, '100000'), mgName: 'Bright Otter' },
+                        { ...makeSeat(2, '200000'), mgName: '' },
                         makeSeat(3, '300000'),
                     ],
                 },

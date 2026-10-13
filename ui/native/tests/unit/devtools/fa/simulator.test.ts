@@ -377,7 +377,7 @@ describe('FaSimulator', () => {
             if (result.type !== 'error') return
             expect(result.error.code).toBe('selection')
             expect(result.error.detail).toEqual({
-                type: 'insufficientFmanSeats',
+                type: 'insufficientMgSeats',
                 requested: 19,
                 selected: 8,
                 seen: 11,
@@ -462,7 +462,7 @@ describe('FaSimulator', () => {
                     withUnsynced(
                         withError(
                             formationAt({ formationId: 'f1' }, 'dkgUnderway'),
-                            'fleetManager',
+                            'manifoldGuardian',
                         ),
                     ),
                 ),
@@ -948,8 +948,8 @@ describe('FaSimulator', () => {
             expect(statuses).toHaveLength(10)
             expect(statuses[0]).toEqual({
                 online: {
-                    guardian: seats[0]?.fmanName,
-                    fman_name: seats[0]?.fmanName,
+                    guardian: seats[0]?.mgName,
+                    mg_name: seats[0]?.mgName,
                     latency_ms: 1,
                 },
             })
@@ -1207,7 +1207,7 @@ describe('FaSimulator', () => {
             )
             expect(events.map(([e]) => e)).toEqual([
                 'federation',
-                'fiFederationJoin',
+                'faFederationJoin',
             ])
             expect(events[1][1]).toEqual({
                 federationId: 'mock-wallet-service-formation_x',
@@ -1237,7 +1237,7 @@ describe('FaSimulator', () => {
 
             simulator.formWalletService('failed')
 
-            expect(events.map(([e]) => e)).toEqual(['fiFederationJoin'])
+            expect(events.map(([e]) => e)).toEqual(['faFederationJoin'])
             expect(
                 (events[0][1] as { state: { type: string } }).state.type,
             ).toBe('failed')
@@ -1361,7 +1361,7 @@ describe('FaSimulator', () => {
                 type: 'error',
                 error: {
                     detail: {
-                        type: 'insufficientFmanSeats',
+                        type: 'insufficientMgSeats',
                         seen: 11,
                         eligible: 8,
                     },
@@ -1462,7 +1462,7 @@ describe('FaSimulator', () => {
                     recovering: true,
                 }),
             )
-            expect(emitEvent).toHaveBeenCalledWith('fiFederationJoin', {
+            expect(emitEvent).toHaveBeenCalledWith('faFederationJoin', {
                 federationId: 'mock-wallet-service-f1',
                 state: { type: 'recovering' },
             })
@@ -1516,7 +1516,7 @@ describe('FaSimulator', () => {
                 'My Wallet Service',
             )
             const joins = emitEvent.mock.calls
-                .filter(([event]) => event === 'fiFederationJoin')
+                .filter(([event]) => event === 'faFederationJoin')
                 .map(([, e]) => (e as FaFederationJoinEvent).state.type)
             expect(joins).toEqual(['joining', 'ready'])
         })
@@ -1533,7 +1533,7 @@ describe('FaSimulator', () => {
             simulator.formWalletService('failed')
 
             const joins = emitEvent.mock.calls
-                .filter(([event]) => event === 'fiFederationJoin')
+                .filter(([event]) => event === 'faFederationJoin')
                 .map(([, e]) => (e as FaFederationJoinEvent).state.type)
             expect(joins).toEqual(['failed'])
         })
@@ -1555,12 +1555,12 @@ describe('FaSimulator', () => {
 
 /*** helpers ***/
 
-/** A simulator whose `fiFederationJoin` reports are collected in order. */
+/** A simulator whose `faFederationJoin` reports are collected in order. */
 function joinReports() {
     const simulator = new FaSimulator()
     const joinStates: RpcFaFederationJoinState[] = []
     const emitEvent = jest.fn((name: string, payload: unknown) => {
-        if (name === 'fiFederationJoin')
+        if (name === 'faFederationJoin')
             joinStates.push((payload as FaFederationJoinEvent).state)
     })
     simulator.attach(jest.fn(), emitEvent)

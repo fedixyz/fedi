@@ -68,10 +68,10 @@ describe('formation status builders', () => {
     it('should not mutate the input when adding an error or unsynced freshness', () => {
         const formation = formationAt(SEED, 'dkgUnderway')
 
-        const failed = withError(formation, 'fleetManager')
+        const failed = withError(formation, 'manifoldGuardian')
         const stale = withUnsynced(formation)
 
-        expect(failed.lastError).toBe('fleetManager')
+        expect(failed.lastError).toBe('manifoldGuardian')
         expect(stale.freshness).toBe('unsynced')
         expect(formation.lastError).toBeNull()
         expect(formation.freshness).toBe('fresh')
@@ -108,8 +108,8 @@ describe('formation status builders', () => {
                 maxTotalMsats: parked.intent.maxTotalMsats,
                 seats: [0, 1, 2].map(index => ({
                     index,
-                    fmanId: `mg_${SEED.formationId}_${index}`,
-                    fmanName: `guardian ${index + 1}`,
+                    mgId: `mg_${SEED.formationId}_${index}`,
+                    mgName: `guardian ${index + 1}`,
                     quoteId: `quote_${index}`,
                     paymentFederationId: 'payer_1',
                     amountMsats: '2100000',
@@ -134,8 +134,8 @@ describe('formation status builders', () => {
                 seats: [
                     {
                         index: 0,
-                        previousFmanId: `mg_${SEED.formationId}_0`,
-                        previousFmanName: 'guardian 1',
+                        previousMgId: `mg_${SEED.formationId}_0`,
+                        previousMgName: 'guardian 1',
                         previousQuoteId: 'quote_0',
                         previousLocator: parked.seats[0].locator,
                     },
@@ -175,7 +175,7 @@ describe('formation status builders', () => {
         if (status.type !== 'restored') throw new Error('expected restored')
         expect(status.formation.seats).toHaveLength(10)
         expect(status.formation.seats[0]).toEqual({
-            fmanId: expect.stringMatching(/^mg_/),
+            mgId: expect.stringMatching(/^mg_/),
             seatId: 'seat_0',
             locator: '{"version":1}',
         })

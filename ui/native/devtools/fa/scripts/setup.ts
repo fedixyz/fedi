@@ -28,7 +28,7 @@ const notEnoughSeats = (requested: number, eligible: number, seen: number) => ({
         code: 'selection',
         message: 'not enough verified manifold guardians for this size',
         detail: {
-            type: 'insufficientFmanSeats',
+            type: 'insufficientMgSeats',
             requested,
             selected: eligible,
             seen,
@@ -113,7 +113,7 @@ export const setupReauthorizationRequired: FaScript = script(
                 message: 'the sealed selection is no longer valid',
                 detail: {
                     type: 'selectionReauthorizationRequired',
-                    reason: 'selectedFmanUnavailable',
+                    reason: 'selectedMgUnavailable',
                 },
             },
         })),

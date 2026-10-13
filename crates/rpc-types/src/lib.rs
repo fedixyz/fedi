@@ -202,19 +202,16 @@ pub enum GuardianStatus {
     Online {
         guardian: String,
         /// Null when the cached MG mapping is missing or invalid.
-        #[serde(rename = "fman_name")]
         mg_name: Option<String>,
         latency_ms: u32,
     },
     Error {
         guardian: String,
-        #[serde(rename = "fman_name")]
         mg_name: Option<String>,
         error: String,
     },
     Timeout {
         guardian: String,
-        #[serde(rename = "fman_name")]
         mg_name: Option<String>,
         elapsed: String,
     },
@@ -551,7 +548,6 @@ pub struct RpcTransactionListEntry {
 pub enum RpcTransactionKind {
     /// Paying for a federation being formed: one row for the whole
     /// formation, pending until every seat is paid.
-    #[serde(rename = "fiFormationPayment")]
     FaFormationPayment {
         seats_paid: u32,
         seats_total: u32,

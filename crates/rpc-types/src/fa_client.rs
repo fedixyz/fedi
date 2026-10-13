@@ -68,11 +68,9 @@ pub struct RpcFaSelectionPreviewRequest {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcFaSelectionPreviewSeat {
-    #[serde(rename = "fmanId")]
     pub mg_id: String,
     /// Two-word display name derived from `fman_id`; names can collide and
     /// never substitute for the id.
-    #[serde(rename = "fmanName")]
     pub mg_name: String,
     pub advertised_price_msats: RpcFaMsats,
     pub provenance: String,
@@ -111,10 +109,8 @@ pub enum RpcFaSelectionPreviewResult {
 pub struct RpcFaGuardianReplacementSeat {
     pub index: u16,
     /// Badge-vouched identity of the outgoing MG; absent for pinned MGs.
-    #[serde(rename = "previousFmanId")]
     pub previous_mg_id: Option<String>,
     /// Two-word display name derived from `previous_fman_id`.
-    #[serde(rename = "previousFmanName")]
     pub previous_mg_name: Option<String>,
     pub previous_quote_id: String,
     /// Canonical versioned Manifold Guardian locator JSON retained for audit.
@@ -136,11 +132,9 @@ pub struct RpcFaGuardianReplacementRequirements {
 pub struct RpcFaReplacementPreviewSeat {
     /// Stable formation row this verified MG will replace.
     pub index: u16,
-    #[serde(rename = "fmanId")]
     pub mg_id: String,
     /// Two-word display name derived from `fman_id`; names can collide and
     /// never substitute for the id.
-    #[serde(rename = "fmanName")]
     pub mg_name: String,
     pub advertised_price_msats: RpcFaMsats,
     pub provenance: String,
@@ -303,9 +297,7 @@ pub enum RpcFaErrorCode {
     Selection,
     SelectionReauthorizationRequired,
     CapabilityUnavailable,
-    #[serde(rename = "invalidFleetManagers")]
     InvalidManifoldGuardians,
-    #[serde(rename = "fleetManager")]
     ManifoldGuardian,
     Payment,
     Liquidity,
@@ -620,7 +612,6 @@ pub enum RpcFaLiquidityOperationPageResult {
 pub enum RpcFaSelectionReauthorizationReason {
     PreviewExpired,
     AdvertisementEstimateExceedsLimit,
-    #[serde(rename = "selectedFmanUnavailable")]
     SelectedMgUnavailable,
     QuoteTotalExceedsLimit,
     QuoteTermsChanged,
@@ -646,7 +637,6 @@ pub enum RpcFaAbandonUnavailableReason {
 )]
 #[ts(export)]
 pub enum RpcFaOperationErrorDetail {
-    #[serde(rename = "insufficientFmanSeats")]
     InsufficientMgSeats {
         requested: u16,
         selected: u16,
@@ -740,10 +730,8 @@ pub struct RpcFaSeatPaymentRequirement {
     pub index: u16,
     /// Badge-vouched identity of the MG the quote pays; absent for pinned
     /// MGs.
-    #[serde(rename = "fmanId")]
     pub mg_id: Option<String>,
     /// Two-word display name derived from `fman_id`.
-    #[serde(rename = "fmanName")]
     pub mg_name: Option<String>,
     pub quote_id: String,
     pub payment_federation_id: String,
@@ -788,11 +776,9 @@ pub struct RpcFaSeatProgress {
     pub index: u16,
     /// Badge-vouched identity of the currently assigned MG; absent for
     /// pinned MGs.
-    #[serde(rename = "fmanId")]
     pub mg_id: Option<String>,
     /// Two-word display name derived from `fman_id`; names can collide and
     /// never substitute for the id.
-    #[serde(rename = "fmanName")]
     pub mg_name: Option<String>,
     /// Canonical versioned Manifold Guardian locator JSON.
     pub locator: String,
@@ -842,7 +828,6 @@ pub struct RpcFaFormationSnapshot {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcFaRestoredSeat {
-    #[serde(rename = "fmanId")]
     pub mg_id: String,
     pub seat_id: String,
     /// Canonical versioned Manifold Guardian locator JSON.

@@ -76,7 +76,7 @@ const WalletServiceReplaceReview: React.FC<Props> = ({ navigation }) => {
             const opError = error as RpcFaOperationError | undefined
             // no candidates is a waiting state, not a failure: the formation
             // is durable, so the honest offer is "check back soon"
-            if (opError?.detail?.type === 'insufficientFmanSeats') {
+            if (opError?.detail?.type === 'insufficientMgSeats') {
                 setInsufficientSeats({
                     requested: opError.detail.requested,
                     selected: opError.detail.selected,

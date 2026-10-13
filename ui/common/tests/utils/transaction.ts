@@ -72,7 +72,7 @@ export function makeTestTxnEntry<T extends TransactionListEntry['kind']>(
     }
 
     switch (kind) {
-        case 'fiFormationPayment':
+        case 'faFormationPayment':
             return {
                 kind,
                 seats_paid: 0,

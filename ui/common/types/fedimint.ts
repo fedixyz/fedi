@@ -363,7 +363,7 @@ export type FedimintBridgeEventMap = {
     communityMetadataUpdated: CommunityMetadataUpdatedEvent
     nonceReuseCheckFailed: NonceReuseCheckFailedEvent
     communityMigratedToV2: CommunityMigratedToV2Event
-    fiFederationJoin: FaFederationJoinEvent
+    faFederationJoin: FaFederationJoinEvent
 }
 
 export type StabilityPoolTxn = {

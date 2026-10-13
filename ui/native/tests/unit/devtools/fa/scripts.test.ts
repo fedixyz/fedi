@@ -98,7 +98,7 @@ describe('formation scripts', () => {
     it('should land the retrying screen on a non-terminal error', async () => {
         const { status } = await jumpAndRead('formation.retrying')
         expect(formationOf(status).phase).toBe('dkgUnderway')
-        expect(formationOf(status).lastError).toBe('fleetManager')
+        expect(formationOf(status).lastError).toBe('manifoldGuardian')
     })
 
     it('should land the terminal failure screen on a terminal error', async () => {
@@ -134,7 +134,7 @@ describe('formation scripts', () => {
         simulator.attach(
             () => {},
             (event, payload) => {
-                if (event === 'fiFederationJoin')
+                if (event === 'faFederationJoin')
                     joinStates.push(
                         (payload as FaFederationJoinEvent).state.type,
                     )
@@ -248,7 +248,7 @@ describe('formation scripts', () => {
             await simulator.handle('faClientPreviewReplacements', {}),
         ).toMatchObject({
             type: 'error',
-            error: { detail: { type: 'insufficientFmanSeats', eligible: 0 } },
+            error: { detail: { type: 'insufficientMgSeats', eligible: 0 } },
         })
     })
 })
@@ -347,7 +347,7 @@ describe('setup scripts', () => {
             type: 'error',
             error: {
                 detail: {
-                    type: 'insufficientFmanSeats',
+                    type: 'insufficientMgSeats',
                     eligible: 8,
                     seen: 11,
                 },
@@ -375,7 +375,7 @@ describe('setup scripts', () => {
             type: 'error',
             error: {
                 code: 'selectionReauthorizationRequired',
-                detail: { reason: 'selectedFmanUnavailable' },
+                detail: { reason: 'selectedMgUnavailable' },
             },
         })
     })
@@ -390,7 +390,7 @@ describe('setup scripts', () => {
         expect(await quote()).toMatchObject({ type: 'preview' })
         expect(await quote()).toMatchObject({
             type: 'error',
-            error: { detail: { type: 'insufficientFmanSeats', requested: 4 } },
+            error: { detail: { type: 'insufficientMgSeats', requested: 4 } },
         })
     })
 
@@ -465,7 +465,7 @@ describe('recovery scripts', () => {
         expect(
             events
                 .map(([e, p]) =>
-                    e === 'fiFederationJoin'
+                    e === 'faFederationJoin'
                         ? (p as FaFederationJoinEvent).state.type
                         : null,
                 )
@@ -508,7 +508,7 @@ describe('recovery scripts', () => {
         simulator.attach(
             () => {},
             (event, payload) => {
-                if (event === 'fiFederationJoin')
+                if (event === 'faFederationJoin')
                     events.push(payload as FaFederationJoinEvent)
             },
         )
@@ -532,7 +532,7 @@ describe('recovery scripts', () => {
         simulator.attach(
             () => {},
             (event, payload) => {
-                if (event === 'fiFederationJoin')
+                if (event === 'faFederationJoin')
                     events.push((payload as FaFederationJoinEvent).state.type)
             },
         )

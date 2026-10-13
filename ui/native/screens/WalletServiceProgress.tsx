@@ -226,7 +226,7 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
     }, [federationJoinFailure, recoveryStage])
 
     // bounded wait on the rejoining stage. A join that fails arrives as a
-    // `fiFederationJoin` `failed` report, and this screen answers it with its
+    // `faFederationJoin` `failed` report, and this screen answers it with its
     // terminal state; this line is for the wait that has not been answered
     // either way yet.
     const [isTakingLonger, setIsTakingLonger] = useState(false)

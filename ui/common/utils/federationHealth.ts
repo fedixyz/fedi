@@ -19,8 +19,8 @@ export const guardianQuorum = (total: number) =>
     total - Math.floor((total - 1) / 3)
 
 export const readGuardianStatus = (status: GuardianStatus) => {
-    const { guardian, fman_name } = Object.values(status)[0]
-    return { guardian, fman_name, isResponding: 'online' in status }
+    const { guardian, mg_name } = Object.values(status)[0]
+    return { guardian, mg_name, isResponding: 'online' in status }
 }
 
 export function observeFederationHealth(

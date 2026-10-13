@@ -63,7 +63,7 @@ describe('WalletServiceGuardianStates', () => {
         expect(simulated()?.mode).toBe('sustained')
         expect(
             simulated()?.guardians.every(
-                g => Object.values(g)[0].fman_name !== null,
+                g => Object.values(g)[0].mg_name !== null,
             ),
         ).toBe(true)
     })
@@ -76,7 +76,7 @@ describe('WalletServiceGuardianStates', () => {
         expect(responding(simulated()?.guardians)).toBe(10)
         expect(
             simulated()?.guardians.every(
-                g => Object.values(g)[0].fman_name === null,
+                g => Object.values(g)[0].mg_name === null,
             ),
         ).toBe(true)
     })
@@ -109,7 +109,7 @@ describe('WalletServiceGuardianStates', () => {
         const checked: GuardianStatus[] = ['a', 'b', 'c', 'd'].map(name => ({
             online: {
                 guardian: `wss://${name}.example`,
-                fman_name: null,
+                mg_name: null,
                 latency_ms: 1,
             },
         }))

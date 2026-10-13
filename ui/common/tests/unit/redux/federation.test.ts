@@ -23,7 +23,7 @@ describe('common/redux/federation guardian refresh', () => {
         {
             online: {
                 guardian: 'wss://guardian.example',
-                fman_name: null,
+                mg_name: null,
                 latency_ms: 10,
             },
         },
@@ -95,7 +95,7 @@ describe('common/redux/federation guardian refresh', () => {
             {
                 timeout: {
                     guardian: 'wss://guardian.example',
-                    fman_name: null,
+                    mg_name: null,
                     elapsed: '10s',
                 },
             },

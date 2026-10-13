@@ -41,14 +41,14 @@ const makePreview = (
     validUntil: 0,
     seats: [
         {
-            fmanId: 'mg-1',
-            fmanName: 'amber alder',
+            mgId: 'mg-1',
+            mgName: 'amber alder',
             advertisedPriceMsats: '750000',
             provenance: 'registry',
         },
         {
-            fmanId: 'mg-2',
-            fmanName: 'briny beech',
+            mgId: 'mg-2',
+            mgName: 'briny beech',
             advertisedPriceMsats: '750000',
             provenance: 'registry',
         },
@@ -767,7 +767,7 @@ describe('screens/ConfirmWalletService', () => {
             faClientPreviewSelection: Promise.resolve({
                 type: 'error',
                 error: {
-                    code: 'fleetManager',
+                    code: 'manifoldGuardian',
                     message: 'guardian host unreachable',
                     detail: null,
                 },
@@ -937,7 +937,7 @@ describe('screens/ConfirmWalletService', () => {
                     code: 'selection',
                     message: 'too few guardians',
                     detail: {
-                        type: 'insufficientFmanSeats',
+                        type: 'insufficientMgSeats',
                         requested: 7,
                         selected: 2,
                         seen: 5,

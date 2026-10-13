@@ -283,7 +283,7 @@ export function initializeCommonStore({
     // Record the Wallet Service's federation join state as the bridge reports
     // it, including the re-emit on every `faClientStatus` read
     const unsubscribeFaFederationJoin = fedimint.addListener(
-        'fiFederationJoin',
+        'faFederationJoin',
         event => {
             dispatch(setFaFederationJoin(event))
         },

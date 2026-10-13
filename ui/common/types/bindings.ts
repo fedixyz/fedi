@@ -128,7 +128,7 @@ export type Event =
   | { communityMetadataUpdated: CommunityMetadataUpdatedEvent }
   | { nonceReuseCheckFailed: NonceReuseCheckFailedEvent }
   | { communityMigratedToV2: CommunityMigratedToV2Event }
-  | { fiFederationJoin: FaFederationJoinEvent };
+  | { faFederationJoin: FaFederationJoinEvent };
 
 /**
  * Notify front-end how the automatic join of the FA's federation is going.
@@ -216,7 +216,7 @@ export type FeatureCatalog = {
    * formation-completion hooks. Absence is an explicit fail-closed state;
    * end-user devices never supply an override.
    */
-  fi_push_gateway: FaPushGatewayFeatureConfig | null;
+  fa_push_gateway: FaPushGatewayFeatureConfig | null;
   /**
    * SP Transfers Matrix feature flag.
    * When enabled, allows stability pool transfers via Matrix messaging.
@@ -360,14 +360,12 @@ export type GuardianStatus =
         /**
          * Null when the cached MG mapping is missing or invalid.
          */
-        fman_name: string | null;
+        mg_name: string | null;
         latency_ms: number;
       };
     }
-  | { error: { guardian: string; fman_name: string | null; error: string } }
-  | {
-      timeout: { guardian: string; fman_name: string | null; elapsed: string };
-    };
+  | { error: { guardian: string; mg_name: string | null; error: string } }
+  | { timeout: { guardian: string; mg_name: string | null; elapsed: string } };
 
 export type GuardianitoBot = { bot_user_id: string; bot_room_id: string };
 
@@ -723,8 +721,8 @@ export type RpcFaErrorCode =
   | "selection"
   | "selectionReauthorizationRequired"
   | "capabilityUnavailable"
-  | "invalidFleetManagers"
-  | "fleetManager"
+  | "invalidManifoldGuardians"
+  | "manifoldGuardian"
   | "payment"
   | "liquidity"
   | "maintenanceWrongState"
@@ -819,11 +817,11 @@ export type RpcFaGuardianReplacementSeat = {
   /**
    * Badge-vouched identity of the outgoing MG; absent for pinned MGs.
    */
-  previousFmanId: string | null;
+  previousMgId: string | null;
   /**
    * Two-word display name derived from `previous_fman_id`.
    */
-  previousFmanName: string | null;
+  previousMgName: string | null;
   previousQuoteId: string;
   /**
    * Canonical versioned Manifold Guardian locator JSON retained for audit.
@@ -1051,7 +1049,7 @@ export type RpcFaOperationError = {
 
 export type RpcFaOperationErrorDetail =
   | {
-      type: "insufficientFmanSeats";
+      type: "insufficientMgSeats";
       requested: number;
       selected: number;
       seen: number;
@@ -1108,12 +1106,12 @@ export type RpcFaReplacementPreviewSeat = {
    * Stable formation row this verified MG will replace.
    */
   index: number;
-  fmanId: string;
+  mgId: string;
   /**
    * Two-word display name derived from `fman_id`; names can collide and
    * never substitute for the id.
    */
-  fmanName: string;
+  mgName: string;
   advertisedPriceMsats: RpcFaMsats;
   provenance: string;
 };
@@ -1138,7 +1136,7 @@ export type RpcFaRestoredFormationSnapshot = {
 };
 
 export type RpcFaRestoredSeat = {
-  fmanId: string;
+  mgId: string;
   seatId: string;
   /**
    * Canonical versioned Manifold Guardian locator JSON.
@@ -1152,11 +1150,11 @@ export type RpcFaSeatPaymentRequirement = {
    * Badge-vouched identity of the MG the quote pays; absent for pinned
    * MGs.
    */
-  fmanId: string | null;
+  mgId: string | null;
   /**
    * Two-word display name derived from `fman_id`.
    */
-  fmanName: string | null;
+  mgName: string | null;
   quoteId: string;
   paymentFederationId: string;
   amountMsats: RpcFaMsats;
@@ -1178,12 +1176,12 @@ export type RpcFaSeatProgress = {
    * Badge-vouched identity of the currently assigned MG; absent for
    * pinned MGs.
    */
-  fmanId: string | null;
+  mgId: string | null;
   /**
    * Two-word display name derived from `fman_id`; names can collide and
    * never substitute for the id.
    */
-  fmanName: string | null;
+  mgName: string | null;
   /**
    * Canonical versioned Manifold Guardian locator JSON.
    */
@@ -1217,12 +1215,12 @@ export type RpcFaSelectionPreviewResult =
   | { type: "error"; error: RpcFaOperationError };
 
 export type RpcFaSelectionPreviewSeat = {
-  fmanId: string;
+  mgId: string;
   /**
    * Two-word display name derived from `fman_id`; names can collide and
    * never substitute for the id.
    */
-  fmanName: string;
+  mgName: string;
   advertisedPriceMsats: RpcFaMsats;
   provenance: string;
 };
@@ -1230,7 +1228,7 @@ export type RpcFaSelectionPreviewSeat = {
 export type RpcFaSelectionReauthorizationReason =
   | "previewExpired"
   | "advertisementEstimateExceedsLimit"
-  | "selectedFmanUnavailable"
+  | "selectedMgUnavailable"
   | "quoteTotalExceedsLimit"
   | "quoteTermsChanged"
   | "selectedPayerUnavailable"
@@ -2373,7 +2371,7 @@ export type RpcTransaction = {
    */
   outcomeTime: number | null;
 } & (
-  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
+  | { kind: "faFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2424,7 +2422,7 @@ export type RpcTransactionDirection = "receive" | "send";
 export type RpcTransactionId = string;
 
 export type RpcTransactionKind =
-  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
+  | { kind: "faFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2483,7 +2481,7 @@ export type RpcTransactionListEntry = {
    */
   outcomeTime: number | null;
 } & (
-  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
+  | { kind: "faFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;

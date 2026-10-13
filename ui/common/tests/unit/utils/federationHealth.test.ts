@@ -11,14 +11,14 @@ function guardians(total: number, online: number): GuardianStatus[] {
             ? {
                   online: {
                       guardian: `guardian-${i}`,
-                      fman_name: null,
+                      mg_name: null,
                       latency_ms: 5,
                   },
               }
             : {
                   timeout: {
                       guardian: `guardian-${i}`,
-                      fman_name: null,
+                      mg_name: null,
                       elapsed: '10s',
                   },
               },
@@ -117,7 +117,7 @@ describe('federation reachability', () => {
         changed[0] = {
             error: {
                 guardian: 'replacement',
-                fman_name: null,
+                mg_name: null,
                 error: 'unreachable',
             },
         }

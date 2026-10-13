@@ -154,7 +154,6 @@ pub struct FeatureCatalog {
     /// Manifold push gateway used for installation registration and FA
     /// formation-completion hooks. Absence is an explicit fail-closed state;
     /// end-user devices never supply an override.
-    #[serde(rename = "fi_push_gateway")]
     pub fa_push_gateway: Option<FaPushGatewayFeatureConfig>,
 
     /// SP Transfers Matrix feature flag.
