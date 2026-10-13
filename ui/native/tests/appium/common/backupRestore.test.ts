@@ -3,6 +3,7 @@ import {
     AppiumTestBase,
     MATRIX_TIMEOUT,
 } from '../../configs/appium/AppiumTestBase'
+import { openFediTestnetPreview } from '../fixtures/setupOnboarded'
 import {
     ALL_GROUPS,
     createGroupAndSendMessage,
@@ -136,8 +137,7 @@ export class BackupRestore extends AppiumTestBase {
         // Recovery repopulates chatList, firing the notification prompt over
         // the federation list; clear it before the FediTestnetJoinButton tap.
         await this.acceptIosNotificationPromptIfPresent(MATRIX_TIMEOUT)
-        await this.scrollToElement('FediTestnetJoinButton')
-        await this.clickElementByKey('FediTestnetJoinButton')
+        await openFediTestnetPreview(this)
         await this.clickElementByKey('RecoverFromScratchSwitch')
         await this.clickElementByKey('RecoverFromScratchSwitch')
         await this.clickElementByKey('JoinFederationButton')
