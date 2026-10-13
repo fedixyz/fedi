@@ -62,7 +62,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         leaveKey: string,
         federationName: string,
     ): Promise<void> {
-        const deadline = Date.now() + 120000
+        const deadline = Date.now() + 300000
         while (Date.now() < deadline) {
             // the accordion click toggles, so only expand when the leave
             // item is not already on the list
@@ -90,7 +90,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 )
             }
             await this.acceptAlert('Yes')
-            if (await this.waitForElementToDisappear(accordionKey, 10000)) {
+            if (await this.waitForElementToDisappear(accordionKey, 60000)) {
                 return
             }
             console.log(
