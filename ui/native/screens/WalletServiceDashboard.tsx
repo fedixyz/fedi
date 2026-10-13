@@ -7,22 +7,22 @@ import { StyleSheet, View } from 'react-native'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
+    useWalletServiceFederationId,
+    useWalletServiceRecoveryStage,
+} from '@fedi/common/hooks/fa'
+import {
     useFederationStatus,
     useGuardianStatus,
 } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
-import {
-    useWalletServiceFederationId,
-    useWalletServiceRecoveryStage,
-} from '@fedi/common/hooks/fi'
 import { useGuardianFeeBalance } from '@fedi/common/hooks/guardianFees'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
-    selectFiFederationJoinFailure,
-    selectFiFormationName,
-    selectFiInviteCode,
-    selectFiIsUnsynced,
-    selectFiStatus,
+    selectFaFederationJoinFailure,
+    selectFaFormationName,
+    selectFaInviteCode,
+    selectFaIsUnsynced,
+    selectFaStatus,
     selectIsWalletServiceLightningRunning,
     selectWalletServiceGuardianCount,
     selectLoadedFederation,
@@ -78,9 +78,9 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation()
     const fedimint = useFedimint()
     const dispatch = useAppDispatch()
-    const formationName = useAppSelector(selectFiFormationName)
-    const inviteCode = useAppSelector(selectFiInviteCode)
-    const isUnsynced = useAppSelector(selectFiIsUnsynced)
+    const formationName = useAppSelector(selectFaFormationName)
+    const inviteCode = useAppSelector(selectFaInviteCode)
+    const isUnsynced = useAppSelector(selectFaIsUnsynced)
     // watched app-wide by WalletServiceMonitor, so this reports a request the
     // user started on another screen — or in an earlier run of the app
     const isAttachingLightning = useAppSelector(
@@ -90,8 +90,8 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
 
     const federationId = useWalletServiceFederationId()
     // federation-owned readiness, not `isUsable`: the balance and the withdraw
-    // path both come from Fedimint, so an FI snapshot that is merely
-    // re-reconciling must not replace them with a recovery loader. The FI
+    // path both come from Fedimint, so an FA snapshot that is merely
+    // re-reconciling must not replace them with a recovery loader. The FA
     // caveat is carried by the guardian-line skeleton below.
     const { isWalletReady } = useWalletServiceRecoveryStage()
     // Held back until the wallet is ready, which is the point the federation is
@@ -160,7 +160,7 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     // the boolean, not the failure object: that one is rebuilt on every read,
     // and an effect keyed on it would re-run for every unrelated store change.
     const hasJoinFailed = useAppSelector(
-        s => selectFiFederationJoinFailure(s) !== null,
+        s => selectFaFederationJoinFailure(s) !== null,
     )
     // Restored only — the same pair the terminal state on WalletServiceProgress
     // renders for. The bridge reports a failed join on the created path too,
@@ -169,15 +169,15 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     // of someone whose service was created long ago.
     // the type alone, not the status: the object is replaced on every snapshot
     // the bridge reports, and neither of the two decisions below moves with it
-    const fiStatusType = useAppSelector(s => selectFiStatus(s)?.type ?? null)
-    const isRestoredService = fiStatusType === 'restored'
+    const faStatusType = useAppSelector(s => selectFaStatus(s)?.type ?? null)
+    const isRestoredService = faStatusType === 'restored'
     // The created counterpart, which stays here and is answered here: the
     // bridge runs its auto-join once per start, so no spinner on this screen
     // is describing anything that is still happening.
-    const hasCreatedJoinFailed = fiStatusType === 'formation' && hasJoinFailed
+    const hasCreatedJoinFailed = faStatusType === 'formation' && hasJoinFailed
     // No loop back: Progress only returns here once the service is usable,
     // which means the wallet is ready — exactly the condition that makes a
-    // retained failure stale in `selectFiFederationJoinFailure`.
+    // retained failure stale in `selectFaFederationJoinFailure`.
     useEffect(() => {
         if (isRestoredService && hasJoinFailed)
             navigation.replace('WalletServiceProgress')

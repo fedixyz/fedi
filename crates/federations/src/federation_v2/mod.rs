@@ -1,6 +1,6 @@
 pub mod client;
 pub mod db;
-mod fi_funding;
+mod fa_funding;
 mod guardian_remittance;
 mod ln_ops;
 mod lnurl_receives_service;
@@ -30,9 +30,9 @@ use db::{
 };
 use device_registration::DeviceRegistrationService;
 use fedi_decentralized_domain::{
-    FMAN_SEAT_BINDINGS_META_FIELD_KEY, FmanSeatBindings, federation_seats,
+    MG_SEAT_BINDINGS_META_FIELD_KEY, MgSeatBindings, federation_seats,
 };
-use fedi_decentralized_service_fleet_manager::FmanName;
+use fedi_decentralized_service_manifold_guardian::MgName;
 use fedi_social_client::common::VerificationDocument;
 use fedi_social_client::{
     FediSocialClientInit, RecoveryFile, RecoveryId, SOCIAL_RECOVERY_SECRET_CHILD_ID, SocialBackup,
@@ -119,7 +119,7 @@ use rpc_types::{
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
     ECASH_INTERNAL_CHANGE_TIMEOUT_MAINNET, ECASH_INTERNAL_CHANGE_TIMEOUT_MUTINYNET,
-    FI_SEAT_PAYMENT_OPERATION_TYPE, LIGHTNING_OPERATION_TYPE, LIGHTNINGV2_OPERATION_TYPE, MILLION,
+    FA_SEAT_PAYMENT_OPERATION_TYPE, LIGHTNING_OPERATION_TYPE, LIGHTNINGV2_OPERATION_TYPE, MILLION,
     MINT_OPERATION_TYPE, MINTV2_OPERATION_TYPE, RECURRINGD_API_META, REISSUE_ECASH_TIMEOUT,
     STABILITY_POOL_OPERATION_TYPE, STABILITY_POOL_V2_OPERATION_TYPE, WALLET_OPERATION_TYPE,
     WALLETV2_OPERATION_TYPE,
@@ -438,8 +438,8 @@ impl FederationKind {
     }
 }
 
-use db::FiFundingReservationMemberState;
-pub use fi_funding::{FiFundingBalanceChange, FiFundingSpendGuard, FiSeatPaymentOperationMeta};
+use db::FaFundingReservationMemberState;
+pub use fa_funding::{FaFundingBalanceChange, FaFundingSpendGuard, FaSeatPaymentOperationMeta};
 
 /// Federation is a wrapper of "client ng" to assist with handling RPC commands
 pub struct FederationV2 {
@@ -1603,9 +1603,9 @@ impl FederationV2 {
         let after_fees = self
             .balance_after_mint_fees(self.mint_ops.get_raw_balance(self).await)
             .await;
-        fi_funding::balance_after_fi_funding_holds(
+        fa_funding::balance_after_fa_funding_holds(
             after_fees,
-            self.fi_funding_reserved_total().await,
+            self.fa_funding_reserved_total().await,
         )
     }
 
@@ -1613,7 +1613,7 @@ impl FederationV2 {
     /// id.
     fn guardian_names(
         config: &ClientConfig,
-        bindings: Option<FmanSeatBindings>,
+        bindings: Option<MgSeatBindings>,
     ) -> anyhow::Result<BTreeMap<PeerId, String>> {
         let Some(bindings) = bindings else {
             return Ok(BTreeMap::new());
@@ -1624,7 +1624,7 @@ impl FederationV2 {
             .map(|binding| {
                 Ok((
                     binding.peer_id.0.parse()?,
-                    FmanName::from_fman_id(binding.fman_pubkey.0.parse()?).to_string(),
+                    MgName::from_mg_id(binding.mg_pubkey.0.parse()?).to_string(),
                 ))
             })
             .collect()
@@ -1632,8 +1632,7 @@ impl FederationV2 {
 
     pub async fn guardian_status_no_cache(&self) -> anyhow::Result<Vec<GuardianStatus>> {
         let bindings =
-            get_meta_field::<FmanSeatBindings>(&self.client, FMAN_SEAT_BINDINGS_META_FIELD_KEY)
-                .await;
+            get_meta_field::<MgSeatBindings>(&self.client, MG_SEAT_BINDINGS_META_FIELD_KEY).await;
         let names = Self::guardian_names(&self.client.config().await, bindings).unwrap_or_default();
         let names = &names;
         let futures =
@@ -1642,7 +1641,7 @@ impl FederationV2 {
                 .await
                 .into_iter()
                 .map(|(peer_id, guardian)| async move {
-                    let fman_name = names.get(&peer_id).cloned();
+                    let mg_name = names.get(&peer_id).cloned();
                     let start = fedimint_core::time::now();
                     match timeout(
                         GUARDIAN_STATUS_TIMEOUT,
@@ -1660,7 +1659,7 @@ impl FederationV2 {
                             info!("Received guardian status response");
                             GuardianStatus::Online {
                                 guardian: guardian.to_string(),
-                                fman_name,
+                                mg_name,
                                 latency_ms: fedimint_core::time::now()
                                     .duration_since(start)
                                     .unwrap_or_default()
@@ -1673,7 +1672,7 @@ impl FederationV2 {
                             info!("Guardian status request failed");
                             GuardianStatus::Error {
                                 guardian: guardian.to_string(),
-                                fman_name,
+                                mg_name,
                                 error: error.to_string(),
                             }
                         }
@@ -1681,7 +1680,7 @@ impl FederationV2 {
                             info!("Guardian status request timed out");
                             GuardianStatus::Timeout {
                                 guardian: guardian.to_string(),
-                                fman_name,
+                                mg_name,
                                 elapsed: elapsed.to_string(),
                             }
                         }
@@ -2953,13 +2952,13 @@ impl FederationV2 {
     /// One history row per formation payment, built from the funding
     /// reservation (the source of truth for every seat's hold, payment,
     /// and refund). First page only, like awaiting deposits.
-    async fn merge_fi_formation_payments(
+    async fn merge_fa_formation_payments(
         &self,
         entries: &mut Vec<Result<RpcTransactionListEntry, String>>,
         limit: usize,
         oldest_op_time: Option<u64>,
     ) {
-        let reservations = self.list_fi_funding_reservations().await;
+        let reservations = self.list_fa_funding_reservations().await;
         if reservations.is_empty() {
             return;
         }
@@ -2971,18 +2970,18 @@ impl FederationV2 {
             for member in reservation.members() {
                 seats_total += 1;
                 match member.state() {
-                    FiFundingReservationMemberState::Held => {
+                    FaFundingReservationMemberState::Held => {
                         live = true;
                         amount_msats = amount_msats.saturating_add(member.reserved_msats());
                     }
-                    FiFundingReservationMemberState::Consumed { debit_msats } => {
+                    FaFundingReservationMemberState::Consumed { debit_msats } => {
                         live = true;
                         seats_paid += 1;
                         amount_msats = amount_msats.saturating_add(
                             debit_msats.saturating_sub(member.refunded_msats().unwrap_or(0)),
                         );
                     }
-                    FiFundingReservationMemberState::ReleasedUnstarted => {}
+                    FaFundingReservationMemberState::ReleasedUnstarted => {}
                 }
             }
             // Fully released without a single payment: the user never spent
@@ -3004,7 +3003,7 @@ impl FederationV2 {
                     txn_notes: None,
                     tx_date_fiat_info: None,
                     frontend_metadata: Default::default(),
-                    kind: RpcTransactionKind::FiFormationPayment {
+                    kind: RpcTransactionKind::FaFormationPayment {
                         seats_paid,
                         seats_total,
                     },
@@ -3060,7 +3059,7 @@ impl FederationV2 {
         if start_after.is_none() {
             self.merge_walletv2_awaiting_deposits(&mut entries, limit, oldest_op_time)
                 .await;
-            self.merge_fi_formation_payments(&mut entries, limit, oldest_op_time)
+            self.merge_fa_formation_payments(&mut entries, limit, oldest_op_time)
                 .await;
         }
         entries
@@ -3568,7 +3567,7 @@ impl FederationV2 {
                 frontend_metadata = transaction.frontend_metadata;
                 transaction_kind = transaction.kind;
             }
-            FI_SEAT_PAYMENT_OPERATION_TYPE => {
+            FA_SEAT_PAYMENT_OPERATION_TYPE => {
                 // Individual seat payments stay hidden; history shows one
                 // formation-payment row built from the funding reservation.
                 return Ok(None);
@@ -5520,8 +5519,8 @@ impl FederationPrefetchedInfo {
 mod tests {
     use fedi_decentralized_domain::test_support::test_config;
     use fedi_decentralized_domain::{
-        FmanPeerAttestation, FmanPeerAttestationStatement, ProtocolV1, Pubkey,
-        SchnorrSignatureProof, Timestamp,
+        MgPeerAttestation, MgPeerAttestationStatement, ProtocolV1, Pubkey, SchnorrSignatureProof,
+        Timestamp,
     };
     use fedimint_client_module::meta::MetaFieldValue;
     use fedimint_core::core::ModuleKind;
@@ -5531,7 +5530,7 @@ mod tests {
 
     use super::*;
 
-    fn directory(config: &ClientConfig) -> FmanSeatBindings {
+    fn directory(config: &ClientConfig) -> MgSeatBindings {
         let federation = federation_seats(config).unwrap();
         let bindings = federation
             .seats()
@@ -5540,8 +5539,8 @@ mod tests {
             .rev()
             .map(|(index, seat)| {
                 let keys = Keys::new(SecretKey::from_slice(&[index as u8 + 1; 32]).unwrap());
-                let attestation = FmanPeerAttestationStatement {
-                    fman_pubkey: Pubkey(keys.public_key().to_string()),
+                let attestation = MgPeerAttestationStatement {
+                    mg_pubkey: Pubkey(keys.public_key().to_string()),
                     federation_id: federation.federation_id().clone(),
                     federation_config_hash: federation.federation_config_hash().clone(),
                     peer_id: seat.peer_id.clone(),
@@ -5556,16 +5555,16 @@ mod tests {
                     signature: keys
                         .sign_schnorr(&Message::from_digest(attestation.digest().unwrap())),
                 };
-                FmanPeerAttestation {
+                MgPeerAttestation {
                     version: ProtocolV1,
                     attestation,
                     proof,
                 }
             });
-        FmanSeatBindings::new(bindings).unwrap()
+        MgSeatBindings::new(bindings).unwrap()
     }
 
-    fn cached_directory(directory: &FmanSeatBindings) -> FmanSeatBindings {
+    fn cached_directory(directory: &MgSeatBindings) -> MgSeatBindings {
         // Exercise the JSON unwrapping and typed decoding used by get_meta_field.
         let MetaFieldValue(value) =
             serde_json::from_value(json!(directory.canonical_string().unwrap())).unwrap();
@@ -5581,7 +5580,7 @@ mod tests {
             let keys = Keys::new(SecretKey::from_slice(&[peer as u8 + 1; 32]).unwrap());
             assert_eq!(
                 names[&peer.into()],
-                FmanName::from_fman_id(keys.public_key()).to_string()
+                MgName::from_mg_id(keys.public_key()).to_string()
             );
         }
     }
@@ -5598,8 +5597,8 @@ mod tests {
         assert!(FederationV2::guardian_names(&test_config(3), Some(bindings)).is_err());
 
         let mut forged = directory(&config).seat_bindings().to_vec();
-        forged[0].attestation.fman_pubkey = forged[1].attestation.fman_pubkey.clone();
-        let bindings = cached_directory(&FmanSeatBindings::new(forged).unwrap());
+        forged[0].attestation.mg_pubkey = forged[1].attestation.mg_pubkey.clone();
+        let bindings = cached_directory(&MgSeatBindings::new(forged).unwrap());
         assert!(FederationV2::guardian_names(&config, Some(bindings)).is_err());
     }
 

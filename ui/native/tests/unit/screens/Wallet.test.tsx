@@ -6,7 +6,7 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 
-import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fa'
 import {
     fetchCurrencyPrices,
     setFederations,
@@ -39,7 +39,7 @@ jest.mock('@fedi/common/utils/FederationUtils', () => ({
 
 // the real hook parses the fi invite code through the bridge; the screen
 // only needs the id it produces
-jest.mock('@fedi/common/hooks/fi', () => ({
+jest.mock('@fedi/common/hooks/fa', () => ({
     useWalletServiceFederationId: jest.fn(() => null),
 }))
 

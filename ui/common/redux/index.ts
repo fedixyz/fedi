@@ -24,6 +24,7 @@ import { analyticsSlice } from './analytics'
 import { browserSlice } from './browser'
 import { currencySlice, refreshHistoricalCurrencyRates } from './currency'
 import { environmentSlice, selectIsInternetUnreachable } from './environment'
+import { faSlice, setFaFederationJoin } from './fa'
 import {
     federationSlice,
     joinFederation,
@@ -40,7 +41,6 @@ import {
     upsertCommunity,
     upsertFederation,
 } from './federation'
-import { fiSlice, setFiFederationJoin } from './fi'
 import {
     checkForReceivablePayments,
     handleMatrixRoomTimelineStreamUpdates,
@@ -68,7 +68,7 @@ const log = makeLog('common/redux/index')
 export * from './currency'
 export * from './environment'
 export * from './federation'
-export * from './fi'
+export * from './fa'
 export * from './matrix'
 export * from './nux'
 export * from './personal-backup-reminder/personalBackupReminderSlice'
@@ -84,7 +84,7 @@ export const commonReducers = {
     currency: currencySlice.reducer,
     environment: environmentSlice.reducer,
     federation: federationSlice.reducer,
-    fi: fiSlice.reducer,
+    fi: faSlice.reducer,
     matrix: matrixSlice.reducer,
     mod: modSlice.reducer,
     nux: nuxSlice.reducer,
@@ -281,11 +281,11 @@ export function initializeCommonStore({
     )
 
     // Record the Wallet Service's federation join state as the bridge reports
-    // it, including the re-emit on every `fiClientStatus` read
-    const unsubscribeFiFederationJoin = fedimint.addListener(
+    // it, including the re-emit on every `faClientStatus` read
+    const unsubscribeFaFederationJoin = fedimint.addListener(
         'fiFederationJoin',
         event => {
-            dispatch(setFiFederationJoin(event))
+            dispatch(setFaFederationJoin(event))
         },
     )
 
@@ -391,7 +391,7 @@ export function initializeCommonStore({
         dispatch(setGuardianMonitoringActive(false))
         unsubscribeFederation()
         unsubscribeNonceReuseCheckFailed()
-        unsubscribeFiFederationJoin()
+        unsubscribeFaFederationJoin()
         unsubscribeCommunities()
         unsubscribeCommunityMigration()
         unsubscribeBalance()

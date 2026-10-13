@@ -10,7 +10,7 @@ test-support = []
 [dependencies]
 api-types = { workspace = true }
 fedi-decentralized-domain = { workspace = true }
-fedi-decentralized-service-fleet-manager = { workspace = true }
+fedi-decentralized-service-manifold-guardian = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-client = { workspace = true }
 fedimint-connectors = { workspace = true }

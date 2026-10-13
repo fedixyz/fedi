@@ -866,7 +866,7 @@ mod tests {
 
     use super::*;
 
-    const FI_FIXTURE_SECRET_BYTE: u8 = 30;
+    const FA_FIXTURE_SECRET_BYTE: u8 = 30;
     const FEDI_FIXTURE_SECRET_BYTE: u8 = 31;
 
     fn account(byte: u8) -> Account {
@@ -911,7 +911,7 @@ mod tests {
         let mut entries = (1..=guardian_count)
             .map(|byte| (account(byte), 1))
             .chain([
-                (account(FI_FIXTURE_SECRET_BYTE), 4),
+                (account(FA_FIXTURE_SECRET_BYTE), 4),
                 (account(FEDI_FIXTURE_SECRET_BYTE), 1),
             ])
             .collect::<Vec<_>>();

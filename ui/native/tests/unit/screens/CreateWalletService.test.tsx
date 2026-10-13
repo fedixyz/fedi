@@ -4,7 +4,7 @@ import {
     WALLET_SERVICE_SIZE_OPTIONS,
     clearWalletServiceSelectionPreview,
     setFeatureFlags,
-    setFiStatus,
+    setFaStatus,
     setManifoldCreationOverrideEnabled,
     setTransactionDisplayType,
     setupStore,
@@ -12,11 +12,11 @@ import {
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
     FeatureCatalog,
-    RpcFiFormationSnapshot,
-    RpcFiStatus,
-    RpcFiSelectionPreview,
-    RpcFiSelectionPreviewRequest,
-    RpcFiSelectionPreviewResult,
+    RpcFaFormationSnapshot,
+    RpcFaStatus,
+    RpcFaSelectionPreview,
+    RpcFaSelectionPreviewRequest,
+    RpcFaSelectionPreviewResult,
 } from '@fedi/common/types/bindings'
 import { isDev } from '@fedi/common/utils/environment'
 
@@ -42,7 +42,7 @@ const NOW_SECS = FIXED_NOW_MS / 1000
 const PAST_DEBOUNCE_MS = 400
 
 const makeSeat = (index: number, priceMsats: string) => ({
-    fmanId: `fman_0${index}`,
+    fmanId: `mg_0${index}`,
     fmanName: '',
     advertisedPriceMsats: priceMsats,
     provenance: 'fedi_attested',
@@ -51,8 +51,8 @@ const makeSeat = (index: number, priceMsats: string) => ({
 // three seats at 100/200/300 sats: deliberately not uniform, and small enough
 // that no locale inserts a thousands separator into the assertions
 const makePreview = (
-    overrides: Partial<RpcFiSelectionPreview> = {},
-): RpcFiSelectionPreview => ({
+    overrides: Partial<RpcFaSelectionPreview> = {},
+): RpcFaSelectionPreview => ({
     previewId: 'preview_1',
     selected: 10,
     totalAdvertisedMsats: '600000',
@@ -68,8 +68,8 @@ const makePreview = (
 })
 
 const previewResult = (
-    overrides: Partial<RpcFiSelectionPreview> = {},
-): RpcFiSelectionPreviewResult => ({
+    overrides: Partial<RpcFaSelectionPreview> = {},
+): RpcFaSelectionPreviewResult => ({
     type: 'preview',
     preview: makePreview(overrides),
 })
@@ -77,11 +77,11 @@ const previewResult = (
 const insufficientSeatsResult = (
     requested: number,
     eligible: number,
-): RpcFiSelectionPreviewResult => ({
+): RpcFaSelectionPreviewResult => ({
     type: 'error',
     error: {
         code: 'selection',
-        message: 'not enough verified fleet managers for this size',
+        message: 'not enough verified manifold guardians for this size',
         detail: {
             type: 'insufficientFmanSeats',
             requested,
@@ -93,25 +93,25 @@ const insufficientSeatsResult = (
 })
 
 const makeBridge = (
-    previewSelection: (request: RpcFiSelectionPreviewRequest) => unknown = () =>
+    previewSelection: (request: RpcFaSelectionPreviewRequest) => unknown = () =>
         Promise.resolve(previewResult()),
 ) =>
     createMockFedimintBridge({
-        fiClientPreviewSelection: previewSelection,
-        fiClientEligiblePayers: { type: 'payers', payers: [] },
+        faClientPreviewSelection: previewSelection,
+        faClientEligiblePayers: { type: 'payers', payers: [] },
     })
 
 const makeStore = ({
     enabled = true,
     status = { type: 'idle' },
-}: { enabled?: boolean; status?: RpcFiStatus | null } = {}) => {
+}: { enabled?: boolean; status?: RpcFaStatus | null } = {}) => {
     const store = setupStore()
     store.dispatch(
         setFeatureFlags(
             (enabled ? { wallet_service_creation: {} } : {}) as FeatureCatalog,
         ),
     )
-    if (status) store.dispatch(setFiStatus(status))
+    if (status) store.dispatch(setFaStatus(status))
     return store
 }
 
@@ -160,8 +160,8 @@ describe('screens/CreateWalletService', () => {
         expect(
             screen.queryByTestId('guardian-count-headline'),
         ).not.toBeOnTheScreen()
-        expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
-        expect(fedimint.fiClientEligiblePayers).not.toHaveBeenCalled()
+        expect(fedimint.faClientPreviewSelection).not.toHaveBeenCalled()
+        expect(fedimint.faClientEligiblePayers).not.toHaveBeenCalled()
     })
 
     it('should turn on the Manifold override and open creation from the link when creation is disabled', async () => {
@@ -176,7 +176,7 @@ describe('screens/CreateWalletService', () => {
             store.getState().environment.manifoldCreationOverrideEnabled,
         ).toBe(true)
         expect(screen.getByTestId('guardian-count-headline')).toBeOnTheScreen()
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
         expect(mockNavigation.dispatch).not.toHaveBeenCalledWith(
             resetToWallets(),
         )
@@ -204,7 +204,7 @@ describe('screens/CreateWalletService', () => {
         await settlePreview()
 
         expect(screen.getByTestId('guardian-count-headline')).toBeOnTheScreen()
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
         expect(mockNavigation.dispatch).not.toHaveBeenCalled()
     })
 
@@ -220,7 +220,7 @@ describe('screens/CreateWalletService', () => {
         expect(
             screen.queryByTestId('guardian-count-headline'),
         ).not.toBeOnTheScreen()
-        expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+        expect(fedimint.faClientPreviewSelection).not.toHaveBeenCalled()
     })
 
     it('should wait for the initial status before requesting a creation quote', async () => {
@@ -229,17 +229,17 @@ describe('screens/CreateWalletService', () => {
         renderScreen(fedimint, store)
         await settlePreview()
 
-        expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+        expect(fedimint.faClientPreviewSelection).not.toHaveBeenCalled()
         expect(
             screen.queryByTestId('guardian-count-headline'),
         ).not.toBeOnTheScreen()
         expect(screen.getByTestId('HeaderBackButton')).toBeOnTheScreen()
 
-        act(() => store.dispatch(setFiStatus({ type: 'idle' })))
+        act(() => store.dispatch(setFaStatus({ type: 'idle' })))
         await settlePreview()
 
         expect(screen.getByTestId('guardian-count-headline')).toBeOnTheScreen()
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
     })
 
     it.each([
@@ -248,7 +248,7 @@ describe('screens/CreateWalletService', () => {
     ] as const)(
         'should resume %s without requesting a new quote',
         async (phase, destination) => {
-            const formation: RpcFiFormationSnapshot = {
+            const formation: RpcFaFormationSnapshot = {
                 formationId: 'existing-formation',
                 phase,
                 intent: {
@@ -275,14 +275,14 @@ describe('screens/CreateWalletService', () => {
             renderScreen(fedimint, store)
             await settlePreview()
             act(() =>
-                store.dispatch(setFiStatus({ type: 'formation', formation })),
+                store.dispatch(setFaStatus({ type: 'formation', formation })),
             )
             await settlePreview()
 
             expect(mockNavigation.dispatch).toHaveBeenCalledWith(
                 reset(destination),
             )
-            expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+            expect(fedimint.faClientPreviewSelection).not.toHaveBeenCalled()
         },
     )
 
@@ -321,8 +321,8 @@ describe('screens/CreateWalletService', () => {
         fireEvent.press(screen.getByTestId('7Tab'))
         await settlePreview()
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenLastCalledWith(
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenLastCalledWith(
             expect.objectContaining({ federationSize: 7 }),
         )
     })
@@ -347,7 +347,7 @@ describe('screens/CreateWalletService', () => {
                 i18n.t('feature.wallet-service.finding-guardians'),
             ),
         ).not.toBeOnTheScreen()
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
     })
 
     it('should search again after a count is flipped away and back', async () => {
@@ -361,8 +361,8 @@ describe('screens/CreateWalletService', () => {
         fireEvent.press(screen.getByTestId('10Tab'))
         await settlePreview()
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenLastCalledWith(
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenLastCalledWith(
             expect.objectContaining({ federationSize: 10 }),
         )
         expect(screen.getByText('600 SATS')).toBeOnTheScreen()
@@ -380,7 +380,7 @@ describe('screens/CreateWalletService', () => {
         })
         await settlePreview()
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(2)
         expect(screen.getByText('600 SATS')).toBeOnTheScreen()
     })
 
@@ -402,7 +402,7 @@ describe('screens/CreateWalletService', () => {
             await settlePreview()
         }
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
     })
 
     it('should leave the count switcher unlocked on return', async () => {
@@ -420,8 +420,8 @@ describe('screens/CreateWalletService', () => {
         fireEvent.press(screen.getByTestId('13Tab'))
         await settlePreview()
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenLastCalledWith(
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenLastCalledWith(
             expect.objectContaining({ federationSize: 13 }),
         )
     })
@@ -448,7 +448,7 @@ describe('screens/CreateWalletService', () => {
         expect(screen.getByTestId('guardian-count-headline')).toHaveTextContent(
             '13',
         )
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(2)
     })
 
     it('should take no further search when a quote reports another count', async () => {
@@ -463,7 +463,7 @@ describe('screens/CreateWalletService', () => {
         await settlePreview()
         await settlePreview()
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(2)
     })
 
     it('should drop a response that lands after the user has backed out', async () => {
@@ -476,7 +476,7 @@ describe('screens/CreateWalletService', () => {
         )
         const { unmount } = renderScreen(fedimint)
         await settlePreview()
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
 
         unmount()
         await act(async () => {
@@ -495,8 +495,8 @@ describe('screens/CreateWalletService', () => {
         fireEvent.press(screen.getByTestId('13Tab'))
         await settlePreview()
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledWith(
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledWith(
             expect.objectContaining({ federationSize: 10 }),
         )
         expect(screen.getByTestId('guardian-count-headline')).toHaveTextContent(
@@ -507,7 +507,7 @@ describe('screens/CreateWalletService', () => {
         fireEvent.press(screen.getByTestId('13Tab'))
         await settlePreview()
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenLastCalledWith(
+        expect(fedimint.faClientPreviewSelection).toHaveBeenLastCalledWith(
             expect.objectContaining({ federationSize: 13 }),
         )
     })
@@ -593,9 +593,9 @@ describe('screens/CreateWalletService', () => {
         ).toHaveLength(3)
         // blank `fmanName`s, so each row names the guardian by the only
         // identity there is — never a placeholder
-        expect(screen.getByText('fman_01')).toBeOnTheScreen()
-        expect(screen.getByText('fman_02')).toBeOnTheScreen()
-        expect(screen.getByText('fman_03')).toBeOnTheScreen()
+        expect(screen.getByText('mg_01')).toBeOnTheScreen()
+        expect(screen.getByText('mg_02')).toBeOnTheScreen()
+        expect(screen.getByText('mg_03')).toBeOnTheScreen()
         expect(screen.queryByText('TBD GUARDIAN NAME')).toBeNull()
         // each row is numbered by its place in the set, counting from 1
         expect(screen.getByText('1')).toBeOnTheScreen()
@@ -629,8 +629,8 @@ describe('screens/CreateWalletService', () => {
 
         expect(screen.getByText('Bright Otter')).toBeOnTheScreen()
         // blank and absent both fall back to the id
-        expect(screen.getByText('fman_02')).toBeOnTheScreen()
-        expect(screen.getByText('fman_03')).toBeOnTheScreen()
+        expect(screen.getByText('mg_02')).toBeOnTheScreen()
+        expect(screen.getByText('mg_03')).toBeOnTheScreen()
     })
 
     it('should warn and block continuing when too few guardians are eligible', async () => {
@@ -715,7 +715,7 @@ describe('screens/CreateWalletService', () => {
             fireEvent.press(screen.getByTestId('confirm-count-submit'))
         })
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
         expect(mockNavigation.navigate).toHaveBeenCalledWith(
             'ConfirmWalletService',
         )
@@ -735,7 +735,7 @@ describe('screens/CreateWalletService', () => {
             fireEvent.press(screen.getByTestId('confirm-count-submit'))
         })
 
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(2)
         expect(mockNavigation.navigate).toHaveBeenCalledWith(
             'ConfirmWalletService',
         )

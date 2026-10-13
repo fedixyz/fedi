@@ -26,15 +26,15 @@ pub const MILLION: u64 = 1_000_000;
 pub const MATRIX_CHILD_ID: u64 = 13;
 pub const DEVICE_REGISTRATION_CHILD_ID: ChildId = ChildId(14);
 pub const FEDI_GIFT_CHILD_ID: ChildId = ChildId(15);
-/// Stable root-secret child reserved for the Federation Initiator identity.
-pub const FI_CLIENT_CHILD_ID: ChildId = ChildId(17);
+/// Stable root-secret child reserved for the Federation Ambassador identity.
+pub const FA_CLIENT_CHILD_ID: ChildId = ChildId(17);
 /// Stable global root-secret child reserved for the environment-separated
 /// push-gateway recipient authentication identity.
-pub const FI_PUSH_RECIPIENT_CHILD_ID: ChildId = ChildId(19);
-/// Child of a federation's auxiliary secret reserved for deriving FI
+pub const FA_PUSH_RECIPIENT_CHILD_ID: ChildId = ChildId(19);
+/// Child of a federation's auxiliary secret reserved for deriving FA
 /// seat-payment refund issuance keys. Changing this value breaks refund
 /// recovery for any in-flight paid formation.
-pub const FI_SEAT_REFUND_CHILD_ID: ChildId = ChildId(18);
+pub const FA_SEAT_REFUND_CHILD_ID: ChildId = ChildId(18);
 /// Stable global root-secret child for mini app seed derivation (see
 /// bridge::mini_app_seed).
 pub const MINI_APP_SEED_CHILD_ID: ChildId = ChildId(20);
@@ -71,7 +71,7 @@ pub const STABILITY_POOL_OPERATION_TYPE: &str = "stability_pool";
 pub const STABILITY_POOL_V2_OPERATION_TYPE: &str = "multi_sig_stability_pool";
 /// Log label for paying a federation-formation seat. Not a module kind:
 /// these transactions are assembled by the bridge itself.
-pub const FI_SEAT_PAYMENT_OPERATION_TYPE: &str = "fedi-fi-seat-payment";
+pub const FA_SEAT_PAYMENT_OPERATION_TYPE: &str = "fedi-fi-seat-payment";
 
 // URL for Fedi fee schedule API
 pub const FEDI_FEE_API_URL_MUTINYNET: &str =

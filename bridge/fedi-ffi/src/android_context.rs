@@ -9,7 +9,7 @@
 //! An app built around `ndk-glue` or `android-activity` gets that for free. The
 //! bridge is a plain JNI library that React Native loads, so it has no such
 //! entry point and nothing ever did it. The first real Android device therefore
-//! panicked inside iroh's DNS resolver during the FMan availability probe.
+//! panicked inside iroh's DNS resolver during the MG availability probe.
 //! iOS never takes this path — it reads `/etc/resolv.conf` — which is why
 //! simulator testing could not have caught it.
 //!

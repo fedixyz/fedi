@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fa'
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
-import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import {
     selectCurrency,

@@ -16,7 +16,7 @@ import { Column, Row } from '../../components/ui/Flex'
 import { useAppDispatch, useAppSelector } from '../../state/hooks'
 import { simulatedGuardian } from './simulatedGuardian'
 
-const FMAN_NAMES = [
+const MG_NAMES = [
     'mutual-hamster',
     'quiet-lynx',
     'calm-marmot',
@@ -55,7 +55,7 @@ const buildGuardians = (
             index >= urls.length - responding,
             state === 'unnamed'
                 ? null
-                : (FMAN_NAMES[index] ?? `guardian-${index + 1}`),
+                : (MG_NAMES[index] ?? `guardian-${index + 1}`),
         ),
     )
 }

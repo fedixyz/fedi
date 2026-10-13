@@ -8,10 +8,10 @@ import {
 import { setupStore } from '@fedi/common/redux'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
-    RpcFiFormationActionRequired,
-    RpcFiGuardianReplacementRequirements,
-    RpcFiOperationResult,
-    RpcFiReplacementPreview,
+    RpcFaFormationActionRequired,
+    RpcFaGuardianReplacementRequirements,
+    RpcFaOperationResult,
+    RpcFaReplacementPreview,
 } from '@fedi/common/types/bindings'
 
 import i18n from '../../../localization/i18n'
@@ -22,12 +22,12 @@ import { renderWithProviders } from '../../utils/render'
 // typed as the replacement variant, not the action union: callers that need
 // the union widen for free, and the narrow sites stop refusing it
 const makeReplacementRequirements =
-    (): RpcFiGuardianReplacementRequirements => ({
+    (): RpcFaGuardianReplacementRequirements => ({
         replacementId: 'replacement-1',
         seats: [
             {
                 index: 0,
-                previousFmanId: 'fman-old-0',
+                previousFmanId: 'mg-old-0',
                 previousFmanName: 'old oak',
                 previousQuoteId: 'quote-0',
                 previousLocator: 'locator-0',
@@ -35,21 +35,21 @@ const makeReplacementRequirements =
         ],
     })
 
-const makeActionRequired = (): RpcFiFormationActionRequired => ({
+const makeActionRequired = (): RpcFaFormationActionRequired => ({
     type: 'replaceGuardians',
     requirements: makeReplacementRequirements(),
 })
 
 const makePreview = (
-    overrides: Partial<RpcFiReplacementPreview> = {},
-): RpcFiReplacementPreview => ({
+    overrides: Partial<RpcFaReplacementPreview> = {},
+): RpcFaReplacementPreview => ({
     previewId: 'replacement-preview-1',
     requirements: makeReplacementRequirements(),
     totalAdvertisedMsats: '21000',
     seats: [
         {
             index: 0,
-            fmanId: 'fman-replacement-0',
+            fmanId: 'mg-replacement-0',
             fmanName: 'replacement zero',
             advertisedPriceMsats: '21000',
             provenance: 'registry',
@@ -59,7 +59,7 @@ const makePreview = (
 })
 
 const makeFormation = (
-    actionRequired: RpcFiFormationActionRequired | null,
+    actionRequired: RpcFaFormationActionRequired | null,
 ) => ({
     formationId: 'formation-1',
     phase: 'acquiringSeats' as const,
@@ -85,30 +85,30 @@ const makeFormation = (
 
 const renderReview = ({
     actionRequired = makeActionRequired(),
-    replacementPreview = null as RpcFiReplacementPreview | null,
-    fiClientPreviewReplacements,
-    fiClientApplyReplacements,
+    replacementPreview = null as RpcFaReplacementPreview | null,
+    faClientPreviewReplacements,
+    faClientApplyReplacements,
 }: {
-    actionRequired?: RpcFiFormationActionRequired | null
-    replacementPreview?: RpcFiReplacementPreview | null
-    fiClientPreviewReplacements?:
-        | { type: 'preview'; preview: RpcFiReplacementPreview }
+    actionRequired?: RpcFaFormationActionRequired | null
+    replacementPreview?: RpcFaReplacementPreview | null
+    faClientPreviewReplacements?:
+        | { type: 'preview'; preview: RpcFaReplacementPreview }
         | {
               type: 'error'
               error: { code: string; message: string; detail: unknown }
           }
-    fiClientApplyReplacements?: RpcFiOperationResult
+    faClientApplyReplacements?: RpcFaOperationResult
 } = {}) => {
     const user = userEvent.setup()
     const fedimint = createMockFedimintBridge({
-        fiClientPreviewReplacements: Promise.resolve(
-            fiClientPreviewReplacements ?? {
+        faClientPreviewReplacements: Promise.resolve(
+            faClientPreviewReplacements ?? {
                 type: 'preview',
                 preview: replacementPreview ?? makePreview(),
             },
         ),
-        fiClientApplyReplacements: Promise.resolve(
-            fiClientApplyReplacements ?? { type: 'success' },
+        faClientApplyReplacements: Promise.resolve(
+            faClientApplyReplacements ?? { type: 'success' },
         ),
     })
     const store = setupStore({
@@ -160,7 +160,7 @@ describe('WalletServiceReplaceReview screen', () => {
         const { fedimint } = renderReview()
 
         await waitFor(() => {
-            expect(fedimint.fiClientPreviewReplacements).toHaveBeenCalledTimes(
+            expect(fedimint.faClientPreviewReplacements).toHaveBeenCalledTimes(
                 1,
             )
         })
@@ -173,7 +173,7 @@ describe('WalletServiceReplaceReview screen', () => {
                 seats: [
                     {
                         index: 0,
-                        fmanId: 'fman-0',
+                        fmanId: 'mg-0',
                         fmanName: 'seat zero',
                         advertisedPriceMsats: '21000',
                         provenance: 'registry',
@@ -204,7 +204,7 @@ describe('WalletServiceReplaceReview screen', () => {
         await user.press(screen.getByTestId('approve-replacements-button'))
 
         await waitFor(() => {
-            expect(fedimint.fiClientApplyReplacements).toHaveBeenCalledWith(
+            expect(fedimint.faClientApplyReplacements).toHaveBeenCalledWith(
                 'replacement-preview-9',
                 '55000',
             )
@@ -216,7 +216,7 @@ describe('WalletServiceReplaceReview screen', () => {
         const preview = makePreview()
         const { user, store } = renderReview({
             replacementPreview: preview,
-            fiClientApplyReplacements: {
+            faClientApplyReplacements: {
                 type: 'error',
                 error: {
                     code: 'selection',
@@ -246,7 +246,7 @@ describe('WalletServiceReplaceReview screen', () => {
 
     it('should show the not-found banner with retry when too few candidates exist', async () => {
         const { user, fedimint } = renderReview({
-            fiClientPreviewReplacements: {
+            faClientPreviewReplacements: {
                 type: 'error',
                 error: {
                     code: 'selection',
@@ -278,11 +278,11 @@ describe('WalletServiceReplaceReview screen', () => {
         expect(screen.queryByTestId('approve-replacements-button')).toBeNull()
 
         const retryButton = screen.getByText(i18n.t('words.retry'))
-        expect(fedimint.fiClientPreviewReplacements).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPreviewReplacements).toHaveBeenCalledTimes(1)
 
         await user.press(retryButton)
         await waitFor(() => {
-            expect(fedimint.fiClientPreviewReplacements).toHaveBeenCalledTimes(
+            expect(fedimint.faClientPreviewReplacements).toHaveBeenCalledTimes(
                 2,
             )
         })

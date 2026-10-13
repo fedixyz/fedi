@@ -95,7 +95,7 @@ A test file mirrors its source file's path under the workspace's test root. The 
 
 - `ui/native/components/feature/walletservice/TopUpSheet.tsx` goes to `ui/native/tests/unit/components/feature/walletservice/TopUpSheet.test.tsx`
 - `ui/web/src/components/Chat/ChatConversation.tsx` goes to `ui/web/tests/unit/components/Chat/ChatConversation.test.tsx`
-- `ui/common/utils/fi/simulator.ts` goes to `ui/common/tests/unit/utils/fi/simulator.test.ts`
+- `ui/common/utils/fa/simulator.ts` goes to `ui/common/tests/unit/utils/fa/simulator.test.ts`
 - `ui/native/utils/hooks/media.ts` goes to `ui/native/tests/unit/hooks/media.test.ts`, dropping the `utils/` segment for a hook
 
 The mirror is the default. It does not always hold. It holds for about nine in ten native unit tests and three in four web tests. In `ui/common` it holds about half the time, because a test there often covers a finer or coarser unit than one source file:

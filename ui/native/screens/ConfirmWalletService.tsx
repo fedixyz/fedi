@@ -6,12 +6,12 @@ import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
+import { type JoinableWalletService } from '@fedi/common/hooks/fa'
 import {
     useFederationPreview,
     useWalletFederationSelection,
 } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { type JoinableWalletService } from '@fedi/common/hooks/fi'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     createWalletService,
@@ -27,7 +27,7 @@ import {
     selectWalletServiceSelectionPreview,
 } from '@fedi/common/redux'
 import { MSats } from '@fedi/common/types'
-import { RpcFiOperationError } from '@fedi/common/types/bindings'
+import { RpcFaOperationError } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
 import FederationPreview from '../components/feature/onboarding/FederationPreview'
@@ -153,7 +153,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
             return true
         } catch (error) {
             log.error('prepareWalletServicePayment', error)
-            const opError = error as RpcFiOperationError | undefined
+            const opError = error as RpcFaOperationError | undefined
             // too few guardians has its own banner and redirect; a toast
             // would scroll away and leave a dead pay button unexplained
             if (opError?.detail?.type === 'insufficientFmanSeats') {
@@ -174,7 +174,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
     }, [dispatch, fedimint, toast, t])
 
     /**
-     * The bridge serves one FI operation at a time and answers a second with
+     * The bridge serves one FA operation at a time and answers a second with
      * `busy`, so a refresh joins the one already running rather than racing it.
      *
      * Two refreshes get asked for in the same tick on the path that surfaced
@@ -326,7 +326,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
             setFederationPreview(undefined)
             setServiceBeingJoined(null)
             // `joinFederation` resolving means the wallet exists, not that it
-            // is usable. `fiClientEligiblePayers` reads only fully loaded
+            // is usable. `faClientEligiblePayers` reads only fully loaded
             // wallets and skips ones still loading or recovering, so a lookup
             // fired now comes back without the wallet that was just joined.
             // `isAwaitingJoinedPayer` keeps asking until it appears, and opens
@@ -381,7 +381,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
             navigation.dispatch(reset('WalletServiceProgress'))
         } catch (error) {
             log.error('createWalletService', error)
-            const opError = error as RpcFiOperationError | undefined
+            const opError = error as RpcFaOperationError | undefined
             // the sealed selection is gone; the banner explains why and offers
             // a fresh quote, so a toast would only duplicate it
             if (opError?.detail?.type === 'selectionReauthorizationRequired') {
@@ -435,7 +435,7 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
      * A wallet joined to pay for setup is not an eligible payer the instant it
      * is joined.
      *
-     * `fiClientEligiblePayers` resolves each admitted federation through the
+     * `faClientEligiblePayers` resolves each admitted federation through the
      * bridge's Ready-only lookup, so a wallet that is still `Loading` — or
      * `Recovering`, which a rejoin on a seed that held this federation before
      * always is — is dropped from the list it returns. The post-join refresh

@@ -6,7 +6,7 @@ use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{impl_db_lookup, impl_db_record};
 
-use crate::features::{FiManifoldEnvironment, RemoteFeatures};
+use crate::features::{FaManifoldEnvironment, RemoteFeatures};
 
 #[repr(u8)]
 pub enum BridgeDbPrefix {
@@ -27,16 +27,16 @@ pub enum BridgeDbPrefix {
     SpTransfersPrefix = 0x05,
     // Remote features last fetched value
     RemoteFeaturesLastFetched = 0x06,
-    // Prefix for consumer-neutral Federation Initiator client state
-    FiClientPrefix = 0x07,
-    // Federation IDs whose FI handoff must not run again after join or leave
-    FiFederationAutoJoinCompleted = 0x08,
-    // Internal-build request to clear the FI client namespace on next launch
-    FiClientResetPending = 0x09,
-    // Environment owning FI state in the single 0x07 namespace.
-    FiClientEnvironmentOwner = 0x0a,
+    // Prefix for consumer-neutral Federation Ambassador client state
+    FaClientPrefix = 0x07,
+    // Federation IDs whose FA handoff must not run again after join or leave
+    FaFederationAutoJoinCompleted = 0x08,
+    // Internal-build request to clear the FA client namespace on next launch
+    FaClientResetPending = 0x09,
+    // Environment owning FA state in the single 0x07 namespace.
+    FaClientEnvironmentOwner = 0x0a,
     // Internal-build Manifold selection, committed together with its test-state reset.
-    FiManifoldEnvironmentSelection = 0x0b,
+    FaManifoldEnvironmentSelection = 0x0b,
 }
 
 #[derive(Debug, Decodable, Encodable)]
@@ -82,39 +82,39 @@ impl_db_record!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
-pub struct FiFederationAutoJoinCompletedKey {
+pub struct FaFederationAutoJoinCompletedKey {
     pub federation_id: String,
 }
 
 impl_db_record!(
-    key = FiFederationAutoJoinCompletedKey,
+    key = FaFederationAutoJoinCompletedKey,
     value = (),
-    db_prefix = BridgeDbPrefix::FiFederationAutoJoinCompleted,
+    db_prefix = BridgeDbPrefix::FaFederationAutoJoinCompleted,
 );
 
 #[derive(Debug, Decodable, Encodable)]
-pub struct FiClientResetPendingKey;
+pub struct FaClientResetPendingKey;
 
 impl_db_record!(
-    key = FiClientResetPendingKey,
+    key = FaClientResetPendingKey,
     value = (),
-    db_prefix = BridgeDbPrefix::FiClientResetPending,
+    db_prefix = BridgeDbPrefix::FaClientResetPending,
 );
 
 #[derive(Debug, Decodable, Encodable)]
-pub struct FiClientEnvironmentOwnerKey;
+pub struct FaClientEnvironmentOwnerKey;
 
 impl_db_record!(
-    key = FiClientEnvironmentOwnerKey,
-    value = FiManifoldEnvironment,
-    db_prefix = BridgeDbPrefix::FiClientEnvironmentOwner,
+    key = FaClientEnvironmentOwnerKey,
+    value = FaManifoldEnvironment,
+    db_prefix = BridgeDbPrefix::FaClientEnvironmentOwner,
 );
 
 #[derive(Debug, Decodable, Encodable)]
-pub struct FiManifoldEnvironmentSelectionKey;
+pub struct FaManifoldEnvironmentSelectionKey;
 
 // JSON keeps the selection independent of numeric enum discriminants.
-impl DatabaseValue for FiManifoldEnvironment {
+impl DatabaseValue for FaManifoldEnvironment {
     fn from_bytes(
         data: &[u8],
         _modules: &ModuleDecoderRegistry,
@@ -123,14 +123,14 @@ impl DatabaseValue for FiManifoldEnvironment {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("FI Manifold environment must serialize")
+        serde_json::to_vec(self).expect("FA Manifold environment must serialize")
     }
 }
 
 impl_db_record!(
-    key = FiManifoldEnvironmentSelectionKey,
-    value = FiManifoldEnvironment,
-    db_prefix = BridgeDbPrefix::FiManifoldEnvironmentSelection,
+    key = FaManifoldEnvironmentSelectionKey,
+    value = FaManifoldEnvironment,
+    db_prefix = BridgeDbPrefix::FaManifoldEnvironmentSelection,
 );
 
 #[allow(async_fn_in_trait)]

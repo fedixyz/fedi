@@ -7,7 +7,7 @@ import { theme as fediTheme } from '@fedi/common/constants/theme'
 import {
     useJoinableWalletServices,
     type JoinableWalletService,
-} from '@fedi/common/hooks/fi'
+} from '@fedi/common/hooks/fa'
 import { getFederationWelcomeMessage } from '@fedi/common/utils/FederationUtils'
 
 import { Column, Row } from '../../ui/Flex'

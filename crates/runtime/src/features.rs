@@ -48,10 +48,10 @@ pub enum RuntimeEnvironment {
     Prod,
 }
 
-/// Only the FI client reads this, not chat or device registration.
+/// Only the FA client reads this, not chat or device registration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TS, Serialize, Deserialize)]
 #[ts(export)]
-pub enum FiManifoldEnvironment {
+pub enum FaManifoldEnvironment {
     Development,
     Staging,
     Production,
@@ -151,10 +151,11 @@ pub struct FeatureCatalog {
     /// Configuration regarding the remittance of Fedi fee
     pub fedi_fee: FediFeeConfig,
 
-    /// Manifold push gateway used for installation registration and FI
+    /// Manifold push gateway used for installation registration and FA
     /// formation-completion hooks. Absence is an explicit fail-closed state;
     /// end-user devices never supply an override.
-    pub fi_push_gateway: Option<FiPushGatewayFeatureConfig>,
+    #[serde(rename = "fi_push_gateway")]
+    pub fa_push_gateway: Option<FaPushGatewayFeatureConfig>,
 
     /// SP Transfers Matrix feature flag.
     /// When enabled, allows stability pool transfers via Matrix messaging.
@@ -302,7 +303,7 @@ pub struct FediFeeConfig {
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
-pub struct FiPushGatewayFeatureConfig {
+pub struct FaPushGatewayFeatureConfig {
     /// Public HTTPS management origin. Callback bearer paths are returned by
     /// the service at runtime and are never stored in this catalog.
     #[ts(type = "string")]
@@ -453,7 +454,7 @@ impl FeatureCatalog {
                 guardian_remittance_poll_interval_secs: 60, // 1 minute
             },
             // Deployment has not assigned the public gateway origin yet.
-            fi_push_gateway: None,
+            fa_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
@@ -514,7 +515,7 @@ impl FeatureCatalog {
                 guardian_remittance_poll_interval_secs: 5, // fast polling for tests
             },
             // Tests inject a loopback gateway at the bridge adapter boundary.
-            fi_push_gateway: None,
+            fa_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
@@ -568,7 +569,7 @@ impl FeatureCatalog {
             },
             // Deployed by k8s-devops argo/apps/manifold-staging: an
             // internet-facing NLB with NIP-98 auth per route, no SSO.
-            fi_push_gateway: Some(FiPushGatewayFeatureConfig {
+            fa_push_gateway: Some(FaPushGatewayFeatureConfig {
                 api_base_url: Url::parse(
                     "https://manifold-push-gateway.internal.k8s.us.dev.fedibtc.com",
                 )
@@ -636,7 +637,7 @@ impl FeatureCatalog {
                 guardian_remittance_poll_interval_secs: 60 * 10, // 10 minutes
             },
             // Fail closed until the production deployment publishes its origin.
-            fi_push_gateway: None,
+            fa_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 3 * 24 * 60 * 60, // 3 days for prod
             }),

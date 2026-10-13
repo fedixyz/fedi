@@ -65,44 +65,44 @@ use crate::test_device::{MockFediApi, TestDevice, use_lnd_gateway};
 static INIT_TRACING: Once = Once::new();
 
 #[test]
-fn raw_fi_rpc_allowlist_excludes_formation_orchestration() {
+fn raw_fa_rpc_allowlist_excludes_formation_orchestration() {
     let mut methods = RpcMethods::METHOD_NAMES
         .iter()
         .copied()
-        .filter(|method| method.starts_with("fiClient"))
+        .filter(|method| method.starts_with("faClient"))
         .collect::<Vec<_>>();
     methods.sort_unstable();
 
     assert_eq!(
         methods,
         [
-            "fiClientAbandon",
-            "fiClientApplyReplacements",
-            "fiClientAuthorizeReplacementPayments",
-            "fiClientDecommission",
-            "fiClientEligiblePayers",
-            "fiClientLiquidityCurrent",
-            "fiClientLiquidityDiscover",
-            "fiClientLiquidityList",
-            "fiClientLiquidityResume",
-            "fiClientLiquidityStart",
-            "fiClientLiquidityStatus",
-            "fiClientPayAndCreate",
-            "fiClientPreviewReplacements",
-            "fiClientPreviewSelection",
-            "fiClientRegisterPushInstallation",
-            "fiClientRestartDkg",
-            "fiClientResume",
-            "fiClientScheduleReset",
-            "fiClientSetGuardianFee",
-            "fiClientSetupPaymentFederations",
-            "fiClientStatus",
-            "fiClientSubscribe",
-            "fiClientUnregisterPushInstallation",
-            "fiClientUpdateFederationMetadata",
+            "faClientAbandon",
+            "faClientApplyReplacements",
+            "faClientAuthorizeReplacementPayments",
+            "faClientDecommission",
+            "faClientEligiblePayers",
+            "faClientLiquidityCurrent",
+            "faClientLiquidityDiscover",
+            "faClientLiquidityList",
+            "faClientLiquidityResume",
+            "faClientLiquidityStart",
+            "faClientLiquidityStatus",
+            "faClientPayAndCreate",
+            "faClientPreviewReplacements",
+            "faClientPreviewSelection",
+            "faClientRegisterPushInstallation",
+            "faClientRestartDkg",
+            "faClientResume",
+            "faClientScheduleReset",
+            "faClientSetGuardianFee",
+            "faClientSetupPaymentFederations",
+            "faClientStatus",
+            "faClientSubscribe",
+            "faClientUnregisterPushInstallation",
+            "faClientUpdateFederationMetadata",
         ]
     );
-    for forbidden in ["fiClientCreatePinned", "fiClientAuthorizePayments"] {
+    for forbidden in ["faClientCreatePinned", "faClientAuthorizePayments"] {
         assert!(!RpcMethods::METHOD_NAMES.contains(&forbidden));
     }
 }

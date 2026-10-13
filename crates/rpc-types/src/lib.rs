@@ -31,7 +31,7 @@ use crate::error::RpcError;
 pub mod communities;
 pub mod error;
 pub mod event;
-pub mod fi_client;
+pub mod fa_client;
 pub mod matrix;
 pub mod mini_app;
 pub mod multispend;
@@ -201,18 +201,21 @@ pub struct RpcFederationPreview {
 pub enum GuardianStatus {
     Online {
         guardian: String,
-        /// Null when the cached FMan mapping is missing or invalid.
-        fman_name: Option<String>,
+        /// Null when the cached MG mapping is missing or invalid.
+        #[serde(rename = "fman_name")]
+        mg_name: Option<String>,
         latency_ms: u32,
     },
     Error {
         guardian: String,
-        fman_name: Option<String>,
+        #[serde(rename = "fman_name")]
+        mg_name: Option<String>,
         error: String,
     },
     Timeout {
         guardian: String,
-        fman_name: Option<String>,
+        #[serde(rename = "fman_name")]
+        mg_name: Option<String>,
         elapsed: String,
     },
 }
@@ -548,7 +551,8 @@ pub struct RpcTransactionListEntry {
 pub enum RpcTransactionKind {
     /// Paying for a federation being formed: one row for the whole
     /// formation, pending until every seat is paid.
-    FiFormationPayment {
+    #[serde(rename = "fiFormationPayment")]
+    FaFormationPayment {
         seats_paid: u32,
         seats_total: u32,
     },
@@ -1013,8 +1017,9 @@ pub enum EcashReceiveReason {
     #[default]
     Receive,
     Cancel,
-    /// Refund of an FI Fleet Manager seat-setup payment.
-    FiSeatPaymentRefund,
+    /// Refund of an FA Manifold Guardian seat-setup payment.
+    #[serde(rename = "fiSeatPaymentRefund")]
+    FaSeatPaymentRefund,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -5,8 +5,8 @@ import React, { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fa'
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
-import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
 import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
     selectCurrency,

@@ -13,10 +13,10 @@ import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { MSats } from '@fedi/common/types'
 import type {
-    RpcFiEligiblePayer,
-    RpcFiFormationSnapshot,
-    RpcFiOperationError,
-    RpcFiSelectionPreview,
+    RpcFaEligiblePayer,
+    RpcFaFormationSnapshot,
+    RpcFaOperationError,
+    RpcFaSelectionPreview,
 } from '@fedi/common/types/bindings'
 
 import i18n from '../../../localization/i18n'
@@ -31,8 +31,8 @@ jest.mock('../../../components/ui/QRCode', () => 'QRCode')
 const TOTAL_MSATS = '1500000'
 
 const makePreview = (
-    overrides: Partial<RpcFiSelectionPreview> = {},
-): RpcFiSelectionPreview => ({
+    overrides: Partial<RpcFaSelectionPreview> = {},
+): RpcFaSelectionPreview => ({
     previewId: 'preview-1',
     selected: 2,
     totalAdvertisedMsats: TOTAL_MSATS,
@@ -41,13 +41,13 @@ const makePreview = (
     validUntil: 0,
     seats: [
         {
-            fmanId: 'fman-1',
+            fmanId: 'mg-1',
             fmanName: 'amber alder',
             advertisedPriceMsats: '750000',
             provenance: 'registry',
         },
         {
-            fmanId: 'fman-2',
+            fmanId: 'mg-2',
             fmanName: 'briny beech',
             advertisedPriceMsats: '750000',
             provenance: 'registry',
@@ -58,8 +58,8 @@ const makePreview = (
 
 /** A live formation, for the cases that put one behind this screen. */
 const makeFormation = (
-    overrides: Partial<RpcFiFormationSnapshot> = {},
-): RpcFiFormationSnapshot => ({
+    overrides: Partial<RpcFaFormationSnapshot> = {},
+): RpcFaFormationSnapshot => ({
     formationId: 'formation-1',
     phase: 'acquiringSeats',
     intent: {
@@ -86,18 +86,18 @@ const makeFormation = (
 // affordability comes from the live federation balance, not the payers
 // snapshot, so each case seeds the balance on the federation itself
 const makePreloadedState = (
-    payers: RpcFiEligiblePayer[],
+    payers: RpcFaEligiblePayer[],
     balanceMsats = 2000000,
     // set when the payer lookup itself failed, which is a different cause from
     // an empty list and must not share its copy
-    payerError: RpcFiOperationError | null = null,
+    payerError: RpcFaOperationError | null = null,
 ) => {
     const state = setupStore().getState()
     return {
         environment: {
             ...state.environment,
             transactionDisplayType: 'sats' as const,
-            // the bridge rejects every fiClient* RPC before this is true, and
+            // the bridge rejects every faClient* RPC before this is true, and
             // this screen is only reachable once it is
             onboardingCompleted: true,
         },
@@ -119,7 +119,7 @@ const makePreloadedState = (
 
 // the snapshot balance is stale by design (frozen at quote time), so it stays
 // zero in every case to prove it never drives the screen
-const eligiblePayer: RpcFiEligiblePayer = {
+const eligiblePayer: RpcFaEligiblePayer = {
     federationId: mockFederation1.id,
     balanceMsats: '0',
 }
@@ -133,7 +133,7 @@ const paymentError = {
     type: 'error' as const,
     error: {
         code: 'payment' as const,
-        message: 'An FI payment operation failed',
+        message: 'An FA payment operation failed',
         detail: null,
     },
 }
@@ -141,7 +141,7 @@ const paymentError = {
 // with no eligible payer the screen looks for a joinable one on mount
 const makeNoJoinCandidateBridge = () =>
     createMockFedimintBridge({
-        fiClientSetupPaymentFederations: () =>
+        faClientSetupPaymentFederations: () =>
             Promise.resolve({ type: 'federations', federations: [] }),
     })
 
@@ -218,7 +218,7 @@ describe('screens/ConfirmWalletService', () => {
 
     it('should ask to review an expired approval without leaving the screen', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientPayAndCreate: Promise.resolve(reauthorizationError),
+            faClientPayAndCreate: Promise.resolve(reauthorizationError),
         })
 
         renderWithProviders(
@@ -248,7 +248,7 @@ describe('screens/ConfirmWalletService', () => {
 
     it('should show a persistent banner rather than a toast when the payment is refused', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientPayAndCreate: Promise.resolve(paymentError),
+            faClientPayAndCreate: Promise.resolve(paymentError),
         })
 
         renderWithProviders(
@@ -283,7 +283,7 @@ describe('screens/ConfirmWalletService', () => {
         // the reset at the start of the attempt, not from a second verdict
         let attempts = 0
         const fedimint = createMockFedimintBridge({
-            fiClientPayAndCreate: () => {
+            faClientPayAndCreate: () => {
                 attempts += 1
                 return attempts === 1
                     ? Promise.resolve(paymentError)
@@ -325,12 +325,12 @@ describe('screens/ConfirmWalletService', () => {
 
     it('should fetch a fresh quote and stay on the screen when the banner action is pressed', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientPayAndCreate: Promise.resolve(reauthorizationError),
-            fiClientPreviewSelection: Promise.resolve({
+            faClientPayAndCreate: Promise.resolve(reauthorizationError),
+            faClientPreviewSelection: Promise.resolve({
                 type: 'preview',
                 preview: makePreview({ previewId: 'preview-2' }),
             }),
-            fiClientEligiblePayers: Promise.resolve({
+            faClientEligiblePayers: Promise.resolve({
                 type: 'payers',
                 payers: [eligiblePayer],
             }),
@@ -358,11 +358,11 @@ describe('screens/ConfirmWalletService', () => {
         await user.press(screen.getByText(i18n.t('words.continue')))
 
         await waitFor(() => {
-            expect(fedimint.fiClientPreviewSelection).toHaveBeenCalled()
+            expect(fedimint.faClientPreviewSelection).toHaveBeenCalled()
         })
-        expect(fedimint.fiClientEligiblePayers).toHaveBeenCalled()
+        expect(fedimint.faClientEligiblePayers).toHaveBeenCalled()
         // Reviewing a fresh preview does not approve another payment.
-        expect(fedimint.fiClientPayAndCreate).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientPayAndCreate).toHaveBeenCalledTimes(1)
         expect(mockNavigation.goBack).not.toHaveBeenCalled()
         expect(
             screen.queryByText(
@@ -373,12 +373,12 @@ describe('screens/ConfirmWalletService', () => {
 
     it('should leave the screen only when the fresh quote also fails', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientPayAndCreate: Promise.resolve(reauthorizationError),
-            fiClientPreviewSelection: Promise.resolve({
+            faClientPayAndCreate: Promise.resolve(reauthorizationError),
+            faClientPreviewSelection: Promise.resolve({
                 type: 'error',
                 error: { code: 'selection', message: 'nope', detail: null },
             }),
-            fiClientEligiblePayers: Promise.resolve({
+            faClientEligiblePayers: Promise.resolve({
                 type: 'payers',
                 payers: [eligiblePayer],
             }),
@@ -656,7 +656,7 @@ describe('screens/ConfirmWalletService', () => {
 
     it('should open the top up sheet without paying for setup', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientPayAndCreate: Promise.resolve({ type: 'success' }),
+            faClientPayAndCreate: Promise.resolve({ type: 'success' }),
         })
 
         renderWithProviders(
@@ -682,7 +682,7 @@ describe('screens/ConfirmWalletService', () => {
                 i18n.t('feature.wallet-service.topup-to-fixed'),
             ),
         ).toBeOnTheScreen()
-        expect(fedimint.fiClientPayAndCreate).not.toHaveBeenCalled()
+        expect(fedimint.faClientPayAndCreate).not.toHaveBeenCalled()
     })
 
     it('should show the quote countdown derived from the preview validUntil', () => {
@@ -764,7 +764,7 @@ describe('screens/ConfirmWalletService', () => {
         jest.useFakeTimers().setSystemTime(nowSecs * 1000)
 
         const fedimint = createMockFedimintBridge({
-            fiClientPreviewSelection: Promise.resolve({
+            faClientPreviewSelection: Promise.resolve({
                 type: 'error',
                 error: {
                     code: 'fleetManager',
@@ -772,7 +772,7 @@ describe('screens/ConfirmWalletService', () => {
                     detail: null,
                 },
             }),
-            fiClientEligiblePayers: Promise.resolve({
+            faClientEligiblePayers: Promise.resolve({
                 type: 'payers',
                 payers: [eligiblePayer],
             }),
@@ -810,13 +810,13 @@ describe('screens/ConfirmWalletService', () => {
         expect(screen.queryByTestId('SendConfirmButton')).toBeNull()
 
         await waitFor(() => {
-            expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+            expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
         })
 
         await user.press(refreshButton)
 
         await waitFor(() => {
-            expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(2)
+            expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(2)
         })
 
         jest.useRealTimers()
@@ -836,14 +836,14 @@ describe('screens/ConfirmWalletService', () => {
     it('should show the refreshing label and disable pay while a fresh quote is in flight', async () => {
         let resolvePreview: (value: {
             type: 'preview'
-            preview: RpcFiSelectionPreview
+            preview: RpcFaSelectionPreview
         }) => void = () => {}
         const fedimint = createMockFedimintBridge({
-            fiClientPreviewSelection: () =>
+            faClientPreviewSelection: () =>
                 new Promise(resolve => {
                     resolvePreview = resolve
                 }),
-            fiClientEligiblePayers: Promise.resolve({
+            faClientEligiblePayers: Promise.resolve({
                 type: 'payers',
                 payers: [eligiblePayer],
             }),
@@ -873,10 +873,10 @@ describe('screens/ConfirmWalletService', () => {
         })
     })
 
-    // `fiClientPreviewSelection` enumerates every advertisement, verifies each
+    // `faClientPreviewSelection` enumerates every advertisement, verifies each
     // badge and dials candidates — 30-60s on a healthy fleet, longer on a
     // degraded one. The bridge stamps `validUntil` at the *start* of that work
-    // (FMAN_SELECTION_PREVIEW_VALIDITY = 120s), so a slow selection returns a
+    // (MG_SELECTION_PREVIEW_VALIDITY = 120s), so a slow selection returns a
     // quote that is already expired. The auto-refresh keys off `validUntil`,
     // and a fresh-but-expired quote has a *new* one — so it refreshes again,
     // immediately, forever. That is the 258 previews seen in one staging
@@ -890,7 +890,7 @@ describe('screens/ConfirmWalletService', () => {
         const fedimint = createMockFedimintBridge({
             // each call returns a distinct, already-expired validUntil, the
             // way a selection slower than the validity window would
-            fiClientPreviewSelection: () => {
+            faClientPreviewSelection: () => {
                 issued += 1
                 return Promise.resolve({
                     type: 'preview',
@@ -902,7 +902,7 @@ describe('screens/ConfirmWalletService', () => {
                     }),
                 })
             },
-            fiClientEligiblePayers: Promise.resolve({
+            faClientEligiblePayers: Promise.resolve({
                 type: 'payers',
                 payers: [eligiblePayer],
             }),
@@ -925,13 +925,13 @@ describe('screens/ConfirmWalletService', () => {
         // one attempt per mount, then it stops and lets the user retry. The
         // manual refresh control stays available either way.
         expect(
-            fedimint.fiClientPreviewSelection.mock.calls.length,
+            fedimint.faClientPreviewSelection.mock.calls.length,
         ).toBeLessThanOrEqual(2)
     })
 
     it('should show the lost-guardians banner and swap the footer when a refresh loses eligible seats', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientPreviewSelection: Promise.resolve({
+            faClientPreviewSelection: Promise.resolve({
                 type: 'error',
                 error: {
                     code: 'selection',
@@ -945,7 +945,7 @@ describe('screens/ConfirmWalletService', () => {
                     },
                 },
             }),
-            fiClientEligiblePayers: Promise.resolve({
+            faClientEligiblePayers: Promise.resolve({
                 type: 'payers',
                 payers: [eligiblePayer],
             }),
@@ -1024,7 +1024,7 @@ describe('screens/ConfirmWalletService', () => {
 
         const makeFundingBridge = () =>
             createMockFedimintBridge({
-                fiClientPreviewSelection: () =>
+                faClientPreviewSelection: () =>
                     Promise.resolve({
                         type: 'preview',
                         preview: makePreview({
@@ -1033,12 +1033,12 @@ describe('screens/ConfirmWalletService', () => {
                             validUntil: VALID_UNTIL,
                         }),
                     }),
-                fiClientEligiblePayers: () =>
+                faClientEligiblePayers: () =>
                     Promise.resolve({
                         type: 'payers',
                         payers: [eligiblePayer],
                     }),
-                fiClientPayAndCreate: () =>
+                faClientPayAndCreate: () =>
                     Promise.resolve({ type: 'success' }),
                 // the top-up sheet asks the payer for a deposit invoice
                 generateInvoice: () => Promise.resolve('lnbc1topup'),
@@ -1111,7 +1111,7 @@ describe('screens/ConfirmWalletService', () => {
             await waitFor(() => {
                 expect(screen.getByTestId('SendConfirmButton')).toBeEnabled()
             })
-            expect(fedimint.fiClientPayAndCreate).not.toHaveBeenCalled()
+            expect(fedimint.faClientPayAndCreate).not.toHaveBeenCalled()
         })
 
         it('should not pay merely because the user opened top up', async () => {
@@ -1121,7 +1121,7 @@ describe('screens/ConfirmWalletService', () => {
             await user.press(screen.getByTestId('top-up-button'))
             await dismissSheet()
 
-            expect(fedimint.fiClientPayAndCreate).not.toHaveBeenCalled()
+            expect(fedimint.faClientPayAndCreate).not.toHaveBeenCalled()
         })
 
         // the whole point of the 21 Aug decision: money landing is not consent
@@ -1136,7 +1136,7 @@ describe('screens/ConfirmWalletService', () => {
             await waitFor(() => {
                 expect(screen.getByTestId('SendConfirmButton')).toBeEnabled()
             })
-            expect(fedimint.fiClientPayAndCreate).not.toHaveBeenCalled()
+            expect(fedimint.faClientPayAndCreate).not.toHaveBeenCalled()
         })
 
         // the refresh is what unlocks the button: the quote on screen may have
@@ -1148,7 +1148,7 @@ describe('screens/ConfirmWalletService', () => {
 
             await user.press(screen.getByTestId('top-up-button'))
             const previewsBefore =
-                fedimint.fiClientPreviewSelection.mock.calls.length
+                fedimint.faClientPreviewSelection.mock.calls.length
 
             // no other wallet can cover it, so the sheet skips the source list
             // and goes straight to the deposit invoice
@@ -1159,10 +1159,10 @@ describe('screens/ConfirmWalletService', () => {
 
             await waitFor(() => {
                 expect(
-                    fedimint.fiClientPreviewSelection.mock.calls.length,
+                    fedimint.faClientPreviewSelection.mock.calls.length,
                 ).toBeGreaterThan(previewsBefore)
             })
-            expect(fedimint.fiClientPayAndCreate).not.toHaveBeenCalled()
+            expect(fedimint.faClientPayAndCreate).not.toHaveBeenCalled()
             await waitFor(() => {
                 expect(screen.getByTestId('SendConfirmButton')).toBeEnabled()
             })
@@ -1175,7 +1175,7 @@ describe('screens/ConfirmWalletService', () => {
         // The clock kept running behind the open sheet, so a lightning deposit
         // that outlived the 120s window fired the expiry refresh mid-payment.
         // When the payment then landed, `handleTopUpFunded` asked for a second
-        // refresh in the same tick — and the bridge, which serves one FI
+        // refresh in the same tick — and the bridge, which serves one FA
         // operation at a time, answered the second with `busy`.
         it('should not refresh behind the sheet or report busy when a deposit lands on an expired quote', async () => {
             const nowSecs = Math.floor(Date.now() / 1000)
@@ -1209,7 +1209,7 @@ describe('screens/ConfirmWalletService', () => {
             // deposit invoice
             await user.press(screen.getByText(i18n.t('words.continue')))
             const previewsBefore =
-                fedimint.fiClientPreviewSelection.mock.calls.length
+                fedimint.faClientPreviewSelection.mock.calls.length
 
             // the deposit takes longer than the quote is good for
             await act(async () => {
@@ -1218,7 +1218,7 @@ describe('screens/ConfirmWalletService', () => {
 
             // the price is behind the sheet and cannot be acted on, so nothing
             // re-quotes it while the user is paying
-            expect(fedimint.fiClientPreviewSelection.mock.calls.length).toBe(
+            expect(fedimint.faClientPreviewSelection.mock.calls.length).toBe(
                 previewsBefore,
             )
 
@@ -1228,7 +1228,7 @@ describe('screens/ConfirmWalletService', () => {
             // second in the same tick is what the bridge refuses as `busy`.
             await waitFor(() => {
                 expect(
-                    fedimint.fiClientPreviewSelection.mock.calls.length,
+                    fedimint.faClientPreviewSelection.mock.calls.length,
                 ).toBe(previewsBefore + 1)
             })
             expect(mockToast.show).not.toHaveBeenCalled()
@@ -1239,15 +1239,15 @@ describe('screens/ConfirmWalletService', () => {
         it('should not open the top up sheet until an expired quote has been replaced', async () => {
             let resolvePreview: (value: {
                 type: 'preview'
-                preview: RpcFiSelectionPreview
+                preview: RpcFaSelectionPreview
             }) => void = () => {}
             const fedimint = createMockFedimintBridge({
                 // stays in flight until the test releases it
-                fiClientPreviewSelection: () =>
+                faClientPreviewSelection: () =>
                     new Promise(resolve => {
                         resolvePreview = resolve
                     }),
-                fiClientEligiblePayers: () =>
+                faClientEligiblePayers: () =>
                     Promise.resolve({
                         type: 'payers',
                         payers: [eligiblePayer],
@@ -1279,7 +1279,7 @@ describe('screens/ConfirmWalletService', () => {
             )
 
             await waitFor(() => {
-                expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(
+                expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(
                     1,
                 )
             })
@@ -1293,7 +1293,7 @@ describe('screens/ConfirmWalletService', () => {
             expect(screen.queryByText(i18n.t('words.continue'))).toBeNull()
             expect(fedimint.generateInvoice).not.toHaveBeenCalled()
             // still one: the press joined the running refresh
-            expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledTimes(1)
+            expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
             expect(mockToast.show).not.toHaveBeenCalled()
 
             // Not asserting the sheet then opens: settling a second preview in
@@ -1318,24 +1318,24 @@ describe('screens/ConfirmWalletService', () => {
             await user.press(screen.getByTestId('SendConfirmButton'))
 
             await waitFor(() => {
-                expect(fedimint.fiClientPayAndCreate).toHaveBeenCalledTimes(1)
+                expect(fedimint.faClientPayAndCreate).toHaveBeenCalledTimes(1)
             })
         })
     })
 
-    // the bridge serves one FI operation at a time, so a quote is refused
+    // the bridge serves one FA operation at a time, so a quote is refused
     // `busy` while a formation holds the claim
     describe('while a formation holds the bridge', () => {
         const renderWithFormation = (
-            formation: Partial<RpcFiFormationSnapshot>,
+            formation: Partial<RpcFaFormationSnapshot>,
         ) => {
             const fedimint = createMockFedimintBridge({
-                fiClientPreviewSelection: () =>
+                faClientPreviewSelection: () =>
                     Promise.resolve({
                         type: 'preview' as const,
                         preview: makePreview(),
                     }),
-                fiClientEligiblePayers: () =>
+                faClientEligiblePayers: () =>
                     Promise.resolve({
                         type: 'payers' as const,
                         payers: [eligiblePayer],
@@ -1379,7 +1379,7 @@ describe('screens/ConfirmWalletService', () => {
                 await Promise.resolve()
             })
 
-            expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+            expect(fedimint.faClientPreviewSelection).not.toHaveBeenCalled()
             expect(mockToast.show).not.toHaveBeenCalled()
         })
 
@@ -1431,17 +1431,17 @@ describe('screens/ConfirmWalletService', () => {
             const base = makePreloadedState([], 0)
             return {
                 ...base,
-                fi: { ...base.fi, eligiblePayers: [] as RpcFiEligiblePayer[] },
+                fi: { ...base.fi, eligiblePayers: [] as RpcFaEligiblePayer[] },
             }
         }
 
         const makeJoinBridge = () =>
             createMockFedimintBridge({
-                fiClientEligiblePayers: () =>
+                faClientEligiblePayers: () =>
                     Promise.resolve({ type: 'payers', payers: [] }),
                 // the authenticated setup-payment set: one admitted member the
                 // user is not in, which is the only thing that may be offered
-                fiClientSetupPaymentFederations: () =>
+                faClientSetupPaymentFederations: () =>
                     Promise.resolve({
                         type: 'federations',
                         federations: [
@@ -1452,7 +1452,7 @@ describe('screens/ConfirmWalletService', () => {
                             },
                         ],
                     }),
-                fiClientPreviewSelection: () =>
+                faClientPreviewSelection: () =>
                     Promise.resolve({
                         type: 'preview',
                         preview: makePreview(),
@@ -1514,15 +1514,15 @@ describe('screens/ConfirmWalletService', () => {
         // reopening the sheet a retry: there is always something to press.
         it('should keep offering the join while the lookup never answers', async () => {
             const fedimint = createMockFedimintBridge({
-                fiClientEligiblePayers: () =>
+                faClientEligiblePayers: () =>
                     Promise.resolve({ type: 'payers', payers: [] }),
-                fiClientPreviewSelection: () =>
+                faClientPreviewSelection: () =>
                     Promise.resolve({
                         type: 'preview',
                         preview: makePreview(),
                     }),
                 // never settles: the lookup stays pending for the whole test
-                fiClientSetupPaymentFederations: () => new Promise(() => {}),
+                faClientSetupPaymentFederations: () => new Promise(() => {}),
             })
             renderNoPayer(fedimint)
 
@@ -1579,21 +1579,21 @@ describe('screens/ConfirmWalletService', () => {
             expect(screen.queryByTestId('quote-refreshing')).toBeNull()
             // the auto-refresh never armed, so the expensive selection RPC
             // was not re-run
-            expect(fedimint.fiClientPreviewSelection).not.toHaveBeenCalled()
+            expect(fedimint.faClientPreviewSelection).not.toHaveBeenCalled()
         })
 
         // the join card is an offer to join, so a member already joined must
         // not appear in it — that is what left the panel up after a join
         it('should not offer a trusted federation the user already joined', async () => {
             const fedimint = createMockFedimintBridge({
-                fiClientEligiblePayers: () =>
+                faClientEligiblePayers: () =>
                     Promise.resolve({ type: 'payers', payers: [] }),
-                fiClientPreviewSelection: () =>
+                faClientPreviewSelection: () =>
                     Promise.resolve({
                         type: 'preview',
                         preview: makePreview(),
                     }),
-                fiClientSetupPaymentFederations: () =>
+                faClientSetupPaymentFederations: () =>
                     Promise.resolve({
                         type: 'federations',
                         federations: [
@@ -1626,14 +1626,14 @@ describe('screens/ConfirmWalletService', () => {
         // and no other federation list may be substituted for it
         it('should offer no join when the admitted set is empty', async () => {
             const fedimint = createMockFedimintBridge({
-                fiClientEligiblePayers: () =>
+                faClientEligiblePayers: () =>
                     Promise.resolve({ type: 'payers', payers: [] }),
-                fiClientPreviewSelection: () =>
+                faClientPreviewSelection: () =>
                     Promise.resolve({
                         type: 'preview',
                         preview: makePreview(),
                     }),
-                fiClientSetupPaymentFederations: () =>
+                faClientSetupPaymentFederations: () =>
                     Promise.resolve({ type: 'federations', federations: [] }),
             })
             renderNoPayer(fedimint)
@@ -1895,7 +1895,7 @@ describe('screens/ConfirmWalletService', () => {
                 // the payer that turns up is the loaded wallet the preloaded
                 // state already holds: the bridge names a wallet only once it
                 // is loaded, which is the whole race being modelled
-                fiClientEligiblePayers: () => {
+                faClientEligiblePayers: () => {
                     payerLookups += 1
                     return Promise.resolve(
                         payerLookups === 1

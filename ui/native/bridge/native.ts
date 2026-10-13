@@ -39,18 +39,18 @@ async function fedimintRpc<Type = void>(
 // dev builds only: Metro drops a require inside a dead __DEV__ branch, so
 // nothing under native/devtools reaches a release bundle
 /* eslint-disable @typescript-eslint/no-require-imports */
-export const fiDevTools = __DEV__
+export const faDevTools = __DEV__
     ? (
-          require('../devtools/fi') as typeof import('../devtools/fi')
-      ).attachFiDevTools(fedimintRpc, storage)
+          require('../devtools/fa') as typeof import('../devtools/fa')
+      ).attachFaDevTools(fedimintRpc, storage)
     : null
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 export const fedimint = new FedimintBridge(
-    fiDevTools ? fiDevTools.rpc : fedimintRpc,
+    faDevTools ? faDevTools.rpc : fedimintRpc,
 )
 
-fiDevTools?.attachBridge(fedimint)
+faDevTools?.attachBridge(fedimint)
 
 export async function subscribeToBridgeEvents() {
     // Pass through all native bridge events to the FedimintBridge class instance

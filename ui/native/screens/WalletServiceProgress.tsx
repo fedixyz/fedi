@@ -12,8 +12,8 @@ import Animated, {
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
+import { useWalletServiceRecoveryStage } from '@fedi/common/hooks/fa'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { useWalletServiceRecoveryStage } from '@fedi/common/hooks/fi'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     WalletServiceCreationStage,
@@ -23,12 +23,12 @@ import {
     getWalletServiceRetryableError,
     isTerminalWalletServiceError,
     restartWalletServiceDkg,
-    selectFiClientError,
-    selectFiFederationJoinFailure,
-    selectFiLastErrorCode,
-    selectFiPaymentRequirements,
-    selectFiReplacementRequirements,
-    selectFiStatus,
+    selectFaClientError,
+    selectFaFederationJoinFailure,
+    selectFaLastErrorCode,
+    selectFaPaymentRequirements,
+    selectFaReplacementRequirements,
+    selectFaStatus,
     selectFederationBalance,
     selectIsWalletServiceDkgRestartEnabled,
     selectIsWalletServiceFormed,
@@ -39,7 +39,7 @@ import {
     selectWalletServicePaymentShortfall,
 } from '@fedi/common/redux'
 import { MSats } from '@fedi/common/types'
-import { RpcFiOperationError } from '@fedi/common/types/bindings'
+import { RpcFaOperationError } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { MilestoneRow } from '../components/feature/walletservice/MilestoneRow'
@@ -130,12 +130,12 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
         federationId,
     } = useWalletServiceRecoveryStage()
     const isRestoredService =
-        useAppSelector(selectFiStatus)?.type === 'restored'
-    const federationJoinFailure = useAppSelector(selectFiFederationJoinFailure)
-    const reportedErrorCode = useAppSelector(selectFiLastErrorCode)
-    const paymentRequirements = useAppSelector(selectFiPaymentRequirements)
+        useAppSelector(selectFaStatus)?.type === 'restored'
+    const federationJoinFailure = useAppSelector(selectFaFederationJoinFailure)
+    const reportedErrorCode = useAppSelector(selectFaLastErrorCode)
+    const paymentRequirements = useAppSelector(selectFaPaymentRequirements)
     const replacementRequirements = useAppSelector(
-        selectFiReplacementRequirements,
+        selectFaReplacementRequirements,
     )
     const paymentShortfall = useAppSelector(selectWalletServicePaymentShortfall)
     const shortfallFederation = useAppSelector(s =>
@@ -158,7 +158,7 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
             : (0 as MSats),
     )
     const guardianProgress = useAppSelector(selectWalletServiceGuardianProgress)
-    const clientError = useAppSelector(selectFiClientError)
+    const clientError = useAppSelector(selectFaClientError)
     const isDkgRestartEnabled = useAppSelector(
         selectIsWalletServiceDkgRestartEnabled,
     )
@@ -343,7 +343,7 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
             toast.show({
                 content: getWalletServiceRetryableError(
                     t,
-                    (error as RpcFiOperationError | undefined)?.code,
+                    (error as RpcFaOperationError | undefined)?.code,
                 ),
                 status: 'error',
             })
@@ -371,7 +371,7 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
             toast.show({
                 content: getWalletServiceRetryableError(
                     t,
-                    (error as RpcFiOperationError | undefined)?.code,
+                    (error as RpcFaOperationError | undefined)?.code,
                 ),
                 status: 'error',
             })

@@ -978,7 +978,7 @@ describe('components/feature/walletservice/TopUpSheet', () => {
         const fedimint = createMockFedimintBridge({
             generateInvoice: Promise.resolve('lnbc-top-up'),
             payInvoice: Promise.resolve({}),
-            fiClientPayAndCreate: Promise.resolve({ type: 'success' }),
+            faClientPayAndCreate: Promise.resolve({ type: 'success' }),
             listTransactions: Promise.resolve([
                 { Ok: makeClaimedDeposit('lnbc-top-up') },
             ]),
@@ -1002,7 +1002,7 @@ describe('components/feature/walletservice/TopUpSheet', () => {
         await waitFor(() => {
             expect(onFunded).toHaveBeenCalledTimes(1)
         })
-        expect(fedimint.fiClientPayAndCreate).not.toHaveBeenCalled()
+        expect(fedimint.faClientPayAndCreate).not.toHaveBeenCalled()
     })
 
     it('should hand back on its own when the claimed deposit matches the invoice', async () => {
