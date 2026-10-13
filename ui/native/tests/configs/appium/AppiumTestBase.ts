@@ -493,6 +493,13 @@ export class AppiumTestBase {
         )
     }
 
+    // the previous tab stays on top until the new one has rendered, so a
+    // header tap right after the tab tap can land on the old tab's button
+    async openHomeTab(): Promise<void> {
+        await this.clickElementByKey('HomeTabButton')
+        await this.waitForElementDisplayed('HomeHeaderTitle')
+    }
+
     async clickAndCheckForNextElement(
         keyOfElementToClick: string,
         keyOfElementToCheck: string,

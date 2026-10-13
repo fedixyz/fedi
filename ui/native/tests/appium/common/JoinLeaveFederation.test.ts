@@ -189,7 +189,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await setupOnboarded.run(bob)
 
         await this.clickElementByKey('WalletTabButton')
-        await this.waitForElementDisplayed('FediTestnetDetailsButton', 2000)
+        await this.waitForElementDisplayed('FediTestnetDetailsButton')
         await this.joinFederationByPastedInvite(
             getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
             INVITE_PREVIEW_FEDERATION_NAME,
@@ -207,7 +207,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         const generatedInvite = await this.copyFederationInviteFromSettings(
             'E-CashClubFedAccordionButton',
         )
-        await bob.clickElementByKey('HomeTabButton')
+        await bob.openHomeTab()
         await bob.clickElementByKey('PlusButton')
         await bob.clickElementByKey('joinTab')
         await acceptCameraPermissionIfPresent(bob)
@@ -483,7 +483,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         actor: AppiumTestBase,
         invite: string,
     ): Promise<void> {
-        await actor.clickElementByKey('HomeTabButton')
+        await actor.openHomeTab()
         await actor.clickElementByKey('PlusButton')
         await actor.clickElementByKey('joinTab')
         await acceptCameraPermissionIfPresent(actor)

@@ -6,7 +6,7 @@ import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 const en = resources.en.translation
 
 export async function openCommunityTool(t: AppiumTestBase): Promise<void> {
-    await t.clickElementByKey('HomeTabButton')
+    await t.openHomeTab()
     await t.clickElementByKey('PlusButton')
     await t.clickElementByKey('createTab')
     await t.clickOnText(en.phrases['create-my-space'], 0, true)
