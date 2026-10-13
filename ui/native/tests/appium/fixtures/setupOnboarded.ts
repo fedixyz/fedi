@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
-import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
+import {
+    AppiumTestBase,
+    COLD_START_TIMEOUT,
+} from '../../configs/appium/AppiumTestBase'
 import { Fixture } from './types'
 
 const PREVIEW_ATTEMPTS = 3
@@ -26,7 +29,7 @@ export const setupOnboarded: Fixture = {
     requires: [],
     async run(t) {
         console.log('Fixture: setupOnboarded')
-        await t.clickElementByKey('Get started')
+        await t.clickElementByKey('Get started', COLD_START_TIMEOUT)
         await t.clickElementByKey('No')
         await t.clickElementByKey('ManualSetupButton')
         await openFediTestnetPreview(t)

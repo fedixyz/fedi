@@ -82,7 +82,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 !(await this.isTextPresent(
                     `Leave Federation - ${federationName}`,
                     false,
-                    5000,
+                    30000,
                 ))
             ) {
                 throw new Error(
