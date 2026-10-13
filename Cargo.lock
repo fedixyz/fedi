@@ -3413,6 +3413,7 @@ dependencies = [
  "fedimint-ln-client",
  "fedimint-ln-common",
  "fedimint-lnv2-client",
+ "fedimint-lnv2-common",
  "fedimint-meta-client",
  "fedimint-mint-client",
  "fedimint-mintv2-client",

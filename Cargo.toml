@@ -171,6 +171,7 @@ fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v
 fedimint-walletv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
 fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
 fedimint-lnv2-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
+fedimint-lnv2-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
 fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
 fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }
 fedimint-aead = { git = "https://github.com/fedibtc/fedimint", tag = "v0.12.0-fedi11" }

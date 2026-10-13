@@ -1549,6 +1549,13 @@ impl FederationV2 {
         Ok(gateway)
     }
 
+    /// Select a legacy gateway whose fee components are within send limits.
+    async fn select_gateway_for_payment(&self) -> anyhow::Result<Option<LightningGateway>> {
+        self.gateway_service()?
+            .select_gateway_for_payment(&self.client)
+            .await
+    }
+
     pub(crate) async fn select_gateway_with_override(
         &self,
         gateway_override: Option<PublicKey>,
