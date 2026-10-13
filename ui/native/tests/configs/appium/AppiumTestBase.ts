@@ -1276,9 +1276,7 @@ export class AppiumTestBase {
                     // The server enables adb_shell so this grant normally
                     // lands; swallow defensively in case a runner lacks it.
                 }
-                await this.driver.executeScript('mobile: activateApp', [
-                    { appId },
-                ])
+                await this.launchAndroidForeground(appId)
                 break
             }
             case Platform.PWA:
@@ -1286,6 +1284,41 @@ export class AppiumTestBase {
         }
         this.iosNotificationPromptHandled = false
         console.log('App reset complete')
+    }
+
+    // clearApp removes the package's task, and about a second later
+    // ActivityTaskManager's remove-task destroy timeout kills any process
+    // the package has by then, including one a launch just started.
+    private async launchAndroidForeground(appId: string): Promise<void> {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            await new Promise(r => setTimeout(r, 2000))
+            await this.driver.executeScript('mobile: activateApp', [{ appId }])
+            if (await this.androidStaysInForeground(appId)) return
+            console.warn(
+                `${appId} did not stay in the foreground after launch ${attempt}, relaunching`,
+            )
+            await this.driver.executeScript('mobile: terminateApp', [{ appId }])
+        }
+        throw new Error(`${appId} did not stay in the foreground after reset`)
+    }
+
+    private async androidStaysInForeground(appId: string): Promise<boolean> {
+        const RUNNING_IN_FOREGROUND = 4
+        const query = async () =>
+            (await this.driver.executeScript('mobile: queryAppState', [
+                { appId },
+            ])) as number
+        const deadline = Date.now() + 15000
+        while ((await query()) !== RUNNING_IN_FOREGROUND) {
+            if (Date.now() > deadline) return false
+            await new Promise(r => setTimeout(r, 500))
+        }
+        const settled = Date.now() + 3000
+        while (Date.now() < settled) {
+            await new Promise(r => setTimeout(r, 500))
+            if ((await query()) !== RUNNING_IN_FOREGROUND) return false
+        }
+        return true
     }
 
     async openDeepLink(url: string, appPackage?: string): Promise<void> {
