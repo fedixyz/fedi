@@ -22,28 +22,27 @@ use fedimint_core::{apply, async_trait_maybe_send};
 use futures::StreamExt as _;
 use rpc_types::matrix::{RpcRoomId, RpcUserId};
 pub use rpc_types::multispend::{
-    GroupInvitation, MultispendEvent, MultispendGroupVoteType, WithdrawalResponseType,
+    BTC_MULTISPEND_MSGTYPE, GroupInvitation, MULTISPEND_MSGTYPE, MsEvent, MultispendAmount,
+    MultispendGroupKind, MultispendGroupVoteType, MultispendTransferRequest,
+    SignedMultispendTransferRequest, WithdrawalResponseType,
 };
 use rpc_types::{
-    RpcEventId, RpcFederationId, RpcFiatAmount, RpcPublicKey, RpcSignature, RpcTransactionId,
-    SPv2TransferMetadata,
+    RpcEventId, RpcFederationId, RpcPublicKey, RpcSignature, RpcTransactionId, SPv2TransferMetadata,
 };
 use serde::{Deserialize, Serialize};
 use stability_pool_client::common::{
-    Account, AccountId, AccountType, AccountUnchecked, FiatAmount, SignedTransferRequest,
-    SyncResponse, TransferRequest, TransferRequestId,
+    Account, AccountId, AccountType, AccountUnchecked, FiatAmount, SyncResponse,
 };
 use tracing::{error, info};
 use ts_rs::TS;
 
 pub mod completion_notification_service;
 pub mod db;
+pub mod migration;
 pub mod multispend_matrix;
 pub mod rescanner;
 pub mod services;
 pub mod withdrawal_service;
-
-pub const MULTISPEND_MSGTYPE: &str = "xyz.fedi.multispend";
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -51,6 +50,7 @@ pub const MULTISPEND_MSGTYPE: &str = "xyz.fedi.multispend";
 /// Group invitation with extra state accumlated over the events.
 pub struct GroupInvitationWithKeys {
     pub invitation: GroupInvitation,
+    pub kind: MultispendGroupKind,
     pub proposer: RpcUserId,
     pub pubkeys: BTreeMap<RpcUserId, RpcPublicKey>,
     pub rejections: BTreeSet<RpcUserId>,
@@ -62,6 +62,7 @@ pub struct GroupInvitationWithKeys {
 #[ts(export)]
 pub struct FinalizedGroup {
     pub invitation: GroupInvitation,
+    pub kind: MultispendGroupKind,
     pub proposer: RpcUserId,
     pub pubkeys: BTreeMap<RpcUserId, RpcPublicKey>,
     #[ts(skip)]
@@ -74,6 +75,7 @@ impl GroupInvitationWithKeys {
     /// proposer details
     pub fn new(
         invitation: GroupInvitation,
+        kind: MultispendGroupKind,
         proposer: RpcUserId,
         proposer_pubkey: RpcPublicKey,
         federation_id: RpcFederationId,
@@ -83,6 +85,7 @@ impl GroupInvitationWithKeys {
 
         Self {
             invitation,
+            kind,
             proposer,
             pubkeys,
             rejections: BTreeSet::new(),
@@ -122,7 +125,7 @@ impl GroupInvitationWithKeys {
     pub fn to_finalized(&self) -> Option<FinalizedGroup> {
         if self.pubkeys.len() == self.invitation.signers.len() {
             let account = AccountUnchecked {
-                acc_type: AccountType::Seeker,
+                acc_type: self.kind.account_type(),
                 pub_keys: self.pubkeys.values().cloned().map(|pk| pk.0).collect(),
                 threshold: self.invitation.threshold,
             };
@@ -131,6 +134,7 @@ impl GroupInvitationWithKeys {
                 return Some(FinalizedGroup {
                     proposer: self.proposer.clone(),
                     invitation: self.invitation.clone(),
+                    kind: self.kind,
                     pubkeys: self.pubkeys.clone(),
                     spv2_account,
                     federation_id: self.federation_id.clone(),
@@ -146,8 +150,10 @@ impl GroupInvitationWithKeys {
 #[ts(export)]
 /// Withdrawal request with extra data accumulated over events.
 pub struct WithdrawRequestWithApprovals {
-    #[ts(type = "{ transfer_amount: RpcFiatAmount }")]
-    pub request: TransferRequest,
+    #[ts(
+        type = "{ kind: \"fiat\"; transfer_amount: RpcFiatAmount } | { kind: \"btc\"; transfer_amount: RpcAmount }"
+    )]
+    pub request: MultispendTransferRequest,
     pub description: String,
     pub signatures: BTreeMap<RpcUserId, RpcSignature>,
     pub rejections: BTreeSet<RpcUserId>,
@@ -166,7 +172,7 @@ pub enum WithdrawTxSubmissionStatus {
 
 impl WithdrawRequestWithApprovals {
     /// Create a new WithdrawRequestWithApprovals
-    pub fn new(request: TransferRequest, description: String, sender: RpcUserId) -> Self {
+    pub fn new(request: MultispendTransferRequest, description: String, sender: RpcUserId) -> Self {
         Self {
             request,
             description,
@@ -214,7 +220,7 @@ impl WithdrawRequestWithApprovals {
                 signature
                     .0
                     .verify(
-                        &bitcoin::secp256k1::Message::from(&TransferRequestId::from(&self.request)),
+                        &bitcoin::secp256k1::Message::from(&self.request.id()),
                         &member_key,
                     )
                     .map_err(|_| ProcessEventError::InvalidMessage)?;
@@ -233,10 +239,7 @@ impl WithdrawRequestWithApprovals {
                 self.rejections.insert(sender);
                 WithdrawalProcessResponseOutcome::Rejection
             }
-            WithdrawalResponseType::Complete {
-                fiat_amount: _,
-                txid,
-            } => {
+            WithdrawalResponseType::Complete { amount: _, txid } => {
                 // only original sender can send completion mention
                 if self.sender != sender {
                     return Err(ProcessEventError::InvalidMessage);
@@ -295,7 +298,9 @@ enum WithdrawalProcessResponseOutcome {
 /// Deposit notification saved to db.
 pub struct MultispendDepositEventData {
     pub user: RpcUserId,
-    pub fiat_amount: RpcFiatAmount,
+    /// `fiatAmount` or `btcAmount`, as before bitcoin groups for fiat.
+    #[serde(flatten)]
+    pub amount: MultispendAmount,
     pub txid: RpcTransactionId,
     pub description: String,
 }
@@ -329,7 +334,7 @@ pub trait FederationProvider: MaybeSend + MaybeSync {
     async fn spv2_transfer(
         &self,
         federation_id: &str,
-        signed_request: SignedTransferRequest,
+        signed_request: SignedMultispendTransferRequest,
         meta: SPv2TransferMetadata,
     ) -> anyhow::Result<OperationId>;
 
@@ -338,12 +343,27 @@ pub trait FederationProvider: MaybeSend + MaybeSync {
         federation_id: &str,
         account_id: AccountId,
     ) -> anyhow::Result<SyncResponse>;
+
+    /// A bitcoin withdrawal paying `to` completed, whichever device submitted
+    /// it; sweep the payout account if `to` is ours.
+    fn multispend_btc_payout_received(&self, federation_id: &str, to: &AccountId);
+
+    /// Whether `to` is an account of this device that a withdrawal pays: its
+    /// seeker account or its bitcoin payout account. Those keys differ per
+    /// device index, so this tells apart devices of the same Matrix user.
+    fn is_own_withdrawal_destination(
+        &self,
+        federation_id: &str,
+        to: &AccountId,
+    ) -> anyhow::Result<bool>;
 }
 
 pub struct MultispendContext {
     pub check_pending_approved_withdrawal_requests: bool,
     pub our_id: RpcUserId,
     pub refresh_account_info: bool,
+    /// Recipients of the bitcoin withdrawals completed by these events.
+    pub btc_payouts: Vec<(RpcFederationId, AccountId)>,
 }
 
 /// Process one event from matrix and persist it to database.
@@ -352,7 +372,7 @@ pub async fn process_event_db(
     room_id: &RpcRoomId,
     sender: RpcUserId,
     event_id: RpcEventId,
-    event: MultispendEvent,
+    event: MsEvent,
     event_time: u64,
     context: &mut MultispendContext,
 ) {
@@ -380,16 +400,20 @@ pub async fn process_event_db_raw(
     room_id: &RpcRoomId,
     sender: RpcUserId,
     event_id: RpcEventId,
-    event: MultispendEvent,
+    event: MsEvent,
     event_time: u64,
     context: &mut MultispendContext,
 ) -> Result<(), ProcessEventError> {
+    // a room holds one group per kind, and the msgtype of an event selects
+    // the group it belongs to
+    let kind = event.group_kind();
+    let status_key = MultispendGroupStatusKey(room_id.clone(), kind);
     match event {
-        MultispendEvent::GroupInvitation {
+        MsEvent::GroupInvitation {
+            group_kind,
             invitation,
             proposer_pubkey,
         } => {
-            let status_key = MultispendGroupStatusKey(room_id.clone());
             // already finalized
             if let Some(MultispendGroupStatus::Finalized { .. }) = dbtx.get_value(&status_key).await
             {
@@ -399,9 +423,10 @@ pub async fn process_event_db_raw(
             let invite_code = InviteCode::from_str(&invitation.federation_invite_code)
                 .map_err(|_| ProcessEventError::InvalidMessage)?;
             dbtx.insert_new_entry(
-                &MultispendInvitationKey(room_id.clone(), event_id.clone()),
+                &MultispendInvitationKey(room_id.clone(), kind, event_id.clone()),
                 &GroupInvitationWithKeys::new(
                     invitation,
+                    group_kind,
                     sender,
                     proposer_pubkey,
                     RpcFederationId(invite_code.federation_id().to_string()),
@@ -417,15 +442,16 @@ pub async fn process_event_db_raw(
             .await;
         }
 
-        MultispendEvent::GroupReannounce {
+        MsEvent::GroupReannounce {
+            group_kind,
             invitation_id,
             invitation,
             proposer,
             pubkeys,
             rejections,
         } => {
-            let status_key = MultispendGroupStatusKey(room_id.clone());
-            let invitation_key = MultispendInvitationKey(room_id.clone(), invitation_id.clone());
+            let invitation_key =
+                MultispendInvitationKey(room_id.clone(), kind, invitation_id.clone());
             // only processed if you have no state
             if dbtx.get_value(&status_key).await.is_some()
                 || dbtx.get_value(&invitation_key).await.is_some()
@@ -436,6 +462,7 @@ pub async fn process_event_db_raw(
                 .map_err(|_| ProcessEventError::InvalidMessage)?;
             let invitation_state = GroupInvitationWithKeys {
                 invitation,
+                kind: group_kind,
                 proposer,
                 pubkeys,
                 rejections,
@@ -462,9 +489,9 @@ pub async fn process_event_db_raw(
                 .await;
             }
         }
-        MultispendEvent::GroupInvitationVote { invitation, vote } => {
-            let status_key = MultispendGroupStatusKey(room_id.clone());
-
+        MsEvent::GroupInvitationVote {
+            invitation, vote, ..
+        } => {
             // this is not the active invite
             if !matches!(
                 dbtx.get_value(&status_key).await,
@@ -475,7 +502,7 @@ pub async fn process_event_db_raw(
                 return Err(ProcessEventError::InvalidMessage);
             }
 
-            let key = MultispendInvitationKey(room_id.clone(), invitation.clone());
+            let key = MultispendInvitationKey(room_id.clone(), kind, invitation.clone());
             let mut state: GroupInvitationWithKeys = dbtx
                 .get_value(&key)
                 .await
@@ -493,8 +520,7 @@ pub async fn process_event_db_raw(
             }
             dbtx.insert_entry(&key, &state).await;
         }
-        MultispendEvent::GroupInvitationCancel { invitation } => {
-            let status_key = MultispendGroupStatusKey(room_id.clone());
+        MsEvent::GroupInvitationCancel { invitation, .. } => {
             // there is no active invite
             if !matches!(
                 dbtx.get_value(&status_key).await,
@@ -507,11 +533,11 @@ pub async fn process_event_db_raw(
             dbtx.remove_entry(&status_key).await;
         }
 
-        MultispendEvent::WithdrawalRequest {
+        MsEvent::WithdrawalRequest {
             request,
             description,
         } => {
-            let finalized_group = get_finalized_group_db(dbtx, room_id)
+            let finalized_group = get_finalized_group_db(dbtx, room_id, kind)
                 .await
                 .ok_or(ProcessEventError::InvalidMessage)?;
             if !is_valid_withdrawal_request(&finalized_group, &request) {
@@ -524,11 +550,13 @@ pub async fn process_event_db_raw(
 
             let new_state = WithdrawRequestWithApprovals::new(request, description, sender);
             dbtx.insert_new_entry(&key, &new_state).await;
-            insert_multispend_chronological_event(dbtx, room_id, &event_id, event_time).await;
+            insert_multispend_chronological_event(dbtx, room_id, kind, &event_id, event_time).await;
         }
 
-        MultispendEvent::WithdrawalResponse { request, response } => {
-            let finalized_group = get_finalized_group_db(dbtx, &room_id.clone())
+        MsEvent::WithdrawalResponse {
+            request, response, ..
+        } => {
+            let finalized_group = get_finalized_group_db(dbtx, room_id, kind)
                 .await
                 .ok_or(ProcessEventError::InvalidMessage)?;
 
@@ -540,6 +568,7 @@ pub async fn process_event_db_raw(
             let mut state = dbtx
                 .get_value(&key)
                 .await
+                .filter(|state| state.request.kind() == kind)
                 .ok_or(ProcessEventError::InvalidMessage)?;
             match state.process_response(sender, response.clone(), &finalized_group)? {
                 WithdrawalProcessResponseOutcome::Approved if context.our_id == state.sender => {
@@ -563,7 +592,7 @@ pub async fn process_event_db_raw(
                         &MultispendPendingApprovedWithdrawalRequestKey {
                             room_id: room_id.clone(),
                             request_event_id: request,
-                            transfer_request: SignedTransferRequest::new(
+                            transfer_request: SignedMultispendTransferRequest::new(
                                 state.request.clone(),
                                 signatures,
                             )
@@ -578,6 +607,11 @@ pub async fn process_event_db_raw(
                 | WithdrawalProcessResponseOutcome::TxRejected) => {
                     if matches!(outcome, WithdrawalProcessResponseOutcome::Completed) {
                         context.refresh_account_info = true;
+                        if let MultispendTransferRequest::Btc(request) = &state.request {
+                            context
+                                .btc_payouts
+                                .push((finalized_group.federation_id.clone(), *request.to()));
+                        }
                     }
                     // A rescan from scratch replays the approval before this response,
                     // so drop the submission it queued.
@@ -594,13 +628,13 @@ pub async fn process_event_db_raw(
             dbtx.insert_entry(&key, &state).await;
         }
 
-        MultispendEvent::DepositNotification {
-            fiat_amount,
+        MsEvent::DepositNotification {
+            amount,
             txid,
             description,
         } => {
             context.refresh_account_info = true;
-            get_finalized_group_db(dbtx, room_id)
+            get_finalized_group_db(dbtx, room_id, kind)
                 .await
                 .ok_or(ProcessEventError::InvalidMessage)?;
             let key = MultispendDepositEventKey {
@@ -609,12 +643,12 @@ pub async fn process_event_db_raw(
             };
             let new_state = MultispendDepositEventData {
                 user: sender.clone(),
-                fiat_amount,
+                amount,
                 txid,
                 description,
             };
             dbtx.insert_new_entry(&key, &new_state).await;
-            insert_multispend_chronological_event(dbtx, room_id, &event_id, event_time).await;
+            insert_multispend_chronological_event(dbtx, room_id, kind, &event_id, event_time).await;
         }
     }
     Ok(())
@@ -622,14 +656,20 @@ pub async fn process_event_db_raw(
 
 /// Matrix events are untrusted, so members only see requests that move some
 /// funds out of the group account into another account. Any room member may
-/// request a withdrawal.
+/// request a withdrawal. A bitcoin request must pay a btc-depositor account.
 fn is_valid_withdrawal_request(
     finalized_group: &FinalizedGroup,
-    request: &TransferRequest,
+    request: &MultispendTransferRequest,
 ) -> bool {
     request.from() == &finalized_group.spv2_account
         && *request.to() != finalized_group.spv2_account.id()
-        && request.amount() != FiatAmount(0)
+        && match request {
+            MultispendTransferRequest::Fiat(request) => request.amount() != FiatAmount(0),
+            MultispendTransferRequest::Btc(request) => {
+                request.to().acc_type() == AccountType::BtcDepositor
+                    && request.amount() != fedimint_core::Amount::ZERO
+            }
+        }
 }
 
 /// Get all accumulated data for an event id.
@@ -638,9 +678,13 @@ pub async fn get_event_data_db(
     room_id: &RpcRoomId,
     event_id: &RpcEventId,
 ) -> Option<MsEventData> {
-    let invite_key = MultispendInvitationKey(room_id.clone(), event_id.clone());
-    if let Some(invite) = tx.get_value(&invite_key).await {
-        return Some(MsEventData::GroupInvitation(invite));
+    // only a reannouncement can put invitations of both kinds under one id,
+    // and older clients show the fiat one
+    for kind in [MultispendGroupKind::Fiat, MultispendGroupKind::Btc] {
+        let invite_key = MultispendInvitationKey(room_id.clone(), kind, event_id.clone());
+        if let Some(invite) = tx.get_value(&invite_key).await {
+            return Some(MsEventData::GroupInvitation(invite));
+        }
     }
 
     let deposit_key = MultispendDepositEventKey {
@@ -675,18 +719,20 @@ pub async fn is_invalid_event(tx: &mut DatabaseTransaction<'_>, event_id: RpcEve
 pub async fn get_group_status_db(
     tx: &mut DatabaseTransaction<'_>,
     room_id: &RpcRoomId,
+    kind: MultispendGroupKind,
 ) -> Option<MultispendGroupStatus> {
-    let key = MultispendGroupStatusKey(room_id.clone());
-    tx.get_value(&key).await
+    tx.get_value(&MultispendGroupStatusKey(room_id.clone(), kind))
+        .await
 }
 
 pub async fn get_finalized_group_db(
     tx: &mut DatabaseTransaction<'_>,
     room_id: &RpcRoomId,
+    kind: MultispendGroupKind,
 ) -> Option<FinalizedGroup> {
     if let Some(MultispendGroupStatus::Finalized {
         finalized_group, ..
-    }) = get_group_status_db(tx, room_id).await
+    }) = get_group_status_db(tx, room_id, kind).await
     {
         Some(finalized_group)
     } else {
@@ -700,16 +746,18 @@ pub enum ProcessEventError {
     InvalidMessage,
 }
 
-/// Paginate multispend events for a room using the event counter.
+/// Paginate the events of the `kind` group of a room using the event counter.
 pub async fn list_multispend_events(
     dbtx: &mut DatabaseTransaction<'_>,
     room_id: &RpcRoomId,
+    kind: MultispendGroupKind,
     start_after: Option<u64>,
     limit: usize,
 ) -> Vec<MultispendListedEvent> {
     let events: Vec<(u64, MultispendChronologicalEventData)> = dbtx
         .find_by_prefix_sorted_descending(&MultispendChronologicalEventKeyPrefix {
             room_id: room_id.clone(),
+            kind,
         })
         .await
         .skip_while(|(key, _)| {
@@ -750,6 +798,8 @@ mod tests {
     use fedimint_core::db::Database;
     use fedimint_core::db::mem_impl::MemDatabase;
     use fedimint_core::module::registry::ModuleDecoderRegistry;
+    use rpc_types::RpcFiatAmount;
+    use stability_pool_client::common::{FiatAmount, TransferRequest, TransferRequestId};
 
     use super::*;
     use crate::db::{
@@ -778,6 +828,7 @@ mod tests {
             our_id: user1.clone(),
             check_pending_approved_withdrawal_requests: false,
             refresh_account_info: false,
+            btc_payouts: Vec::new(),
         };
 
         let invitation = GroupInvitation {
@@ -791,7 +842,8 @@ mod tests {
         let pk2 = gen_test_pubkey();
 
         // Send invitation
-        let event = MultispendEvent::GroupInvitation {
+        let event = MsEvent::GroupInvitation {
+            group_kind: MultispendGroupKind::Fiat,
             invitation: invitation.clone(),
             proposer_pubkey: pk1,
         };
@@ -810,7 +862,8 @@ mod tests {
         );
 
         // Accept invitation
-        let event = MultispendEvent::GroupInvitationVote {
+        let event = MsEvent::GroupInvitationVote {
+            group_kind: MultispendGroupKind::Fiat,
             invitation: event1_id.clone(),
             vote: MultispendGroupVoteType::Accept { member_pubkey: pk2 },
         };
@@ -829,7 +882,8 @@ mod tests {
         );
 
         // Try to send another invitation after finalization (should fail)
-        let event = MultispendEvent::GroupInvitation {
+        let event = MsEvent::GroupInvitation {
+            group_kind: MultispendGroupKind::Fiat,
             invitation: invitation.clone(),
             proposer_pubkey: pk1,
         };
@@ -905,7 +959,7 @@ mod tests {
         for terminal_response in [
             None,
             Some(WithdrawalResponseType::Complete {
-                fiat_amount: RpcFiatAmount(100),
+                amount: MultispendAmount::FiatAmount(RpcFiatAmount(100)),
                 txid: RpcTransactionId(
                     "0000000000000000000000000000000000000000000000000000000000000001"
                         .parse()
@@ -922,12 +976,14 @@ mod tests {
                 our_id: user1.clone(),
                 check_pending_approved_withdrawal_requests: false,
                 refresh_account_info: false,
+                btc_payouts: Vec::new(),
             };
             let mut events = vec![
                 (
                     user1.clone(),
                     invitation_id.clone(),
-                    MultispendEvent::GroupInvitation {
+                    MsEvent::GroupInvitation {
+                        group_kind: MultispendGroupKind::Fiat,
                         invitation: invitation.clone(),
                         proposer_pubkey: RpcPublicKey(keys[0].public_key()),
                     },
@@ -935,7 +991,8 @@ mod tests {
                 (
                     user2.clone(),
                     RpcEventId("$accept".to_string()),
-                    MultispendEvent::GroupInvitationVote {
+                    MsEvent::GroupInvitationVote {
+                        group_kind: MultispendGroupKind::Fiat,
                         invitation: invitation_id.clone(),
                         vote: MultispendGroupVoteType::Accept {
                             member_pubkey: RpcPublicKey(keys[1].public_key()),
@@ -945,8 +1002,8 @@ mod tests {
                 (
                     user1.clone(),
                     request_id.clone(),
-                    MultispendEvent::WithdrawalRequest {
-                        request: request.clone(),
+                    MsEvent::WithdrawalRequest {
+                        request: MultispendTransferRequest::Fiat(request.clone()),
                         description: "withdrawal".to_string(),
                     },
                 ),
@@ -955,7 +1012,8 @@ mod tests {
                 events.push((
                     user,
                     RpcEventId(format!("$approval{index}")),
-                    MultispendEvent::WithdrawalResponse {
+                    MsEvent::WithdrawalResponse {
+                        group_kind: MultispendGroupKind::Fiat,
                         request: request_id.clone(),
                         response: WithdrawalResponseType::Approve {
                             signature: RpcSignature(
@@ -970,7 +1028,8 @@ mod tests {
                 events.push((
                     user1.clone(),
                     RpcEventId("$terminal".to_string()),
-                    MultispendEvent::WithdrawalResponse {
+                    MsEvent::WithdrawalResponse {
+                        group_kind: MultispendGroupKind::Fiat,
                         request: request_id.clone(),
                         response,
                     },
@@ -991,6 +1050,7 @@ mod tests {
                 .await
                 .unwrap();
             }
+            assert!(context.btc_payouts.is_empty(), "a fiat withdrawal paid out");
             queue_counts.push(
                 tx.find_by_prefix(&MultispendPendingApprovedWithdrawalRequestKeyPrefix)
                     .await
@@ -1019,12 +1079,18 @@ mod tests {
         RpcUserId(format!("@{name}:example.com"))
     }
 
+    fn txid(byte: u8) -> RpcTransactionId {
+        RpcTransactionId(format!("{byte:064x}").parse().unwrap())
+    }
+
     /// One room whose events are processed one by one, as the rescanner does.
     struct Room {
         db: Database,
         room_id: RpcRoomId,
         our_id: RpcUserId,
         events: u64,
+        /// Recipients of the bitcoin withdrawals completed so far.
+        btc_payouts: Vec<(RpcFederationId, AccountId)>,
     }
 
     impl Room {
@@ -1034,11 +1100,12 @@ mod tests {
                 room_id: RpcRoomId("!room:example.com".to_string()),
                 our_id,
                 events: 0,
+                btc_payouts: Vec::new(),
             }
         }
 
         /// Process `event` and return its id and whether it was valid.
-        async fn send(&mut self, sender: &RpcUserId, event: MultispendEvent) -> (RpcEventId, bool) {
+        async fn send(&mut self, sender: &RpcUserId, event: MsEvent) -> (RpcEventId, bool) {
             self.events += 1;
             let event_id = RpcEventId(format!("$event{}", self.events));
             let mut dbtx = self.db.begin_transaction().await;
@@ -1046,6 +1113,7 @@ mod tests {
                 our_id: self.our_id.clone(),
                 check_pending_approved_withdrawal_requests: false,
                 refresh_account_info: false,
+                btc_payouts: Vec::new(),
             };
             process_event_db(
                 &mut dbtx.to_ref_nc(),
@@ -1058,35 +1126,38 @@ mod tests {
             )
             .await;
             dbtx.commit_tx().await;
+            self.btc_payouts.extend(context.btc_payouts);
             let mut dbtx = self.db.begin_transaction_nc().await;
             let valid = !is_invalid_event(&mut dbtx, event_id.clone()).await;
             (event_id, valid)
         }
 
-        /// Finalize a 2-of-2 group of alice (`keypair(1)`) and bob
-        /// (`keypair(2)`).
-        async fn finalize(&mut self) -> FinalizedGroup {
-            let invitation = MultispendEvent::GroupInvitation {
-                invitation: GroupInvitation {
-                    signers: BTreeSet::from([user("alice"), user("bob")]),
-                    threshold: 2,
-                    federation_invite_code: INVITE_CODE.to_string(),
-                    federation_name: "test".to_string(),
-                },
-                proposer_pubkey: RpcPublicKey(keypair(1).public_key()),
-            };
-            let (invitation, valid) = self.send(&user("alice"), invitation).await;
-            assert!(valid);
-            let vote = MultispendEvent::GroupInvitationVote {
-                invitation,
-                vote: MultispendGroupVoteType::Accept {
-                    member_pubkey: RpcPublicKey(keypair(2).public_key()),
-                },
-            };
-            assert!(self.send(&user("bob"), vote).await.1);
-            get_finalized_group_db(&mut self.db.begin_transaction_nc().await, &self.room_id)
+        async fn status(&self, kind: MultispendGroupKind) -> Option<MultispendGroupStatus> {
+            get_group_status_db(
+                &mut self.db.begin_transaction_nc().await,
+                &self.room_id,
+                kind,
+            )
+            .await
+        }
+
+        /// Counter and id of the listed events of the `kind` group, newest
+        /// first.
+        async fn events(&self, kind: MultispendGroupKind) -> Vec<(u64, RpcEventId)> {
+            let mut dbtx = self.db.begin_transaction_nc().await;
+            list_multispend_events(&mut dbtx, &self.room_id, kind, None, 10)
                 .await
-                .expect("group finalized")
+                .into_iter()
+                .map(|event| (event.counter, event.event_id))
+                .collect()
+        }
+
+        async fn withdrawal(&self, request_id: &RpcEventId) -> WithdrawRequestWithApprovals {
+            let mut dbtx = self.db.begin_transaction_nc().await;
+            match get_event_data_db(&mut dbtx, &self.room_id, request_id).await {
+                Some(MsEventData::WithdrawalRequest(request)) => request,
+                other => panic!("not a withdrawal request: {other:?}"),
+            }
         }
 
         async fn queued(&self) -> Vec<MultispendPendingApprovedWithdrawalRequestKey> {
@@ -1099,10 +1170,424 @@ mod tests {
                 .collect()
                 .await
         }
+
+        async fn invite(
+            &mut self,
+            kind: MultispendGroupKind,
+            members: &[RpcUserId],
+            threshold: u64,
+        ) -> (RpcEventId, bool) {
+            self.send(&members[0], invitation(kind, members, threshold))
+                .await
+        }
+
+        /// Finalize a group where `members[i]` holds `keypair(i + 1)`.
+        async fn finalize(
+            &mut self,
+            kind: MultispendGroupKind,
+            members: &[RpcUserId],
+            threshold: u64,
+        ) -> FinalizedGroup {
+            let (invitation, valid) = self.invite(kind, members, threshold).await;
+            assert!(valid);
+            for (index, member) in members.iter().enumerate().skip(1) {
+                let vote = MsEvent::GroupInvitationVote {
+                    group_kind: kind,
+                    invitation: invitation.clone(),
+                    vote: MultispendGroupVoteType::Accept {
+                        member_pubkey: RpcPublicKey(keypair(index as u8 + 1).public_key()),
+                    },
+                };
+                assert!(self.send(member, vote).await.1);
+            }
+            match self.status(kind).await {
+                Some(MultispendGroupStatus::Finalized {
+                    finalized_group, ..
+                }) => finalized_group,
+                other => panic!("group not finalized: {other:?}"),
+            }
+        }
     }
 
-    /// $1.00 from the group account to another seeker account.
-    fn transfer_request(group: &FinalizedGroup) -> TransferRequest {
+    fn invitation(kind: MultispendGroupKind, members: &[RpcUserId], threshold: u64) -> MsEvent {
+        MsEvent::GroupInvitation {
+            group_kind: kind,
+            invitation: GroupInvitation {
+                signers: members.iter().cloned().collect(),
+                threshold,
+                federation_invite_code: INVITE_CODE.to_string(),
+                federation_name: "test".to_string(),
+            },
+            proposer_pubkey: RpcPublicKey(keypair(1).public_key()),
+        }
+    }
+
+    fn btc_request(group: &FinalizedGroup, msats: u64) -> MultispendTransferRequest {
+        btc_request_from(&group.spv2_account, msats)
+    }
+
+    fn btc_request_from(from: &Account, msats: u64) -> MultispendTransferRequest {
+        let payout = Account::single(keypair(42).public_key(), AccountType::BtcDepositor);
+        MultispendTransferRequest::Btc(
+            stability_pool_client::common::BtcTransferRequest::new(
+                7,
+                from.clone(),
+                fedimint_core::Amount::from_msats(msats),
+                payout.id(),
+                vec![],
+                u64::MAX,
+            )
+            .unwrap(),
+        )
+    }
+
+    /// `request` with one JSON field replaced, as a forged Matrix event would
+    /// carry it. Deserializing skips the checks of the request constructor.
+    fn forge<T: Serialize + serde::de::DeserializeOwned>(
+        request: &T,
+        field: &str,
+        value: serde_json::Value,
+    ) -> T {
+        let mut json = serde_json::to_value(request).unwrap();
+        json[field] = value;
+        serde_json::from_value(json).unwrap()
+    }
+
+    fn approve(request: &MultispendTransferRequest, key: &secp256k1::Keypair) -> MsEvent {
+        MsEvent::WithdrawalResponse {
+            group_kind: request.kind(),
+            request: RpcEventId(String::new()),
+            response: WithdrawalResponseType::Approve {
+                signature: RpcSignature(
+                    secp256k1::SECP256K1
+                        .sign_schnorr_no_aux_rand(&secp256k1::Message::from(&request.id()), key),
+                ),
+            },
+        }
+    }
+
+    fn respond(request_id: &RpcEventId, event: MsEvent) -> MsEvent {
+        let MsEvent::WithdrawalResponse {
+            group_kind,
+            response,
+            ..
+        } = event
+        else {
+            unreachable!()
+        };
+        MsEvent::WithdrawalResponse {
+            group_kind,
+            request: request_id.clone(),
+            response,
+        }
+    }
+
+    fn withdrawal_request(request: MultispendTransferRequest) -> MsEvent {
+        MsEvent::WithdrawalRequest {
+            request,
+            description: "withdrawal".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn btc_group_is_a_btc_depositor_multisig() {
+        let members = [user("alice"), user("bob"), user("carol")];
+        let group = Room::new(members[0].clone())
+            .finalize(MultispendGroupKind::Btc, &members, 2)
+            .await;
+        assert_eq!(group.kind, MultispendGroupKind::Btc);
+        let expected: Account = AccountUnchecked {
+            acc_type: AccountType::BtcDepositor,
+            pub_keys: [1, 2, 3].map(|byte| keypair(byte).public_key()).into(),
+            threshold: 2,
+        }
+        .try_into()
+        .unwrap();
+        assert_eq!(group.spv2_account, expected);
+    }
+
+    #[tokio::test]
+    async fn fiat_and_btc_groups_share_a_room() {
+        use MultispendGroupKind::{Btc, Fiat};
+        let members = [user("alice"), user("bob")];
+        let mut room = Room::new(members[0].clone());
+
+        // an open bitcoin invitation does not hold up a fiat group
+        let (btc_invitation, valid) = room.invite(Btc, &members, 2).await;
+        assert!(valid);
+        let fiat_group = room.finalize(Fiat, &members, 2).await;
+        assert_matches!(
+            room.status(Btc).await,
+            Some(MultispendGroupStatus::ActiveInvitation { active_invite_id }) if active_invite_id == btc_invitation
+        );
+        let btc_group = room.finalize(Btc, &members, 2).await;
+        assert_eq!(fiat_group.kind, Fiat);
+        assert_eq!(btc_group.kind, Btc);
+        // each finalized group refuses another invitation of its kind
+        for kind in [Fiat, Btc] {
+            assert!(!room.invite(kind, &members, 2).await.1);
+        }
+
+        // a request out of the other group's account is invalid
+        let btc_from_fiat = forge(
+            &btc_request(&btc_group, 1_000_000),
+            "from",
+            serde_json::to_value(&fiat_group.spv2_account).unwrap(),
+        );
+        assert!(
+            !room
+                .send(&members[0], withdrawal_request(btc_from_fiat))
+                .await
+                .1
+        );
+        let fiat_from_btc = forge(
+            &fiat_request(&fiat_group),
+            "from",
+            serde_json::to_value(&btc_group.spv2_account).unwrap(),
+        );
+        assert!(
+            !room
+                .send(
+                    &members[0],
+                    withdrawal_request(MultispendTransferRequest::Fiat(fiat_from_btc))
+                )
+                .await
+                .1
+        );
+
+        // each group lists only its own withdrawals and deposits
+        let mut sent = vec![];
+        for (sender, event) in [
+            (
+                &members[0],
+                withdrawal_request(MultispendTransferRequest::Fiat(fiat_request(&fiat_group))),
+            ),
+            (
+                &members[1],
+                MsEvent::DepositNotification {
+                    amount: MultispendAmount::BtcAmount(rpc_types::RpcAmount(
+                        fedimint_core::Amount::from_msats(1_000_000),
+                    )),
+                    txid: txid(1),
+                    description: String::new(),
+                },
+            ),
+            (
+                &members[0],
+                withdrawal_request(btc_request(&btc_group, 1_000_000)),
+            ),
+            (
+                &members[1],
+                MsEvent::DepositNotification {
+                    amount: MultispendAmount::FiatAmount(RpcFiatAmount(100)),
+                    txid: txid(2),
+                    description: String::new(),
+                },
+            ),
+        ] {
+            let (event_id, valid) = room.send(sender, event).await;
+            assert!(valid);
+            sent.push(event_id);
+        }
+        assert_eq!(
+            room.events(Fiat).await,
+            [(1, sent[3].clone()), (0, sent[0].clone())]
+        );
+        assert_eq!(
+            room.events(Btc).await,
+            [(1, sent[2].clone()), (0, sent[1].clone())]
+        );
+    }
+
+    #[tokio::test]
+    async fn old_client_fiat_group_finalizes_after_an_open_btc_invitation() {
+        use MultispendGroupKind::{Btc, Fiat};
+        let members = [user("alice"), user("bob")];
+        let mut room = Room::new(members[0].clone());
+        let (btc_invitation, valid) = room.invite(Btc, &members, 2).await;
+        assert!(valid);
+
+        // a client from before bitcoin groups sends its events under the
+        // plain multispend msgtype, which is the fiat one
+        let old_client = |event: MsEvent| {
+            let (_, content) = event.to_matrix();
+            MsEvent::from_matrix(rpc_types::multispend::MULTISPEND_MSGTYPE, content).unwrap()
+        };
+        let (fiat_invitation, valid) = room
+            .send(&members[0], old_client(invitation(Fiat, &members, 2)))
+            .await;
+        assert!(valid);
+        let vote = old_client(MsEvent::GroupInvitationVote {
+            group_kind: Fiat,
+            invitation: fiat_invitation.clone(),
+            vote: MultispendGroupVoteType::Accept {
+                member_pubkey: RpcPublicKey(keypair(2).public_key()),
+            },
+        });
+        assert!(room.send(&members[1], vote).await.1);
+
+        assert_matches!(
+            room.status(Fiat).await,
+            Some(MultispendGroupStatus::Finalized { invite_event_id, finalized_group })
+                if invite_event_id == fiat_invitation && finalized_group.kind == Fiat
+        );
+        assert_matches!(
+            room.status(Btc).await,
+            Some(MultispendGroupStatus::ActiveInvitation { active_invite_id }) if active_invite_id == btc_invitation
+        );
+    }
+
+    #[tokio::test]
+    async fn btc_reannouncement_cannot_take_over_a_fiat_invitation() {
+        use MultispendGroupKind::{Btc, Fiat};
+        let members = [user("alice"), user("bob")];
+        let mut original = Room::new(members[0].clone());
+        let group = original.finalize(Fiat, &members, 2).await;
+        let Some(MultispendGroupStatus::Finalized {
+            invite_event_id, ..
+        }) = original.status(Fiat).await
+        else {
+            unreachable!()
+        };
+        let Some(MsEventData::GroupInvitation(state)) = get_event_data_db(
+            &mut original.db.begin_transaction_nc().await,
+            &original.room_id,
+            &invite_event_id,
+        )
+        .await
+        else {
+            panic!("invitation is gone")
+        };
+        let reannounce = |group_kind, pubkeys| MsEvent::GroupReannounce {
+            group_kind,
+            invitation_id: invite_event_id.clone(),
+            invitation: state.invitation.clone(),
+            proposer: state.proposer.clone(),
+            pubkeys,
+            rejections: BTreeSet::new(),
+        };
+
+        // a new client rebuilds the room from reannouncements, and a bitcoin
+        // one naming the fiat invitation arrives first
+        let mut rebuilt = Room::new(members[0].clone());
+        let forged_pubkeys = BTreeMap::from([
+            (members[0].clone(), RpcPublicKey(keypair(7).public_key())),
+            (members[1].clone(), RpcPublicKey(keypair(8).public_key())),
+        ]);
+        rebuilt
+            .send(&members[1], reannounce(Btc, forged_pubkeys))
+            .await;
+        assert!(
+            rebuilt
+                .send(&members[0], reannounce(Fiat, state.pubkeys.clone()))
+                .await
+                .1
+        );
+
+        assert_matches!(
+            rebuilt.status(Fiat).await,
+            Some(MultispendGroupStatus::Finalized { invite_event_id: id, finalized_group })
+                if id == invite_event_id && finalized_group == group
+        );
+        assert_eq!(
+            get_event_data_db(
+                &mut rebuilt.db.begin_transaction_nc().await,
+                &rebuilt.room_id,
+                &invite_event_id,
+            )
+            .await,
+            Some(MsEventData::GroupInvitation(state))
+        );
+    }
+
+    #[tokio::test]
+    async fn non_signer_member_can_request_a_withdrawal() {
+        use MultispendGroupKind::{Btc, Fiat};
+        let members = [user("alice"), user("bob")];
+        for kind in [Fiat, Btc] {
+            // carol is in the room but not a signer, and the UI offers her
+            // withdrawals like any member
+            let mut room = Room::new(user("carol"));
+            let group = room.finalize(kind, &members, 2).await;
+            let to = Account::single(keypair(3).public_key(), kind.account_type()).id();
+            let request = match kind {
+                Fiat => MultispendTransferRequest::Fiat(
+                    TransferRequest::new(
+                        1,
+                        group.spv2_account.clone(),
+                        FiatAmount(100),
+                        to,
+                        vec![],
+                        u64::MAX,
+                        None,
+                    )
+                    .unwrap(),
+                ),
+                Btc => MultispendTransferRequest::Btc(
+                    stability_pool_client::common::BtcTransferRequest::new(
+                        7,
+                        group.spv2_account.clone(),
+                        fedimint_core::Amount::from_msats(1_000_000),
+                        to,
+                        vec![],
+                        u64::MAX,
+                    )
+                    .unwrap(),
+                ),
+            };
+            let (request_id, valid) = room
+                .send(&user("carol"), withdrawal_request(request.clone()))
+                .await;
+            assert!(valid);
+            for (member, key) in members.iter().zip([1, 2]) {
+                let approval = respond(&request_id, approve(&request, &keypair(key)));
+                assert!(room.send(member, approval).await.1);
+            }
+            let queued = room.queued().await;
+            assert_eq!(queued.len(), 1);
+            assert_eq!(queued[0].request_event_id, request_id);
+            assert_eq!(queued[0].transfer_request.kind(), kind);
+        }
+    }
+
+    #[tokio::test]
+    async fn forged_btc_withdrawal_requests_are_invalid() {
+        let members = [user("alice"), user("bob")];
+        let mut room = Room::new(members[0].clone());
+        let group = room.finalize(MultispendGroupKind::Btc, &members, 2).await;
+        let valid = btc_request(&group, 1_000_000);
+        let MultispendTransferRequest::Btc(valid_btc) = &valid else {
+            unreachable!()
+        };
+
+        // same keys, but 1-of-2: any single member could sign for it
+        let lower_threshold: Account = AccountUnchecked {
+            acc_type: AccountType::BtcDepositor,
+            pub_keys: group.spv2_account.pub_keys().copied().collect(),
+            threshold: 1,
+        }
+        .try_into()
+        .unwrap();
+        let seeker = Account::single(keypair(42).public_key(), AccountType::Seeker);
+        for (field, value) in [
+            ("from", serde_json::to_value(&lower_threshold).unwrap()),
+            ("to", serde_json::to_value(seeker.id()).unwrap()),
+            ("to", serde_json::to_value(group.spv2_account.id()).unwrap()),
+            ("transfer_amount", serde_json::json!(0)),
+        ] {
+            let forged = forge(valid_btc, field, value.clone());
+            let (_, accepted) = room
+                .send(
+                    &members[0],
+                    withdrawal_request(MultispendTransferRequest::Btc(forged)),
+                )
+                .await;
+            assert!(!accepted, "accepted a request with {field} = {value}");
+        }
+        assert!(room.send(&members[0], withdrawal_request(valid)).await.1);
+    }
+
+    fn fiat_request(group: &FinalizedGroup) -> TransferRequest {
         TransferRequest::new(
             1,
             group.spv2_account.clone(),
@@ -1113,27 +1598,6 @@ mod tests {
             None,
         )
         .unwrap()
-    }
-
-    fn withdrawal_request(request: TransferRequest) -> MultispendEvent {
-        MultispendEvent::WithdrawalRequest {
-            request,
-            description: "withdrawal".to_string(),
-        }
-    }
-
-    fn respond(request_id: &RpcEventId, response: WithdrawalResponseType) -> MultispendEvent {
-        MultispendEvent::WithdrawalResponse {
-            request: request_id.clone(),
-            response,
-        }
-    }
-
-    fn approve(request: &TransferRequest, key: &secp256k1::Keypair) -> WithdrawalResponseType {
-        let message = secp256k1::Message::from(&TransferRequestId::from(request));
-        WithdrawalResponseType::Approve {
-            signature: RpcSignature(secp256k1::SECP256K1.sign_schnorr_no_aux_rand(&message, key)),
-        }
     }
 
     /// Refuses the first submission of each request in `loading`, as the
@@ -1148,7 +1612,7 @@ mod tests {
         async fn spv2_transfer(
             &self,
             _federation_id: &str,
-            _signed_request: SignedTransferRequest,
+            _signed_request: SignedMultispendTransferRequest,
             meta: SPv2TransferMetadata,
         ) -> anyhow::Result<OperationId> {
             let SPv2TransferMetadata::MultispendWithdrawal { request_id, .. } = meta else {
@@ -1170,21 +1634,32 @@ mod tests {
         ) -> anyhow::Result<SyncResponse> {
             unimplemented!()
         }
+
+        fn multispend_btc_payout_received(&self, _federation_id: &str, _to: &AccountId) {}
+
+        fn is_own_withdrawal_destination(
+            &self,
+            _federation_id: &str,
+            _to: &AccountId,
+        ) -> anyhow::Result<bool> {
+            Ok(true)
+        }
     }
 
     #[tokio::test]
     async fn withdrawal_service_retries_a_failed_submission() {
-        let mut room = Room::new(user("alice"));
-        let group = room.finalize().await;
-        let request = transfer_request(&group);
+        let members = [user("alice"), user("bob")];
+        let mut room = Room::new(members[0].clone());
+        let group = room.finalize(MultispendGroupKind::Fiat, &members, 2).await;
+        let request = MultispendTransferRequest::Fiat(fiat_request(&group));
         let mut request_ids = Vec::new();
         for _ in 0..2 {
             let (request_id, _) = room
-                .send(&user("alice"), withdrawal_request(request.clone()))
+                .send(&members[0], withdrawal_request(request.clone()))
                 .await;
-            for (member, key) in [("alice", 1), ("bob", 2)] {
+            for (member, key) in members.iter().zip([1, 2]) {
                 let approval = respond(&request_id, approve(&request, &keypair(key)));
-                assert!(room.send(&user(member), approval).await.1);
+                assert!(room.send(member, approval).await.1);
             }
             request_ids.push(request_id);
         }
@@ -1216,10 +1691,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn forged_withdrawal_requests_are_invalid() {
-        let mut room = Room::new(user("alice"));
-        let group = room.finalize().await;
-        let valid = transfer_request(&group);
+    async fn forged_fiat_withdrawal_requests_are_invalid() {
+        let members = [user("alice"), user("bob")];
+        let mut room = Room::new(members[0].clone());
+        let group = room.finalize(MultispendGroupKind::Fiat, &members, 2).await;
+        let valid = fiat_request(&group);
 
         // same keys, but 1-of-2: any single member could sign for it
         let lower_threshold: Account = AccountUnchecked {
@@ -1234,66 +1710,315 @@ mod tests {
             ("to", serde_json::to_value(group.spv2_account.id()).unwrap()),
             ("transfer_amount", serde_json::json!(0)),
         ] {
-            // a matrix event skips the checks of the request constructor
-            let mut json = serde_json::to_value(&valid).unwrap();
-            json[field] = value.clone();
-            let forged = serde_json::from_value(json).unwrap();
-            let (_, accepted) = room.send(&user("alice"), withdrawal_request(forged)).await;
+            let forged = forge(&valid, field, value.clone());
+            let (_, accepted) = room
+                .send(
+                    &members[0],
+                    withdrawal_request(MultispendTransferRequest::Fiat(forged)),
+                )
+                .await;
             assert!(!accepted, "accepted a request with {field} = {value}");
         }
-        assert!(room.send(&user("bob"), withdrawal_request(valid)).await.1);
+        let valid = MultispendTransferRequest::Fiat(valid);
+        assert!(room.send(&members[0], withdrawal_request(valid)).await.1);
     }
 
     #[tokio::test]
-    async fn non_signer_member_can_request_a_withdrawal() {
-        // carol is in the room but not a signer, and the UI offers her
-        // withdrawals like any member
-        let mut room = Room::new(user("carol"));
-        let group = room.finalize().await;
-        let request = TransferRequest::new(
-            1,
-            group.spv2_account.clone(),
-            FiatAmount(100),
-            Account::single(keypair(3).public_key(), AccountType::Seeker).id(),
-            vec![],
-            u64::MAX,
-            None,
-        )
-        .unwrap();
+    async fn fiat_approval_with_a_bad_signature_is_invalid() {
+        let members = [user("alice"), user("bob")];
+        let mut room = Room::new(members[0].clone());
+        let group = room.finalize(MultispendGroupKind::Fiat, &members, 2).await;
+        let request = MultispendTransferRequest::Fiat(fiat_request(&group));
         let (request_id, valid) = room
-            .send(&user("carol"), withdrawal_request(request.clone()))
+            .send(&members[0], withdrawal_request(request.clone()))
             .await;
         assert!(valid);
-        for (member, key) in [("alice", 1), ("bob", 2)] {
-            let approval = respond(&request_id, approve(&request, &keypair(key)));
-            assert!(room.send(&user(member), approval).await.1);
-        }
-        let queued = room.queued().await;
-        assert_eq!(queued.len(), 1);
-        assert_eq!(*queued[0].transfer_request.details(), request);
-    }
-
-    #[tokio::test]
-    async fn approval_with_a_bad_signature_is_invalid() {
-        let mut room = Room::new(user("alice"));
-        let group = room.finalize().await;
-        let request = transfer_request(&group);
-        let (request_id, valid) = room
-            .send(&user("alice"), withdrawal_request(request.clone()))
-            .await;
-        assert!(valid);
-
-        // bob signs with alice's key, which used to panic alice's rescan at
-        // the threshold
+        // bob signs with alice's key; on master this panicked alice's rescan
+        // at the threshold
         let forged = respond(&request_id, approve(&request, &keypair(1)));
-        assert!(!room.send(&user("bob"), forged).await.1);
-        for (member, key) in [("alice", 1), ("bob", 2)] {
+        assert!(!room.send(&members[1], forged).await.1);
+        for (member, key) in members.iter().zip([1, 2]) {
             let approval = respond(&request_id, approve(&request, &keypair(key)));
-            assert!(room.send(&user(member), approval).await.1);
+            assert!(room.send(member, approval).await.1);
         }
         let queued = room.queued().await;
         assert_eq!(queued.len(), 1);
-        assert_eq!(*queued[0].transfer_request.details(), request);
-        queued[0].transfer_request.validate_signatures().unwrap();
+        let SignedMultispendTransferRequest::Fiat(signed) = &queued[0].transfer_request else {
+            panic!("queued a bitcoin transfer")
+        };
+        signed.validate_signatures().unwrap();
+    }
+
+    #[tokio::test]
+    async fn events_must_match_the_group_kind() {
+        use MultispendGroupKind::{Btc, Fiat};
+        let members = [user("alice"), user("bob")];
+        let mut room = Room::new(members[0].clone());
+        // the same members hold a bitcoin group, so their keys are valid
+        // for both groups
+        room.finalize(Btc, &members, 2).await;
+
+        // a vote under the other msgtype does not count for the invitation
+        let (invitation, _) = room.invite(Fiat, &members, 2).await;
+        let vote = |group_kind| MsEvent::GroupInvitationVote {
+            group_kind,
+            invitation: invitation.clone(),
+            vote: MultispendGroupVoteType::Accept {
+                member_pubkey: RpcPublicKey(keypair(2).public_key()),
+            },
+        };
+        assert!(!room.send(&members[1], vote(Btc)).await.1);
+        assert!(room.send(&members[1], vote(Fiat)).await.1);
+
+        // nor does an approval in the finalized group
+        let Some(MultispendGroupStatus::Finalized {
+            finalized_group, ..
+        }) = room.status(Fiat).await
+        else {
+            panic!("group not finalized")
+        };
+        let request = MultispendTransferRequest::Fiat(fiat_request(&finalized_group));
+        let (request_id, _) = room
+            .send(&members[0], withdrawal_request(request.clone()))
+            .await;
+        let approval = |group_kind| {
+            let MsEvent::WithdrawalResponse { response, .. } = approve(&request, &keypair(1))
+            else {
+                unreachable!()
+            };
+            MsEvent::WithdrawalResponse {
+                group_kind,
+                request: request_id.clone(),
+                response,
+            }
+        };
+        assert!(!room.send(&members[0], approval(Btc)).await.1);
+        assert!(room.send(&members[0], approval(Fiat)).await.1);
+    }
+
+    #[tokio::test]
+    async fn btc_withdrawal_queues_once_at_threshold() {
+        let members = [user("alice"), user("bob"), user("carol")];
+        for our_id in [members[0].clone(), members[1].clone()] {
+            let requester_is_us = our_id == members[0];
+            let mut room = Room::new(our_id);
+            let group = room.finalize(MultispendGroupKind::Btc, &members, 2).await;
+            let request = btc_request(&group, 2_000_000);
+            let (request_id, valid) = room
+                .send(&members[0], withdrawal_request(request.clone()))
+                .await;
+            assert!(valid);
+            let approve = |key: u8| respond(&request_id, approve(&request, &keypair(key)));
+
+            // carol's approval signed with bob's key does not count, nor does
+            // alice's signature over another request
+            assert!(!room.send(&members[2], approve(2)).await.1);
+            let other = btc_request(&group, 2_000_001);
+            assert!(
+                !room
+                    .send(
+                        &members[0],
+                        respond(&request_id, super::tests::approve(&other, &keypair(1)))
+                    )
+                    .await
+                    .1
+            );
+            assert!(room.send(&members[0], approve(1)).await.1);
+            assert!(room.queued().await.is_empty(), "queued below threshold");
+            // a second vote by alice and a vote by a stranger are invalid
+            assert!(!room.send(&members[0], approve(1)).await.1);
+            assert!(!room.send(&user("mallory"), approve(4)).await.1);
+            assert!(room.queued().await.is_empty());
+
+            assert!(room.send(&members[1], approve(2)).await.1);
+            let queued = room.queued().await;
+            if !requester_is_us {
+                assert!(queued.is_empty(), "queued another member's withdrawal");
+                continue;
+            }
+            assert_eq!(queued.len(), 1);
+            let SignedMultispendTransferRequest::Btc(signed) = &queued[0].transfer_request else {
+                panic!("queued a fiat transfer")
+            };
+            assert_eq!(
+                MultispendTransferRequest::Btc(signed.details().clone()),
+                request
+            );
+            signed.validate_signatures().unwrap();
+            assert_eq!(queued[0].request_event_id, request_id);
+
+            // an approval past the threshold leaves the one queued submission
+            assert!(room.send(&members[2], approve(3)).await.1);
+            assert_eq!(room.queued().await.len(), 1);
+            assert_eq!(room.withdrawal(&request_id).await.signatures.len(), 3);
+        }
+    }
+
+    #[tokio::test]
+    async fn btc_rescan_does_not_requeue_settled_withdrawals() {
+        let members = [user("alice"), user("bob")];
+        let amount = MultispendAmount::BtcAmount(rpc_types::RpcAmount(
+            fedimint_core::Amount::from_msats(3_000_000),
+        ));
+        for (terminal, queued) in [
+            (None, 1),
+            (
+                Some(WithdrawalResponseType::Complete {
+                    amount,
+                    txid: txid(9),
+                }),
+                0,
+            ),
+            (
+                Some(WithdrawalResponseType::TxRejected {
+                    error: "rejected".to_string(),
+                }),
+                0,
+            ),
+        ] {
+            // a fresh database replays the whole room, approvals first
+            let mut room = Room::new(members[0].clone());
+            let group = room.finalize(MultispendGroupKind::Btc, &members, 2).await;
+            let request = btc_request(&group, 3_000_000);
+            let (request_id, _) = room
+                .send(&members[0], withdrawal_request(request.clone()))
+                .await;
+            for (member, key) in members.iter().zip([1, 2]) {
+                assert!(
+                    room.send(
+                        member,
+                        respond(&request_id, approve(&request, &keypair(key)))
+                    )
+                    .await
+                    .1
+                );
+            }
+            if let Some(response) = terminal {
+                let event = MsEvent::WithdrawalResponse {
+                    group_kind: MultispendGroupKind::Btc,
+                    request: request_id.clone(),
+                    response,
+                };
+                assert!(room.send(&members[0], event).await.1);
+            }
+            assert_eq!(room.queued().await.len(), queued);
+        }
+    }
+
+    /// A device of one Matrix user, owning `destination` if it is the device
+    /// the withdrawal pays.
+    struct Device {
+        destination: Option<AccountId>,
+        submitted: std::sync::Mutex<Vec<RpcEventId>>,
+    }
+
+    #[apply(async_trait_maybe_send!)]
+    impl FederationProvider for Device {
+        async fn spv2_transfer(
+            &self,
+            _federation_id: &str,
+            _signed_request: SignedMultispendTransferRequest,
+            meta: SPv2TransferMetadata,
+        ) -> anyhow::Result<OperationId> {
+            let SPv2TransferMetadata::MultispendWithdrawal { request_id, .. } = meta else {
+                panic!("not a multispend withdrawal")
+            };
+            self.submitted.lock().unwrap().push(request_id);
+            Ok(OperationId::new_random())
+        }
+
+        async fn multispend_group_sync_info(
+            &self,
+            _federation_id: &str,
+            _account_id: AccountId,
+        ) -> anyhow::Result<SyncResponse> {
+            unimplemented!()
+        }
+
+        fn multispend_btc_payout_received(&self, _federation_id: &str, _to: &AccountId) {}
+
+        fn is_own_withdrawal_destination(
+            &self,
+            _federation_id: &str,
+            to: &AccountId,
+        ) -> anyhow::Result<bool> {
+            Ok(self.destination == Some(*to))
+        }
+    }
+
+    // alice's devices 0 and 1 both see her request reach the threshold
+    #[tokio::test]
+    async fn only_the_device_a_withdrawal_pays_submits_it() {
+        let members = [user("alice"), user("bob")];
+        for kind in [MultispendGroupKind::Fiat, MultispendGroupKind::Btc] {
+            let mut submitted = Vec::new();
+            for pays_this_device in [true, false] {
+                let mut room = Room::new(members[0].clone());
+                let group = room.finalize(kind, &members, 2).await;
+                let request = match kind {
+                    MultispendGroupKind::Fiat => {
+                        MultispendTransferRequest::Fiat(fiat_request(&group))
+                    }
+                    MultispendGroupKind::Btc => btc_request(&group, 3_000_000),
+                };
+                let (request_id, _) = room
+                    .send(&members[0], withdrawal_request(request.clone()))
+                    .await;
+                for (member, key) in members.iter().zip([1, 2]) {
+                    let approval = respond(&request_id, approve(&request, &keypair(key)));
+                    assert!(room.send(member, approval).await.1);
+                }
+                assert_eq!(room.queued().await.len(), 1);
+                let device = Device {
+                    destination: pays_this_device.then_some(*request.to()),
+                    submitted: Default::default(),
+                };
+                crate::withdrawal_service::WithdrawalService::default()
+                    .run_once(&room.db, &device)
+                    .await
+                    .unwrap();
+                assert!(room.queued().await.is_empty());
+                submitted.push(device.submitted.into_inner().unwrap().len());
+            }
+            assert_eq!(submitted, [1, 0], "{kind:?}");
+        }
+    }
+
+    // bob's other device, or bob himself as the requester, may have
+    // submitted the withdrawal; either way bob sees whom it paid
+    #[tokio::test]
+    async fn btc_completion_comes_from_the_requester() {
+        let members = [user("alice"), user("bob")];
+        let mut room = Room::new(members[1].clone());
+        let group = room.finalize(MultispendGroupKind::Btc, &members, 2).await;
+        let request = btc_request(&group, 3_000_000);
+        let (request_id, _) = room
+            .send(&members[0], withdrawal_request(request.clone()))
+            .await;
+        let complete = |amount| MsEvent::WithdrawalResponse {
+            group_kind: MultispendGroupKind::Btc,
+            request: request_id.clone(),
+            response: WithdrawalResponseType::Complete {
+                amount,
+                txid: txid(9),
+            },
+        };
+        let btc = |msats| {
+            MultispendAmount::BtcAmount(rpc_types::RpcAmount(fedimint_core::Amount::from_msats(
+                msats,
+            )))
+        };
+        // only the requester completes
+        assert!(!room.send(&members[1], complete(btc(3_000_000))).await.1);
+        assert!(room.btc_payouts.is_empty());
+        assert!(room.send(&members[0], complete(btc(3_000_000))).await.1);
+        assert_eq!(
+            room.withdrawal(&request_id).await.tx_submission_status,
+            WithdrawTxSubmissionStatus::Accepted { txid: txid(9) }
+        );
+        assert_eq!(
+            room.btc_payouts,
+            [(group.federation_id.clone(), *request.to())]
+        );
     }
 }

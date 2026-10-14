@@ -121,6 +121,12 @@ pub enum BridgeDbPrefix {
     // pending-index (same encoding, narrower meaning), so a dev install
     // that ran the marker build may hold a stale entry there, worth at most
     // one duplicate event under the at-least-once contract.
+    //
+    // The bitcoin multispend payout sweep now holds 0xcb with a unit key, which
+    // never matches one of those markers, keyed by operation id. It stores the
+    // operation id of an unfinished sweep so that a restart awaits it rather
+    // than issuing a second one, like LastSPv2SweeperWithdrawal.
+    LastMultispendBtcPayoutSweep = 0xcb,
 
     // lnv2 lnurl receives are created by the lnv2 client's own background
     // scanner, so the lnurl receives event-log consumer announces them rather
@@ -589,6 +595,15 @@ impl_db_record!(
     key = LastSPv2SweeperWithdrawalKey,
     value = OperationId,
     db_prefix = BridgeDbPrefix::LastSPv2SweeperWithdrawal,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct LastMultispendBtcPayoutSweepKey;
+
+impl_db_record!(
+    key = LastMultispendBtcPayoutSweepKey,
+    value = OperationId,
+    db_prefix = BridgeDbPrefix::LastMultispendBtcPayoutSweep,
 );
 
 #[derive(Debug, Decodable, Encodable)]

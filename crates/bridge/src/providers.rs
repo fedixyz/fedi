@@ -5,14 +5,17 @@ use federations::federation_v2::client::ClientExt;
 use federations::federation_v2::{MultispendNotifications, SptNotifications};
 use fedimint_core::core::OperationId;
 use fedimint_core::{TransactionId, apply, async_trait_maybe_send};
-use multispend::FederationProvider;
 use multispend::services::MultispendServices;
+use multispend::{
+    FederationProvider, MultispendAmount, MultispendGroupKind, SignedMultispendTransferRequest,
+};
 use rpc_types::matrix::RpcRoomId;
 use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{RpcEventId, SPv2TransferMetadata, SpMatrixTransferId};
 use sp_transfer::services::transfer_complete_notifier::SptTransferCompleteNotifier;
 use sp_transfer::services::{SptFederationProvider, WaitForHistoryItemError};
-use stability_pool_client::common::{AccountId, FiatAmount, SignedTransferRequest, SyncResponse};
+use stability_pool_client::OwnAccount;
+use stability_pool_client::common::{AccountId, FiatAmount, SyncResponse};
 use stability_pool_client::db::UserOperationHistoryItem;
 
 /// Wrapper to implement SP Transfers notifications for Federations
@@ -45,7 +48,7 @@ impl MultispendNotifications for MultispendNotificationsProvider {
     async fn add_deposit_notification(
         &self,
         room: RpcRoomId,
-        amount: FiatAmount,
+        amount: MultispendAmount,
         txid: TransactionId,
         description: String,
     ) {
@@ -59,7 +62,7 @@ impl MultispendNotifications for MultispendNotificationsProvider {
         &self,
         room: RpcRoomId,
         request_id: RpcEventId,
-        amount: FiatAmount,
+        amount: MultispendAmount,
         txid: TransactionId,
     ) {
         self.0
@@ -72,11 +75,12 @@ impl MultispendNotifications for MultispendNotificationsProvider {
         &self,
         room: RpcRoomId,
         request_id: RpcEventId,
+        group_kind: MultispendGroupKind,
         error: String,
     ) {
         self.0
             .completion_notification
-            .add_failed_withdrawal_notification(room, request_id, error)
+            .add_failed_withdrawal_notification(room, request_id, group_kind, error)
             .await;
     }
 }
@@ -89,11 +93,18 @@ impl FederationProvider for FederationProviderWrapper {
     async fn spv2_transfer(
         &self,
         federation_id: &str,
-        signed_request: SignedTransferRequest,
+        signed_request: SignedMultispendTransferRequest,
         meta: SPv2TransferMetadata,
     ) -> anyhow::Result<OperationId> {
         let federation = self.0.get_federation(federation_id)?;
-        federation.spv2_transfer(signed_request, meta).await
+        match signed_request {
+            SignedMultispendTransferRequest::Fiat(signed_request) => {
+                federation.spv2_transfer(signed_request, meta).await
+            }
+            SignedMultispendTransferRequest::Btc(signed_request) => {
+                federation.spv2_btc_transfer(signed_request, meta).await
+            }
+        }
     }
 
     async fn multispend_group_sync_info(
@@ -103,6 +114,24 @@ impl FederationProvider for FederationProviderWrapper {
     ) -> anyhow::Result<SyncResponse> {
         let federation = self.0.get_federation(federation_id)?;
         federation.multispend_group_sync_info(account_id).await
+    }
+
+    fn multispend_btc_payout_received(&self, federation_id: &str, to: &AccountId) {
+        if let Ok(federation) = self.0.get_federation(federation_id) {
+            federation.multispend_btc_payout_received(to);
+        }
+    }
+
+    fn is_own_withdrawal_destination(
+        &self,
+        federation_id: &str,
+        to: &AccountId,
+    ) -> anyhow::Result<bool> {
+        let federation = self.0.get_federation(federation_id)?;
+        let spv2 = federation.client.spv2()?;
+        Ok([OwnAccount::Seeker, OwnAccount::MultispendBtcPayout]
+            .into_iter()
+            .any(|which| spv2.own_account(which).id() == *to))
     }
 }
 

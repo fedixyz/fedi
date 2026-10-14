@@ -58,7 +58,7 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
         try {
             await fedimint.matrixMultispendDeposit({
                 roomId,
-                amount,
+                amount: { fiatAmount: amount },
                 description: notes ?? '',
                 frontendMeta: {
                     initialNotes: null,

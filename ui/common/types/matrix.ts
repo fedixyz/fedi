@@ -1,7 +1,7 @@
 import { ROOM_MENTION } from '../constants/matrix'
 import type {
     JSONObject,
-    MultispendEvent as MultispendEventContent,
+    MsEvent as MultispendEventContent,
     VectorDiff,
     RpcMatrixMembership,
     RpcMultispendGroupStatus,

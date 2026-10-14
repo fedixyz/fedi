@@ -477,6 +477,10 @@ impl BridgeFull {
 
         let device_registration_service = DeviceRegistrationService::new(runtime.clone()).await;
 
+        // before anything reads multispend records in the current encoding
+        multispend::migration::migrate_multispend_db(&runtime.multispend_db())
+            .await
+            .expect("multispend database migration failed");
         let multispend_services = MultispendServices::new(runtime.clone());
         let multispend_notifications =
             Arc::new(MultispendNotificationsProvider(multispend_services.clone()));

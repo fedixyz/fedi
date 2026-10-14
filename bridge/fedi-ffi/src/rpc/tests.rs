@@ -364,6 +364,8 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         multispend_tests::test_multispend_seed_recovery_does_not_resubmit_withdrawals,
         multispend_tests::test_multispend_rescan_processes_every_synced_event,
         multispend_tests::test_multispend_send_returns_when_sync_skips_own_event,
+        multispend_tests::test_multispend_btc_group_deposit_withdraw_sweep,
+        multispend_tests::test_multispend_withdrawal_is_submitted_by_the_paid_device,
         sp_transfer_tests::test_end_to_end,
         sp_transfer_tests::test_receiver_joins_federation_later,
         test_lightning_send_and_receive,

@@ -42,8 +42,9 @@ use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use mime::Mime;
 use multispend::db::RpcMultispendGroupStatus;
 use multispend::{
-    GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendGroupVoteType,
-    MultispendListedEvent, WithdrawRequestWithApprovals, WithdrawalResponseType,
+    FinalizedGroup, GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendAmount,
+    MultispendGroupKind, MultispendGroupVoteType, MultispendListedEvent,
+    WithdrawRequestWithApprovals, WithdrawalResponseType,
 };
 use rpc_types::communities::RpcCommunity;
 use rpc_types::error::{ErrorCode, RpcError};
@@ -2453,10 +2454,11 @@ async fn matrixSubscribeMultispendGroup(
     bg_matrix: &BgMatrix,
     stream_id: RpcStreamId<RpcMultispendGroupStatus>,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bg_matrix.wait_multispend().await;
     let stream = multispend_matrix
-        .subscribe_multispend_group(room_id.into_typed()?)
+        .subscribe_multispend_group(room_id.into_typed()?, kind)
         .await;
     multispend_matrix
         .runtime
@@ -2469,13 +2471,11 @@ async fn matrixSubscribeMultispendGroup(
 async fn matrixSubscribeMultispendAccountInfo(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
     stream_id: RpcStreamId<Result<RpcSPv2SyncResponse, NetworkError>>,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let finalized_group = multispend_matrix
-        .get_multispend_finalized_group(room_id.clone())
-        .await?
-        .context("multispend group not finalized yet")?;
+    let finalized_group = multispend_finalized_group(bridge, &room_id, kind).await?;
 
     let room_id = room_id.into_typed()?;
     let federation_provider = Arc::new(FederationProviderWrapper(bridge.federations.clone()));
@@ -2498,6 +2498,7 @@ async fn matrixSubscribeMultispendAccountInfo(
 pub async fn matrixMultispendListEvents(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
     start_after: Option<u32>,
     limit: u32,
 ) -> anyhow::Result<Vec<MultispendListedEvent>> {
@@ -2505,6 +2506,7 @@ pub async fn matrixMultispendListEvents(
     Ok(multispend_matrix
         .list_multispend_events(
             &room_id,
+            kind,
             start_after.map(Into::into),
             usize::try_from(limit).unwrap(),
         )
@@ -2515,12 +2517,17 @@ pub async fn matrixMultispendListEvents(
 async fn matrixSendMultispendGroupInvitation(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
     signers: BTreeSet<RpcUserId>,
     threshold: u32,
     federation_id: RpcFederationId,
     federation_name: String,
 ) -> anyhow::Result<()> {
+    ensure_multispend_kind_enabled(bridge, kind)?;
     let fed = bridge.federations.get_federation(&federation_id.0)?;
+    if kind == MultispendGroupKind::Btc {
+        fed.multispend_ensure_btc_supported().await?;
+    }
     let proposer_pubkey = fed.multispend_public_key(room_id.0.clone())?;
     let invitation = GroupInvitation {
         signers,
@@ -2532,10 +2539,23 @@ async fn matrixSendMultispendGroupInvitation(
     multispend_matrix
         .send_multispend_group_invitation(
             &room_id.into_typed()?,
+            kind,
             invitation,
             RpcPublicKey(proposer_pubkey),
         )
         .await
+}
+
+/// Creating, joining and depositing into bitcoin groups is behind the
+/// `btc_multispend` feature. Withdrawing from an existing group is not.
+fn ensure_multispend_kind_enabled(
+    bridge: &BridgeFull,
+    kind: MultispendGroupKind,
+) -> anyhow::Result<()> {
+    if kind == MultispendGroupKind::Btc && bridge.runtime.feature_catalog.btc_multispend.is_none() {
+        bail!("btc_multispend feature is disabled");
+    }
+    Ok(())
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2545,13 +2565,17 @@ async fn matrixApproveMultispendGroupInvitation(
     invitation: RpcEventId,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let Some(MsEventData::GroupInvitation(GroupInvitationWithKeys { federation_id, .. })) =
-        multispend_matrix
-            .get_multispend_event_data(&room_id, &invitation)
-            .await
+    let Some(MsEventData::GroupInvitation(GroupInvitationWithKeys {
+        federation_id,
+        kind,
+        ..
+    })) = multispend_matrix
+        .get_multispend_event_data(&room_id, &invitation)
+        .await
     else {
         anyhow::bail!("invalid matrix invitation id")
     };
+    ensure_multispend_kind_enabled(bridge, kind)?;
     multispend_matrix
         .vote_multispend_group_invitation(
             &room_id.into_typed()?,
@@ -2588,60 +2612,79 @@ async fn matrixRejectMultispendGroupInvitation(
 async fn matrixCancelMultispendGroupInvitation(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bg_matrix.wait_multispend().await;
     multispend_matrix
-        .cancel_multispend_group_invitation(&room_id.into_typed()?)
+        .cancel_multispend_group_invitation(&room_id.into_typed()?, kind)
         .await
+}
+
+async fn multispend_finalized_group(
+    bridge: &BridgeFull,
+    room_id: &RpcRoomId,
+    kind: MultispendGroupKind,
+) -> anyhow::Result<FinalizedGroup> {
+    bridge
+        .matrix
+        .wait_multispend()
+        .await
+        .get_multispend_finalized_group(room_id.clone(), kind)
+        .await?
+        .context("multispend group not finalized yet")
 }
 
 #[macro_rules_derive(rpc_method!)]
 async fn matrixMultispendDeposit(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
-    amount: RpcFiatAmount,
+    amount: MultispendAmount,
     description: String,
     frontend_meta: FrontendMetadata,
 ) -> anyhow::Result<()> {
-    let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let finalized_group = multispend_matrix
-        .get_multispend_finalized_group(room_id.clone())
-        .await?
-        .context("multispend group not finalized yet")?;
+    ensure_multispend_kind_enabled(bridge, amount.kind())?;
+    let finalized_group = multispend_finalized_group(bridge, &room_id, amount.kind()).await?;
     let fed = bridge
         .federations
         .get_federation(&finalized_group.federation_id.0)?;
-    fed.multispend_deposit(
-        FiatAmount(amount.0),
-        finalized_group.spv2_account.id(),
-        room_id,
-        description,
-        frontend_meta,
-    )
-    .await?;
-    Ok(())
+    let group_account = finalized_group.spv2_account.id();
+    match amount {
+        MultispendAmount::FiatAmount(amount) => {
+            fed.multispend_deposit(
+                FiatAmount(amount.0),
+                group_account,
+                room_id,
+                description,
+                frontend_meta,
+            )
+            .await
+        }
+        MultispendAmount::BtcAmount(amount) => {
+            fed.multispend_btc_deposit(amount.0, group_account, room_id, description)
+                .await
+        }
+    }
 }
+
 #[macro_rules_derive(rpc_method!)]
 async fn matrixSendMultispendWithdrawalRequest(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
-    amount: RpcFiatAmount,
+    amount: MultispendAmount,
     description: String,
 ) -> anyhow::Result<()> {
-    let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let finalized_group = multispend_matrix
-        .get_multispend_finalized_group(room_id.clone())
-        .await?
-        .context("multispend group not finalized yet")?;
+    let finalized_group = multispend_finalized_group(bridge, &room_id, amount.kind()).await?;
     let fed = bridge
         .federations
         .get_federation(&finalized_group.federation_id.0)?;
     let transfer_request =
-        fed.multispend_create_transfer_request(FiatAmount(amount.0), finalized_group.spv2_account)?;
-    multispend_matrix
+        fed.multispend_create_transfer_request(amount, finalized_group.spv2_account)?;
+    bridge
+        .matrix
+        .wait_multispend()
+        .await
         .send_multispend_withdraw_request(&room_id.into_typed()?, transfer_request, description)
-        .await?;
-    Ok(())
+        .await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2651,10 +2694,6 @@ async fn matrixSendMultispendWithdrawalApprove(
     withdraw_request_id: RpcEventId,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let finalized_group = multispend_matrix
-        .get_multispend_finalized_group(room_id.clone())
-        .await?
-        .context("multispend group not finalized yet")?;
     let Some(MsEventData::WithdrawalRequest(WithdrawRequestWithApprovals {
         request: transfer_request,
         ..
@@ -2664,6 +2703,8 @@ async fn matrixSendMultispendWithdrawalApprove(
     else {
         anyhow::bail!("invalid matrix withdraw request id")
     };
+    let finalized_group =
+        multispend_finalized_group(bridge, &room_id, transfer_request.kind()).await?;
     let fed = bridge
         .federations
         .get_federation(&finalized_group.federation_id.0)?;

@@ -1305,7 +1305,7 @@ export const makeMultispendTxnDetailItems = (
                 value: makeNameWithSuffix(matchingMember),
             })
         }
-        if (deposit.fiatAmount) {
+        if ('fiatAmount' in deposit && deposit.fiatAmount) {
             items.push({
                 label: t('words.amount'),
                 value: convertCentsToFormattedFiat(

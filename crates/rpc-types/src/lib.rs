@@ -63,7 +63,7 @@ pub enum RpcAppFlavor {
     Tests,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, TS)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, TS, Encodable, Decodable)]
 #[ts(export)]
 pub struct RpcAmount(#[ts(type = "MSats")] pub fedimint_core::Amount);
 
@@ -1049,6 +1049,8 @@ pub enum SPv2WithdrawMetadata {
     },
     /// Internal guardian remittance account withdrawal.
     GuardianRemittanceAccount,
+    /// Sweep of bitcoin multispend payouts from the payout account to ecash.
+    MultispendBtcPayout,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1083,6 +1085,11 @@ pub enum SPv2DepositMetadata {
     /// Internal remittance deposit that should not appear in normal UX flows.
     GuardianFeeRemittance {
         snapshot: GuardianFeeRemittanceSnapshot,
+    },
+    /// Deposit of ecash into a bitcoin multispend group account.
+    MultispendBtcDeposit {
+        room: RpcRoomId,
+        description: String,
     },
 }
 

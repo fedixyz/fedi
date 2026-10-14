@@ -109,7 +109,7 @@ describe('makeMultispendTxnDetailItems', () => {
                     withdrawalRequest: {
                         ...makeTestWithdrawRequestWithApprovals('accepted'),
                         sender: mockRoomMembers[0].id,
-                        request: { transfer_amount: 100 },
+                        request: { kind: 'fiat', transfer_amount: 100 },
                     },
                 },
                 eventId: TEST_EVENT_ID,

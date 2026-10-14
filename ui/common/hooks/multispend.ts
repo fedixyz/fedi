@@ -89,6 +89,7 @@ export function useMultispendVoting({
         try {
             await fedimint.matrixCancelMultispendGroupInvitation({
                 roomId,
+                kind: 'fiat',
             })
         } catch (e) {
             toast.error(t, e)
@@ -704,8 +705,9 @@ export function useMultispendDepositEventContent({
             : senderMember.displayName
         : t('words.member')
 
+    // fiat groups only
     const formattedFiatAmount = convertCentsToFormattedFiat(
-        content.fiatAmount as UsdCents,
+        ('fiatAmount' in content ? content.fiatAmount : 0) as UsdCents,
         'end',
     )
 

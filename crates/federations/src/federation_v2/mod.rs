@@ -102,6 +102,10 @@ use rand::Rng;
 use rpc_types::error::ErrorCode;
 use rpc_types::event::{Event, RecoveryProgressEvent, TypedEventExt};
 use rpc_types::matrix::RpcRoomId;
+use rpc_types::multispend::{
+    MultispendAmount, MultispendGroupKind, MultispendTransferRequest,
+    SignedMultispendTransferRequest,
+};
 use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{
     FrontendMetadata, GuardianStatus, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
@@ -134,7 +138,9 @@ use serde::de::DeserializeOwned;
 use spv2_sweeper_service::SPv2SweeperService;
 use stability_pool_client::api::StabilityPoolApiExt as _;
 use stability_pool_client::common::{
-    Account, AccountId, AccountType, FiatAmount, FiatOrAll, SignedTransferRequest, SyncResponse,
+    Account, AccountId, AccountType, BTC_TRANSFER_CONSENSUS_VERSION, BtcBalanceDepositMetadata,
+    BtcTransferOutput, BtcTransferRequest, FiatAmount, FiatOrAll, SignedBtcTransferRequest,
+    SignedTransferRequest, StabilityPoolOutput, StabilityPoolOutputV2, SyncResponse,
     TransferRequest, TransferRequestId,
 };
 use stability_pool_client::db::{
@@ -183,7 +189,7 @@ pub trait MultispendNotifications: MaybeSend + MaybeSync {
     async fn add_deposit_notification(
         &self,
         room: RpcRoomId,
-        amount: FiatAmount,
+        amount: MultispendAmount,
         txid: TransactionId,
         description: String,
     );
@@ -192,7 +198,7 @@ pub trait MultispendNotifications: MaybeSend + MaybeSync {
         &self,
         room: RpcRoomId,
         request_id: RpcEventId,
-        amount: FiatAmount,
+        amount: MultispendAmount,
         txid: TransactionId,
     );
 
@@ -200,6 +206,7 @@ pub trait MultispendNotifications: MaybeSend + MaybeSync {
         &self,
         room: RpcRoomId,
         request_id: RpcEventId,
+        group_kind: MultispendGroupKind,
         error: String,
     );
 }
@@ -480,6 +487,9 @@ pub struct FederationV2 {
     pub spv2_history_service: OnceCell<StabilityPoolHistoryService>,
     pub guardian_remittance_account: OnceCell<GuardianRemittanceAccount>,
     pub spv2_sweeper_service: OnceCell<SPv2SweeperService>,
+    /// Number of times the multispend btc payout account was synced, which
+    /// happens only at startup and when there is a reason to sweep it.
+    pub multispend_btc_payout_syncs: std::sync::atomic::AtomicU64,
     pub multispend_services: Arc<dyn MultispendNotifications>,
     pub lnurl_receives_service: OnceCell<LnurlReceivesService>,
     /// Cache for guardian status to prevent spamming servers
@@ -798,6 +808,7 @@ impl FederationV2 {
             spv2_history_service: Default::default(),
             guardian_remittance_account: Default::default(),
             spv2_sweeper_service: Default::default(),
+            multispend_btc_payout_syncs: Default::default(),
             lnurl_receives_service: Default::default(),
             guardian_status_cache: Mutex::new(None),
             meta_source,
@@ -955,6 +966,8 @@ impl FederationV2 {
                 let history_service = fed.spv2_history_service.get().expect("init above");
                 history_service.update_continuously(sync_service).await
             });
+
+            self.spawn_multispend_btc_payout_sweep();
 
             if self.guardian_remittance_account_enabled().await
                 && let Err(error) = self.start_guardian_remittance_account().await
@@ -2022,21 +2035,44 @@ impl FederationV2 {
             }
             STABILITY_POOL_V2_OPERATION_TYPE => match operation.meta::<StabilityPoolMeta>() {
                 StabilityPoolMeta::Deposit { extra_meta, .. } => {
-                    // Guardian fee remittances are internal maintenance
-                    // operations. The dedicated remittance service owns their
-                    // recovery and re-subscription.
-                    if !matches!(
-                        serde_json::from_value::<SPv2DepositMetadata>(extra_meta).ok(),
-                        Some(SPv2DepositMetadata::GuardianFeeRemittance { .. })
-                    ) {
-                        self.spawn_cancellable("subscribe_spv2_deposit", move |fed| async move {
-                            fed.subscribe_spv2_deposit_to_seek(operation_id).await
-                        });
+                    match serde_json::from_value::<SPv2DepositMetadata>(extra_meta).ok() {
+                        // Guardian fee remittances are internal maintenance
+                        // operations. The dedicated remittance service owns their
+                        // recovery and re-subscription.
+                        Some(SPv2DepositMetadata::GuardianFeeRemittance { .. }) => {}
+                        Some(SPv2DepositMetadata::MultispendBtcDeposit { room, description }) => {
+                            self.spawn_cancellable(
+                                "subscribe_multispend_btc_deposit",
+                                move |fed| async move {
+                                    fed.subscribe_multispend_btc_deposit(
+                                        operation_id,
+                                        room,
+                                        description,
+                                    )
+                                    .await
+                                },
+                            );
+                        }
+                        _ => {
+                            self.spawn_cancellable(
+                                "subscribe_spv2_deposit",
+                                move |fed| async move {
+                                    fed.subscribe_spv2_deposit_to_seek(operation_id).await
+                                },
+                            );
+                        }
                     }
                 }
                 StabilityPoolMeta::Withdrawal { extra_meta, .. } => {
+                    let withdraw_meta =
+                        serde_json::from_value::<SPv2WithdrawMetadata>(extra_meta).ok();
                     if matches!(
-                        serde_json::from_value::<SPv2WithdrawMetadata>(extra_meta).ok(),
+                        withdraw_meta,
+                        Some(SPv2WithdrawMetadata::MultispendBtcPayout)
+                    ) {
+                        // the payout sweep resumes its own operation
+                    } else if matches!(
+                        withdraw_meta,
                         Some(SPv2WithdrawMetadata::GuardianRemittanceAccount)
                     ) {
                         self.spawn_cancellable(
@@ -2058,20 +2094,36 @@ impl FederationV2 {
                     txid,
                 } => {
                     self.spawn_cancellable("subscribe_spv2_transfer", move |fed| async move {
-                        fed.subscribe_spv2_transfer(operation_id, txid, signed_request, extra_meta)
-                            .await
+                        fed.subscribe_spv2_transfer(
+                            operation_id,
+                            txid,
+                            signed_request.into(),
+                            extra_meta,
+                        )
+                        .await
                     });
                 }
-                StabilityPoolMeta::WithdrawIdleBalance {
-                    txid: _,
-                    amount: _,
-                    outpoints: _,
-                    extra_meta: _,
-                } => todo!("Implement with sweeper service for spv2, no FE events required"),
+                StabilityPoolMeta::BtcTransfer {
+                    extra_meta,
+                    signed_request,
+                    txid,
+                } => {
+                    self.spawn_cancellable("subscribe_spv2_transfer", move |fed| async move {
+                        fed.subscribe_spv2_transfer(
+                            operation_id,
+                            txid,
+                            SignedMultispendTransferRequest::Btc(signed_request),
+                            extra_meta,
+                        )
+                        .await
+                    });
+                }
+                // only the multispend btc payout sweep withdraws idle balance, and
+                // it resumes its own operation
+                StabilityPoolMeta::WithdrawIdleBalance { .. } => {}
                 // No subscription necessary for variant ExternalTransferIn, since we only become
                 // aware of the transfer after it has already been completed
                 StabilityPoolMeta::ExternalTransferIn { .. } => (),
-                StabilityPoolMeta::BtcTransfer { .. } => (),
             },
             // FIXME: should I return an error or just log something?
             _ => {
@@ -3287,11 +3339,16 @@ impl FederationV2 {
                         serde_json::from_value::<SPv2DepositMetadata>(extra_meta.clone()).ok();
                     if matches!(
                         typed_extra_meta,
-                        Some(SPv2DepositMetadata::GuardianFeeRemittance { .. })
+                        Some(
+                            SPv2DepositMetadata::GuardianFeeRemittance { .. }
+                                | SPv2DepositMetadata::MultispendBtcDeposit { .. }
+                        )
                     ) {
                         // Guardian fee remittance deposits are internal bridge
                         // maintenance operations and should not surface in the
-                        // normal transaction list.
+                        // normal transaction list. Bitcoin multispend deposits
+                        // show in the group's event list, which has no stable
+                        // balance transaction kind to borrow.
                         return Ok(None);
                     }
                     transaction_amount = RpcAmount(amount + Amount::from_msats(fedi_fee_msats));
@@ -3352,6 +3409,15 @@ impl FederationV2 {
                 } => {
                     let typed_extra_meta =
                         serde_json::from_value::<SPv2WithdrawMetadata>(extra_meta).ok();
+                    if matches!(
+                        typed_extra_meta,
+                        Some(SPv2WithdrawMetadata::MultispendBtcPayout)
+                    ) {
+                        // like the withdrawal from the group that funded it,
+                        // the sweep of a bitcoin multispend payout stays out of
+                        // the stable balance history
+                        return Ok(None);
+                    }
                     let guardian_remittance = matches!(
                         &typed_extra_meta,
                         Some(SPv2WithdrawMetadata::GuardianRemittanceAccount)
@@ -4087,6 +4153,28 @@ impl FederationV2 {
         Ok(operation_id)
     }
 
+    /// Submit a threshold-signed `BtcTransfer` between btc-depositor accounts,
+    /// such as a bitcoin multispend withdrawal.
+    pub async fn spv2_btc_transfer(
+        &self,
+        signed_request: SignedBtcTransferRequest,
+        meta: SPv2TransferMetadata,
+    ) -> Result<OperationId> {
+        let operation_id = self
+            .client
+            .spv2()?
+            .submit_transfer(
+                StabilityPoolOutput::V2(StabilityPoolOutputV2::BtcTransfer(BtcTransferOutput {
+                    signed_request,
+                })),
+                OwnAccount::MultispendBtcPayout,
+                meta,
+            )
+            .await?;
+        self.subscribe_to_operation(operation_id).await?;
+        Ok(operation_id)
+    }
+
     /// Build a SignedTransferRequest using an explicit nonce for idempotency.
     pub fn spv2_build_signed_transfer_request_with_nonce(
         &self,
@@ -4115,7 +4203,7 @@ impl FederationV2 {
         &self,
         operation_id: OperationId,
         txid: TransactionId,
-        signed_request: SignedTransferRequest,
+        signed_request: SignedMultispendTransferRequest,
         extra_meta: serde_json::Value,
     ) {
         let Ok(spv2) = self.client.spv2() else {
@@ -4141,7 +4229,7 @@ impl FederationV2 {
                                 self.multispend_services
                                     .add_deposit_notification(
                                         room,
-                                        signed_request.details().amount(),
+                                        signed_request.amount(),
                                         txid,
                                         description,
                                     )
@@ -4152,20 +4240,30 @@ impl FederationV2 {
                                     .add_withdrawal_notification(
                                         room,
                                         request_id,
-                                        signed_request.details().amount(),
+                                        signed_request.amount(),
                                         txid,
                                     )
                                     .await;
+                                if let SignedMultispendTransferRequest::Btc(signed) =
+                                    &signed_request
+                                {
+                                    self.multispend_btc_payout_received(signed.details().to());
+                                }
                             }
                             Ok(SPv2TransferMetadata::MatrixSpTransfer { transfer_id }) => {
-                                self.spt_notifications
-                                    .add_spt_completion_notification(
-                                        transfer_id,
-                                        self.federation_id().to_string(),
-                                        signed_request.details().amount(),
-                                        txid,
-                                    )
-                                    .await;
+                                // SP transfers only send stable balance
+                                if let MultispendAmount::FiatAmount(amount) =
+                                    signed_request.amount()
+                                {
+                                    self.spt_notifications
+                                        .add_spt_completion_notification(
+                                            transfer_id,
+                                            self.federation_id().to_string(),
+                                            FiatAmount(amount.0),
+                                            txid,
+                                        )
+                                        .await;
+                                }
                             }
                             Ok(SPv2TransferMetadata::StableBalance { .. }) | Err(_) => {}
                         }
@@ -4177,6 +4275,7 @@ impl FederationV2 {
                                     .add_failed_withdrawal_notification(
                                         room,
                                         request_id,
+                                        signed_request.kind(),
                                         error.to_string(),
                                     )
                                     .await;
@@ -5175,32 +5274,132 @@ impl FederationV2 {
         Ok(())
     }
 
+    /// Deposit ecash straight into a bitcoin group account. The room gets a
+    /// deposit notice once the federation accepts the transaction, see
+    /// [`Self::subscribe_multispend_btc_deposit`].
+    pub async fn multispend_btc_deposit(
+        &self,
+        amount: Amount,
+        group_account: AccountId,
+        room: RpcRoomId,
+        description: String,
+    ) -> anyhow::Result<()> {
+        let spv2 = self.client.spv2()?;
+        ensure!(amount >= spv2.cfg.min_allowed_seek, ErrorCode::BadRequest);
+        let spend_guard = self.spend_guard.lock().await;
+        let virtual_balance = self.get_balance().await;
+        if amount > virtual_balance {
+            bail!(ErrorCode::InsufficientBalance(RpcAmount(virtual_balance)));
+        }
+        let operation_id = spv2
+            .deposit_to_btc_balance(
+                group_account,
+                amount,
+                BtcBalanceDepositMetadata(vec![]),
+                SPv2DepositMetadata::MultispendBtcDeposit { room, description },
+            )
+            .await?;
+        drop(spend_guard);
+        self.subscribe_to_operation(operation_id).await?;
+        Ok(())
+    }
+
+    /// Posts the deposit notice of a bitcoin group deposit. Operations are
+    /// resubscribed on launch, so an interrupted deposit still gets its notice.
+    async fn subscribe_multispend_btc_deposit(
+        &self,
+        operation_id: OperationId,
+        room: RpcRoomId,
+        description: String,
+    ) {
+        let Ok(spv2) = self.client.spv2() else {
+            return;
+        };
+        let Some(operation) = self
+            .client
+            .operation_log()
+            .get_operation(operation_id)
+            .await
+        else {
+            return;
+        };
+        let StabilityPoolMeta::Deposit { txid, amount, .. } = operation.meta() else {
+            return;
+        };
+        let Ok(updates) = spv2.subscribe_deposit_operation(operation_id).await else {
+            return;
+        };
+        let mut updates = updates.into_stream();
+        while let Some(state) = updates.next().await {
+            if let StabilityPoolDepositOperationState::TxAccepted = state {
+                self.multispend_services
+                    .add_deposit_notification(
+                        room.clone(),
+                        MultispendAmount::BtcAmount(RpcAmount(amount)),
+                        txid,
+                        description.clone(),
+                    )
+                    .await;
+            }
+            self.update_operation_state(operation_id, state).await;
+        }
+    }
+
+    /// Bitcoin groups move funds with `BtcTransfer`, which needs a recent
+    /// stability pool module.
+    pub async fn multispend_ensure_btc_supported(&self) -> anyhow::Result<()> {
+        let spv2 = self.client.spv2()?;
+        ensure!(
+            spv2.api.module_consensus_version().await? >= BTC_TRANSFER_CONSENSUS_VERSION,
+            "federation does not support bitcoin multispend groups"
+        );
+        Ok(())
+    }
+
+    /// Request to withdraw `amount` from the group account to this member: to
+    /// its seeker account for a fiat group, or to its bitcoin payout account,
+    /// which is swept to ecash, for a bitcoin group.
     pub fn multispend_create_transfer_request(
         &self,
-        amount: FiatAmount,
+        amount: MultispendAmount,
         group_account: Account,
-    ) -> anyhow::Result<TransferRequest> {
+    ) -> anyhow::Result<MultispendTransferRequest> {
         let spv2 = self.client.spv2()?;
-        let transfer_request = TransferRequest::new(
-            rand::thread_rng().r#gen(),
-            group_account,
-            FiatAmount(amount.0),
-            spv2.own_account(OwnAccount::Seeker).id(),
-            vec![],
-            u64::MAX,
-            None,
-        )?;
-        Ok(transfer_request)
+        let nonce = rand::thread_rng().r#gen();
+        Ok(match amount {
+            MultispendAmount::FiatAmount(amount) => {
+                MultispendTransferRequest::Fiat(TransferRequest::new(
+                    nonce,
+                    group_account,
+                    FiatAmount(amount.0),
+                    spv2.own_account(OwnAccount::Seeker).id(),
+                    vec![],
+                    u64::MAX,
+                    None,
+                )?)
+            }
+            MultispendAmount::BtcAmount(amount) => {
+                ensure!(amount.0 >= spv2.cfg.min_allowed_seek, ErrorCode::BadRequest);
+                MultispendTransferRequest::Btc(BtcTransferRequest::new(
+                    nonce,
+                    group_account,
+                    amount.0,
+                    spv2.own_account(OwnAccount::MultispendBtcPayout).id(),
+                    vec![],
+                    u64::MAX,
+                )?)
+            }
+        })
     }
 
     pub fn multispend_approve_withdrawal(
         &self,
         group_id: String,
-        transfer_request: &TransferRequest,
+        transfer_request: &MultispendTransferRequest,
     ) -> anyhow::Result<schnorr::Signature> {
         let spv2 = self.client.spv2()?;
         let key = spv2.derive_multispend_group_key(group_id);
-        let message = secp256k1::Message::from(&TransferRequestId::from(transfer_request));
+        let message = secp256k1::Message::from(&transfer_request.id());
         Ok(key.sign_schnorr(message))
     }
 

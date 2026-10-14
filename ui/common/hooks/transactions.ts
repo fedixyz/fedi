@@ -411,8 +411,10 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const makeMultispendTxnAmountText = useCallback(
         (txn: MultispendTransactionListEntry, includeCurrency = false) => {
             if (isMultispendDepositEvent(txn.state)) {
-                const fiatAmount = txn.state.event.depositNotification
-                    .fiatAmount as UsdCents
+                const deposit = txn.state.event.depositNotification
+                const fiatAmount = (
+                    'fiatAmount' in deposit ? deposit.fiatAmount : 0
+                ) as UsdCents
                 return `+${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
             }
 

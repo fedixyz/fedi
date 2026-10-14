@@ -182,8 +182,10 @@ export function makeMultispendTransactionHistoryCSV(
             getValue: tx => {
                 let amountCents: UsdCents | undefined
                 if (isMultispendDepositEvent(tx.state)) {
-                    amountCents = tx.state.event.depositNotification
-                        .fiatAmount as UsdCents
+                    const deposit = tx.state.event.depositNotification
+                    if ('fiatAmount' in deposit) {
+                        amountCents = deposit.fiatAmount as UsdCents
+                    }
                 }
                 if (isMultispendWithdrawalEvent(tx.state)) {
                     amountCents = tx.state.event.withdrawalRequest.request
@@ -208,8 +210,10 @@ export function makeMultispendTransactionHistoryCSV(
                       getValue: (tx: MultispendTransactionListEntry) => {
                           let amountCents: UsdCents | undefined
                           if (isMultispendDepositEvent(tx.state)) {
-                              amountCents = tx.state.event.depositNotification
-                                  .fiatAmount as UsdCents
+                              const deposit = tx.state.event.depositNotification
+                              if ('fiatAmount' in deposit) {
+                                  amountCents = deposit.fiatAmount as UsdCents
+                              }
                           }
                           if (isMultispendWithdrawalEvent(tx.state)) {
                               amountCents = tx.state.event.withdrawalRequest

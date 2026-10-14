@@ -36,6 +36,8 @@ export type BridgeOffboardingReason =
   | { type: "internalBridgeExport" }
   | { type: "deviceIndexConflict" };
 
+export type BtcMultispendFeatureConfig = Record<string, never>;
+
 /**
  * Notify front-end that a particular community's metadata has updated
  */
@@ -279,6 +281,12 @@ export type FeatureCatalog = {
    */
   wallet_service_dkg_restart: WalletServiceDkgRestartFeatureConfig | null;
   /**
+   * Gates creating, depositing to, requesting and approving withdrawals
+   * from bitcoin-only multispend groups, and sweeping their payouts.
+   * Rejecting stays available.
+   */
+  btc_multispend: BtcMultispendFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -322,6 +330,7 @@ export type FiatFXInfo = {
 
 export type FinalizedGroup = {
   invitation: GroupInvitation;
+  kind: MultispendGroupKind;
   proposer: RpcUserId;
   pubkeys: { [key in RpcUserId]?: RpcPublicKey };
   federationId: RpcFederationId;
@@ -347,6 +356,7 @@ export type GroupInvitation = {
  */
 export type GroupInvitationWithKeys = {
   invitation: GroupInvitation;
+  kind: MultispendGroupKind;
   proposer: RpcUserId;
   pubkeys: { [key in RpcUserId]?: RpcPublicKey };
   rejections: Array<RpcUserId>;
@@ -388,6 +398,56 @@ export type MessageReactionsFeatureConfig = Record<string, never>;
 export type MiniAppSeedFeatureConfig = Record<string, never>;
 
 /**
+ * An event of a multispend group, as the bridge processes it and the UI shows
+ * it. On Matrix each kind of group has its own msgtype.
+ */
+export type MsEvent =
+  | {
+      kind: "groupInvitation";
+      groupKind: MultispendGroupKind;
+      invitation: GroupInvitation;
+      proposerPubkey: RpcPublicKey;
+    }
+  | {
+      kind: "groupInvitationVote";
+      groupKind: MultispendGroupKind;
+      invitation: RpcEventId;
+      vote: MultispendGroupVoteType;
+    }
+  | {
+      kind: "groupInvitationCancel";
+      groupKind: MultispendGroupKind;
+      invitation: RpcEventId;
+    }
+  | {
+      kind: "groupReannounce";
+      groupKind: MultispendGroupKind;
+      invitationId: RpcEventId;
+      invitation: GroupInvitation;
+      proposer: RpcUserId;
+      pubkeys: { [key in RpcUserId]?: RpcPublicKey };
+      rejections: Array<RpcUserId>;
+    }
+  | ({
+      kind: "depositNotification";
+      txid: RpcTransactionId;
+      description: string;
+    } & ({ fiatAmount: RpcFiatAmount } | { btcAmount: RpcAmount }))
+  | {
+      kind: "withdrawalRequest";
+      request:
+        | { kind: "fiat"; transfer_amount: RpcFiatAmount }
+        | { kind: "btc"; transfer_amount: RpcAmount };
+      description: string;
+    }
+  | {
+      kind: "withdrawalResponse";
+      groupKind: MultispendGroupKind;
+      request: RpcEventId;
+      response: WithdrawalResponseType;
+    };
+
+/**
  * Collected details for a given event id.
  */
 export type MsEventData =
@@ -397,54 +457,26 @@ export type MsEventData =
   | "invalidEvent";
 
 /**
+ * Amount moved into or out of a multispend group.
+ */
+export type MultispendAmount =
+  | { fiatAmount: RpcFiatAmount }
+  | { btcAmount: RpcAmount };
+
+/**
  * Deposit notification saved to db.
  */
 export type MultispendDepositEventData = {
   user: RpcUserId;
-  fiatAmount: RpcFiatAmount;
   txid: RpcTransactionId;
   description: string;
-};
+} & ({ fiatAmount: RpcFiatAmount } | { btcAmount: RpcAmount });
 
 /**
- * JSON formatted event that is sent in matrix room.
+ * What a multispend group holds: a stabilized fiat balance in a seeker
+ * account, or exact msats in a btc-depositor account.
  */
-export type MultispendEvent =
-  | {
-      kind: "groupInvitation";
-      invitation: GroupInvitation;
-      proposerPubkey: RpcPublicKey;
-    }
-  | {
-      kind: "groupInvitationVote";
-      invitation: RpcEventId;
-      vote: MultispendGroupVoteType;
-    }
-  | { kind: "groupInvitationCancel"; invitation: RpcEventId }
-  | {
-      kind: "groupReannounce";
-      invitationId: RpcEventId;
-      invitation: GroupInvitation;
-      proposer: RpcUserId;
-      pubkeys: { [key in RpcUserId]?: RpcPublicKey };
-      rejections: Array<RpcUserId>;
-    }
-  | {
-      kind: "depositNotification";
-      fiatAmount: RpcFiatAmount;
-      txid: RpcTransactionId;
-      description: string;
-    }
-  | {
-      kind: "withdrawalRequest";
-      request: { transfer_amount: RpcFiatAmount };
-      description: string;
-    }
-  | {
-      kind: "withdrawalResponse";
-      request: RpcEventId;
-      response: WithdrawalResponseType;
-    };
+export type MultispendGroupKind = "fiat" | "btc";
 
 /**
  * Represents the current status of a multispend group in a room
@@ -556,6 +588,11 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   walletServiceDkgRestart: boolean;
+  /**
+   * `#[serde(default)]` so the new bridge stays deserializable against any
+   * cached/older payload that omits the field.
+   */
+  btcMultispend: boolean;
 };
 
 export type RpcAccountId = string;
@@ -1904,7 +1941,7 @@ export type RpcMsgLikeKind =
   | ({ msgtype: "m.poll" } & RpcPollResult)
   | ({ msgtype: "xyz.fedi.payment" } & RpcPaymentMessageContent)
   | ({ msgtype: "xyz.fedi.form" } & RpcFormMessageContent)
-  | ({ msgtype: "xyz.fedi.multispend" } & MultispendEvent)
+  | ({ msgtype: "xyz.fedi.multispend" } & MsEvent)
   | ({ msgtype: "m.room.member" } & RpcRoomMemberEventContent)
   | ({ msgtype: "spTransfer" } & SpTransferVirtualEvent)
   | { msgtype: "failedToParseCustom"; msg_type: string; error: string }
@@ -2779,7 +2816,9 @@ export type WalletServiceDkgRestartFeatureConfig = Record<string, never>;
  * Withdrawal request with extra data accumulated over events.
  */
 export type WithdrawRequestWithApprovals = {
-  request: { transfer_amount: RpcFiatAmount };
+  request:
+    | { kind: "fiat"; transfer_amount: RpcFiatAmount }
+    | { kind: "btc"; transfer_amount: RpcAmount };
   description: string;
   signatures: { [key in RpcUserId]?: RpcSignature };
   rejections: Array<RpcUserId>;
@@ -2795,7 +2834,10 @@ export type WithdrawTxSubmissionStatus =
 export type WithdrawalResponseType =
   | { kind: "approve"; signature: RpcSignature }
   | { kind: "reject" }
-  | { kind: "complete"; fiatAmount: RpcFiatAmount; txid: RpcTransactionId }
+  | ({ kind: "complete"; txid: RpcTransactionId } & (
+      | { fiatAmount: RpcFiatAmount }
+      | { btcAmount: RpcAmount }
+    ))
   | { kind: "txRejected"; error: string };
 
 export type approveSocialRecoveryRequest = {
@@ -3037,7 +3079,10 @@ export type matrixApproveMultispendGroupInvitation = {
   invitation: RpcEventId;
 };
 
-export type matrixCancelMultispendGroupInvitation = { roomId: RpcRoomId };
+export type matrixCancelMultispendGroupInvitation = {
+  roomId: RpcRoomId;
+  kind: MultispendGroupKind;
+};
 
 export type matrixClearComposerDraft = { roomId: RpcRoomId };
 
@@ -3080,7 +3125,7 @@ export type matrixLoadComposerDraft = { roomId: RpcRoomId };
 
 export type matrixMultispendDeposit = {
   roomId: RpcRoomId;
-  amount: RpcFiatAmount;
+  amount: MultispendAmount;
   description: string;
   frontendMeta: FrontendMetadata;
 };
@@ -3092,6 +3137,7 @@ export type matrixMultispendEventData = {
 
 export type matrixMultispendListEvents = {
   roomId: RpcRoomId;
+  kind: MultispendGroupKind;
   startAfter: number | null;
   limit: number;
 };
@@ -3206,6 +3252,7 @@ export type matrixSendMessage = { roomId: RpcRoomId; data: SendMessageData };
 
 export type matrixSendMultispendGroupInvitation = {
   roomId: RpcRoomId;
+  kind: MultispendGroupKind;
   signers: Array<RpcUserId>;
   threshold: number;
   federationId: RpcFederationId;
@@ -3224,7 +3271,7 @@ export type matrixSendMultispendWithdrawalReject = {
 
 export type matrixSendMultispendWithdrawalRequest = {
   roomId: RpcRoomId;
-  amount: RpcFiatAmount;
+  amount: MultispendAmount;
   description: string;
 };
 
@@ -3263,6 +3310,7 @@ export type matrixStartPoll = {
 
 export type matrixSubscribeMultispendAccountInfo = {
   roomId: RpcRoomId;
+  kind: MultispendGroupKind;
   streamId: RpcStreamId<{ Ok: RpcSPv2SyncResponse } | { Err: NetworkError }>;
 };
 
@@ -3275,6 +3323,7 @@ export type matrixSubscribeMultispendEventData = {
 export type matrixSubscribeMultispendGroup = {
   streamId: RpcStreamId<RpcMultispendGroupStatus>;
   roomId: RpcRoomId;
+  kind: MultispendGroupKind;
 };
 
 export type matrixSubscribeRoomList = {

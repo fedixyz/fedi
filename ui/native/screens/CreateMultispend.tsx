@@ -116,6 +116,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
         try {
             await fedimint.matrixSendMultispendGroupInvitation({
                 roomId: roomId,
+                kind: 'fiat',
                 signers: voters,
                 threshold: thresholdNumber,
                 federationId: paymentFederation.id,

@@ -726,11 +726,13 @@ export class MatrixChatClient {
         roomId,
         startAfter = null,
         limit = 100,
-    }: bindings.RpcPayload<'matrixMultispendListEvents'>) {
+    }: Omit<bindings.RpcPayload<'matrixMultispendListEvents'>, 'kind'>) {
         try {
             const transactions = await this.fedimint.matrixMultispendListEvents(
                 {
                     roomId,
+                    // the UI shows fiat groups only
+                    kind: 'fiat',
                     startAfter,
                     limit,
                 },
@@ -936,6 +938,7 @@ export class MatrixChatClient {
 
         const unsubscribe = this.fedimint.matrixSubscribeMultispendGroup({
             roomId,
+            kind: 'fiat',
             callback: update => {
                 this.emit('multispendUpdate', {
                     roomId,
@@ -1024,6 +1027,7 @@ export class MatrixChatClient {
 
         const unsubscribe = this.fedimint.matrixSubscribeMultispendAccountInfo({
             roomId,
+            kind: 'fiat',
             callback: info => {
                 this.emit('multispendAccountUpdate', {
                     roomId,

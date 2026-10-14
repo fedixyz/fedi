@@ -4,6 +4,12 @@ use std::time::Duration;
 use ::matrix::{Matrix as FediMatrix, SendMessageData};
 use anyhow::Context;
 use bitcoin::secp256k1;
+use federations::federation_v2::db::LastMultispendBtcPayoutSweepKey;
+use fedimint_client::transaction::{
+    ClientInput, ClientInputBundle, ClientOutput, ClientOutputBundle, TransactionBuilder,
+};
+use fedimint_core::core::{IntoDynInstance as _, OperationId};
+use fedimint_core::module::Amounts;
 use fedimint_core::util::backoff_util::{FibonacciBackoff, custom_backoff};
 use fedimint_core::util::retry;
 use futures::{FutureExt, StreamExt};
@@ -11,12 +17,18 @@ use matrix_sdk::ruma::RoomId;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use multispend::db::MultispendScannerLastEventKey;
 use multispend::{
-    FinalizedGroup, GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendEvent,
-    MultispendGroupVoteType,
+    FinalizedGroup, GroupInvitation, GroupInvitationWithKeys, MsEvent, MsEventData,
+    MultispendAmount, MultispendGroupKind, MultispendGroupVoteType,
 };
 use rpc_types::matrix::{RpcRoomId, RpcUserId};
-use rpc_types::{RpcEventId, RpcFederationId, RpcPublicKey};
-use stability_pool_client::common::{AccountId, AccountType, AccountUnchecked};
+use rpc_types::{RpcEventId, RpcFederationId, RpcPublicKey, SPv2WithdrawMetadata};
+use stability_pool_client::api::StabilityPoolApiExt as _;
+use stability_pool_client::common::{
+    AccountId, AccountType, AccountUnchecked, BtcBalanceDepositMetadata, DepositToBtcBalanceOutput,
+    FiatOrAll, SeekRequest, StabilityPoolInput, StabilityPoolInputV0, StabilityPoolOutput,
+    StabilityPoolOutputV1, SyncResponse, UnlockForWithdrawalInput,
+};
+use stability_pool_client::{OwnAccount, StabilityPoolMeta};
 
 use super::*;
 
@@ -72,7 +84,10 @@ pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
     // Test initial state
     assert!(
         multispend_matrix
-            .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+            .get_multispend_finalized_group(
+                RpcRoomId(room_id.to_string()),
+                MultispendGroupKind::Fiat
+            )
             .await?
             .is_none()
     );
@@ -87,7 +102,8 @@ pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
         federation_invite_code: MOCK_FEDERATION_INVITE_CODE.to_string(),
         federation_name: "test".to_string(),
     };
-    let event = MultispendEvent::GroupInvitation {
+    let event = MsEvent::GroupInvitation {
+        group_kind: MultispendGroupKind::Fiat,
         invitation: invitation.clone(),
         proposer_pubkey: RpcPublicKey(pk1),
     };
@@ -142,7 +158,8 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
         federation_name: "test".to_string(),
     };
 
-    let event = MultispendEvent::GroupInvitation {
+    let event = MsEvent::GroupInvitation {
+        group_kind: MultispendGroupKind::Fiat,
         invitation: invitation.clone(),
         proposer_pubkey: RpcPublicKey(pk1),
     };
@@ -168,6 +185,7 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
     assert_eq!(
         event_data1,
         MsEventData::GroupInvitation(GroupInvitationWithKeys {
+            kind: MultispendGroupKind::Fiat,
             proposer: user1.clone(),
             invitation: invitation.clone(),
             pubkeys: BTreeMap::from_iter([(user1.clone(), RpcPublicKey(pk1))]),
@@ -203,7 +221,8 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
         assert_eq!(first, Some(event_data2.clone()));
     }
 
-    let event = MultispendEvent::GroupInvitationVote {
+    let event = MsEvent::GroupInvitationVote {
+        group_kind: MultispendGroupKind::Fiat,
         invitation: invitation_event_id.clone(),
         vote: MultispendGroupVoteType::Accept {
             member_pubkey: RpcPublicKey(pk2),
@@ -219,7 +238,10 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
         multispend_sync_backoff(),
         || async {
             multispend_matrix2
-                .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+                .get_multispend_finalized_group(
+                    RpcRoomId(room_id.to_string()),
+                    MultispendGroupKind::Fiat,
+                )
                 .await?
                 .context("finalized group not found")
         },
@@ -228,6 +250,7 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
     assert_eq!(
         final_group1,
         FinalizedGroup {
+            kind: MultispendGroupKind::Fiat,
             proposer: user1.clone(),
             pubkeys: BTreeMap::from_iter([
                 (user1.clone(), RpcPublicKey(pk1)),
@@ -247,7 +270,7 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
 
     // Verify group is finalized in matrix2 as well
     let final_group2 = multispend_matrix2
-        .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+        .get_multispend_finalized_group(RpcRoomId(room_id.to_string()), MultispendGroupKind::Fiat)
         .await?;
 
     assert_eq!(Some(final_group1), final_group2);
@@ -279,7 +302,8 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
         federation_name: "test".to_string(),
     };
 
-    let event = MultispendEvent::GroupInvitation {
+    let event = MsEvent::GroupInvitation {
+        group_kind: MultispendGroupKind::Fiat,
         invitation: invitation.clone(),
         proposer_pubkey: RpcPublicKey(pk1),
     };
@@ -305,6 +329,7 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
     assert_eq!(
         event_data1,
         MsEventData::GroupInvitation(GroupInvitationWithKeys {
+            kind: MultispendGroupKind::Fiat,
             proposer: user1.clone(),
             invitation: invitation.clone(),
             pubkeys: BTreeMap::from_iter([(user1.clone(), RpcPublicKey(pk1))]),
@@ -327,7 +352,8 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
     assert_eq!(event_data1, event_data2);
 
     // Send rejection from user2
-    let event = MultispendEvent::GroupInvitationVote {
+    let event = MsEvent::GroupInvitationVote {
+        group_kind: MultispendGroupKind::Fiat,
         invitation: invitation_event_id.clone(),
         vote: MultispendGroupVoteType::Reject,
     };
@@ -358,6 +384,7 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
     assert_eq!(
         event_data1,
         MsEventData::GroupInvitation(GroupInvitationWithKeys {
+            kind: MultispendGroupKind::Fiat,
             proposer: user1.clone(),
             invitation: invitation.clone(),
             pubkeys: BTreeMap::from_iter([(user1.clone(), RpcPublicKey(pk1))]),
@@ -374,13 +401,13 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
 
     // Verify group is not finalized in matrix1
     let final_group1 = multispend_matrix1
-        .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+        .get_multispend_finalized_group(RpcRoomId(room_id.to_string()), MultispendGroupKind::Fiat)
         .await?;
     assert_eq!(final_group1, None);
 
     // Verify group is not finalized in matrix2 either
     let final_group2 = multispend_matrix2
-        .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+        .get_multispend_finalized_group(RpcRoomId(room_id.to_string()), MultispendGroupKind::Fiat)
         .await?;
     assert_eq!(final_group2, None);
 
@@ -569,7 +596,7 @@ async fn request_and_approve_withdrawal(
     td1: &TestDevice,
     td2: &TestDevice,
     room_id: &RoomId,
-    amount: RpcFiatAmount,
+    amount: MultispendAmount,
 ) -> anyhow::Result<RpcEventId> {
     let bridge2 = td2.bridge_full().await?;
     matrixSendMultispendWithdrawalRequest(
@@ -659,6 +686,7 @@ pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
     matrixSendMultispendGroupInvitation(
         bridge1,
         RpcRoomId(room_id.to_string()),
+        MultispendGroupKind::Fiat,
         BTreeSet::from([user1, user2]),
         1,
         fed1.rpc_federation_id(),
@@ -700,7 +728,10 @@ pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
         multispend_sync_backoff(),
         || async {
             multispend_matrix1
-                .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+                .get_multispend_finalized_group(
+                    RpcRoomId(room_id.to_string()),
+                    MultispendGroupKind::Fiat,
+                )
                 .await?
                 .context("not finalized")
         },
@@ -735,7 +766,7 @@ pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
             matrixMultispendDeposit(
                 bridge1,
                 group_room_id,
-                amount,
+                MultispendAmount::FiatAmount(amount),
                 "deposit".to_string(),
                 FrontendMetadata::default(),
             )
@@ -754,8 +785,13 @@ pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
     deposit_to_group(RpcFiatAmount(10_00)).await?;
 
     // more than the group holds: the federation refuses it
-    let refused_id =
-        request_and_approve_withdrawal(&td1, &td2, &room_id, RpcFiatAmount(20_00)).await?;
+    let refused_id = request_and_approve_withdrawal(
+        &td1,
+        &td2,
+        &room_id,
+        MultispendAmount::FiatAmount(RpcFiatAmount(20_00)),
+    )
+    .await?;
     wait_for_withdrawal_status(bridge1, &room_id, &refused_id, |status| {
         matches!(
             status,
@@ -763,8 +799,13 @@ pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
         )
     })
     .await?;
-    let executed_id =
-        request_and_approve_withdrawal(&td1, &td2, &room_id, RpcFiatAmount(5_00)).await?;
+    let executed_id = request_and_approve_withdrawal(
+        &td1,
+        &td2,
+        &room_id,
+        MultispendAmount::FiatAmount(RpcFiatAmount(5_00)),
+    )
+    .await?;
     wait_for_withdrawal_status(bridge1, &room_id, &executed_id, |status| {
         matches!(
             status,
@@ -780,9 +821,14 @@ pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
         "wait for td2 to list both deposits and withdrawals",
         multispend_sync_backoff(),
         || async {
-            let events =
-                matrixMultispendListEvents(&bridge2.matrix, group_room_id.clone(), None, 10)
-                    .await?;
+            let events = matrixMultispendListEvents(
+                &bridge2.matrix,
+                group_room_id.clone(),
+                MultispendGroupKind::Fiat,
+                None,
+                10,
+            )
+            .await?;
             anyhow::ensure!(events.len() == 4, "listed {} events", events.len());
             Ok(())
         },
@@ -867,6 +913,657 @@ pub async fn test_multispend_seed_recovery_does_not_resubmit_withdrawals(
     );
 
     Ok(())
+}
+
+/// Every device of the requester sees the approval that reaches the
+/// threshold. Only the device the withdrawal pays may submit it: a second
+/// submission is refused, and its rejection could land first and mark the
+/// paid withdrawal as rejected in the room.
+pub async fn test_multispend_withdrawal_is_submitted_by_the_paid_device(
+    _dev_fed: DevFed,
+) -> anyhow::Result<()> {
+    if should_skip_test_using_stock_fedimintd() {
+        return Ok(());
+    }
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
+    let bridge1 = td1.bridge_full().await?;
+    let bridge2 = td2.bridge_full().await?;
+    let matrix1 = td1.matrix().await?;
+    let matrix2 = td2.matrix().await?;
+    let fed1 = td1.join_default_fed().await?;
+    td2.join_default_fed().await?;
+    let federation_id = fed1.rpc_federation_id();
+
+    let mut request = ::matrix::create_room::Request::default();
+    request.name = Some("multispend two devices".to_string());
+    let room_id = matrix1.room_create(request).await?;
+    matrix1
+        .room_invite_user_by_id(&room_id, matrix2.client.user_id().unwrap())
+        .await?;
+    matrix2.wait_for_room_id(&room_id).await?;
+    matrix2.room_join(&room_id).await?;
+    retry(
+        "wait for td1 to see td2 joined",
+        multispend_sync_backoff(),
+        || async {
+            let room = matrix1.client.get_room(&room_id).context("no room")?;
+            let members = room.members(matrix_sdk::RoomMemberships::ACTIVE).await?;
+            anyhow::ensure!(members.len() > 1);
+            Ok(())
+        },
+    )
+    .await?;
+    let group_room_id = RpcRoomId(room_id.to_string());
+
+    // 1-of-2 bitcoin group: td2's approval settles td1's request
+    let user1 = RpcUserId(matrix1.client.user_id().unwrap().to_string());
+    let user2 = RpcUserId(matrix2.client.user_id().unwrap().to_string());
+    matrixSendMultispendGroupInvitation(
+        bridge1,
+        group_room_id.clone(),
+        MultispendGroupKind::Btc,
+        BTreeSet::from([user1, user2]),
+        1,
+        federation_id,
+        "test".to_string(),
+    )
+    .await?;
+    let invitation_event_id = RpcEventId(
+        matrix1
+            .timeline(&room_id)
+            .await?
+            .latest_event_id()
+            .await
+            .unwrap()
+            .to_string(),
+    );
+    retry(
+        "wait for td2 to scan invitation",
+        multispend_sync_backoff(),
+        || async {
+            matrixMultispendEventData(
+                &bridge2.matrix,
+                group_room_id.clone(),
+                invitation_event_id.clone(),
+            )
+            .await?
+            .context("invitation not scanned yet")
+        },
+    )
+    .await?;
+    matrixApproveMultispendGroupInvitation(bridge2, group_room_id.clone(), invitation_event_id)
+        .await?;
+    let multispend_matrix1 = td1.multispend().await?;
+    let group = retry(
+        "wait for group finalization",
+        multispend_sync_backoff(),
+        || async {
+            multispend_matrix1
+                .get_multispend_finalized_group(group_room_id.clone(), MultispendGroupKind::Btc)
+                .await?
+                .context("not finalized")
+        },
+    )
+    .await?;
+    let group_account_id = group.spv2_account.id();
+
+    let ecash = cli_generate_ecash(Amount::from_sats(500_000)).await?;
+    receiveEcash(fed1.clone(), ecash, FrontendMetadata::default()).await?;
+    wait_for_ecash_reissue(fed1).await?;
+    let deposit = Amount::from_sats(100_000);
+    matrixMultispendDeposit(
+        bridge1,
+        group_room_id.clone(),
+        MultispendAmount::BtcAmount(RpcAmount(deposit)),
+        "deposit".to_string(),
+        FrontendMetadata::default(),
+    )
+    .await?;
+    retry(
+        "wait for group deposit",
+        multispend_sync_backoff(),
+        || async {
+            let balance = group_balance(fed1, group_account_id).await?;
+            anyhow::ensure!(balance == deposit, "group holds {balance}");
+            Ok(())
+        },
+    )
+    .await?;
+
+    // td1's user on a second device, index 1, which has its own keys; it
+    // reads the earlier room events with the keys td1 backed up
+    sleep_in_test(
+        "matrix needs some time to upload room keys",
+        Duration::from_secs(10),
+    )
+    .await;
+    let td1b = TestDevice::new().await?;
+    let onboarding = td1b.bridge_maybe_onboarding().await?;
+    restoreMnemonic(
+        onboarding.try_get()?,
+        getMnemonic(bridge1.runtime.clone()).await?,
+    )
+    .await?;
+    onboardRegisterAsNewDevice(onboarding.try_get()?, Some(1)).await?;
+    let bridge1b = td1b.bridge_full().await?;
+    assert_eq!(bridge1b.runtime.app_state.device_index().await, 1);
+    let fed1b = join_test_fed_recovery(bridge1b, false).await?;
+    let matrix1b = td1b.matrix().await?;
+    assert_eq!(matrix1b.client.user_id(), matrix1.client.user_id());
+    matrix1b.wait_for_room_id(&room_id).await?;
+    let multispend_matrix1b = td1b.multispend().await?;
+    // a new device scans a room's history once the user opens it
+    multispend_matrix1b
+        .rescanner
+        .wait_for_scanned(&room_id)
+        .await;
+    retry(
+        "wait for the second device to see the group",
+        multispend_sync_backoff(),
+        || async {
+            multispend_matrix1b
+                .get_multispend_finalized_group(group_room_id.clone(), MultispendGroupKind::Btc)
+                .await?
+                .context("not finalized")
+        },
+    )
+    .await?;
+
+    let withdrawal = Amount::from_sats(40_000);
+    let request_id = request_and_approve_withdrawal(
+        &td1,
+        &td2,
+        &room_id,
+        MultispendAmount::BtcAmount(RpcAmount(withdrawal)),
+    )
+    .await?;
+    for bridge in [bridge1, bridge2, bridge1b] {
+        wait_for_withdrawal_status(bridge, &room_id, &request_id, |status| {
+            matches!(
+                status,
+                multispend::WithdrawTxSubmissionStatus::Accepted { .. }
+            )
+        })
+        .await?;
+    }
+    sleep_in_test(
+        "give the second device time to submit the request too",
+        Duration::from_secs(5),
+    )
+    .await;
+    assert_eq!(
+        group_balance(fed1, group_account_id).await?,
+        deposit - withdrawal
+    );
+    let transfers = fed1b
+        .client
+        .operation_log()
+        .paginate_operations_rev(100, None)
+        .await
+        .into_iter()
+        .filter(|(_, entry)| {
+            matches!(
+                entry.try_meta::<StabilityPoolMeta>(),
+                Ok(StabilityPoolMeta::BtcTransfer { .. })
+            )
+        })
+        .count();
+    assert_eq!(transfers, 0, "the second device submitted the withdrawal");
+
+    Ok(())
+}
+
+pub async fn test_multispend_btc_group_deposit_withdraw_sweep(
+    _dev_fed: DevFed,
+) -> anyhow::Result<()> {
+    if should_skip_test_using_stock_fedimintd() {
+        return Ok(());
+    }
+    // td2 runs with the btc_multispend feature off: the feature gates joining
+    // and depositing into bitcoin groups, not withdrawals or payout sweeps
+    let td1 = TestDevice::new().await?;
+    let mut td2 = TestDevice::new().await?;
+    let mut flag_off = FeatureCatalog::new(
+        &Database::new(MemDatabase::new(), Default::default()),
+        RuntimeEnvironment::Tests,
+    )
+    .await;
+    flag_off.btc_multispend = None;
+    td2.with_feature_catalog(Arc::new(flag_off));
+    let bridge1 = td1.bridge_full().await?;
+    let bridge2 = td2.bridge_full().await?;
+    let matrix1 = td1.matrix().await?;
+    let matrix2 = td2.matrix().await?;
+    let fed1 = td1.join_default_fed().await?;
+    let fed2 = td2.join_default_fed().await?;
+    let federation_id = fed1.rpc_federation_id();
+
+    // invitations need a non-DM room where td1 sees td2 as an active member
+    let mut request = ::matrix::create_room::Request::default();
+    request.name = Some("multispend btc test group".to_string());
+    let room_id = matrix1.room_create(request).await?;
+    matrix1
+        .room_invite_user_by_id(&room_id, matrix2.client.user_id().unwrap())
+        .await?;
+    matrix2.wait_for_room_id(&room_id).await?;
+    matrix2.room_join(&room_id).await?;
+    retry(
+        "wait for td1 to see td2 joined",
+        multispend_sync_backoff(),
+        || async {
+            let room = matrix1.client.get_room(&room_id).context("no room")?;
+            let members = room.members(matrix_sdk::RoomMemberships::ACTIVE).await?;
+            anyhow::ensure!(members.len() > 1);
+            Ok(())
+        },
+    )
+    .await?;
+    let group_room_id = RpcRoomId(room_id.to_string());
+
+    // 1-of-2 bitcoin group: one approval settles a request
+    let user1 = RpcUserId(matrix1.client.user_id().unwrap().to_string());
+    let user2 = RpcUserId(matrix2.client.user_id().unwrap().to_string());
+    assert!(
+        matrixSendMultispendGroupInvitation(
+            bridge2,
+            group_room_id.clone(),
+            MultispendGroupKind::Btc,
+            BTreeSet::from([user1.clone(), user2.clone()]),
+            1,
+            federation_id.clone(),
+            "test".to_string(),
+        )
+        .await
+        .is_err()
+    );
+    matrixSendMultispendGroupInvitation(
+        bridge1,
+        group_room_id.clone(),
+        MultispendGroupKind::Btc,
+        BTreeSet::from([user1, user2]),
+        1,
+        federation_id.clone(),
+        "test".to_string(),
+    )
+    .await?;
+    let invitation_event_id = RpcEventId(
+        matrix1
+            .timeline(&room_id)
+            .await?
+            .latest_event_id()
+            .await
+            .unwrap()
+            .to_string(),
+    );
+    retry(
+        "wait for td2 to scan invitation",
+        multispend_sync_backoff(),
+        || async {
+            matrixMultispendEventData(
+                &bridge2.matrix,
+                group_room_id.clone(),
+                invitation_event_id.clone(),
+            )
+            .await?
+            .context("invitation not scanned yet")
+        },
+    )
+    .await?;
+    assert!(
+        matrixApproveMultispendGroupInvitation(
+            bridge2,
+            group_room_id.clone(),
+            invitation_event_id.clone()
+        )
+        .await
+        .is_err()
+    );
+    // so td2 joins below the RPC, as a member with the feature on would
+    td2.multispend()
+        .await?
+        .vote_multispend_group_invitation(
+            &room_id,
+            invitation_event_id,
+            MultispendGroupVoteType::Accept {
+                member_pubkey: RpcPublicKey(fed2.multispend_public_key(room_id.to_string())?),
+            },
+        )
+        .await?;
+    let multispend_matrix1 = td1.multispend().await?;
+    let group = retry(
+        "wait for group finalization",
+        multispend_sync_backoff(),
+        || async {
+            multispend_matrix1
+                .get_multispend_finalized_group(group_room_id.clone(), MultispendGroupKind::Btc)
+                .await?
+                .context("not finalized")
+        },
+    )
+    .await?;
+    assert_eq!(group.kind, MultispendGroupKind::Btc);
+    assert_eq!(group.spv2_account.acc_type(), AccountType::BtcDepositor);
+    let group_account_id = group.spv2_account.id();
+
+    // the room has no fiat group to withdraw from
+    assert!(
+        matrixSendMultispendWithdrawalRequest(
+            bridge1,
+            group_room_id.clone(),
+            MultispendAmount::FiatAmount(RpcFiatAmount(1_00)),
+            "fiat".to_string(),
+        )
+        .await
+        .is_err()
+    );
+
+    for fed in [fed1, fed2] {
+        let ecash = cli_generate_ecash(Amount::from_sats(500_000)).await?;
+        receiveEcash(fed.clone(), ecash, FrontendMetadata::default()).await?;
+        wait_for_ecash_reissue(fed).await?;
+    }
+
+    let deposit = Amount::from_sats(100_000);
+    assert!(
+        matrixMultispendDeposit(
+            bridge2,
+            group_room_id.clone(),
+            MultispendAmount::BtcAmount(RpcAmount(deposit)),
+            "deposit".to_string(),
+            FrontendMetadata::default(),
+        )
+        .await
+        .is_err()
+    );
+    matrixMultispendDeposit(
+        bridge1,
+        group_room_id.clone(),
+        MultispendAmount::BtcAmount(RpcAmount(deposit)),
+        "deposit".to_string(),
+        FrontendMetadata::default(),
+    )
+    .await?;
+    // bitcoin balances hold exact msats, nothing is shaved per cycle
+    retry(
+        "wait for group deposit",
+        multispend_sync_backoff(),
+        || async {
+            let balance = group_balance(fed1, group_account_id).await?;
+            anyhow::ensure!(balance == deposit, "group holds {balance}");
+            Ok(())
+        },
+    )
+    .await?;
+    retry(
+        "wait for td2 to list the deposit",
+        multispend_sync_backoff(),
+        || async {
+            let events = matrixMultispendListEvents(
+                &bridge2.matrix,
+                group_room_id.clone(),
+                MultispendGroupKind::Btc,
+                None,
+                10,
+            )
+            .await?;
+            anyhow::ensure!(events.len() == 1, "listed {} events", events.len());
+            Ok(())
+        },
+    )
+    .await?;
+
+    // each app synced its payout account once at startup, and neither
+    // joining a group, depositing nor ecash activity syncs it again
+    for fed in [fed1, fed2] {
+        assert_eq!(payout_syncs(fed), 1);
+    }
+
+    // td2 approves with the feature off; td1's withdrawal pays td1's payout
+    // account, which td1 sweeps once its transfer is accepted and again on
+    // the completion event, as if another of its devices had submitted it
+    let withdrawal = Amount::from_sats(40_000);
+    let ecash_before = fed1.get_balance().await;
+    let request_id = request_and_approve_withdrawal(
+        &td1,
+        &td2,
+        &room_id,
+        MultispendAmount::BtcAmount(RpcAmount(withdrawal)),
+    )
+    .await?;
+    wait_for_withdrawal_status(bridge2, &room_id, &request_id, |status| {
+        matches!(
+            status,
+            multispend::WithdrawTxSubmissionStatus::Accepted { .. }
+        )
+    })
+    .await?;
+    assert_eq!(
+        group_balance(fed1, group_account_id).await?,
+        deposit - withdrawal
+    );
+    wait_for_payout_swept(fed1, ecash_before, withdrawal).await?;
+    // td2, which the withdrawal did not pay, does not sync its payout account
+    assert_eq!(payout_syncs(fed2), 1);
+
+    // td2 requests with the feature off, and its payout is swept regardless
+    let second_withdrawal = Amount::from_sats(30_000);
+    let ecash_before = fed2.get_balance().await;
+    let request_id = request_and_approve_withdrawal(
+        &td2,
+        &td1,
+        &room_id,
+        MultispendAmount::BtcAmount(RpcAmount(second_withdrawal)),
+    )
+    .await?;
+    wait_for_withdrawal_status(bridge1, &room_id, &request_id, |status| {
+        matches!(
+            status,
+            multispend::WithdrawTxSubmissionStatus::Accepted { .. }
+        )
+    })
+    .await?;
+    assert_eq!(
+        group_balance(fed1, group_account_id).await?,
+        deposit - withdrawal - second_withdrawal
+    );
+    wait_for_payout_swept(fed2, ecash_before, second_withdrawal).await?;
+    let first_sweeps = payout_sweeps(fed2).await;
+    assert_eq!(first_sweeps.len(), 1);
+
+    // a withdrawal cut short after its unlock leaves the payout idle
+    let idle = Amount::from_sats(20_000);
+    deposit_to_payout(fed2, idle).await?;
+    unlock_multispend_btc_payout(fed2).await?;
+    let sync = payout_sync(fed2).await?;
+    assert_eq!(
+        (sync.staged_balance, sync.idle_balance),
+        (Amount::ZERO, idle)
+    );
+
+    // the sweep and its marker commit together, so the app going down right
+    // after starting it still finds it, and the startup sweep awaits it
+    // rather than starting another
+    let ecash_before = fed2.get_balance().await;
+    let operation_id = fed2
+        .start_multispend_btc_payout_sweep()
+        .await?
+        .context("idle payout not swept")?;
+    td2.shutdown().await?;
+    let bridge2 = td2.bridge_full().await?;
+    let fed2 = wait_for_federation_loading(bridge2, &federation_id.0).await?;
+    wait_for_payout_swept(&fed2, ecash_before, idle).await?;
+    retry(
+        "wait for the resumed sweep to finish",
+        multispend_sync_backoff(),
+        || async {
+            anyhow::ensure!(
+                fed2.dbtx()
+                    .await
+                    .get_value(&LastMultispendBtcPayoutSweepKey)
+                    .await
+                    .is_none()
+            );
+            Ok(())
+        },
+    )
+    .await?;
+    let mut sweeps = payout_sweeps(&fed2).await;
+    sweeps.sort();
+    let mut expected = vec![first_sweeps[0], operation_id];
+    expected.sort();
+    assert_eq!(sweeps, expected);
+    assert_eq!(fed2.sweep_multispend_btc_payout().await?, None);
+
+    // a payout landing while a sweep is in flight is swept by the trigger
+    // that joins that sweep, without a restart
+    let first = Amount::from_sats(20_000);
+    deposit_to_payout(&fed2, first).await?;
+    unlock_multispend_btc_payout(&fed2).await?;
+    let second = Amount::from_sats(10_000);
+    // the second payout is paid out of ecash after this
+    let ecash_before = fed2.get_balance().await.saturating_sub(second);
+    let in_flight = fed2
+        .start_multispend_btc_payout_sweep()
+        .await?
+        .context("idle payout not swept")?;
+    deposit_to_payout(&fed2, second).await?;
+    assert_eq!(
+        fed2.sweep_multispend_btc_payout().await?,
+        Some(first + second)
+    );
+    wait_for_payout_swept(&fed2, ecash_before, first + second).await?;
+    let sweeps = payout_sweeps(&fed2).await;
+    assert_eq!(sweeps.len(), 4);
+    assert!(sweeps.contains(&in_flight));
+
+    Ok(())
+}
+
+fn payout_syncs(fed: &FederationV2) -> u64 {
+    fed.multispend_btc_payout_syncs
+        .load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Wait until the payout account is empty and its msats, less mint fees,
+/// reached the ecash balance.
+async fn wait_for_payout_swept(
+    fed: &FederationV2,
+    ecash_before: Amount,
+    payout: Amount,
+) -> anyhow::Result<()> {
+    retry(
+        "wait for the payout sweep",
+        multispend_sync_backoff(),
+        || async {
+            let sync = payout_sync(fed).await?;
+            anyhow::ensure!(
+                sync.staged_balance == Amount::ZERO && sync.idle_balance == Amount::ZERO,
+                "payout holds {} staged, {} idle",
+                sync.staged_balance,
+                sync.idle_balance
+            );
+            let gained = fed.get_balance().await.saturating_sub(ecash_before);
+            anyhow::ensure!(
+                payout.saturating_sub(Amount::from_sats(1_000)) < gained && gained <= payout,
+                "ecash balance gained {gained}"
+            );
+            Ok(())
+        },
+    )
+    .await
+}
+
+async fn payout_sync(fed: &FederationV2) -> anyhow::Result<SyncResponse> {
+    let spv2 = fed.client.spv2()?;
+    Ok(spv2
+        .api
+        .account_sync(spv2.own_account(OwnAccount::MultispendBtcPayout).id())
+        .await?)
+}
+
+/// Unlock the whole payout account without withdrawing the unlocked msats, as a
+/// withdrawal cut short by a restore from seed leaves it.
+async fn unlock_multispend_btc_payout(fed: &FederationV2) -> anyhow::Result<()> {
+    let spv2 = fed.client.spv2()?;
+    let input = ClientInput {
+        amounts: Amounts::ZERO,
+        input: StabilityPoolInput::V0(StabilityPoolInputV0::UnlockForWithdrawal(
+            UnlockForWithdrawalInput {
+                account: spv2.own_account(OwnAccount::MultispendBtcPayout),
+                amount: FiatOrAll::All,
+            },
+        )),
+        keys: vec![spv2.own_keypair(OwnAccount::MultispendBtcPayout)],
+    };
+    submit_test_tx(
+        fed,
+        TransactionBuilder::new()
+            .with_inputs(ClientInputBundle::new_no_sm(vec![input]).into_dyn(spv2.id)),
+    )
+    .await
+}
+
+/// Deposit ecash straight into the payout account, which no withdrawal does
+/// and so triggers no sweep.
+async fn deposit_to_payout(fed: &FederationV2, amount: Amount) -> anyhow::Result<()> {
+    let spv2 = fed.client.spv2()?;
+    let output = ClientOutput {
+        amounts: Amounts::new_bitcoin(amount),
+        output: StabilityPoolOutput::V1(StabilityPoolOutputV1::DepositToBtcBalance(
+            DepositToBtcBalanceOutput {
+                account_id: spv2.own_account(OwnAccount::MultispendBtcPayout).id(),
+                seek_request: SeekRequest(amount),
+                metadata: BtcBalanceDepositMetadata(vec![]),
+            },
+        )),
+    };
+    submit_test_tx(
+        fed,
+        TransactionBuilder::new()
+            .with_outputs(ClientOutputBundle::new_no_sm(vec![output]).into_dyn(spv2.id)),
+    )
+    .await
+}
+
+/// Submit `tx` and wait for its acceptance. It is not a stability pool
+/// operation, so a relaunch leaves it alone.
+async fn submit_test_tx(fed: &FederationV2, tx: TransactionBuilder) -> anyhow::Result<()> {
+    let operation_id = OperationId::new_random();
+    let outpoints = fed
+        .client
+        .finalize_and_submit_transaction(operation_id, "multispend_test", |_| (), tx)
+        .await?;
+    fed.client
+        .transaction_updates(operation_id)
+        .await
+        .await_tx_accepted(outpoints.txid)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+/// Operations sweeping the payout account, staged or idle.
+async fn payout_sweeps(fed: &FederationV2) -> Vec<OperationId> {
+    fed.client
+        .operation_log()
+        .paginate_operations_rev(100, None)
+        .await
+        .into_iter()
+        .filter(|(_, entry)| {
+            let extra_meta = match entry.try_meta::<StabilityPoolMeta>() {
+                Ok(
+                    StabilityPoolMeta::Withdrawal { extra_meta, .. }
+                    | StabilityPoolMeta::WithdrawIdleBalance { extra_meta, .. },
+                ) => extra_meta,
+                _ => return false,
+            };
+            matches!(
+                serde_json::from_value(extra_meta),
+                Ok(SPv2WithdrawMetadata::MultispendBtcPayout)
+            )
+        })
+        .map(|(key, _)| key.operation_id)
+        .collect()
 }
 
 pub async fn test_multispend_rescan_processes_every_synced_event(
@@ -1024,7 +1721,8 @@ pub async fn test_multispend_send_returns_when_sync_skips_own_event(
     let user1 = RpcUserId(matrix1.client.user_id().unwrap().to_string());
     let user2 = RpcUserId(matrix2.client.user_id().unwrap().to_string());
     let (_, pk1) = secp256k1::SECP256K1.generate_keypair(&mut rand::thread_rng());
-    let event = MultispendEvent::GroupInvitation {
+    let event = MsEvent::GroupInvitation {
+        group_kind: MultispendGroupKind::Fiat,
         invitation: GroupInvitation {
             signers: BTreeSet::from([user1, user2]),
             threshold: 2,
@@ -1060,7 +1758,7 @@ pub async fn test_multispend_send_returns_when_sync_skips_own_event(
         multispend_sync_backoff(),
         || async {
             match multispend_matrix1
-                .get_multispend_group_status(&room_id)
+                .get_multispend_group_status(&room_id, MultispendGroupKind::Fiat)
                 .await
             {
                 multispend::db::RpcMultispendGroupStatus::ActiveInvitation { .. } => Ok(()),

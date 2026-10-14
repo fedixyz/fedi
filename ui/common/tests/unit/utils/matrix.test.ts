@@ -94,6 +94,7 @@ const mockGroupAnnounceEvent: MatrixMultispendEvent<'groupReannounce'> = {
     content: {
         msgtype: 'xyz.fedi.multispend',
         kind: 'groupReannounce',
+        groupKind: 'fiat',
         invitationId: 'iid1',
         invitation: {
             signers: ['@user1:m1.8fa.in', '@user2:m1.8fa.in'],

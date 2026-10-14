@@ -96,6 +96,10 @@ pub struct RemoteFeatures {
     /// cached/older payload that omits the field.
     #[serde(default)]
     pub wallet_service_dkg_restart: bool,
+    /// `#[serde(default)]` so the new bridge stays deserializable against any
+    /// cached/older payload that omits the field.
+    #[serde(default)]
+    pub btc_multispend: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -201,6 +205,12 @@ pub struct FeatureCatalog {
     /// Gates the offer to restart a stuck DKG on the wallet service setup
     /// progress screen.
     pub wallet_service_dkg_restart: Option<WalletServiceDkgRestartFeatureConfig>,
+
+    /// Gates only creating bitcoin-only multispend groups (the invitation),
+    /// joining them (the invitation vote) and depositing into them.
+    /// Withdrawal requests, approvals, rejections, cancelling and the payout
+    /// sweep always work, so members can take funds out of an existing group.
+    pub btc_multispend: Option<BtcMultispendFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -351,6 +361,10 @@ pub struct WalletServiceDkgRestartFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct BtcMultispendFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -422,6 +436,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.btc_multispend = if remote_features.btc_multispend {
+            Some(BtcMultispendFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -470,6 +489,7 @@ impl FeatureCatalog {
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
+            btc_multispend: Some(BtcMultispendFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -531,6 +551,7 @@ impl FeatureCatalog {
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
+            btc_multispend: Some(BtcMultispendFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -590,6 +611,7 @@ impl FeatureCatalog {
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
+            btc_multispend: Some(BtcMultispendFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -653,6 +675,7 @@ impl FeatureCatalog {
             wallet_service_creation: None,
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
+            btc_multispend: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -769,5 +792,6 @@ mod tests {
         assert!(!remote_features.wallet_service_creation);
         assert!(!remote_features.mini_app_seed);
         assert!(!remote_features.wallet_service_dkg_restart);
+        assert!(!remote_features.btc_multispend);
     }
 }

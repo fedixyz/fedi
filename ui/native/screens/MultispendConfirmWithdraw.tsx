@@ -61,7 +61,7 @@ const MultispendConfirmWithdraw: React.FC<Props> = ({ route }: Props) => {
         try {
             await fedimint.matrixSendMultispendWithdrawalRequest({
                 roomId,
-                amount,
+                amount: { fiatAmount: amount },
                 description: notes,
             })
 

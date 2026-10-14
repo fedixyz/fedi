@@ -419,7 +419,7 @@ export function makeTestWithdrawRequestWithApprovals(
     }
 
     return {
-        request: { transfer_amount: 0 as MSats },
+        request: { kind: 'fiat', transfer_amount: 0 },
         description: '',
         signatures: {},
         rejections: [],
@@ -436,6 +436,7 @@ export function makeTestGroupInvitationWithKeys(): GroupInvitationWithKeys {
             federationInviteCode: 'fed1test123',
             federationName: '',
         },
+        kind: 'fiat',
         proposer: TEST_NPUB,
         pubkeys: {},
         rejections: [],
