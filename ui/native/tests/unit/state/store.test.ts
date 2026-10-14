@@ -3,7 +3,9 @@ import { AppState, AppStateStatus } from 'react-native'
 import { removeFederations, setFederations } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 
+import type * as BridgeModule from '../../../bridge'
 import { fedimint } from '../../../bridge'
+import type * as StoreModule from '../../../state/store'
 import { initializeNativeStore, store } from '../../../state/store'
 
 jest.mock('../../../bridge', () => {
@@ -14,8 +16,7 @@ jest.mock('../../../bridge', () => {
         fedimint: createMockFedimintBridge({
             getGuardianStatus: () => new Promise(() => {}),
         }),
-        subscribeToBridgeEvents: jest.fn(async () => []),
-        unsubscribeFromBridgeEvents: jest.fn(),
+        subscribeToBridgeEvents: jest.fn(async () => undefined),
     }
 })
 
@@ -66,6 +67,40 @@ describe('native guardian monitoring lifecycle', () => {
             store.dispatch(removeFederations([mockFederation1.id]))
             jest.restoreAllMocks()
             jest.useRealTimers()
+        }
+    })
+})
+
+describe('native bridge event forwarding', () => {
+    // Android can destroy the activity, unmounting <App />, while the JS
+    // runtime and the bridge's open streams survive; the next activity
+    // remounts <App /> in the same runtime. Events sent in between must
+    // still reach `fedimint`, and the remount must not forward them twice.
+    it('subscribes once per JS runtime, across unmount and remount', async () => {
+        // A fresh store module: the subscription is module state that the
+        // guardian test above has already initialized.
+        let bridge!: typeof BridgeModule
+        let isolated!: typeof StoreModule
+        jest.isolateModules(() => {
+            /* eslint-disable @typescript-eslint/no-require-imports */
+            bridge = require('../../../bridge')
+            isolated = require('../../../state/store')
+            /* eslint-enable @typescript-eslint/no-require-imports */
+        })
+        const subscribe = jest.mocked(bridge.subscribeToBridgeEvents)
+        const callsBefore = subscribe.mock.calls.length
+
+        const cleanupFirstMount = isolated.initializeNativeStore()
+        cleanupFirstMount()
+        const cleanupRemount = isolated.initializeNativeStore()
+        try {
+            await Promise.resolve()
+            expect(subscribe.mock.calls.length - callsBefore).toBe(1)
+            expect(
+                isolated.store.getState().environment.eventListenersReady,
+            ).toBe(true)
+        } finally {
+            cleanupRemount()
         }
     })
 })

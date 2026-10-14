@@ -4,12 +4,11 @@ import {
     fedimint,
     getAppFlavor,
     initializeBridge as initializeBridgeRemote,
-    unsubscribeFromBridgeEvents,
     subscribeToBridgeEvents,
 } from '@fedi/common/utils/remote-bridge'
 import { RpcAppFlavor } from '@fedi/common/types/bindings'
 
-export { fedimint, getAppFlavor, subscribeToBridgeEvents, unsubscribeFromBridgeEvents }
+export { fedimint, getAppFlavor, subscribeToBridgeEvents }
 
 export async function initializeBridge(
     _deviceId: string,

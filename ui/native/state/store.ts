@@ -15,11 +15,7 @@ import {
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import {
-    fedimint,
-    subscribeToBridgeEvents,
-    unsubscribeFromBridgeEvents,
-} from '../bridge'
+import { fedimint, subscribeToBridgeEvents } from '../bridge'
 import i18n from '../localization/i18n'
 import { version } from '../package.json'
 import { getNumberFormatLocale } from '../utils/device-info'
@@ -33,6 +29,15 @@ export type AppStore = typeof store
 export type AppState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch &
     ThunkDispatch<CommonState, unknown, UnknownAction>
+
+// Forwarding native bridge events to `fedimint` must live as long as the JS
+// runtime, not as long as <App />. Android can unmount the app (activity
+// destroyed) while the process, this store, `fedimint` and its open RPC
+// streams survive, and the next activity remounts the app in the same
+// runtime. Unsubscribing on unmount dropped every stream update sent in
+// between, so incremental updates applied after the remount (room list,
+// timelines) built on state that had silently missed changes.
+let bridgeEventsSubscribed: Promise<unknown> | undefined
 
 export function initializeNativeStore() {
     // Common initialization behavior
@@ -54,12 +59,10 @@ export function initializeNativeStore() {
         },
     })
 
-    // Subscribe to native bridge events and dispatch ready state when complete
-    let nativeEventListeners: Awaited<
-        ReturnType<typeof subscribeToBridgeEvents>
-    >
-    subscribeToBridgeEvents().then(listeners => {
-        nativeEventListeners = listeners
+    // Subscribe to native bridge events once per JS runtime and dispatch
+    // ready state when complete
+    bridgeEventsSubscribed ??= subscribeToBridgeEvents()
+    bridgeEventsSubscribed.then(() => {
         log.info('initialized bridge event listeners')
         store.dispatch(setEventListenersReady(true))
     })
@@ -102,7 +105,6 @@ export function initializeNativeStore() {
 
     return () => {
         unsubscribe()
-        unsubscribeFromBridgeEvents(nativeEventListeners)
         changeSubscription.remove()
         networkSubscription()
     }

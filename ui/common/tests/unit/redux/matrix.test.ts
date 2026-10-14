@@ -9,14 +9,17 @@ import {
     selectMatrixHasNotifications,
     selectMatrixHasNotificationsIncludingInvites,
     selectMatrixRoomEvents,
+    selectMatrixStatus,
     selectMatrixRoomInviteIsSeen,
     selectMatrixRoomRawEvents,
     selectMatrixRoomSelectableEventIds,
     setChatDraft,
     setupStore,
+    startMatrixClient,
     toggleMatrixReaction,
 } from '@fedi/common/redux'
-import { MatrixRoom } from '@fedi/common/types'
+import { MatrixRoom, MatrixSyncStatus } from '@fedi/common/types'
+import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { canAddMatrixReaction } from '@fedi/common/utils/matrix'
 
 import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
@@ -105,6 +108,50 @@ describe('matrix room timeline selectors', () => {
                 selectedRoomId,
             ),
         ).toBe(selectableEventIds)
+    })
+})
+
+describe('startMatrixClient', () => {
+    // The JS runtime outlives the React tree on Android: closing the app
+    // destroys the activity and unmounts <App />, but the process (kept alive
+    // by e.g. a push notification) keeps the redux store and the started
+    // Matrix client. Reopening remounts <App />, which starts Matrix again.
+    function createStartedClientBridge() {
+        const listeners: Record<string, ((value: unknown) => void)[]> = {}
+        const client = {
+            hasStarted: false,
+            on: (event: string, cb: (value: unknown) => void) => {
+                listeners[event] = [...(listeners[event] ?? []), cb]
+            },
+            start: jest.fn(async () => {
+                client.hasStarted = true
+            }),
+            emit: (event: string, value: unknown) =>
+                listeners[event]?.forEach(cb => cb(value)),
+        }
+        // only the client surface startMatrixClient touches
+        const fedimint = {
+            getMatrixClient: () => client,
+        } as unknown as FedimintBridge
+        return { client, fedimint }
+    }
+
+    it('keeps the synced status when the client has already started', async () => {
+        const store = setupStore()
+        const { client, fedimint } = createStartedClientBridge()
+
+        await store.dispatch(startMatrixClient({ fedimint }))
+        client.emit('status', MatrixSyncStatus.synced)
+        expect(selectMatrixStatus(store.getState())).toBe(
+            MatrixSyncStatus.synced,
+        )
+
+        await store.dispatch(startMatrixClient({ fedimint }))
+
+        expect(client.start).toHaveBeenCalledTimes(1)
+        expect(selectMatrixStatus(store.getState())).toBe(
+            MatrixSyncStatus.synced,
+        )
     })
 })
 

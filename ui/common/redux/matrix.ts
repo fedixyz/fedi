@@ -940,124 +940,136 @@ export const startMatrixClient = createAsyncThunk<
     void,
     { fedimint: FedimintBridge },
     { state: CommonState }
->('matrix/startMatrix', async ({ fedimint }, { getState, dispatch }) => {
-    // Create or grab existing client, bail out if we've already started.
-    // TODO: when short circuiting on hasStarted, we should try to return
-    // the same promise as the existing start call. Otherwise we may show
-    // success on a second call, but failure on the first one.
-    const client = fedimint.getMatrixClient()
-    if (client.hasStarted) {
-        log.info('Matrix client already started')
-        return
-    }
+>(
+    'matrix/startMatrix',
+    async ({ fedimint }, { getState, dispatch }) => {
+        const client = fedimint.getMatrixClient()
 
-    // Bind all the listeners we need to dispatch actions
-    client.on('auth', auth => dispatch(setMatrixAuth(auth)))
-    client.on('roomListUpdate', updates => {
-        dispatch(handleMatrixRoomListStreamUpdates(updates))
-    })
-    client.on('roomInfo', room => {
-        dispatch(addMatrixRoomInfo(room))
-        // Disable auto-joining rooms when matrix sp transfer ui is on
-        const autoJoinRooms =
-            selectFeatureFlag(getState(), 'sp_transfer_ui')?.mode !== 'Chat'
+        // Bind all the listeners we need to dispatch actions
+        client.on('auth', auth => dispatch(setMatrixAuth(auth)))
+        client.on('roomListUpdate', updates => {
+            dispatch(handleMatrixRoomListStreamUpdates(updates))
+        })
+        client.on('roomInfo', room => {
+            dispatch(addMatrixRoomInfo(room))
+            // Disable auto-joining rooms when matrix sp transfer ui is on
+            const autoJoinRooms =
+                selectFeatureFlag(getState(), 'sp_transfer_ui')?.mode !== 'Chat'
 
-        if (
-            room.roomState === 'invited' &&
-            // Auto join invited rooms if the feature flag is disabled,
-            // OR it's a bot
-            // OR it's a group chat
-            (autoJoinRooms ||
-                room.name === GUARDIANITO_BOT_DISPLAY_NAME ||
-                !room.isDirect)
-        ) {
-            dispatch(joinMatrixRoom({ fedimint, roomId: room.id }))
-        }
+            if (
+                room.roomState === 'invited' &&
+                // Auto join invited rooms if the feature flag is disabled,
+                // OR it's a bot
+                // OR it's a group chat
+                (autoJoinRooms ||
+                    room.name === GUARDIANITO_BOT_DISPLAY_NAME ||
+                    !room.isDirect)
+            ) {
+                dispatch(joinMatrixRoom({ fedimint, roomId: room.id }))
+            }
 
-        // Check if this room is a guardianito room and save it in redux
-        if (room.name === GUARDIANITO_BOT_DISPLAY_NAME && room.directUserId) {
-            dispatch(
-                setGuardianitoBot({
-                    bot_user_id: room.directUserId,
-                    bot_room_id: room.id,
-                }),
-            )
-        }
-    })
-    client.on('roomMember', member => dispatch(addMatrixRoomMember(member)))
-    client.on('roomMembers', ev => dispatch(setMatrixRoomMembers(ev)))
-    client.on('roomTimelineUpdate', ev =>
-        dispatch(handleMatrixRoomTimelineStreamUpdates(ev)),
-    )
-    client.on('roomPinnedTimelineUpdate', ev =>
-        dispatch(handleMatrixRoomPinnedTimelineStreamUpdates(ev)),
-    )
-    client.on('roomTimelinePaginationStatus', ev =>
-        dispatch(handleMatrixRoomTimelinePaginationStatus(ev)),
-    )
-    client.on('roomPowerLevels', ev => dispatch(setMatrixRoomPowerLevels(ev)))
-    client.on('roomNotificationMode', ev =>
-        dispatch(setMatrixRoomNotificationMode(ev)),
-    )
-    client.on('multispendUpdate', ev => {
-        if (ev.status)
-            dispatch(
-                setMatrixRoomMultispendStatus({
-                    roomId: ev.roomId,
-                    status: ev.status,
-                }),
-            )
-    })
-    client.on('multispendEventUpdate', ({ update, roomId, eventId }) => {
-        if (!update) return
-
-        dispatch(
-            updateMatrixRoomMultispendEvent({
-                roomId,
-                eventId,
-                update,
-            }),
+            // Check if this room is a guardianito room and save it in redux
+            if (
+                room.name === GUARDIANITO_BOT_DISPLAY_NAME &&
+                room.directUserId
+            ) {
+                dispatch(
+                    setGuardianitoBot({
+                        bot_user_id: room.directUserId,
+                        bot_room_id: room.id,
+                    }),
+                )
+            }
+        })
+        client.on('roomMember', member => dispatch(addMatrixRoomMember(member)))
+        client.on('roomMembers', ev => dispatch(setMatrixRoomMembers(ev)))
+        client.on('roomTimelineUpdate', ev =>
+            dispatch(handleMatrixRoomTimelineStreamUpdates(ev)),
         )
-    })
-    client.on('multispendAccountUpdate', ev => {
-        if (ev.info) {
+        client.on('roomPinnedTimelineUpdate', ev =>
+            dispatch(handleMatrixRoomPinnedTimelineStreamUpdates(ev)),
+        )
+        client.on('roomTimelinePaginationStatus', ev =>
+            dispatch(handleMatrixRoomTimelinePaginationStatus(ev)),
+        )
+        client.on('roomPowerLevels', ev =>
+            dispatch(setMatrixRoomPowerLevels(ev)),
+        )
+        client.on('roomNotificationMode', ev =>
+            dispatch(setMatrixRoomNotificationMode(ev)),
+        )
+        client.on('multispendUpdate', ev => {
+            if (ev.status)
+                dispatch(
+                    setMatrixRoomMultispendStatus({
+                        roomId: ev.roomId,
+                        status: ev.status,
+                    }),
+                )
+        })
+        client.on('multispendEventUpdate', ({ update, roomId, eventId }) => {
+            if (!update) return
+
             dispatch(
-                setMatrixRoomMultispendAccountInfo({
-                    roomId: ev.roomId,
-                    info: ev.info,
+                updateMatrixRoomMultispendEvent({
+                    roomId,
+                    eventId,
+                    update,
                 }),
             )
-        }
-    })
-    client.on('multispendTransactions', ev => {
-        if (ev.transactions) {
+        })
+        client.on('multispendAccountUpdate', ev => {
+            if (ev.info) {
+                dispatch(
+                    setMatrixRoomMultispendAccountInfo({
+                        roomId: ev.roomId,
+                        info: ev.info,
+                    }),
+                )
+            }
+        })
+        client.on('multispendTransactions', ev => {
+            if (ev.transactions) {
+                dispatch(
+                    updateMatrixRoomMultispendTxns({
+                        roomId: ev.roomId,
+                        events: ev.transactions,
+                    }),
+                )
+            }
+        })
+        client.on('spTransferStateUpdate', ({ roomId, eventId, state }) => {
             dispatch(
-                updateMatrixRoomMultispendTxns({
-                    roomId: ev.roomId,
-                    events: ev.transactions,
-                }),
+                setSpTransferState({ roomId, eventId, transferState: state }),
             )
-        }
-    })
-    client.on('spTransferStateUpdate', ({ roomId, eventId, state }) => {
-        dispatch(setSpTransferState({ roomId, eventId, transferState: state }))
-    })
+        })
 
-    client.on('ignoredUsers', ev => dispatch(setMatrixIgnoredUsers(ev)))
+        client.on('ignoredUsers', ev => dispatch(setMatrixIgnoredUsers(ev)))
 
-    client.on('error', err => dispatch(addMatrixError(err)))
+        client.on('error', err => dispatch(addMatrixError(err)))
 
-    client.on('status', status => {
-        log.debug('Matrix client status update: ', status)
-        if (status === getState().matrix.status) return
-        dispatch(setMatrixStatus(status))
-    })
+        client.on('status', status => {
+            log.debug('Matrix client status update: ', status)
+            if (status === getState().matrix.status) return
+            dispatch(setMatrixStatus(status))
+        })
 
-    // Start the client
-    await client.start(fedimint)
-    // preview default chats after matrix is ready
-    dispatch(previewAllDefaultChats({ fedimint }))
-})
+        // Start the client
+        await client.start(fedimint)
+        // preview default chats after matrix is ready
+        dispatch(previewAllDefaultChats({ fedimint }))
+    },
+    {
+        // Skip the whole thunk, `pending` included, once the client has
+        // started. `pending` resets the sync status to initialSync, and the
+        // sync indicator stream the first start subscribed to only emits on
+        // change, so a repeat start would leave chat loading forever. Android
+        // repeats the start when it recreates the activity in a process that
+        // outlived it: the JS runtime, this store and the started client
+        // survive, and the remounted app starts Matrix again.
+        condition: ({ fedimint }) => !fedimint.getMatrixClient().hasStarted,
+    },
+)
 
 export const setMatrixDisplayName = createAsyncThunk<
     void,

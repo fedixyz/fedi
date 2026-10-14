@@ -58,18 +58,11 @@ export async function subscribeToBridgeEvents() {
     const eventTypes: (keyof FedimintBridgeEventMap)[] =
         await FedimintFfi.getSupportedEvents()
 
-    // returns an array of subscriptions to unsubscribe later
-    return eventTypes.map(eventType =>
+    eventTypes.forEach(eventType =>
         emitter.addListener(eventType, (serializedEvent: string) => {
             fedimint.emit(eventType, JSON.parse(serializedEvent))
         }),
     )
-}
-
-export async function unsubscribeFromBridgeEvents(
-    subscriptions: Awaited<ReturnType<typeof subscribeToBridgeEvents>>,
-) {
-    subscriptions.forEach(s => s.remove())
 }
 
 export const getAppFlavor = (): RpcAppFlavor['type'] => {
