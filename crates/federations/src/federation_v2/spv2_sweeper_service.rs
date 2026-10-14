@@ -6,8 +6,10 @@ use fedimint_core::db::{Committable, DatabaseTransaction, IDatabaseTransactionOp
 use futures::StreamExt;
 use rpc_types::event::{Event, EventSink, TypedEventExt};
 use rpc_types::{RpcAmount, SPv2WithdrawMetadata};
-use stability_pool_client::common::{AccountType, FiatAmount, FiatOrAll, SyncResponse};
-use stability_pool_client::{StabilityPoolClientModule, StabilityPoolWithdrawalOperationState};
+use stability_pool_client::common::{FiatAmount, FiatOrAll, SyncResponse};
+use stability_pool_client::{
+    OwnAccount, StabilityPoolClientModule, StabilityPoolWithdrawalOperationState,
+};
 use tracing::{error, info};
 
 use super::FederationV2;
@@ -104,7 +106,7 @@ async fn sweep_spv2_inner(fed: &FederationV2, sync_response: SyncResponse) -> an
         .client
         .spv2()?
         .withdraw(
-            AccountType::Seeker,
+            OwnAccount::Seeker,
             FiatOrAll::Fiat(FiatAmount::from_btc_amount_roundtrip_safe(
                 sync_response.staged_balance,
                 sync_response.current_cycle.start_price,

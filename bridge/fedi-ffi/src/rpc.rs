@@ -87,6 +87,7 @@ use runtime::storage::state::FiatFXInfo;
 use runtime::storage::{BRIDGE_DB_PREFIX, OnboardingCompletionMethod, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use stability_pool_client::OwnAccount;
 use stability_pool_client::common::{AccountId, AccountType, FiatAmount, FiatOrAll};
 pub use tokio;
 use tracing::{Level, error, info, instrument};
@@ -1148,7 +1149,7 @@ async fn spv2OurPaymentAddress(
         account_id: federation
             .client
             .spv2()?
-            .our_account(AccountType::Seeker)
+            .own_account(OwnAccount::Seeker)
             .id(),
         federation_id_prefix: federation.federation_id().to_prefix(),
         federation_invite,

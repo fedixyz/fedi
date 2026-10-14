@@ -8,9 +8,8 @@ use rpc_types::{
     RpcAmount, RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard,
     RpcGuardianRemittanceDayBucket, RpcGuardianRemittanceModuleTotal,
 };
-use stability_pool_client::common::AccountType;
 use stability_pool_client::db::{UserOperationHistoryItem, UserOperationHistoryItemKind};
-use stability_pool_client::{StabilityPoolHistoryService, StabilityPoolSyncService};
+use stability_pool_client::{OwnAccount, StabilityPoolHistoryService, StabilityPoolSyncService};
 use time::OffsetDateTime;
 use tracing::error;
 
@@ -26,7 +25,7 @@ pub struct GuardianRemittanceAccount {
 impl GuardianRemittanceAccount {
     pub async fn new(fed: &FederationV2) -> anyhow::Result<Self> {
         let spv2 = fed.client.spv2()?;
-        let account_id = spv2.our_account(AccountType::BtcDepositor).id();
+        let account_id = spv2.own_account(OwnAccount::FeeRemittance).id();
         let account = Self {
             sync_service: StabilityPoolSyncService::new(
                 spv2.api.clone(),
@@ -66,7 +65,7 @@ impl GuardianRemittanceAccount {
         fed: &FederationV2,
     ) -> anyhow::Result<RpcGuardianRemittanceAccountInfo> {
         let spv2 = fed.client.spv2()?;
-        let account = spv2.our_account(AccountType::BtcDepositor);
+        let account = spv2.own_account(OwnAccount::FeeRemittance);
         Ok(RpcGuardianRemittanceAccountInfo {
             serialized_account: serde_json::to_string(&account)?,
         })
@@ -81,7 +80,7 @@ impl GuardianRemittanceAccount {
         fed: &FederationV2,
     ) -> anyhow::Result<impl Stream<Item = RpcGuardianRemittanceDashboard> + use<>> {
         let spv2 = fed.client.spv2()?;
-        let guardian_key = spv2.our_keypair(AccountType::BtcDepositor);
+        let guardian_key = spv2.own_keypair(OwnAccount::FeeRemittance);
         Ok(self
             .history_service
             .subscribe_to_user_operation_updates()

@@ -142,9 +142,9 @@ use stability_pool_client::db::{
     UserOperationHistoryItemKey, UserOperationHistoryItemKind,
 };
 use stability_pool_client::{
-    StabilityPoolClientInit, StabilityPoolDepositOperationState, StabilityPoolHistoryService,
-    StabilityPoolMeta, StabilityPoolSyncService, StabilityPoolTransferOperationState,
-    StabilityPoolWithdrawalOperationState,
+    OwnAccount, StabilityPoolClientInit, StabilityPoolDepositOperationState,
+    StabilityPoolHistoryService, StabilityPoolMeta, StabilityPoolSyncService,
+    StabilityPoolTransferOperationState, StabilityPoolWithdrawalOperationState,
 };
 use stability_pool_client_old::ClientAccountInfo;
 use tokio::sync::{Mutex, OnceCell};
@@ -921,7 +921,7 @@ impl FederationV2 {
         // If SPv2 is enabled and the module is available, we initialize the sync
         // service and the history service.
         if let Ok(spv2) = self.client.spv2() {
-            let account = spv2.our_account(AccountType::Seeker);
+            let account = spv2.own_account(OwnAccount::Seeker);
             if self
                 .spv2_sync_service
                 .set(
@@ -3650,7 +3650,7 @@ impl FederationV2 {
     /// cycle.
     pub async fn spv2_account_info(&self) -> Result<CachedSyncResponseValue> {
         let spv2 = self.client.spv2()?;
-        let account_id = spv2.our_account(AccountType::Seeker).id();
+        let account_id = spv2.own_account(OwnAccount::Seeker).id();
 
         spv2.db
             .clone()
@@ -3888,7 +3888,7 @@ impl FederationV2 {
             .await?;
         let (operation_id, _) = spv2
             .withdraw(
-                AccountType::Seeker,
+                OwnAccount::Seeker,
                 amount,
                 SPv2WithdrawMetadata::StableBalance {
                     frontend_metadata: Some(frontend_meta),
@@ -3935,14 +3935,14 @@ impl FederationV2 {
     /// Returns an error when this federation has no SPv2 client module.
     pub fn spv2_our_btc_depositor_account(&self) -> anyhow::Result<Account> {
         let spv2 = self.client.spv2()?;
-        Ok(spv2.our_account(AccountType::BtcDepositor))
+        Ok(spv2.own_account(OwnAccount::FeeRemittance))
     }
 
     pub async fn spv2_withdraw_guardian_remittance_all(&self) -> Result<()> {
         let spv2 = self.client.spv2()?;
         let (operation_id, _) = spv2
             .withdraw(
-                stability_pool_client::common::AccountType::BtcDepositor,
+                OwnAccount::FeeRemittance,
                 stability_pool_client::common::FiatOrAll::All,
                 SPv2WithdrawMetadata::GuardianRemittanceAccount,
             )
@@ -4098,14 +4098,14 @@ impl FederationV2 {
         let spv2 = self.client.spv2()?;
         let request = TransferRequest::new(
             nonce,
-            spv2.our_account(AccountType::Seeker),
+            spv2.own_account(OwnAccount::Seeker),
             amount,
             to_account,
             transfer_meta.encode(),
             u64::MAX,
             None,
         )?;
-        let signature = spv2.sign_transfer_request(&request);
+        let signature = spv2.sign_transfer(OwnAccount::Seeker, TransferRequestId::from(&request));
         let mut signatures = BTreeMap::new();
         signatures.insert(0, signature);
         SignedTransferRequest::new(request, signatures)
@@ -4211,7 +4211,7 @@ impl FederationV2 {
         txid: TransactionId,
     ) -> Option<UserOperationHistoryItem> {
         let spv2 = self.client.spv2().ok()?;
-        let account_id = spv2.our_account(AccountType::Seeker).id();
+        let account_id = spv2.own_account(OwnAccount::Seeker).id();
 
         spv2.db
             .clone()
@@ -4226,7 +4226,7 @@ impl FederationV2 {
         txid: TransactionId,
     ) -> Option<UserOperationHistoryItem> {
         let spv2 = self.client.spv2().ok()?;
-        let account_id = spv2.our_account(AccountType::BtcDepositor).id();
+        let account_id = spv2.own_account(OwnAccount::FeeRemittance).id();
 
         spv2.db
             .clone()
@@ -4249,7 +4249,7 @@ impl FederationV2 {
 
     fn spv2_our_seeker_account(&self) -> Option<Account> {
         let spv2 = self.client.spv2().ok()?;
-        Some(spv2.our_account(AccountType::Seeker))
+        Some(spv2.own_account(OwnAccount::Seeker))
     }
 
     pub fn spv2_force_sync(&self) {
@@ -5185,7 +5185,7 @@ impl FederationV2 {
             rand::thread_rng().r#gen(),
             group_account,
             FiatAmount(amount.0),
-            spv2.our_account(AccountType::Seeker).id(),
+            spv2.own_account(OwnAccount::Seeker).id(),
             vec![],
             u64::MAX,
             None,

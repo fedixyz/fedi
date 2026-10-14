@@ -132,7 +132,7 @@ impl SptFederationProvider for SptFederationProviderWrapper {
     async fn our_seeker_account_id(&self, federation_id: &str) -> Option<AccountId> {
         let federation = self.0.get_federation(federation_id).ok()?;
         federation.client.spv2().ok().map(|spv2| {
-            spv2.our_account(stability_pool_client::common::AccountType::Seeker)
+            spv2.own_account(stability_pool_client::OwnAccount::Seeker)
                 .id()
         })
     }
