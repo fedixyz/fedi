@@ -234,7 +234,6 @@ for attempt in 1 2 3; do
     >"$ATTEMPT_LOG" 2>&1 </dev/null &
   APP_PID=$!
   echo "$APP_PID" >"$PID_FILE"
-  cp "$ATTEMPT_LOG" "$LOG_FILE" 2>/dev/null || true
 
   for _ in $(seq 1 80); do
     if ! kill -0 "$APP_PID" 2>/dev/null; then break; fi
@@ -246,6 +245,7 @@ for attempt in 1 2 3; do
   if [[ -n "$APP_PORT" ]]; then
     echo "Appium started (PID=$APP_PID, port=$APP_PORT)"
     echo "$APP_PORT" >"$APPIUM_HOME/appium_port.txt"
+    mv "$ATTEMPT_LOG" "$LOG_FILE"
     break
   fi
 
