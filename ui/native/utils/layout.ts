@@ -2,16 +2,6 @@ import { Theme } from '@rneui/themed'
 import { Platform } from 'react-native'
 
 import { getIconSizeMultiplier } from '../components/ui/SvgImage'
-import { AndroidScreenSize } from '../constants'
-
-// Determine Android screen size category based on height
-export const getAndroidScreenSize = (
-    screenHeight: number,
-): AndroidScreenSize => {
-    if (screenHeight < AndroidScreenSize.SMALL) return AndroidScreenSize.SMALL
-    if (screenHeight < AndroidScreenSize.MEDIUM) return AndroidScreenSize.MEDIUM
-    return AndroidScreenSize.LARGE
-}
 
 export const getOverlayBottomPadding = (
     basePadding: number = 0,

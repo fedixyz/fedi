@@ -476,16 +476,6 @@ Keyboard handling covers **chat**, **forms**, and **fixed footers**. It uses **c
 
 ### Setup
 
-#### Chat (list + input)
-
--   [`useChatKeyboardBehavior`](./utils/hooks/keyboard.ts) Orchestrates scroll lift and input sizing; exposes:
-
-    -   `bottomOffset`
-    -   `setMessageInputHeight(height)`
-    -   `keyboardPadding`
-
-> **Notes:** Android lift is responsive and clamped by `CHAT_KEYBOARD_BEHAVIOR`.
-
 #### Fixed footers (SDK 35+)
 
 -   [`useImeFooterLift`](./utils/hooks/keyboard.ts) Returns a value to **add to footer** `marginBottom` when:
@@ -529,10 +519,9 @@ Keyboard handling covers **chat**, **forms**, and **fixed footers**. It uses **c
 
 #### Visible
 
--   Chat lists → lifted by `bottomOffset`.
 -   Footers → lifted via [`useImeFooterLift(...)`](./utils/hooks/keyboard.ts).
 
-> **Notes:** Safe-area bottom is respected; small screens add `keyboardPadding`.
+> **Notes:** Safe-area bottom is respected.
 
 #### Hidden
 
@@ -556,18 +545,9 @@ Defined in [`utils/hooks/keyboard.ts`](./utils/hooks/keyboard.ts)
 
     -   `isVisible`, `height`, `screenHeight`, `animationDuration`, `insets`
 
--   [`useChatKeyboardBehavior()`](./utils/hooks/keyboard.ts) → chat-specific:
-
-    -   `bottomOffset`, `setMessageInputHeight`, `keyboardPadding`
-
 -   [`useImeFooterLift(options)`](./utils/hooks/keyboard.ts) → SDK 35 footer lift
 -   [`useIosKeyboardOpen(threshold?)`](./utils/hooks/keyboard.ts) → iOS boolean
 -   [`useForceBlurOnKeyboardHide(enabled?)`](./utils/hooks/keyboard.ts) → Android workaround
-
-> **Notes:** Constants in [`constants.ts`](./constants.ts):
->
-> -   `CHAT_KEYBOARD_BEHAVIOR` (`ANDROID_OFFSET_PERCENT`, `MAX_BOTTOM_PERCENT`)
-> -   `KEYBOARD_PADDING` (`SMALL_MULTIPLIER`, `SMALL_MAX_PERCENT`, `LARGE_MULTIPLIER`, `LARGE_MAX_PERCENT`)
 
 ### Keyboard → JS state bridge (KeyboardManager)
 
@@ -585,7 +565,7 @@ Defined in [`utils/hooks/keyboard.ts`](./utils/hooks/keyboard.ts)
 
 1. Keyboard events update the shared `KeyboardManager` state.
 2. Hooks subscribe and compute per-screen offsets/padding.
-3. Screens apply `bottomOffset` (lists) or `marginBottom` (footers).
+3. Screens apply `marginBottom` (footers).
 
 #### Key implementation points
 
@@ -610,14 +590,6 @@ Defined in [`utils/hooks/keyboard.ts`](./utils/hooks/keyboard.ts)
 -   Additional `safeAreaContainerStyle` prop for container styling
 
 ### Usage Examples
-
-#### Chat (list + input)
-
-```javascript
-const { bottomOffset, setMessageInputHeight } = useChatKeyboardBehavior()
-<ChatConversation newMessageBottomOffset={bottomOffset} />
-<MessageInput onHeightChanged={setMessageInputHeight} />
-```
 
 #### Footer (Android SDK 35+)
 

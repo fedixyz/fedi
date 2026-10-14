@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
     Insets,
-    LayoutChangeEvent,
     NativeSyntheticEvent,
     Platform,
     Pressable,
@@ -65,7 +64,6 @@ type MessageInputProps = {
     isSending?: boolean
     isPublic?: boolean
     isDisabled?: boolean
-    onHeightChanged?: (height: number) => void
 }
 
 const SUGGESTIONS_MIN_HEIGHT = 120
@@ -76,7 +74,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
     isSending,
     isPublic = true,
     isDisabled = false,
-    onHeightChanged,
 }: MessageInputProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -257,11 +254,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
         [inputHeight, theme, MIN_INPUT_H],
     )
 
-    const onLayout = (event: LayoutChangeEvent) => {
-        if (!onHeightChanged) return
-        onHeightChanged(event.nativeEvent.layout.height)
-    }
-
     const handleSelectMention = useCallback(
         (item: MentionSelect) => {
             const { newText, newCursorPosition } = insertMention(
@@ -285,7 +277,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     return (
         <View
-            onLayout={onLayout}
             style={[
                 style.container,
                 Platform.OS === 'ios' && kbVisible && isFocused

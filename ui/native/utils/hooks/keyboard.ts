@@ -11,14 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { makeLog } from '@fedi/common/utils/log'
 
 import {
-    AndroidScreenSize,
-    CHAT_KEYBOARD_BEHAVIOR,
     DEFAULT_ANIMATION_DURATION,
     DEFAULT_KEYBOARD_HEIGHT_FALLBACK,
-    KEYBOARD_PADDING,
 } from '../../constants'
 import { KeyboardContextValue, KeyboardState } from '../../types/keyboard'
-import { getAndroidScreenSize, isAndroidAPI35Plus } from '../layout'
+import { isAndroidAPI35Plus } from '../layout'
 
 const log = makeLog('native/utils/keyboard')
 
@@ -250,70 +247,6 @@ export const useKeyboard = (): KeyboardContextValue => {
         () => ({ ...keyboardState, insets }),
         [keyboardState, insets],
     )
-}
-
-export const useChatKeyboardBehavior = (): {
-    bottomOffset: number
-    setMessageInputHeight: React.Dispatch<React.SetStateAction<number>>
-    keyboardPadding: number
-} => {
-    const {
-        isVisible,
-        height: keyboardHeight,
-        screenHeight,
-        insets,
-    } = useKeyboard()
-    const [messageInputHeight, setMessageInputHeight] = useState(0)
-
-    const calculatedBottomOffset = useMemo(() => {
-        // If the keyboard isn't visible, don't lift the conversation at all.
-        if (!isVisible) return 0
-
-        let offset = messageInputHeight
-
-        if (Platform.OS === 'android' && keyboardHeight > 0) {
-            const responsiveOffset =
-                screenHeight * CHAT_KEYBOARD_BEHAVIOR.ANDROID_OFFSET_PERCENT
-            offset +=
-                Math.max(0, keyboardHeight - insets.bottom) + responsiveOffset
-        }
-
-        return Math.min(
-            offset,
-            screenHeight * CHAT_KEYBOARD_BEHAVIOR.MAX_BOTTOM_PERCENT,
-        )
-    }, [
-        messageInputHeight,
-        isVisible,
-        keyboardHeight,
-        insets.bottom,
-        screenHeight,
-    ])
-
-    const keyboardPadding = useMemo(() => {
-        if (Platform.OS !== 'android' || !isVisible || keyboardHeight === 0)
-            return 0
-
-        const screenSize = getAndroidScreenSize(screenHeight)
-        const keyboardOffset = Math.max(0, keyboardHeight - insets.bottom)
-        const multiplier =
-            screenSize === AndroidScreenSize.SMALL
-                ? KEYBOARD_PADDING.SMALL_MULTIPLIER
-                : KEYBOARD_PADDING.LARGE_MULTIPLIER
-        const maxPercent =
-            screenSize === AndroidScreenSize.SMALL
-                ? KEYBOARD_PADDING.SMALL_MAX_PERCENT
-                : KEYBOARD_PADDING.LARGE_MAX_PERCENT
-
-        const padding = keyboardOffset * multiplier
-        return Math.min(padding, screenHeight * maxPercent)
-    }, [isVisible, keyboardHeight, screenHeight, insets.bottom])
-
-    return {
-        bottomOffset: calculatedBottomOffset,
-        setMessageInputHeight,
-        keyboardPadding,
-    }
 }
 
 export type ImeFooterLiftOptions = {

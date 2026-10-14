@@ -7,7 +7,7 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 import React from 'react'
-import { Keyboard } from 'react-native'
+import { FlatList as MockedFlatList, Keyboard, StyleSheet } from 'react-native'
 
 import { DEFAULT_PAGINATION_SIZE } from '@fedi/common/constants/matrix'
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
@@ -15,6 +15,7 @@ import {
     addMatrixRoomInfo,
     handleMatrixRoomTimelineStreamUpdates,
     setIsInternetUnreachable,
+    setMatrixAuth,
     setMatrixRoomMembers,
     setupStore,
 } from '@fedi/common/redux'
@@ -26,7 +27,7 @@ import {
     mockRoomMembers,
 } from '@fedi/common/tests/mock-data/matrix-event'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
-import { ChatType, MatrixEvent } from '@fedi/common/types'
+import { ChatType, MatrixAuth, MatrixEvent } from '@fedi/common/types'
 import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
 
@@ -383,7 +384,6 @@ function renderChat(
         <ChatConversation
             type={ChatType.group}
             id={ROOM_ID}
-            newMessageBottomOffset={90}
             {...resolvedProps}
         />,
         { store, fedimint },
@@ -402,7 +402,6 @@ function renderChatWithSelectedMessageOverlay({
             <ChatConversation
                 type={ChatType.group}
                 id={ROOM_ID}
-                newMessageBottomOffset={90}
                 listRefOverride={makeListRef() as any}
                 {...props}
             />
@@ -580,7 +579,6 @@ function rerenderExactScrollChat({
         <ChatConversation
             type={type}
             id={ROOM_ID}
-            newMessageBottomOffset={90}
             listRefOverride={makeListRef() as any}
             {...props}
         />,
@@ -1056,7 +1054,6 @@ describe('ChatConversation', () => {
             <ChatConversation
                 type={ChatType.group}
                 id={ROOM_ID}
-                newMessageBottomOffset={90}
                 listRefOverride={makeListRef() as any}
             />,
         )
@@ -1535,7 +1532,6 @@ describe('ChatConversation', () => {
             <ChatConversation
                 type={ChatType.group}
                 id={ROOM_ID}
-                newMessageBottomOffset={90}
                 listRefOverride={makeListRef() as any}
                 scrollToMessageRequest={{
                     eventId: '$burst-7',
@@ -1598,7 +1594,6 @@ describe('ChatConversation', () => {
             <ChatConversation
                 type={ChatType.group}
                 id={ROOM_ID}
-                newMessageBottomOffset={90}
                 listRefOverride={makeListRef() as any}
                 scrollToMessageRequest={{
                     eventId: '$burst-7',
@@ -1690,5 +1685,149 @@ describe('ChatConversation', () => {
 
         expect(mockScrollToIndex).toHaveBeenCalledTimes(2)
         expect(onScrollToMessageComplete).not.toHaveBeenCalled()
+    })
+
+    describe('new messages button', () => {
+        const MY_ID = '@me:example.com'
+
+        function storeWithSignedInConversation() {
+            const store = storeWithLoadedConversation(makeBurstEvents(3))
+            store.dispatch(
+                setMatrixAuth({
+                    userId: MY_ID,
+                    deviceId: 'device-1',
+                } as MatrixAuth),
+            )
+            return store
+        }
+
+        function newMessage(id: string, sender: string, timestamp: number) {
+            return handleMatrixRoomTimelineStreamUpdates({
+                roomId: ROOM_ID,
+                updates: [
+                    {
+                        PushBack: {
+                            value: createMockNonPaymentEvent({
+                                id: id as RpcTimelineEventItemId,
+                                roomId: ROOM_ID,
+                                sender,
+                                timestamp,
+                                content: { body: id, formatted: null },
+                            }),
+                        },
+                    },
+                ],
+            })
+        }
+
+        function scrollListTo(offsetY: number) {
+            fireEvent.scroll(screen.UNSAFE_getByType(MockedFlatList), {
+                nativeEvent: { contentOffset: { x: 0, y: offsetY } },
+            })
+        }
+
+        function settleAnimation() {
+            act(() => {
+                jest.advanceTimersByTime(500)
+            })
+        }
+
+        function getButtonBottom() {
+            return StyleSheet.flatten(
+                screen.getByTestId('ChatNewMessagesButton').props.style,
+            ).bottom as number
+        }
+
+        beforeEach(() => {
+            usingFakeTimers = true
+            jest.useFakeTimers()
+        })
+
+        it('starts parked below the list instead of sliding out of view on open', () => {
+            renderChat(storeWithSignedInConversation())
+
+            expect(getButtonBottom()).toBeLessThan(0)
+        })
+
+        it('floats above the bottom of the list when a message arrives while scrolled up', () => {
+            const store = storeWithSignedInConversation()
+            renderChat(store)
+            settleAnimation()
+
+            scrollListTo(400)
+            act(() => {
+                store.dispatch(
+                    newMessage(
+                        '$incoming',
+                        '@alice:example.com',
+                        1_750_083_099_000,
+                    ),
+                )
+            })
+            settleAnimation()
+
+            expect(getButtonBottom()).toBeGreaterThan(0)
+
+            scrollListTo(0)
+            settleAnimation()
+
+            expect(getButtonBottom()).toBeLessThan(0)
+        })
+
+        it('scrolls to the newest message and parks itself when tapped', () => {
+            const store = storeWithSignedInConversation()
+            renderChat(store)
+            settleAnimation()
+
+            scrollListTo(400)
+            act(() => {
+                store.dispatch(
+                    newMessage(
+                        '$incoming',
+                        '@alice:example.com',
+                        1_750_083_099_000,
+                    ),
+                )
+            })
+            settleAnimation()
+
+            fireEvent.press(
+                screen.getByText(i18n.t('feature.chat.new-messages')),
+            )
+            settleAnimation()
+
+            expect(mockScrollToOffset).toHaveBeenCalledWith({
+                offset: 0,
+                animated: true,
+            })
+            expect(getButtonBottom()).toBeLessThan(0)
+        })
+
+        it('stays parked when the new message is at the bottom or was sent by me', () => {
+            const store = storeWithSignedInConversation()
+            renderChat(store)
+            settleAnimation()
+
+            act(() => {
+                store.dispatch(
+                    newMessage(
+                        '$incoming',
+                        '@alice:example.com',
+                        1_750_083_099_000,
+                    ),
+                )
+            })
+            settleAnimation()
+
+            expect(getButtonBottom()).toBeLessThan(0)
+
+            scrollListTo(400)
+            act(() => {
+                store.dispatch(newMessage('$mine', MY_ID, 1_750_083_199_000))
+            })
+            settleAnimation()
+
+            expect(getButtonBottom()).toBeLessThan(0)
+        })
     })
 })
