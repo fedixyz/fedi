@@ -6,13 +6,20 @@ import { Text } from '../Text'
 
 export default function PinnedMessage({
     pinnedMessage,
+    compact = false,
 }: {
     pinnedMessage: string
+    /** Tighter padding and no pin icon, for use under a header */
+    compact?: boolean
 }) {
     return (
-        <PinnedMessageContainer>
-            <Icon icon="Pin" />
-            <Text variant="caption" css={{ flex: 1 }}>
+        <PinnedMessageContainer compact={compact} data-testid="PinnedMessage">
+            {!compact && (
+                <Icon icon="Pin" data-testid="PinnedMessage__PinIcon" />
+            )}
+            <Text
+                variant="caption"
+                css={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                 {stripAndDeduplicateWhitespace(pinnedMessage)}
             </Text>
         </PinnedMessageContainer>
@@ -26,4 +33,12 @@ const PinnedMessageContainer = styled('div', {
     display: 'flex',
     gap: 16,
     padding: 16,
+
+    variants: {
+        compact: {
+            true: {
+                padding: '8px 12px',
+            },
+        },
+    },
 })

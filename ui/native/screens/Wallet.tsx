@@ -10,6 +10,7 @@ import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federa
 import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
     selectCurrency,
+    selectFederationPinnedMessage,
     selectIsInternetUnreachable,
     setSelectedFederationId,
     selectLoadedFederations,
@@ -23,6 +24,7 @@ import { getCurrencyCode } from '@fedi/common/utils/currency'
 
 import WalletBalanceCard from '../components/feature/federations/BalanceCard'
 import FederationStatusAvatar from '../components/feature/federations/FederationStatusAvatar'
+import PinnedMessage from '../components/feature/home/PinnedMessage'
 import WalletSetupEmpty from '../components/feature/wallet/WalletSetupEmpty'
 import { Column, Row } from '../components/ui/Flex'
 import HelpTooltip from '../components/ui/HelpTooltip'
@@ -56,6 +58,9 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
         selectCurrency(s, federationId),
     )
     const isOffline = useAppSelector(selectIsInternetUnreachable)
+    const pinnedMessage = useAppSelector(s =>
+        selectFederationPinnedMessage(s, federationId),
+    )
 
     const stabilityPoolDisabledByFederation =
         !useIsStabilityPoolEnabledByFederation(federationId)
@@ -114,7 +119,12 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
             style={style.scrollContainer}
             alwaysBounceVertical={false}>
             <Column gap="lg" fullWidth grow>
-                <SelectedWalletHeader federation={federation} />
+                <Column gap="sm" fullWidth>
+                    <SelectedWalletHeader federation={federation} />
+                    {pinnedMessage && (
+                        <PinnedMessage message={pinnedMessage} compact />
+                    )}
+                </Column>
                 {stabilityPoolDisabledByFederation ? null : (
                     <Switcher<'bitcoin' | 'stable-balance'>
                         options={[

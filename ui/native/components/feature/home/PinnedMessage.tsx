@@ -8,13 +8,18 @@ import SvgImage from '../../ui/SvgImage'
 
 type Props = {
     message: string
+    /** Tighter padding and no pin icon, for use under a header */
+    compact?: boolean
 }
-const PinnedMessage = ({ message }: Props) => {
+const PinnedMessage = ({ message, compact = false }: Props) => {
     const { theme } = useTheme()
     const style = styles(theme)
     return (
-        <GradientView variant="sky-banner" style={style.content}>
-            <SvgImage name="Pin" />
+        <GradientView
+            variant="sky-banner"
+            style={[style.content, compact && style.compactContent]}
+            testID="PinnedMessage">
+            {!compact && <SvgImage name="Pin" />}
             <Text caption style={style.message}>
                 {stripAndDeduplicateWhitespace(message)}
             </Text>
@@ -32,6 +37,10 @@ const styles = (theme: Theme) =>
             paddingVertical: theme.spacing.lg,
             paddingHorizontal: theme.spacing.xl,
             borderRadius: theme.borders.defaultRadius,
+        },
+        compactContent: {
+            paddingVertical: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.md,
         },
         message: {
             flex: 1,

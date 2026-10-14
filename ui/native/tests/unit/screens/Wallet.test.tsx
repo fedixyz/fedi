@@ -6,6 +6,7 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 
+import { Pin } from '@fedi/common/assets/svgs'
 import { useWalletServiceFederationId } from '@fedi/common/hooks/fa'
 import {
     fetchCurrencyPrices,
@@ -205,6 +206,47 @@ describe('Wallet screen', () => {
                 'WalletServiceDashboard',
             )
             expect(mockNavigation.navigate).toHaveBeenCalledTimes(1)
+        })
+
+        it('should show the pinned message without a pin icon when the federation has one', () => {
+            const federationWithPinnedMessage = {
+                ...mockFederation1,
+                meta: {
+                    ...mockFederation1.meta,
+                    'fedi:pinned_message': 'Guardian maintenance on Friday',
+                },
+            } as LoadedFederation
+
+            store.dispatch(setFederations([federationWithPinnedMessage]))
+            store.dispatch(
+                setSelectedFederationId(federationWithPinnedMessage.id),
+            )
+            renderWithProviders(
+                <Wallet
+                    route={walletRoute}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            expect(
+                screen.getByText('Guardian maintenance on Friday'),
+            ).toBeOnTheScreen()
+            expect(Pin).not.toHaveBeenCalled()
+        })
+
+        it('should not show a pinned message when the federation has none', () => {
+            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(setSelectedFederationId(mockFederation1.id))
+            renderWithProviders(
+                <Wallet
+                    route={walletRoute}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            expect(screen.queryByTestId('PinnedMessage')).not.toBeOnTheScreen()
         })
 
         it('pressing the transaction history button should navigate to transactions screen', async () => {
