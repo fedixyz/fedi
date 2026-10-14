@@ -137,6 +137,7 @@ export default class AppiumManager {
         const debugMode =
             process.env.DEBUG_MODE === '1' || process.env.DEBUG_MODE === 'true'
 
+        const t0 = Date.now()
         console.log(`Initializing Appium session for actor "${handle}"...`)
         const driver = await remote({
             protocol: 'http',
@@ -175,7 +176,9 @@ export default class AppiumManager {
             }
         }
 
-        console.log(`Appium session for actor "${handle}" initialized`)
+        console.log(
+            `Appium session for actor "${handle}" initialized in ${Date.now() - t0}ms`,
+        )
         return driver
     }
 
