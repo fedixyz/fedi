@@ -285,7 +285,7 @@ _capture_android_logs() {
     local app_id="${APP_PACKAGE:-com.fedi}"
     local out_dir="$REPO_ROOT/ui/.appium"
     mkdir -p "$out_dir"
-    adb -s "$device" logcat -d \
+    adb -s "$device" logcat -d -v threadtime -v UTC -v year \
         > "$out_dir/logcat-$suffix.log" 2>/dev/null || true
     adb -s "$device" exec-out run-as "$app_id" sh -c 'cat files/fedi.log.*' \
         > "$out_dir/bridge-$suffix.log" 2>/dev/null || true
