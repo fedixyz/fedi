@@ -363,6 +363,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         multispend_tests::test_multispend_last_seen_cache_churn_does_not_panic,
         multispend_tests::test_multispend_seed_recovery_does_not_resubmit_withdrawals,
         multispend_tests::test_multispend_rescan_processes_every_synced_event,
+        multispend_tests::test_multispend_send_returns_when_sync_skips_own_event,
         sp_transfer_tests::test_end_to_end,
         sp_transfer_tests::test_receiver_joins_federation_later,
         test_lightning_send_and_receive,

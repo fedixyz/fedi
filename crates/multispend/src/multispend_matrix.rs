@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::pin::pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use async_stream::stream;
@@ -18,6 +19,7 @@ use runtime::bridge_runtime::Runtime;
 use runtime::utils::PoisonedLockExt as _;
 use stability_pool_client::common::TransferRequest;
 use tokio::sync::{Mutex, mpsc};
+use tracing::warn;
 
 use super::db::{MultispendGroupStatus, MultispendMarkedForScanning, RpcMultispendGroupStatus};
 use super::rescanner::RoomRescannerManager;
@@ -26,6 +28,9 @@ use super::{
     FederationProvider, FinalizedGroup, GroupInvitation, MsEventData, MultispendEvent,
     MultispendGroupVoteType, MultispendListedEvent, WithdrawalResponseType,
 };
+
+/// How long a send waits for sync to deliver its own event.
+const SEND_SERVER_ACK_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct MultispendMatrix {
     pub client: Client,
@@ -47,7 +52,7 @@ pub struct MultispendMatrix {
     //
     // This ensures multispend events are properly synchronized with the server
     // before returning from the send method.
-    send_multispend_server_ack: std::sync::Mutex<Option<mpsc::Sender<OwnedEventId>>>,
+    send_multispend_server_ack: std::sync::Mutex<Option<mpsc::UnboundedSender<OwnedEventId>>>,
 }
 
 impl MultispendMatrix {
@@ -98,8 +103,9 @@ impl MultispendMatrix {
                     if is_multispend {
                         // see docs on `send_multispend_server_ack`
                         let sender = this.send_multispend_server_ack.ensure_lock().clone();
+                        // unbounded so a waiting send can never block sync processing
                         if let Some(sender) = sender {
-                            sender.send(event_id.to_owned()).await.ok();
+                            sender.send(event_id.to_owned()).ok();
                         }
                     }
                 }
@@ -111,7 +117,7 @@ impl MultispendMatrix {
 
     pub fn send_multispend_server_ack(
         &self,
-    ) -> &std::sync::Mutex<Option<mpsc::Sender<OwnedEventId>>> {
+    ) -> &std::sync::Mutex<Option<mpsc::UnboundedSender<OwnedEventId>>> {
         &self.send_multispend_server_ack
     }
 
@@ -153,7 +159,7 @@ impl MultispendMatrix {
 
         self.mark_room_for_scanning(room_id).await;
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let (tx, mut rx) = mpsc::unbounded_channel();
 
         // Store the sender in the global field. see docs for send_mulitspend_server_ack
         *self.send_multispend_server_ack.ensure_lock() = Some(tx);
@@ -175,20 +181,26 @@ impl MultispendMatrix {
             )
             .await?;
 
-        // Receive messages until we find the one matching our event_id
-        let mut received = false;
-        while let Some(received_event_id) = rx.recv().await {
-            if received_event_id == event_id {
-                received = true;
-                break;
+        // Receive messages until we find the one matching our event_id. Sync may
+        // never deliver it: a limited timeline skips our event when more events
+        // arrive in the room before the next sync.
+        let received = fedimint_core::task::timeout(SEND_SERVER_ACK_TIMEOUT, async {
+            while let Some(received_event_id) = rx.recv().await {
+                if received_event_id == event_id {
+                    return;
+                }
             }
-        }
-        assert!(
-            received,
-            "only way to get out of loop because we don't drop the sender"
-        );
+            unreachable!("we don't drop the sender");
+        })
+        .await;
         // Drop the sender
         *self.send_multispend_server_ack.ensure_lock() = None;
+        if received.is_err() {
+            // the server accepted the event, the rescan back-paginates over the gap
+            warn!(%event_id, "multispend event not synced back, rescanning room");
+            self.rescanner.queue_rescan(room_id);
+            return Ok(());
+        }
         // wait for this event to be scanned in state.
         self.rescanner.wait_for_scanned(room_id).await;
 

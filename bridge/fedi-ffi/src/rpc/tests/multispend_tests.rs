@@ -961,3 +961,113 @@ pub async fn test_multispend_rescan_processes_every_synced_event(
 
     Ok(())
 }
+
+pub async fn test_multispend_send_returns_when_sync_skips_own_event(
+    _dev_fed: DevFed,
+) -> anyhow::Result<()> {
+    use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
+
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
+    let matrix1 = td1.matrix().await?;
+    let matrix2 = td2.matrix().await?;
+    let multispend_matrix1 = td1.multispend().await?;
+
+    let room_id = matrix1
+        .create_or_get_dm(matrix2.client.user_id().unwrap())
+        .await?;
+    matrix2.wait_for_room_id(&room_id).await?;
+    matrix2.room_join(&room_id).await?;
+    let room2 = matrix2
+        .client
+        .get_room(&room_id)
+        .context("td2 joined the room")?;
+
+    // event handlers run inside sync response processing, so blocking one
+    // pauses td1's sync until `resume` is notified
+    let paused = Arc::new(tokio::sync::Notify::new());
+    let resume = Arc::new(tokio::sync::Notify::new());
+    matrix1.client.add_event_handler({
+        let paused = paused.clone();
+        let resume = resume.clone();
+        move |event: OriginalSyncRoomMessageEvent| {
+            let paused = paused.clone();
+            let resume = resume.clone();
+            async move {
+                if event.content.body() == "pause sync" {
+                    paused.notify_one();
+                    resume.notified().await;
+                }
+            }
+        }
+    });
+    let multispend_seen = Arc::new(tokio::sync::Notify::new());
+    matrix2.client.add_event_handler({
+        let multispend_seen = multispend_seen.clone();
+        move |event: OriginalSyncRoomMessageEvent| {
+            let multispend_seen = multispend_seen.clone();
+            async move {
+                if event.content.msgtype() == multispend::MULTISPEND_MSGTYPE {
+                    multispend_seen.notify_one();
+                }
+            }
+        }
+    });
+
+    room2
+        .send(RoomMessageEventContent::text_plain("pause sync"))
+        .await?;
+    fedimint_core::task::timeout(Duration::from_secs(60), paused.notified())
+        .await
+        .context("td1 never synced the pause message")?;
+
+    let user1 = RpcUserId(matrix1.client.user_id().unwrap().to_string());
+    let user2 = RpcUserId(matrix2.client.user_id().unwrap().to_string());
+    let (_, pk1) = secp256k1::SECP256K1.generate_keypair(&mut rand::thread_rng());
+    let event = MultispendEvent::GroupInvitation {
+        invitation: GroupInvitation {
+            signers: BTreeSet::from([user1, user2]),
+            threshold: 2,
+            federation_invite_code: MOCK_FEDERATION_INVITE_CODE.to_string(),
+            federation_name: "test".to_string(),
+        },
+        proposer_pubkey: RpcPublicKey(pk1),
+    };
+    // the send gives up waiting for sync after 30s and leaves the event to the
+    // rescanner
+    let send = fedimint_core::task::timeout(
+        Duration::from_secs(45),
+        multispend_matrix1.send_multispend_event(&room_id, event),
+    );
+    // td1's next sync holds two new events in the room, and the room list
+    // timeline limit of 1 drops td1's own multispend event from the response
+    let interleave = async {
+        fedimint_core::task::timeout(Duration::from_secs(60), multispend_seen.notified())
+            .await
+            .context("td2 never synced td1's multispend event")?;
+        room2
+            .send(RoomMessageEventContent::text_plain("after multispend"))
+            .await?;
+        resume.notify_one();
+        anyhow::Ok(())
+    };
+    let (sent, interleaved) = futures::join!(send, interleave);
+    interleaved?;
+    sent.context("send_multispend_event never returned")??;
+
+    retry(
+        "wait for td1 to scan its invitation",
+        multispend_sync_backoff(),
+        || async {
+            match multispend_matrix1
+                .get_multispend_group_status(&room_id)
+                .await
+            {
+                multispend::db::RpcMultispendGroupStatus::ActiveInvitation { .. } => Ok(()),
+                status => anyhow::bail!("invitation not scanned yet: {status:?}"),
+            }
+        },
+    )
+    .await?;
+    Ok(())
+}
