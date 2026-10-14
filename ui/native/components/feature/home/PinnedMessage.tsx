@@ -1,9 +1,10 @@
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import { StyleSheet } from 'react-native'
 
 import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
 
 import GradientView from '../../ui/GradientView'
+import LinkifiedText from '../../ui/LinkifiedText'
 import SvgImage from '../../ui/SvgImage'
 
 type Props = {
@@ -20,9 +21,9 @@ const PinnedMessage = ({ message, compact = false }: Props) => {
             style={[style.content, compact && style.compactContent]}
             testID="PinnedMessage">
             {!compact && <SvgImage name="Pin" />}
-            <Text caption style={style.message}>
+            <LinkifiedText caption style={style.message}>
                 {stripAndDeduplicateWhitespace(message)}
-            </Text>
+            </LinkifiedText>
         </GradientView>
     )
 }

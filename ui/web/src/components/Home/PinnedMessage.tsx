@@ -2,6 +2,7 @@ import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
 
 import { styled } from '../../styles'
 import { Icon } from '../Icon'
+import { LinkifiedText } from '../LinkifiedText'
 import { Text } from '../Text'
 
 export default function PinnedMessage({
@@ -20,7 +21,9 @@ export default function PinnedMessage({
             <Text
                 variant="caption"
                 css={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
-                {stripAndDeduplicateWhitespace(pinnedMessage)}
+                <LinkifiedText
+                    text={stripAndDeduplicateWhitespace(pinnedMessage)}
+                />
             </Text>
         </PinnedMessageContainer>
     )

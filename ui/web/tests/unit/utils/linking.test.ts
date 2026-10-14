@@ -160,4 +160,12 @@ describe('utils/linking', () => {
             ).toBe('/home')
         })
     })
+    it('should preserve the complete browser destination in a universal link', () => {
+        const destination = 'https://example.com/app?mode=help#faq'
+        expect(
+            getDeepLinkPath(
+                `https://app.fedi.xyz/link#screen=browser&url=${encodeURIComponent(destination)}`,
+            ),
+        ).toBe(`/browser#url=${encodeURIComponent(destination)}`)
+    })
 })
