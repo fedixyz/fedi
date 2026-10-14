@@ -1136,6 +1136,85 @@ mod tests {
         }
     }
 
+    /// Refuses the first submission of each request in `loading`, as the
+    /// bridge does while the request's federation is still loading.
+    struct LoadingFederations {
+        loading: std::sync::Mutex<Vec<RpcEventId>>,
+        submitted: std::sync::Mutex<Vec<RpcEventId>>,
+    }
+
+    #[apply(async_trait_maybe_send!)]
+    impl FederationProvider for LoadingFederations {
+        async fn spv2_transfer(
+            &self,
+            _federation_id: &str,
+            _signed_request: SignedTransferRequest,
+            meta: SPv2TransferMetadata,
+        ) -> anyhow::Result<OperationId> {
+            let SPv2TransferMetadata::MultispendWithdrawal { request_id, .. } = meta else {
+                panic!("not a multispend withdrawal")
+            };
+            let mut loading = self.loading.lock().unwrap();
+            if let Some(index) = loading.iter().position(|id| *id == request_id) {
+                loading.remove(index);
+                anyhow::bail!("Federation is still loading");
+            }
+            self.submitted.lock().unwrap().push(request_id);
+            Ok(OperationId::new_random())
+        }
+
+        async fn multispend_group_sync_info(
+            &self,
+            _federation_id: &str,
+            _account_id: AccountId,
+        ) -> anyhow::Result<SyncResponse> {
+            unimplemented!()
+        }
+    }
+
+    #[tokio::test]
+    async fn withdrawal_service_retries_a_failed_submission() {
+        let mut room = Room::new(user("alice"));
+        let group = room.finalize().await;
+        let request = transfer_request(&group);
+        let mut request_ids = Vec::new();
+        for _ in 0..2 {
+            let (request_id, _) = room
+                .send(&user("alice"), withdrawal_request(request.clone()))
+                .await;
+            for (member, key) in [("alice", 1), ("bob", 2)] {
+                let approval = respond(&request_id, approve(&request, &keypair(key)));
+                assert!(room.send(&user(member), approval).await.1);
+            }
+            request_ids.push(request_id);
+        }
+        assert_eq!(room.queued().await.len(), 2);
+
+        // only the second request's federation is still loading at first
+        let federations = LoadingFederations {
+            loading: std::sync::Mutex::new(vec![request_ids[1].clone()]),
+            submitted: Default::default(),
+        };
+        let service = crate::withdrawal_service::WithdrawalService::default();
+        // nothing notifies the service after its first run
+        let drained = async {
+            while !room.queued().await.is_empty() {
+                fedimint_core::runtime::sleep(std::time::Duration::from_millis(100)).await;
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            tokio::select! {
+                () = service.run(&room.db, &federations) => unreachable!(),
+                () = drained => {}
+            }
+        })
+        .await
+        .expect("the failed submission was not retried");
+        // the first request, submitted before the failure, is not submitted
+        // again
+        assert_eq!(*federations.submitted.lock().unwrap(), request_ids);
+    }
+
     #[tokio::test]
     async fn forged_withdrawal_requests_are_invalid() {
         let mut room = Room::new(user("alice"));
