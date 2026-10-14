@@ -30,8 +30,8 @@ use rpc_types::{
 };
 use serde::{Deserialize, Serialize};
 use stability_pool_client::common::{
-    Account, AccountId, AccountType, AccountUnchecked, SignedTransferRequest, SyncResponse,
-    TransferRequest,
+    Account, AccountId, AccountType, AccountUnchecked, FiatAmount, SignedTransferRequest,
+    SyncResponse, TransferRequest, TransferRequestId,
 };
 use tracing::{error, info};
 use ts_rs::TS;
@@ -204,6 +204,20 @@ impl WithdrawRequestWithApprovals {
         let outcome = match response {
             WithdrawalResponseType::Approve { signature } => {
                 self.check_can_vote(&sender, finalized_group)?;
+                let member_key = finalized_group
+                    .pubkeys
+                    .get(&sender)
+                    .ok_or(ProcessEventError::InvalidMessage)?
+                    .0
+                    .x_only_public_key()
+                    .0;
+                signature
+                    .0
+                    .verify(
+                        &bitcoin::secp256k1::Message::from(&TransferRequestId::from(&self.request)),
+                        &member_key,
+                    )
+                    .map_err(|_| ProcessEventError::InvalidMessage)?;
                 self.signatures.insert(sender, signature);
                 match u64::try_from(self.signatures.len())
                     .unwrap_or(u64::MAX)
@@ -497,9 +511,12 @@ pub async fn process_event_db_raw(
             request,
             description,
         } => {
-            get_finalized_group_db(dbtx, room_id)
+            let finalized_group = get_finalized_group_db(dbtx, room_id)
                 .await
                 .ok_or(ProcessEventError::InvalidMessage)?;
+            if !is_valid_withdrawal_request(&finalized_group, &request) {
+                return Err(ProcessEventError::InvalidMessage);
+            }
             let key = MultispendWithdrawRequestKey {
                 room_id: room_id.clone(),
                 withdraw_request_event_id: event_id.clone(),
@@ -550,7 +567,7 @@ pub async fn process_event_db_raw(
                                 state.request.clone(),
                                 signatures,
                             )
-                            .unwrap(),
+                            .map_err(|_| ProcessEventError::InvalidMessage)?,
                             federation_id: finalized_group.federation_id.clone(),
                         },
                         &(),
@@ -601,6 +618,18 @@ pub async fn process_event_db_raw(
         }
     }
     Ok(())
+}
+
+/// Matrix events are untrusted, so members only see requests that move some
+/// funds out of the group account into another account. Any room member may
+/// request a withdrawal.
+fn is_valid_withdrawal_request(
+    finalized_group: &FinalizedGroup,
+    request: &TransferRequest,
+) -> bool {
+    request.from() == &finalized_group.spv2_account
+        && *request.to() != finalized_group.spv2_account.id()
+        && request.amount() != FiatAmount(0)
 }
 
 /// Get all accumulated data for an event id.
@@ -721,10 +750,12 @@ mod tests {
     use fedimint_core::db::Database;
     use fedimint_core::db::mem_impl::MemDatabase;
     use fedimint_core::module::registry::ModuleDecoderRegistry;
-    use stability_pool_client::common::{FiatAmount, TransferRequestId};
 
     use super::*;
-    use crate::db::MultispendPendingApprovedWithdrawalRequestKeyPrefix;
+    use crate::db::{
+        MultispendPendingApprovedWithdrawalRequestKey,
+        MultispendPendingApprovedWithdrawalRequestKeyPrefix,
+    };
 
     fn gen_test_pubkey() -> RpcPublicKey {
         let (_, pk) = secp256k1::SECP256K1.generate_keypair(&mut rand::thread_rng());
@@ -976,5 +1007,214 @@ mod tests {
             [1, 0, 0],
             "queue counts for approval-only, Complete, TxRejected"
         );
+    }
+
+    const INVITE_CODE: &str = "fed11qgqrgvnhwden5te0v9k8q6rp9ekh2arfdeukuet595cr2ttpd3jhq6rzve6zuer9wchxvetyd938gcewvdhk6tcqqysptkuvknc7erjgf4em3zfh90kffqf9srujn6q53d6r056e4apze5cw27h75";
+
+    fn keypair(byte: u8) -> secp256k1::Keypair {
+        secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, &[byte; 32]).unwrap()
+    }
+
+    fn user(name: &str) -> RpcUserId {
+        RpcUserId(format!("@{name}:example.com"))
+    }
+
+    /// One room whose events are processed one by one, as the rescanner does.
+    struct Room {
+        db: Database,
+        room_id: RpcRoomId,
+        our_id: RpcUserId,
+        events: u64,
+    }
+
+    impl Room {
+        fn new(our_id: RpcUserId) -> Self {
+            Self {
+                db: Database::new(MemDatabase::new(), ModuleDecoderRegistry::default()),
+                room_id: RpcRoomId("!room:example.com".to_string()),
+                our_id,
+                events: 0,
+            }
+        }
+
+        /// Process `event` and return its id and whether it was valid.
+        async fn send(&mut self, sender: &RpcUserId, event: MultispendEvent) -> (RpcEventId, bool) {
+            self.events += 1;
+            let event_id = RpcEventId(format!("$event{}", self.events));
+            let mut dbtx = self.db.begin_transaction().await;
+            let mut context = MultispendContext {
+                our_id: self.our_id.clone(),
+                check_pending_approved_withdrawal_requests: false,
+                refresh_account_info: false,
+            };
+            process_event_db(
+                &mut dbtx.to_ref_nc(),
+                &self.room_id,
+                sender.clone(),
+                event_id.clone(),
+                event,
+                self.events,
+                &mut context,
+            )
+            .await;
+            dbtx.commit_tx().await;
+            let mut dbtx = self.db.begin_transaction_nc().await;
+            let valid = !is_invalid_event(&mut dbtx, event_id.clone()).await;
+            (event_id, valid)
+        }
+
+        /// Finalize a 2-of-2 group of alice (`keypair(1)`) and bob
+        /// (`keypair(2)`).
+        async fn finalize(&mut self) -> FinalizedGroup {
+            let invitation = MultispendEvent::GroupInvitation {
+                invitation: GroupInvitation {
+                    signers: BTreeSet::from([user("alice"), user("bob")]),
+                    threshold: 2,
+                    federation_invite_code: INVITE_CODE.to_string(),
+                    federation_name: "test".to_string(),
+                },
+                proposer_pubkey: RpcPublicKey(keypair(1).public_key()),
+            };
+            let (invitation, valid) = self.send(&user("alice"), invitation).await;
+            assert!(valid);
+            let vote = MultispendEvent::GroupInvitationVote {
+                invitation,
+                vote: MultispendGroupVoteType::Accept {
+                    member_pubkey: RpcPublicKey(keypair(2).public_key()),
+                },
+            };
+            assert!(self.send(&user("bob"), vote).await.1);
+            get_finalized_group_db(&mut self.db.begin_transaction_nc().await, &self.room_id)
+                .await
+                .expect("group finalized")
+        }
+
+        async fn queued(&self) -> Vec<MultispendPendingApprovedWithdrawalRequestKey> {
+            self.db
+                .begin_transaction_nc()
+                .await
+                .find_by_prefix(&MultispendPendingApprovedWithdrawalRequestKeyPrefix)
+                .await
+                .map(|(key, ())| key)
+                .collect()
+                .await
+        }
+    }
+
+    /// $1.00 from the group account to another seeker account.
+    fn transfer_request(group: &FinalizedGroup) -> TransferRequest {
+        TransferRequest::new(
+            1,
+            group.spv2_account.clone(),
+            FiatAmount(100),
+            Account::single(keypair(42).public_key(), AccountType::Seeker).id(),
+            vec![],
+            u64::MAX,
+            None,
+        )
+        .unwrap()
+    }
+
+    fn withdrawal_request(request: TransferRequest) -> MultispendEvent {
+        MultispendEvent::WithdrawalRequest {
+            request,
+            description: "withdrawal".to_string(),
+        }
+    }
+
+    fn respond(request_id: &RpcEventId, response: WithdrawalResponseType) -> MultispendEvent {
+        MultispendEvent::WithdrawalResponse {
+            request: request_id.clone(),
+            response,
+        }
+    }
+
+    fn approve(request: &TransferRequest, key: &secp256k1::Keypair) -> WithdrawalResponseType {
+        let message = secp256k1::Message::from(&TransferRequestId::from(request));
+        WithdrawalResponseType::Approve {
+            signature: RpcSignature(secp256k1::SECP256K1.sign_schnorr_no_aux_rand(&message, key)),
+        }
+    }
+
+    #[tokio::test]
+    async fn forged_withdrawal_requests_are_invalid() {
+        let mut room = Room::new(user("alice"));
+        let group = room.finalize().await;
+        let valid = transfer_request(&group);
+
+        // same keys, but 1-of-2: any single member could sign for it
+        let lower_threshold: Account = AccountUnchecked {
+            acc_type: AccountType::Seeker,
+            pub_keys: group.spv2_account.pub_keys().copied().collect(),
+            threshold: 1,
+        }
+        .try_into()
+        .unwrap();
+        for (field, value) in [
+            ("from", serde_json::to_value(&lower_threshold).unwrap()),
+            ("to", serde_json::to_value(group.spv2_account.id()).unwrap()),
+            ("transfer_amount", serde_json::json!(0)),
+        ] {
+            // a matrix event skips the checks of the request constructor
+            let mut json = serde_json::to_value(&valid).unwrap();
+            json[field] = value.clone();
+            let forged = serde_json::from_value(json).unwrap();
+            let (_, accepted) = room.send(&user("alice"), withdrawal_request(forged)).await;
+            assert!(!accepted, "accepted a request with {field} = {value}");
+        }
+        assert!(room.send(&user("bob"), withdrawal_request(valid)).await.1);
+    }
+
+    #[tokio::test]
+    async fn non_signer_member_can_request_a_withdrawal() {
+        // carol is in the room but not a signer, and the UI offers her
+        // withdrawals like any member
+        let mut room = Room::new(user("carol"));
+        let group = room.finalize().await;
+        let request = TransferRequest::new(
+            1,
+            group.spv2_account.clone(),
+            FiatAmount(100),
+            Account::single(keypair(3).public_key(), AccountType::Seeker).id(),
+            vec![],
+            u64::MAX,
+            None,
+        )
+        .unwrap();
+        let (request_id, valid) = room
+            .send(&user("carol"), withdrawal_request(request.clone()))
+            .await;
+        assert!(valid);
+        for (member, key) in [("alice", 1), ("bob", 2)] {
+            let approval = respond(&request_id, approve(&request, &keypair(key)));
+            assert!(room.send(&user(member), approval).await.1);
+        }
+        let queued = room.queued().await;
+        assert_eq!(queued.len(), 1);
+        assert_eq!(*queued[0].transfer_request.details(), request);
+    }
+
+    #[tokio::test]
+    async fn approval_with_a_bad_signature_is_invalid() {
+        let mut room = Room::new(user("alice"));
+        let group = room.finalize().await;
+        let request = transfer_request(&group);
+        let (request_id, valid) = room
+            .send(&user("alice"), withdrawal_request(request.clone()))
+            .await;
+        assert!(valid);
+
+        // bob signs with alice's key, which used to panic alice's rescan at
+        // the threshold
+        let forged = respond(&request_id, approve(&request, &keypair(1)));
+        assert!(!room.send(&user("bob"), forged).await.1);
+        for (member, key) in [("alice", 1), ("bob", 2)] {
+            let approval = respond(&request_id, approve(&request, &keypair(key)));
+            assert!(room.send(&user(member), approval).await.1);
+        }
+        let queued = room.queued().await;
+        assert_eq!(queued.len(), 1);
+        assert_eq!(*queued[0].transfer_request.details(), request);
+        queued[0].transfer_request.validate_signatures().unwrap();
     }
 }
