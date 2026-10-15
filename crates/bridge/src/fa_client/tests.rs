@@ -1399,7 +1399,10 @@ fn liquidity_launch_recovery_uses_current_and_skips_non_resumable_operations() {
         liquidity_recovery_snapshot(
             &"05".repeat(32),
             LiquidityOperationPhase::Accepted,
-            &[ItemAllocationStatus::ActionRequired],
+            &[
+                ItemAllocationStatus::Failed,
+                ItemAllocationStatus::Cancelled,
+            ],
         ),
     ] {
         let mut recovery = LiquidityLaunchRecovery::new();
@@ -1509,6 +1512,97 @@ async fn liquidity_recovery_composes_current_reads_retries_and_claim_release() {
     assert_eq!(current_reads.load(AtomicOrdering::SeqCst), 2);
     assert_eq!(*resumed.lock().unwrap(), vec![first_id.clone(), first_id]);
     assert!(!recovery.has_work());
+}
+
+fn gateway_only_snapshot(
+    operation_id: &str,
+    status: ItemAllocationStatus,
+) -> LiquidityOperationSnapshot {
+    let mut snapshot =
+        completed_gateway_with_stability_status(operation_id, ItemAllocationStatus::Completed);
+    snapshot.amounts.stability_min_amount = Sats(0);
+    snapshot.item_statuses.truncate(1);
+    let gateway = &mut snapshot.item_statuses[0];
+    gateway.status = status;
+    if status != ItemAllocationStatus::Completed {
+        gateway.fulfilled_amount = None;
+        gateway.completion_evidence = None;
+    }
+    if status == ItemAllocationStatus::ActionRequired {
+        gateway.failure = Some(LiquidityFailure {
+            code: LiquidityFailureCode::GatewayAttachFailed,
+            reason: None,
+        });
+    }
+    snapshot
+}
+
+/// The provider reports `gateway_attach_failed`, its operator retries, and the
+/// allocation completes hours later. Recovery must keep polling slowly so the
+/// completion is fetched and the gateway gets registered.
+#[tokio::test]
+async fn liquidity_recovery_follows_action_required_until_provider_completes() {
+    let operation_id = "0e".repeat(32);
+    let attach_failed = gateway_only_snapshot(&operation_id, ItemAllocationStatus::ActionRequired);
+    let mut completed = gateway_only_snapshot(&operation_id, ItemAllocationStatus::Completed);
+    completed.gateway_view_verified = true;
+    let current = Arc::new(Mutex::new(VecDeque::from([
+        Some(gateway_only_snapshot(
+            &operation_id,
+            ItemAllocationStatus::Running,
+        )),
+        Some(attach_failed.clone()),
+        Some(attach_failed.clone()),
+    ])));
+    let resumes = Arc::new(Mutex::new(VecDeque::from([
+        attach_failed.clone(),
+        attach_failed,
+        completed,
+    ])));
+    let mut recovery = LiquidityLaunchRecovery::new();
+    let operation_active = Arc::new(AtomicBool::new(false));
+    let mut delays_before_reads = Vec::new();
+
+    while recovery.has_work() {
+        delays_before_reads.push(recovery.next_delay());
+        let current = current.clone();
+        let resumes = resumes.clone();
+        reconcile_one_liquidity_step(
+            &mut recovery,
+            &operation_active,
+            move || async move {
+                current
+                    .lock()
+                    .unwrap()
+                    .pop_front()
+                    .ok_or_else(|| FaError::Liquidity("unexpected current read".to_owned()))
+            },
+            move |_| async move {
+                resumes
+                    .lock()
+                    .unwrap()
+                    .pop_front()
+                    .ok_or_else(|| FaError::Liquidity("unexpected resume".to_owned()))
+            },
+        )
+        .await;
+    }
+
+    assert!(resumes.lock().unwrap().is_empty(), "completion was fetched");
+    assert!(current.lock().unwrap().is_empty());
+    // Read, resume (attach failed), slow read, resume (still failed), slow
+    // read, resume (completed and registered).
+    assert_eq!(
+        delays_before_reads,
+        vec![
+            Duration::ZERO,
+            Duration::ZERO,
+            FA_LIQUIDITY_OPERATOR_POLL_INTERVAL,
+            Duration::ZERO,
+            FA_LIQUIDITY_OPERATOR_POLL_INTERVAL,
+            Duration::ZERO,
+        ]
+    );
 }
 
 #[test]

@@ -131,6 +131,9 @@ const FEDIMINTD_MINIMUM: &str = "0.11.2";
 const FEDIMINTD_MAXIMUM_EXCLUSIVE: &str = "0.14.0";
 const FA_RESUME_INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const FA_RESUME_MAX_BACKOFF: Duration = Duration::from_secs(5 * 60);
+// Each poll is a provider discovery fetch plus one status RPC. An operator
+// retry can take hours, so poll an `ActionRequired` operation slowly.
+const FA_LIQUIDITY_OPERATOR_POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
 const FA_RESTART_ATTEMPTS: u32 = 40;
 const FA_RESTART_RETRY_DELAY: Duration = Duration::from_millis(50);
 const MG_TRANSPORT_INITIALIZATION_ERROR: &str = "Manifold Guardian transport initialization failed";
@@ -1158,7 +1161,12 @@ impl LiquidityLaunchRecovery {
     }
 
     fn record_current(&mut self, operation: Option<LiquidityOperationSnapshot>) {
-        let Some(operation) = operation.filter(should_resume_liquidity_on_launch) else {
+        let Some(operation) = operation.filter(|operation| {
+            !matches!(
+                liquidity_recovery_poll(operation),
+                LiquidityRecoveryPoll::Done
+            )
+        }) else {
             self.finish();
             return;
         };
@@ -1180,18 +1188,23 @@ impl LiquidityLaunchRecovery {
     }
 
     fn record_resume_success(&mut self, operation: LiquidityOperationSnapshot) {
-        if !should_resume_liquidity_on_launch(&operation) {
-            self.finish();
-            return;
-        }
-        let progress = self
-            .last_snapshot
-            .as_ref()
-            .is_some_and(|previous| previous != &operation);
+        self.retry_delay = match liquidity_recovery_poll(&operation) {
+            LiquidityRecoveryPoll::Done => {
+                self.finish();
+                return;
+            }
+            LiquidityRecoveryPoll::Active => {
+                let progress = self
+                    .last_snapshot
+                    .as_ref()
+                    .is_some_and(|previous| previous != &operation);
+                next_retry_delay(self.retry_delay, progress)
+            }
+            LiquidityRecoveryPoll::AwaitingProviderOperator => FA_LIQUIDITY_OPERATOR_POLL_INTERVAL,
+        };
         self.last_snapshot = Some(operation);
         self.pending = None;
         self.read_current = true;
-        self.retry_delay = next_retry_delay(self.retry_delay, progress);
     }
 
     fn finish(&mut self) {
@@ -2433,15 +2446,24 @@ fn should_auto_resume(status: &FaStatus) -> bool {
     )
 }
 
-fn should_resume_liquidity_on_launch(snapshot: &LiquidityOperationSnapshot) -> bool {
+/// How launch recovery should keep following one liquidity operation.
+enum LiquidityRecoveryPoll {
+    /// Nothing more for the app to fetch or register.
+    Done,
+    /// Provider work or our gateway registration is in progress.
+    Active,
+    /// Every unfinished item is `ActionRequired`. The provider operator can
+    /// still retry it to completion, so keep polling status, but slowly. On an
+    /// accepted operation a resume is a signed status read (plus gateway
+    /// registration once completed), never a replay of the request.
+    AwaitingProviderOperator,
+}
+
+fn liquidity_recovery_poll(snapshot: &LiquidityOperationSnapshot) -> LiquidityRecoveryPoll {
     match snapshot.phase {
-        LiquidityOperationPhase::Prepared => true,
-        LiquidityOperationPhase::Rejected => false,
+        LiquidityOperationPhase::Prepared => LiquidityRecoveryPoll::Active,
+        LiquidityOperationPhase::Rejected => LiquidityRecoveryPoll::Done,
         LiquidityOperationPhase::Accepted => {
-            let requires_operator = snapshot
-                .item_statuses
-                .iter()
-                .any(|item| item.status == ItemAllocationStatus::ActionRequired);
             let provider_work_is_live = snapshot.item_statuses.is_empty()
                 || snapshot.item_statuses.iter().any(|item| {
                     matches!(
@@ -2455,7 +2477,17 @@ fn should_resume_liquidity_on_launch(snapshot: &LiquidityOperationSnapshot) -> b
                     matches!(&item.target, AllocationItemTarget::Gateway { .. })
                         && item.status == ItemAllocationStatus::Completed
                 });
-            (!requires_operator && provider_work_is_live) || gateway_registration_is_pending
+            if provider_work_is_live || gateway_registration_is_pending {
+                LiquidityRecoveryPoll::Active
+            } else if snapshot
+                .item_statuses
+                .iter()
+                .any(|item| item.status == ItemAllocationStatus::ActionRequired)
+            {
+                LiquidityRecoveryPoll::AwaitingProviderOperator
+            } else {
+                LiquidityRecoveryPoll::Done
+            }
         }
     }
 }
