@@ -7,7 +7,11 @@ import {
 import React from 'react'
 import { Keyboard, Pressable } from 'react-native'
 
-import { selectSelectedChatMessage, setupStore } from '@fedi/common/redux'
+import {
+    selectSelectedChatMessage,
+    setFederations,
+    setupStore,
+} from '@fedi/common/redux'
 import { createMockFederationInviteEvent } from '@fedi/common/tests/mock-data/matrix-event'
 import { RpcFederationPreview } from '@fedi/common/types/bindings'
 import { MSats } from '@fedi/common/types/units'
@@ -64,51 +68,29 @@ jest.mock('../../../components/ui/SvgImage', () => {
 
 /** Creates a Redux store with the test federation in the joined list. */
 function storeWithJoinedFederation() {
-    const store = setupStore({
-        federation: {
-            federations: [
-                {
-                    init_state: 'ready' as const,
-                    status: 'online' as const,
-                    id: FEDERATION_ID,
-                    name: FEDERATION_NAME,
-                    balance: 0 as MSats,
-                    network: 'bitcoin',
-                    inviteCode: INVITE_CODE,
-                    meta: {},
-                    recovering: false,
-                    nodes: {},
-                    clientConfig: null,
-                    fediFeeSchedule: {
-                        remittanceThresholdMsat: 0,
-                        modules: {},
-                    },
-                    hadReusedEcash: false,
+    const store = setupStore()
+    store.dispatch(
+        setFederations([
+            {
+                init_state: 'ready' as const,
+                status: 'online' as const,
+                id: FEDERATION_ID,
+                name: FEDERATION_NAME,
+                balance: 0 as MSats,
+                network: 'bitcoin',
+                inviteCode: INVITE_CODE,
+                meta: {},
+                recovering: false,
+                nodes: {},
+                clientConfig: null,
+                fediFeeSchedule: {
+                    remittanceThresholdMsat: 0,
+                    modules: {},
                 },
-            ],
-            communities: [],
-            publicCommunities: [],
-            publicFederations: [],
-            autoSelectFederations: [],
-            payFromFederationId: null,
-            recentlyUsedFederationIds: [],
-            lastSelectedCommunityId: null,
-            authenticatedGuardian: null,
-            customFediMods: {},
-            defaultCommunityChats: {},
-            gatewaysByFederation: {},
-            seenFederationRatings: [],
-            previouslyAutojoinedCommunities: {},
-            autojoinNoticesToDisplay: [],
-            guardianitoBot: null,
-            selectedFederationId: null,
-            simulateRecoveryByFederation: {},
-            guardianHealthSimulation: {},
-            guardianStatusRequests: {},
-            guardianHealth: {},
-            isGuardianMonitoringActive: true,
-        },
-    })
+                hadReusedEcash: false,
+            },
+        ]),
+    )
     return store
 }
 

@@ -26,6 +26,7 @@ import { currencySlice, refreshHistoricalCurrencyRates } from './currency'
 import { environmentSlice, selectIsInternetUnreachable } from './environment'
 import { faSlice, setFaFederationJoin } from './fa'
 import {
+    checkFederationForAutojoinCommunities,
     federationSlice,
     joinFederation,
     migrateCommunityV1ToV2,
@@ -197,29 +198,36 @@ export function initializeCommonStore({
                     break
                 // For ready states we prepare the full loaded federation with meta + status updates
                 case 'ready': {
-                    let loadedFederation = coerceLoadedFederation(
+                    const existing = selectLoadedFederation(
+                        getState(),
+                        event.id,
+                    )
+                    const loadedFederation = coerceLoadedFederation(
                         event,
-                        selectLoadedFederation(getState(), event.id)?.status,
+                        existing?.status,
                     )
                     dispatch(upsertFederation(loadedFederation))
 
                     if ('meta' in loadedFederation) {
-                        // if the federation_name is found in the meta, overwrite top-level name field
-
-                        if (loadedFederation.meta.federation_name) {
-                            // Make copy to avoid permission errors assigning value to read-only property
-                            loadedFederation = {
-                                ...loadedFederation,
-                                name: loadedFederation.meta.federation_name,
-                            }
-                        }
-
                         dispatch(
                             processFederationMeta({
                                 fedimint,
                                 federation: loadedFederation,
                             }),
                         )
+                        // The join flow selects linked communities. Background joins must wait for it.
+                        if (
+                            existing &&
+                            getState().federation.federationJoinRequests
+                                .length === 0
+                        ) {
+                            dispatch(
+                                checkFederationForAutojoinCommunities({
+                                    fedimint,
+                                    federation: loadedFederation,
+                                }),
+                            )
+                        }
                     }
 
                     // also refresh the guardian status when we get a federation update

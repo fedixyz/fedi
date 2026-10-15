@@ -2,6 +2,7 @@ import {
     createAsyncThunk,
     createSelector,
     createSlice,
+    isAnyOf,
     PayloadAction,
 } from '@reduxjs/toolkit'
 import isEqual from 'lodash/isEqual'
@@ -100,6 +101,7 @@ const initialState = {
     seenFederationRatings: [] as Array<Federation['id']>,
     // A map of community IDs to the timestamp of when we autojoined them
     previouslyAutojoinedCommunities: {} as Record<Community['id'], number>,
+    federationJoinRequests: [] as string[],
     // A list of community IDs that were autojoined where a dismissable notice should be displayed to the user
     autojoinNoticesToDisplay: [] as Array<Community['id']>,
     guardianitoBot: null as GuardianitoBot | null,
@@ -594,6 +596,9 @@ export const federationSlice = createSlice({
         },
     },
     extraReducers: builder => {
+        builder.addCase(joinFederation.pending, (state, action) => {
+            state.federationJoinRequests.push(action.meta.requestId)
+        })
         builder.addCase(setIsInternetUnreachable, (state, action) => {
             if (action.payload) {
                 state.guardianHealth = {}
@@ -711,6 +716,15 @@ export const federationSlice = createSlice({
                 state.defaultCommunityChats[communityId] = updated
             }
         })
+        builder.addMatcher(
+            isAnyOf(joinFederation.fulfilled, joinFederation.rejected),
+            (state, action) => {
+                state.federationJoinRequests =
+                    state.federationJoinRequests.filter(
+                        id => id !== action.meta.requestId,
+                    )
+            },
+        )
     },
 })
 
@@ -1149,6 +1163,10 @@ export const autojoinCommunity = createAsyncThunk<
             )
             return
         }
+        if (selectCommunity(getState(), code)) {
+            dispatch(setPreviouslyAutojoinedCommunity({ communityId: code }))
+            return
+        }
         try {
             const joinedCommunity = await dispatch(
                 joinCommunity({ fedimint, code }),
@@ -1158,15 +1176,15 @@ export const autojoinCommunity = createAsyncThunk<
             if (setAsSelected) {
                 dispatch(setLastSelectedCommunityId(joinedCommunity.id))
             }
+            if (getState().federation.previouslyAutojoinedCommunities[code])
+                return
             log.info(
                 `autojoin succeeded, setting community as previously autojoined`,
                 joinedCommunity.name,
             )
             // this makes sure we only autojoin once
             // but we only set this if the join succeeds since we may be offline...
-            await dispatch(
-                setPreviouslyAutojoinedCommunity({ communityId: code }),
-            )
+            dispatch(setPreviouslyAutojoinedCommunity({ communityId: code }))
             // for existing members, we need to show a dismissable notice explaining the autojoin
             if (setAsSelected === false) {
                 dispatch(
@@ -1220,14 +1238,35 @@ export const joinFederation = createAsyncThunk<
     },
 )
 
+// The bridge rejects duplicate joins, including concurrent ones.
+const pendingCommunityJoinsByStore = new WeakMap<
+    () => CommonState,
+    Map<Community['id'], Promise<Community>>
+>()
+
 export const joinCommunity = createAsyncThunk<
     Community,
-    { fedimint: FedimintBridge; code: string }
->('federation/joinCommunity', async ({ fedimint, code }) => {
+    { fedimint: FedimintBridge; code: string },
+    { state: CommonState }
+>('federation/joinCommunity', async ({ fedimint, code }, { getState }) => {
     log.info(`joinCommunity: joining community with code '${code}'`)
-    const joinResult = await fedimint.joinCommunity({ inviteCode: code })
-    const community = coerceCommunity(joinResult)
-    return community
+    let pendingJoins = pendingCommunityJoinsByStore.get(getState)
+    if (!pendingJoins) {
+        pendingJoins = new Map()
+        pendingCommunityJoinsByStore.set(getState, pendingJoins)
+    }
+    let pendingJoin = pendingJoins.get(code)
+    if (!pendingJoin) {
+        pendingJoin = Promise.resolve(
+            fedimint.joinCommunity({ inviteCode: code }),
+        ).then(coerceCommunity)
+        pendingJoins.set(code, pendingJoin)
+    }
+    try {
+        return await pendingJoin
+    } finally {
+        if (pendingJoins.get(code) === pendingJoin) pendingJoins.delete(code)
+    }
 })
 
 export const tryRejoinFederationsPendingScratchRejoin = createAsyncThunk<

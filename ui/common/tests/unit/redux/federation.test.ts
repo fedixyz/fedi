@@ -1,4 +1,14 @@
+import i18n from 'i18next'
+
 import {
+    autojoinCommunity,
+    checkFederationForAutojoinCommunities,
+    clearAutojoinedCommunitiesAndNotices,
+    initializeCommonStore,
+    joinCommunity,
+    joinFederation,
+    leaveCommunity,
+    refreshFederations,
     refreshGuardianStatuses,
     removeFederations,
     selectFederations,
@@ -10,11 +20,23 @@ import {
     selectLoadedFederation,
     updateFederationBalance,
     setIsInternetUnreachable,
+    setCommunities,
+    setLastSelectedCommunityId,
+    setPreviouslyAutojoinedCommunity,
 } from '../../../redux'
-import { MSats } from '../../../types'
-import { GuardianStatus } from '../../../types/bindings'
-import { mockFederation1, mockFederation2 } from '../../mock-data/federation'
+import { FederationMetadata, MSats } from '../../../types'
+import {
+    GuardianStatus,
+    RpcFederation,
+    RpcFederationMaybeLoading,
+} from '../../../types/bindings'
+import {
+    mockCommunity,
+    mockFederation1,
+    mockFederation2,
+} from '../../mock-data/federation'
 import { createMockFedimintBridge } from '../../utils/fedimint'
+import { mockStorageApi } from '../../utils/render'
 
 const mockFederation3 = { ...mockFederation1, id: '3' }
 
@@ -166,5 +188,404 @@ describe('common/redux/federation › removeFederations', () => {
             mockFederation1.id,
             mockFederation3.id,
         ])
+    })
+})
+
+describe('common/redux/federation › bridge meta updates', () => {
+    let cleanup: (() => void) | undefined
+    beforeEach(() => {
+        jest.clearAllMocks()
+        jest.useFakeTimers()
+    })
+    afterEach(async () => {
+        await jest.advanceTimersByTimeAsync(0)
+        cleanup?.()
+        cleanup = undefined
+        jest.useRealTimers()
+    })
+
+    const linkedCommunity = {
+        ...mockCommunity,
+        id: 'linked-community',
+        communityInvite: {
+            ...mockCommunity.communityInvite,
+            invite_code_str: 'linked-community',
+        },
+    }
+
+    const setup = () => {
+        const store = setupStore()
+        store.dispatch(setFederations([mockFederation1]))
+        const fedimint = createMockFedimintBridge({
+            getGuardianStatus: [],
+            listFederations: [mockFederation1],
+            joinFederation: mockFederation2,
+            joinCommunity: linkedCommunity,
+            leaveCommunity: undefined,
+            listCommunities: [linkedCommunity],
+        })
+        let emit!: (event: RpcFederationMaybeLoading) => void
+        fedimint.addListener.mockImplementation(((
+            type: string,
+            listener: typeof emit,
+        ) => {
+            if (type === 'federation') emit = listener
+            return () => {}
+        }) as typeof fedimint.addListener)
+        cleanup = initializeCommonStore({
+            store,
+            fedimint,
+            storage: mockStorageApi,
+            i18n,
+        })
+        return { store, fedimint, emit }
+    }
+    const metaUpdate = (
+        id: string,
+        meta: FederationMetadata,
+    ): RpcFederationMaybeLoading => ({ ...mockFederation1, id, meta })
+
+    it('should show the new name and join newly linked communities once for existing members', async () => {
+        const { store, fedimint, emit } = setup()
+        const update = metaUpdate(mockFederation1.id, {
+            federation_name: 'Renamed',
+            'fedi:autojoin_communities': '["linked-community"]',
+        })
+        emit(update)
+        emit(update)
+        expect(
+            selectLoadedFederation(store.getState(), mockFederation1.id)?.name,
+        ).toBe('Renamed')
+        await jest.advanceTimersByTimeAsync(0)
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toHaveProperty(['linked-community'])
+        emit(update)
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+        expect(fedimint.joinCommunity).toHaveBeenCalledWith({
+            inviteCode: 'linked-community',
+        })
+        expect(fedimint.listFederations).not.toHaveBeenCalled()
+        expect(fedimint.listCommunities).toHaveBeenCalledTimes(1)
+    })
+
+    it('should preserve the current community and show a notice for a background autojoin', async () => {
+        const { store, emit } = setup()
+        store.dispatch(setLastSelectedCommunityId('current-community'))
+        emit(
+            metaUpdate(mockFederation1.id, {
+                'fedi:autojoin_communities': '["linked-community"]',
+            }),
+        )
+        await jest.advanceTimersByTimeAsync(0)
+        expect(store.getState().federation.lastSelectedCommunityId).toBe(
+            'current-community',
+        )
+        expect(store.getState().federation.autojoinNoticesToDisplay).toEqual([
+            linkedCommunity.id,
+        ])
+    })
+
+    it('should retry an unsuccessful background autojoin on a later metadata event', async () => {
+        const { store, fedimint, emit } = setup()
+        fedimint.joinCommunity.mockRejectedValueOnce(new Error('offline'))
+        const update = metaUpdate(mockFederation1.id, {
+            'fedi:autojoin_communities': '["linked-community"]',
+        })
+        emit(update)
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toEqual({})
+        emit(update)
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(2)
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toHaveProperty(['linked-community'])
+    })
+
+    it('should respect a member who left an autojoined community', async () => {
+        const { store, fedimint, emit } = setup()
+        store.dispatch(setCommunities([linkedCommunity]))
+        store.dispatch(
+            setPreviouslyAutojoinedCommunity({
+                communityId: linkedCommunity.id,
+            }),
+        )
+        await store
+            .dispatch(
+                leaveCommunity({ fedimint, communityId: linkedCommunity.id }),
+            )
+            .unwrap()
+        emit(
+            metaUpdate(mockFederation1.id, {
+                'fedi:autojoin_communities': '["linked-community"]',
+            }),
+        )
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.joinCommunity).not.toHaveBeenCalled()
+        expect(store.getState().federation.communities).toEqual([])
+    })
+
+    it.each([
+        { federation_name: 'Renamed' },
+        { 'fedi:federation_name': 'Renamed', federation_name: 'Original' },
+    ])(
+        'should retain the name from metadata %j after a list refresh',
+        async meta => {
+            const { store, fedimint, emit } = setup()
+            const update = metaUpdate(mockFederation1.id, meta)
+            fedimint.listFederations = jest.fn().mockResolvedValue([update])
+            emit(update)
+            expect(
+                selectLoadedFederation(store.getState(), mockFederation1.id)
+                    ?.name,
+            ).toBe('Renamed')
+            await store.dispatch(refreshFederations(fedimint)).unwrap()
+            expect(
+                selectLoadedFederation(store.getState(), mockFederation1.id)
+                    ?.name,
+            ).toBe('Renamed')
+            expect(fedimint.joinCommunity).not.toHaveBeenCalled()
+        },
+    )
+
+    it('should resume background autojoins after a failed federation join', async () => {
+        const { store, fedimint, emit } = setup()
+        fedimint.joinFederation.mockRejectedValueOnce(new Error('offline'))
+        await expect(
+            store
+                .dispatch(joinFederation({ fedimint, code: 'fed1failed' }))
+                .unwrap(),
+        ).rejects.toMatchObject({ message: 'offline' })
+        emit(
+            metaUpdate(mockFederation1.id, {
+                'fedi:autojoin_communities': '["linked-community"]',
+            }),
+        )
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+        expect(store.getState().federation.autojoinNoticesToDisplay).toEqual([
+            linkedCommunity.id,
+        ])
+    })
+
+    it('should retain community membership when a link is removed', async () => {
+        const { store, fedimint, emit } = setup()
+        store.dispatch(setCommunities([linkedCommunity]))
+        emit(
+            metaUpdate(mockFederation1.id, {
+                'fedi:autojoin_communities': '[]',
+            }),
+        )
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.leaveCommunity).not.toHaveBeenCalled()
+        expect(store.getState().federation.communities).toEqual([
+            linkedCommunity,
+        ])
+    })
+
+    it('should leave repeated ready events during a new join to the explicit join flow', async () => {
+        const { store, fedimint, emit } = setup()
+        let completeJoin!: (federation: RpcFederation) => void
+        fedimint.joinFederation.mockImplementation(
+            () =>
+                new Promise(resolve => {
+                    completeJoin = resolve
+                }),
+        )
+        const pending = store.dispatch(
+            joinFederation({ fedimint, code: 'fed1new' }),
+        )
+        const update = metaUpdate(mockFederation2.id, {
+            'fedi:autojoin_communities': '["linked-community"]',
+        })
+        emit(update)
+        emit(update)
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.joinCommunity).not.toHaveBeenCalled()
+        completeJoin({ ...mockFederation1, id: mockFederation2.id })
+        const joined = await pending.unwrap()
+        await store
+            .dispatch(
+                checkFederationForAutojoinCommunities({
+                    fedimint,
+                    federation: joined,
+                    setAsSelected: true,
+                }),
+            )
+            .unwrap()
+        expect(store.getState().federation.lastSelectedCommunityId).toBe(
+            linkedCommunity.id,
+        )
+        expect(store.getState().federation.autojoinNoticesToDisplay).toEqual([])
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+    })
+
+    it('should leave autojoin for a federation being joined to the join flow', async () => {
+        const { fedimint, emit } = setup()
+        emit(
+            metaUpdate('new-federation', {
+                'fedi:autojoin_communities': '["joining-community"]',
+            }),
+        )
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.joinCommunity).not.toHaveBeenCalled()
+    })
+})
+
+describe('common/redux/federation › autojoinCommunity', () => {
+    beforeEach(() => jest.clearAllMocks())
+
+    const setup = () => ({
+        store: setupStore(),
+        fedimint: createMockFedimintBridge({
+            joinCommunity: mockCommunity,
+            listCommunities: [mockCommunity],
+        }),
+    })
+
+    it('should retry after a temporary failure', async () => {
+        const { store, fedimint } = setup()
+        fedimint.joinCommunity.mockRejectedValueOnce(new Error('offline'))
+        const args = { fedimint, code: 'retry-community' }
+        await store.dispatch(autojoinCommunity(args)).unwrap()
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toEqual({})
+        await store.dispatch(autojoinCommunity(args)).unwrap()
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(2)
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toHaveProperty([args.code])
+    })
+
+    it('should isolate concurrent autojoins in separate stores', async () => {
+        const first = setup()
+        const second = setup()
+        await Promise.all(
+            [first, second].map(({ store, fedimint }) =>
+                store
+                    .dispatch(
+                        autojoinCommunity({
+                            fedimint,
+                            code: 'independent-community',
+                        }),
+                    )
+                    .unwrap(),
+            ),
+        )
+        for (const { store, fedimint } of [first, second]) {
+            expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+            expect(
+                store.getState().federation.previouslyAutojoinedCommunities,
+            ).toHaveProperty(['independent-community'])
+        }
+    })
+
+    it('should suppress overlapping joins and remember only successful joins', async () => {
+        const { store, fedimint } = setup()
+        let complete!: (community: typeof mockCommunity) => void
+        fedimint.joinCommunity.mockImplementation(
+            () =>
+                new Promise(resolve => {
+                    complete = resolve
+                }),
+        )
+        const args = { fedimint, code: 'concurrent-community' }
+        const pending = store.dispatch(autojoinCommunity(args))
+        const overlapping = store.dispatch(autojoinCommunity(args))
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toEqual({})
+        complete(mockCommunity)
+        await pending.unwrap()
+        await overlapping
+        await store.dispatch(autojoinCommunity(args))
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toHaveProperty([args.code])
+    })
+
+    it('should allow the existing developer reset to clear autojoin history', async () => {
+        const { store, fedimint } = setup()
+        const args = { fedimint, code: 'reset-community' }
+        await store.dispatch(autojoinCommunity(args)).unwrap()
+        store.dispatch(clearAutojoinedCommunitiesAndNotices())
+        await store.dispatch(autojoinCommunity(args)).unwrap()
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(2)
+    })
+
+    it('should preserve existing membership and respect a later choice to leave', async () => {
+        const { store, fedimint } = setup()
+        store.dispatch(setCommunities([mockCommunity]))
+        fedimint.joinCommunity.mockRejectedValue(new Error('already joined'))
+        fedimint.leaveCommunity = jest.fn().mockResolvedValue(undefined)
+        const args = { fedimint, code: mockCommunity.id }
+        await store.dispatch(autojoinCommunity(args)).unwrap()
+        expect(fedimint.joinCommunity).not.toHaveBeenCalled()
+        expect(store.getState().federation.autojoinNoticesToDisplay).toEqual([])
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toHaveProperty([mockCommunity.id])
+        await store
+            .dispatch(
+                leaveCommunity({ fedimint, communityId: mockCommunity.id }),
+            )
+            .unwrap()
+        await store.dispatch(autojoinCommunity(args)).unwrap()
+        expect(fedimint.joinCommunity).not.toHaveBeenCalled()
+        expect(store.getState().federation.communities).toEqual([])
+    })
+
+    it('should share an in-flight invite join with an automatic join', async () => {
+        const { store, fedimint } = setup()
+        let complete!: (community: typeof mockCommunity) => void
+        fedimint.joinCommunity.mockImplementationOnce(
+            () =>
+                new Promise(resolve => {
+                    complete = resolve
+                }),
+        )
+        fedimint.joinCommunity.mockRejectedValue(new Error('already joined'))
+        const args = { fedimint, code: 'invite-community' }
+        const inviteJoin = store.dispatch(joinCommunity(args))
+        const automaticJoin = store.dispatch(autojoinCommunity(args))
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+        complete(mockCommunity)
+        expect(await inviteJoin.unwrap()).toEqual(mockCommunity)
+        await automaticJoin.unwrap()
+        expect(
+            store.getState().federation.previouslyAutojoinedCommunities,
+        ).toHaveProperty([args.code])
+    })
+
+    it('should finish selecting a community when a background autojoin is already running', async () => {
+        const { store, fedimint } = setup()
+        let complete!: (community: typeof mockCommunity) => void
+        fedimint.joinCommunity.mockImplementationOnce(
+            () =>
+                new Promise(resolve => {
+                    complete = resolve
+                }),
+        )
+        fedimint.joinCommunity.mockRejectedValue(new Error('already joined'))
+        const args = { fedimint, code: 'selected-community' }
+        const background = store.dispatch(autojoinCommunity(args))
+        const selected = store.dispatch(
+            autojoinCommunity({ ...args, setAsSelected: true }),
+        )
+        expect(fedimint.joinCommunity).toHaveBeenCalledTimes(1)
+        complete(mockCommunity)
+        await Promise.all([background.unwrap(), selected.unwrap()])
+        expect(store.getState().federation.lastSelectedCommunityId).toBe(
+            mockCommunity.id,
+        )
+        expect(fedimint.listCommunities).toHaveBeenCalledTimes(1)
     })
 })
