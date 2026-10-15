@@ -319,6 +319,11 @@ _capture_android_logs() {
         > "$out_dir/ui-$suffix.log" 2>/dev/null || true
 }
 
+# Usage: _probe_guardians <label>
+_probe_guardians() {
+    "$REPO_ROOT/scripts/ci/e2e-guardian-preflight.sh" "$1" || true
+}
+
 # iOS twin of _capture_android_logs: the same log files live in the app's
 # Documents dir (the bridge dataDir on iOS) inside the simulator's data
 # container, which simctl exposes on the host filesystem.
@@ -439,12 +444,16 @@ run_pipeline_android() {
         echo "🧪 Running $tests on $avd_a..."
     fi
 
+    if _tests_need_devfed "$tests"; then
+        wait_for devfed
+    fi
+    _probe_guardians start &
+    local probe_pid=$!
     pushd "$REPO_ROOT/ui" >/dev/null
     local rc=0
     local t0
     t0=$(_ts)
     if _tests_need_devfed "$tests"; then
-        wait_for devfed
         echo "🔐 Funding from a hermetic devimint fed (launch-remote.sh --with-devfed)"
         PLATFORM=android AVD="$avd_a" DEVICE_ID="$device_a" \
             AVD_B="$avd_b" DEVICE_ID_B="$device_b" \
@@ -460,6 +469,7 @@ run_pipeline_android() {
             || rc=$?
     fi
     popd >/dev/null
+    wait "$probe_pid" || true
     _capture_android_logs "$device_a" "a"
     if [ -n "$device_b" ]; then
         _capture_android_logs "$device_b" "b"
@@ -474,6 +484,7 @@ run_pipeline_android() {
         echo "  ❌ $label failed (exit $rc, $(_fmt_dur "$dur"))"
         summary_rows+="| $label | FAIL |"$'\n'
         overall_rc=1
+        _probe_guardians after-failure
     fi
 
     _finish_pipeline "Android" "$summary_rows" "$pipeline_start" "$overall_rc"
@@ -599,12 +610,16 @@ run_pipeline_ios() {
     if [ -n "$device_a" ]; then
         echo ""
         echo "🧪 Running $tests on $label..."
+        if _tests_need_devfed "$tests"; then
+            wait_for devfed
+        fi
+        _probe_guardians start &
+        local probe_pid=$!
         pushd "$REPO_ROOT/ui" >/dev/null
         local ios26_rc=0
         local t0
         t0=$(_ts)
         if _tests_need_devfed "$tests"; then
-            wait_for devfed
             # Boot the fed under the default shell, with the test under .#xcode as
             # the trailing command. REMOTE_BRIDGE_PORT is set by remote-server and
             # inherited across the nested .#xcode shell, so HTTP funding works.
@@ -621,6 +636,7 @@ run_pipeline_ios() {
                 || ios26_rc=$?
         fi
         popd >/dev/null
+        wait "$probe_pid" || true
         _capture_ios_logs "$device_a" "a"
         if [ -n "$device_b" ]; then
             _capture_ios_logs "$device_b" "b"
@@ -633,6 +649,7 @@ run_pipeline_ios() {
             echo "  ❌ $label failed (exit $ios26_rc, $(_fmt_dur "$dur"))"
             summary_rows+="| $label | FAIL |"$'\n'
             overall_rc=1
+            _probe_guardians after-failure
         fi
     fi
 
