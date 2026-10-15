@@ -198,7 +198,33 @@ _dump_logs_if_debug() {
     fi
 }
 
+_start_host_load_log() {
+    local log="$E2E_LOG_DIR/host-load.log"
+    {
+        echo "runner=${RUNNER_NAME:-unknown} host=$(hostname) cpus=$(getconf _NPROCESSORS_ONLN) started=$(date -u +%FT%TZ)"
+        echo "utc time | load averages 1m 5m 15m | compiler and build processes | busiest processes as user command cpu"
+    } >"$log"
+    (
+        while true; do
+            printf '%s | %s | builders=%s | %s\n' \
+                "$(date -u +%FT%TZ)" \
+                "$(uptime | sed -E 's/.*load averages?: *//')" \
+                "$(/usr/bin/pgrep -f 'cargo|rustc|nix-build|nix-daemon|xcodebuild|clang|swift-frontend|gradle|javac|kotlin' | wc -l | tr -d ' ')" \
+                "$(/bin/ps -Ao %cpu=,user=,comm= | sort -rn | head -3 | awk '{n=split($3,p,"/"); printf "%s%s %s %s%%", (NR>1?", ":""), $2, p[n], $1}')"
+            sleep 30
+        done
+    ) >>"$log" 2>&1 &
+    _HOST_LOAD_PID=$!
+}
+
+_stop_host_load_log() {
+    [ -n "${_HOST_LOAD_PID:-}" ] || return 0
+    pkill -P "$_HOST_LOAD_PID" 2>/dev/null || true
+    kill "$_HOST_LOAD_PID" 2>/dev/null || true
+}
+
 _e2e_cleanup() {
+    _stop_host_load_log
     _dump_logs_if_debug
     if [ -n "${PERSIST_SERVICES:-}" ]; then
         return
@@ -336,6 +362,7 @@ run_pipeline_android() {
 
     _banner "Android"
     _pre_cleanup
+    _start_host_load_log
     adb kill-server 2>/dev/null || true
     adb start-server 2>/dev/null || true
 
@@ -488,6 +515,7 @@ run_pipeline_ios() {
 
     _banner "iOS"
     _pre_cleanup
+    _start_host_load_log
 
     echo ""
     if [ -z "${SKIP_BRIDGE:-}" ]; then
