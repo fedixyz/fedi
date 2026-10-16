@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import {
     AppiumTestBase,
+    COLD_START_TIMEOUT,
     MATRIX_TIMEOUT,
 } from '../../configs/appium/AppiumTestBase'
 import { openFediTestnetPreview } from '../fixtures/setupOnboarded'
@@ -121,7 +122,7 @@ export class BackupRestore extends AppiumTestBase {
         )
         await this.clickElementByKey('ContinueButton')
         await this.resetAppToFresh()
-        await this.clickElementByKey('Restore access')
+        await this.clickElementByKey('Restore access', COLD_START_TIMEOUT)
         await this.clickElementByKey('Start personal recovery')
         for (let i = 0; i < seedWords.length; i++) {
             const key = `SeedWordInput${i + 1}`
