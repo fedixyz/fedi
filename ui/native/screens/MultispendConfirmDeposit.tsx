@@ -22,6 +22,7 @@ import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
+import { UsdCents } from '../types'
 import { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -34,6 +35,7 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
     const multispendStatus = useAppSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )
+    const isBtcOnly = 'btcAmount' in amount
     const [loading, setLoading] = useState(false)
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -58,7 +60,7 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
         try {
             await fedimint.matrixMultispendDeposit({
                 roomId,
-                amount: { fiatAmount: amount },
+                amount,
                 description: notes ?? '',
                 frontendMeta: {
                     initialNotes: null,
@@ -75,18 +77,23 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
         }
     }, [amount, roomId, t, toast, navigation, notes, fedimint])
 
-    const formattedFiatAmount = amountUtils.formatFiat(
-        amountUtils.convertCentsToOtherFiat(
-            amount,
-            btcUsdExchangeRate,
-            btcExchangeRate,
-        ),
-        selectedFiatCurrency,
-        {
-            symbolPosition: 'end',
-            locale: currencyLocale,
-        },
-    )
+    const formattedFiatAmount =
+        'btcAmount' in amount
+            ? `${amountUtils.formatSats(
+                  amountUtils.msatToSat(amount.btcAmount),
+              )} ${t('words.sats').toUpperCase()}`
+            : amountUtils.formatFiat(
+                  amountUtils.convertCentsToOtherFiat(
+                      amount.fiatAmount as UsdCents,
+                      btcUsdExchangeRate,
+                      btcExchangeRate,
+                  ),
+                  selectedFiatCurrency,
+                  {
+                      symbolPosition: 'end',
+                      locale: currencyLocale,
+                  },
+              )
 
     const style = styles(theme)
 
@@ -98,11 +105,15 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
                 <Column align="center" gap="md" style={style.header}>
                     <Row align="center" gap="md">
                         <SvgImage
-                            name="DollarCircle"
+                            name={isBtcOnly ? 'BitcoinCircle' : 'DollarCircle'}
                             size={16}
                             color={theme.colors.green}
                         />
-                        <Text>{t('feature.stabilitypool.stable-balance')}</Text>
+                        <Text>
+                            {isBtcOnly
+                                ? t('words.bitcoin')
+                                : t('feature.stabilitypool.stable-balance')}
+                        </Text>
                     </Row>
                     <Text h1 medium>
                         {formattedFiatAmount}

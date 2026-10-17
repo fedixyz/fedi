@@ -40,6 +40,7 @@ const WithdrawalRequest: React.FC<{
         rejectionCount,
         formattedFiatAmount,
         selectedFiatCurrency,
+        isBtc,
         status,
     } = getWithdrawalRequest(event)
 
@@ -104,7 +105,9 @@ const WithdrawalRequest: React.FC<{
                     <Row gap="xs" align="center" shrink={false}>
                         <Text medium>{formattedFiatAmount}</Text>
                         <Text bold small>
-                            {selectedFiatCurrency}
+                            {isBtc
+                                ? t('words.sats').toUpperCase()
+                                : selectedFiatCurrency}
                         </Text>
                     </Row>
                 </Row>

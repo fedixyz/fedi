@@ -26,7 +26,7 @@ export type Props = NativeStackScreenProps<
 >
 
 const AssignMultispendVoters: React.FC<Props> = ({ navigation, route }) => {
-    const { roomId, voters } = route.params
+    const { roomId, voters, kind } = route.params
 
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const myId = matrixAuth?.userId
@@ -40,8 +40,9 @@ const AssignMultispendVoters: React.FC<Props> = ({ navigation, route }) => {
         navigation.navigate('CreateMultispend', {
             roomId,
             voters: selectedVoters,
+            kind,
         })
-    }, [navigation, roomId, selectedVoters])
+    }, [navigation, roomId, selectedVoters, kind])
 
     const toggleMember = useCallback((memberId: string) => {
         setSelectedVoters(selected => {

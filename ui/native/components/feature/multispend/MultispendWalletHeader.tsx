@@ -47,7 +47,7 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
     })
     const {
         formattedMultispendBalance,
-        selectedCurrency,
+        balanceCurrencyText,
         walletHeader: { federationName, status, threshold, totalSigners },
     } = useMultispendDisplayUtils(t, roomId)
 
@@ -151,7 +151,7 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                                 {formattedMultispendBalance}
                             </Text>
                             <Text small bold style={style.infoText}>
-                                {selectedCurrency}
+                                {balanceCurrencyText}
                             </Text>
                         </Row>
                     </Column>

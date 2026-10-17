@@ -83,6 +83,12 @@ const MultispendInvitationEvent: React.FC<Props> = ({ event }) => {
                     votes: voters,
                 })}
             </Text>
+            {event.content.groupKind === 'btc' && (
+                <Text caption>
+                    {'•'} {t('feature.multispend.group-kind')}:{' '}
+                    {t('feature.multispend.group-kind-btc')}
+                </Text>
+            )}
             <Text caption style={style.bullet}>
                 <Text caption>
                     {'\u2022'} {t('words.status')}:{' '}

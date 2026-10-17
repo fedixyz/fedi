@@ -8,6 +8,7 @@ import {
 import {
     GroupInvitationWithKeys,
     MultispendDepositEventData,
+    MultispendGroupKind,
     RpcLnPayState,
     RpcLnReceiveState,
     RpcOnchainDepositState,
@@ -403,6 +404,8 @@ export function makeTestDepositEventData(): MultispendDepositEventData {
 
 export function makeTestWithdrawRequestWithApprovals(
     status: 'accepted' | 'rejected' | 'unknown',
+    transferAmount: number = 0,
+    kind: MultispendGroupKind = 'fiat',
 ): WithdrawRequestWithApprovals {
     let txSubmissionStatus: WithdrawTxSubmissionStatus = 'unknown'
 
@@ -419,7 +422,10 @@ export function makeTestWithdrawRequestWithApprovals(
     }
 
     return {
-        request: { kind: 'fiat', transfer_amount: 0 },
+        request:
+            kind === 'btc'
+                ? { kind, transfer_amount: transferAmount as MSats }
+                : { kind, transfer_amount: transferAmount },
         description: '',
         signatures: {},
         rejections: [],
@@ -482,12 +488,37 @@ export function makeTestMultispendDepositEventData(
     }
 }
 
+export function makeTestMultispendBtcDepositEventData(
+    btcAmount: number = 0,
+    description: string = '',
+): MultispendDepositEvent {
+    return {
+        event: {
+            depositNotification: {
+                user: TEST_NPUB,
+                btcAmount: btcAmount as MSats,
+                txid: TEST_TXID,
+                description,
+            },
+        },
+        eventId: TEST_EVENT_ID,
+        counter: 0,
+        time: 0,
+    }
+}
+
 export function makeTestMultispendWithdrawalEventData(
     status: 'accepted' | 'rejected' | 'unknown',
+    transferAmount: number = 0,
+    kind: MultispendGroupKind = 'fiat',
 ): MultispendWithdrawalEvent {
     return {
         event: {
-            withdrawalRequest: makeTestWithdrawRequestWithApprovals(status),
+            withdrawalRequest: makeTestWithdrawRequestWithApprovals(
+                status,
+                transferAmount,
+                kind,
+            ),
         },
         // TODO: add a mock eventId
         eventId: TEST_EVENT_ID,

@@ -16,16 +16,20 @@ import {
     selectMatrixRoomMember,
     selectMatrixRoomMultispendEvent,
     selectMultispendBalanceCents,
+    selectMultispendBalanceMsats,
+    selectIsBtcMultispendGroup,
 } from '../redux'
 import {
     MultispendFilterOption,
     MultispendWithdrawalEvent,
     UsdCents,
+    MSats,
     MultispendRole,
     MatrixMultispendEvent,
     MultispendGroupInvitationEvent,
 } from '../types'
 import { RpcMultispendGroupStatus, RpcRoomId } from '../types/bindings'
+import amountUtils from '../utils/AmountUtils'
 import {
     getMultispendInvite,
     isMultispendWithdrawalEvent,
@@ -84,12 +88,13 @@ export function useMultispendVoting({
 
     const handleAbortMultispend = async () => {
         if (!isProposer) return
+        if (multispendStatus?.status !== 'activeInvitation') return
 
         setIsLoading(true)
         try {
             await fedimint.matrixCancelMultispendGroupInvitation({
                 roomId,
-                kind: 'fiat',
+                kind: multispendStatus.state.kind,
             })
         } catch (e) {
             toast.error(t, e)
@@ -231,13 +236,21 @@ export function useMultispendDisplayUtils(t: TFunction, roomId: RpcRoomId) {
         selectMyMultispendRole(s, roomId),
     )
     const { convertCentsToFormattedFiat } = useBtcFiatPrice()
+    const isBtcOnly = useCommonSelector(s =>
+        selectIsBtcMultispendGroup(s, roomId),
+    )
     const multispendBalanceCents = useCommonSelector(s =>
         selectMultispendBalanceCents(s, roomId),
     )
-    const formattedMultispendBalance = convertCentsToFormattedFiat(
-        multispendBalanceCents,
-        'none',
+    const multispendBalanceMsats = useCommonSelector(s =>
+        selectMultispendBalanceMsats(s, roomId),
     )
+    const formattedMultispendBalance = isBtcOnly
+        ? amountUtils.formatSats(amountUtils.msatToSat(multispendBalanceMsats))
+        : convertCentsToFormattedFiat(multispendBalanceCents, 'none')
+    const balanceCurrencyText = isBtcOnly
+        ? t('words.sats').toUpperCase()
+        : selectedCurrency
 
     const isActiveInvitation = multispendStatus?.status === 'activeInvitation'
     const isFinalized = multispendStatus?.status === 'finalized'
@@ -258,6 +271,8 @@ export function useMultispendDisplayUtils(t: TFunction, roomId: RpcRoomId) {
         shouldBlockLeaveRoom,
         walletHeader,
         formattedMultispendBalance,
+        balanceCurrencyText,
+        isBtcOnly,
         selectedCurrency,
     }
 }
@@ -450,6 +465,23 @@ export function useMultispendWithdrawalRequests({
             const approvals = Object.keys(withdrawalRequest.signatures)
             const rejections = withdrawalRequest.rejections
 
+            const { request } = withdrawalRequest
+            const isBtc = request.kind === 'btc'
+            const formattedAmount = isBtc
+                ? amountUtils.formatSats(
+                      amountUtils.msatToSat(request.transfer_amount as MSats),
+                  )
+                : convertCentsToFormattedFiat(
+                      request.transfer_amount as UsdCents,
+                      'none',
+                  )
+            const formattedAmountWithCurrency = isBtc
+                ? `${formattedAmount} ${t('words.sats').toUpperCase()}`
+                : convertCentsToFormattedFiat(
+                      request.transfer_amount as UsdCents,
+                      'end',
+                  )
+
             return {
                 sender,
                 request: withdrawalRequest,
@@ -457,14 +489,9 @@ export function useMultispendWithdrawalRequests({
                 rejections,
                 approvalCount: approvals.length,
                 rejectionCount: rejections.length,
-                formattedFiatAmount: convertCentsToFormattedFiat(
-                    withdrawalRequest.request.transfer_amount as UsdCents,
-                    'none',
-                ),
-                formattedFiatAmountWithCurrency: convertCentsToFormattedFiat(
-                    withdrawalRequest.request.transfer_amount as UsdCents,
-                    'end',
-                ),
+                isBtc,
+                formattedFiatAmount: formattedAmount,
+                formattedFiatAmountWithCurrency: formattedAmountWithCurrency,
                 selectedFiatCurrency,
                 status: getWithdrawalStatus(event) as ReturnType<
                     typeof getWithdrawalStatus
@@ -476,6 +503,7 @@ export function useMultispendWithdrawalRequests({
             convertCentsToFormattedFiat,
             selectedFiatCurrency,
             getWithdrawalStatus,
+            t,
         ],
     )
 
@@ -705,11 +733,12 @@ export function useMultispendDepositEventContent({
             : senderMember.displayName
         : t('words.member')
 
-    // fiat groups only
-    const formattedFiatAmount = convertCentsToFormattedFiat(
-        ('fiatAmount' in content ? content.fiatAmount : 0) as UsdCents,
-        'end',
-    )
+    const formattedFiatAmount =
+        'btcAmount' in content
+            ? `${amountUtils.formatSats(
+                  amountUtils.msatToSat(content.btcAmount as MSats),
+              )} ${t('words.sats').toUpperCase()}`
+            : convertCentsToFormattedFiat(content.fiatAmount as UsdCents, 'end')
 
     return {
         heading: t('feature.multispend.chat-events.message-header'),
@@ -744,10 +773,17 @@ export function useMultispendWithdrawalEventContent({
             ? t('feature.chat.former-member')
             : senderMember.displayName
         : t('words.member')
-    const formattedFiatAmount = convertCentsToFormattedFiat(
-        content.request.transfer_amount as UsdCents,
-        'end',
-    )
+    const formattedFiatAmount =
+        content.request.kind === 'btc'
+            ? `${amountUtils.formatSats(
+                  amountUtils.msatToSat(
+                      content.request.transfer_amount as MSats,
+                  ),
+              )} ${t('words.sats').toUpperCase()}`
+            : convertCentsToFormattedFiat(
+                  content.request.transfer_amount as UsdCents,
+                  'end',
+              )
     let text = t('feature.multispend.chat-events.withdrawal-requested')
     let subText = ''
     useObserveMultispendEvent(event.roomId, event?.id ?? '')

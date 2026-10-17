@@ -77,6 +77,7 @@ describe('common/hooks/transactions', () => {
             store.dispatch(
                 setMatrixRoomMultispendStatus({
                     roomId,
+                    kind: 'fiat',
                     status,
                 }),
             )

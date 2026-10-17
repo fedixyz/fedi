@@ -6,19 +6,30 @@ import {
     handleMatrixRoomTimelineStreamUpdates,
     markMatrixRoomInviteSeen,
     selectChatDrafts,
+    selectIsBtcMultispendGroup,
     selectMatrixHasNotifications,
     selectMatrixHasNotificationsIncludingInvites,
     selectMatrixRoomEvents,
     selectMatrixStatus,
     selectMatrixRoomInviteIsSeen,
+    selectMatrixRoomMultispendAccountInfo,
+    selectMatrixRoomMultispendStatus,
     selectMatrixRoomRawEvents,
     selectMatrixRoomSelectableEventIds,
+    selectMultispendBalanceMsats,
+    selectMultispendGroupKind,
     setChatDraft,
+    setMatrixRoomMultispendAccountInfo,
+    setMatrixRoomMultispendStatus,
     setupStore,
     startMatrixClient,
     toggleMatrixReaction,
 } from '@fedi/common/redux'
-import { MatrixRoom, MatrixSyncStatus } from '@fedi/common/types'
+import { MatrixRoom, MatrixSyncStatus, MSats } from '@fedi/common/types'
+import {
+    MultispendGroupKind,
+    RpcMultispendGroupStatus,
+} from '@fedi/common/types/bindings'
 import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { canAddMatrixReaction } from '@fedi/common/utils/matrix'
 
@@ -430,5 +441,217 @@ describe('matrix chat drafts', () => {
         store.dispatch(setChatDraft({ roomId, text: 'hello' }))
 
         expect(selectChatDrafts(store.getState())).toBe(drafts)
+    })
+})
+
+describe('multispend group kind selectors', () => {
+    const roomId = 'room-btc' as MatrixRoom['id']
+
+    const makeFinalizedStatus = (
+        kind: MultispendGroupKind,
+    ): RpcMultispendGroupStatus =>
+        ({
+            status: 'finalized',
+            invite_event_id: `evt-${kind}`,
+            finalized_group: {
+                kind,
+                invitation: {
+                    signers: [],
+                    threshold: 0,
+                    federationInviteCode: 'fed1',
+                    federationName: '',
+                },
+                proposer: '@u:s',
+                pubkeys: {},
+                federationId: '1',
+            },
+        }) as unknown as RpcMultispendGroupStatus
+
+    const makeInvitationStatus = (
+        kind: MultispendGroupKind,
+    ): RpcMultispendGroupStatus =>
+        ({
+            status: 'activeInvitation',
+            active_invite_id: `invite-${kind}`,
+            state: {
+                kind,
+                invitation: {
+                    signers: [],
+                    threshold: 0,
+                    federationInviteCode: 'fed1',
+                    federationName: '',
+                },
+                proposer: '@u:s',
+                pubkeys: {},
+                rejections: [],
+                federationId: '1',
+            },
+        }) as unknown as RpcMultispendGroupStatus
+
+    const inactive: RpcMultispendGroupStatus = { status: 'inactive' }
+
+    const setStatus = (
+        store: ReturnType<typeof setupStore>,
+        kind: MultispendGroupKind,
+        status: RpcMultispendGroupStatus,
+    ) => store.dispatch(setMatrixRoomMultispendStatus({ roomId, kind, status }))
+
+    describe('selectMultispendBalanceMsats', () => {
+        it('reads the exact .btc msat balance from the account info', () => {
+            const store = setupStore()
+            store.dispatch(
+                setMatrixRoomMultispendAccountInfo({
+                    roomId,
+                    info: {
+                        Ok: {
+                            lockedPlusStaged: { fiat: 0, btc: 1_500_000 },
+                        },
+                    } as unknown as Parameters<
+                        typeof setMatrixRoomMultispendAccountInfo
+                    >[0]['info'],
+                }),
+            )
+
+            expect(selectMultispendBalanceMsats(store.getState(), roomId)).toBe(
+                1_500_000 as MSats,
+            )
+        })
+
+        it('returns 0 msats when there is no account info', () => {
+            const store = setupStore()
+            expect(selectMultispendBalanceMsats(store.getState(), roomId)).toBe(
+                0 as MSats,
+            )
+        })
+
+        it('returns 0 msats when the account info is an error', () => {
+            const store = setupStore()
+            store.dispatch(
+                setMatrixRoomMultispendAccountInfo({
+                    roomId,
+                    info: { Err: {} } as unknown as Parameters<
+                        typeof setMatrixRoomMultispendAccountInfo
+                    >[0]['info'],
+                }),
+            )
+            expect(selectMultispendBalanceMsats(store.getState(), roomId)).toBe(
+                0 as MSats,
+            )
+        })
+    })
+
+    describe('selectIsBtcMultispendGroup', () => {
+        it('is true for a finalized bitcoin group', () => {
+            const store = setupStore()
+            setStatus(store, 'btc', makeFinalizedStatus('btc'))
+            expect(selectIsBtcMultispendGroup(store.getState(), roomId)).toBe(
+                true,
+            )
+        })
+
+        it('is true for a pending bitcoin invitation', () => {
+            const store = setupStore()
+            setStatus(store, 'btc', makeInvitationStatus('btc'))
+            expect(selectIsBtcMultispendGroup(store.getState(), roomId)).toBe(
+                true,
+            )
+        })
+
+        it('is false for a fiat group', () => {
+            const store = setupStore()
+            setStatus(store, 'fiat', makeFinalizedStatus('fiat'))
+            expect(selectIsBtcMultispendGroup(store.getState(), roomId)).toBe(
+                false,
+            )
+        })
+
+        it('is false when the room has no group', () => {
+            const store = setupStore()
+            expect(selectIsBtcMultispendGroup(store.getState(), roomId)).toBe(
+                false,
+            )
+        })
+    })
+
+    describe('setMatrixRoomMultispendStatus', () => {
+        it('shows a finalized group over a pending invitation of the other kind', () => {
+            const store = setupStore()
+            setStatus(store, 'fiat', makeInvitationStatus('fiat'))
+            setStatus(store, 'btc', makeFinalizedStatus('btc'))
+            expect(selectMultispendGroupKind(store.getState(), roomId)).toBe(
+                'btc',
+            )
+            expect(
+                selectMatrixRoomMultispendStatus(store.getState(), roomId)
+                    ?.status,
+            ).toBe('finalized')
+        })
+
+        it('shows the fiat group when both kinds are finalized', () => {
+            const store = setupStore()
+            setStatus(store, 'btc', makeFinalizedStatus('btc'))
+            setStatus(store, 'fiat', makeFinalizedStatus('fiat'))
+            expect(selectMultispendGroupKind(store.getState(), roomId)).toBe(
+                'fiat',
+            )
+        })
+
+        it('falls back to the other kind when the shown group goes inactive', () => {
+            const store = setupStore()
+            setStatus(store, 'fiat', makeFinalizedStatus('fiat'))
+            setStatus(store, 'btc', makeFinalizedStatus('btc'))
+            setStatus(store, 'fiat', inactive)
+            expect(selectMultispendGroupKind(store.getState(), roomId)).toBe(
+                'btc',
+            )
+
+            setStatus(store, 'btc', inactive)
+            expect(
+                selectMatrixRoomMultispendStatus(store.getState(), roomId),
+            ).toBeUndefined()
+        })
+
+        it('clears the account info when the shown kind changes', () => {
+            const store = setupStore()
+            setStatus(store, 'fiat', makeInvitationStatus('fiat'))
+            store.dispatch(
+                setMatrixRoomMultispendAccountInfo({
+                    roomId,
+                    info: {
+                        Ok: { lockedPlusStaged: { fiat: 100, btc: 0 } },
+                    } as unknown as Parameters<
+                        typeof setMatrixRoomMultispendAccountInfo
+                    >[0]['info'],
+                }),
+            )
+            expect(
+                selectMatrixRoomMultispendAccountInfo(store.getState(), roomId),
+            ).toBeDefined()
+
+            setStatus(store, 'btc', makeFinalizedStatus('btc'))
+            expect(
+                selectMatrixRoomMultispendAccountInfo(store.getState(), roomId),
+            ).toBeUndefined()
+        })
+
+        it('keeps the account info when the same kind updates', () => {
+            const store = setupStore()
+            setStatus(store, 'btc', makeInvitationStatus('btc'))
+            store.dispatch(
+                setMatrixRoomMultispendAccountInfo({
+                    roomId,
+                    info: {
+                        Ok: { lockedPlusStaged: { fiat: 0, btc: 1_000 } },
+                    } as unknown as Parameters<
+                        typeof setMatrixRoomMultispendAccountInfo
+                    >[0]['info'],
+                }),
+            )
+
+            setStatus(store, 'btc', makeFinalizedStatus('btc'))
+            expect(selectMultispendBalanceMsats(store.getState(), roomId)).toBe(
+                1_000 as MSats,
+            )
+        })
     })
 })

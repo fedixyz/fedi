@@ -64,6 +64,7 @@ import {
     GroupInvitation,
     JSONObject,
     MsEventData,
+    MultispendGroupKind,
     MultispendListedEvent,
     NetworkError,
     RpcBackPaginationStatus,
@@ -89,6 +90,7 @@ import {
     filterMultispendEvents,
     consolidatePaymentEvents,
     doesEventContentMatchPreviewMedia,
+    getMultispendGroupKind,
     getMultispendInvite,
     getMultispendRole,
     getReceivablePaymentEvents,
@@ -150,6 +152,16 @@ const initialState = {
         MatrixRoom['id'],
         RpcTimelineItem[] | undefined
     >,
+    roomMultispendStatusByKind: {} as Record<
+        MatrixRoom['id'],
+        | Partial<
+              Record<
+                  MultispendGroupKind,
+                  MultispendActiveInvitation | MultispendFinalized
+              >
+          >
+        | undefined
+    >,
     roomMultispendStatus: {} as Record<
         MatrixRoom['id'],
         MultispendActiveInvitation | MultispendFinalized | undefined
@@ -207,6 +219,22 @@ export type MatrixState = typeof initialState
  *
  * TODO: only modify updated fields for existing transactions
  */
+// fiat goes first so a room with an older fiat group keeps showing it
+const pickShownMultispendStatus = (
+    byKind: Partial<
+        Record<
+            MultispendGroupKind,
+            MultispendActiveInvitation | MultispendFinalized
+        >
+    >,
+) => {
+    const ordered = [byKind.fiat, byKind.btc]
+    return (
+        ordered.find(status => status?.status === 'finalized') ??
+        ordered.find(status => status !== undefined)
+    )
+}
+
 const updateMultispendEvents = (
     newTransactions: MultispendListedEvent[],
     oldTransactions: MultispendListedEvent[] = [],
@@ -414,16 +442,32 @@ export const matrixSlice = createSlice({
             state,
             action: PayloadAction<{
                 roomId: MatrixRoom['id']
+                kind: MultispendGroupKind
                 status: RpcMultispendGroupStatus
             }>,
         ) {
-            const { roomId, status } = action.payload
-            state.roomMultispendStatus[roomId] =
-                status.status === 'inactive'
-                    ? undefined
-                    : (status as
-                          | MultispendActiveInvitation
-                          | MultispendFinalized)
+            const { roomId, kind, status } = action.payload
+            const byKind = { ...state.roomMultispendStatusByKind[roomId] }
+            if (status.status === 'inactive') {
+                delete byKind[kind]
+            } else {
+                byKind[kind] = status
+            }
+            state.roomMultispendStatusByKind[roomId] = byKind
+
+            const previous = state.roomMultispendStatus[roomId]
+            const shown = pickShownMultispendStatus(byKind)
+            state.roomMultispendStatus[roomId] = shown
+            // the event list and account info belong to one kind
+            if (
+                previous !== undefined &&
+                shown !== undefined &&
+                getMultispendGroupKind(previous) !==
+                    getMultispendGroupKind(shown)
+            ) {
+                state.roomMultispendEvents[roomId] = undefined
+                state.roomMultispendAccountInfo[roomId] = undefined
+            }
         },
         setMatrixRoomMultispendAccountInfo(
             state,
@@ -1003,6 +1047,7 @@ export const startMatrixClient = createAsyncThunk<
                 dispatch(
                     setMatrixRoomMultispendStatus({
                         roomId: ev.roomId,
+                        kind: ev.kind,
                         status: ev.status,
                     }),
                 )
@@ -1205,10 +1250,14 @@ export const unobserveMatrixRoomPinnedTimeline = createAsyncThunk<
 })
 export const observeMultispendAccountInfo = createAsyncThunk<
     void,
-    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] }
->('matrix/observeMultispendRoomDetails', async ({ fedimint, roomId }) => {
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        kind: MultispendGroupKind
+    }
+>('matrix/observeMultispendRoomDetails', async ({ fedimint, roomId, kind }) => {
     const client = fedimint.getMatrixClient()
-    return client.observeMultispendAccount(roomId)
+    return client.observeMultispendAccount(roomId, kind)
 })
 
 export const unobserveMultispendAccountInfo = createAsyncThunk<
@@ -2198,6 +2247,7 @@ export const fetchMultispendEvents = createAsyncThunk<
     ) => {
         const state = getState()
         const client = fedimint.getMatrixClient()
+        const kind = selectMultispendGroupKind(state, roomId)
         if (refresh) {
             const txns = selectRoomMultispendFinancialEvents(state, roomId)
             // when refreshing:
@@ -2206,6 +2256,7 @@ export const fetchMultispendEvents = createAsyncThunk<
             // - refreshing will ignore limit param if passed to the thunk
             return client.fetchMultispendTransactions({
                 roomId,
+                kind,
                 startAfter: null,
                 limit: Math.max(100, txns.length + 1),
             })
@@ -2215,12 +2266,14 @@ export const fetchMultispendEvents = createAsyncThunk<
             const startAfter = latestRoomTxn ? latestRoomTxn.counter : null
             return client.fetchMultispendTransactions({
                 roomId,
+                kind,
                 startAfter,
                 limit,
             })
         } else {
             return client.fetchMultispendTransactions({
                 roomId,
+                kind,
                 startAfter: null,
                 limit,
             })
@@ -3274,6 +3327,17 @@ export const selectMultispendInvite = (
     return getMultispendInvite(multispendStatus)
 }
 
+export const selectMultispendGroupKind = (
+    s: CommonState,
+    roomId: string,
+): MultispendGroupKind =>
+    getMultispendGroupKind(selectMatrixRoomMultispendStatus(s, roomId))
+
+export const selectIsBtcMultispendGroup = (
+    s: CommonState,
+    roomId: string,
+): boolean => selectMultispendGroupKind(s, roomId) === 'btc'
+
 export const selectMatrixRoomMultispendAccountInfo = (
     s: CommonState,
     roomId: string,
@@ -3296,9 +3360,19 @@ export const selectMatrixRoomMultispendEvents = (
     return s.matrix.roomMultispendEvents[roomId] || []
 }
 
+// events of the room's other group kind can land in the list too
 export const selectRoomMultispendFinancialEvents = createSelector(
     selectMatrixRoomMultispendEvents,
-    transactions => transactions.filter(isMultispendFinancialEvent),
+    selectMultispendGroupKind,
+    (transactions, kind) =>
+        transactions.filter(isMultispendFinancialEvent).filter(event => {
+            if (isMultispendWithdrawalEvent(event))
+                return event.event.withdrawalRequest.request.kind === kind
+            const deposit = event.event.depositNotification
+            return kind === 'btc'
+                ? 'btcAmount' in deposit
+                : 'fiatAmount' in deposit
+        }),
 )
 
 export const selectLatestMultispendTxnInRoom = createSelector(
@@ -3340,6 +3414,16 @@ export const selectMultispendBalanceSats = createSelector(
     (balanceCents, btcUsdExchangeRate) => {
         const balanceDollars = balanceCents / 100
         return amountUtils.fiatToSat(balanceDollars, btcUsdExchangeRate)
+    },
+)
+
+// the sats selector goes through the exchange rate, wrong for a bitcoin group
+export const selectMultispendBalanceMsats = createSelector(
+    selectMatrixRoomMultispendAccountInfo,
+    accountInfo => {
+        if (!accountInfo || 'Err' in accountInfo) return 0 as MSats
+
+        return accountInfo.Ok.lockedPlusStaged.btc as MSats
     },
 )
 

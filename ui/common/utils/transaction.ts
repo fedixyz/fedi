@@ -1305,7 +1305,12 @@ export const makeMultispendTxnDetailItems = (
                 value: makeNameWithSuffix(matchingMember),
             })
         }
-        if ('fiatAmount' in deposit && deposit.fiatAmount) {
+        if ('btcAmount' in deposit) {
+            items.push({
+                label: t('words.amount'),
+                value: formatMultispendSats(t, deposit.btcAmount as MSats),
+            })
+        } else if (deposit.fiatAmount) {
             items.push({
                 label: t('words.amount'),
                 value: convertCentsToFormattedFiat(
@@ -1326,18 +1331,30 @@ export const makeMultispendTxnDetailItems = (
                 value: makeNameWithSuffix(matchingMember),
             })
         }
-        if (withdrawalRequest.request.transfer_amount) {
+        const { request } = withdrawalRequest
+        if (request.transfer_amount) {
             items.push({
                 label: t('words.amount'),
-                value: convertCentsToFormattedFiat(
-                    withdrawalRequest.request.transfer_amount as UsdCents,
-                ),
+                value:
+                    request.kind === 'btc'
+                        ? formatMultispendSats(
+                              t,
+                              request.transfer_amount as MSats,
+                          )
+                        : convertCentsToFormattedFiat(
+                              request.transfer_amount as UsdCents,
+                          ),
             })
         }
     }
 
     return items
 }
+
+const formatMultispendSats = (t: TFunction, msats: MSats): string =>
+    `${amountUtils.formatSats(amountUtils.msatToSat(msats))} ${t(
+        'words.sats',
+    ).toUpperCase()}`
 
 // Maps status badges to amount states
 export const TransactionAmountStateMap = {

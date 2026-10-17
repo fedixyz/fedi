@@ -22,7 +22,11 @@ import {
     Spv2ParsedPaymentAddress,
     MatrixUser,
 } from '@fedi/common/types'
-import { RpcFederationPreview } from '@fedi/common/types/bindings'
+import {
+    MultispendAmount,
+    MultispendGroupKind,
+    RpcFederationPreview,
+} from '@fedi/common/types/bindings'
 
 import { MSats } from '.'
 
@@ -112,13 +116,13 @@ export type RootStackParamList = {
     GroupMultispend: { roomId: string }
     MultispendConfirmDeposit: {
         roomId: string
-        amount: UsdCents
+        amount: MultispendAmount
         notes?: string
         federationId: Federation['id']
     }
     MultispendConfirmWithdraw: {
         roomId: string
-        amount: UsdCents
+        amount: MultispendAmount
         notes?: string
         federationId: Federation['id']
     }
@@ -179,8 +183,16 @@ export type RootStackParamList = {
     MiniAppPermissionSettings: undefined
     MultispendIntro: { roomId: string }
     MultispendTransactions: { roomId: string }
-    CreateMultispend: { roomId: string; voters?: string[] }
-    AssignMultispendVoters: { roomId: string; voters?: string[] }
+    CreateMultispend: {
+        roomId: string
+        voters?: string[]
+        kind?: MultispendGroupKind
+    }
+    AssignMultispendVoters: {
+        roomId: string
+        voters?: string[]
+        kind?: MultispendGroupKind
+    }
     NewMessage: { initialInputMethod?: 'scan' | 'search' }
     NostrSettings: undefined
     NotificationsPermission:

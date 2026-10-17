@@ -2,7 +2,7 @@ import { act } from '@testing-library/react'
 
 import { useBtcFiatPrice } from '../../../../hooks/amount'
 import { fetchCurrencyPrices, setupStore } from '../../../../redux'
-import { MultispendTransactionListEntry } from '../../../../types'
+import { MSats, MultispendTransactionListEntry } from '../../../../types'
 import { makeNameWithSuffix } from '../../../../utils/matrix'
 import { makeMultispendTxnDetailItems } from '../../../../utils/transaction'
 import { mockRoomMembers } from '../../../mock-data/matrix-event'
@@ -132,6 +132,72 @@ describe('makeMultispendTxnDetailItems', () => {
         expect(items).toContainEqual({
             label: t('words.amount'),
             value: '1.00 USD',
+        })
+    })
+
+    it('should show the deposit amount as sats for a bitcoin group', () => {
+        const txn = makeTestTxnEntry('multispendDeposit', {
+            state: {
+                event: {
+                    depositNotification: {
+                        user: mockRoomMembers[0].id,
+                        btcAmount: 1_000_000 as MSats,
+                        txid: TEST_TXID,
+                        description: '',
+                    },
+                },
+                eventId: TEST_EVENT_ID,
+                time: 0,
+                counter: 0,
+            },
+        }) as MultispendTransactionListEntry
+
+        const items = makeMultispendTxnDetailItems(
+            t,
+            txn,
+            mockRoomMembers,
+            convertCentsToFormattedFiat,
+        )
+
+        expect(items).toContainEqual({
+            label: t('words.amount'),
+            value: `1,000 ${t('words.sats').toUpperCase()}`,
+        })
+    })
+
+    it('should show the withdrawal amount as sats for a bitcoin group', () => {
+        const txn = makeTestTxnEntry('multispendWithdrawal', {
+            state: {
+                event: {
+                    withdrawalRequest: {
+                        ...makeTestWithdrawRequestWithApprovals('accepted'),
+                        sender: mockRoomMembers[0].id,
+                        request: {
+                            kind: 'btc',
+                            transfer_amount: 2_000_000 as MSats,
+                        },
+                    },
+                },
+                eventId: TEST_EVENT_ID,
+                time: 0,
+                counter: 0,
+            },
+        }) as MultispendTransactionListEntry
+
+        const items = makeMultispendTxnDetailItems(
+            t,
+            txn,
+            mockRoomMembers,
+            convertCentsToFormattedFiat,
+        )
+
+        expect(items).toContainEqual({
+            label: t('words.withdrawer'),
+            value: makeNameWithSuffix(mockRoomMembers[0]),
+        })
+        expect(items).toContainEqual({
+            label: t('words.amount'),
+            value: `2,000 ${t('words.sats').toUpperCase()}`,
         })
     })
 })
