@@ -200,8 +200,16 @@ def summary_platforms(summary):
     p = summary.get("platforms")
     if p:
         return [x for x in PLATFORM_ORDER if x in p]
-    cards = [it for key in ("features", "fixes") for it in summary.get(key) or []]
+    cards = merged_cards(summary)
     return [x for x in PLATFORM_ORDER if any(x in card_platforms(it) for it in cards)]
+
+
+def merged_cards(summary):
+    """Every card that is on master: the main grids plus the audience sections."""
+    cards = [it for key in ("features", "fixes") for it in summary.get(key) or []]
+    for sec in summary.get("sections") or []:
+        cards += [it for key in ("features", "fixes") for it in sec.get(key) or []]
+    return cards
 
 
 def scope_words(plats):
@@ -263,9 +271,8 @@ def store_notes_block(summary):
              "Write it from the cards by references/release-notes-copy.md. See SKILL.md step 7.")
         return ""
     budget(store, 500, "summary.release_notes.store")
-    out = ['<section class="notes"><div class="notes-label">Release notes</div>',
-           f'<p class="notes-store">{esc(store)}</p>',
-           '<div class="notes-meta">App Store and Google Play, the same text in every language</div>']
+    out = ['<section class="notes"><div class="notes-label">Public release notes</div>',
+           f'<p class="notes-store">{esc(store)}</p>']
     out.append('</section>')
     return "\n".join(out)
 
@@ -343,6 +350,8 @@ def summary_cards(items, section, with_status):
                  "summary.not_merged, or drop the status if it is on master.")
         badge = it.get("badge") or ""
         badge_html = f'<span class="flagbadge">{esc(badge)}</span>' if badge else ""
+        tag = it.get("tag") or ""
+        badge_html = (f'<span class="tagchip">{esc(tag)}</span>' if tag else "") + badge_html
         status_html = (f'<span class="chip {STATUS_CLS.get(status,"")}">{esc(status)}</span>'
                        if with_status else "")
         plats = card_platforms(it)
@@ -385,15 +394,14 @@ def not_merged_section(summary):
 
 def pending_counts(data):
     """Milestone issues with an open fix vs no code at all. Two different trades, so
-    they are never summed."""
+    they are never summed. The web milestone ships on its own schedule, so it never counts here."""
     ms = data.get("milestones") or {}
     pend = prog = 0
-    for key in ("next_major", "next_web"):
-        for i in (ms.get(key) or {}).get("issues") or []:
-            if i.get("status") == "pending":
-                pend += 1
-            elif i.get("status") == "inprogress":
-                prog += 1
+    for i in (ms.get("next_major") or {}).get("issues") or []:
+        if i.get("status") == "pending":
+            pend += 1
+        elif i.get("status") == "inprogress":
+            prog += 1
     return pend, prog
 
 
@@ -444,9 +452,36 @@ def layout_switch(layouts):
             '<button class="lbtn lall" hidden>Expand all</button></div>')
 
 
+def audience_section(sec):
+    """A section for one audience, such as federation creators on Manifold, drawn as a tinted panel after the main grids."""
+    feats, fixes = sec.get("features") or [], sec.get("fixes") or []
+    tag = sec.get("tag") or ""
+    if tag:
+        feats = [dict(it, tag=it.get("tag", tag)) for it in feats]
+        fixes = [dict(it, tag=it.get("tag", tag)) for it in fixes]
+    sid = esc(sec.get("id") or tag.lower() or "audience")
+    cls = "cardsec tagsec" if tag else "cardsec"
+    tag_html = f'<span class="sectag">{esc(tag)}</span>' if tag else ""
+    out = [f'<section class="{cls}" id="{sid}">',
+           f'<div class="h2row"><h2>{tag_html}{esc(sec.get("title", ""))}</h2></div>']
+    if sec.get("note"):
+        budget(sec["note"], 240, f"summary.sections {sid} note")
+        out.append(f'<p class="secnote">{esc(sec["note"])}</p>')
+    if feats:
+        if fixes:
+            out.append('<div class="subhead" data-sub>New features and improvements</div>')
+        out.append(f'<div class="scards" data-grid>{summary_cards(feats, sid, False)}</div>')
+    if fixes:
+        if feats:
+            out.append('<div class="subhead" data-sub>Fixes</div>')
+        out.append(f'<div class="scards" data-grid>{summary_cards(fixes, sid, False)}</div>')
+    out.append('</section>')
+    return "\n".join(out)
+
+
 def platform_filter(summary):
     """`?platform=web` in the URL preselects a button, so a release can link its own view."""
-    cards = [it for key in ("features", "fixes", "not_merged") for it in summary.get(key) or []]
+    cards = merged_cards(summary) + list(summary.get("not_merged") or [])
     present = [p for p in PLATFORM_ORDER if any(p in card_platforms(it) for it in cards)]
     if len(present) < 2:
         return ""
@@ -470,7 +505,8 @@ def render_summary(data):
     parts.append(release_scope(data))
     parts.append(store_notes_block(s))
     parts.append(platform_filter(s))
-    sw =layout_switch(MERGED_LAYOUTS) if (s.get("features") or s.get("fixes")) else ""
+    main_cards = [it for key in ("features", "fixes") for it in s.get(key) or []]
+    sw = layout_switch(MERGED_LAYOUTS) if len({tuple(card_platforms(it)) for it in main_cards}) > 1 else ""
     merged = ['<section class="cardsec" id="merged">',
               f'<div class="h2row"><h2>In this release</h2>{sw}</div>']
     if s.get("features"):
@@ -481,8 +517,9 @@ def render_summary(data):
         merged.append(f'<div class="scards" data-grid>{summary_cards(s["fixes"], "fixes", False)}</div>')
     merged.append('</section>')
     parts.append("\n".join(merged))
+    parts.extend(audience_section(sec) for sec in s.get("sections") or [])
     parts.append(not_merged_section(s))
-    parts.append('<p class="sub" style="margin-top:22px">The full list of changes, version numbers, issue tracking and the patch detail are on the <b>Full report</b> tab.</p>')
+    parts.append('<p class="sub" style="margin-top:22px">Every change in full is on the <b>Full report</b> tab.</p>')
     out = "\n".join(p for p in parts if p)
     scan_summary_jargon(out)
     return out
@@ -560,9 +597,9 @@ def needs_table(rows, repo):
 
 def release_issues(data):
     """Milestone issues and untagged-but-resolved issues overlap, and counting one twice
-    inflates the QA numbers."""
+    inflates the QA numbers. The web milestone ships on its own schedule, so it is left out."""
     ms = data.get("milestones") or {}
-    rows = [i for k in ("next_major", "next_web") for i in (ms.get(k) or {}).get("issues") or []]
+    rows = list((ms.get("next_major") or {}).get("issues") or [])
     rows += data.get("needs_milestone") or []
     seen, uniq = set(), []
     for r in rows:
@@ -702,6 +739,8 @@ def render_full(data):
     parts.append(release_notes_full(data))
 
     parts.append(f'<h2>User-facing changes <span class="cnt">{nfeat}</span></h2>')
+    if data.get("titles_note"):
+        parts.append(f'<p class="sub">{esc(data["titles_note"])}</p>')
     parts.append(f'<div class="card">{theme_groups(data.get("user_facing"), repo)}</div>')
     parts.append(f'<h2>Internal / non-user-facing <span class="cnt">{nnon}</span></h2>')
     parts.append('<p class="sub">Tests, build/CI, developer tooling, and refactors. No user-visible change.</p>')
@@ -710,8 +749,7 @@ def render_full(data):
     nm = ms.get("next_major")
     if nm:
         parts.append(f'<h2>Milestone status - {esc(nm.get("name",""))}</h2>')
-        pend = sum(1 for g in (nm, ms.get("next_web") or {}) for i in (g.get("issues") or []) if i.get("status") == "pending")
-        prog = sum(1 for g in (nm, ms.get("next_web") or {}) for i in (g.get("issues") or []) if i.get("status") == "inprogress")
+        pend, prog = pending_counts(data)
         if pend or prog:
             parts.append('<div class="note flag"><b>The cut is a judgement call.</b> '
                          f'{prog} issue(s) have a PR open for review but not merged, so holding the cut would buy those. '
@@ -770,7 +808,7 @@ CSS_VARS = """
  --s-ship:#2b7a3b;--s-prog:#1971c2;--s-plan:#5f6570;
  --ok-bg:rgba(105,219,124,.14);--ok-bd:rgba(105,219,124,.4);
  --wait-bg:rgba(245,165,36,.14);--wait-bd:rgba(245,165,36,.4);
- --bp-bg:rgba(169,142,255,.14);--bp-bd:rgba(169,142,255,.42);
+ --bp-bg:rgba(169,142,255,.14);--bp-bd:rgba(169,142,255,.42);--on-bp:#15111f;
  --prog-bg:rgba(126,162,245,.14);--prog-bd:rgba(126,162,245,.4);
  --acc-bg:rgba(126,162,245,.1);--acc-bd:rgba(126,162,245,.32);
  --p-ios:#e9ebf2;--p-android:#4fe08a;--p-web:#7cb2ff;--p-off:#4d525f;}
@@ -785,7 +823,7 @@ html[data-theme="light"]{color-scheme:light;
  --s-ship:#2b7a3b;--s-prog:#1971c2;--s-plan:#5c6370;
  --ok-bg:rgba(43,138,62,.12);--ok-bd:rgba(43,138,62,.35);
  --wait-bg:rgba(154,103,0,.12);--wait-bd:rgba(154,103,0,.35);
- --bp-bg:rgba(103,65,217,.1);--bp-bd:rgba(103,65,217,.35);
+ --bp-bg:rgba(103,65,217,.1);--bp-bd:rgba(103,65,217,.35);--on-bp:#fff;
  --prog-bg:rgba(25,113,194,.1);--prog-bd:rgba(25,113,194,.35);
  --acc-bg:rgba(25,113,194,.07);--acc-bd:rgba(25,113,194,.3);
  --p-ios:#1b1e25;--p-android:#0b8043;--p-web:#1a73e8;--p-off:#bcc2cc;}
@@ -910,6 +948,14 @@ details.gwrap .scards{{margin:14px 18px 18px}}
 .ssum{{margin:0;color:var(--tx2);font-size:14px;line-height:1.5}}
 .flagbadge,.trackchip{{display:inline-block;white-space:nowrap;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:3px 9px;border-radius:999px}}
 .flagbadge{{color:var(--bp);background:var(--bp-bg);border:1px solid var(--bp-bd)}}
+.tagchip{{display:inline-block;white-space:nowrap;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:var(--on-bp);background:var(--bp)}}
+.tagsec{{background:var(--bp-bg);border:1px solid var(--bp-bd);border-radius:16px;padding:2px 20px 18px;margin:40px 0 0}}
+.tagsec .h2row{{margin-top:16px;border-bottom-color:var(--bp-bd)}}
+.tagsec h2{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1 1 auto;min-width:0}}
+.tagsec .scards{{grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr))}}
+@media (max-width:560px){{.tagsec{{padding:2px 12px 14px}}}}
+.sectag{{display:inline-block;font-size:12.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;color:var(--on-bp);background:var(--bp)}}
+.secnote{{color:var(--tx2);font-size:14.5px;line-height:1.5;margin:0 0 4px;max-width:760px}}
 .trackchip{{color:var(--mut);background:var(--card2);border:1px solid var(--line)}}
 .subhead{{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:24px 0 10px;font-weight:700}}
 details.tucked{{margin:34px 0 0;border:1px dashed var(--line);border-radius:12px}}
@@ -1151,7 +1197,7 @@ def render_briefing(data):
     if needs:
         lines.append(f"- {len(needs)} resolved issues carry no milestone. Nothing applied, see the ask below.")
     lines.append("")
-    for it in (s.get("features", []) + s.get("fixes", [])):
+    for it in merged_cards(s):
         meta = " / ".join(x for x in [it.get("kind"), it.get("track")] if x)
         lines.append(f"- **{it.get('headline','')}** ({meta})")
     not_merged = s.get("not_merged") or []
@@ -1171,7 +1217,7 @@ def cut_decision(data):
     than it is."""
     ms = (data.get("milestones") or {})
     rows = []
-    for key in ("next_major", "next_web"):
+    for key in ("next_major",):
         m = ms.get(key)
         if not m:
             continue
