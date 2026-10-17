@@ -85,6 +85,17 @@ describe('federation reachability', () => {
         },
     )
 
+    it.each([7, 8, 9])(
+        'shows online from the first check with %i of ten guardians reachable',
+        online => {
+            const observe = observationSequence(10)
+            for (let seconds = 0; seconds < 360; seconds += 30) {
+                expect(observe(online, seconds)).toBe('online')
+            }
+            expect(observe(online, 360)).toBe('unstable')
+        },
+    )
+
     it('keeps measuring an outage when the count changes below quorum', () => {
         const observe = observationSequence(10)
         for (let seconds = 0; seconds < 180; seconds += 30) {

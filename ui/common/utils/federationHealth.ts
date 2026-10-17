@@ -75,8 +75,6 @@ export function observeFederationHealth(
             (continues &&
                 (previousStatus === 'offline' || previousStatus === 'unstable'))
                 ? 'unstable'
-                : continues
-                  ? previousStatus
-                  : 'unknown',
+                : 'online',
     }
 }
