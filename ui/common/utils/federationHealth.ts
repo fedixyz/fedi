@@ -71,9 +71,11 @@ export function observeFederationHealth(
     return {
         health,
         status:
-            checkedAt - health.partialSince >= PARTIAL_REACHABILITY_DELAY ||
-            (continues &&
-                (previousStatus === 'offline' || previousStatus === 'unstable'))
+            online === quorum &&
+            (checkedAt - health.partialSince >= PARTIAL_REACHABILITY_DELAY ||
+                (continues &&
+                    (previousStatus === 'offline' ||
+                        previousStatus === 'unstable')))
                 ? 'unstable'
                 : 'online',
     }

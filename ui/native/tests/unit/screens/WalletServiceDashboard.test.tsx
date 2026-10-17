@@ -441,7 +441,7 @@ describe('screens/WalletServiceDashboard', () => {
     it.each([
         [4, 210, theme.colors.red],
         [5, 385, theme.colors.lightOrange],
-        [6, 385, theme.colors.lightOrange],
+        [6, 385, theme.colors.success],
     ] as const)(
         'should colour the status dot after sustained %i of seven reachability',
         async (online, seconds, color) => {

@@ -784,7 +784,7 @@
             "add-federation": "Add a Federation",
             "connection-status-offline": "This federation is offline. Please reach out to the guardians or community leader for further information.",
             "guardian-connection-online": "You're connected to all guardians.",
-            "guardian-connection-limited": "Some guardians aren't responding. Payments may take longer than usual.",
+            "guardian-connection-limited": "Some guardians aren't responding. This may affect payment reliability.",
             "guardian-connection-offline": "Payments may not go through. Check your internet connection or try again later.",
             "guardian-connection-unknown": "Connection status isn't available yet. If a payment fails, check your internet connection.",
             "connection-status-online": "This federation is fully active",
