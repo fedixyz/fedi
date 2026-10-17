@@ -18,7 +18,7 @@ Design choices that matter (learned the hard way, keep them):
   - THE TWO TABS ARE DIFFERENT ALTITUDES, enforced here rather than trusted to
     the prose. Every sha, tag, baseline, merge-base, day count and PR number
     belongs on Full report. Summary gets a scope line (which apps, anything
-    unusual about this release), the suggested store notes, and the cards.
+    unusual about this release), the store release notes, and the cards.
   - DARK BY DEFAULT, with a light toggle that persists to localStorage. Do not
     hardcode a hex outside the two :root blocks, or one theme breaks.
   - Two release tracks, always. Native and web have different "already released"
@@ -259,11 +259,11 @@ def store_notes_block(summary):
     rn = summary.get("release_notes") or {}
     store = rn.get("store")
     if not store:
-        warn("summary.release_notes.store is missing, so the Summary carries no suggested store text. "
+        warn("summary.release_notes.store is missing, so the Summary carries no store release notes. "
              "Write it from the cards by references/release-notes-copy.md. See SKILL.md step 7.")
         return ""
     budget(store, 500, "summary.release_notes.store")
-    out = ['<section class="notes"><div class="notes-label">Suggested release notes</div>',
+    out = ['<section class="notes"><div class="notes-label">Release notes</div>',
            f'<p class="notes-store">{esc(store)}</p>',
            '<div class="notes-meta">App Store and Google Play, the same text in every language</div>']
     out.append('</section>')
@@ -377,9 +377,8 @@ def not_merged_section(summary):
         '<summary><span class="chev" aria-hidden="true"></span><span>Not in this release yet</span>'
         f'<span class="cnt">{len(items)}</span><span class="tknote">{esc(", ".join(bits))}</span></summary>',
         '<div class="tbody">',
-        '<div class="h2row thead2"><p class="sub">Promised for this release but not finished. '
-        'In progress means a fix exists and is being checked, and it makes the release only if '
-        f'the release waits for it. Planned means no fix is ready yet.</p>{layout_switch(LAYOUTS)}</div>',
+        f'<div class="h2row thead2"><p class="sub">Planned for this release and not in it. In progress means a fix '
+        f'exists and is being checked. Planned means no fix exists yet.</p>{layout_switch(LAYOUTS)}</div>',
         f'<div class="scards" data-grid>{summary_cards(items, "not_merged", True)}</div>',
         '</div></details>'])
 
@@ -399,8 +398,8 @@ def pending_counts(data):
 
 
 def decision_exit(data):
-    """Counts and the trade only. The issue lists and the reasoning live on the
-    full tab."""
+    """Counts and the trade only, on Full report. It is an ask of the release owner,
+    so it stays off the Summary."""
     pend, prog = pending_counts(data)
     items = []
     if prog or pend:
@@ -424,7 +423,7 @@ def decision_exit(data):
 
 
 def qa_exit_line(data):
-    """Counts only, no board vocabulary: this renders on the summary tab."""
+    """Counts only. The issue lists are in the milestone tables."""
     uniq = release_issues(data)
     if not has_board(uniq):
         return ""
@@ -478,13 +477,12 @@ def render_summary(data):
         merged.append('<div class="subhead" data-sub>New features and improvements</div>')
         merged.append(f'<div class="scards" data-grid>{summary_cards(s["features"], "features", False)}</div>')
     if s.get("fixes"):
-        merged.append('<div class="subhead" data-sub>Fixes people will feel</div>')
+        merged.append('<div class="subhead" data-sub>Fixes</div>')
         merged.append(f'<div class="scards" data-grid>{summary_cards(s["fixes"], "fixes", False)}</div>')
     merged.append('</section>')
     parts.append("\n".join(merged))
     parts.append(not_merged_section(s))
-    parts.append(decision_exit(data))
-    parts.append('<p class="sub" style="margin-top:22px">The full list of changes, version numbers, issue tracking and the patch detail are on <b>Full report</b> above.</p>')
+    parts.append('<p class="sub" style="margin-top:22px">The full list of changes, version numbers, issue tracking and the patch detail are on the <b>Full report</b> tab.</p>')
     out = "\n".join(p for p in parts if p)
     scan_summary_jargon(out)
     return out
@@ -651,7 +649,7 @@ def release_notes_full(data):
     if not rn:
         return ""
     repo = data.get("repo", "")
-    parts = ['<h2>Release notes draft</h2>',
+    parts = ['<h2>Release notes</h2>',
              '<p class="sub">The store text, then the GitHub release body that follows the Built from commit line CI writes.</p>',
              '<div class="card">']
     if rn.get("store"):
@@ -696,6 +694,7 @@ def render_full(data):
     parts.append('</div>')
 
     parts.append(track_cards(data.get("tracks")))
+    parts.append(decision_exit(data))
 
     if data.get("intro"):
         parts.append(f'<div class="note">{esc(data["intro"])}</div>')
@@ -767,8 +766,8 @@ CSS_VARS = """
  --uf:#2f9e44;--nf:#4d525c;--sug:#3b5bdb;
  --tabbg:rgba(22,22,26,.92);--hover:rgba(126,162,245,.09);
  --pre-bg:#101014;--pre-tx:#d8d8de;
- --k-feat:#845ef7;--k-imp:#22b8cf;--k-fix:#ff922b;
- --s-ship:#37b24d;--s-prog:#4c8ef7;--s-plan:#5f6570;
+ --k-feat:#7048e8;--k-imp:#0b7285;--k-fix:#b54708;
+ --s-ship:#2b7a3b;--s-prog:#1971c2;--s-plan:#5f6570;
  --ok-bg:rgba(105,219,124,.14);--ok-bd:rgba(105,219,124,.4);
  --wait-bg:rgba(245,165,36,.14);--wait-bd:rgba(245,165,36,.4);
  --bp-bg:rgba(169,142,255,.14);--bp-bd:rgba(169,142,255,.42);
@@ -782,8 +781,8 @@ html[data-theme="light"]{color-scheme:light;
  --uf:#2b8a3e;--nf:#868e96;--sug:#1f6feb;
  --tabbg:rgba(246,247,249,.92);--hover:rgba(25,113,194,.05);
  --pre-bg:#f3f4f6;--pre-tx:#1f2937;
- --k-feat:#7048e8;--k-imp:#0c8599;--k-fix:#e8590c;
- --s-ship:#2b8a3e;--s-prog:#1971c2;--s-plan:#5c6370;
+ --k-feat:#7048e8;--k-imp:#0b7285;--k-fix:#b54708;
+ --s-ship:#2b7a3b;--s-prog:#1971c2;--s-plan:#5c6370;
  --ok-bg:rgba(43,138,62,.12);--ok-bd:rgba(43,138,62,.35);
  --wait-bg:rgba(154,103,0,.12);--wait-bd:rgba(154,103,0,.35);
  --bp-bg:rgba(103,65,217,.1);--bp-bd:rgba(103,65,217,.35);
@@ -1132,7 +1131,7 @@ def render_briefing(data):
     lines.append(scope + (f" {quirks}" if quirks else ""))
     store = (s.get("release_notes") or {}).get("store")
     if store:
-        lines.append(f"- Suggested store notes: {store}")
+        lines.append(f"- Store release notes: {store}")
     tracks = data.get("tracks") or {}
     for key, label in (("native", "Native"), ("web", "Web")):
         t = tracks.get(key)
