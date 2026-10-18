@@ -181,6 +181,9 @@ export class DeepLinks extends AppiumTestBase {
             'JoinFederationButton',
             APP_START_TIMEOUT,
         )
+        // the screen only fetches again after clearing its preview, and
+        // Appium can miss the button leaving on iOS
+        const fetchesWhenShown = this.spaceFetches
         let reloads = 0
         let shown = true
         const deadline = Date.now() + SPACE_WATCH_MS
@@ -194,13 +197,14 @@ export class DeepLinks extends AppiumTestBase {
             await new Promise(resolve => setTimeout(resolve, 250))
         }
         const fetches = this.spaceFetches - fetchesBefore
+        const refetches = this.spaceFetches - fetchesWhenShown
         console.log(
-            `${label}: space preview left the screen ${reloads} times, fetched ${fetches} times`,
+            `${label}: space preview left the screen ${reloads} times, fetched ${fetches} times, ${refetches} after it showed`,
         )
-        if (reloads > 0) {
+        if (reloads > 0 || refetches > 0) {
             await this.saveScreenshot(`space-preview-reload-${label}`)
             throw new Error(
-                `The space preview went back to loading ${reloads} times after the ${label} link, and the app fetched it ${fetches} times`,
+                `The space preview went back to loading after the ${label} link. It left the screen ${reloads} times, and the app fetched it ${refetches} times after it showed`,
             )
         }
         await this.waitForText(SPACE_NAME, 0, true)
