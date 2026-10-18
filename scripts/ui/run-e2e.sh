@@ -6,13 +6,14 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 echo "=== E2E Test Runner ==="
 export RUN_TESTS=1
-available_tests=("onboarding" "settings" "joinLeaveFederations" "chat" "communityChatJoin" "miniAppSeed" "payments" "chatPayments" "ecashLifecycle" "stableBalance" "multispend" "backupRestore" "pinProtection" "deepLinks")
+available_tests=("onboarding" "settings" "joinLeaveFederations" "federationMetadata" "chat" "communityChatJoin" "miniAppSeed" "payments" "chatPayments" "ecashLifecycle" "stableBalance" "multispend" "backupRestore" "pinProtection" "deepLinks")
 
 while true; do
   echo -e "\nSelect tests to run:"
   echo "o - onboarding"
   echo "s - settings"
   echo "j - joinLeaveFederations"
+  echo "f - federationMetadata"
   echo "c - chat"
   echo "g - communityChatJoin"
   echo "d - miniAppSeed"
@@ -44,6 +45,11 @@ while true; do
     j)
       TESTS_TO_RUN="joinLeaveFederations"
       echo "Selected test: joinLeaveFederations"
+      break
+      ;;
+    f)
+      TESTS_TO_RUN="federationMetadata"
+      echo "Selected test: federationMetadata"
       break
       ;;
     c)

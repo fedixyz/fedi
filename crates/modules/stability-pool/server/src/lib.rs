@@ -2557,7 +2557,7 @@ mod tests {
 
     #[tokio::test]
     async fn btc_transfer_can_empty_a_balance_below_the_minimum() {
-        // Cover both the FMan and standalone-server deposit minimums.
+        // Cover both the MG and standalone-server deposit minimums.
         for minimum_msats in [10_000, 100_000] {
             let mut fixture = BtcTransferFixture::new(BTC_TRANSFER_CONSENSUS_VERSION).await;
             fixture.min_allowed_seek = Amount::from_msats(minimum_msats);

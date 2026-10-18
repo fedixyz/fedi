@@ -1,5 +1,5 @@
 // The setup-payment-federations fetch nests another async layer inside the
-// `FiDriverBackend::execute` future, which tips proving its `Send` bound past
+// `FaDriverBackend::execute` future, which tips proving its `Send` bound past
 // rustc's default limit of 128. `fedi-ffi`, `fedi-wasm` and `remote-server`
 // already raise it for the same reason.
 #![recursion_limit = "256"]
@@ -36,13 +36,13 @@ use serde::Serialize;
 use ts_rs::TS;
 
 pub mod bg_matrix;
-pub mod fi_client;
+pub mod fa_client;
 pub mod mini_app_seed;
 pub mod onboarding;
 pub mod providers;
 
-mod fi_payments;
-mod fi_push;
+mod fa_payments;
+mod fa_push;
 mod full;
 
 /// This is instantiated once as a global. When RPC commands come in, this

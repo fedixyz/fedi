@@ -3,7 +3,7 @@ import React from 'react'
 import { ROOM_MENTION } from '@fedi/common/constants/matrix'
 import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { parseMessageText } from '@fedi/common/utils/chat'
+import { parseTextWithUrls } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 import {
     isHtmlFormattedContent,
@@ -77,7 +77,7 @@ export const ChatTextEvent: React.FC<Props> = ({ event }) => {
                             </A>
                         ) : (
                             <React.Fragment key={`txt-${i}`}>
-                                {parseMessageText(r.text).map((seg, j) =>
+                                {parseTextWithUrls(r.text).map((seg, j) =>
                                     seg.type === 'text' ? (
                                         <React.Fragment key={`t-${i}-${j}`}>
                                             {renderTextWithRoomUnderline(
@@ -146,7 +146,7 @@ export const ChatTextEvent: React.FC<Props> = ({ event }) => {
         }
     }
 
-    const segments = parseMessageText(content.body)
+    const segments = parseTextWithUrls(content.body)
     return (
         <>
             {segments.map((segment, index) => (

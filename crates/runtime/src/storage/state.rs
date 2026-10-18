@@ -29,7 +29,7 @@ use ts_rs::TS;
 
 use super::FIRST_FEDERATION_DB_PREFIX;
 use crate::constants::{DEVICE_IDENTIFIER_FIXED_LENGTH, DEVICE_REGISTRATION_CHILD_ID};
-use crate::features::FiManifoldEnvironment;
+use crate::features::FaManifoldEnvironment;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "kind")]
@@ -225,7 +225,8 @@ pub struct AppStateJsonBase {
 
     /// Without the default, app states written earlier stop loading.
     #[serde(default)]
-    pub fi_manifold_environment: Option<FiManifoldEnvironment>,
+    #[serde(rename = "fi_manifold_environment")]
+    pub fa_manifold_environment: Option<FaManifoldEnvironment>,
 
     /// Device identifier is used to give this device a name that Fedi's
     /// device registration service can store. We store an encrypted

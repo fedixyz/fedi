@@ -32,6 +32,7 @@ import {
     UsdCents,
 } from '../types'
 import { RpcFeeDetails, RpcRoomId } from '../types/bindings'
+import amountUtils from '../utils/AmountUtils'
 import {
     makeBase64CSVUri,
     makeCSVFilename,
@@ -44,6 +45,7 @@ import {
     coerceMultispendTxn,
     isMultispendDepositEvent,
     isMultispendFinancialEvent,
+    isMultispendWithdrawalBtcEvent,
     isMultispendWithdrawalEvent,
     isMultispendWithdrawalRejected,
 } from '../utils/matrix'
@@ -371,10 +373,9 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const transactionDisplayType = useCommonSelector(
         selectTransactionDisplayType,
     )
+    const satsLabel = t('words.sats').toUpperCase()
     const preferredCurrency =
-        transactionDisplayType === 'fiat'
-            ? selectedCurrency
-            : t('words.sats').toUpperCase()
+        transactionDisplayType === 'fiat' ? selectedCurrency : satsLabel
 
     const multispendStatus = useCommonSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
@@ -411,30 +412,60 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const makeMultispendTxnAmountText = useCallback(
         (txn: MultispendTransactionListEntry, includeCurrency = false) => {
             if (isMultispendDepositEvent(txn.state)) {
-                const fiatAmount = txn.state.event.depositNotification
-                    .fiatAmount as UsdCents
+                const deposit = txn.state.event.depositNotification
+                if ('btcAmount' in deposit) {
+                    const sats = amountUtils.msatToSat(
+                        deposit.btcAmount as MSats,
+                    )
+                    return `+${amountUtils.formatSats(sats)}${includeCurrency ? ` ${satsLabel}` : ''}`
+                }
+                const fiatAmount = deposit.fiatAmount as UsdCents
                 return `+${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
             }
 
             const isRejected = multispendStatus
                 ? isMultispendWithdrawalRejected(txn.state, multispendStatus)
                 : true
+            const { request, txSubmissionStatus } =
+                txn.state.event.withdrawalRequest
             const hasFailed =
-                txn.state.event.withdrawalRequest.txSubmissionStatus !==
-                    'unknown' &&
-                'rejected' in
-                    txn.state.event.withdrawalRequest.txSubmissionStatus
+                txSubmissionStatus !== 'unknown' &&
+                'rejected' in txSubmissionStatus
+            const sign = isRejected || hasFailed ? '' : '-'
 
-            const fiatAmount = txn.state.event.withdrawalRequest.request
-                .transfer_amount as UsdCents
-            return `${isRejected || hasFailed ? '' : '-'}${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
+            if (request.kind === 'btc') {
+                const sats = amountUtils.msatToSat(
+                    request.transfer_amount as MSats,
+                )
+                return `${sign}${amountUtils.formatSats(sats)}${includeCurrency ? ` ${satsLabel}` : ''}`
+            }
+
+            const fiatAmount = request.transfer_amount as UsdCents
+            return `${sign}${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
         },
-        [convertCentsToFormattedFiat, preferredCurrency, multispendStatus],
+        [
+            convertCentsToFormattedFiat,
+            preferredCurrency,
+            multispendStatus,
+            satsLabel,
+        ],
     )
 
-    const makeMultispendTxnCurrencyText = useCallback(() => {
-        return preferredCurrency ?? SupportedCurrency.USD
-    }, [preferredCurrency])
+    const makeMultispendTxnCurrencyText = useCallback(
+        (txn?: MultispendTransactionListEntry) => {
+            if (txn) {
+                if (isMultispendDepositEvent(txn.state)) {
+                    if ('btcAmount' in txn.state.event.depositNotification)
+                        return satsLabel
+                } else if (isMultispendWithdrawalBtcEvent(txn.state)) {
+                    return satsLabel
+                }
+            }
+
+            return preferredCurrency ?? SupportedCurrency.USD
+        },
+        [preferredCurrency, satsLabel],
+    )
 
     const makeMultispendTxnTimestampText = useCallback(
         (txn: MultispendTransactionListEntry) => {

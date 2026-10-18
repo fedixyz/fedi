@@ -416,10 +416,10 @@ impl MintOps for MintOpsV1 {
                     reason: EcashReceiveReason::Receive,
                     frontend_metadata: None,
                 });
-                // Internal receives and under-the-hood FI seat refunds stay
+                // Internal receives and under-the-hood FA seat refunds stay
                 // out of history; refunds show inside the formation row.
                 if extra_meta.internal
-                    || extra_meta.reason == EcashReceiveReason::FiSeatPaymentRefund
+                    || extra_meta.reason == EcashReceiveReason::FaSeatPaymentRefund
                 {
                     return Ok(None);
                 }

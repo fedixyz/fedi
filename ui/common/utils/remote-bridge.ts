@@ -60,10 +60,6 @@ export class RemoteBridge {
         return []
     }
 
-    public async unsubscribeFromBridgeEvents(_noop: unknown) {
-        this.eventEnabled = false
-    }
-
     public async getInviteCode(): Promise<string> {
         const response = await fetch(`http://${rbridgeHost}/invite_code`)
 
@@ -186,8 +182,6 @@ const globalRemoteBridge = new RemoteBridge()
 export const fedimint = globalRemoteBridge.fedimint
 export const subscribeToBridgeEvents =
     globalRemoteBridge.subscribeToBridgeEvents.bind(globalRemoteBridge)
-export const unsubscribeFromBridgeEvents =
-    globalRemoteBridge.unsubscribeFromBridgeEvents.bind(globalRemoteBridge)
 export const getAppFlavor =
     globalRemoteBridge.getAppFlavor.bind(globalRemoteBridge)
 export const initializeBridge =

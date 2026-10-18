@@ -23,6 +23,7 @@ import { FederationStatus } from '../../components/FederationDetails/FederationS
 import { FederationInviteDialog } from '../../components/FederationInviteDialog'
 import { Icon } from '../../components/Icon'
 import * as Layout from '../../components/Layout'
+import { LinkifiedText } from '../../components/LinkifiedText'
 import { ShadowScroller } from '../../components/ShadowScroller'
 import { Text } from '../../components/Text'
 import { useAppSelector } from '../../hooks'
@@ -117,7 +118,11 @@ function FederationDetails() {
                                     ))}
                                 </ChatsContainer>
                             )}
-                            {welcomeMessage && <Text>{welcomeMessage}</Text>}
+                            {welcomeMessage && (
+                                <Text>
+                                    <LinkifiedText text={welcomeMessage} />
+                                </Text>
+                            )}
                         </ScrollableContent>
                     </Content>
                     {(tosUrl || popupInfo?.ended) && (

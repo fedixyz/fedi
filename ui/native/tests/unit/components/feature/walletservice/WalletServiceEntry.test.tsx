@@ -7,11 +7,11 @@ import {
 } from '@testing-library/react-native'
 import React from 'react'
 
-import { setFiClientStatus, setFiStatus, setupStore } from '@fedi/common/redux'
+import { setFaClientStatus, setFaStatus, setupStore } from '@fedi/common/redux'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type {
-    RpcFiFormationSnapshot,
-    RpcFiSelectionPreview,
+    RpcFaFormationSnapshot,
+    RpcFaSelectionPreview,
 } from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
 
@@ -20,8 +20,8 @@ import { mockNavigation, mockToast } from '../../../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../../../utils/render'
 
 const makeFormation = (
-    overrides: Partial<RpcFiFormationSnapshot> = {},
-): RpcFiFormationSnapshot => ({
+    overrides: Partial<RpcFaFormationSnapshot> = {},
+): RpcFaFormationSnapshot => ({
     formationId: 'formation-1',
     phase: 'acquiringSeats',
     intent: {
@@ -45,7 +45,7 @@ const makeFormation = (
     ...overrides,
 })
 
-const makePreview = (): RpcFiSelectionPreview => ({
+const makePreview = (): RpcFaSelectionPreview => ({
     previewId: 'preview-1',
     selected: 10,
     totalAdvertisedMsats: '600000',
@@ -58,7 +58,7 @@ const makePreview = (): RpcFiSelectionPreview => ({
 // no WalletServiceMonitor is mounted around a bare component render, so the fi
 // status has to be seeded by hand. Leaving it unseeded is the startup window.
 const makeStore = (
-    status?: Parameters<typeof setFiStatus>[0],
+    status?: Parameters<typeof setFaStatus>[0],
     { withQuote = false }: { withQuote?: boolean } = {},
 ) => {
     const store = setupStore(
@@ -71,7 +71,7 @@ const makeStore = (
               }
             : undefined,
     )
-    if (status) store.dispatch(setFiStatus(status))
+    if (status) store.dispatch(setFaStatus(status))
     return store
 }
 
@@ -82,7 +82,7 @@ const renderEntry = ({
     // stubbed so "was never called" is a real assertion rather than a check
     // against an undefined property. The entry must not reach for it at all.
     const fedimint = createMockFedimintBridge({
-        fiClientEligiblePayers: () =>
+        faClientEligiblePayers: () =>
             Promise.resolve({ type: 'payers', payers: [] }),
     })
 
@@ -152,7 +152,7 @@ describe('WalletServiceEntry', () => {
 
         act(() => {
             store.dispatch(
-                setFiClientStatus({
+                setFaClientStatus({
                     type: 'ready',
                     status: {
                         type: 'recovery',
@@ -182,7 +182,7 @@ describe('WalletServiceEntry', () => {
 
         act(() => {
             store.dispatch(
-                setFiClientStatus({
+                setFaClientStatus({
                     type: 'ready',
                     status: { type: 'idle' },
                 }),
@@ -208,7 +208,7 @@ describe('WalletServiceEntry', () => {
     it('keeps the guardian directory message for client errors outside recovery', () => {
         const store = makeStore({ type: 'idle' })
         store.dispatch(
-            setFiClientStatus({
+            setFaClientStatus({
                 type: 'failed',
                 error: {
                     code: 'registry',
@@ -235,7 +235,7 @@ describe('WalletServiceEntry', () => {
         const { user } = renderEntry({ store })
         act(() => {
             store.dispatch(
-                setFiStatus({
+                setFaStatus({
                     type: 'restored',
                     formation: {
                         snapshotGeneration: 1,
@@ -271,7 +271,7 @@ describe('WalletServiceEntry', () => {
             )
         })
         expect(mockNavigation.navigate).toHaveBeenCalledTimes(1)
-        expect(fedimint.fiClientEligiblePayers).not.toHaveBeenCalled()
+        expect(fedimint.faClientEligiblePayers).not.toHaveBeenCalled()
         expect(mockToast.show).not.toHaveBeenCalled()
     })
 

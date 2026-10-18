@@ -17,7 +17,7 @@ Key merged PRs mapped to tracked docs:
 - [#12268](https://github.com/fedibtc/fedi/pull/12268) merged the previous updater report and changed `HACKING.md` plus this audit report.
 - [#12272](https://github.com/fedibtc/fedi/pull/12272) translated the 26.9.2 Federation wording across locales.
 - [#12271](https://github.com/fedibtc/fedi/pull/12271) added bridge and native tests proving LNURL support from both native JSON and string-wrapped federation meta.
-- [#12276](https://github.com/fedibtc/fedi/pull/12276) added bounded FI resume diagnostics.
+- [#12276](https://github.com/fedibtc/fedi/pull/12276) added bounded FA resume diagnostics.
 - [#12269](https://github.com/fedibtc/fedi/pull/12269) added the wallet-service DKG restart RPC, remote flag, native hidden UI, simulator support, and generated bindings.
 - [#12294](https://github.com/fedibtc/fedi/pull/12294) turned the DKG restart flag on in production.
 - [#12296](https://github.com/fedibtc/fedi/pull/12296) changed bug-report and analytics S3 uploads to prefer Vercel OIDC through `AWS_ROLE_ARN`, with static AWS keys as the fallback.
@@ -48,7 +48,7 @@ Key merged PRs mapped to tracked docs:
 - `.github/workflows/e2e-tests.yml`, `scripts/ci/e2e-pipeline.sh`, `scripts/ui/run-e2e-web.sh`, `ui/native/tests/appium/common/payments.test.ts`, and `ui/web/tests/e2e/payments.spec.ts` for E2E behavior and federation-kind coverage.
 - `ui/web/src/pages/api/bug-report/generate-upload-url.ts`, `ui/web/src/pages/api/analytics/consent.ts`, and `ui/web/package.json` for S3 upload credential behavior.
 - `crates/runtime/src/features.rs`, `ui/web/src/pages/api/features.ts`, `ui/common/types/bindings.ts`, `ui/native/screens/WalletServiceProgress.tsx`, and `.agents/skills/feature-flags/SKILL.md` for the DKG restart feature flag.
-- `crates/bridge/src/fi_client.rs`, `SECURITY.md`, and `HACKING.md` for FI lifecycle and diagnostics wording.
+- `crates/bridge/src/fa_client.rs`, `SECURITY.md`, and `HACKING.md` for FA lifecycle and diagnostics wording.
 - `.agents/skills/android-release/SKILL.md`, `.agents/skills/web-release/SKILL.md`, and `.agents/skills/report-next-release/references/release-notes-copy.md` for release-note sign-off behavior.
 - `ui/common/hooks/chat.ts`, native/web foreign-ecash overlays, and `ui/native/tests/appium/common/chatPayments.test.ts` for chat-payment receive behavior.
 - `ui/docs/meta_fields/README.md` and the LNURL-related bridge tests for federation meta documentation.
@@ -59,7 +59,7 @@ Key merged PRs mapped to tracked docs:
 - `ui/docs/TESTING.md` and `ui/native/docs/cicd.md` were stale after [#12285](https://github.com/fedibtc/fedi/pull/12285). They did not mention `FEDI_FEDERATION_KIND`, the kind-one/kind-two CI matrix, the kind-two payments narrowing, or kind-specific artifacts. Updated both docs.
 - `.agents/skills/android-release/SKILL.md`, `.agents/skills/web-release/SKILL.md`, and `.agents/skills/report-next-release/references/release-notes-copy.md` remain current for [#12299](https://github.com/fedibtc/fedi/pull/12299): store copy still needs sign-off, while GitHub draft release bodies are written without asking.
 - `.agents/skills/feature-flags/SKILL.md` remains current for [#12269](https://github.com/fedibtc/fedi/pull/12269) and [#12294](https://github.com/fedibtc/fedi/pull/12294): it already describes the Rust/web/bindings split, camelCase API fields, snake_case selectors, generated bindings, and production/dev defaults.
-- `SECURITY.md` and `HACKING.md` remain current for [#12276](https://github.com/fedibtc/fedi/pull/12276): FI resume diagnostics log bounded status by default and include full error detail only behind sensitive logging.
+- `SECURITY.md` and `HACKING.md` remain current for [#12276](https://github.com/fedibtc/fedi/pull/12276): FA resume diagnostics log bounded status by default and include full error detail only behind sensitive logging.
 - `ui/docs/meta_fields/README.md` remains current for [#12271](https://github.com/fedibtc/fedi/pull/12271). The PR added coverage for existing LNURL meta decoding behavior rather than introducing a new documented Fedi-specific meta field.
 - `ui/native/tests/README.md` remains current for the native Appium changes. The interactive suite list already includes `payments` and `chatPayments`, and the federation-kind matrix is CI workflow behavior documented in `ui/native/docs/cicd.md`.
 
@@ -85,7 +85,7 @@ Key merged PRs mapped to tracked docs:
 - Ran `git ls-files '*.md'` and counted 102 tracked Markdown files.
 - Cross-checked the previous successful updater run with the GitHub Actions API.
 - Cross-checked recent merged PRs and changed files with GitHub read APIs.
-- Verified selected documentation against current workflows, scripts, API route implementation, feature-flag implementation, bridge/FI diagnostics, release-skill docs, and relevant UI test files with `rg` and `sed`.
+- Verified selected documentation against current workflows, scripts, API route implementation, feature-flag implementation, bridge/FA diagnostics, release-skill docs, and relevant UI test files with `rg` and `sed`.
 - Ran `git diff --check`.
 - No test suite was run because the changes are Markdown-only.
 

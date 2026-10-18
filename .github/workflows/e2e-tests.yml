@@ -20,6 +20,7 @@ on:
                     - onboarding
                     - settings
                     - joinLeaveFederations
+                    - federationMetadata
                     - chat
                     - communityChatJoin
                     - miniAppSeed
@@ -96,6 +97,7 @@ jobs:
                       ./ui/.appium/pipeline/*.log
                       ./metro.log
                       ./**/screenshots/*.png
+                      ./**/screenshots/*.xml
 
     web-e2e:
         name: 'Web e2e tests (${{ matrix.federation_kind }})'
@@ -179,3 +181,4 @@ jobs:
                       ./ui/.appium/pipeline/*.log
                       ./metro.log
                       ./**/screenshots/*.png
+                      ./**/screenshots/*.xml

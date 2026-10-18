@@ -5,21 +5,21 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { FEDERATION_TERMS_URL } from '@fedi/common/constants/tos'
-import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     useAppliedGuardianFeePpm,
     useWalletServiceFederationId,
     useWalletServiceLightningAttach,
     useWalletServiceMetadata,
-} from '@fedi/common/hooks/fi'
+} from '@fedi/common/hooks/fa'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     DEFAULT_GUARDIAN_FEE_PPM,
     getWalletServiceErrorKey,
     getWalletServiceRetryableError,
     guardianFeePpmToPercent,
-    selectFiFormationName,
-    selectFiInviteCode,
+    selectFaFormationName,
+    selectFaInviteCode,
     selectIsWalletServiceFormed,
     selectIsWalletServiceMaintenanceReady,
     selectWalletServiceGuardianCount,
@@ -27,8 +27,8 @@ import {
     updateWalletServiceMetadata,
 } from '@fedi/common/redux'
 import {
-    RpcFiFederationMetadataUpdate,
-    RpcFiOperationError,
+    RpcFaFederationMetadataUpdate,
+    RpcFaOperationError,
 } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -174,8 +174,8 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
     const toast = useToast()
     const { launchZendesk } = useLaunchZendesk()
 
-    const formationName = useAppSelector(selectFiFormationName)
-    const inviteCode = useAppSelector(selectFiInviteCode)
+    const formationName = useAppSelector(selectFaFormationName)
+    const inviteCode = useAppSelector(selectFaInviteCode)
     // the rate the federation applies, read from its consensus metadata — not
     // `intent.guardianFeePpm`, which is creation-time and always 0
     const {
@@ -264,7 +264,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
             toast.show({
                 content: getWalletServiceRetryableError(
                     t,
-                    (error as RpcFiOperationError | undefined)?.code,
+                    (error as RpcFaOperationError | undefined)?.code,
                 ),
                 status: 'error',
             })
@@ -273,7 +273,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
     )
 
     const saveMetadata = useCallback(
-        async (update: RpcFiFederationMetadataUpdate) => {
+        async (update: RpcFaFederationMetadataUpdate) => {
             setIsSaving(true)
             try {
                 await dispatch(
@@ -311,7 +311,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
             getUrlError(value)
         )
             return
-        const update: RpcFiFederationMetadataUpdate = { type: editing, value }
+        const update: RpcFaFederationMetadataUpdate = { type: editing, value }
         if (await saveMetadata(update)) {
             // consensus lags the save, so hold the new value on screen until a
             // read agrees with it

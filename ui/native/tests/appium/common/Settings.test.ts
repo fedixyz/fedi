@@ -9,8 +9,7 @@ export class Settings extends AppiumTestBase {
     static produces = ['onboarded'] as const
 
     // Earlier suites leave this drawer scrolled and it keeps that offset.
-    // Rewind up: android hides off-screen nodes, and scrollToElement only
-    // searches downward.
+    // Rewind up: android hides off-screen nodes.
     private async openDrawerAtTop(): Promise<void> {
         await this.waitForElementDisplayed('UserQrContainer')
         await this.scrollToElement('DisplayNameProper', {
@@ -89,8 +88,7 @@ export class Settings extends AppiumTestBase {
         await this.clickElementByKey('HeaderBackButton')
         await this.waitForElementDisplayed('UserQrContainer')
 
-        // The App Settings leg leaves the drawer scrolled past this row and
-        // scrollToElement only searches downward.
+        // The App Settings leg leaves the drawer scrolled past this row.
         await this.openDrawerAtTop()
         await this.scrollToElement('Display currency')
         await this.clickElementByKey('Display currency')

@@ -59,6 +59,7 @@ describe('common/hooks/transactions', () => {
                     federationInviteCode: 'federationInviteCode',
                     federationName: 'federationName',
                 },
+                kind: 'fiat',
                 proposer: 'proposer',
                 pubkeys: {
                     pubkey1: 'pubkey1',
@@ -76,6 +77,7 @@ describe('common/hooks/transactions', () => {
             store.dispatch(
                 setMatrixRoomMultispendStatus({
                     roomId,
+                    kind: 'fiat',
                     status,
                 }),
             )

@@ -204,4 +204,232 @@ describe('common/utils/linking', () => {
             )
         })
     })
+
+    describe('parseTextWithUrls', () => {
+        it.each([
+            'https://example.com/?token=claim!',
+            'https://example.com/file.',
+            'https://example.com/?expression=value)',
+            `https://app.fedi.xyz/link#screen=browser&url=${encodeURIComponent('https://example.com/?token=claim!')}`,
+        ])('should preserve every character of a valid URL: %s', url => {
+            expect(linking.parseTextWithUrls(url)).toEqual([
+                { type: 'url', content: url },
+            ])
+            expect(linking.deriveUrlsFromText(url)).toEqual([url])
+        })
+
+        it('should leave fedi:// links as text', () => {
+            expect(linking.parseTextWithUrls('Open fedi://chat')).toEqual([
+                { type: 'text', content: 'Open fedi://chat' },
+            ])
+        })
+
+        it('should preserve balanced parentheses in a URL', () => {
+            const url = 'https://en.wikipedia.org/wiki/Fedi_(app)'
+            expect(linking.parseTextWithUrls(url)).toEqual([
+                { type: 'url', content: url },
+            ])
+        })
+
+        it('should return single text segment for plain text', () => {
+            const result = linking.parseTextWithUrls('Hello world')
+
+            expect(result).toEqual([{ type: 'text', content: 'Hello world' }])
+        })
+
+        it('should parse URLs correctly', () => {
+            const result = linking.parseTextWithUrls(
+                'Check out https://example.com for more info',
+            )
+
+            expect(result).toEqual([
+                { type: 'text', content: 'Check out ' },
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: ' for more info' },
+            ])
+        })
+
+        it('should handle multiple URLs', () => {
+            const result = linking.parseTextWithUrls(
+                'Check https://example.com and https://test.com',
+            )
+
+            expect(result).toEqual([
+                { type: 'text', content: 'Check ' },
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: ' and ' },
+                { type: 'url', content: 'https://test.com' },
+            ])
+        })
+
+        it('should handle empty string', () => {
+            const result = linking.parseTextWithUrls('')
+
+            expect(result).toEqual([])
+        })
+
+        it('should handle text with only whitespace', () => {
+            const result = linking.parseTextWithUrls('   ')
+
+            expect(result).toEqual([{ type: 'text', content: '   ' }])
+        })
+
+        it('should handle URL at the beginning of text', () => {
+            const result = linking.parseTextWithUrls(
+                'https://example.com is great',
+            )
+
+            expect(result).toEqual([
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: ' is great' },
+            ])
+        })
+
+        it('should handle URL at the end of text', () => {
+            const result = linking.parseTextWithUrls(
+                'Check out https://example.com',
+            )
+
+            expect(result).toEqual([
+                { type: 'text', content: 'Check out ' },
+                { type: 'url', content: 'https://example.com' },
+            ])
+        })
+
+        it('should handle text with only a URL', () => {
+            const result = linking.parseTextWithUrls('https://example.com')
+
+            expect(result).toEqual([
+                { type: 'url', content: 'https://example.com' },
+            ])
+        })
+
+        it('should handle multiple consecutive URLs', () => {
+            const result = linking.parseTextWithUrls(
+                'https://example.com https://test.com',
+            )
+
+            expect(result).toEqual([
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: ' ' },
+                { type: 'url', content: 'https://test.com' },
+            ])
+        })
+
+        it('should handle text with newlines but no URLs', () => {
+            const result = linking.parseTextWithUrls(
+                'Hello\nWorld\nHow are you?',
+            )
+
+            expect(result).toEqual([
+                { type: 'text', content: 'Hello\nWorld\nHow are you?' },
+            ])
+        })
+
+        it('should handle text with newlines and URLs', () => {
+            const result = linking.parseTextWithUrls(
+                'Hello\nCheck out https://example.com\nIt is great!',
+            )
+
+            expect(result).toEqual([
+                { type: 'text', content: 'Hello\nCheck out ' },
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: '\nIt is great!' },
+            ])
+        })
+
+        it('should handle URL after newline', () => {
+            const result = linking.parseTextWithUrls(
+                'Hello\nhttps://example.com',
+            )
+
+            expect(result).toEqual([
+                { type: 'text', content: 'Hello\n' },
+                { type: 'url', content: 'https://example.com' },
+            ])
+        })
+
+        it('should handle URL before newline', () => {
+            const result = linking.parseTextWithUrls(
+                'https://example.com\nGreat site!',
+            )
+
+            expect(result).toEqual([
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: '\nGreat site!' },
+            ])
+        })
+
+        it('should handle multiple URLs separated by newlines', () => {
+            const result = linking.parseTextWithUrls(
+                'https://example.com\nhttps://test.com',
+            )
+
+            expect(result).toEqual([
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: '\n' },
+                { type: 'url', content: 'https://test.com' },
+            ])
+        })
+
+        it('should handle text with multiple newlines', () => {
+            const result = linking.parseTextWithUrls(
+                'Line 1\n\nLine 3\nhttps://example.com\n\nEnd',
+            )
+
+            expect(result).toEqual([
+                { type: 'text', content: 'Line 1\n\nLine 3\n' },
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: '\n\nEnd' },
+            ])
+        })
+
+        it('should handle HTTP URLs', () => {
+            const result = linking.parseTextWithUrls('Visit http://example.com')
+
+            expect(result).toEqual([
+                { type: 'text', content: 'Visit ' },
+                { type: 'url', content: 'http://example.com' },
+            ])
+        })
+
+        it('should handle duplicate URLs', () => {
+            const result = linking.parseTextWithUrls(
+                'https://example.com and https://example.com again',
+            )
+
+            expect(result).toEqual([
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: ' and ' },
+                { type: 'url', content: 'https://example.com' },
+                { type: 'text', content: ' again' },
+            ])
+        })
+
+        it('should not match URLs without word boundary', () => {
+            const result = linking.parseTextWithUrls(
+                'nospacehttps://example.com',
+            )
+
+            expect(result).toEqual([
+                { type: 'text', content: 'nospacehttps://example.com' },
+            ])
+        })
+    })
+
+    describe('deriveUrlsFromText', () => {
+        it('should filter and return only URL segments from parseTextWithUrls', () => {
+            const result = linking.deriveUrlsFromText(
+                'Check https://example.com and https://test.com out',
+            )
+
+            expect(result).toEqual(['https://example.com', 'https://test.com'])
+        })
+
+        it('should return empty array when no URLs present', () => {
+            const result = linking.deriveUrlsFromText('Hello world')
+
+            expect(result).toEqual([])
+        })
+    })
 })

@@ -31,7 +31,9 @@ use tracing::{debug, error, info, instrument, warn};
 
 use super::db::MultispendScannerLastEventKey;
 use super::services::MultispendServices;
-use super::{MULTISPEND_MSGTYPE, MultispendContext, MultispendEvent, RpcRoomId, RpcUserId};
+use super::{
+    BTC_MULTISPEND_MSGTYPE, MULTISPEND_MSGTYPE, MsEvent, MultispendContext, RpcRoomId, RpcUserId,
+};
 
 /// Represents the current state of a room rescan operation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,6 +221,7 @@ impl RoomRescannerManager {
             let mut context = MultispendContext {
                 check_pending_approved_withdrawal_requests: false,
                 refresh_account_info: false,
+                btc_payouts: Vec::new(),
                 our_id: RpcUserId(
                     self.client
                         .user_id()
@@ -243,6 +246,11 @@ impl RoomRescannerManager {
                 self.multispend_services
                     .withdrawal
                     .check_pending_approved_withdrawal_requests();
+            }
+            if !context.btc_payouts.is_empty() {
+                self.multispend_services
+                    .withdrawal
+                    .btc_payouts_received(context.btc_payouts);
             }
             if context.refresh_account_info {
                 room_state.account_info_refresh.notify_waiters();
@@ -317,13 +325,13 @@ impl RoomRescannerManager {
                 )) => Some(m),
                 _ => None,
             })
-            .filter(|m| m.content.msgtype() == MULTISPEND_MSGTYPE)
+            .filter(|m| [MULTISPEND_MSGTYPE, BTC_MULTISPEND_MSGTYPE].contains(&m.content.msgtype()))
             .filter_map(|m| {
                 let event_time = u64::from(m.origin_server_ts.get());
 
                 let data = m.content.msgtype.data().into_owned();
                 let mevent =
-                    serde_json::from_value::<MultispendEvent>(serde_json::Value::Object(data))
+                    MsEvent::from_matrix(m.content.msgtype(), serde_json::Value::Object(data))
                         .inspect_err(|err| error!(%err, "invalid multispend event"))
                         .ok()?;
 

@@ -8,9 +8,11 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectDoesFederationHaveMultispend,
+    selectFeatureFlag,
     selectPaymentFederation,
     selectLoadedFederations,
 } from '@fedi/common/redux'
+import { MultispendGroupKind } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
@@ -40,13 +42,21 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
         undefined,
     )
     const [isLoading, setIsLoading] = useState(false)
+    const { roomId, voters } = route.params
+    // AssignMultispendVoters remounts this screen, so the choice is kept in
+    // the route params
+    const [kind, setKind] = useState<MultispendGroupKind>(
+        route.params.kind ?? 'fiat',
+    )
 
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const federations = useAppSelector(selectLoadedFederations)
     const doesPaymentFederationHaveMultispend = useAppSelector(s =>
         selectDoesFederationHaveMultispend(s, paymentFederation?.id ?? ''),
     )
-    const { roomId, voters } = route.params
+    const btcMultispendEnabled = useAppSelector(s =>
+        Boolean(selectFeatureFlag(s, 'btc_multispend')),
+    )
     const { t } = useTranslation()
     const { theme } = useTheme()
     const fedimint = useFedimint()
@@ -55,9 +65,10 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
     const handleAssignVoters = useCallback(() => {
         navigation.navigate('AssignMultispendVoters', {
             roomId,
+            kind,
             voters,
         })
-    }, [navigation, roomId, voters])
+    }, [navigation, roomId, voters, kind])
 
     const areVotersSufficient = (
         possibleVoters: string[] | undefined,
@@ -116,6 +127,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
         try {
             await fedimint.matrixSendMultispendGroupInvitation({
                 roomId: roomId,
+                kind: btcMultispendEnabled ? kind : 'fiat',
                 signers: voters,
                 threshold: thresholdNumber,
                 federationId: paymentFederation.id,
@@ -143,6 +155,8 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
         t,
         toast,
         fedimint,
+        kind,
+        btcMultispendEnabled,
     ])
 
     const style = styles(theme)
@@ -189,6 +203,89 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
                             </View>
                         )}
                     </View>
+                    {btcMultispendEnabled && (
+                        <View style={style.field}>
+                            <View style={style.fieldInfo}>
+                                <Text caption medium>
+                                    {t('feature.multispend.group-kind')}
+                                </Text>
+                                <Text small style={style.fieldDescription}>
+                                    {t(
+                                        'feature.multispend.group-kind-description',
+                                    )}
+                                </Text>
+                            </View>
+                            <View style={style.kindOptions}>
+                                {(
+                                    [
+                                        {
+                                            value: 'fiat' as const,
+                                            title: t(
+                                                'feature.multispend.group-kind-fiat',
+                                            ),
+                                            description: t(
+                                                'feature.multispend.group-kind-fiat-description',
+                                            ),
+                                        },
+                                        {
+                                            value: 'btc' as const,
+                                            title: t(
+                                                'feature.multispend.group-kind-btc',
+                                            ),
+                                            description: t(
+                                                'feature.multispend.group-kind-btc-description',
+                                            ),
+                                        },
+                                    ] satisfies Array<{
+                                        value: MultispendGroupKind
+                                        title: string
+                                        description: string
+                                    }>
+                                ).map(option => {
+                                    const selected = kind === option.value
+                                    return (
+                                        <Pressable
+                                            key={option.value}
+                                            testID={`MultispendKindOption-${option.value}`}
+                                            style={[
+                                                style.kindOption,
+                                                selected &&
+                                                    style.kindOptionSelected,
+                                            ]}
+                                            onPress={() =>
+                                                setKind(option.value)
+                                            }>
+                                            <View
+                                                style={style.assignVotersInfo}>
+                                                <Text caption medium>
+                                                    {option.title}
+                                                </Text>
+                                                <Text
+                                                    small
+                                                    style={
+                                                        style.fieldDescription
+                                                    }>
+                                                    {option.description}
+                                                </Text>
+                                            </View>
+                                            {selected && (
+                                                <View
+                                                    testID={`MultispendKindOption-${option.value}-check`}>
+                                                    <SvgImage
+                                                        name="Check"
+                                                        size={20}
+                                                        color={
+                                                            theme.colors.primary
+                                                        }
+                                                    />
+                                                </View>
+                                            )}
+                                        </Pressable>
+                                    )
+                                })}
+                            </View>
+                        </View>
+                    )}
                     <Pressable
                         style={style.assignVoters}
                         onPress={handleAssignVoters}>
@@ -298,6 +395,21 @@ const styles = (theme: Theme) =>
             flexDirection: 'row',
             alignItems: 'center',
             gap: theme.spacing.lg,
+        },
+        kindOptions: {
+            gap: theme.spacing.sm,
+        },
+        kindOption: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.md,
+            padding: theme.spacing.md,
+            borderRadius: 12,
+            borderWidth: 1.5,
+            borderColor: theme.colors.primaryVeryLight,
+        },
+        kindOptionSelected: {
+            borderColor: theme.colors.primary,
         },
         votersTitle: {
             flexDirection: 'row',

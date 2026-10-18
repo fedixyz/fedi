@@ -94,6 +94,28 @@
     "track": "Native"
    }
   ],
+  "sections": [
+   {
+    "id": "manifold",
+    "tag": "Manifold",
+    "title": "Only for federation creators",
+    "note": "Creating a federation is switched off in the app, and turns on for a phone that opens the creation link.",
+    "features": [
+     {
+      "headline": "See which guardians are not responding",
+      "kind": "New feature",
+      "badge": "",
+      "summary": "The dashboard lists each guardian by name as online or not responding.",
+      "track": "Native",
+      "platforms": [
+       "ios",
+       "android"
+      ]
+     }
+    ],
+    "fixes": []
+   }
+  ],
   "not_merged": [
    {
     "headline": "Crash on older iPhones (iOS 15)",

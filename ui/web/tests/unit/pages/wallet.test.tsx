@@ -87,6 +87,51 @@ describe('/pages/wallet', () => {
         })
     })
 
+    describe('pinned message', () => {
+        it('should show the federation pinned message without a pin icon', () => {
+            renderWithProviders(<WalletPage />, {
+                preloadedState: {
+                    federation: {
+                        ...state.federation,
+                        federations: [
+                            {
+                                ...mockFederation1,
+                                meta: {
+                                    'fedi:pinned_message':
+                                        'Guardian maintenance on Friday',
+                                },
+                            },
+                        ],
+                        payFromFederationId: '1',
+                    },
+                },
+            })
+
+            expect(
+                screen.getByText('Guardian maintenance on Friday'),
+            ).toBeInTheDocument()
+            expect(
+                screen.queryByTestId('PinnedMessage__PinIcon'),
+            ).not.toBeInTheDocument()
+        })
+
+        it('should not show a pinned message when the federation has none', () => {
+            renderWithProviders(<WalletPage />, {
+                preloadedState: {
+                    federation: {
+                        ...state.federation,
+                        federations: [mockFederation1],
+                        payFromFederationId: '1',
+                    },
+                },
+            })
+
+            expect(
+                screen.queryByTestId('PinnedMessage'),
+            ).not.toBeInTheDocument()
+        })
+    })
+
     describe('when a wallet is recovering', () => {
         it('should display the recovery indicator', async () => {
             const recoveringFederation = {

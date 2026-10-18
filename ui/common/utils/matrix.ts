@@ -45,6 +45,7 @@ import {
 import { FormattedAmounts } from '../types/amount'
 import {
     GroupInvitation,
+    MultispendGroupKind,
     RpcMultispendGroupStatus,
     RpcUserId,
     MultispendListedEvent,
@@ -943,6 +944,16 @@ export const getMultispendInvite = (
     return null
 }
 
+export const getMultispendGroupKind = (
+    multispendStatus: RpcMultispendGroupStatus | undefined,
+): MultispendGroupKind => {
+    if (multispendStatus?.status === 'activeInvitation')
+        return multispendStatus.state.kind
+    if (multispendStatus?.status === 'finalized')
+        return multispendStatus.finalized_group.kind
+    return 'fiat'
+}
+
 export const getMultispendRole = (
     multispendStatus: RpcMultispendGroupStatus,
     userId: RpcUserId,
@@ -978,6 +989,7 @@ export const makeMultispendWalletHeader = (
                 status: t('feature.multispend.waiting-for-approval'),
                 threshold: multispendStatus.state.invitation.threshold,
                 totalSigners: multispendStatus.state.invitation.signers.length,
+                kind: multispendStatus.state.kind,
             }
         case 'finalized':
             return {
@@ -988,6 +1000,7 @@ export const makeMultispendWalletHeader = (
                     multispendStatus.finalized_group.invitation.threshold,
                 totalSigners:
                     multispendStatus.finalized_group.invitation.signers.length,
+                kind: multispendStatus.finalized_group.kind,
             }
         default:
             return {
@@ -995,6 +1008,7 @@ export const makeMultispendWalletHeader = (
                 status: t('words.canceled'),
                 threshold: 0,
                 totalSigners: 0,
+                kind: 'fiat' as const,
             }
     }
 }
@@ -1020,15 +1034,19 @@ export const coerceMultispendTxn = (
         outcomeTime: null,
     }
     if (isMultispendDepositEvent(event)) {
+        const deposit = event.event.depositNotification
         return {
             ...coerced,
+            amount: ('btcAmount' in deposit ? deposit.btcAmount : 0) as MSats,
             state: event,
             kind: 'multispendDeposit' as const,
         }
     }
 
+    const { request } = event.event.withdrawalRequest
     return {
         ...coerced,
+        amount: (request.kind === 'btc' ? request.transfer_amount : 0) as MSats,
         state: event,
         kind: 'multispendWithdrawal' as const,
     }
@@ -1063,6 +1081,12 @@ export function isMultispendWithdrawalEvent(
         typeof event.event === 'object' &&
         'withdrawalRequest' in event.event
     )
+}
+
+export function isMultispendWithdrawalBtcEvent(
+    event: MultispendWithdrawalEvent,
+): boolean {
+    return event.event.withdrawalRequest.request.kind === 'btc'
 }
 
 export function isMultispendDepositEvent(

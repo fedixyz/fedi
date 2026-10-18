@@ -1,7 +1,7 @@
 import { act } from '@testing-library/react-native'
 
-import { setFiStatus, setupStore } from '@fedi/common/redux'
-import { RpcFiFormationSnapshot } from '@fedi/common/types/bindings'
+import { setFaStatus, setupStore } from '@fedi/common/redux'
+import { RpcFaFormationSnapshot } from '@fedi/common/types/bindings'
 
 import { reset } from '../../../state/navigation'
 import { useWalletServiceEntryGuard } from '../../../utils/hooks/walletServiceEntryGuard'
@@ -9,9 +9,9 @@ import { mockNavigation } from '../../setup/jest.setup.mocks'
 import { renderHookWithProviders } from '../../utils/render'
 
 const makeFormation = (
-    phase: RpcFiFormationSnapshot['phase'],
+    phase: RpcFaFormationSnapshot['phase'],
     { paymentOutputsStarted = true } = {},
-): RpcFiFormationSnapshot => ({
+): RpcFaFormationSnapshot => ({
     formationId: 'formation-1',
     phase,
     intent: {
@@ -50,7 +50,7 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
 
     it('blocks quotes during backup lookup without routing, then releases on Idle', () => {
         const store = setupStore()
-        store.dispatch(setFiStatus({ type: 'recovery', error: null }))
+        store.dispatch(setFaStatus({ type: 'recovery', error: null }))
         const { result } = renderHookWithProviders(
             () => useWalletServiceEntryGuard(),
             { store },
@@ -59,7 +59,7 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
         expect(mockNavigation.dispatch).not.toHaveBeenCalled()
 
         act(() => {
-            store.dispatch(setFiStatus({ type: 'idle' }))
+            store.dispatch(setFaStatus({ type: 'idle' }))
         })
         expect(result.current).toBe(false)
         expect(mockNavigation.dispatch).not.toHaveBeenCalled()
@@ -67,7 +67,7 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
 
     it('should stay put when no formation exists', () => {
         const store = setupStore()
-        store.dispatch(setFiStatus({ type: 'idle' }))
+        store.dispatch(setFaStatus({ type: 'idle' }))
 
         const { result } = renderHookWithProviders(
             () => useWalletServiceEntryGuard(),
@@ -81,7 +81,7 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
     it('should send a live formation to the progress screen', () => {
         const store = setupStore()
         store.dispatch(
-            setFiStatus({
+            setFaStatus({
                 type: 'formation',
                 formation: makeFormation('acquiringSeats'),
             }),
@@ -103,7 +103,7 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
     it('should stay put while a formation is not yet committed', () => {
         const store = setupStore()
         store.dispatch(
-            setFiStatus({
+            setFaStatus({
                 type: 'formation',
                 formation: makeFormation('acquiringSeats', {
                     paymentOutputsStarted: false,
@@ -123,7 +123,7 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
     it('should send a finished formation to the dashboard', () => {
         const store = setupStore()
         store.dispatch(
-            setFiStatus({
+            setFaStatus({
                 type: 'formation',
                 formation: makeFormation('formed'),
             }),
@@ -153,7 +153,7 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
 
         act(() => {
             store.dispatch(
-                setFiStatus({
+                setFaStatus({
                     type: 'formation',
                     formation: makeFormation('acquiringSeats'),
                 }),

@@ -13,7 +13,7 @@ import { theme } from '@fedi/common/constants/theme'
 import {
     refreshGuardianStatuses,
     setFederations,
-    setFiFederationJoin,
+    setFaFederationJoin,
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
@@ -21,9 +21,9 @@ import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { MSats } from '@fedi/common/types'
 import type {
     GuardianStatus,
-    RpcFiFormationSnapshot,
-    RpcFiLiquidityOperation,
-    RpcFiStatus,
+    RpcFaFormationSnapshot,
+    RpcFaLiquidityOperation,
+    RpcFaStatus,
 } from '@fedi/common/types/bindings'
 import { guardianQuorum } from '@fedi/common/utils/federationHealth'
 
@@ -82,14 +82,14 @@ const makeGuardianStatuses = (
     total: number,
 ): GuardianStatus[] => [
     ...Array.from({ length: online }, (_, i) => ({
-        online: { guardian: `g${i}`, fman_name: null, latency_ms: 50 },
+        online: { guardian: `g${i}`, mg_name: null, latency_ms: 50 },
     })),
     ...Array.from({ length: total - online }, (_, i) => ({
-        timeout: { guardian: `g${online + i}`, fman_name: null, elapsed: '5s' },
+        timeout: { guardian: `g${online + i}`, mg_name: null, elapsed: '5s' },
     })),
 ]
 
-const formation: RpcFiFormationSnapshot = {
+const formation: RpcFaFormationSnapshot = {
     formationId: 'formation-1',
     phase: 'formed',
     intent: {
@@ -112,11 +112,11 @@ const formation: RpcFiFormationSnapshot = {
     lastError: null,
 }
 
-/** Matches the fixture in `common/tests/unit/hooks/fiRecoveryStage.test.ts`. */
+/** Matches the fixture in `common/tests/unit/hooks/faRecoveryStage.test.ts`. */
 const restoredStatus = (
     freshness: 'unsynced' | 'fresh',
     backupEligible = false,
-): RpcFiStatus => ({
+): RpcFaStatus => ({
     type: 'restored',
     formation: {
         snapshotGeneration: 3,
@@ -148,11 +148,11 @@ const renderScreen = ({
     hasSeenTour = true,
     // what the app-wide monitor has found; the dashboard is where a user lands
     // after walking away from an attach, so it has to report one
-    liquidity = null as RpcFiLiquidityOperation | null,
-    status = { type: 'formation', formation: snapshot } as RpcFiStatus,
+    liquidity = null as RpcFaLiquidityOperation | null,
+    status = { type: 'formation', formation: snapshot } as RpcFaStatus,
     recovering = false,
 }: {
-    snapshot?: RpcFiFormationSnapshot
+    snapshot?: RpcFaFormationSnapshot
     federationJoined?: boolean
     federationName?: string
     renamedTo?: string | null
@@ -161,8 +161,8 @@ const renderScreen = ({
     guardianStatuses?: GuardianStatus[] | null
     refreshedGuardianStatuses?: GuardianStatus[] | null
     hasSeenTour?: boolean
-    liquidity?: RpcFiLiquidityOperation | null
-    status?: RpcFiStatus
+    liquidity?: RpcFaLiquidityOperation | null
+    status?: RpcFaStatus
     recovering?: boolean
 } = {}) => {
     const state = setupStore().getState()
@@ -256,8 +256,8 @@ const renderScreen = ({
 }
 
 const runningAttach = (
-    overrides: Partial<RpcFiLiquidityOperation> = {},
-): RpcFiLiquidityOperation =>
+    overrides: Partial<RpcFaLiquidityOperation> = {},
+): RpcFaLiquidityOperation =>
     ({
         operationId: 'operation-1',
         formationId: 'formation-1',
@@ -275,7 +275,7 @@ const runningAttach = (
         rejectionCode: null,
         gatewayViewVerified: false,
         ...overrides,
-    }) as RpcFiLiquidityOperation
+    }) as RpcFaLiquidityOperation
 
 /** Props the mocked tour was last rendered with. */
 const lastTourProps = () =>
@@ -441,7 +441,7 @@ describe('screens/WalletServiceDashboard', () => {
     it.each([
         [4, 210, theme.colors.red],
         [5, 385, theme.colors.lightOrange],
-        [6, 385, theme.colors.lightOrange],
+        [6, 385, theme.colors.success],
     ] as const)(
         'should colour the status dot after sustained %i of seven reachability',
         async (online, seconds, color) => {
@@ -471,28 +471,28 @@ describe('screens/WalletServiceDashboard', () => {
                 {
                     online: {
                         guardian: 'g0',
-                        fman_name: 'Alice',
+                        mg_name: 'Alice',
                         latency_ms: 50,
                     },
                 },
                 {
                     error: {
                         guardian: 'g1',
-                        fman_name: 'Bob',
+                        mg_name: 'Bob',
                         error: 'refused',
                     },
                 },
                 {
                     online: {
                         guardian: 'g2',
-                        fman_name: 'Carol',
+                        mg_name: 'Carol',
                         latency_ms: 50,
                     },
                 },
                 {
                     timeout: {
                         guardian: 'g3',
-                        fman_name: 'Dave',
+                        mg_name: 'Dave',
                         elapsed: '10s',
                     },
                 },
@@ -517,7 +517,7 @@ describe('screens/WalletServiceDashboard', () => {
         expect(row(3).getByText(online)).toBeOnTheScreen()
     })
 
-    it('should name a guardian by its seat while its fleet manager name is unknown', async () => {
+    it('should name a guardian by its seat while its manifold guardian name is unknown', async () => {
         renderScreen({ guardianStatuses: makeGuardianStatuses(2, 3) })
 
         await user.press(await screen.findByTestId('wallet-service-guardians'))
@@ -628,7 +628,7 @@ describe('screens/WalletServiceDashboard', () => {
         )
     })
 
-    it('renders a skeleton in place of the guardian count while the FI is unsynced', async () => {
+    it('renders a skeleton in place of the guardian count while the FA is unsynced', async () => {
         renderScreen({ snapshot: { ...formation, freshness: 'unsynced' } })
         await waitFor(() => {})
 
@@ -671,7 +671,7 @@ describe('screens/WalletServiceDashboard', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WALLET_SERVICE_FEDERATION_ID,
                     state: { type: 'failed', message: 'guardian unreachable' },
                 }),
@@ -683,7 +683,7 @@ describe('screens/WalletServiceDashboard', () => {
         )
     })
 
-    // The bridge reports a failed `fiFederationJoin` on the created path too,
+    // The bridge reports a failed `faFederationJoin` on the created path too,
     // where the flow status stays `formed` and this screen is where the user
     // belongs. Handing that one to WalletServiceProgress lands it on the
     // *creation* checklist — confetti, then Continue into fee onboarding —
@@ -694,7 +694,7 @@ describe('screens/WalletServiceDashboard', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WALLET_SERVICE_FEDERATION_ID,
                     state: { type: 'failed', message: 'guardian unreachable' },
                 }),
@@ -722,7 +722,7 @@ describe('screens/WalletServiceDashboard', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WALLET_SERVICE_FEDERATION_ID,
                     state: { type: 'failed', message: 'guardian unreachable' },
                 }),
@@ -738,7 +738,7 @@ describe('screens/WalletServiceDashboard', () => {
         expect(screen.getByTestId('wallet-service-withdraw')).toBeDisabled()
         expect(mockNavigation.replace).not.toHaveBeenCalled()
         // the card takes the balance slot only: the guardian line is still the
-        // one the FI snapshot decides
+        // one the FA snapshot decides
         expect(
             screen.getByText(
                 i18n.t('feature.wallet-service.dashboard-guardian-count', {
@@ -756,7 +756,7 @@ describe('screens/WalletServiceDashboard', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WALLET_SERVICE_FEDERATION_ID,
                     state: { type: 'failed', message: 'guardian unreachable' },
                 }),
@@ -801,7 +801,7 @@ describe('screens/WalletServiceDashboard', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WALLET_SERVICE_FEDERATION_ID,
                     state: { type: 'failed', message: 'guardian unreachable' },
                 }),
@@ -820,7 +820,7 @@ describe('screens/WalletServiceDashboard', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WALLET_SERVICE_FEDERATION_ID,
                     state: { type: 'failed', message: 'guardian unreachable' },
                 }),
@@ -849,7 +849,7 @@ describe('screens/WalletServiceDashboard', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WALLET_SERVICE_FEDERATION_ID,
                     state: { type: 'recovering' },
                 }),
@@ -880,9 +880,9 @@ describe('screens/WalletServiceDashboard', () => {
         )
     })
 
-    // the wallet is federation-owned: an FI snapshot that is merely
+    // the wallet is federation-owned: an FA snapshot that is merely
     // re-reconciling must not take the balance away
-    it('shows the balance for a created service whose FI snapshot is unsynced', async () => {
+    it('shows the balance for a created service whose FA snapshot is unsynced', async () => {
         renderScreen({
             snapshot: { ...formation, freshness: 'unsynced' },
             federationJoined: true,
@@ -898,7 +898,7 @@ describe('screens/WalletServiceDashboard', () => {
         expect(
             screen.queryByTestId('wallet-service-recovery-in-progress'),
         ).toBeNull()
-        // the FI caveat still shows, on the guardian line only
+        // the FA caveat still shows, on the guardian line only
         expect(
             screen.getByTestId('wallet-service-guardians-skeleton'),
         ).toBeOnTheScreen()

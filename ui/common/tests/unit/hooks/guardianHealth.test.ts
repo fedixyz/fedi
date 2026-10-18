@@ -35,14 +35,14 @@ describe('guardian observations through bridge, store, and hooks', () => {
                         ? {
                               online: {
                                   guardian: `g${index}`,
-                                  fman_name: null,
+                                  mg_name: null,
                                   latency_ms: 10,
                               },
                           }
                         : {
                               timeout: {
                                   guardian: `g${index}`,
-                                  fman_name: null,
+                                  mg_name: null,
                                   elapsed: '60s',
                               },
                           },

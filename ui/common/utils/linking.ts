@@ -318,3 +318,62 @@ export const DEEP_LINKS = [
 ] as const satisfies readonly DeepLinkConfig[]
 
 export type DeepLinkKey = (typeof DEEP_LINKS)[number]['key']
+
+/**
+ * Parse text into segments for rendering
+ * one or more URLs even when they are embedded in text
+ */
+type TextSegment = {
+    type: 'text' | 'url'
+    content: string
+}
+
+// The "\b" before "https" prevents the regex from matching unwanted content at the beginning (e.g. "asdfhttps://link")
+const URL_REGEX = /\bhttps?:\/\/[^\s]+/gi
+
+export function parseTextWithUrls(text: string): TextSegment[] {
+    const segments: TextSegment[] = []
+    let currentIndex = 0
+
+    let match
+
+    while ((match = URL_REGEX.exec(text)) !== null) {
+        const url = match[0]
+        try {
+            new URL(url)
+        } catch {
+            // If URL is invalid, treat it as text
+            continue
+        }
+
+        // Add text before the URL if there is any
+        if (match.index > currentIndex) {
+            segments.push({
+                type: 'text',
+                content: text.slice(currentIndex, match.index),
+            })
+        }
+        segments.push({
+            type: 'url',
+            content: url,
+        })
+
+        currentIndex = match.index + url.length
+    }
+
+    // slice off and add the remaining text
+    if (currentIndex < text.length) {
+        segments.push({
+            type: 'text',
+            content: text.slice(currentIndex),
+        })
+    }
+
+    return segments
+}
+
+export const deriveUrlsFromText = (text: string) => {
+    return parseTextWithUrls(text)
+        .filter(segment => segment.type === 'url')
+        .map(segment => segment.content)
+}

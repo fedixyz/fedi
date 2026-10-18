@@ -4,7 +4,7 @@ The words that reach a user through the App Store What's New, the Play release n
 
 ## Where the draft is
 
-`summary.release_notes` in the report JSON, written in Step 7 of `SKILL.md` while the cards are in front of you: `store` is the store text and `bullets` are the one-per-PR lines. The Summary renders the store text as suggested release notes under the scope line, and Full report renders the GitHub body ready to paste. The `ios-release` and `android-release` skills take the signed-off store text from there instead of drafting their own.
+`summary.release_notes` in the report JSON, written in Step 7 of `SKILL.md` while the cards are in front of you: `store` is the store text and `bullets` are the one-per-PR lines. The Summary renders the store text as the release notes under the scope line, and Full report renders the GitHub body ready to paste. The `ios-release` and `android-release` skills take the store text from there instead of drafting their own.
 
 ## What the copy says
 

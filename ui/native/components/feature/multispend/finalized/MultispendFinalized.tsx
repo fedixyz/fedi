@@ -3,7 +3,11 @@ import { Button, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import { selectMultispendBalanceCents } from '@fedi/common/redux'
+import {
+    selectIsBtcMultispendGroup,
+    selectMultispendBalanceCents,
+    selectMultispendBalanceMsats,
+} from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../../state/hooks'
 import { Column } from '../../../ui/Flex'
@@ -16,9 +20,16 @@ const MultispendFinalized: React.FC<{
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation()
+    const isBtcOnly = useAppSelector(s => selectIsBtcMultispendGroup(s, roomId))
     const multispendBalanceCents = useAppSelector(s =>
         selectMultispendBalanceCents(s, roomId),
     )
+    const multispendBalanceMsats = useAppSelector(s =>
+        selectMultispendBalanceMsats(s, roomId),
+    )
+    const isEmptyBalance = isBtcOnly
+        ? multispendBalanceMsats === 0
+        : multispendBalanceCents === 0
 
     const style = styles(theme)
 
@@ -37,7 +48,7 @@ const MultispendFinalized: React.FC<{
                 />
                 <Button
                     containerStyle={style.button}
-                    disabled={multispendBalanceCents === 0}
+                    disabled={isEmptyBalance}
                     onPress={() =>
                         navigation.navigate('MultispendWithdraw', { roomId })
                     }

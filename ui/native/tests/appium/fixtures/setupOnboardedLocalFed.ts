@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
-import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
+import {
+    AppiumTestBase,
+    COLD_START_TIMEOUT,
+} from '../../configs/appium/AppiumTestBase'
 import { Platform, currentPlatform } from '../../configs/appium/types'
 
 // Onboards a fresh actor and joins a federation by a runtime-known invite code.
@@ -11,7 +14,7 @@ export async function setupOnboardedLocalFed(
     invite: string,
 ): Promise<void> {
     console.log('Fixture: setupOnboardedLocalFed')
-    await t.clickElementByKey('Get started')
+    await t.clickElementByKey('Get started', COLD_START_TIMEOUT)
     await t.clickElementByKey('No')
     // Seed creation after "No" is async and can be slow under the devfed's CPU
     // load, so wait generously for the wallet-setup screen to render.

@@ -198,7 +198,33 @@ _dump_logs_if_debug() {
     fi
 }
 
+_start_host_load_log() {
+    local log="$E2E_LOG_DIR/host-load.log"
+    {
+        echo "runner=${RUNNER_NAME:-unknown} host=$(hostname) cpus=$(getconf _NPROCESSORS_ONLN) started=$(date -u +%FT%TZ)"
+        echo "utc time | load averages 1m 5m 15m | compiler and build processes | busiest processes as user command cpu"
+    } >"$log"
+    (
+        while true; do
+            printf '%s | %s | builders=%s | %s\n' \
+                "$(date -u +%FT%TZ)" \
+                "$(uptime | sed -E 's/.*load averages?: *//')" \
+                "$(/usr/bin/pgrep -f 'cargo|rustc|nix-build|nix-daemon|xcodebuild|clang|swift-frontend|gradle|javac|kotlin' | wc -l | tr -d ' ')" \
+                "$(/bin/ps -Ao %cpu=,user=,comm= | sort -rn | head -3 | awk '{n=split($3,p,"/"); printf "%s%s %s %s%%", (NR>1?", ":""), $2, p[n], $1}')"
+            sleep 30
+        done
+    ) >>"$log" 2>&1 &
+    _HOST_LOAD_PID=$!
+}
+
+_stop_host_load_log() {
+    [ -n "${_HOST_LOAD_PID:-}" ] || return 0
+    pkill -P "$_HOST_LOAD_PID" 2>/dev/null || true
+    kill "$_HOST_LOAD_PID" 2>/dev/null || true
+}
+
 _e2e_cleanup() {
+    _stop_host_load_log
     _dump_logs_if_debug
     if [ -n "${PERSIST_SERVICES:-}" ]; then
         return
@@ -271,7 +297,7 @@ _required_actor_count() {
 # Usage: _tests_need_devfed "<tests>"  (e.g. "all" or "onboarding payments")
 _tests_need_devfed() {
     case " $1 " in
-        *" all "* | *" joinLeaveFederations "* | *" payments "* | *" chatPayments "* | *" ecashLifecycle "* | *" stableBalance "* | *" multispend "*) return 0 ;;
+        *" all "* | *" joinLeaveFederations "* | *" federationMetadata "* | *" payments "* | *" chatPayments "* | *" ecashLifecycle "* | *" stableBalance "* | *" multispend "*) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -285,12 +311,17 @@ _capture_android_logs() {
     local app_id="${APP_PACKAGE:-com.fedi}"
     local out_dir="$REPO_ROOT/ui/.appium"
     mkdir -p "$out_dir"
-    adb -s "$device" logcat -d \
+    adb -s "$device" logcat -d -v threadtime -v UTC -v year \
         > "$out_dir/logcat-$suffix.log" 2>/dev/null || true
     adb -s "$device" exec-out run-as "$app_id" sh -c 'cat files/fedi.log.*' \
         > "$out_dir/bridge-$suffix.log" 2>/dev/null || true
     adb -s "$device" exec-out run-as "$app_id" sh -c 'cat files/fedi-ui.*.log' \
         > "$out_dir/ui-$suffix.log" 2>/dev/null || true
+}
+
+# Usage: _probe_guardians <label>
+_probe_guardians() {
+    "$REPO_ROOT/scripts/ci/e2e-guardian-preflight.sh" "$1" || true
 }
 
 # iOS twin of _capture_android_logs: the same log files live in the app's
@@ -336,6 +367,7 @@ run_pipeline_android() {
 
     _banner "Android"
     _pre_cleanup
+    _start_host_load_log
     adb kill-server 2>/dev/null || true
     adb start-server 2>/dev/null || true
 
@@ -412,12 +444,16 @@ run_pipeline_android() {
         echo "🧪 Running $tests on $avd_a..."
     fi
 
+    if _tests_need_devfed "$tests"; then
+        wait_for devfed
+    fi
+    _probe_guardians start &
+    local probe_pid=$!
     pushd "$REPO_ROOT/ui" >/dev/null
     local rc=0
     local t0
     t0=$(_ts)
     if _tests_need_devfed "$tests"; then
-        wait_for devfed
         echo "🔐 Funding from a hermetic devimint fed (launch-remote.sh --with-devfed)"
         PLATFORM=android AVD="$avd_a" DEVICE_ID="$device_a" \
             AVD_B="$avd_b" DEVICE_ID_B="$device_b" \
@@ -433,6 +469,7 @@ run_pipeline_android() {
             || rc=$?
     fi
     popd >/dev/null
+    wait "$probe_pid" || true
     _capture_android_logs "$device_a" "a"
     if [ -n "$device_b" ]; then
         _capture_android_logs "$device_b" "b"
@@ -447,6 +484,7 @@ run_pipeline_android() {
         echo "  ❌ $label failed (exit $rc, $(_fmt_dur "$dur"))"
         summary_rows+="| $label | FAIL |"$'\n'
         overall_rc=1
+        _probe_guardians after-failure
     fi
 
     _finish_pipeline "Android" "$summary_rows" "$pipeline_start" "$overall_rc"
@@ -488,6 +526,7 @@ run_pipeline_ios() {
 
     _banner "iOS"
     _pre_cleanup
+    _start_host_load_log
 
     echo ""
     if [ -z "${SKIP_BRIDGE:-}" ]; then
@@ -571,12 +610,16 @@ run_pipeline_ios() {
     if [ -n "$device_a" ]; then
         echo ""
         echo "🧪 Running $tests on $label..."
+        if _tests_need_devfed "$tests"; then
+            wait_for devfed
+        fi
+        _probe_guardians start &
+        local probe_pid=$!
         pushd "$REPO_ROOT/ui" >/dev/null
         local ios26_rc=0
         local t0
         t0=$(_ts)
         if _tests_need_devfed "$tests"; then
-            wait_for devfed
             # Boot the fed under the default shell, with the test under .#xcode as
             # the trailing command. REMOTE_BRIDGE_PORT is set by remote-server and
             # inherited across the nested .#xcode shell, so HTTP funding works.
@@ -593,6 +636,7 @@ run_pipeline_ios() {
                 || ios26_rc=$?
         fi
         popd >/dev/null
+        wait "$probe_pid" || true
         _capture_ios_logs "$device_a" "a"
         if [ -n "$device_b" ]; then
             _capture_ios_logs "$device_b" "b"
@@ -605,6 +649,7 @@ run_pipeline_ios() {
             echo "  ❌ $label failed (exit $ios26_rc, $(_fmt_dur "$dur"))"
             summary_rows+="| $label | FAIL |"$'\n'
             overall_rc=1
+            _probe_guardians after-failure
         fi
     fi
 

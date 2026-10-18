@@ -8,18 +8,17 @@ use fedimint_core::util::retry;
 use futures::StreamExt as _;
 use matrix_sdk::ruma::TransactionId as MatrixTransactionId;
 use rpc_types::matrix::RpcRoomId;
-use rpc_types::{RpcEventId, RpcFiatAmount, RpcTransactionId};
+use rpc_types::{RpcEventId, RpcTransactionId};
 use runtime::bridge_runtime::Runtime;
-use stability_pool_client::common::FiatAmount;
 use tokio::sync::Notify;
 use tracing::error;
 
-use super::MultispendEvent;
 use super::db::{
     MultispendPendingCompletionNotification, MultispendPendingCompletionNotificationPrefix,
     MultispendPendingCompletionNotificationTxnIdKey,
 };
 use super::multispend_matrix::MultispendMatrix;
+use super::{MsEvent, MultispendAmount, MultispendGroupKind};
 
 // This service maintains a list of pending multispend notifications and sends
 // them into the room.
@@ -64,17 +63,18 @@ impl CompletionNotificationService {
     async fn send_completion_notification_event(
         multispend_matrix: &MultispendMatrix,
         room_id: &matrix_sdk::ruma::RoomId,
-        event: MultispendEvent,
+        event: MsEvent,
         matrix_transaction_id: String,
     ) -> anyhow::Result<()> {
         let _send_lock = multispend_matrix.send_multispend_mutex().lock().await;
 
+        let (msgtype, content) = event.to_matrix();
         multispend_matrix
             .send_message_json_no_queue(
                 room_id,
-                super::MULTISPEND_MSGTYPE,
+                msgtype,
                 String::from("This group has new multispend activity"),
-                serde_json::to_value(event)?
+                content
                     .as_object()
                     .context("invalid serialization of content")?
                     .clone(),
@@ -88,7 +88,7 @@ impl CompletionNotificationService {
         &self,
         room_id: RpcRoomId,
         request_id: RpcEventId,
-        fiat_amount: FiatAmount,
+        amount: MultispendAmount,
         txid: TransactionId,
     ) {
         let multispend_db = self.runtime.multispend_db();
@@ -97,7 +97,7 @@ impl CompletionNotificationService {
             &MultispendPendingCompletionNotification::Withdrawal {
                 room_id,
                 request_id,
-                fiat_amount: RpcFiatAmount(fiat_amount.0),
+                amount,
                 txid: RpcTransactionId(txid),
             },
             &(),
@@ -111,6 +111,7 @@ impl CompletionNotificationService {
         &self,
         room_id: RpcRoomId,
         request_id: RpcEventId,
+        group_kind: MultispendGroupKind,
         error: String,
     ) {
         let multispend_db = self.runtime.multispend_db();
@@ -119,6 +120,7 @@ impl CompletionNotificationService {
             &MultispendPendingCompletionNotification::FailedWithdrawal {
                 room_id,
                 request_id,
+                group_kind,
                 error,
             },
             &(),
@@ -131,7 +133,7 @@ impl CompletionNotificationService {
     pub async fn add_deposit_notification(
         &self,
         room_id: RpcRoomId,
-        fiat_amount: FiatAmount,
+        amount: MultispendAmount,
         txid: TransactionId,
         description: String,
     ) {
@@ -140,7 +142,7 @@ impl CompletionNotificationService {
         dbtx.insert_entry(
             &MultispendPendingCompletionNotification::Deposit {
                 room_id,
-                fiat_amount: RpcFiatAmount(fiat_amount.0),
+                amount,
                 txid: RpcTransactionId(txid),
                 description,
             },

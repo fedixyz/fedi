@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
-import { useWalletServiceLightningAttach } from '@fedi/common/hooks/fi'
+import { useWalletServiceLightningAttach } from '@fedi/common/hooks/fa'
 import {
     getWalletServiceErrorKey,
     getWalletServiceRetryableError,

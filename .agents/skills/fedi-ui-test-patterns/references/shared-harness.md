@@ -22,7 +22,7 @@ export const createMockWalletServiceBridge = (
     overrides: Partial<Record<keyof RpcMethods, unknown>> = {},
 ) =>
     createMockFedimintBridge({
-        fiClientSetupPaymentFederations: () =>
+        faClientSetupPaymentFederations: () =>
             Promise.resolve({ type: 'federations', federations: [] }),
         ...overrides,
     })

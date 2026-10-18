@@ -3,19 +3,19 @@ use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{impl_db_lookup, impl_db_record};
 use futures::StreamExt as _;
 use rpc_types::matrix::RpcRoomId;
-use rpc_types::{RpcEventId, RpcFederationId, RpcFiatAmount, RpcTransactionId};
-use stability_pool_client::common::SignedTransferRequest;
+use rpc_types::{RpcEventId, RpcFederationId, RpcTransactionId};
 use ts_rs::TS;
 
 use super::{
-    FinalizedGroup, GroupInvitationWithKeys, MultispendDepositEventData, MultispendEvent,
-    WithdrawRequestWithApprovals, WithdrawalResponseType,
+    FinalizedGroup, GroupInvitationWithKeys, MsEvent, MultispendAmount, MultispendDepositEventData,
+    MultispendGroupKind, SignedMultispendTransferRequest, WithdrawRequestWithApprovals,
+    WithdrawalResponseType,
 };
 
 pub enum MultispendDbPrefix {
-    /// (room_id) => MultispendGroupStatus
+    /// (room_id, kind) => MultispendGroupStatus
     MultispendGroupStatus = 0x01,
-    /// (room_id, event_id) => Invitation + accumulated state
+    /// (room_id, kind, event_id) => Invitation + accumulated state
     MultispendGroupInvitations = 0x02,
     /// (room_id, event_id) => Withdrawal request + accumulated state
     MultispendWithdrawRequests = 0x03,
@@ -24,8 +24,8 @@ pub enum MultispendDbPrefix {
     /// (room_id) => Last event that was scanned. Used for incremental
     /// rescanning.
     MultispendScannerLastEvent = 0x05,
-    /// (room_id, counter) => (eventid, time) to have a paginated view for
-    /// withdrawals and deposits in the room.
+    /// (room_id, kind, counter) => (eventid, time) to have a paginated view
+    /// for withdrawals and deposits of a group in the room.
     MultispendChronologicalEvent = 0x06,
     /// (room_id) => () to mark room for scanning on any event.
     MultispendMarkedForScanning = 0x07,
@@ -39,6 +39,8 @@ pub enum MultispendDbPrefix {
     MultispendPendingCompletionNotification = 0x0A,
     /// (pending_notification) => matrix transaction id used for retries.
     MultispendPendingCompletionNotificationTxnId = 0x0B,
+    // 0x50 holds the version of fedimint's migration runner, see
+    // `crate::migration::migrate_multispend_db`.
 }
 
 /// Represents the current status of a multispend group in a room
@@ -76,7 +78,7 @@ pub enum RpcMultispendGroupStatus {
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct MultispendGroupStatusKey(pub RpcRoomId);
+pub struct MultispendGroupStatusKey(pub RpcRoomId, pub MultispendGroupKind);
 
 impl_db_record!(
     key = MultispendGroupStatusKey,
@@ -85,7 +87,7 @@ impl_db_record!(
 );
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct MultispendInvitationKey(pub RpcRoomId, pub RpcEventId);
+pub struct MultispendInvitationKey(pub RpcRoomId, pub MultispendGroupKind, pub RpcEventId);
 
 impl_db_record!(
     key = MultispendInvitationKey,
@@ -117,12 +119,14 @@ impl_db_record!(
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct MultispendChronologicalEventKey {
     pub room_id: RpcRoomId,
+    pub kind: MultispendGroupKind,
     pub counter: u64,
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct MultispendChronologicalEventKeyPrefix {
     pub room_id: RpcRoomId,
+    pub kind: MultispendGroupKind,
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
@@ -154,9 +158,11 @@ impl_db_lookup!(
 pub async fn multispend_chronological_event_count(
     dbtx: &mut DatabaseTransaction<'_>,
     room_id: &RpcRoomId,
+    kind: MultispendGroupKind,
 ) -> u64 {
     dbtx.find_by_prefix_sorted_descending(&MultispendChronologicalEventKeyPrefix {
         room_id: room_id.clone(),
+        kind,
     })
     .await
     .next()
@@ -169,10 +175,11 @@ pub async fn multispend_chronological_event_count(
 pub async fn insert_multispend_chronological_event(
     dbtx: &mut DatabaseTransaction<'_>,
     room_id: &RpcRoomId,
+    kind: MultispendGroupKind,
     event_id: &RpcEventId,
     event_time: u64,
 ) {
-    let next_index = multispend_chronological_event_count(dbtx, room_id).await;
+    let next_index = multispend_chronological_event_count(dbtx, room_id, kind).await;
 
     let data = MultispendChronologicalEventData {
         event_id: event_id.clone(),
@@ -180,6 +187,7 @@ pub async fn insert_multispend_chronological_event(
     };
     let key = MultispendChronologicalEventKey {
         room_id: room_id.clone(),
+        kind,
         counter: next_index,
     };
 
@@ -212,7 +220,7 @@ pub struct MultispendPendingApprovedWithdrawalRequestKey {
     pub room_id: RpcRoomId,
     pub request_event_id: RpcEventId,
     pub federation_id: RpcFederationId,
-    pub transfer_request: SignedTransferRequest,
+    pub transfer_request: SignedMultispendTransferRequest,
 }
 
 impl_db_record!(
@@ -249,19 +257,20 @@ pub enum MultispendPendingCompletionNotification {
     Withdrawal {
         room_id: RpcRoomId,
         request_id: RpcEventId,
-        fiat_amount: RpcFiatAmount,
+        amount: MultispendAmount,
         txid: RpcTransactionId,
     },
     /// Withdrawal Tx was rejected by the federation
     FailedWithdrawal {
         room_id: RpcRoomId,
         request_id: RpcEventId,
+        group_kind: MultispendGroupKind,
         error: String,
     },
     /// Deposit Tx was successful
     Deposit {
         room_id: RpcRoomId,
-        fiat_amount: RpcFiatAmount,
+        amount: MultispendAmount,
         txid: RpcTransactionId,
         description: String,
     },
@@ -318,24 +327,29 @@ impl MultispendPendingCompletionNotification {
             MultispendPendingCompletionNotification::Deposit { room_id, .. } => room_id,
         }
     }
-    pub fn multispend_event(&self) -> MultispendEvent {
+    pub fn multispend_event(&self) -> MsEvent {
         match self {
             MultispendPendingCompletionNotification::Withdrawal {
                 request_id,
-                fiat_amount,
+                amount,
                 txid,
                 ..
-            } => MultispendEvent::WithdrawalResponse {
+            } => MsEvent::WithdrawalResponse {
+                group_kind: amount.kind(),
                 request: request_id.clone(),
                 response: WithdrawalResponseType::Complete {
-                    fiat_amount: *fiat_amount,
+                    amount: *amount,
                     txid: *txid,
                 },
             },
 
             MultispendPendingCompletionNotification::FailedWithdrawal {
-                request_id, error, ..
-            } => MultispendEvent::WithdrawalResponse {
+                room_id: _,
+                request_id,
+                group_kind,
+                error,
+            } => MsEvent::WithdrawalResponse {
+                group_kind: *group_kind,
                 request: request_id.clone(),
                 response: WithdrawalResponseType::TxRejected {
                     error: error.to_string(),
@@ -343,12 +357,12 @@ impl MultispendPendingCompletionNotification {
             },
 
             MultispendPendingCompletionNotification::Deposit {
-                fiat_amount,
+                amount,
                 txid,
                 description,
                 ..
-            } => MultispendEvent::DepositNotification {
-                fiat_amount: *fiat_amount,
+            } => MsEvent::DepositNotification {
+                amount: *amount,
                 txid: *txid,
                 description: description.clone(),
             },

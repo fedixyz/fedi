@@ -1,7 +1,7 @@
 import {
-    useMonitorFiClient,
+    useMonitorFaClient,
     useMonitorWalletServiceLiquidity,
-} from '../hooks/fi'
+} from '../hooks/fa'
 
 interface Props {
     /** Optional: `AppState` is React Native only. */
@@ -9,7 +9,7 @@ interface Props {
 }
 
 /**
- * Streams fi client status into redux for the wallet service creation flow, and
+ * Streams fa client status into redux for the wallet service creation flow, and
  * watches the Lightning attach for the whole app.
  *
  * The attach is watched here rather than by the screen that starts it because
@@ -18,7 +18,7 @@ interface Props {
  * its true state, and lets every Lightning surface read one value.
  */
 export default function WalletServiceMonitor({ isForeground }: Props = {}) {
-    useMonitorFiClient({ isForeground })
+    useMonitorFaClient({ isForeground })
     useMonitorWalletServiceLiquidity()
 
     return null

@@ -121,6 +121,11 @@ function captureIosAppLogs(testName: string) {
     }
 }
 
+function fmtDuration(ms: number): string {
+    const s = Math.round(ms / 1000)
+    return s >= 60 ? `${Math.floor(s / 60)}m${s % 60}s` : `${s}s`
+}
+
 // Mutated by ensureState as fixtures run; cleared on test failure (state untrusted).
 const currentState = new Set<string>()
 
@@ -171,7 +176,11 @@ async function ensureState(
 
     const plan = resolvePlan(needed, currentState)
     for (const fixture of plan) {
+        const t0 = Date.now()
         await fixture.run(test)
+        console.log(
+            `Fixture ${fixture.produces} ran in ${fmtDuration(Date.now() - t0)}`,
+        )
         currentState.add(fixture.produces)
     }
 }
@@ -257,7 +266,12 @@ async function runTests(testNames: string[]): Promise<void> {
 
         const results: Record<
             string,
-            { success: boolean; error?: unknown; skipped?: boolean }
+            {
+                success: boolean
+                error?: unknown
+                skipped?: boolean
+                durationMs?: number
+            }
         > = {}
 
         for (const testName of validTestNames) {
@@ -291,6 +305,7 @@ async function runTests(testNames: string[]): Promise<void> {
             }
 
             const test = new TestClass()
+            const testStart = Date.now()
 
             try {
                 await test.initialize()
@@ -301,12 +316,16 @@ async function runTests(testNames: string[]): Promise<void> {
                     currentState.add(state)
                 }
 
-                results[testName] = { success: true }
-                console.log(`=== Test ${testName} completed successfully ===\n`)
+                const durationMs = Date.now() - testStart
+                results[testName] = { success: true, durationMs }
+                console.log(
+                    `=== Test ${testName} completed successfully in ${fmtDuration(durationMs)} ===\n`,
+                )
             } catch (error: unknown) {
-                results[testName] = { success: false, error }
+                const durationMs = Date.now() - testStart
+                results[testName] = { success: false, error, durationMs }
                 console.error(
-                    `=== Test ${testName} failed: ${(error as Error).message} ===\n`,
+                    `=== Test ${testName} failed after ${fmtDuration(durationMs)}: ${(error as Error).message} ===\n`,
                 )
 
                 anyTestFailed = true
@@ -384,7 +403,11 @@ async function runTests(testNames: string[]): Promise<void> {
                 : result.success
                   ? 'PASSED'
                   : 'FAILED'
-            console.log(`${testName}: ${status}`)
+            const duration =
+                result.durationMs === undefined
+                    ? ''
+                    : ` (${fmtDuration(result.durationMs)})`
+            console.log(`${testName}: ${status}${duration}`)
             if (!result.success && !result.skipped) {
                 console.log(`  Error: ${(result.error as Error).message}`)
             }

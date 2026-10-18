@@ -44,7 +44,12 @@ const HomeHeader: React.FC<Props> = ({ onOpenCommunitiesOverlay }) => {
                     transparent
                     containerStyle={style.headerContainer}
                     headerLeft={
-                        <Text h2 medium numberOfLines={1} adjustsFontSizeToFit>
+                        <Text
+                            h2
+                            medium
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            testID="HomeHeaderTitle">
                             {t('words.spaces')}
                         </Text>
                     }

@@ -6,13 +6,13 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 
-import { setFiLiquidityOperation, setupStore } from '@fedi/common/redux'
+import { setFaLiquidityOperation, setupStore } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type {
-    RpcFiLiquidityDiscoveryResult,
-    RpcFiLiquidityOperation,
-    RpcFiLiquidityProvider,
+    RpcFaLiquidityDiscoveryResult,
+    RpcFaLiquidityOperation,
+    RpcFaLiquidityProvider,
 } from '@fedi/common/types/bindings'
 
 import { ProviderCard } from '../../../components/ui/ProviderCard'
@@ -35,7 +35,7 @@ const FEDERATION_ID = 'wallet-service-federation'
  * staging provider, so the fixtures advertise the network the federation
  * actually runs on and the filter has to agree with it.
  */
-const provider: RpcFiLiquidityProvider = {
+const provider: RpcFaLiquidityProvider = {
     providerPubkey: 'pubkey-1',
     supportedSources: ['gateway'],
     supportedNetworks: ['signet'],
@@ -46,15 +46,15 @@ const provider: RpcFiLiquidityProvider = {
     expiresAt: 0,
 }
 
-const oneProviderFound: RpcFiLiquidityDiscoveryResult = {
+const oneProviderFound: RpcFaLiquidityDiscoveryResult = {
     type: 'discovery',
     providers: [provider],
     rejected: [],
 }
 
 const operation = (
-    overrides: Partial<RpcFiLiquidityOperation> = {},
-): RpcFiLiquidityOperation => ({
+    overrides: Partial<RpcFaLiquidityOperation> = {},
+): RpcFaLiquidityOperation => ({
     operationId: 'operation-1',
     formationId: 'formation-1',
     providerPubkey: 'pubkey-1',
@@ -83,7 +83,7 @@ const operation = (
  */
 const formedStore = (
     liquidity: {
-        operation: RpcFiLiquidityOperation | null
+        operation: RpcFaLiquidityOperation | null
         hasRead: boolean
         errorCode: null
         isRequesting?: boolean
@@ -142,19 +142,19 @@ const renderScreen = (
     const store = formedStore(liquidity)
     const fedimint = createMockFedimintBridge({
         parseInviteCode: () => Promise.resolve({ federationId: FEDERATION_ID }),
-        fiClientLiquidityList: () =>
+        faClientLiquidityList: () =>
             Promise.resolve({
                 type: 'page',
                 page: { operations: [], nextAfter: null },
             }),
-        fiClientLiquidityCurrent: () =>
+        faClientLiquidityCurrent: () =>
             Promise.resolve({ type: 'current', operation: null }),
-        fiClientLiquidityDiscover: () => Promise.resolve(oneProviderFound),
-        fiClientLiquidityStart: () =>
+        faClientLiquidityDiscover: () => Promise.resolve(oneProviderFound),
+        faClientLiquidityStart: () =>
             Promise.resolve({ type: 'operation', operation: operation() }),
-        fiClientLiquidityResume: () =>
+        faClientLiquidityResume: () =>
             Promise.resolve({ type: 'operation', operation: operation() }),
-        fiClientLiquidityStatus: () =>
+        faClientLiquidityStatus: () =>
             Promise.resolve({ type: 'operation', operation: operation() }),
         ...overrides,
     })
@@ -269,9 +269,9 @@ describe('screens/WalletServiceLightningProvider', () => {
         await user.press(screen.getByTestId('lightning-managed-option'))
         await user.press(screen.getByTestId('lightning-managed-option'))
 
-        expect(fedimint.fiClientLiquidityDiscover).not.toHaveBeenCalled()
-        expect(fedimint.fiClientLiquidityStart).not.toHaveBeenCalled()
-        expect(fedimint.fiClientLiquidityCurrent).not.toHaveBeenCalled()
+        expect(fedimint.faClientLiquidityDiscover).not.toHaveBeenCalled()
+        expect(fedimint.faClientLiquidityStart).not.toHaveBeenCalled()
+        expect(fedimint.faClientLiquidityCurrent).not.toHaveBeenCalled()
         expect(mockNavigation.navigate).not.toHaveBeenCalled()
     })
 
@@ -281,9 +281,9 @@ describe('screens/WalletServiceLightningProvider', () => {
         await pressContinue(user)
 
         await waitFor(() =>
-            expect(fedimint.fiClientLiquidityStart).toHaveBeenCalledTimes(1),
+            expect(fedimint.faClientLiquidityStart).toHaveBeenCalledTimes(1),
         )
-        expect(fedimint.fiClientLiquidityStart).toHaveBeenCalledWith(
+        expect(fedimint.faClientLiquidityStart).toHaveBeenCalledWith(
             'formation-1',
             'pubkey-1',
             {
@@ -304,7 +304,7 @@ describe('screens/WalletServiceLightningProvider', () => {
         await pressContinue(user)
 
         await waitFor(() =>
-            expect(fedimint.fiClientLiquidityDiscover).toHaveBeenCalledWith(
+            expect(fedimint.faClientLiquidityDiscover).toHaveBeenCalledWith(
                 expect.anything(),
                 'signet',
             ),
@@ -332,8 +332,8 @@ describe('screens/WalletServiceLightningProvider', () => {
         // could only ever hang here
         await user.press(screen.getByTestId('lightning-continue'))
 
-        expect(fedimint.fiClientLiquidityDiscover).not.toHaveBeenCalled()
-        expect(fedimint.fiClientLiquidityStart).not.toHaveBeenCalled()
+        expect(fedimint.faClientLiquidityDiscover).not.toHaveBeenCalled()
+        expect(fedimint.faClientLiquidityStart).not.toHaveBeenCalled()
         expect(mockNavigation.navigate).not.toHaveBeenCalled()
     })
 
@@ -352,7 +352,7 @@ describe('screens/WalletServiceLightningProvider', () => {
 
         await user.press(screen.getByTestId('lightning-skip'))
 
-        expect(fedimint.fiClientLiquidityStart).not.toHaveBeenCalled()
+        expect(fedimint.faClientLiquidityStart).not.toHaveBeenCalled()
         expect(mockNavigation.navigate).toHaveBeenCalledWith(
             'WalletServiceDashboard',
         )
@@ -371,7 +371,7 @@ describe('screens/WalletServiceLightningProvider', () => {
 
     it('should navigate once the gateway view verifies', async () => {
         renderScreen({
-            fiClientLiquidityStart: () =>
+            faClientLiquidityStart: () =>
                 Promise.resolve({
                     type: 'operation',
                     operation: operation({ gatewayViewVerified: true }),
@@ -400,7 +400,7 @@ describe('screens/WalletServiceLightningProvider', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiLiquidityOperation(
+                setFaLiquidityOperation(
                     operation({ gatewayViewVerified: true }),
                 ),
             )
@@ -427,7 +427,7 @@ describe('screens/WalletServiceLightningProvider', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiLiquidityOperation(
+                setFaLiquidityOperation(
                     operation({ gatewayViewVerified: true }),
                 ),
             )
@@ -445,7 +445,7 @@ describe('screens/WalletServiceLightningProvider', () => {
 
         await act(async () => {
             store.dispatch(
-                setFiLiquidityOperation(
+                setFaLiquidityOperation(
                     operation({ gatewayViewVerified: true }),
                 ),
             )
@@ -498,8 +498,8 @@ describe('screens/WalletServiceLightningProvider', () => {
         await screen.findByTestId('lightning-stage-requested')
         await user.press(screen.getByTestId('lightning-continue'))
 
-        expect(fedimint.fiClientLiquidityStart).not.toHaveBeenCalled()
-        expect(fedimint.fiClientLiquidityDiscover).not.toHaveBeenCalled()
+        expect(fedimint.faClientLiquidityStart).not.toHaveBeenCalled()
+        expect(fedimint.faClientLiquidityDiscover).not.toHaveBeenCalled()
         // Continue now means "carry on" — the attach keeps running regardless
         expect(mockNavigation.navigate).toHaveBeenCalledWith(
             'WalletServiceDashboard',
@@ -515,8 +515,8 @@ describe('screens/WalletServiceLightningProvider', () => {
             .mockResolvedValue({ type: 'current', operation: operation() })
 
         const { fedimint } = renderScreen({
-            fiClientLiquidityCurrent: current,
-            fiClientLiquidityStart: () =>
+            faClientLiquidityCurrent: current,
+            faClientLiquidityStart: () =>
                 Promise.resolve({
                     type: 'error',
                     error: { code: 'busy', message: 'lost', detail: null },
@@ -528,12 +528,12 @@ describe('screens/WalletServiceLightningProvider', () => {
         // the recovered operation is adopted, so the screen reports a running
         // attach rather than a failure
         await screen.findByTestId('lightning-stage-requested')
-        expect(fedimint.fiClientLiquidityStart).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientLiquidityStart).toHaveBeenCalledTimes(1)
     })
 
     it('should offer try again and skip on a retryable failure', async () => {
         renderScreen({
-            fiClientLiquidityDiscover: () =>
+            faClientLiquidityDiscover: () =>
                 Promise.resolve({
                     type: 'error',
                     error: { code: 'busy', message: 'busy', detail: null },
@@ -553,7 +553,7 @@ describe('screens/WalletServiceLightningProvider', () => {
 
     it('should leave skip as the only exit on a terminal failure', async () => {
         renderScreen({
-            fiClientLiquidityDiscover: () =>
+            faClientLiquidityDiscover: () =>
                 Promise.resolve({
                     type: 'error',
                     error: {
@@ -622,7 +622,7 @@ describe('screens/WalletServiceLightningProvider', () => {
         act(() => mockScreenFocus.blur())
         await act(async () => {
             store.dispatch(
-                setFiLiquidityOperation(
+                setFaLiquidityOperation(
                     operation({ gatewayViewVerified: true }),
                 ),
             )

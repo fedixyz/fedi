@@ -5,11 +5,14 @@ import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import { useWithdrawForm } from '@fedi/common/hooks/amount'
+import { useBalance, useWithdrawForm } from '@fedi/common/hooks/amount'
 import {
     selectFederation,
+    selectIsBtcMultispendGroup,
     selectMatrixRoomMultispendStatus,
+    selectMinimumDepositAmount,
 } from '@fedi/common/redux'
+import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import { AmountScreen } from '../components/ui/AmountScreen'
@@ -48,15 +51,23 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
         ),
     )
     const federationId = matchingFederation?.id || ''
+    const isBtcOnly = useAppSelector(s => selectIsBtcMultispendGroup(s, roomId))
     const {
         inputAmountCents,
         inputAmount: amount,
         setInputAmount: setAmount,
-        minimumAmount,
-        maximumAmount,
+        minimumAmount: stableMinimumAmount,
+        maximumAmount: stableMaximumAmount,
         // withdraw form, since a deposit into multispend is a withdrawal from stable balance
     } = useWithdrawForm(federationId)
     const { formattedStableBalance } = useStabilityPool(federationId)
+    const { satsBalance, formattedBalanceSats } = useBalance(t, federationId)
+    // the bridge refuses a bitcoin deposit under the stability pool minimum seek
+    const btcMinimumAmount = useAppSelector(s =>
+        selectMinimumDepositAmount(s, federationId),
+    )
+    const minimumAmount = isBtcOnly ? btcMinimumAmount : stableMinimumAmount
+    const maximumAmount = isBtcOnly ? satsBalance : stableMaximumAmount
 
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)
@@ -65,7 +76,8 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
     const handleSubmit = () => {
         setSubmitAttempts(attempts => attempts + 1)
         if (amount > maximumAmount) {
-            setInsufficientBalanceOverlay(true)
+            // the overlay funds the stable balance, not a bitcoin group
+            if (!isBtcOnly) setInsufficientBalanceOverlay(true)
             return
         }
 
@@ -75,7 +87,9 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
 
         navigation.navigate('MultispendConfirmDeposit', {
             roomId: roomId,
-            amount: inputAmountCents,
+            amount: isBtcOnly
+                ? { btcAmount: amountUtils.satToMsat(amount) }
+                : { fiatAmount: inputAmountCents },
             notes,
             federationId,
         })
@@ -95,7 +109,8 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                 maximumAmount={maximumAmount}
                 submitAttempts={submitAttempts}
                 switcherEnabled={false}
-                lockToFiat
+                lockToFiat={!isBtcOnly}
+                lockToSats={isBtcOnly}
                 verb={t('words.deposit')}
                 content={
                     <Column>
@@ -119,42 +134,53 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                             .invitation.federationName
                                     }
                                 </Text>
-                                <Row align="center">
+                                {isBtcOnly ? (
                                     <Text
                                         medium
                                         caption
                                         maxFontSizeMultiplier={1.5}
                                         numberOfLines={1}
                                         color={theme.colors.darkGrey}>
-                                        {formattedStableBalance}
+                                        {formattedBalanceSats}
                                     </Text>
-                                    <HelpTooltip
-                                        svgProps={{
-                                            size: 16,
-                                            color: theme.colors.grey,
-                                        }}>
+                                ) : (
+                                    <Row align="center">
                                         <Text
+                                            medium
                                             caption
-                                            maxFontSizeMultiplier={1}
-                                            style={style.tooltipText}>
-                                            <Trans
-                                                i18nKey="feature.multispend.stable-balance-info"
-                                                t={t}
-                                                components={{
-                                                    boldlink: (
-                                                        <StableBalanceLink
-                                                            onPress={() => {
-                                                                navigation.dispatch(
-                                                                    resetToWallets(),
-                                                                )
-                                                            }}
-                                                        />
-                                                    ),
-                                                }}
-                                            />
+                                            maxFontSizeMultiplier={1.5}
+                                            numberOfLines={1}
+                                            color={theme.colors.darkGrey}>
+                                            {formattedStableBalance}
                                         </Text>
-                                    </HelpTooltip>
-                                </Row>
+                                        <HelpTooltip
+                                            svgProps={{
+                                                size: 16,
+                                                color: theme.colors.grey,
+                                            }}>
+                                            <Text
+                                                caption
+                                                maxFontSizeMultiplier={1}
+                                                style={style.tooltipText}>
+                                                <Trans
+                                                    i18nKey="feature.multispend.stable-balance-info"
+                                                    t={t}
+                                                    components={{
+                                                        boldlink: (
+                                                            <StableBalanceLink
+                                                                onPress={() => {
+                                                                    navigation.dispatch(
+                                                                        resetToWallets(),
+                                                                    )
+                                                                }}
+                                                            />
+                                                        ),
+                                                    }}
+                                                />
+                                            </Text>
+                                        </HelpTooltip>
+                                    </Row>
+                                )}
                             </Column>
                         </View>
                     </Column>

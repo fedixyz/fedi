@@ -25,8 +25,8 @@ import {
 } from '@fedi/common/redux'
 import { MSats } from '@fedi/common/types'
 import {
-    RpcFiOperationError,
-    RpcFiSelectionPreviewSeat,
+    RpcFaOperationError,
+    RpcFaSelectionPreviewSeat,
 } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -94,13 +94,13 @@ const scaleFor = (size: number) =>
     GUARDIAN_SCALE[size as keyof typeof GUARDIAN_SCALE] ?? GUARDIAN_SCALE[10]
 
 /**
- * `fmanName` is not on the type on this branch, so the cast is a shim that
+ * `mgName` is not on the type on this branch, so the cast is a shim that
  * starts returning real names once the bridge change lands. Names can collide,
  * so the id stays the fallback rather than a placeholder.
  */
-const seatDisplayName = (seat: RpcFiSelectionPreviewSeat) =>
-    (seat as RpcFiSelectionPreviewSeat & { fmanName?: string }).fmanName ||
-    seat.fmanId
+const seatDisplayName = (seat: RpcFaSelectionPreviewSeat) =>
+    (seat as RpcFaSelectionPreviewSeat & { mgName?: string }).mgName ||
+    seat.mgId
 
 const CreateWalletService: React.FC<Props> = props => {
     const { t } = useTranslation()
@@ -154,7 +154,7 @@ const CreateWalletServiceContent: React.FC<Props> = ({ navigation }) => {
     // to change the count
     const [isPreviewing, setIsPreviewing] = useState(() => !preview)
     const [previewError, setPreviewError] =
-        useState<RpcFiOperationError | null>(null)
+        useState<RpcFaOperationError | null>(null)
     const [isDetailsOpen, setIsDetailsOpen] = useState(false)
     const [isConfirming, setIsConfirming] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -195,11 +195,11 @@ const CreateWalletServiceContent: React.FC<Props> = ({ navigation }) => {
         } catch (error) {
             if (!isFocusedRef.current) return
             log.error('prepareWalletServicePayment', error)
-            const opError = error as RpcFiOperationError | undefined
+            const opError = error as RpcFaOperationError | undefined
             setPreviewError(opError ?? null)
             // too few guardians is answered by picking a smaller set, which
             // the banner says beside the presets; a toast would scroll away
-            if (opError?.detail?.type !== 'insufficientFmanSeats') {
+            if (opError?.detail?.type !== 'insufficientMgSeats') {
                 toast.show({
                     content: getWalletServiceRetryableError(t, opError?.code),
                     status: 'error',
@@ -240,7 +240,7 @@ const CreateWalletServiceContent: React.FC<Props> = ({ navigation }) => {
     )
 
     const insufficientSeatsDetail =
-        previewError?.detail?.type === 'insufficientFmanSeats'
+        previewError?.detail?.type === 'insufficientMgSeats'
             ? previewError.detail
             : null
     // a quote held from an earlier visit is shown rather than discarded, so the
@@ -279,7 +279,7 @@ const CreateWalletServiceContent: React.FC<Props> = ({ navigation }) => {
             toast.show({
                 content: getWalletServiceRetryableError(
                     t,
-                    (error as RpcFiOperationError | undefined)?.code,
+                    (error as RpcFaOperationError | undefined)?.code,
                 ),
                 status: 'error',
             })
@@ -534,7 +534,7 @@ const CreateWalletServiceContent: React.FC<Props> = ({ navigation }) => {
                             {isDetailsOpen &&
                                 preview.seats.map((seat, index) => (
                                     <Row
-                                        key={`${seat.fmanId}-${index}`}
+                                        key={`${seat.mgId}-${index}`}
                                         align="center"
                                         gap="md"
                                         style={style.seatRow}>

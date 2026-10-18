@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import {
     getWalletServiceErrorKey,
-    selectFiClientError,
-    selectFiStatus,
+    selectFaClientError,
+    selectFaStatus,
     selectWalletServiceFlowStatus,
     selectWalletServiceSelectionPreview,
 } from '@fedi/common/redux'
@@ -37,8 +37,8 @@ export const WalletServiceEntry: React.FC = () => {
         selectWalletServiceFlowStatus,
     )
     const preview = useAppSelector(selectWalletServiceSelectionPreview)
-    const clientError = useAppSelector(selectFiClientError)
-    const isCheckingBackup = useAppSelector(selectFiStatus)?.type === 'recovery'
+    const clientError = useAppSelector(selectFaClientError)
+    const isCheckingBackup = useAppSelector(selectFaStatus)?.type === 'recovery'
     // Initial status or backup lookup has not established whether a formation
     // exists, so stay on this hub until the bridge can answer.
     const isFlowStatusLoading = walletServiceFlowStatus === 'unknown'

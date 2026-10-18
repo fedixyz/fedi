@@ -12,11 +12,11 @@ use super::event::EventSink;
 use super::storage::Storage;
 use crate::api::IFediApi;
 use crate::db::{
-    BridgeDbPrefix, FiClientEnvironmentOwnerKey, FiClientResetPendingKey,
-    FiManifoldEnvironmentSelectionKey,
+    BridgeDbPrefix, FaClientEnvironmentOwnerKey, FaClientResetPendingKey,
+    FaManifoldEnvironmentSelectionKey,
 };
 use crate::features::{
-    FeatureCatalog, FiManifoldEnvironment, RemoteFeaturesService, RuntimeEnvironment,
+    FaManifoldEnvironment, FeatureCatalog, RemoteFeaturesService, RuntimeEnvironment,
 };
 use crate::rpc_stream::RpcStreamPool;
 use crate::storage::{AppState, BRIDGE_DB_PREFIX};
@@ -96,33 +96,33 @@ impl Runtime {
         ])
     }
 
-    /// DB for consumer-neutral Federation Initiator client state.
-    pub fn fi_client_db(&self) -> Database {
+    /// DB for consumer-neutral Federation Ambassador client state.
+    pub fn fa_client_db(&self) -> Database {
         self.global_db
-            .with_prefix(vec![BRIDGE_DB_PREFIX, BridgeDbPrefix::FiClientPrefix as u8])
+            .with_prefix(vec![BRIDGE_DB_PREFIX, BridgeDbPrefix::FaClientPrefix as u8])
     }
 
-    /// Schedule a non-Production FI namespace wipe for the next internal-build
+    /// Schedule a non-Production FA namespace wipe for the next internal-build
     /// launch.
-    pub async fn schedule_fi_client_reset(&self) -> anyhow::Result<()> {
-        schedule_fi_client_reset(
+    pub async fn schedule_fa_client_reset(&self) -> anyhow::Result<()> {
+        schedule_fa_client_reset(
             &self.bridge_db(),
             self.feature_catalog.runtime_env,
-            self.fi_manifold_environment().await,
+            self.fa_manifold_environment().await,
         )
         .await
     }
 
-    pub fn fi_client_reset_is_allowed(&self) -> bool {
-        fi_client_reset_is_allowed(self.feature_catalog.runtime_env)
+    pub fn fa_client_reset_is_allowed(&self) -> bool {
+        fa_client_reset_is_allowed(self.feature_catalog.runtime_env)
     }
 
-    /// Apply a safe scheduled test-state wipe before Manifold opens FI.
-    pub async fn apply_scheduled_fi_client_reset(&self) -> anyhow::Result<bool> {
-        apply_scheduled_fi_client_reset(
+    /// Apply a safe scheduled test-state wipe before Manifold opens FA.
+    pub async fn apply_scheduled_fa_client_reset(&self) -> anyhow::Result<bool> {
+        apply_scheduled_fa_client_reset(
             &self.bridge_db(),
             self.feature_catalog.runtime_env,
-            self.fi_manifold_environment().await,
+            self.fa_manifold_environment().await,
         )
         .await
     }
@@ -143,184 +143,185 @@ impl Runtime {
         Ok(())
     }
 
-    pub async fn fi_manifold_environment(&self) -> FiManifoldEnvironment {
-        let default = default_fi_manifold_environment(self.feature_catalog.runtime_env);
-        if !fi_client_reset_is_allowed(self.feature_catalog.runtime_env) {
+    pub async fn fa_manifold_environment(&self) -> FaManifoldEnvironment {
+        let default = default_fa_manifold_environment(self.feature_catalog.runtime_env);
+        if !fa_client_reset_is_allowed(self.feature_catalog.runtime_env) {
             return default;
         }
         if let Some(selected) = self
             .bridge_db()
             .begin_transaction_nc()
             .await
-            .get_value(&FiManifoldEnvironmentSelectionKey)
+            .get_value(&FaManifoldEnvironmentSelectionKey)
             .await
         {
             return selected;
         }
         self.app_state
-            .with_read_lock(|state| state.fi_manifold_environment)
+            .with_read_lock(|state| state.fa_manifold_environment)
             .await
             .unwrap_or(default)
     }
 
-    pub async fn set_fi_manifold_environment(
+    pub async fn set_fa_manifold_environment(
         &self,
-        environment: FiManifoldEnvironment,
+        environment: FaManifoldEnvironment,
     ) -> anyhow::Result<()> {
-        switch_fi_manifold_environment(
+        switch_fa_manifold_environment(
             &self.bridge_db(),
             self.feature_catalog.runtime_env,
-            self.fi_manifold_environment().await,
+            self.fa_manifold_environment().await,
             environment,
         )
         .await
     }
 }
 
-fn default_fi_manifold_environment(environment: RuntimeEnvironment) -> FiManifoldEnvironment {
+/// Returns the Manifold deployment assigned to one compiled runtime flavor.
+pub fn default_fa_manifold_environment(environment: RuntimeEnvironment) -> FaManifoldEnvironment {
     match environment {
-        RuntimeEnvironment::Dev | RuntimeEnvironment::Tests => FiManifoldEnvironment::Development,
-        RuntimeEnvironment::Staging => FiManifoldEnvironment::Staging,
-        RuntimeEnvironment::Edge | RuntimeEnvironment::Prod => FiManifoldEnvironment::Production,
+        RuntimeEnvironment::Dev | RuntimeEnvironment::Tests => FaManifoldEnvironment::Development,
+        RuntimeEnvironment::Staging => FaManifoldEnvironment::Staging,
+        RuntimeEnvironment::Edge | RuntimeEnvironment::Prod => FaManifoldEnvironment::Production,
     }
 }
 
-fn fi_client_reset_is_allowed(environment: RuntimeEnvironment) -> bool {
+fn fa_client_reset_is_allowed(environment: RuntimeEnvironment) -> bool {
     matches!(
         environment,
         RuntimeEnvironment::Dev | RuntimeEnvironment::Tests | RuntimeEnvironment::Staging
     )
 }
 
-async fn switch_fi_manifold_environment(
+async fn switch_fa_manifold_environment(
     bridge_db: &Database,
     build: RuntimeEnvironment,
-    current: FiManifoldEnvironment,
-    destination: FiManifoldEnvironment,
+    current: FaManifoldEnvironment,
+    destination: FaManifoldEnvironment,
 ) -> anyhow::Result<()> {
     ensure!(
-        fi_client_reset_is_allowed(build),
-        "FI environment switching is only available in internal builds"
+        fa_client_reset_is_allowed(build),
+        "FA environment switching is only available in internal builds"
     );
     ensure!(
-        current != FiManifoldEnvironment::Production || current == destination,
+        current != FaManifoldEnvironment::Production || current == destination,
         "cannot switch away from Production Manifold state"
     );
     if current == destination {
         return Ok(());
     }
-    queue_fi_client_reset(bridge_db, build, current, Some(destination)).await
+    queue_fa_client_reset(bridge_db, build, current, Some(destination)).await
 }
 
-async fn schedule_fi_client_reset(
+async fn schedule_fa_client_reset(
     bridge_db: &Database,
     build: RuntimeEnvironment,
-    selected: FiManifoldEnvironment,
+    selected: FaManifoldEnvironment,
 ) -> anyhow::Result<()> {
-    queue_fi_client_reset(bridge_db, build, selected, None).await
+    queue_fa_client_reset(bridge_db, build, selected, None).await
 }
 
-async fn queue_fi_client_reset(
+async fn queue_fa_client_reset(
     bridge_db: &Database,
     build: RuntimeEnvironment,
-    source: FiManifoldEnvironment,
-    destination: Option<FiManifoldEnvironment>,
+    source: FaManifoldEnvironment,
+    destination: Option<FaManifoldEnvironment>,
 ) -> anyhow::Result<()> {
     ensure!(
-        fi_client_reset_is_allowed(build),
-        "FI client reset is only available in internal builds"
+        fa_client_reset_is_allowed(build),
+        "FA client reset is only available in internal builds"
     );
     ensure!(
-        source != FiManifoldEnvironment::Production,
+        source != FaManifoldEnvironment::Production,
         "Production Manifold state cannot be reset"
     );
     let mut dbtx = bridge_db.begin_transaction().await;
-    let owner = dbtx.get_value(&FiClientEnvironmentOwnerKey).await;
+    let owner = dbtx.get_value(&FaClientEnvironmentOwnerKey).await;
     ensure!(
-        owner != Some(FiManifoldEnvironment::Production),
+        owner != Some(FaManifoldEnvironment::Production),
         "Production Manifold state cannot be reset"
     );
-    if dbtx.get_value(&FiClientResetPendingKey).await.is_some() {
+    if dbtx.get_value(&FaClientResetPendingKey).await.is_some() {
         ensure!(
             owner.is_some(),
-            "queued FI reset has no known source environment"
+            "queued FA reset has no known source environment"
         );
     } else if owner != Some(source) {
         let namespace_empty = dbtx
-            .raw_find_by_prefix(&[BridgeDbPrefix::FiClientPrefix as u8])
+            .raw_find_by_prefix(&[BridgeDbPrefix::FaClientPrefix as u8])
             .await?
             .next()
             .await
             .is_none();
         ensure!(
             namespace_empty,
-            "FI namespace owner is unknown or differs from the selected environment"
+            "FA namespace owner is unknown or differs from the selected environment"
         );
-        dbtx.insert_entry(&FiClientEnvironmentOwnerKey, &source)
+        dbtx.insert_entry(&FaClientEnvironmentOwnerKey, &source)
             .await;
     }
     // An environment switch and its queued wipe are one durable action.
     if let Some(destination) = destination {
-        dbtx.insert_entry(&FiManifoldEnvironmentSelectionKey, &destination)
+        dbtx.insert_entry(&FaManifoldEnvironmentSelectionKey, &destination)
             .await;
     }
-    dbtx.insert_entry(&FiClientResetPendingKey, &()).await;
+    dbtx.insert_entry(&FaClientResetPendingKey, &()).await;
     dbtx.commit_tx_result().await?;
     Ok(())
 }
 
-async fn apply_scheduled_fi_client_reset(
+async fn apply_scheduled_fa_client_reset(
     bridge_db: &Database,
     build: RuntimeEnvironment,
-    selected: FiManifoldEnvironment,
+    selected: FaManifoldEnvironment,
 ) -> anyhow::Result<bool> {
     let mut dbtx = bridge_db.begin_transaction().await;
-    let owner = dbtx.get_value(&FiClientEnvironmentOwnerKey).await;
-    let migrate_legacy_selection = fi_client_reset_is_allowed(build)
+    let owner = dbtx.get_value(&FaClientEnvironmentOwnerKey).await;
+    let migrate_legacy_selection = fa_client_reset_is_allowed(build)
         && dbtx
-            .get_value(&FiManifoldEnvironmentSelectionKey)
+            .get_value(&FaManifoldEnvironmentSelectionKey)
             .await
             .is_none();
     if migrate_legacy_selection {
-        dbtx.insert_entry(&FiManifoldEnvironmentSelectionKey, &selected)
+        dbtx.insert_entry(&FaManifoldEnvironmentSelectionKey, &selected)
             .await;
     }
-    if dbtx.get_value(&FiClientResetPendingKey).await.is_some() {
+    if dbtx.get_value(&FaClientResetPendingKey).await.is_some() {
         ensure!(
-            fi_client_reset_is_allowed(build),
-            "queued FI reset cannot be applied in this build"
+            fa_client_reset_is_allowed(build),
+            "queued FA reset cannot be applied in this build"
         );
         ensure!(
             owner.is_some(),
-            "queued FI reset has no known source environment"
+            "queued FA reset has no known source environment"
         );
         ensure!(
-            owner != Some(FiManifoldEnvironment::Production),
+            owner != Some(FaManifoldEnvironment::Production),
             "Production Manifold state cannot be reset"
         );
-        dbtx.raw_remove_by_prefix(&[BridgeDbPrefix::FiClientPrefix as u8])
+        dbtx.raw_remove_by_prefix(&[BridgeDbPrefix::FaClientPrefix as u8])
             .await?;
-        dbtx.remove_entry(&FiClientResetPendingKey).await;
-        dbtx.insert_entry(&FiClientEnvironmentOwnerKey, &selected)
+        dbtx.remove_entry(&FaClientResetPendingKey).await;
+        dbtx.insert_entry(&FaClientEnvironmentOwnerKey, &selected)
             .await;
         dbtx.commit_tx_result().await?;
         return Ok(true);
     }
     if owner != Some(selected) {
         let namespace_empty = dbtx
-            .raw_find_by_prefix(&[BridgeDbPrefix::FiClientPrefix as u8])
+            .raw_find_by_prefix(&[BridgeDbPrefix::FaClientPrefix as u8])
             .await?
             .next()
             .await
             .is_none();
         // The old switch queued a wipe before updating app state, and startup
-        // applied that wipe before opening FI. With no pending wipe, the
+        // applied that wipe before opening FA. With no pending wipe, the
         // legacy selection therefore identifies the namespace's environment.
         if namespace_empty || (migrate_legacy_selection && owner.is_none()) {
-            dbtx.insert_entry(&FiClientEnvironmentOwnerKey, &selected)
+            dbtx.insert_entry(&FaClientEnvironmentOwnerKey, &selected)
                 .await;
         } else if owner.is_some() {
-            anyhow::bail!("FI namespace belongs to another Manifold environment");
+            anyhow::bail!("FA namespace belongs to another Manifold environment");
         }
         // Ownerless state outside the one-time migration can still open,
         // but cannot be reset by guesswork.
@@ -337,15 +338,15 @@ mod tests {
     use super::*;
 
     async fn put_formation(bridge_db: &Database, bytes: &[u8]) {
-        let fi_db = bridge_db.with_prefix(vec![BridgeDbPrefix::FiClientPrefix as u8]);
-        let mut tx = fi_db.begin_transaction().await;
+        let fa_db = bridge_db.with_prefix(vec![BridgeDbPrefix::FaClientPrefix as u8]);
+        let mut tx = fa_db.begin_transaction().await;
         tx.raw_insert_bytes(&[0], bytes).await.unwrap();
         tx.commit_tx().await;
     }
 
     async fn formation(bridge_db: &Database) -> Option<Vec<u8>> {
         bridge_db
-            .with_prefix(vec![BridgeDbPrefix::FiClientPrefix as u8])
+            .with_prefix(vec![BridgeDbPrefix::FaClientPrefix as u8])
             .begin_transaction_nc()
             .await
             .raw_get_bytes(&[0])
@@ -358,52 +359,52 @@ mod tests {
         let db = MemDatabase::new().into_database();
         let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
         assert!(
-            !apply_scheduled_fi_client_reset(
+            !apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .unwrap()
         );
         put_formation(&bridge_db, b"dev formation").await;
-        switch_fi_manifold_environment(
+        switch_fa_manifold_environment(
             &bridge_db,
             RuntimeEnvironment::Dev,
-            FiManifoldEnvironment::Development,
-            FiManifoldEnvironment::Production,
+            FaManifoldEnvironment::Development,
+            FaManifoldEnvironment::Production,
         )
         .await
         .unwrap();
         let mut tx = bridge_db.begin_transaction_nc().await;
         assert_eq!(
-            tx.get_value(&FiManifoldEnvironmentSelectionKey).await,
-            Some(FiManifoldEnvironment::Production)
+            tx.get_value(&FaManifoldEnvironmentSelectionKey).await,
+            Some(FaManifoldEnvironment::Production)
         );
-        assert!(tx.get_value(&FiClientResetPendingKey).await.is_some());
+        assert!(tx.get_value(&FaClientResetPendingKey).await.is_some());
         assert_eq!(
-            tx.get_value(&FiClientEnvironmentOwnerKey).await,
-            Some(FiManifoldEnvironment::Development)
+            tx.get_value(&FaClientEnvironmentOwnerKey).await,
+            Some(FaManifoldEnvironment::Development)
         );
         assert_eq!(formation(&bridge_db).await, Some(b"dev formation".to_vec()));
 
         // Production is already selected, even though the old Dev formation
         // has not yet been wiped at startup.
         assert!(
-            switch_fi_manifold_environment(
+            switch_fa_manifold_environment(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Production,
-                FiManifoldEnvironment::Staging
+                FaManifoldEnvironment::Production,
+                FaManifoldEnvironment::Staging
             )
             .await
             .is_err()
         );
         assert!(
-            apply_scheduled_fi_client_reset(
+            apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Production
+                FaManifoldEnvironment::Production
             )
             .await
             .unwrap()
@@ -413,26 +414,26 @@ mod tests {
             bridge_db
                 .begin_transaction_nc()
                 .await
-                .get_value(&FiClientEnvironmentOwnerKey)
+                .get_value(&FaClientEnvironmentOwnerKey)
                 .await,
-            Some(FiManifoldEnvironment::Production)
+            Some(FaManifoldEnvironment::Production)
         );
         put_formation(&bridge_db, b"production formation").await;
         assert!(
-            switch_fi_manifold_environment(
+            switch_fa_manifold_environment(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Production,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Production,
+                FaManifoldEnvironment::Development
             )
             .await
             .is_err()
         );
         assert!(
-            schedule_fi_client_reset(
+            schedule_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .is_err()
@@ -448,28 +449,28 @@ mod tests {
         let db = MemDatabase::new().into_database();
         let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
         assert!(
-            !apply_scheduled_fi_client_reset(
+            !apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .unwrap()
         );
         put_formation(&bridge_db, b"dev formation").await;
-        switch_fi_manifold_environment(
+        switch_fa_manifold_environment(
             &bridge_db,
             RuntimeEnvironment::Dev,
-            FiManifoldEnvironment::Development,
-            FiManifoldEnvironment::Staging,
+            FaManifoldEnvironment::Development,
+            FaManifoldEnvironment::Staging,
         )
         .await
         .unwrap();
         assert!(
-            apply_scheduled_fi_client_reset(
+            apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Staging
+                FaManifoldEnvironment::Staging
             )
             .await
             .unwrap()
@@ -479,9 +480,9 @@ mod tests {
             bridge_db
                 .begin_transaction_nc()
                 .await
-                .get_value(&FiClientEnvironmentOwnerKey)
+                .get_value(&FaClientEnvironmentOwnerKey)
                 .await,
-            Some(FiManifoldEnvironment::Staging)
+            Some(FaManifoldEnvironment::Staging)
         );
     }
 
@@ -490,29 +491,29 @@ mod tests {
         let db = MemDatabase::new().into_database();
         let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
         assert!(
-            !apply_scheduled_fi_client_reset(
+            !apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Prod,
-                FiManifoldEnvironment::Production
+                FaManifoldEnvironment::Production
             )
             .await
             .unwrap()
         );
         put_formation(&bridge_db, b"production formation").await;
         assert!(
-            schedule_fi_client_reset(
+            schedule_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .is_err()
         );
         assert!(
-            apply_scheduled_fi_client_reset(
+            apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .is_err()
@@ -528,37 +529,37 @@ mod tests {
         let db = MemDatabase::new().into_database();
         let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
         assert!(
-            !apply_scheduled_fi_client_reset(
+            !apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .unwrap()
         );
         put_formation(&bridge_db, b"dev formation").await;
-        schedule_fi_client_reset(
+        schedule_fa_client_reset(
             &bridge_db,
             RuntimeEnvironment::Dev,
-            FiManifoldEnvironment::Development,
+            FaManifoldEnvironment::Development,
         )
         .await
         .unwrap();
         assert!(
-            apply_scheduled_fi_client_reset(
+            apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Prod,
-                FiManifoldEnvironment::Production
+                FaManifoldEnvironment::Production
             )
             .await
             .is_err()
         );
         assert_eq!(formation(&bridge_db).await, Some(b"dev formation".to_vec()));
         assert!(
-            apply_scheduled_fi_client_reset(
+            apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .unwrap()
@@ -572,20 +573,20 @@ mod tests {
         let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
         put_formation(&bridge_db, b"unclassified formation").await;
         assert!(
-            schedule_fi_client_reset(
+            schedule_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .is_err()
         );
         assert!(
-            switch_fi_manifold_environment(
+            switch_fa_manifold_environment(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development,
-                FiManifoldEnvironment::Production
+                FaManifoldEnvironment::Development,
+                FaManifoldEnvironment::Production
             )
             .await
             .is_err()
@@ -598,7 +599,7 @@ mod tests {
             bridge_db
                 .begin_transaction_nc()
                 .await
-                .get_value(&FiClientResetPendingKey)
+                .get_value(&FaClientResetPendingKey)
                 .await
                 .is_none()
         );
@@ -607,25 +608,25 @@ mod tests {
     #[tokio::test]
     async fn legacy_owner_migration_preserves_test_resets_and_protects_production() {
         for selected in [
-            FiManifoldEnvironment::Development,
-            FiManifoldEnvironment::Production,
+            FaManifoldEnvironment::Development,
+            FaManifoldEnvironment::Production,
         ] {
             let db = MemDatabase::new().into_database();
             let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
             put_formation(&bridge_db, b"legacy formation").await;
             // Startup supplies the legacy app-state selection (or build default).
             assert!(
-                !apply_scheduled_fi_client_reset(&bridge_db, RuntimeEnvironment::Dev, selected)
+                !apply_scheduled_fa_client_reset(&bridge_db, RuntimeEnvironment::Dev, selected)
                     .await
                     .unwrap()
             );
             let mut tx = bridge_db.begin_transaction_nc().await;
             assert_eq!(
-                tx.get_value(&FiManifoldEnvironmentSelectionKey).await,
+                tx.get_value(&FaManifoldEnvironmentSelectionKey).await,
                 Some(selected)
             );
             assert_eq!(
-                tx.get_value(&FiClientEnvironmentOwnerKey).await,
+                tx.get_value(&FaClientEnvironmentOwnerKey).await,
                 Some(selected)
             );
             assert_eq!(
@@ -633,11 +634,11 @@ mod tests {
                 Some(b"legacy formation".to_vec())
             );
             let reset =
-                schedule_fi_client_reset(&bridge_db, RuntimeEnvironment::Dev, selected).await;
-            if selected == FiManifoldEnvironment::Development {
+                schedule_fa_client_reset(&bridge_db, RuntimeEnvironment::Dev, selected).await;
+            if selected == FaManifoldEnvironment::Development {
                 reset.unwrap();
                 assert!(
-                    apply_scheduled_fi_client_reset(&bridge_db, RuntimeEnvironment::Dev, selected)
+                    apply_scheduled_fa_client_reset(&bridge_db, RuntimeEnvironment::Dev, selected)
                         .await
                         .unwrap()
                 );
@@ -645,11 +646,11 @@ mod tests {
             } else {
                 assert!(reset.is_err());
                 assert!(
-                    switch_fi_manifold_environment(
+                    switch_fa_manifold_environment(
                         &bridge_db,
                         RuntimeEnvironment::Dev,
                         selected,
-                        FiManifoldEnvironment::Development,
+                        FaManifoldEnvironment::Development,
                     )
                     .await
                     .is_err()
@@ -668,14 +669,14 @@ mod tests {
         let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
         put_formation(&bridge_db, b"unclassified production formation").await;
         let mut tx = bridge_db.begin_transaction().await;
-        tx.insert_entry(&FiClientResetPendingKey, &()).await;
+        tx.insert_entry(&FaClientResetPendingKey, &()).await;
         tx.commit_tx().await;
 
         assert!(
-            apply_scheduled_fi_client_reset(
+            apply_scheduled_fa_client_reset(
                 &bridge_db,
                 RuntimeEnvironment::Dev,
-                FiManifoldEnvironment::Development
+                FaManifoldEnvironment::Development
             )
             .await
             .is_err()
@@ -688,7 +689,7 @@ mod tests {
             bridge_db
                 .begin_transaction_nc()
                 .await
-                .get_value(&FiClientResetPendingKey)
+                .get_value(&FaClientResetPendingKey)
                 .await
                 .is_some()
         );
@@ -698,14 +699,14 @@ mod tests {
     async fn scheduled_reset_clears_recovery_completion_but_not_neighbouring_state() {
         let db = MemDatabase::new().into_database();
         let bridge_db = db.with_prefix(vec![BRIDGE_DB_PREFIX]);
-        let environment = FiManifoldEnvironment::Staging;
-        apply_scheduled_fi_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
+        let environment = FaManifoldEnvironment::Staging;
+        apply_scheduled_fa_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
             .await
             .unwrap();
-        let fi_db = bridge_db.with_prefix(vec![BridgeDbPrefix::FiClientPrefix as u8]);
+        let fa_db = bridge_db.with_prefix(vec![BridgeDbPrefix::FaClientPrefix as u8]);
         let neighbour_db =
-            bridge_db.with_prefix(vec![BridgeDbPrefix::FiFederationAutoJoinCompleted as u8]);
-        let mut tx = fi_db.begin_transaction().await;
+            bridge_db.with_prefix(vec![BridgeDbPrefix::FaFederationAutoJoinCompleted as u8]);
+        let mut tx = fa_db.begin_transaction().await;
         for key in [0x00, 0x04, 0x08] {
             tx.raw_insert_bytes(&[key], b"fi state").await.unwrap();
         }
@@ -714,15 +715,15 @@ mod tests {
         tx.raw_insert_bytes(&[0], b"keep").await.unwrap();
         tx.commit_tx().await;
 
-        schedule_fi_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
+        schedule_fa_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
             .await
             .unwrap();
         assert!(
-            apply_scheduled_fi_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
+            apply_scheduled_fa_client_reset(&bridge_db, RuntimeEnvironment::Staging, environment)
                 .await
                 .unwrap()
         );
-        let mut tx = fi_db.begin_transaction_nc().await;
+        let mut tx = fa_db.begin_transaction_nc().await;
         for key in [0x00, 0x04, 0x08] {
             assert!(tx.raw_get_bytes(&[key]).await.unwrap().is_none());
         }
@@ -739,7 +740,7 @@ mod tests {
             bridge_db
                 .begin_transaction_nc()
                 .await
-                .get_value(&FiClientResetPendingKey)
+                .get_value(&FaClientResetPendingKey)
                 .await
                 .is_none()
         );
@@ -752,34 +753,34 @@ mod tests {
             RuntimeEnvironment::Tests,
             RuntimeEnvironment::Staging,
         ] {
-            assert!(fi_client_reset_is_allowed(environment));
+            assert!(fa_client_reset_is_allowed(environment));
         }
         for environment in [RuntimeEnvironment::Edge, RuntimeEnvironment::Prod] {
-            assert!(!fi_client_reset_is_allowed(environment));
+            assert!(!fa_client_reset_is_allowed(environment));
         }
     }
 
     #[test]
     fn each_runtime_environment_defaults_to_its_own_manifold_deployment() {
         assert_eq!(
-            default_fi_manifold_environment(RuntimeEnvironment::Dev),
-            FiManifoldEnvironment::Development
+            default_fa_manifold_environment(RuntimeEnvironment::Dev),
+            FaManifoldEnvironment::Development
         );
         assert_eq!(
-            default_fi_manifold_environment(RuntimeEnvironment::Tests),
-            FiManifoldEnvironment::Development
+            default_fa_manifold_environment(RuntimeEnvironment::Tests),
+            FaManifoldEnvironment::Development
         );
         assert_eq!(
-            default_fi_manifold_environment(RuntimeEnvironment::Staging),
-            FiManifoldEnvironment::Staging
+            default_fa_manifold_environment(RuntimeEnvironment::Staging),
+            FaManifoldEnvironment::Staging
         );
         assert_eq!(
-            default_fi_manifold_environment(RuntimeEnvironment::Edge),
-            FiManifoldEnvironment::Production
+            default_fa_manifold_environment(RuntimeEnvironment::Edge),
+            FaManifoldEnvironment::Production
         );
         assert_eq!(
-            default_fi_manifold_environment(RuntimeEnvironment::Prod),
-            FiManifoldEnvironment::Production
+            default_fa_manifold_environment(RuntimeEnvironment::Prod),
+            FaManifoldEnvironment::Production
         );
     }
 }

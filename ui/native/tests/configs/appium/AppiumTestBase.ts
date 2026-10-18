@@ -21,7 +21,16 @@ const DEFAULT_SCROLL_OPTIONS: Required<ScrollOptions> = {
     scrollPercentage: 10,
 }
 
+const OPPOSITE_SCROLL_DIRECTION: Record<ScrollDirection, ScrollDirection> = {
+    down: 'up',
+    up: 'down',
+    left: 'right',
+    right: 'left',
+}
+
 export const DEFAULT_TIMEOUT = 20000
+
+export const COLD_START_TIMEOUT = 60000
 
 // Waits gated on a Matrix op (room create/join, message send/receive, membership
 // and knock sync, invite link). matrix-rust-sdk lags past DEFAULT_TIMEOUT under CI load.
@@ -33,6 +42,8 @@ const E2E_DEBUG =
 const debugLog = (...args: unknown[]) => {
     if (E2E_DEBUG) console.log(...args)
 }
+
+const SLOW_ELEMENT_MS = 3000
 
 export class AppiumTestBase {
     /** States required before execute(); default [] = fresh install. */
@@ -51,9 +62,18 @@ export class AppiumTestBase {
     readonly handle: string
     // Cleared by resetAppToFresh, whose reinstall resets the OS grant.
     private iosNotificationPromptHandled = false
+    private hasPeerActor = false
 
     constructor(handle: string = 'a') {
         this.handle = handle
+    }
+
+    log(message: string): void {
+        console.log(`[${this.handle}] ${message}`)
+    }
+
+    warn(message: string): void {
+        console.warn(`[${this.handle}] ${message}`)
     }
 
     async initialize(): Promise<void> {
@@ -72,6 +92,8 @@ export class AppiumTestBase {
         }
         const actor = new AppiumTestBase(handle)
         await actor.initialize()
+        this.hasPeerActor = true
+        actor.hasPeerActor = true
         return actor
     }
 
@@ -288,7 +310,7 @@ export class AppiumTestBase {
                 await new Promise(resolve => setTimeout(resolve, 500))
             }
         }
-        console.log(
+        this.log(
             `No elements with ${text} in them were found. If this is not intentional, check the XML tree dump or reproduce the test in Appium Inspector to find out why.`,
         )
         if (E2E_DEBUG) {
@@ -373,6 +395,7 @@ export class AppiumTestBase {
             exactMatch,
             timeout,
         )
+        await this.acceptIosNotificationPromptBeforeGesture()
         await element.click()
     }
 
@@ -407,6 +430,10 @@ export class AppiumTestBase {
                 const element = await this.findElementByKey(key)
 
                 if (await this.isElementVisible(element)) {
+                    const elapsed = Date.now() - startTime
+                    if (elapsed >= SLOW_ELEMENT_MS) {
+                        this.log(`"${key}" displayed after ${elapsed}ms`)
+                    }
                     return element as ChainablePromiseElement
                 }
             } catch (error) {
@@ -451,7 +478,7 @@ export class AppiumTestBase {
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
             const file = path.join(dir, `${label}-${this.handle}.png`)
             fs.writeFileSync(file, png, 'base64')
-            console.log(`Screenshot saved to: ${file}`)
+            this.log(`Screenshot saved to: ${file}`)
         } catch (error) {
             console.error(`saveScreenshot("${label}") failed:`, error)
         }
@@ -461,14 +488,18 @@ export class AppiumTestBase {
         key: string,
         timeout = DEFAULT_TIMEOUT,
     ): Promise<void> {
-        console.log(`Attempting to click element: ${key}`)
+        const t0 = Date.now()
+        this.log(`Attempting to click element: ${key}`)
         const element = await this.waitForElementDisplayed(key, timeout)
 
         const startTime = Date.now()
         while (Date.now() - startTime < timeout) {
             if (await this.isElementClickable(element)) {
+                await this.acceptIosNotificationPromptBeforeGesture()
                 await element.click()
-                console.log(`Successfully clicked element: ${key}`)
+                this.log(
+                    `Successfully clicked element: ${key} in ${Date.now() - t0}ms`,
+                )
                 return
             }
             await new Promise(resolve => setTimeout(resolve, 100))
@@ -479,13 +510,20 @@ export class AppiumTestBase {
         )
     }
 
+    // the previous tab stays on top until the new one has rendered, so a
+    // header tap right after the tab tap can land on the old tab's button
+    async openHomeTab(): Promise<void> {
+        await this.clickElementByKey('HomeTabButton')
+        await this.waitForElementDisplayed('HomeHeaderTitle')
+    }
+
     async clickAndCheckForNextElement(
         keyOfElementToClick: string,
         keyOfElementToCheck: string,
         timeout = DEFAULT_TIMEOUT,
         retryDelay = 500,
     ): Promise<void> {
-        console.log(
+        this.log(
             `Clicking "${keyOfElementToClick}" until "${keyOfElementToCheck}" is displayed`,
         )
         const startTime = Date.now()
@@ -494,12 +532,12 @@ export class AppiumTestBase {
 
         while (Date.now() - startTime < timeout && !targetFound) {
             attempts++
-            console.log(`Attempt ${attempts}`)
+            this.log(`Attempt ${attempts}`)
 
             try {
                 await this.clickElementByKey(keyOfElementToClick, 1000)
             } catch (error) {
-                console.warn(
+                this.warn(
                     `Clicking element ${keyOfElementToClick} failed: ${(error as Error).message}`,
                 )
             }
@@ -510,7 +548,7 @@ export class AppiumTestBase {
             )
 
             if (targetFound) {
-                console.log(
+                this.log(
                     `Success! Target element "${keyOfElementToCheck}" is displayed after ${attempts} attempt(s)`,
                 )
             } else {
@@ -533,10 +571,14 @@ export class AppiumTestBase {
         text: string,
         timeout = DEFAULT_TIMEOUT,
     ): Promise<void> {
-        console.log(`Attempting to type into element: ${key}`)
+        const t0 = Date.now()
+        this.log(`Attempting to type into element: ${key}`)
         const element = await this.waitForElementDisplayed(key, timeout)
+        await this.acceptIosNotificationPromptBeforeGesture()
         await element.setValue(text)
-        console.log(`Successfully typed into element: ${key}`)
+        this.log(
+            `Successfully typed into element: ${key} in ${Date.now() - t0}ms`,
+        )
     }
 
     async elementIsDisplayed(
@@ -547,7 +589,7 @@ export class AppiumTestBase {
             await this.waitForElementDisplayed(key, timeout)
             return true
         } catch (error: unknown) {
-            console.log(
+            this.log(
                 `Element ${key} is not displayed: ${(error as Error).message}`,
             )
             return false
@@ -570,7 +612,7 @@ export class AppiumTestBase {
             }
             await new Promise(resolve => setTimeout(resolve, 500))
         }
-        console.log(
+        this.log(
             `Element with key "${key}" is still displayed after ${timeout}ms`,
         )
         return false
@@ -683,6 +725,7 @@ export class AppiumTestBase {
                 coordinates,
                 scrollDuration,
             )
+            await this.acceptIosNotificationPromptBeforeGesture()
             await this.driver.performActions(actions)
             await this.driver.releaseActions()
 
@@ -695,6 +738,8 @@ export class AppiumTestBase {
         }
     }
 
+    // Screens keep their scroll offset between steps, so the element can be
+    // on either side. The sweep back is twice as long to pass the start.
     private async scrollUntilFound(
         findElementFn: () => Promise<ChainablePromiseElement | null>,
         elementDescription: string,
@@ -709,49 +754,70 @@ export class AppiumTestBase {
         } = config
 
         // Check if element is already visible
-        let element = await findElementFn()
+        const element = await findElementFn()
         if (await this.isElementVisible(element)) {
-            console.log(`Element ${elementDescription} is already visible`)
+            this.log(`Element ${elementDescription} is already visible`)
             return element
         }
 
-        console.log(
+        this.log(
             `Starting W3C Actions scroll search for element ${elementDescription}`,
         )
 
-        // Perform scroll attempts
-        for (let i = 0; i < maxScrolls; i++) {
-            try {
-                await this.scroll(
-                    scrollDirection,
-                    scrollDuration,
-                    scrollPercentage,
-                )
+        const sweeps: [ScrollDirection, number][] = [
+            [scrollDirection, maxScrolls],
+            [OPPOSITE_SCROLL_DIRECTION[scrollDirection], maxScrolls * 2],
+        ]
+        for (const [direction, scrolls] of sweeps) {
+            const found = await this.sweepForElement(
+                findElementFn,
+                direction,
+                scrolls,
+                scrollDuration,
+                scrollPercentage,
+            )
+            if (found) {
+                return found
+            }
+        }
 
-                element = await findElementFn()
+        this.log(
+            `Element ${elementDescription} not found after ${maxScrolls * 3} scroll attempts`,
+        )
+        return null
+    }
+
+    private async sweepForElement(
+        findElementFn: () => Promise<ChainablePromiseElement | null>,
+        direction: ScrollDirection,
+        scrolls: number,
+        scrollDuration: number,
+        scrollPercentage: Percentage,
+    ): Promise<ChainablePromiseElement | null> {
+        for (let i = 0; i < scrolls; i++) {
+            try {
+                await this.scroll(direction, scrollDuration, scrollPercentage)
+
+                const element = await findElementFn()
                 if (await this.isElementVisible(element)) {
-                    console.log(
-                        `Element found and visible after ${i + 1} scroll(s)`,
+                    this.log(
+                        `Element found and visible after ${i + 1} scroll(s) ${direction}`,
                     )
                     return element
                 }
             } catch (error) {
                 console.error(
-                    `Scroll attempt ${i + 1} in direction ${scrollDirection} failed:`,
+                    `Scroll attempt ${i + 1} in direction ${direction} failed:`,
                     error instanceof Error ? error.message : error,
                 )
                 // Continue to next attempt
             }
         }
-
-        console.log(
-            `Element ${elementDescription} not found after ${maxScrolls} scroll attempts`,
-        )
         return null
     }
     /**
      * scrollOptions sets options to control scroll helper functions. e.g. scrollOptions: {param1, param2...}
-     * @param maxScrolls How many scrolls to perform within the functions.
+     * @param maxScrolls How many scrolls to perform in scrollDirection before sweeping back the other way.
      * @param scrollDirection Tells the functions the direction to scroll in.
      * @param scrollDuration Duration of the scroll in milliseconds. A smaller duration usually means a stronger scroll.
      * @param scrollPercentage How far down the screen to scroll. Accepted values are from 1 to 100.
@@ -803,6 +869,7 @@ export class AppiumTestBase {
         const { width, height } = await element.getSize()
         const centerX = Math.round(x + width / 2)
         const centerY = Math.round(y + height / 2)
+        await this.acceptIosNotificationPromptBeforeGesture()
         await this.driver.performActions([
             {
                 type: 'pointer',
@@ -831,7 +898,7 @@ export class AppiumTestBase {
                 { keys: ['done', 'gotowe'] },
             ])
         } catch (error: unknown) {
-            console.log(
+            this.log(
                 `Unable to hide keyboard. Reason: ${(error as Error).message}`,
             )
         }
@@ -845,7 +912,7 @@ export class AppiumTestBase {
                         { buttonLabel: button },
                     ])
                 } catch (error: unknown) {
-                    console.log(
+                    this.log(
                         `Unable to accept alert with buttonLabel ${button} on Android. Reason: ${(error as Error).message}. Trying to infer the allow button.`,
                     )
                     try {
@@ -854,7 +921,7 @@ export class AppiumTestBase {
                             [],
                         )
                     } catch (fallbackError: unknown) {
-                        console.log(
+                        this.log(
                             `No system alert detected. Falling back to tapping button by text. Reason: ${(fallbackError as Error).message}`,
                         )
                         await this.clickOnText(button.toUpperCase(), 0, true)
@@ -872,7 +939,7 @@ export class AppiumTestBase {
                                 [{ action: 'getButtons' }],
                             )
                         } catch (error) {
-                            console.log(
+                            this.log(
                                 'Got an error trying to fetch alert buttons',
                             )
                             alertButtons = null
@@ -885,7 +952,7 @@ export class AppiumTestBase {
                         retryCount++
                     } while (alertButtons && retryCount < 5)
                 } catch (error: unknown) {
-                    console.log(
+                    this.log(
                         `Unable to accept alert with buttonLabel ${button} on iOS. Reason: ${(error as Error).message}. Trying to infer the allow button`,
                     )
                     await this.driver.executeScript('mobile: alert', [
@@ -894,7 +961,7 @@ export class AppiumTestBase {
                 }
                 break
             default:
-                console.log(
+                this.log(
                     `Platform is PWA, and it is ${currentPlatform}, no alerts to accept`,
                 )
         }
@@ -908,7 +975,7 @@ export class AppiumTestBase {
                         { buttonLabel: button },
                     ])
                 } catch (error: unknown) {
-                    console.log(
+                    this.log(
                         `Unable to dismiss alert with buttonLabel ${button} on Android. Reason: ${(error as Error).message}. Trying to infer the dismiss button.`,
                     )
                     try {
@@ -917,7 +984,7 @@ export class AppiumTestBase {
                             [],
                         )
                     } catch (fallbackError: unknown) {
-                        console.log(
+                        this.log(
                             `No system alert detected. Falling back to tapping button by text. Reason: ${(fallbackError as Error).message}`,
                         )
                         await this.clickOnText(button.toUpperCase(), 0, true)
@@ -935,7 +1002,7 @@ export class AppiumTestBase {
                                 [{ action: 'getButtons' }],
                             )
                         } catch (error) {
-                            console.log(
+                            this.log(
                                 'Got an error trying to fetch alert buttons',
                             )
                             alertButtons = null
@@ -948,7 +1015,7 @@ export class AppiumTestBase {
                         retryCount++
                     } while (alertButtons && retryCount < 5)
                 } catch (error: unknown) {
-                    console.log(
+                    this.log(
                         `Unable to dismiss alert buttonLabel ${button} on iOS. Reason: ${(error as Error).message}. Trying to infer the dismiss button.`,
                     )
                     await this.driver.executeScript('mobile: alert', [
@@ -957,7 +1024,7 @@ export class AppiumTestBase {
                 }
                 break
             default:
-                console.log(
+                this.log(
                     `Platform should be PWA, and it is ${currentPlatform}, no alerts to accept`,
                 )
         }
@@ -978,11 +1045,11 @@ export class AppiumTestBase {
                                 base64Content,
                                 'base64',
                             ).toString('utf8')
-                            console.log(
+                            this.log(
                                 `Retrieved clipboard content on Android. It is ${clipboardContent}`,
                             )
                         } else {
-                            console.warn(
+                            this.warn(
                                 'Received empty or invalid clipboard data from Android',
                             )
                         }
@@ -1000,9 +1067,9 @@ export class AppiumTestBase {
                         )) as string
                         if (content) {
                             clipboardContent = content
-                            console.log('Retrieved clipboard content on iOS')
+                            this.log('Retrieved clipboard content on iOS')
                         } else {
-                            console.warn(
+                            this.warn(
                                 'Received non-string clipboard data from iOS',
                             )
                         }
@@ -1013,7 +1080,7 @@ export class AppiumTestBase {
                     }
                     break
                 default:
-                    console.log(`TODO: Implement clipboard functions for PWA`)
+                    this.log(`TODO: Implement clipboard functions for PWA`)
             }
             return clipboardContent
         } catch (error: unknown) {
@@ -1037,7 +1104,7 @@ export class AppiumTestBase {
                         },
                     ])
                 } catch (error: unknown) {
-                    console.log(
+                    this.log(
                         `Unable to push content to clipboard on Android. Reason: ${(error as Error).message}`,
                     )
                 }
@@ -1051,13 +1118,13 @@ export class AppiumTestBase {
                         },
                     ])
                 } catch (error: unknown) {
-                    console.log(
+                    this.log(
                         `Unable to push content to clipboard on iOS. Reason: ${(error as Error).message}`,
                     )
                 }
                 break
             default:
-                console.log(`TODO: Implement clipboard functions for PWA`)
+                this.log(`TODO: Implement clipboard functions for PWA`)
         }
     }
 
@@ -1086,13 +1153,8 @@ export class AppiumTestBase {
         )
     }
 
-    // NotificationContext fires the iOS notification prompt once chatList is
-    // non-empty. It's a Springboard alert that overlays the app (invisible to
-    // element finders) and blocks the next tap in the chat (invite capture)
-    // and backup/restore (group create, recovery) flows. Poll for it and
-    // accept: accepting grants the permission, so it won't fire again until
-    // resetAppToFresh reinstalls. No-op on Android (auto-granted), once
-    // handled, or while no prompt is up.
+    // NotificationContext raises the iOS notification prompt once chatList is
+    // non-empty. Elements stay findable under it, but every gesture is swallowed.
     async acceptIosNotificationPromptIfPresent(
         maxWaitMs = 10000,
     ): Promise<void> {
@@ -1104,35 +1166,94 @@ export class AppiumTestBase {
         }
         const deadline = Date.now() + maxWaitMs
         while (Date.now() < deadline) {
-            let buttons: string[] | null = null
-            try {
-                buttons = (await this.driver.executeScript('mobile: alert', [
-                    { action: 'getButtons' },
-                ])) as string[]
-            } catch {
-                /* no prompt up yet; poll again shortly */
-            }
-            if (Array.isArray(buttons) && buttons.length > 0) {
-                // Anchor to the start so "Don't Allow" is never matched.
-                const allow = buttons.find(b => /^(allow|ok)/i.test(b))
-                if (allow) {
-                    await this.driver.executeScript('mobile: alert', [
-                        { action: 'accept', buttonLabel: allow },
-                    ])
-                    this.iosNotificationPromptHandled = true
-                    // Settle the dismiss animation before the next query.
-                    await new Promise(r => setTimeout(r, 1500))
-                    console.log('Accepted the iOS notification prompt')
-                }
+            const alert = await this.readIosAlert()
+            if (alert) {
+                await this.acceptIosNotificationPrompt(alert)
                 return
             }
             await new Promise(r => setTimeout(r, 500))
         }
     }
 
+    // Only a peer's chat raises the prompt at a moment no step controls.
+    private async acceptIosNotificationPromptBeforeGesture(): Promise<void> {
+        if (!this.hasPeerActor) {
+            return
+        }
+        await this.acceptIosNotificationPromptIfUp()
+    }
+
+    private async acceptIosNotificationPromptIfUp(): Promise<void> {
+        if (
+            currentPlatform !== Platform.IOS ||
+            this.iosNotificationPromptHandled
+        ) {
+            return
+        }
+        const alert = await this.readIosAlert()
+        if (alert) {
+            await this.acceptIosNotificationPrompt(alert)
+        }
+    }
+
+    private async readIosAlert(): Promise<{
+        text: string
+        buttons: string[]
+    } | null> {
+        const text = await this.readIosAlertTextWithoutRetries()
+        if (text === null) {
+            return null
+        }
+        try {
+            const buttons = (await this.driver.executeScript('mobile: alert', [
+                { action: 'getButtons' },
+            ])) as string[]
+            return { text, buttons: Array.isArray(buttons) ? buttons : [] }
+        } catch {
+            return null
+        }
+    }
+
+    // webdriverio retries a failed command three times with backoff, which
+    // turns a lookup with no alert up into a two second pause.
+    private async readIosAlertTextWithoutRetries(): Promise<string | null> {
+        const retries = this.driver.options.connectionRetryCount
+        this.driver.options.connectionRetryCount = 0
+        try {
+            return await this.driver.getAlertText()
+        } catch {
+            return null
+        } finally {
+            this.driver.options.connectionRetryCount = retries
+        }
+    }
+
+    // The camera, paste and photo prompts also offer Allow; accepting one
+    // here would mark this prompt handled while it is still pending.
+    private async acceptIosNotificationPrompt(alert: {
+        text: string
+        buttons: string[]
+    }): Promise<void> {
+        if (!/notifications/i.test(alert.text)) {
+            return
+        }
+        // Anchor to the start so "Don't Allow" is never matched.
+        const allow = alert.buttons.find(b => /^(allow|ok)/i.test(b))
+        if (!allow) {
+            return
+        }
+        await this.driver.executeScript('mobile: alert', [
+            { action: 'accept', buttonLabel: allow },
+        ])
+        this.iosNotificationPromptHandled = true
+        // Settle the dismiss animation before the next query.
+        await new Promise(r => setTimeout(r, 1500))
+        this.log('Accepted the iOS notification prompt')
+    }
+
     async resetAppToFresh(): Promise<void> {
-        console.log('Resetting app to fresh-install state...')
-        this.iosNotificationPromptHandled = false
+        const t0 = Date.now()
+        this.log('Resetting app to fresh-install state...')
         switch (currentPlatform) {
             case Platform.IOS: {
                 const bundleId = process.env.BUNDLE_ID || 'org.fedi.alpha'
@@ -1142,6 +1263,8 @@ export class AppiumTestBase {
                         'resetAppToFresh requires BUNDLE_PATH to point at the cached .app',
                     )
                 }
+                // The prompt outlives the uninstall.
+                await this.acceptIosNotificationPromptIfUp()
                 await this.driver.executeScript('mobile: terminateApp', [
                     { bundleId },
                 ])
@@ -1154,6 +1277,7 @@ export class AppiumTestBase {
                 await this.driver.executeScript('mobile: launchApp', [
                     { bundleId },
                 ])
+                await this.acceptIosNotificationPromptIfUp()
                 break
             }
             case Platform.ANDROID: {
@@ -1180,15 +1304,49 @@ export class AppiumTestBase {
                     // The server enables adb_shell so this grant normally
                     // lands; swallow defensively in case a runner lacks it.
                 }
-                await this.driver.executeScript('mobile: activateApp', [
-                    { appId },
-                ])
+                await this.launchAndroidForeground(appId)
                 break
             }
             case Platform.PWA:
                 throw new Error('resetAppToFresh is not implemented for PWA')
         }
-        console.log('App reset complete')
+        this.iosNotificationPromptHandled = false
+        this.log(`App reset complete in ${Date.now() - t0}ms`)
+    }
+
+    // clearApp removes the package's task, and about a second later
+    // ActivityTaskManager's remove-task destroy timeout kills any process
+    // the package has by then, including one a launch just started.
+    private async launchAndroidForeground(appId: string): Promise<void> {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            await new Promise(r => setTimeout(r, 2000))
+            await this.driver.executeScript('mobile: activateApp', [{ appId }])
+            if (await this.androidStaysInForeground(appId)) return
+            this.warn(
+                `${appId} did not stay in the foreground after launch ${attempt}, relaunching`,
+            )
+            await this.driver.executeScript('mobile: terminateApp', [{ appId }])
+        }
+        throw new Error(`${appId} did not stay in the foreground after reset`)
+    }
+
+    private async androidStaysInForeground(appId: string): Promise<boolean> {
+        const RUNNING_IN_FOREGROUND = 4
+        const query = async () =>
+            (await this.driver.executeScript('mobile: queryAppState', [
+                { appId },
+            ])) as number
+        const deadline = Date.now() + 15000
+        while ((await query()) !== RUNNING_IN_FOREGROUND) {
+            if (Date.now() > deadline) return false
+            await new Promise(r => setTimeout(r, 500))
+        }
+        const settled = Date.now() + 3000
+        while (Date.now() < settled) {
+            await new Promise(r => setTimeout(r, 500))
+            if ((await query()) !== RUNNING_IN_FOREGROUND) return false
+        }
+        return true
     }
 
     async openDeepLink(url: string, appPackage?: string): Promise<void> {

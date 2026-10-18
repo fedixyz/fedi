@@ -1,0 +1,48 @@
+{
+    "project_info": {
+        "project_number": "60784352126",
+        "project_id": "fedi-push-notification-staging",
+        "storage_bucket": "fedi-push-notification-staging.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:60784352126:android:30ba6a66e3b55ffd27f12f",
+                "android_client_info": {
+                    "package_name": "com.fedi.nightly"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyDHjwuURnzWF1L1iv7ctOA6-PTv7iTpliY"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:60784352126:android:ea8dc9a1a1900d5827f12f",
+                "android_client_info": {
+                    "package_name": "com.fedi.nova"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyDHjwuURnzWF1L1iv7ctOA6-PTv7iTpliY"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

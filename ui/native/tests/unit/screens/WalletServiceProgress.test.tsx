@@ -13,9 +13,9 @@ import React from 'react'
 import {
     setFeatureFlags,
     setFederations,
-    setFiClientStatus,
-    setFiFederationJoin,
-    setFiStatus,
+    setFaClientStatus,
+    setFaFederationJoin,
+    setFaStatus,
     setManifoldCreationOverrideEnabled,
     setupStore,
     upsertFederation,
@@ -25,10 +25,10 @@ import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { MSats } from '@fedi/common/types'
 import {
     FeatureCatalog,
-    RpcFiFormationSnapshot,
-    RpcFiOperationError,
-    RpcFiSeatProgress,
-    RpcFiStatus,
+    RpcFaFormationSnapshot,
+    RpcFaOperationError,
+    RpcFaSeatProgress,
+    RpcFaStatus,
 } from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
 
@@ -57,8 +57,8 @@ jest.mock('@fedi/common/utils/environment', () => ({
 const WS_FED = 'ws-federation-1'
 
 const makeFormation = (
-    overrides: Partial<RpcFiFormationSnapshot> = {},
-): RpcFiFormationSnapshot => ({
+    overrides: Partial<RpcFaFormationSnapshot> = {},
+): RpcFaFormationSnapshot => ({
     formationId: 'formation-1',
     phase: 'acquiringSeats',
     intent: {
@@ -84,7 +84,7 @@ const makeFormation = (
 
 const makeRestoredStatus = (
     freshness: 'unsynced' | 'fresh' = 'unsynced',
-): RpcFiStatus => ({
+): RpcFaStatus => ({
     type: 'restored',
     formation: {
         snapshotGeneration: 3,
@@ -107,9 +107,9 @@ const renderProgress = ({
     featureFlags = {},
     manifoldCreationOverride = false,
 }: {
-    formation?: RpcFiFormationSnapshot
-    clientError?: RpcFiOperationError | null
-    status?: RpcFiStatus
+    formation?: RpcFaFormationSnapshot
+    clientError?: RpcFaOperationError | null
+    status?: RpcFaStatus
     /**
      * The failure is already in the store when the screen mounts — what the
      * dashboard's hand-off produces, and what a relaunch replays from the
@@ -152,14 +152,14 @@ const renderProgress = ({
     // the status, which is why it cannot simply be preloaded either.
     store.dispatch(setFeatureFlags(featureFlags as FeatureCatalog))
     store.dispatch(setManifoldCreationOverrideEnabled(manifoldCreationOverride))
-    store.dispatch(setFiStatus(status ?? { type: 'formation', formation }))
+    store.dispatch(setFaStatus(status ?? { type: 'formation', formation }))
     if (clientError)
         store.dispatch(
-            setFiClientStatus({ type: 'failed', error: clientError }),
+            setFaClientStatus({ type: 'failed', error: clientError }),
         )
     if (joinFailedBeforeMount)
         store.dispatch(
-            setFiFederationJoin({
+            setFaFederationJoin({
                 federationId: WS_FED,
                 state: { type: 'failed', message: 'boom' },
             }),
@@ -214,7 +214,7 @@ describe('WalletServiceProgress screen', () => {
 
         await screen.findByText(i18n.t('feature.wallet-service.restore-title'))
         act(() => {
-            store.dispatch(setFiStatus(makeRestoredStatus('fresh')))
+            store.dispatch(setFaStatus(makeRestoredStatus('fresh')))
         })
         act(() => {
             store.dispatch(
@@ -234,7 +234,7 @@ describe('WalletServiceProgress screen', () => {
         )
     })
 
-    it('does not open the dashboard when the FI is fresh but the federation is not loaded', async () => {
+    it('does not open the dashboard when the FA is fresh but the federation is not loaded', async () => {
         renderProgress({ status: makeRestoredStatus('fresh') })
         await screen.findByTestId('recovery-stage-rejoining')
         expect(mockNavigation.dispatch).not.toHaveBeenCalled()
@@ -249,7 +249,7 @@ describe('WalletServiceProgress screen', () => {
 
         act(() => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WS_FED,
                     state: { type: 'failed', message: 'boom' },
                 }),
@@ -279,7 +279,7 @@ describe('WalletServiceProgress screen', () => {
 
         act(() => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WS_FED,
                     state: { type: 'failed', message: 'boom' },
                 }),
@@ -324,7 +324,7 @@ describe('WalletServiceProgress screen', () => {
 
         act(() => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WS_FED,
                     state: { type: 'failed', message: 'boom' },
                 }),
@@ -347,7 +347,7 @@ describe('WalletServiceProgress screen', () => {
 
         act(() => {
             store.dispatch(
-                setFiFederationJoin({
+                setFaFederationJoin({
                     federationId: WS_FED,
                     state: { type: 'failed', message: 'boom' },
                 }),
@@ -575,7 +575,7 @@ describe('WalletServiceProgress screen', () => {
             })
             act(() => {
                 store.dispatch(
-                    setFiStatus({
+                    setFaStatus({
                         type: 'formation',
                         formation: makeFormation({ lastError: null }),
                     }),
@@ -591,7 +591,7 @@ describe('WalletServiceProgress screen', () => {
 
         it('should hold a raised banner through the next optimistic clear', () => {
             const { store } = renderProgress({
-                formation: makeFormation({ lastError: 'fleetManager' }),
+                formation: makeFormation({ lastError: 'manifoldGuardian' }),
             })
 
             act(() => {
@@ -603,7 +603,7 @@ describe('WalletServiceProgress screen', () => {
             // evidence of recovery, so the banner stays put
             act(() => {
                 store.dispatch(
-                    setFiStatus({
+                    setFaStatus({
                         type: 'formation',
                         formation: makeFormation({ lastError: null }),
                     }),
@@ -644,9 +644,9 @@ describe('WalletServiceProgress screen', () => {
             phase: 'preparingDkg',
             seats: [0, 1].map(index => ({
                 index,
-                fmanId: `fman-${index}`,
-                fmanName: `seat ${index}`,
-                locator: `{"fman":${index}}`,
+                mgId: `mg-${index}`,
+                mgName: `seat ${index}`,
+                locator: `{"mg":${index}}`,
                 seatId: `seat-${index}`,
                 guardianCode: `code-${index}`,
                 phase: 'guardianCodeReady' as const,
@@ -660,7 +660,7 @@ describe('WalletServiceProgress screen', () => {
         })
 
         const restarted = {
-            fiClientRestartDkg: () => Promise.resolve({ type: 'success' }),
+            faClientRestartDkg: () => Promise.resolve({ type: 'success' }),
         }
 
         const tapTitle = (times: number) => {
@@ -734,7 +734,7 @@ describe('WalletServiceProgress screen', () => {
             fireEvent.press(screen.getByTestId('restart-dkg-button'))
 
             await waitFor(() =>
-                expect(fedimint.fiClientRestartDkg).toHaveBeenCalledTimes(1),
+                expect(fedimint.faClientRestartDkg).toHaveBeenCalledTimes(1),
             )
             await waitFor(() =>
                 expect(screen.queryByTestId('restart-dkg-hint')).toBeNull(),
@@ -768,8 +768,8 @@ describe('WalletServiceProgress screen', () => {
                         seats: [
                             {
                                 index: 0,
-                                previousFmanId: 'fman-old-0',
-                                previousFmanName: 'old oak',
+                                previousMgId: 'mg-old-0',
+                                previousMgName: 'old oak',
                                 previousQuoteId: 'quote-0',
                                 previousLocator: 'locator-0',
                             },
@@ -803,8 +803,8 @@ describe('WalletServiceProgress screen', () => {
                         seats: [
                             {
                                 index: 0,
-                                previousFmanId: 'fman-old-0',
-                                previousFmanName: 'old oak',
+                                previousMgId: 'mg-old-0',
+                                previousMgName: 'old oak',
                                 previousQuoteId: 'quote-0',
                                 previousLocator: 'locator-0',
                             },
@@ -906,12 +906,12 @@ describe('WalletServiceProgress screen', () => {
     })
 
     it('should not rewind a milestone the user has already been shown', async () => {
-        const seatsAt = (phase: RpcFiSeatProgress['phase']) =>
+        const seatsAt = (phase: RpcFaSeatProgress['phase']) =>
             Array.from({ length: 3 }, (_, index) => ({
                 index,
-                fmanId: `fman-${index}`,
-                fmanName: `seat ${index}`,
-                locator: `{"fman":${index}}`,
+                mgId: `mg-${index}`,
+                mgName: `seat ${index}`,
+                locator: `{"mg":${index}}`,
                 seatId: `seat-${index}`,
                 guardianCode: null,
                 phase,
@@ -940,7 +940,7 @@ describe('WalletServiceProgress screen', () => {
         // already watched that step tick, so it must not be taken back
         act(() => {
             store.dispatch(
-                setFiStatus({
+                setFaStatus({
                     type: 'formation',
                     formation: makeFormation({
                         seats: [
@@ -1005,7 +1005,7 @@ describe('WalletServiceProgress screen', () => {
 
         act(() => {
             store.dispatch(
-                setFiStatus({
+                setFaStatus({
                     type: 'formation',
                     formation: makeFormation({
                         phase: 'formed',
@@ -1045,7 +1045,7 @@ describe('WalletServiceProgress screen', () => {
         // undone.
         act(() => {
             store.dispatch(
-                setFiStatus({
+                setFaStatus({
                     type: 'formation',
                     formation: { ...formed, freshness: 'unsynced' },
                 }),
@@ -1073,8 +1073,8 @@ describe('WalletServiceProgress screen', () => {
                 seats: [
                     {
                         index: 0,
-                        fmanId: 'fman-0',
-                        fmanName: 'seat zero',
+                        mgId: 'mg-0',
+                        mgName: 'seat zero',
                         locator: 'locator-0',
                         seatId: 'seat-0',
                         guardianCode: 'code-0',
@@ -1083,8 +1083,8 @@ describe('WalletServiceProgress screen', () => {
                     },
                     {
                         index: 1,
-                        fmanId: null,
-                        fmanName: null,
+                        mgId: null,
+                        mgName: null,
                         locator: 'locator-1',
                         seatId: null,
                         guardianCode: null,
@@ -1121,8 +1121,8 @@ describe('WalletServiceProgress screen', () => {
                     seats: [
                         {
                             index: 0,
-                            previousFmanId: 'fman-old-0',
-                            previousFmanName: 'old oak',
+                            previousMgId: 'mg-old-0',
+                            previousMgName: 'old oak',
                             previousQuoteId: 'quote-0',
                             previousLocator: 'locator-0',
                         },
@@ -1141,7 +1141,7 @@ describe('WalletServiceProgress screen', () => {
         // button disappear
         act(() => {
             store.dispatch(
-                setFiStatus({
+                setFaStatus({
                     type: 'formation',
                     formation: makeFormation({ actionRequired: null }),
                 }),
@@ -1157,7 +1157,7 @@ describe('WalletServiceProgress screen', () => {
         // stuck from the first navigation
         act(() => {
             store.dispatch(
-                setFiStatus({
+                setFaStatus({
                     type: 'formation',
                     formation: makeFormation({
                         actionRequired: {
@@ -1167,8 +1167,8 @@ describe('WalletServiceProgress screen', () => {
                                 seats: [
                                     {
                                         index: 1,
-                                        previousFmanId: 'fman-old-1',
-                                        previousFmanName: 'old oak',
+                                        previousMgId: 'mg-old-1',
+                                        previousMgName: 'old oak',
                                         previousQuoteId: 'quote-1',
                                         previousLocator: 'locator-1',
                                     },
@@ -1199,8 +1199,8 @@ describe('WalletServiceProgress screen', () => {
                     seats: [
                         {
                             index: 0,
-                            fmanId: 'fman-0',
-                            fmanName: 'seat zero',
+                            mgId: 'mg-0',
+                            mgName: 'seat zero',
                             quoteId: 'quote-0',
                             paymentFederationId: mockFederation1.id,
                             amountMsats,

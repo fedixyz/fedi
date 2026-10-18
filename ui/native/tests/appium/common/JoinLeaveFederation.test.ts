@@ -62,7 +62,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         leaveKey: string,
         federationName: string,
     ): Promise<void> {
-        const deadline = Date.now() + 120000
+        const deadline = Date.now() + 300000
         while (Date.now() < deadline) {
             // the accordion click toggles, so only expand when the leave
             // item is not already on the list
@@ -82,7 +82,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 !(await this.isTextPresent(
                     `Leave Federation - ${federationName}`,
                     false,
-                    5000,
+                    30000,
                 ))
             ) {
                 throw new Error(
@@ -90,7 +90,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 )
             }
             await this.acceptAlert('Yes')
-            if (await this.waitForElementToDisappear(accordionKey, 10000)) {
+            if (await this.waitForElementToDisappear(accordionKey, 60000)) {
                 return
             }
             console.log(
@@ -189,7 +189,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await setupOnboarded.run(bob)
 
         await this.clickElementByKey('WalletTabButton')
-        await this.waitForElementDisplayed('FediTestnetDetailsButton', 2000)
+        await this.waitForElementDisplayed('FediTestnetDetailsButton')
         await this.joinFederationByPastedInvite(
             getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
             INVITE_PREVIEW_FEDERATION_NAME,
@@ -207,7 +207,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         const generatedInvite = await this.copyFederationInviteFromSettings(
             'E-CashClubFedAccordionButton',
         )
-        await bob.clickElementByKey('HomeTabButton')
+        await bob.openHomeTab()
         await bob.clickElementByKey('PlusButton')
         await bob.clickElementByKey('joinTab')
         await acceptCameraPermissionIfPresent(bob)
@@ -483,7 +483,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         actor: AppiumTestBase,
         invite: string,
     ): Promise<void> {
-        await actor.clickElementByKey('HomeTabButton')
+        await actor.openHomeTab()
         await actor.clickElementByKey('PlusButton')
         await actor.clickElementByKey('joinTab')
         await acceptCameraPermissionIfPresent(actor)

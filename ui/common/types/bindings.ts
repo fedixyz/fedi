@@ -36,6 +36,8 @@ export type BridgeOffboardingReason =
   | { type: "internalBridgeExport" }
   | { type: "deviceIndexConflict" };
 
+export type BtcMultispendFeatureConfig = Record<string, never>;
+
 /**
  * Notify front-end that a particular community's metadata has updated
  */
@@ -128,7 +130,31 @@ export type Event =
   | { communityMetadataUpdated: CommunityMetadataUpdatedEvent }
   | { nonceReuseCheckFailed: NonceReuseCheckFailedEvent }
   | { communityMigratedToV2: CommunityMigratedToV2Event }
-  | { fiFederationJoin: FiFederationJoinEvent };
+  | { faFederationJoin: FaFederationJoinEvent };
+
+/**
+ * Notify front-end how the automatic join of the FA's federation is going.
+ *
+ * `Ready` means the federation is joined and has passed the checks that can
+ * still make the bridge leave it, so the wallet backed by it is usable.
+ */
+export type FaFederationJoinEvent = {
+  federationId: RpcFederationId;
+  state: RpcFaFederationJoinState;
+};
+
+/**
+ * Only the FA client reads this, not chat or device registration.
+ */
+export type FaManifoldEnvironment = "Development" | "Staging" | "Production";
+
+export type FaPushGatewayFeatureConfig = {
+  /**
+   * Public HTTPS management origin. Callback bearer paths are returned by
+   * the service at runtime and are never stored in this catalog.
+   */
+  api_base_url: string;
+};
 
 /**
  * We represent the catalog of all the features for a given runtime as a
@@ -188,11 +214,11 @@ export type FeatureCatalog = {
    */
   fedi_fee: FediFeeConfig;
   /**
-   * Manifold push gateway used for installation registration and FI
+   * Manifold push gateway used for installation registration and FA
    * formation-completion hooks. Absence is an explicit fail-closed state;
    * end-user devices never supply an override.
    */
-  fi_push_gateway: FiPushGatewayFeatureConfig | null;
+  fa_push_gateway: FaPushGatewayFeatureConfig | null;
   /**
    * SP Transfers Matrix feature flag.
    * When enabled, allows stability pool transfers via Matrix messaging.
@@ -255,6 +281,12 @@ export type FeatureCatalog = {
    */
   wallet_service_dkg_restart: WalletServiceDkgRestartFeatureConfig | null;
   /**
+   * Gates creating, depositing to, requesting and approving withdrawals
+   * from bitcoin-only multispend groups, and sweeping their payouts.
+   * Rejecting stays available.
+   */
+  btc_multispend: BtcMultispendFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -284,30 +316,6 @@ export type FediFeeConfig = {
   guardian_remittance_poll_interval_secs: number;
 };
 
-/**
- * Notify front-end how the automatic join of the FI's federation is going.
- *
- * `Ready` means the federation is joined and has passed the checks that can
- * still make the bridge leave it, so the wallet backed by it is usable.
- */
-export type FiFederationJoinEvent = {
-  federationId: RpcFederationId;
-  state: RpcFiFederationJoinState;
-};
-
-/**
- * Only the FI client reads this, not chat or device registration.
- */
-export type FiManifoldEnvironment = "Development" | "Staging" | "Production";
-
-export type FiPushGatewayFeatureConfig = {
-  /**
-   * Public HTTPS management origin. Callback bearer paths are returned by
-   * the service at runtime and are never stored in this catalog.
-   */
-  api_base_url: string;
-};
-
 export type FiatFXInfo = {
   /**
    * Code of the currency that's set as display currency in the app.
@@ -322,6 +330,7 @@ export type FiatFXInfo = {
 
 export type FinalizedGroup = {
   invitation: GroupInvitation;
+  kind: MultispendGroupKind;
   proposer: RpcUserId;
   pubkeys: { [key in RpcUserId]?: RpcPublicKey };
   federationId: RpcFederationId;
@@ -347,6 +356,7 @@ export type GroupInvitation = {
  */
 export type GroupInvitationWithKeys = {
   invitation: GroupInvitation;
+  kind: MultispendGroupKind;
   proposer: RpcUserId;
   pubkeys: { [key in RpcUserId]?: RpcPublicKey };
   rejections: Array<RpcUserId>;
@@ -358,16 +368,14 @@ export type GuardianStatus =
       online: {
         guardian: string;
         /**
-         * Null when the cached FMan mapping is missing or invalid.
+         * Null when the cached MG mapping is missing or invalid.
          */
-        fman_name: string | null;
+        mg_name: string | null;
         latency_ms: number;
       };
     }
-  | { error: { guardian: string; fman_name: string | null; error: string } }
-  | {
-      timeout: { guardian: string; fman_name: string | null; elapsed: string };
-    };
+  | { error: { guardian: string; mg_name: string | null; error: string } }
+  | { timeout: { guardian: string; mg_name: string | null; elapsed: string } };
 
 export type GuardianitoBot = { bot_user_id: string; bot_room_id: string };
 
@@ -390,6 +398,56 @@ export type MessageReactionsFeatureConfig = Record<string, never>;
 export type MiniAppSeedFeatureConfig = Record<string, never>;
 
 /**
+ * An event of a multispend group, as the bridge processes it and the UI shows
+ * it. On Matrix each kind of group has its own msgtype.
+ */
+export type MsEvent =
+  | {
+      kind: "groupInvitation";
+      groupKind: MultispendGroupKind;
+      invitation: GroupInvitation;
+      proposerPubkey: RpcPublicKey;
+    }
+  | {
+      kind: "groupInvitationVote";
+      groupKind: MultispendGroupKind;
+      invitation: RpcEventId;
+      vote: MultispendGroupVoteType;
+    }
+  | {
+      kind: "groupInvitationCancel";
+      groupKind: MultispendGroupKind;
+      invitation: RpcEventId;
+    }
+  | {
+      kind: "groupReannounce";
+      groupKind: MultispendGroupKind;
+      invitationId: RpcEventId;
+      invitation: GroupInvitation;
+      proposer: RpcUserId;
+      pubkeys: { [key in RpcUserId]?: RpcPublicKey };
+      rejections: Array<RpcUserId>;
+    }
+  | ({
+      kind: "depositNotification";
+      txid: RpcTransactionId;
+      description: string;
+    } & ({ fiatAmount: RpcFiatAmount } | { btcAmount: RpcAmount }))
+  | {
+      kind: "withdrawalRequest";
+      request:
+        | { kind: "fiat"; transfer_amount: RpcFiatAmount }
+        | { kind: "btc"; transfer_amount: RpcAmount };
+      description: string;
+    }
+  | {
+      kind: "withdrawalResponse";
+      groupKind: MultispendGroupKind;
+      request: RpcEventId;
+      response: WithdrawalResponseType;
+    };
+
+/**
  * Collected details for a given event id.
  */
 export type MsEventData =
@@ -399,54 +457,26 @@ export type MsEventData =
   | "invalidEvent";
 
 /**
+ * Amount moved into or out of a multispend group.
+ */
+export type MultispendAmount =
+  | { fiatAmount: RpcFiatAmount }
+  | { btcAmount: RpcAmount };
+
+/**
  * Deposit notification saved to db.
  */
 export type MultispendDepositEventData = {
   user: RpcUserId;
-  fiatAmount: RpcFiatAmount;
   txid: RpcTransactionId;
   description: string;
-};
+} & ({ fiatAmount: RpcFiatAmount } | { btcAmount: RpcAmount });
 
 /**
- * JSON formatted event that is sent in matrix room.
+ * What a multispend group holds: a stabilized fiat balance in a seeker
+ * account, or exact msats in a btc-depositor account.
  */
-export type MultispendEvent =
-  | {
-      kind: "groupInvitation";
-      invitation: GroupInvitation;
-      proposerPubkey: RpcPublicKey;
-    }
-  | {
-      kind: "groupInvitationVote";
-      invitation: RpcEventId;
-      vote: MultispendGroupVoteType;
-    }
-  | { kind: "groupInvitationCancel"; invitation: RpcEventId }
-  | {
-      kind: "groupReannounce";
-      invitationId: RpcEventId;
-      invitation: GroupInvitation;
-      proposer: RpcUserId;
-      pubkeys: { [key in RpcUserId]?: RpcPublicKey };
-      rejections: Array<RpcUserId>;
-    }
-  | {
-      kind: "depositNotification";
-      fiatAmount: RpcFiatAmount;
-      txid: RpcTransactionId;
-      description: string;
-    }
-  | {
-      kind: "withdrawalRequest";
-      request: { transfer_amount: RpcFiatAmount };
-      description: string;
-    }
-  | {
-      kind: "withdrawalResponse";
-      request: RpcEventId;
-      response: WithdrawalResponseType;
-    };
+export type MultispendGroupKind = "fiat" | "btc";
 
 /**
  * Represents the current status of a multispend group in a room
@@ -558,6 +588,11 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   walletServiceDkgRestart: boolean;
+  /**
+   * `#[serde(default)]` so the new bridge stays deserializable against any
+   * cached/older payload that omits the field.
+   */
+  btcMultispend: boolean;
 };
 
 export type RpcAccountId = string;
@@ -659,6 +694,622 @@ export type RpcError = {
 
 export type RpcEventId = string;
 
+export type RpcFaAbandonUnavailableReason =
+  | "paymentOutputsStarted"
+  | "dkgComplete";
+
+export type RpcFaClientStatus =
+  | { type: "ready"; status: RpcFaStatus }
+  | { type: "failed"; error: RpcFaOperationError };
+
+/**
+ * Canonical live liquidity operation for the active formation.
+ *
+ * `operation` is absent when no active formation has a non-terminal request.
+ * Reading this value performs no provider or guardian network work.
+ */
+export type RpcFaCurrentLiquidityOperationResult =
+  | { type: "current"; operation: RpcFaLiquidityOperation | null }
+  | { type: "error"; error: RpcFaOperationError };
+
+/**
+ * One seat a decommission pass could not end, and what its Manifold Guardian
+ * said.
+ */
+export type RpcFaDecommissionRefusal = { index: number; reason: string };
+
+export type RpcFaDecommissionResult =
+  | {
+      type: "outcome";
+      decommissioned: Array<number>;
+      alreadyDecommissioned: Array<number>;
+      refused: Array<RpcFaDecommissionRefusal>;
+    }
+  | { type: "error"; error: RpcFaOperationError };
+
+export type RpcFaEligiblePayer = {
+  /**
+   * A federation is eligible only when Manifold's authenticated setup-
+   * payment policy admits it and Fedi has the joined wallet fully loaded in
+   * `Ready` state. Joined zero-balance wallets remain present so callers can
+   * route through the existing refill flow; loading, recovering, and
+   * unadmitted federations are omitted.
+   */
+  federationId: string;
+  /**
+   * Current joined-wallet balance. Zero does not remove an admitted payer.
+   */
+  balanceMsats: RpcFaMsats;
+};
+
+export type RpcFaEligiblePayersResult =
+  | { type: "payers"; payers: Array<RpcFaEligiblePayer> }
+  | { type: "error"; error: RpcFaOperationError };
+
+export type RpcFaErrorCode =
+  | "invalidIntent"
+  | "invalidOptions"
+  | "storage"
+  | "identity"
+  | "busy"
+  | "noActiveFormation"
+  | "abandonUnavailable"
+  | "registry"
+  | "selection"
+  | "selectionReauthorizationRequired"
+  | "capabilityUnavailable"
+  | "invalidManifoldGuardians"
+  | "manifoldGuardian"
+  | "payment"
+  | "liquidity"
+  | "maintenanceWrongState"
+  | "maintenanceRejected"
+  | "maintenanceConsensusTooLarge"
+  | "maintenanceConsensusInvalid"
+  | "maintenanceConvergence"
+  | "pushNotifications"
+  | "timeout";
+
+/**
+ * Progress of the bridge's automatic join of the federation that the
+ * Federation Ambassador formed or restored.
+ */
+export type RpcFaFederationJoinState =
+  | { type: "joining" }
+  | { type: "recovering" }
+  | { type: "ready" }
+  | { type: "failed"; message: string };
+
+/**
+ * One FA-authorized, post-formation federation metadata mutation.
+ *
+ * Values are validated again by Manifold before any guardian is contacted.
+ * `WelcomeMessage` is also the federation description shown by Fedi.
+ * Fedi supplies the URL for both ready-made and custom terms.
+ */
+export type RpcFaFederationMetadataUpdate =
+  | { type: "name"; value: string }
+  | { type: "iconUrl"; value: string }
+  | { type: "welcomeMessage"; value: string }
+  | { type: "termsOfService"; value: string };
+
+export type RpcFaFormationActionRequired =
+  | { type: "authorizePayments"; requirements: RpcFaPaymentRequirements }
+  | {
+      type: "authorizeReplacementPayments";
+      requirements: RpcFaPaymentRequirements;
+    }
+  | {
+      type: "replaceGuardians";
+      requirements: RpcFaGuardianReplacementRequirements;
+    };
+
+export type RpcFaFormationFreshness = "fresh" | "unsynced";
+
+export type RpcFaFormationIntent = {
+  federationName: string | null;
+  federationSize: number;
+  plan: RpcFaPlanPreference;
+};
+
+export type RpcFaFormationMilestones = {
+  ecashSent: boolean;
+  guardiansConfirmed: boolean;
+  walletServiceCreated: boolean;
+};
+
+export type RpcFaFormationPhase =
+  | "preparing"
+  | "awaitingPaymentReadiness"
+  | "acquiringSeats"
+  | "preparingDkg"
+  | "dkgUnderway"
+  | "dkgComplete"
+  | "publishingSeatBindings"
+  | "formed";
+
+export type RpcFaFormationSnapshot = {
+  formationId: string;
+  phase: RpcFaFormationPhase;
+  intent: RpcFaResolvedFormationIntent;
+  seats: Array<RpcFaSeatProgress>;
+  freshness: RpcFaFormationFreshness;
+  actionRequired: RpcFaFormationActionRequired | null;
+  paymentOutputsStarted: boolean;
+  milestones: RpcFaFormationMilestones;
+  inviteCode: string | null;
+  lastError: RpcFaErrorCode | null;
+};
+
+export type RpcFaGuardianReplacementRequirements = {
+  /**
+   * Opaque binding to exactly the durable rows proven safe to replace.
+   */
+  replacementId: string;
+  seats: Array<RpcFaGuardianReplacementSeat>;
+};
+
+export type RpcFaGuardianReplacementSeat = {
+  index: number;
+  /**
+   * Badge-vouched identity of the outgoing MG; absent for pinned MGs.
+   */
+  previousMgId: string | null;
+  /**
+   * Two-word display name derived from `previous_fman_id`.
+   */
+  previousMgName: string | null;
+  previousQuoteId: string;
+  /**
+   * Canonical versioned Manifold Guardian locator JSON retained for audit.
+   */
+  previousLocator: string;
+};
+
+/**
+ * Exact source bounds for one post-formation liquidity request.
+ *
+ * At least one minimum must be positive. A source with a zero minimum must
+ * have no maximum; when present, a maximum must be at least its minimum.
+ * Gateway-only is the Fedi MVP flow. Stability-pool amounts are retained for
+ * a separately authorized administrative operation, never formation itself.
+ */
+export type RpcFaLiquidityAmountBounds = {
+  gatewayMinSats: number;
+  gatewayMaxSats: number | null;
+  stabilityMinSats: number;
+  stabilityMaxSats: number | null;
+};
+
+/**
+ * Provider-authored completion evidence for independent federation checks.
+ *
+ * Presence is not proof that the app-visible gateway or stability balance is
+ * ready. Consumers must verify the claimed result through the joined
+ * federation before presenting completion to the user.
+ */
+export type RpcFaLiquidityCompletionEvidence =
+  | {
+      type: "gateway";
+      gatewayId: string;
+      fulfilledSats: number;
+      observedGatewayBalanceSats: number;
+      observedAt: number;
+      withdrawalTxid: string | null;
+      walletOperationId: string | null;
+    }
+  | {
+      type: "stabilityPool";
+      fulfilledSats: number;
+      observedProvidedSats: number;
+      observedAt: number;
+      pegInOperationId: string | null;
+      stabilityPoolDepositOperationId: string | null;
+    };
+
+/**
+ * Result of fresh, uncached, no-private-data provider discovery.
+ *
+ * Re-entering a flow should discover again. Rejected candidates are safe
+ * policy diagnostics; no federation invite has been disclosed at this point.
+ */
+export type RpcFaLiquidityDiscoveryResult =
+  | {
+      type: "discovery";
+      providers: Array<RpcFaLiquidityProvider>;
+      rejected: Array<RpcFaLiquidityProviderRejection>;
+    }
+  | { type: "error"; error: RpcFaOperationError };
+
+/**
+ * Provider-authoritative progress for one requested source.
+ *
+ * Consumers may derive ready only after every requested item is `Completed`
+ * and its evidence has been independently checked through the federation.
+ * `ActionRequired` remains visible for an operator decision and is not an
+ * automatic-retry signal.
+ */
+export type RpcFaLiquidityItemPhase =
+  | "pending"
+  | "running"
+  | "actionRequired"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+/**
+ * Latest provider-authoritative state for one requested item.
+ *
+ * `ActionRequired` is an operator decision point. Do not automatically retry
+ * it: the provider may be reconciling an irreversible send-once operation.
+ */
+export type RpcFaLiquidityItemStatus = {
+  target: RpcFaLiquidityItemTarget;
+  phase: RpcFaLiquidityItemPhase;
+  fulfilledSats: number | null;
+  completionEvidence: RpcFaLiquidityCompletionEvidence | null;
+  failureCode: string | null;
+  updatedAt: number;
+};
+
+/**
+ * Provider allocation target.
+ *
+ * A gateway id is the provider protocol's opaque allocation identity. It is
+ * not the identity returned by the app's existing `listGateways` RPC; verify
+ * the resulting gateway independently through the joined federation.
+ */
+export type RpcFaLiquidityItemTarget =
+  | {
+      type: "gateway";
+      itemId: string;
+      gatewayId: string;
+      gatewayName: string;
+      amountSats: number;
+    }
+  | { type: "stabilityPool"; itemId: string; amountSats: number };
+
+export type RpcFaLiquidityNetwork =
+  | "bitcoin"
+  | "testnet"
+  | "signet"
+  | "regtest";
+
+/**
+ * Durable snapshot of one semantic post-formation liquidity request.
+ *
+ * `status` reads this local durable projection; it does not perform fresh
+ * discovery. The semantic id and payload hash must be resumed as-is after a
+ * lost response rather than replaced with a new request.
+ */
+export type RpcFaLiquidityOperation = {
+  operationId: string;
+  formationId: string;
+  providerPubkey: string;
+  endpointHint: string | null;
+  detailsPayloadHash: string;
+  amounts: RpcFaLiquidityAmountBounds;
+  phase: RpcFaLiquidityOperationPhase;
+  itemStatuses: Array<RpcFaLiquidityItemStatus>;
+  rejectionCode: string | null;
+  /**
+   * True only after FA has found the completed FLIP gateway in a fresh,
+   * threshold-aggregated LNv2 gateway view from the formed federation.
+   */
+  gatewayViewVerified: boolean;
+};
+
+/**
+ * Bounded, read-only page of durable operations used after a crash or lost
+ * start response.
+ *
+ * Pages are ordered by opaque semantic id. Pass `next_after` unchanged as the
+ * exclusive cursor for the next page. A missing cursor means enumeration is
+ * complete. Listing performs no provider network work.
+ */
+export type RpcFaLiquidityOperationPage = {
+  operations: Array<RpcFaLiquidityOperation>;
+  nextAfter: string | null;
+};
+
+/**
+ * Result of bounded durable-operation enumeration.
+ */
+export type RpcFaLiquidityOperationPageResult =
+  | { type: "page"; page: RpcFaLiquidityOperationPage }
+  | { type: "error"; error: RpcFaOperationError };
+
+/**
+ * Provider decision for this exact semantic request.
+ *
+ * `Prepared` is durable and recoverable, `Accepted` exposes per-item progress,
+ * and `Rejected` is terminal for this exact intent but never a formation
+ * failure.
+ */
+export type RpcFaLiquidityOperationPhase = "prepared" | "accepted" | "rejected";
+
+/**
+ * Result of a mutating start or resume reconciliation.
+ *
+ * A returned error can follow a durable checkpoint. Callers recover by
+ * listing/status and resuming the same semantic operation, never by assuming
+ * the original request did not exist.
+ */
+export type RpcFaLiquidityOperationResult =
+  | { type: "operation"; operation: RpcFaLiquidityOperation }
+  | { type: "error"; error: RpcFaOperationError };
+
+export type RpcFaLiquidityProvider = {
+  providerPubkey: string;
+  supportedSources: Array<RpcFaLiquiditySource>;
+  supportedNetworks: Array<RpcFaLiquidityNetwork>;
+  displayName: string | null;
+  website: string | null;
+  contact: string | null;
+  issuedAt: number;
+  expiresAt: number;
+};
+
+export type RpcFaLiquidityProviderRejection = {
+  providerPubkey: string | null;
+  code: string;
+};
+
+/**
+ * Consumer policy for fresh provider discovery and one exact request.
+ *
+ * Provider keys are canonical Nostr public keys. An empty allowlist permits
+ * any provider admitted by the selected Manifold environment; a non-empty
+ * list adds an application policy restriction after Manifold's trust checks.
+ */
+export type RpcFaLiquidityRequestIntent = {
+  amounts: RpcFaLiquidityAmountBounds;
+  approvedProviderPubkeys: Array<string>;
+};
+
+export type RpcFaLiquiditySource = "gateway" | "stabilityPool";
+
+/**
+ * Exact millisatoshi quantity at the JSON/JavaScript boundary.
+ *
+ * The bridge serializes every FA monetary value as a base-10 string so values
+ * above JavaScript's safe integer limit cannot be rounded before a consumer
+ * converts them to `bigint`.
+ */
+export type RpcFaMsats = string;
+
+export type RpcFaOperationError = {
+  code: RpcFaErrorCode;
+  message: string;
+  detail: RpcFaOperationErrorDetail | null;
+};
+
+export type RpcFaOperationErrorDetail =
+  | {
+      type: "insufficientMgSeats";
+      requested: number;
+      selected: number;
+      seen: number;
+      eligible: number;
+    }
+  | {
+      type: "selectionReauthorizationRequired";
+      reason: RpcFaSelectionReauthorizationReason;
+    }
+  | { type: "abandonUnavailable"; reason: RpcFaAbandonUnavailableReason };
+
+export type RpcFaOperationResult =
+  | { type: "success" }
+  | { type: "error"; error: RpcFaOperationError };
+
+export type RpcFaPaymentRequirements = {
+  authorizationId: string;
+  totalMsats: RpcFaMsats;
+  maxTotalMsats: RpcFaMsats | null;
+  seats: Array<RpcFaSeatPaymentRequirement>;
+};
+
+export type RpcFaPlanPreference = "infiniteBestEffort";
+
+/**
+ * Native FCM platform attached to one installation registration.
+ */
+export type RpcFaPushPlatform = "android" | "ios";
+
+/**
+ * Result of an FA push-gateway installation lifecycle operation.
+ */
+export type RpcFaPushRegistrationResult =
+  | { type: "registered"; installationId: string }
+  | { type: "unregistered"; installationId: string }
+  | { type: "error"; error: RpcFaOperationError };
+
+export type RpcFaReplacementPreview = {
+  /**
+   * Opaque process-local handle to this fresh verified replacement subset.
+   */
+  previewId: string;
+  requirements: RpcFaGuardianReplacementRequirements;
+  totalAdvertisedMsats: RpcFaMsats;
+  seats: Array<RpcFaReplacementPreviewSeat>;
+};
+
+export type RpcFaReplacementPreviewResult =
+  | { type: "preview"; preview: RpcFaReplacementPreview }
+  | { type: "error"; error: RpcFaOperationError };
+
+export type RpcFaReplacementPreviewSeat = {
+  /**
+   * Stable formation row this verified MG will replace.
+   */
+  index: number;
+  mgId: string;
+  /**
+   * Two-word display name derived from `fman_id`; names can collide and
+   * never substitute for the id.
+   */
+  mgName: string;
+  advertisedPriceMsats: RpcFaMsats;
+  provenance: string;
+};
+
+export type RpcFaResolvedFormationIntent = {
+  federationName: string;
+  federationSize: number;
+  guardianFeePpm: number;
+  plan: RpcFaPlanPreference;
+  maxTotalMsats: RpcFaMsats | null;
+};
+
+export type RpcFaRestoredFormationSnapshot = {
+  snapshotGeneration: number;
+  formationId: string;
+  federationInvite: string;
+  federationName: string | null;
+  seats: Array<RpcFaRestoredSeat>;
+  phase: RpcFaFormationPhase;
+  freshness: RpcFaFormationFreshness;
+  backupEligible: boolean;
+};
+
+export type RpcFaRestoredSeat = {
+  mgId: string;
+  seatId: string;
+  /**
+   * Canonical versioned Manifold Guardian locator JSON.
+   */
+  locator: string;
+};
+
+export type RpcFaSeatPaymentRequirement = {
+  index: number;
+  /**
+   * Badge-vouched identity of the MG the quote pays; absent for pinned
+   * MGs.
+   */
+  mgId: string | null;
+  /**
+   * Two-word display name derived from `fman_id`.
+   */
+  mgName: string | null;
+  quoteId: string;
+  paymentFederationId: string;
+  amountMsats: RpcFaMsats;
+};
+
+export type RpcFaSeatPhase =
+  | "selected"
+  | "replacementRequired"
+  | "quoteReady"
+  | "acquiring"
+  | "created"
+  | "guardianCodeReady"
+  | "dkgUnderway"
+  | "running";
+
+export type RpcFaSeatProgress = {
+  index: number;
+  /**
+   * Badge-vouched identity of the currently assigned MG; absent for
+   * pinned MGs.
+   */
+  mgId: string | null;
+  /**
+   * Two-word display name derived from `fman_id`; names can collide and
+   * never substitute for the id.
+   */
+  mgName: string | null;
+  /**
+   * Canonical versioned Manifold Guardian locator JSON.
+   */
+  locator: string;
+  seatId: string | null;
+  guardianCode: string | null;
+  phase: RpcFaSeatPhase;
+  freshness: RpcFaFormationFreshness;
+};
+
+export type RpcFaSelectionPreview = {
+  /**
+   * Opaque, process-local handle to the sealed verified selection.
+   */
+  previewId: string;
+  selected: number;
+  totalAdvertisedMsats: RpcFaMsats;
+  seen: number;
+  eligible: number;
+  validUntil: number;
+  seats: Array<RpcFaSelectionPreviewSeat>;
+};
+
+export type RpcFaSelectionPreviewRequest = {
+  federationSize: number;
+  plan: RpcFaPlanPreference;
+};
+
+export type RpcFaSelectionPreviewResult =
+  | { type: "preview"; preview: RpcFaSelectionPreview }
+  | { type: "error"; error: RpcFaOperationError };
+
+export type RpcFaSelectionPreviewSeat = {
+  mgId: string;
+  /**
+   * Two-word display name derived from `fman_id`; names can collide and
+   * never substitute for the id.
+   */
+  mgName: string;
+  advertisedPriceMsats: RpcFaMsats;
+  provenance: string;
+};
+
+export type RpcFaSelectionReauthorizationReason =
+  | "previewExpired"
+  | "advertisementEstimateExceedsLimit"
+  | "selectedMgUnavailable"
+  | "quoteTotalExceedsLimit"
+  | "quoteTermsChanged"
+  | "selectedPayerUnavailable"
+  | "selectedPayerInsufficientFunds"
+  | "verifierEnvironmentChanged"
+  | "paymentFederationRequired";
+
+export type RpcFaSetupPaymentFederation = {
+  /**
+   * Canonical id Manifold derived from `invite_code` when it admitted the
+   * signed setup-payment publication.
+   */
+  federationId: string;
+  /**
+   * The signed public invite this federation is admitted under. Present for
+   * every member, joined or not, because a caller offering an unjoined
+   * federation needs join material and an id cannot be turned back into one.
+   */
+  inviteCode: string;
+  /**
+   * Whether Fedi already holds a wallet for this federation. A joined member
+   * is a payer candidate; an unjoined one is a join candidate. Joined here
+   * says nothing about balance — use `faClientEligiblePayers` for that.
+   */
+  joined: boolean;
+};
+
+/**
+ * Manifold's authenticated setup-payment federation set.
+ *
+ * `Federations` may be empty and that is a valid authenticated answer: it is
+ * the publisher stopping all new paid setup, not a failure. Callers must not
+ * substitute any other federation list when it is empty.
+ */
+export type RpcFaSetupPaymentFederationsResult =
+  | { type: "federations"; federations: Array<RpcFaSetupPaymentFederation> }
+  | { type: "error"; error: RpcFaOperationError };
+
+export type RpcFaStatus =
+  | { type: "idle" }
+  | { type: "recovery"; error: RpcFaOperationError | null }
+  | { type: "formation"; formation: RpcFaFormationSnapshot }
+  | { type: "restored"; formation: RpcFaRestoredFormationSnapshot };
+
 export type RpcFederation = {
   balance: RpcAmount;
   id: RpcFederationId;
@@ -701,621 +1352,6 @@ export type RpcFeeDetails = {
   networkFee: RpcAmount;
   federationFee: RpcAmount;
 };
-
-export type RpcFiAbandonUnavailableReason =
-  | "paymentOutputsStarted"
-  | "dkgComplete";
-
-export type RpcFiClientStatus =
-  | { type: "ready"; status: RpcFiStatus }
-  | { type: "failed"; error: RpcFiOperationError };
-
-/**
- * Canonical live liquidity operation for the active formation.
- *
- * `operation` is absent when no active formation has a non-terminal request.
- * Reading this value performs no provider or guardian network work.
- */
-export type RpcFiCurrentLiquidityOperationResult =
-  | { type: "current"; operation: RpcFiLiquidityOperation | null }
-  | { type: "error"; error: RpcFiOperationError };
-
-/**
- * One seat a decommission pass could not end, and what its Fleet Manager said.
- */
-export type RpcFiDecommissionRefusal = { index: number; reason: string };
-
-export type RpcFiDecommissionResult =
-  | {
-      type: "outcome";
-      decommissioned: Array<number>;
-      alreadyDecommissioned: Array<number>;
-      refused: Array<RpcFiDecommissionRefusal>;
-    }
-  | { type: "error"; error: RpcFiOperationError };
-
-export type RpcFiEligiblePayer = {
-  /**
-   * A federation is eligible only when Manifold's authenticated setup-
-   * payment policy admits it and Fedi has the joined wallet fully loaded in
-   * `Ready` state. Joined zero-balance wallets remain present so callers can
-   * route through the existing refill flow; loading, recovering, and
-   * unadmitted federations are omitted.
-   */
-  federationId: string;
-  /**
-   * Current joined-wallet balance. Zero does not remove an admitted payer.
-   */
-  balanceMsats: RpcFiMsats;
-};
-
-export type RpcFiEligiblePayersResult =
-  | { type: "payers"; payers: Array<RpcFiEligiblePayer> }
-  | { type: "error"; error: RpcFiOperationError };
-
-export type RpcFiErrorCode =
-  | "invalidIntent"
-  | "invalidOptions"
-  | "storage"
-  | "identity"
-  | "busy"
-  | "noActiveFormation"
-  | "abandonUnavailable"
-  | "registry"
-  | "selection"
-  | "selectionReauthorizationRequired"
-  | "capabilityUnavailable"
-  | "invalidFleetManagers"
-  | "fleetManager"
-  | "payment"
-  | "liquidity"
-  | "maintenanceWrongState"
-  | "maintenanceRejected"
-  | "maintenanceConsensusTooLarge"
-  | "maintenanceConsensusInvalid"
-  | "maintenanceConvergence"
-  | "pushNotifications"
-  | "timeout";
-
-/**
- * Progress of the bridge's automatic join of the federation that the
- * Federation Initiator formed or restored.
- */
-export type RpcFiFederationJoinState =
-  | { type: "joining" }
-  | { type: "recovering" }
-  | { type: "ready" }
-  | { type: "failed"; message: string };
-
-/**
- * One FI-authorized, post-formation federation metadata mutation.
- *
- * Values are validated again by Manifold before any guardian is contacted.
- * `WelcomeMessage` is also the federation description shown by Fedi.
- * Fedi supplies the URL for both ready-made and custom terms.
- */
-export type RpcFiFederationMetadataUpdate =
-  | { type: "name"; value: string }
-  | { type: "iconUrl"; value: string }
-  | { type: "welcomeMessage"; value: string }
-  | { type: "termsOfService"; value: string };
-
-export type RpcFiFormationActionRequired =
-  | { type: "authorizePayments"; requirements: RpcFiPaymentRequirements }
-  | {
-      type: "authorizeReplacementPayments";
-      requirements: RpcFiPaymentRequirements;
-    }
-  | {
-      type: "replaceGuardians";
-      requirements: RpcFiGuardianReplacementRequirements;
-    };
-
-export type RpcFiFormationFreshness = "fresh" | "unsynced";
-
-export type RpcFiFormationIntent = {
-  federationName: string | null;
-  federationSize: number;
-  plan: RpcFiPlanPreference;
-};
-
-export type RpcFiFormationMilestones = {
-  ecashSent: boolean;
-  guardiansConfirmed: boolean;
-  walletServiceCreated: boolean;
-};
-
-export type RpcFiFormationPhase =
-  | "preparing"
-  | "awaitingPaymentReadiness"
-  | "acquiringSeats"
-  | "preparingDkg"
-  | "dkgUnderway"
-  | "dkgComplete"
-  | "publishingSeatBindings"
-  | "formed";
-
-export type RpcFiFormationSnapshot = {
-  formationId: string;
-  phase: RpcFiFormationPhase;
-  intent: RpcFiResolvedFormationIntent;
-  seats: Array<RpcFiSeatProgress>;
-  freshness: RpcFiFormationFreshness;
-  actionRequired: RpcFiFormationActionRequired | null;
-  paymentOutputsStarted: boolean;
-  milestones: RpcFiFormationMilestones;
-  inviteCode: string | null;
-  lastError: RpcFiErrorCode | null;
-};
-
-export type RpcFiGuardianReplacementRequirements = {
-  /**
-   * Opaque binding to exactly the durable rows proven safe to replace.
-   */
-  replacementId: string;
-  seats: Array<RpcFiGuardianReplacementSeat>;
-};
-
-export type RpcFiGuardianReplacementSeat = {
-  index: number;
-  /**
-   * Badge-vouched identity of the outgoing FMan; absent for pinned FMans.
-   */
-  previousFmanId: string | null;
-  /**
-   * Two-word display name derived from `previous_fman_id`.
-   */
-  previousFmanName: string | null;
-  previousQuoteId: string;
-  /**
-   * Canonical versioned Fleet Manager locator JSON retained for audit.
-   */
-  previousLocator: string;
-};
-
-/**
- * Exact source bounds for one post-formation liquidity request.
- *
- * At least one minimum must be positive. A source with a zero minimum must
- * have no maximum; when present, a maximum must be at least its minimum.
- * Gateway-only is the Fedi MVP flow. Stability-pool amounts are retained for
- * a separately authorized administrative operation, never formation itself.
- */
-export type RpcFiLiquidityAmountBounds = {
-  gatewayMinSats: number;
-  gatewayMaxSats: number | null;
-  stabilityMinSats: number;
-  stabilityMaxSats: number | null;
-};
-
-/**
- * Provider-authored completion evidence for independent federation checks.
- *
- * Presence is not proof that the app-visible gateway or stability balance is
- * ready. Consumers must verify the claimed result through the joined
- * federation before presenting completion to the user.
- */
-export type RpcFiLiquidityCompletionEvidence =
-  | {
-      type: "gateway";
-      gatewayId: string;
-      fulfilledSats: number;
-      observedGatewayBalanceSats: number;
-      observedAt: number;
-      withdrawalTxid: string | null;
-      walletOperationId: string | null;
-    }
-  | {
-      type: "stabilityPool";
-      fulfilledSats: number;
-      observedProvidedSats: number;
-      observedAt: number;
-      pegInOperationId: string | null;
-      stabilityPoolDepositOperationId: string | null;
-    };
-
-/**
- * Result of fresh, uncached, no-private-data provider discovery.
- *
- * Re-entering a flow should discover again. Rejected candidates are safe
- * policy diagnostics; no federation invite has been disclosed at this point.
- */
-export type RpcFiLiquidityDiscoveryResult =
-  | {
-      type: "discovery";
-      providers: Array<RpcFiLiquidityProvider>;
-      rejected: Array<RpcFiLiquidityProviderRejection>;
-    }
-  | { type: "error"; error: RpcFiOperationError };
-
-/**
- * Provider-authoritative progress for one requested source.
- *
- * Consumers may derive ready only after every requested item is `Completed`
- * and its evidence has been independently checked through the federation.
- * `ActionRequired` remains visible for an operator decision and is not an
- * automatic-retry signal.
- */
-export type RpcFiLiquidityItemPhase =
-  | "pending"
-  | "running"
-  | "actionRequired"
-  | "completed"
-  | "failed"
-  | "cancelled";
-
-/**
- * Latest provider-authoritative state for one requested item.
- *
- * `ActionRequired` is an operator decision point. Do not automatically retry
- * it: the provider may be reconciling an irreversible send-once operation.
- */
-export type RpcFiLiquidityItemStatus = {
-  target: RpcFiLiquidityItemTarget;
-  phase: RpcFiLiquidityItemPhase;
-  fulfilledSats: number | null;
-  completionEvidence: RpcFiLiquidityCompletionEvidence | null;
-  failureCode: string | null;
-  updatedAt: number;
-};
-
-/**
- * Provider allocation target.
- *
- * A gateway id is the provider protocol's opaque allocation identity. It is
- * not the identity returned by the app's existing `listGateways` RPC; verify
- * the resulting gateway independently through the joined federation.
- */
-export type RpcFiLiquidityItemTarget =
-  | {
-      type: "gateway";
-      itemId: string;
-      gatewayId: string;
-      gatewayName: string;
-      amountSats: number;
-    }
-  | { type: "stabilityPool"; itemId: string; amountSats: number };
-
-export type RpcFiLiquidityNetwork =
-  | "bitcoin"
-  | "testnet"
-  | "signet"
-  | "regtest";
-
-/**
- * Durable snapshot of one semantic post-formation liquidity request.
- *
- * `status` reads this local durable projection; it does not perform fresh
- * discovery. The semantic id and payload hash must be resumed as-is after a
- * lost response rather than replaced with a new request.
- */
-export type RpcFiLiquidityOperation = {
-  operationId: string;
-  formationId: string;
-  providerPubkey: string;
-  endpointHint: string | null;
-  detailsPayloadHash: string;
-  amounts: RpcFiLiquidityAmountBounds;
-  phase: RpcFiLiquidityOperationPhase;
-  itemStatuses: Array<RpcFiLiquidityItemStatus>;
-  rejectionCode: string | null;
-  /**
-   * True only after FI has found the completed FLIP gateway in a fresh,
-   * threshold-aggregated LNv2 gateway view from the formed federation.
-   */
-  gatewayViewVerified: boolean;
-};
-
-/**
- * Bounded, read-only page of durable operations used after a crash or lost
- * start response.
- *
- * Pages are ordered by opaque semantic id. Pass `next_after` unchanged as the
- * exclusive cursor for the next page. A missing cursor means enumeration is
- * complete. Listing performs no provider network work.
- */
-export type RpcFiLiquidityOperationPage = {
-  operations: Array<RpcFiLiquidityOperation>;
-  nextAfter: string | null;
-};
-
-/**
- * Result of bounded durable-operation enumeration.
- */
-export type RpcFiLiquidityOperationPageResult =
-  | { type: "page"; page: RpcFiLiquidityOperationPage }
-  | { type: "error"; error: RpcFiOperationError };
-
-/**
- * Provider decision for this exact semantic request.
- *
- * `Prepared` is durable and recoverable, `Accepted` exposes per-item progress,
- * and `Rejected` is terminal for this exact intent but never a formation
- * failure.
- */
-export type RpcFiLiquidityOperationPhase = "prepared" | "accepted" | "rejected";
-
-/**
- * Result of a mutating start or resume reconciliation.
- *
- * A returned error can follow a durable checkpoint. Callers recover by
- * listing/status and resuming the same semantic operation, never by assuming
- * the original request did not exist.
- */
-export type RpcFiLiquidityOperationResult =
-  | { type: "operation"; operation: RpcFiLiquidityOperation }
-  | { type: "error"; error: RpcFiOperationError };
-
-export type RpcFiLiquidityProvider = {
-  providerPubkey: string;
-  supportedSources: Array<RpcFiLiquiditySource>;
-  supportedNetworks: Array<RpcFiLiquidityNetwork>;
-  displayName: string | null;
-  website: string | null;
-  contact: string | null;
-  issuedAt: number;
-  expiresAt: number;
-};
-
-export type RpcFiLiquidityProviderRejection = {
-  providerPubkey: string | null;
-  code: string;
-};
-
-/**
- * Consumer policy for fresh provider discovery and one exact request.
- *
- * Provider keys are canonical Nostr public keys. An empty allowlist permits
- * any provider admitted by the selected Manifold environment; a non-empty
- * list adds an application policy restriction after Manifold's trust checks.
- */
-export type RpcFiLiquidityRequestIntent = {
-  amounts: RpcFiLiquidityAmountBounds;
-  approvedProviderPubkeys: Array<string>;
-};
-
-export type RpcFiLiquiditySource = "gateway" | "stabilityPool";
-
-/**
- * Exact millisatoshi quantity at the JSON/JavaScript boundary.
- *
- * The bridge serializes every FI monetary value as a base-10 string so values
- * above JavaScript's safe integer limit cannot be rounded before a consumer
- * converts them to `bigint`.
- */
-export type RpcFiMsats = string;
-
-export type RpcFiOperationError = {
-  code: RpcFiErrorCode;
-  message: string;
-  detail: RpcFiOperationErrorDetail | null;
-};
-
-export type RpcFiOperationErrorDetail =
-  | {
-      type: "insufficientFmanSeats";
-      requested: number;
-      selected: number;
-      seen: number;
-      eligible: number;
-    }
-  | {
-      type: "selectionReauthorizationRequired";
-      reason: RpcFiSelectionReauthorizationReason;
-    }
-  | { type: "abandonUnavailable"; reason: RpcFiAbandonUnavailableReason };
-
-export type RpcFiOperationResult =
-  | { type: "success" }
-  | { type: "error"; error: RpcFiOperationError };
-
-export type RpcFiPaymentRequirements = {
-  authorizationId: string;
-  totalMsats: RpcFiMsats;
-  maxTotalMsats: RpcFiMsats | null;
-  seats: Array<RpcFiSeatPaymentRequirement>;
-};
-
-export type RpcFiPlanPreference = "infiniteBestEffort";
-
-/**
- * Native FCM platform attached to one installation registration.
- */
-export type RpcFiPushPlatform = "android" | "ios";
-
-/**
- * Result of an FI push-gateway installation lifecycle operation.
- */
-export type RpcFiPushRegistrationResult =
-  | { type: "registered"; installationId: string }
-  | { type: "unregistered"; installationId: string }
-  | { type: "error"; error: RpcFiOperationError };
-
-export type RpcFiReplacementPreview = {
-  /**
-   * Opaque process-local handle to this fresh verified replacement subset.
-   */
-  previewId: string;
-  requirements: RpcFiGuardianReplacementRequirements;
-  totalAdvertisedMsats: RpcFiMsats;
-  seats: Array<RpcFiReplacementPreviewSeat>;
-};
-
-export type RpcFiReplacementPreviewResult =
-  | { type: "preview"; preview: RpcFiReplacementPreview }
-  | { type: "error"; error: RpcFiOperationError };
-
-export type RpcFiReplacementPreviewSeat = {
-  /**
-   * Stable formation row this verified FMan will replace.
-   */
-  index: number;
-  fmanId: string;
-  /**
-   * Two-word display name derived from `fman_id`; names can collide and
-   * never substitute for the id.
-   */
-  fmanName: string;
-  advertisedPriceMsats: RpcFiMsats;
-  provenance: string;
-};
-
-export type RpcFiResolvedFormationIntent = {
-  federationName: string;
-  federationSize: number;
-  guardianFeePpm: number;
-  plan: RpcFiPlanPreference;
-  maxTotalMsats: RpcFiMsats | null;
-};
-
-export type RpcFiRestoredFormationSnapshot = {
-  snapshotGeneration: number;
-  formationId: string;
-  federationInvite: string;
-  federationName: string | null;
-  seats: Array<RpcFiRestoredSeat>;
-  phase: RpcFiFormationPhase;
-  freshness: RpcFiFormationFreshness;
-  backupEligible: boolean;
-};
-
-export type RpcFiRestoredSeat = {
-  fmanId: string;
-  seatId: string;
-  /**
-   * Canonical versioned Fleet Manager locator JSON.
-   */
-  locator: string;
-};
-
-export type RpcFiSeatPaymentRequirement = {
-  index: number;
-  /**
-   * Badge-vouched identity of the FMan the quote pays; absent for pinned
-   * FMans.
-   */
-  fmanId: string | null;
-  /**
-   * Two-word display name derived from `fman_id`.
-   */
-  fmanName: string | null;
-  quoteId: string;
-  paymentFederationId: string;
-  amountMsats: RpcFiMsats;
-};
-
-export type RpcFiSeatPhase =
-  | "selected"
-  | "replacementRequired"
-  | "quoteReady"
-  | "acquiring"
-  | "created"
-  | "guardianCodeReady"
-  | "dkgUnderway"
-  | "running";
-
-export type RpcFiSeatProgress = {
-  index: number;
-  /**
-   * Badge-vouched identity of the currently assigned FMan; absent for
-   * pinned FMans.
-   */
-  fmanId: string | null;
-  /**
-   * Two-word display name derived from `fman_id`; names can collide and
-   * never substitute for the id.
-   */
-  fmanName: string | null;
-  /**
-   * Canonical versioned Fleet Manager locator JSON.
-   */
-  locator: string;
-  seatId: string | null;
-  guardianCode: string | null;
-  phase: RpcFiSeatPhase;
-  freshness: RpcFiFormationFreshness;
-};
-
-export type RpcFiSelectionPreview = {
-  /**
-   * Opaque, process-local handle to the sealed verified selection.
-   */
-  previewId: string;
-  selected: number;
-  totalAdvertisedMsats: RpcFiMsats;
-  seen: number;
-  eligible: number;
-  validUntil: number;
-  seats: Array<RpcFiSelectionPreviewSeat>;
-};
-
-export type RpcFiSelectionPreviewRequest = {
-  federationSize: number;
-  plan: RpcFiPlanPreference;
-};
-
-export type RpcFiSelectionPreviewResult =
-  | { type: "preview"; preview: RpcFiSelectionPreview }
-  | { type: "error"; error: RpcFiOperationError };
-
-export type RpcFiSelectionPreviewSeat = {
-  fmanId: string;
-  /**
-   * Two-word display name derived from `fman_id`; names can collide and
-   * never substitute for the id.
-   */
-  fmanName: string;
-  advertisedPriceMsats: RpcFiMsats;
-  provenance: string;
-};
-
-export type RpcFiSelectionReauthorizationReason =
-  | "previewExpired"
-  | "advertisementEstimateExceedsLimit"
-  | "selectedFmanUnavailable"
-  | "quoteTotalExceedsLimit"
-  | "quoteTermsChanged"
-  | "selectedPayerUnavailable"
-  | "selectedPayerInsufficientFunds"
-  | "verifierEnvironmentChanged"
-  | "paymentFederationRequired";
-
-export type RpcFiSetupPaymentFederation = {
-  /**
-   * Canonical id Manifold derived from `invite_code` when it admitted the
-   * signed setup-payment publication.
-   */
-  federationId: string;
-  /**
-   * The signed public invite this federation is admitted under. Present for
-   * every member, joined or not, because a caller offering an unjoined
-   * federation needs join material and an id cannot be turned back into one.
-   */
-  inviteCode: string;
-  /**
-   * Whether Fedi already holds a wallet for this federation. A joined member
-   * is a payer candidate; an unjoined one is a join candidate. Joined here
-   * says nothing about balance — use `fiClientEligiblePayers` for that.
-   */
-  joined: boolean;
-};
-
-/**
- * Manifold's authenticated setup-payment federation set.
- *
- * `Federations` may be empty and that is a valid authenticated answer: it is
- * the publisher stopping all new paid setup, not a failure. Callers must not
- * substitute any other federation list when it is empty.
- */
-export type RpcFiSetupPaymentFederationsResult =
-  | { type: "federations"; federations: Array<RpcFiSetupPaymentFederation> }
-  | { type: "error"; error: RpcFiOperationError };
-
-export type RpcFiStatus =
-  | { type: "idle" }
-  | { type: "recovery"; error: RpcFiOperationError | null }
-  | { type: "formation"; formation: RpcFiFormationSnapshot }
-  | { type: "restored"; formation: RpcFiRestoredFormationSnapshot };
 
 export type RpcFiatAmount = number;
 
@@ -1542,69 +1578,69 @@ export type RpcMethods = {
   onAppForeground: [onAppForeground, null];
   fedimintVersion: [fedimintVersion, string];
   getFeatureCatalog: [getFeatureCatalog, FeatureCatalog];
-  fiClientStatus: [fiClientStatus, RpcFiClientStatus];
-  fiClientEligiblePayers: [fiClientEligiblePayers, RpcFiEligiblePayersResult];
-  fiClientSetupPaymentFederations: [
-    fiClientSetupPaymentFederations,
-    RpcFiSetupPaymentFederationsResult,
+  faClientStatus: [faClientStatus, RpcFaClientStatus];
+  faClientEligiblePayers: [faClientEligiblePayers, RpcFaEligiblePayersResult];
+  faClientSetupPaymentFederations: [
+    faClientSetupPaymentFederations,
+    RpcFaSetupPaymentFederationsResult,
   ];
-  fiClientRegisterPushInstallation: [
-    fiClientRegisterPushInstallation,
-    RpcFiPushRegistrationResult,
+  faClientRegisterPushInstallation: [
+    faClientRegisterPushInstallation,
+    RpcFaPushRegistrationResult,
   ];
-  fiClientUnregisterPushInstallation: [
-    fiClientUnregisterPushInstallation,
-    RpcFiPushRegistrationResult,
+  faClientUnregisterPushInstallation: [
+    faClientUnregisterPushInstallation,
+    RpcFaPushRegistrationResult,
   ];
-  fiClientPreviewSelection: [
-    fiClientPreviewSelection,
-    RpcFiSelectionPreviewResult,
+  faClientPreviewSelection: [
+    faClientPreviewSelection,
+    RpcFaSelectionPreviewResult,
   ];
-  fiClientPayAndCreate: [fiClientPayAndCreate, RpcFiOperationResult];
-  fiClientPreviewReplacements: [
-    fiClientPreviewReplacements,
-    RpcFiReplacementPreviewResult,
+  faClientPayAndCreate: [faClientPayAndCreate, RpcFaOperationResult];
+  faClientPreviewReplacements: [
+    faClientPreviewReplacements,
+    RpcFaReplacementPreviewResult,
   ];
-  fiClientApplyReplacements: [fiClientApplyReplacements, RpcFiOperationResult];
-  fiClientAuthorizeReplacementPayments: [
-    fiClientAuthorizeReplacementPayments,
-    RpcFiOperationResult,
+  faClientApplyReplacements: [faClientApplyReplacements, RpcFaOperationResult];
+  faClientAuthorizeReplacementPayments: [
+    faClientAuthorizeReplacementPayments,
+    RpcFaOperationResult,
   ];
-  fiClientResume: [fiClientResume, RpcFiOperationResult];
-  fiClientAbandon: [fiClientAbandon, RpcFiOperationResult];
-  fiClientDecommission: [fiClientDecommission, RpcFiDecommissionResult];
-  fiClientRestartDkg: [fiClientRestartDkg, RpcFiOperationResult];
-  fiClientScheduleReset: [fiClientScheduleReset, RpcFiOperationResult];
-  fiClientLiquidityDiscover: [
-    fiClientLiquidityDiscover,
-    RpcFiLiquidityDiscoveryResult,
+  faClientResume: [faClientResume, RpcFaOperationResult];
+  faClientAbandon: [faClientAbandon, RpcFaOperationResult];
+  faClientDecommission: [faClientDecommission, RpcFaDecommissionResult];
+  faClientRestartDkg: [faClientRestartDkg, RpcFaOperationResult];
+  faClientScheduleReset: [faClientScheduleReset, RpcFaOperationResult];
+  faClientLiquidityDiscover: [
+    faClientLiquidityDiscover,
+    RpcFaLiquidityDiscoveryResult,
   ];
-  fiClientLiquidityStart: [
-    fiClientLiquidityStart,
-    RpcFiLiquidityOperationResult,
+  faClientLiquidityStart: [
+    faClientLiquidityStart,
+    RpcFaLiquidityOperationResult,
   ];
-  fiClientLiquidityResume: [
-    fiClientLiquidityResume,
-    RpcFiLiquidityOperationResult,
+  faClientLiquidityResume: [
+    faClientLiquidityResume,
+    RpcFaLiquidityOperationResult,
   ];
-  fiClientLiquidityStatus: [
-    fiClientLiquidityStatus,
-    RpcFiLiquidityOperationResult,
+  faClientLiquidityStatus: [
+    faClientLiquidityStatus,
+    RpcFaLiquidityOperationResult,
   ];
-  fiClientLiquidityCurrent: [
-    fiClientLiquidityCurrent,
-    RpcFiCurrentLiquidityOperationResult,
+  faClientLiquidityCurrent: [
+    faClientLiquidityCurrent,
+    RpcFaCurrentLiquidityOperationResult,
   ];
-  fiClientLiquidityList: [
-    fiClientLiquidityList,
-    RpcFiLiquidityOperationPageResult,
+  faClientLiquidityList: [
+    faClientLiquidityList,
+    RpcFaLiquidityOperationPageResult,
   ];
-  fiClientUpdateFederationMetadata: [
-    fiClientUpdateFederationMetadata,
-    RpcFiOperationResult,
+  faClientUpdateFederationMetadata: [
+    faClientUpdateFederationMetadata,
+    RpcFaOperationResult,
   ];
-  fiClientSetGuardianFee: [fiClientSetGuardianFee, RpcFiOperationResult];
-  fiClientSubscribe: [fiClientSubscribe, null];
+  faClientSetGuardianFee: [faClientSetGuardianFee, RpcFaOperationResult];
+  faClientSubscribe: [faClientSubscribe, null];
   joinFederation: [joinFederation, RpcFederation];
   federationPreview: [federationPreview, RpcFederationPreview];
   leaveFederation: [leaveFederation, null];
@@ -1722,8 +1758,8 @@ export type RpcMethods = {
   spv2StartFastSync: [spv2StartFastSync, null];
   getSensitiveLog: [getSensitiveLog, boolean];
   setSensitiveLog: [setSensitiveLog, null];
-  getFiManifoldEnvironment: [getFiManifoldEnvironment, FiManifoldEnvironment];
-  setFiManifoldEnvironment: [setFiManifoldEnvironment, null];
+  getFaManifoldEnvironment: [getFaManifoldEnvironment, FaManifoldEnvironment];
+  setFaManifoldEnvironment: [setFaManifoldEnvironment, null];
   internalMarkBridgeExport: [internalMarkBridgeExport, null];
   internalExportBridgeState: [internalExportBridgeState, null];
   setMintModuleFediFeeSchedule: [setMintModuleFediFeeSchedule, null];
@@ -1905,7 +1941,7 @@ export type RpcMsgLikeKind =
   | ({ msgtype: "m.poll" } & RpcPollResult)
   | ({ msgtype: "xyz.fedi.payment" } & RpcPaymentMessageContent)
   | ({ msgtype: "xyz.fedi.form" } & RpcFormMessageContent)
-  | ({ msgtype: "xyz.fedi.multispend" } & MultispendEvent)
+  | ({ msgtype: "xyz.fedi.multispend" } & MsEvent)
   | ({ msgtype: "m.room.member" } & RpcRoomMemberEventContent)
   | ({ msgtype: "spTransfer" } & SpTransferVirtualEvent)
   | { msgtype: "failedToParseCustom"; msg_type: string; error: string }
@@ -2372,7 +2408,7 @@ export type RpcTransaction = {
    */
   outcomeTime: number | null;
 } & (
-  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
+  | { kind: "faFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2423,7 +2459,7 @@ export type RpcTransactionDirection = "receive" | "send";
 export type RpcTransactionId = string;
 
 export type RpcTransactionKind =
-  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
+  | { kind: "faFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2482,7 +2518,7 @@ export type RpcTransactionListEntry = {
    */
   outcomeTime: number | null;
 } & (
-  | { kind: "fiFormationPayment"; seats_paid: number; seats_total: number }
+  | { kind: "faFormationPayment"; seats_paid: number; seats_total: number }
   | {
       kind: "lnPay";
       ln_invoice: string;
@@ -2780,7 +2816,9 @@ export type WalletServiceDkgRestartFeatureConfig = Record<string, never>;
  * Withdrawal request with extra data accumulated over events.
  */
 export type WithdrawRequestWithApprovals = {
-  request: { transfer_amount: RpcFiatAmount };
+  request:
+    | { kind: "fiat"; transfer_amount: RpcFiatAmount }
+    | { kind: "btc"; transfer_amount: RpcAmount };
   description: string;
   signatures: { [key in RpcUserId]?: RpcSignature };
   rejections: Array<RpcUserId>;
@@ -2796,7 +2834,10 @@ export type WithdrawTxSubmissionStatus =
 export type WithdrawalResponseType =
   | { kind: "approve"; signature: RpcSignature }
   | { kind: "reject" }
-  | { kind: "complete"; fiatAmount: RpcFiatAmount; txid: RpcTransactionId }
+  | ({ kind: "complete"; txid: RpcTransactionId } & (
+      | { fiatAmount: RpcFiatAmount }
+      | { btcAmount: RpcAmount }
+    ))
   | { kind: "txRejected"; error: string };
 
 export type approveSocialRecoveryRequest = {
@@ -2850,81 +2891,81 @@ export type evilSpamAddress = { federationId: RpcFederationId };
 
 export type evilSpamInvoices = { federationId: RpcFederationId };
 
+export type faClientAbandon = {};
+
+export type faClientApplyReplacements = {
+  previewId: string;
+  maxTotalMsats: RpcFaMsats;
+};
+
+export type faClientAuthorizeReplacementPayments = { authorizationId: string };
+
+export type faClientDecommission = {};
+
+export type faClientEligiblePayers = {};
+
+export type faClientLiquidityCurrent = {};
+
+export type faClientLiquidityDiscover = {
+  intent: RpcFaLiquidityRequestIntent;
+  network: RpcFaLiquidityNetwork;
+};
+
+export type faClientLiquidityList = { after: string | null };
+
+export type faClientLiquidityResume = { operationId: string };
+
+export type faClientLiquidityStart = {
+  formationId: string;
+  providerPubkey: string;
+  intent: RpcFaLiquidityRequestIntent;
+};
+
+export type faClientLiquidityStatus = { operationId: string };
+
+export type faClientPayAndCreate = {
+  previewId: string;
+  intent: RpcFaFormationIntent;
+  paymentFederationId: string;
+  maxTotalMsats: RpcFaMsats;
+};
+
+export type faClientPreviewReplacements = {};
+
+export type faClientPreviewSelection = {
+  request: RpcFaSelectionPreviewRequest;
+};
+
+export type faClientRegisterPushInstallation = {
+  fcmToken: string;
+  platform: RpcFaPushPlatform;
+};
+
+export type faClientRestartDkg = {};
+
+export type faClientResume = {};
+
+export type faClientScheduleReset = {};
+
+export type faClientSetGuardianFee = { guardianFeePpm: number };
+
+export type faClientSetupPaymentFederations = {};
+
+export type faClientStatus = {};
+
+export type faClientSubscribe = { streamId: RpcStreamId<RpcFaClientStatus> };
+
+export type faClientUnregisterPushInstallation = {};
+
+export type faClientUpdateFederationMetadata = {
+  update: RpcFaFederationMetadataUpdate;
+};
+
 export type federationPreview = { inviteCode: string };
 
 export type fedimintVersion = {};
 
 export type fetchRegisteredDevices = {};
-
-export type fiClientAbandon = {};
-
-export type fiClientApplyReplacements = {
-  previewId: string;
-  maxTotalMsats: RpcFiMsats;
-};
-
-export type fiClientAuthorizeReplacementPayments = { authorizationId: string };
-
-export type fiClientDecommission = {};
-
-export type fiClientEligiblePayers = {};
-
-export type fiClientLiquidityCurrent = {};
-
-export type fiClientLiquidityDiscover = {
-  intent: RpcFiLiquidityRequestIntent;
-  network: RpcFiLiquidityNetwork;
-};
-
-export type fiClientLiquidityList = { after: string | null };
-
-export type fiClientLiquidityResume = { operationId: string };
-
-export type fiClientLiquidityStart = {
-  formationId: string;
-  providerPubkey: string;
-  intent: RpcFiLiquidityRequestIntent;
-};
-
-export type fiClientLiquidityStatus = { operationId: string };
-
-export type fiClientPayAndCreate = {
-  previewId: string;
-  intent: RpcFiFormationIntent;
-  paymentFederationId: string;
-  maxTotalMsats: RpcFiMsats;
-};
-
-export type fiClientPreviewReplacements = {};
-
-export type fiClientPreviewSelection = {
-  request: RpcFiSelectionPreviewRequest;
-};
-
-export type fiClientRegisterPushInstallation = {
-  fcmToken: string;
-  platform: RpcFiPushPlatform;
-};
-
-export type fiClientRestartDkg = {};
-
-export type fiClientResume = {};
-
-export type fiClientScheduleReset = {};
-
-export type fiClientSetGuardianFee = { guardianFeePpm: number };
-
-export type fiClientSetupPaymentFederations = {};
-
-export type fiClientStatus = {};
-
-export type fiClientSubscribe = { streamId: RpcStreamId<RpcFiClientStatus> };
-
-export type fiClientUnregisterPushInstallation = {};
-
-export type fiClientUpdateFederationMetadata = {
-  update: RpcFiFederationMetadataUpdate;
-};
 
 export type generateAddress = {
   federationId: RpcFederationId;
@@ -2958,9 +2999,9 @@ export type getAccruedPendingFediFeesPerTXTypeByStream = {
   stream: RpcFediFeeStream;
 };
 
-export type getFeatureCatalog = {};
+export type getFaManifoldEnvironment = {};
 
-export type getFiManifoldEnvironment = {};
+export type getFeatureCatalog = {};
 
 export type getGatewayOverride = { federationId: RpcFederationId };
 
@@ -3038,7 +3079,10 @@ export type matrixApproveMultispendGroupInvitation = {
   invitation: RpcEventId;
 };
 
-export type matrixCancelMultispendGroupInvitation = { roomId: RpcRoomId };
+export type matrixCancelMultispendGroupInvitation = {
+  roomId: RpcRoomId;
+  kind: MultispendGroupKind;
+};
 
 export type matrixClearComposerDraft = { roomId: RpcRoomId };
 
@@ -3081,7 +3125,7 @@ export type matrixLoadComposerDraft = { roomId: RpcRoomId };
 
 export type matrixMultispendDeposit = {
   roomId: RpcRoomId;
-  amount: RpcFiatAmount;
+  amount: MultispendAmount;
   description: string;
   frontendMeta: FrontendMetadata;
 };
@@ -3093,6 +3137,7 @@ export type matrixMultispendEventData = {
 
 export type matrixMultispendListEvents = {
   roomId: RpcRoomId;
+  kind: MultispendGroupKind;
   startAfter: number | null;
   limit: number;
 };
@@ -3207,6 +3252,7 @@ export type matrixSendMessage = { roomId: RpcRoomId; data: SendMessageData };
 
 export type matrixSendMultispendGroupInvitation = {
   roomId: RpcRoomId;
+  kind: MultispendGroupKind;
   signers: Array<RpcUserId>;
   threshold: number;
   federationId: RpcFederationId;
@@ -3225,7 +3271,7 @@ export type matrixSendMultispendWithdrawalReject = {
 
 export type matrixSendMultispendWithdrawalRequest = {
   roomId: RpcRoomId;
-  amount: RpcFiatAmount;
+  amount: MultispendAmount;
   description: string;
 };
 
@@ -3264,6 +3310,7 @@ export type matrixStartPoll = {
 
 export type matrixSubscribeMultispendAccountInfo = {
   roomId: RpcRoomId;
+  kind: MultispendGroupKind;
   streamId: RpcStreamId<{ Ok: RpcSPv2SyncResponse } | { Err: NetworkError }>;
 };
 
@@ -3276,6 +3323,7 @@ export type matrixSubscribeMultispendEventData = {
 export type matrixSubscribeMultispendGroup = {
   streamId: RpcStreamId<RpcMultispendGroupStatus>;
   roomId: RpcRoomId;
+  kind: MultispendGroupKind;
 };
 
 export type matrixSubscribeRoomList = {
@@ -3390,7 +3438,7 @@ export type resetUnrecognizedSeed = {};
 
 export type restoreMnemonic = { mnemonic: Array<string> };
 
-export type setFiManifoldEnvironment = { environment: FiManifoldEnvironment };
+export type setFaManifoldEnvironment = { environment: FaManifoldEnvironment };
 
 export type setGatewayOverride = {
   federationId: RpcFederationId;

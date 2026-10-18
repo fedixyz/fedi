@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import {
     AppiumTestBase,
+    COLD_START_TIMEOUT,
     MATRIX_TIMEOUT,
 } from '../../configs/appium/AppiumTestBase'
 import { Platform, currentPlatform } from '../../configs/appium/types'
@@ -140,7 +141,7 @@ export class ChatPayments extends AppiumTestBase {
 type Profile = { userId: string; displayName: string }
 
 async function onboardWithoutFederation(t: AppiumTestBase): Promise<void> {
-    await t.clickElementByKey('Get started')
+    await t.clickElementByKey('Get started', COLD_START_TIMEOUT)
     await t.clickElementByKey('No')
     await t.waitForElementDisplayed('ManualSetupButton', 90000)
 }

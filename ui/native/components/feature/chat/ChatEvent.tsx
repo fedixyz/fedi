@@ -12,7 +12,7 @@ import {
     toggleMatrixReaction,
 } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { deriveUrlsFromText } from '@fedi/common/utils/chat'
+import { deriveUrlsFromText } from '@fedi/common/utils/linking'
 import {
     arePollEventsEqual,
     isBolt11PaymentEvent,

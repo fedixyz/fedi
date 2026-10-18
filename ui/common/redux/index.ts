@@ -24,7 +24,9 @@ import { analyticsSlice } from './analytics'
 import { browserSlice } from './browser'
 import { currencySlice, refreshHistoricalCurrencyRates } from './currency'
 import { environmentSlice, selectIsInternetUnreachable } from './environment'
+import { faSlice, setFaFederationJoin } from './fa'
 import {
+    checkFederationForAutojoinCommunities,
     federationSlice,
     joinFederation,
     migrateCommunityV1ToV2,
@@ -40,7 +42,6 @@ import {
     upsertCommunity,
     upsertFederation,
 } from './federation'
-import { fiSlice, setFiFederationJoin } from './fi'
 import {
     checkForReceivablePayments,
     handleMatrixRoomTimelineStreamUpdates,
@@ -68,7 +69,7 @@ const log = makeLog('common/redux/index')
 export * from './currency'
 export * from './environment'
 export * from './federation'
-export * from './fi'
+export * from './fa'
 export * from './matrix'
 export * from './nux'
 export * from './personal-backup-reminder/personalBackupReminderSlice'
@@ -84,7 +85,7 @@ export const commonReducers = {
     currency: currencySlice.reducer,
     environment: environmentSlice.reducer,
     federation: federationSlice.reducer,
-    fi: fiSlice.reducer,
+    fi: faSlice.reducer,
     matrix: matrixSlice.reducer,
     mod: modSlice.reducer,
     nux: nuxSlice.reducer,
@@ -197,29 +198,36 @@ export function initializeCommonStore({
                     break
                 // For ready states we prepare the full loaded federation with meta + status updates
                 case 'ready': {
-                    let loadedFederation = coerceLoadedFederation(
+                    const existing = selectLoadedFederation(
+                        getState(),
+                        event.id,
+                    )
+                    const loadedFederation = coerceLoadedFederation(
                         event,
-                        selectLoadedFederation(getState(), event.id)?.status,
+                        existing?.status,
                     )
                     dispatch(upsertFederation(loadedFederation))
 
                     if ('meta' in loadedFederation) {
-                        // if the federation_name is found in the meta, overwrite top-level name field
-
-                        if (loadedFederation.meta.federation_name) {
-                            // Make copy to avoid permission errors assigning value to read-only property
-                            loadedFederation = {
-                                ...loadedFederation,
-                                name: loadedFederation.meta.federation_name,
-                            }
-                        }
-
                         dispatch(
                             processFederationMeta({
                                 fedimint,
                                 federation: loadedFederation,
                             }),
                         )
+                        // The join flow selects linked communities. Background joins must wait for it.
+                        if (
+                            existing &&
+                            getState().federation.federationJoinRequests
+                                .length === 0
+                        ) {
+                            dispatch(
+                                checkFederationForAutojoinCommunities({
+                                    fedimint,
+                                    federation: loadedFederation,
+                                }),
+                            )
+                        }
                     }
 
                     // also refresh the guardian status when we get a federation update
@@ -281,11 +289,11 @@ export function initializeCommonStore({
     )
 
     // Record the Wallet Service's federation join state as the bridge reports
-    // it, including the re-emit on every `fiClientStatus` read
-    const unsubscribeFiFederationJoin = fedimint.addListener(
-        'fiFederationJoin',
+    // it, including the re-emit on every `faClientStatus` read
+    const unsubscribeFaFederationJoin = fedimint.addListener(
+        'faFederationJoin',
         event => {
-            dispatch(setFiFederationJoin(event))
+            dispatch(setFaFederationJoin(event))
         },
     )
 
@@ -391,7 +399,7 @@ export function initializeCommonStore({
         dispatch(setGuardianMonitoringActive(false))
         unsubscribeFederation()
         unsubscribeNonceReuseCheckFailed()
-        unsubscribeFiFederationJoin()
+        unsubscribeFaFederationJoin()
         unsubscribeCommunities()
         unsubscribeCommunityMigration()
         unsubscribeBalance()

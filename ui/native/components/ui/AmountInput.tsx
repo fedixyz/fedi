@@ -38,6 +38,7 @@ export type Props = {
     amount: Sats
     switcherEnabled?: boolean
     lockToFiat?: boolean
+    lockToSats?: boolean
     readOnly?: boolean
     minimumAmount?: Sats | null
     maximumAmount?: Sats | null
@@ -71,6 +72,7 @@ const AmountInput: React.FC<Props> = ({
     readOnly,
     switcherEnabled = true,
     lockToFiat = false,
+    lockToSats = false,
     minimumAmount,
     maximumAmount,
     submitAttempts,
@@ -133,6 +135,10 @@ const AmountInput: React.FC<Props> = ({
     useEffect(() => {
         if (lockToFiat) setIsFiat(true)
     }, [lockToFiat, setIsFiat])
+
+    useEffect(() => {
+        if (lockToSats) setIsFiat(false)
+    }, [lockToSats, setIsFiat])
 
     // Check validation for errors to render with suggestion for amount.
     let error: React.ReactNode | undefined

@@ -39,18 +39,18 @@ async function fedimintRpc<Type = void>(
 // dev builds only: Metro drops a require inside a dead __DEV__ branch, so
 // nothing under native/devtools reaches a release bundle
 /* eslint-disable @typescript-eslint/no-require-imports */
-export const fiDevTools = __DEV__
+export const faDevTools = __DEV__
     ? (
-          require('../devtools/fi') as typeof import('../devtools/fi')
-      ).attachFiDevTools(fedimintRpc, storage)
+          require('../devtools/fa') as typeof import('../devtools/fa')
+      ).attachFaDevTools(fedimintRpc, storage)
     : null
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 export const fedimint = new FedimintBridge(
-    fiDevTools ? fiDevTools.rpc : fedimintRpc,
+    faDevTools ? faDevTools.rpc : fedimintRpc,
 )
 
-fiDevTools?.attachBridge(fedimint)
+faDevTools?.attachBridge(fedimint)
 
 export async function subscribeToBridgeEvents() {
     // Pass through all native bridge events to the FedimintBridge class instance
@@ -58,18 +58,11 @@ export async function subscribeToBridgeEvents() {
     const eventTypes: (keyof FedimintBridgeEventMap)[] =
         await FedimintFfi.getSupportedEvents()
 
-    // returns an array of subscriptions to unsubscribe later
-    return eventTypes.map(eventType =>
+    eventTypes.forEach(eventType =>
         emitter.addListener(eventType, (serializedEvent: string) => {
             fedimint.emit(eventType, JSON.parse(serializedEvent))
         }),
     )
-}
-
-export async function unsubscribeFromBridgeEvents(
-    subscriptions: Awaited<ReturnType<typeof subscribeToBridgeEvents>>,
-) {
-    subscriptions.forEach(s => s.remove())
 }
 
 export const getAppFlavor = (): RpcAppFlavor['type'] => {

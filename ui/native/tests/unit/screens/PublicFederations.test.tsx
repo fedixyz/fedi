@@ -8,7 +8,7 @@ import React from 'react'
 
 import {
     setFeatureFlags,
-    setFiStatus,
+    setFaStatus,
     setupStore,
     setManifoldCreationOverrideEnabled,
 } from '@fedi/common/redux'
@@ -59,7 +59,7 @@ const makeStore = ({ walletServiceCreation = false } = {}) => {
                 : {}) as FeatureCatalog,
         ),
     )
-    store.dispatch(setFiStatus({ type: 'idle' }))
+    store.dispatch(setFaStatus({ type: 'idle' }))
     return store
 }
 

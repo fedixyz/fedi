@@ -114,7 +114,7 @@ export const WalletServiceGuardiansSheet: React.FC<{
                             color={theme.colors.black}
                             numberOfLines={1}
                             style={style.name}>
-                            {guardian.fman_name ??
+                            {guardian.mg_name ??
                                 t(
                                     'feature.wallet-service.guardian-fallback-name',
                                     { number: guardian.seat },
