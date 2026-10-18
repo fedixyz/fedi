@@ -1,16 +1,30 @@
 /* eslint-disable no-console */
+import { bech32m } from 'bech32'
+import { execFileSync } from 'child_process'
+import { createServer } from 'http'
+import { AddressInfo } from 'net'
+
 import { resources } from '@fedi/common/localization'
 
+import AppiumManager from '../../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 import { Platform, currentPlatform } from '../../configs/appium/types'
+import { openFediTestnetPreview } from '../fixtures/setupOnboarded'
 
 const en = resources.en.translation
 const CREATION_TITLE = en.feature['wallet-service']['guardian-set-title']
 const APP_START_TIMEOUT = 60_000
 const PIN = ['1', '2', '3', '4'] as const
+const SPACE_NAME = 'E2E Invite Link Space'
+const SPACE_WATCH_MS = 30_000
+const SPACE_FETCH_DELAY_MS = 2_000
+const SPACE_RESPONSE_GAP_MS = 2_000
 
 export class DeepLinks extends AppiumTestBase {
-    static produces = ['onboardedWithoutFederation', 'pinProtected'] as const
+    static produces = ['onboarded', 'pinProtected'] as const
+
+    private spaceFetches = 0
+    private lastSpaceResponseAt = 0
 
     async execute(): Promise<void> {
         console.log('Opening a Manifold creation link before onboarding')
@@ -52,6 +66,13 @@ export class DeepLinks extends AppiumTestBase {
         await this.assertCreationOpen()
         await this.backToWallet()
 
+        console.log('Joining Fedi Testnet')
+        await this.clickElementByKey('ManualSetupButton')
+        await openFediTestnetPreview(this)
+        await this.clickElementByKey('JoinFederationButton')
+        await this.clickElementByKey('HomeTabButton')
+        await this.openSpaceInviteLinks()
+
         await this.enablePin()
         console.log('Opening a Manifold creation link while PIN protected')
         await this.terminateApp()
@@ -68,8 +89,122 @@ export class DeepLinks extends AppiumTestBase {
 
         await this.enterPin(PIN)
         await this.assertCreationOpen()
-        await this.backToWallet()
+        await this.clickElementByKey('HeaderBackButton')
+        await this.waitForElementDisplayed('WalletTabButton')
         console.log('Deep links test complete')
+    }
+
+    private async openSpaceInviteLinks(): Promise<void> {
+        const server = createServer((request, response) => {
+            if (request.url !== '/space.json') {
+                response.writeHead(404)
+                response.end()
+                return
+            }
+            this.spaceFetches++
+            // wallet updates mid-fetch start a second fetch. its answer has to land
+            // after the first preview is showing for a reload to be visible
+            const respondAt = Math.max(
+                Date.now() + SPACE_FETCH_DELAY_MS,
+                this.lastSpaceResponseAt + SPACE_RESPONSE_GAP_MS,
+            )
+            this.lastSpaceResponseAt = respondAt
+            setTimeout(() => {
+                response.writeHead(200, {
+                    'Content-Type': 'application/json',
+                })
+                response.end(JSON.stringify({ version: 1, name: SPACE_NAME }))
+            }, respondAt - Date.now())
+        })
+        await new Promise<void>((resolve, reject) => {
+            server.once('error', reject)
+            server.listen(0, '127.0.0.1', resolve)
+        })
+        const { port } = server.address() as AddressInfo
+        let forwardedDevice: string | undefined
+        const invite = bech32m.encode(
+            'fedi:community',
+            bech32m.toWords(
+                Buffer.from(
+                    JSON.stringify({
+                        community_meta_url: `http://127.0.0.1:${port}/space.json`,
+                    }),
+                ),
+            ),
+            1023,
+        )
+        const link = `fedi://join/${invite.replace('fedi:', '')}`
+
+        try {
+            if (currentPlatform === Platform.ANDROID) {
+                const device = AppiumManager.deviceId(this.handle)
+                if (!device) throw new Error('No Android device for the space')
+                execFileSync('adb', [
+                    '-s',
+                    device,
+                    'reverse',
+                    `tcp:${port}`,
+                    `tcp:${port}`,
+                ])
+                forwardedDevice = device
+            }
+
+            console.log('Opening a space invite link from the background')
+            await this.driver.executeScript('mobile: backgroundApp', [
+                { seconds: -1 },
+            ])
+            await this.openDeepLink(link)
+            await this.watchSpacePreview('background')
+
+            console.log('Opening a space invite link from a cold start')
+            await this.terminateApp()
+            await this.openDeepLink(link)
+            await this.watchSpacePreview('cold start')
+        } finally {
+            if (forwardedDevice) {
+                execFileSync('adb', [
+                    '-s',
+                    forwardedDevice,
+                    'reverse',
+                    '--remove',
+                    `tcp:${port}`,
+                ])
+            }
+            server.closeAllConnections()
+            await new Promise<void>(resolve => server.close(() => resolve()))
+        }
+    }
+
+    private async watchSpacePreview(label: string): Promise<void> {
+        const fetchesBefore = this.spaceFetches
+        await this.waitForElementDisplayed(
+            'JoinFederationButton',
+            APP_START_TIMEOUT,
+        )
+        let reloads = 0
+        let shown = true
+        const deadline = Date.now() + SPACE_WATCH_MS
+        while (Date.now() < deadline) {
+            const button = await this.findElementByKey('JoinFederationButton')
+            const visible =
+                button !== null &&
+                (await button.isDisplayed().catch(() => false))
+            if (shown && !visible) reloads++
+            shown = visible
+            await new Promise(resolve => setTimeout(resolve, 250))
+        }
+        const fetches = this.spaceFetches - fetchesBefore
+        console.log(
+            `${label}: space preview left the screen ${reloads} times, fetched ${fetches} times`,
+        )
+        if (reloads > 0) {
+            await this.saveScreenshot(`space-preview-reload-${label}`)
+            throw new Error(
+                `The space preview went back to loading ${reloads} times after the ${label} link, and the app fetched it ${fetches} times`,
+            )
+        }
+        await this.waitForText(SPACE_NAME, 0, true)
+        await this.clickElementByKey('HeaderBackButton')
     }
 
     private async assertCreationOpen(): Promise<void> {
