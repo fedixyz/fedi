@@ -26,6 +26,17 @@ global.fetch = jest.fn((url, options) => {
         })
     }
 
+    if (url.includes('api.yadio.io')) {
+        return Promise.resolve({
+            json: () =>
+                Promise.resolve({
+                    // 720 CUP per USD, matching a realistic market rate
+                    result: 720,
+                    rate: 720,
+                }),
+        })
+    }
+
     if (url.includes('/api/federations')) {
         return Promise.resolve({ json: () => Promise.resolve(federationsData) })
     }
