@@ -132,13 +132,13 @@ describe('log utilities', () => {
         jest.useRealTimers()
     })
 
-    it('never persists FI stream payloads while delivering them to subscribers', async () => {
+    it('never persists FA stream payloads while delivering them to subscribers', async () => {
         jest.mocked(isDev).mockReturnValue(true)
-        const sentinel = 'private-fi-invite-sentinel'
+        const sentinel = 'private-fa-invite-sentinel'
         const rpc = jest.fn().mockResolvedValue(undefined)
         const bridge = new FedimintBridge(rpc)
         const callback = jest.fn()
-        const status: bindings.RpcFiClientStatus = {
+        const status: bindings.RpcFaClientStatus = {
             type: 'ready',
             status: {
                 type: 'formation',
@@ -167,7 +167,7 @@ describe('log utilities', () => {
             },
         }
 
-        const unsubscribe = bridge.fiClientSubscribe({ callback })
+        const unsubscribe = bridge.faClientSubscribe({ callback })
         bridge.emit('streamUpdate', {
             stream_id: 0,
             sequence: 0,

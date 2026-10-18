@@ -37,10 +37,7 @@ import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToChatsScreen, resetToGroupChat } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
-import {
-    useChatKeyboardBehavior,
-    useImeFooterLift,
-} from '../utils/hooks/keyboard'
+import { useImeFooterLift } from '../utils/hooks/keyboard'
 
 const log = makeLog('ChatRoomConversation')
 type PinnedScrollRequest = {
@@ -82,7 +79,6 @@ const ChatRoomConversation: React.FC<Props> = ({
         useConnectionRequestData(roomId)
 
     const directUserId = room?.directUserId
-    const { bottomOffset, setMessageInputHeight } = useChatKeyboardBehavior()
 
     useEffect(() => {
         if (room || groupPreview) return
@@ -238,7 +234,6 @@ const ChatRoomConversation: React.FC<Props> = ({
                     type={chatType}
                     id={roomId || ''}
                     isPublic={room?.isPublic ?? false}
-                    newMessageBottomOffset={bottomOffset}
                     connectionRequestPending={connectionRequestPending}
                     scrollToMessageRequest={pinnedScrollRequest}
                     onScrollToMessageComplete={setFocusedPinnedEventId}
@@ -255,7 +250,6 @@ const ChatRoomConversation: React.FC<Props> = ({
                         isSending={isSending}
                         isPublic={room?.isPublic ?? false}
                         isDisabled={!!connectionRequestPending}
-                        onHeightChanged={setMessageInputHeight}
                     />
                 </View>
             </Column>

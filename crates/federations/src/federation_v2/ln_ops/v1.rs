@@ -296,7 +296,7 @@ impl LnOps for LnOpsV1 {
         } else {
             // External payments have a non-0 gateway fee in addition to Fedi app fee
             let gateway = fed
-                .select_gateway()
+                .select_gateway_for_payment()
                 .await?
                 .context("No gateway available")?;
             let gateway_fees = gateway.fees;
@@ -347,7 +347,7 @@ impl LnOps for LnOpsV1 {
             .await?;
         let fedi_fee = FederationV2::total_fedi_fee_amount(&fees_by_stream);
 
-        let gateway = fed.select_gateway().await?;
+        let gateway = fed.select_gateway_for_payment().await?;
         let spend_guard = fed.spend_guard.lock().await;
         let virtual_balance = fed.get_balance().await;
         let ensure_spendable = |gateway_fees: RoutingFees| -> Result<u64> {

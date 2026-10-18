@@ -12,6 +12,7 @@ import {
     NativeSyntheticEvent,
     Pressable,
     StyleSheet,
+    View,
 } from 'react-native'
 
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
@@ -63,7 +64,6 @@ type MessagesListProps = {
     id: string
     multiUserChat?: boolean
     isPublic?: boolean
-    newMessageBottomOffset: number
     connectionRequestPending?: boolean
     listRefOverride?: ConversationListRefOverride
     scrollToMessageRequest?: ScrollToMessageRequest | null
@@ -76,11 +76,13 @@ type ChatRoomConversationRouteProp = RouteProp<
     'ChatRoomConversation'
 >
 
+// Far enough below the list's bottom edge to park the button out of view.
+const NEW_MESSAGE_BUTTON_HIDDEN_BOTTOM = -100
+
 const ChatConversation: React.FC<MessagesListProps> = ({
     type,
     id,
     isPublic = true,
-    newMessageBottomOffset = 90,
     connectionRequestPending = false,
     listRefOverride,
     scrollToMessageRequest = null,
@@ -117,7 +119,9 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         useObserveMatrixRoom(id)
     const [hasNewMessage, setHasNewMessages] = useState(false)
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-    const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
+    const animatedNewMessageBottom = useRef(
+        new Animated.Value(NEW_MESSAGE_BUTTON_HIDDEN_BOTTOM),
+    ).current
     const isScrolledToBottomRef = useRef(true)
     const lastBottomStateRef = useRef(true)
     const isUserScrollActiveRef = useRef(false)
@@ -221,12 +225,14 @@ const ChatConversation: React.FC<MessagesListProps> = ({
 
     useEffect(() => {
         Animated.timing(animatedNewMessageBottom, {
-            toValue: hasNewMessage ? newMessageBottomOffset : -100,
+            toValue: hasNewMessage
+                ? theme.spacing.lg
+                : NEW_MESSAGE_BUTTON_HIDDEN_BOTTOM,
             duration: 100,
             useNativeDriver: false,
             easing: Easing.linear,
         }).start()
-    }, [animatedNewMessageBottom, hasNewMessage, newMessageBottomOffset])
+    }, [animatedNewMessageBottom, hasNewMessage, theme.spacing.lg])
 
     const handleBottomStateChange = useCallback(
         (isAtBottom: boolean) => {
@@ -337,107 +343,121 @@ const ChatConversation: React.FC<MessagesListProps> = ({
 
     return (
         <>
-            {shouldRenderConversationList ? (
-                <ConversationMessageVisibilityContext.Provider
-                    value={messageVisibilityStore}>
-                    <FlatList
-                        data={chatRows}
-                        ref={
-                            listRefOverride
-                                ? undefined
-                                : (listRef as React.RefObject<FlatList<ChatConversationRow> | null>)
-                        }
-                        renderItem={renderEventRow}
-                        keyExtractor={item => item.event.id as string}
-                        style={[
-                            style.listContainer,
-                            {
-                                paddingHorizontal:
-                                    type === 'group'
-                                        ? theme.spacing.lg
-                                        : theme.spacing.xl,
-                            },
-                        ]}
-                        contentContainerStyle={style.contentContainer}
-                        ListEmptyComponent={
-                            isAlone ? (
-                                <NoMembersNotice roomId={id} />
-                            ) : (
-                                <NoMessagesNotice
-                                    isBroadcast={isBroadcast}
-                                    isDefault={isDefault}
-                                />
-                            )
-                        }
-                        ListHeaderComponent={
-                            isBlocked ? (
-                                <Column
-                                    align="center"
-                                    fullWidth
-                                    style={style.blockedContainer}>
-                                    <Text tiny style={style.blockedText}>
-                                        {t(
-                                            'feature.chat.user-is-blocked-guidance',
-                                        )}
-                                    </Text>
-                                </Column>
-                            ) : undefined
-                        }
-                        onScroll={handleScroll}
-                        onScrollBeginDrag={handleScrollBegin}
-                        onMomentumScrollBegin={handleScrollBegin}
-                        onScrollEndDrag={handleScrollEnd}
-                        onMomentumScrollEnd={handleScrollEnd}
-                        onScrollToIndexFailed={handleScrollToIndexFailed}
-                        inverted={chatRows.length > 0}
-                        onEndReachedThreshold={0.1}
-                        onEndReached={() => handlePaginate()}
-                        refreshing={isPaginating}
-                        maintainVisibleContentPosition={{
-                            minIndexForVisible: 1,
-                            autoscrollToTopThreshold: 100,
-                        }}
-                        scrollsToTop={false}
-                        removeClippedSubviews={false}
-                        maxToRenderPerBatch={10}
-                        windowSize={10}
-                        initialNumToRender={10}
-                        onViewableItemsChanged={handleViewableItemsChanged}
-                        viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
-                        keyboardShouldPersistTaps="handled"
-                    />
-                </ConversationMessageVisibilityContext.Provider>
-            ) : (
-                <Column justify="center" grow>
-                    <ActivityIndicator
-                        size="large"
-                        color={theme.colors.primary}
-                    />
-                </Column>
-            )}
+            <View style={style.conversationContainer}>
+                {shouldRenderConversationList ? (
+                    <ConversationMessageVisibilityContext.Provider
+                        value={messageVisibilityStore}>
+                        <FlatList
+                            data={chatRows}
+                            ref={
+                                listRefOverride
+                                    ? undefined
+                                    : (listRef as React.RefObject<FlatList<ChatConversationRow> | null>)
+                            }
+                            renderItem={renderEventRow}
+                            keyExtractor={item => item.event.id as string}
+                            style={[
+                                style.listContainer,
+                                {
+                                    paddingHorizontal:
+                                        type === 'group'
+                                            ? theme.spacing.lg
+                                            : theme.spacing.xl,
+                                },
+                            ]}
+                            contentContainerStyle={style.contentContainer}
+                            ListEmptyComponent={
+                                isAlone ? (
+                                    <NoMembersNotice roomId={id} />
+                                ) : (
+                                    <NoMessagesNotice
+                                        isBroadcast={isBroadcast}
+                                        isDefault={isDefault}
+                                    />
+                                )
+                            }
+                            ListHeaderComponent={
+                                isBlocked ? (
+                                    <Column
+                                        align="center"
+                                        fullWidth
+                                        style={style.blockedContainer}>
+                                        <Text tiny style={style.blockedText}>
+                                            {t(
+                                                'feature.chat.user-is-blocked-guidance',
+                                            )}
+                                        </Text>
+                                    </Column>
+                                ) : undefined
+                            }
+                            onScroll={handleScroll}
+                            onScrollBeginDrag={handleScrollBegin}
+                            onMomentumScrollBegin={handleScrollBegin}
+                            onScrollEndDrag={handleScrollEnd}
+                            onMomentumScrollEnd={handleScrollEnd}
+                            onScrollToIndexFailed={handleScrollToIndexFailed}
+                            inverted={chatRows.length > 0}
+                            onEndReachedThreshold={0.1}
+                            onEndReached={() => handlePaginate()}
+                            refreshing={isPaginating}
+                            maintainVisibleContentPosition={{
+                                minIndexForVisible: 1,
+                                autoscrollToTopThreshold: 100,
+                            }}
+                            scrollsToTop={false}
+                            removeClippedSubviews={false}
+                            maxToRenderPerBatch={10}
+                            windowSize={10}
+                            initialNumToRender={10}
+                            onViewableItemsChanged={handleViewableItemsChanged}
+                            viewabilityConfig={{
+                                itemVisiblePercentThreshold: 1,
+                            }}
+                            keyboardShouldPersistTaps="handled"
+                        />
+                    </ConversationMessageVisibilityContext.Provider>
+                ) : (
+                    <Column justify="center" grow>
+                        <ActivityIndicator
+                            size="large"
+                            color={theme.colors.primary}
+                        />
+                    </Column>
+                )}
+                <Animated.View
+                    testID="ChatNewMessagesButton"
+                    style={[
+                        style.newMessageButtonContainer,
+                        { bottom: animatedNewMessageBottom },
+                    ]}>
+                    <Pressable
+                        style={style.newMessageButton}
+                        onPress={scrollToEnd}>
+                        <Text small bold style={style.newMessageButtonText}>
+                            {t('feature.chat.new-messages')}
+                        </Text>
+                    </Pressable>
+                </Animated.View>
+            </View>
 
             <ChatUserActionsOverlay
                 onDismiss={() => setSelectedUserId(null)}
                 selectedUserId={selectedUserId}
                 roomId={id}
             />
-            <Animated.View
-                style={[
-                    style.newMessageButtonContainer,
-                    { bottom: animatedNewMessageBottom },
-                ]}>
-                <Pressable style={style.newMessageButton} onPress={scrollToEnd}>
-                    <Text small bold style={style.newMessageButtonText}>
-                        {t('feature.chat.new-messages')}
-                    </Text>
-                </Pressable>
-            </Animated.View>
         </>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        // Anchors the new messages button to the bottom of the message list,
+        // so it floats above the composer whatever the keyboard is doing, and
+        // clips it while it is parked below the list.
+        conversationContainer: {
+            flex: 1,
+            overflow: 'hidden',
+        },
         listContainer: {
             width: '100%',
             paddingHorizontal: theme.spacing.xl,

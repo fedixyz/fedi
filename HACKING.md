@@ -198,45 +198,45 @@ Two details worth knowing in that last hop: `balance` events are debounced befor
 some thunks register their own temporary listeners (e.g. `receiveEcash` listens for
 `transaction`).
 
-### Federation Initiator bridge API
+### Federation Ambassador bridge API
 
-Use the `FedimintBridge.fiClient*` methods rather than calling FI RPCs directly. Status reads and
-subscriptions expose the generated `RpcFiClientStatus` union, including a typed `failed` initial
-item if the FI client could not open. `fiClientSubscribe` emits the watch channel's current value
-first, keeps `rpcStream` private, and returns an `UnsubscribeFn`. Every FI millisatoshi value in
+Use the `FedimintBridge.faClient*` methods rather than calling FA RPCs directly. Status reads and
+subscriptions expose the generated `RpcFaClientStatus` union, including a typed `failed` initial
+item if the FA client could not open. `faClientSubscribe` emits the watch channel's current value
+first, keeps `rpcStream` private, and returns an `UnsubscribeFn`. Every FA millisatoshi value in
 these DTOs is a base-10 JSON string; convert it to `bigint` before arithmetic.
 
-Fedi passes its restored-mnemonic hint when opening `fi-client`. Manifold
-starts and retries the backup check, reports `FiStatus::Recovery` on the FI
-status watch, and guards FI mutations. The bridge holds its RPC command queue
-until status is ready and maps retryable failure to `RpcFiStatus::Recovery`.
-Manifold stores a completed lookup by environment in the FI database for
+Fedi passes its restored-mnemonic hint when opening `fa-client`. Manifold
+starts and retries the backup check, reports `FaStatus::Recovery` on the FA
+status watch, and guards FA mutations. The bridge holds its RPC command queue
+until status is ready and maps retryable failure to `RpcFaStatus::Recovery`.
+Manifold stores a completed lookup by environment in the FA database for
 ordinary relaunches.
 
 Formation commands are accepted by one `Runtime.task_group`-owned driver and executed serially.
 Once accepted, disconnecting or cancelling the RPC caller does not cancel the operation. Bridge
 shutdown does cancel in-flight work at a resumable durable checkpoint, and bridge launch calls
 `resume` for every persisted unfinished formation. A persisted `Formed` snapshot reopens as
-unsynced, stays projected as `Formed`, and is resumed until the exact FMan directory is published
+unsynced, stays projected as `Formed`, and is resumed until the exact MG directory is published
 and read back from consensus; `freshness` carries the launch recheck, and only the resulting fresh
 `Formed` state is maintenance-ready.
 The eligible-payer query is the bounded read-only exception to the mutation driver: it refreshes
 Manifold's authenticated payer policy and intersects it with Fedi wallets that are joined and
 fully `Ready`, retaining admitted zero-balance wallets for the existing refill flow.
 
-Paid creation uses `fiClientPreviewSelection`, `fiClientEligiblePayers`, and one explicit-payer
-`fiClientPayAndCreate` call through `FedimintBridge`. Production app bindings do not expose the
+Paid creation uses `faClientPreviewSelection`, `faClientEligiblePayers`, and one explicit-payer
+`faClientPayAndCreate` call through `FedimintBridge`. Production app bindings do not expose the
 pinned-locator or separate-authorization diagnostics. Formation passes zero guardian fee so it can
 reach `Formed`; the product-default 0.5% fee is applied only through separate post-formation
-maintenance. Normal FI operation failures are returned as typed result values with stable codes;
+maintenance. Normal FA operation failures are returned as typed result values with stable codes;
 UI code must not branch on their human-readable messages.
 
 After outputs start, one proven-safe refunded/rejected row is projected as
 `replaceGuardians`; accepted, pending, ambiguous, and all sibling rows stay fixed. Use
-`fiClientPreviewReplacements` and one `fiClientApplyReplacements(previewId, maxTotalMsats)` call.
+`faClientPreviewReplacements` and one `faClientApplyReplacements(previewId, maxTotalMsats)` call.
 That sealed preview is the renewed user authorization: Manifold automatically authorizes exact
 replacement quotes under its new cap. If the exact total is higher, status exposes
-`authorizeReplacementPayments`; only `fiClientAuthorizeReplacementPayments` can satisfy that exact
+`authorizeReplacementPayments`; only `faClientAuthorizeReplacementPayments` can satisfy that exact
 post-output replacement subset, and Manifold rejects it during initial selected creation. Do not add
 a generic production payment-authorization RPC or release a wallet hold because an in-memory
 preview/capability disappeared.
@@ -245,38 +245,38 @@ The exact Manifold source is the `manifold-src` flake input. Do not validate aga
 substituted source and then leave a different revision in `flake.lock`.
 
 Post-formation maintenance also stays on the same serialized driver. Call
-`FedimintBridge.fiClientUpdateFederationMetadata(update)` only after status is a
+`FedimintBridge.faClientUpdateFederationMetadata(update)` only after status is a
 fresh `Formed` snapshot. The supported update union is intentionally narrow:
 federation name, URL-based icon, `welcomeMessage` (also Fedi's federation
 description), and `termsOfService` with a `value` containing a public HTTP(S)
 URL. Fedi supplies the URL for both ready-made and custom terms. Upgrade all
-participating FMans before enabling these requests; older validators reject
+participating MGs before enabling these requests; older validators reject
 custom URLs. The ready-made URL must serve a public page before release.
 Manifold validates every value and
 proposes the corresponding meta-module consensus update; the Fedi caller does
 not supply a guardian account or raw meta key.
 
-Call `FedimintBridge.fiClientSetGuardianFee(guardianFeePpm)` only after that
+Call `FedimintBridge.faClientSetGuardianFee(guardianFeePpm)` only after that
 formed federation is joined and ready in the same Fedi installation. Units are
-parts per million with one-PPM precision, inclusive range `0..=100_000`. New FI
+parts per million with one-PPM precision, inclusive range `0..=100_000`. New FA
 formations start at zero so formation can reach `Formed`; the product's 0.5%
 default is the separate post-formation value `5_000`. The bridge derives the
-FI's SPv2 guardian-remittance account from the joined federation and does not
+FA's SPv2 guardian-remittance account from the joined federation and does not
 accept one from the caller.
 
 Native push registration is an installation lifecycle, not formation or
 payment authority. On native startup and whenever FCM refreshes its token, call
-`FedimintBridge.fiClientRegisterPushInstallation(fcmToken, platform)` before a
+`FedimintBridge.faClientRegisterPushInstallation(fcmToken, platform)` before a
 paid formation needs a hook. Call
-`FedimintBridge.fiClientUnregisterPushInstallation()` only when this
-installation should stop receiving FI updates. Registration may happen before
-selection or quote creation and must not be cached as proof of FI identity.
+`FedimintBridge.faClientUnregisterPushInstallation()` only when this
+installation should stop receiving FA updates. Registration may happen before
+selection or quote creation and must not be cached as proof of FA identity.
 WASM exposes the same typed methods but returns a sanitized, fail-closed
 unavailable result because it has no native FCM installation and cannot enforce
 the native HTTP transport boundary.
 
 The Fedi-owned formation notification route is defined once for runtime use in
-`ui/common/utils/fiPush.ts`. The shared producer/consumer fixture is
+`ui/common/utils/faPush.ts`. The shared producer/consumer fixture is
 `ui/common/tests/fixtures/fiFormationPushRoute.json`; both the Rust hook
 producer and TypeScript parser tests must match it. Its required FCM data
 fields are exactly:
@@ -289,10 +289,10 @@ fields are exactly:
 | `pg.workflow` | `federation_creation` |
 | `pg.action` | `resume` |
 
-Consumers must import `FI_FORMATION_PUSH_ROUTE` and
-`parseFiFormationPushRoute` rather than repeat these strings. A matching tap
-opens the federation-creation workflow, reads `fiClientStatus`, and calls
-`fiClientResume` when recovery is required. Recipient/notification ids and all
+Consumers must import `FA_FORMATION_PUSH_ROUTE` and
+`parseFaFormationPushRoute` rather than repeat these strings. A matching tap
+opens the federation-creation workflow, reads `faClientStatus`, and calls
+`faClientResume` when recovery is required. Recipient/notification ids and all
 payload state are non-authoritative routing or diagnostic data; never infer
 formation success, payment state, invite codes, or mutation authority from a
 notification.
@@ -303,7 +303,7 @@ within five minutes of the bridge's local request/response interval, its exact
 Paid formation returns the driver's global mutation claim to the hook
 coordinator, which holds it until callback ownership is settled. If an RPC
 caller disappears first, later preview cleanup checks authoritative
-`fiClientStatus`; a durable formation owns the callback and it must never be
+`faClientStatus`; a durable formation owns the callback and it must never be
 revoked.
 
 ### Types are generated, never hand-written

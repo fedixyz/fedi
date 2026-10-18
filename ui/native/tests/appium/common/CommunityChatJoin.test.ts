@@ -57,7 +57,7 @@ export class CommunityChatJoin extends AppiumTestBase {
         // Joiner: join the Space by pasting its invite.
         await joiner.acceptIosNotificationPromptIfPresent()
         await joiner.setClipboard(invite)
-        await joiner.clickElementByKey('HomeTabButton')
+        await joiner.openHomeTab()
         await joiner.clickElementByKey('PlusButton')
         await joiner.clickElementByKey('joinTab')
         await joiner.clickElementByKey('PasteButton')

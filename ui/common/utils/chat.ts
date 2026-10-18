@@ -207,66 +207,6 @@ export const parseData = <T extends z.ZodTypeAny>(
     return { success: false, errorMessage: t('errors.invalid-username') }
 }
 
-/**
- * Parse message text into segments for rendering
- * one or more URLs even when they are embedded in text
- */
-export type MessageSegment = {
-    type: 'text' | 'url'
-    content: string
-}
-
-// The "\b" before "https" prevents the regex from matching unwanted content at the beginning (e.g. "asdfhttps://link")
-const URL_REGEX = /\bhttps?:\/\/[^\s]+/gi
-
-export function parseMessageText(text: string): MessageSegment[] {
-    const segments: MessageSegment[] = []
-    let currentIndex = 0
-
-    let match
-
-    while ((match = URL_REGEX.exec(text)) !== null) {
-        // Add text before the URL if there is any
-        // Validate the URL
-        try {
-            new URL(match[0])
-        } catch {
-            // If URL is invalid, treat it as text
-            continue
-        }
-
-        // Add text before the URL if there is any
-        if (match.index > currentIndex) {
-            segments.push({
-                type: 'text',
-                content: text.slice(currentIndex, match.index),
-            })
-        }
-        segments.push({
-            type: 'url',
-            content: match[0],
-        })
-
-        currentIndex = match.index + match[0].length
-    }
-
-    // slice off and add the remaining text
-    if (currentIndex < text.length) {
-        segments.push({
-            type: 'text',
-            content: text.slice(currentIndex),
-        })
-    }
-
-    return segments
-}
-
-export const deriveUrlsFromText = (text: string) => {
-    return parseMessageText(text)
-        .filter(segment => segment.type === 'url')
-        .map(segment => segment.content)
-}
-
 export const generateRandomDisplayName = () => {
     const randomIndexFirst = Math.floor(Math.random() * wordListFirst.length)
     const randomIndexLast = Math.floor(Math.random() * wordListLast.length)

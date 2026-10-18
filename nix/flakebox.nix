@@ -21,7 +21,7 @@ let
     ".clippy.toml"
     "bridge"
     "crates"
-    # Shared producer/consumer contract compiled by the FI push Rust tests.
+    # Shared producer/consumer contract compiled by the FA push Rust tests.
     "ui/common/tests/fixtures/fiFormationPushRoute.json"
   ];
 

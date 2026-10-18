@@ -13,18 +13,18 @@ use fedimint_core::core::ModuleKind;
 use multispend::services::MultispendServices;
 use nostril::Nostril;
 use rpc_types::event::TypedEventExt as _;
-use rpc_types::fi_client::{
-    RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiDecommissionRefusal,
-    RpcFiDecommissionResult, RpcFiEligiblePayersResult, RpcFiErrorCode,
-    RpcFiFederationMetadataUpdate, RpcFiFormationIntent, RpcFiLiquidityDiscoveryResult,
-    RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult, RpcFiLiquidityOperationResult,
-    RpcFiLiquidityRequestIntent, RpcFiOperationError, RpcFiOperationResult, RpcFiPushPlatform,
-    RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult, RpcFiSelectionPreviewRequest,
-    RpcFiSelectionPreviewResult, RpcFiSetupPaymentFederationsResult,
+use rpc_types::fa_client::{
+    RpcFaClientStatus, RpcFaCurrentLiquidityOperationResult, RpcFaDecommissionRefusal,
+    RpcFaDecommissionResult, RpcFaEligiblePayersResult, RpcFaErrorCode,
+    RpcFaFederationMetadataUpdate, RpcFaFormationIntent, RpcFaLiquidityDiscoveryResult,
+    RpcFaLiquidityNetwork, RpcFaLiquidityOperationPageResult, RpcFaLiquidityOperationResult,
+    RpcFaLiquidityRequestIntent, RpcFaOperationError, RpcFaOperationResult, RpcFaPushPlatform,
+    RpcFaPushRegistrationResult, RpcFaReplacementPreviewResult, RpcFaSelectionPreviewRequest,
+    RpcFaSelectionPreviewResult, RpcFaSetupPaymentFederationsResult,
 };
 use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
-use runtime::features::FiManifoldEnvironment;
+use runtime::features::FaManifoldEnvironment;
 use runtime::storage::state::{DeviceIdentifier, ModuleFediFeeSchedule, OnboardingMethod};
 use serde::Serialize;
 use sp_transfer::services::SptServices;
@@ -33,12 +33,12 @@ use tracing::error;
 use ts_rs::TS;
 
 use crate::bg_matrix::BgMatrix;
-use crate::fi_client::{
-    BridgeFiClient, BridgeFiDriver, FiFederationHandoffLocks, FiFederationJoinReport,
-    fi_client_status_to_rpc, fi_error_to_rpc, fi_push_error_to_rpc, open_fi_client,
-    start_fi_driver, start_fi_federation_auto_join, suppress_fi_federation_auto_join,
+use crate::fa_client::{
+    BridgeFaClient, BridgeFaDriver, FaFederationHandoffLocks, FaFederationJoinReport,
+    fa_client_status_to_rpc, fa_error_to_rpc, fa_push_error_to_rpc, open_fa_client,
+    start_fa_driver, start_fa_federation_auto_join, suppress_fa_federation_auto_join,
 };
-use crate::fi_push::{BridgeFiPushGateway, FiPushError, FiPushPlatform};
+use crate::fa_push::{BridgeFaPushGatewayCache, FaPushPlatform};
 use crate::providers::{
     FederationProviderWrapper, MultispendNotificationsProvider, SptFederationProviderWrapper,
     SptNotificationsProvider,
@@ -59,17 +59,20 @@ pub struct BridgeFull {
     pub sp_transfers_services: Arc<SptServices>,
     pub device_registration_service: Arc<DeviceRegistrationService>,
     pub nostril: Arc<Nostril>,
-    /// Dormant FI service. Initialization errors are retained without
+    /// Dormant FA service. Initialization errors are retained without
     /// offboarding an otherwise healthy wallet.
-    fi_client: std::result::Result<Arc<BridgeFiClient>, Arc<fi_client::FiError>>,
-    /// Seed- and installation-bound client for Manifold's push gateway.
-    fi_push_gateway: std::result::Result<Arc<BridgeFiPushGateway>, Arc<FiPushError>>,
-    /// The sole owner of long-running FI formation, liquidity, and maintenance
+    fa_client: std::result::Result<Arc<BridgeFaClient>, Arc<fa_client::FaError>>,
+    /// Seed- and installation-bound push gateway, cached by Manifold
+    /// deployment.
+    fa_push_gateway: BridgeFaPushGatewayCache,
+    /// Manifold deployment selected for this bridge lifetime.
+    fa_manifold_environment: runtime::features::FaManifoldEnvironment,
+    /// The sole owner of long-running FA formation, liquidity, and maintenance
     /// operations.
-    pub(crate) fi_driver: Option<BridgeFiDriver>,
-    fi_federation_handoff_locks: Arc<FiFederationHandoffLocks>,
-    /// Last reported progress of the automatic join of the FI's federation.
-    fi_federation_join_report: FiFederationJoinReport,
+    pub(crate) fa_driver: Option<BridgeFaDriver>,
+    fa_federation_handoff_locks: Arc<FaFederationHandoffLocks>,
+    /// Last reported progress of the automatic join of the FA's federation.
+    fa_federation_join_report: FaFederationJoinReport,
 }
 
 #[derive(Debug, TS, Serialize, PartialEq)]
@@ -102,302 +105,302 @@ impl Display for BridgeOffboardingReason {
 
 impl BridgeFull {
     pub async fn leave_federation(&self, federation_id: &str) -> anyhow::Result<()> {
-        let _handoff_guard = self.fi_federation_handoff_locks.lock(federation_id).await;
-        suppress_fi_federation_auto_join(&self.runtime, federation_id).await;
-        self.fi_federation_join_report.clear(federation_id);
+        let _handoff_guard = self.fa_federation_handoff_locks.lock(federation_id).await;
+        suppress_fa_federation_auto_join(&self.runtime, federation_id).await;
+        self.fa_federation_join_report.clear(federation_id);
         self.federations.leave_federation(federation_id).await
     }
 
-    pub fn fi_status_receiver(
+    pub fn fa_status_receiver(
         &self,
-    ) -> Result<tokio::sync::watch::Receiver<fi_client::FiStatus>, RpcFiOperationError> {
-        self.fi_client
+    ) -> Result<tokio::sync::watch::Receiver<fa_client::FaStatus>, RpcFaOperationError> {
+        self.fa_client
             .as_ref()
             .map(|client| client.observe())
-            .map_err(|_| self.fi_initialization_error())
+            .map_err(|_| self.fa_initialization_error())
     }
 
-    pub fn fi_client_status(&self) -> RpcFiClientStatus {
+    pub fn fa_client_status(&self) -> RpcFaClientStatus {
         // A status read can happen after the join event was already delivered,
         // so re-deliver the last reported join state with it.
-        if let Some(event) = self.fi_federation_join_report.last() {
+        if let Some(event) = self.fa_federation_join_report.last() {
             self.runtime
                 .event_sink
-                .typed_event(&rpc_types::event::Event::FiFederationJoin(event));
+                .typed_event(&rpc_types::event::Event::FaFederationJoin(event));
         }
-        fi_client_status_to_rpc(&self.fi_client)
+        fa_client_status_to_rpc(&self.fa_client)
     }
 
-    pub async fn fi_eligible_payers(&self) -> RpcFiEligiblePayersResult {
-        match &self.fi_driver {
+    pub async fn fa_eligible_payers(&self) -> RpcFaEligiblePayersResult {
+        match &self.fa_driver {
             Some(driver) => driver.eligible_payers().await,
-            None => RpcFiEligiblePayersResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaEligiblePayersResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_setup_payment_federations(&self) -> RpcFiSetupPaymentFederationsResult {
-        match &self.fi_driver {
+    pub async fn fa_setup_payment_federations(&self) -> RpcFaSetupPaymentFederationsResult {
+        match &self.fa_driver {
             Some(driver) => driver.setup_payment_federations().await,
-            None => RpcFiSetupPaymentFederationsResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaSetupPaymentFederationsResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_register_push_installation(
+    pub async fn fa_register_push_installation(
         &self,
         fcm_token: String,
-        platform: RpcFiPushPlatform,
-    ) -> RpcFiPushRegistrationResult {
-        let gateway = match &self.fi_push_gateway {
+        platform: RpcFaPushPlatform,
+    ) -> RpcFaPushRegistrationResult {
+        let gateway = match self.fa_push_gateway.get(self.fa_manifold_environment) {
             Ok(gateway) => gateway,
             Err(error) => {
-                return RpcFiPushRegistrationResult::Error {
-                    error: fi_push_error_to_rpc(error),
+                return RpcFaPushRegistrationResult::Error {
+                    error: fa_push_error_to_rpc(&error),
                 };
             }
         };
         let platform = match platform {
-            RpcFiPushPlatform::Android => FiPushPlatform::Android,
-            RpcFiPushPlatform::Ios => FiPushPlatform::Ios,
+            RpcFaPushPlatform::Android => FaPushPlatform::Android,
+            RpcFaPushPlatform::Ios => FaPushPlatform::Ios,
         };
         match gateway
             .register_installation(FcmRegistrationToken(fcm_token), platform)
             .await
         {
-            Ok(()) => RpcFiPushRegistrationResult::Registered {
+            Ok(()) => RpcFaPushRegistrationResult::Registered {
                 installation_id: gateway.installation_id().to_owned(),
             },
-            Err(error) => RpcFiPushRegistrationResult::Error {
-                error: fi_push_error_to_rpc(&error),
+            Err(error) => RpcFaPushRegistrationResult::Error {
+                error: fa_push_error_to_rpc(&error),
             },
         }
     }
 
-    pub async fn fi_unregister_push_installation(&self) -> RpcFiPushRegistrationResult {
-        let gateway = match &self.fi_push_gateway {
+    pub async fn fa_unregister_push_installation(&self) -> RpcFaPushRegistrationResult {
+        let gateway = match self.fa_push_gateway.get(self.fa_manifold_environment) {
             Ok(gateway) => gateway,
             Err(error) => {
-                return RpcFiPushRegistrationResult::Error {
-                    error: fi_push_error_to_rpc(error),
+                return RpcFaPushRegistrationResult::Error {
+                    error: fa_push_error_to_rpc(&error),
                 };
             }
         };
         match gateway.unregister_installation().await {
-            Ok(()) => RpcFiPushRegistrationResult::Unregistered {
+            Ok(()) => RpcFaPushRegistrationResult::Unregistered {
                 installation_id: gateway.installation_id().to_owned(),
             },
-            Err(error) => RpcFiPushRegistrationResult::Error {
-                error: fi_push_error_to_rpc(&error),
+            Err(error) => RpcFaPushRegistrationResult::Error {
+                error: fa_push_error_to_rpc(&error),
             },
         }
     }
 
-    pub async fn fi_liquidity_discover(
+    pub async fn fa_liquidity_discover(
         &self,
-        intent: RpcFiLiquidityRequestIntent,
-        network: RpcFiLiquidityNetwork,
-    ) -> RpcFiLiquidityDiscoveryResult {
-        match &self.fi_driver {
+        intent: RpcFaLiquidityRequestIntent,
+        network: RpcFaLiquidityNetwork,
+    ) -> RpcFaLiquidityDiscoveryResult {
+        match &self.fa_driver {
             Some(driver) => driver.discover_liquidity(intent, network).await,
-            None => RpcFiLiquidityDiscoveryResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaLiquidityDiscoveryResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_liquidity_start(
+    pub async fn fa_liquidity_start(
         &self,
         formation_id: String,
         provider_pubkey: String,
-        intent: RpcFiLiquidityRequestIntent,
-    ) -> RpcFiLiquidityOperationResult {
-        match &self.fi_driver {
+        intent: RpcFaLiquidityRequestIntent,
+    ) -> RpcFaLiquidityOperationResult {
+        match &self.fa_driver {
             Some(driver) => {
                 driver
                     .start_liquidity(formation_id, provider_pubkey, intent)
                     .await
             }
-            None => RpcFiLiquidityOperationResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaLiquidityOperationResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_liquidity_resume(&self, operation_id: String) -> RpcFiLiquidityOperationResult {
-        match &self.fi_driver {
+    pub async fn fa_liquidity_resume(&self, operation_id: String) -> RpcFaLiquidityOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.resume_liquidity(operation_id).await,
-            None => RpcFiLiquidityOperationResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaLiquidityOperationResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_liquidity_status(&self, operation_id: String) -> RpcFiLiquidityOperationResult {
-        match &self.fi_driver {
+    pub async fn fa_liquidity_status(&self, operation_id: String) -> RpcFaLiquidityOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.liquidity_status(operation_id).await,
-            None => RpcFiLiquidityOperationResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaLiquidityOperationResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_liquidity_current(&self) -> RpcFiCurrentLiquidityOperationResult {
-        match &self.fi_driver {
+    pub async fn fa_liquidity_current(&self) -> RpcFaCurrentLiquidityOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.current_liquidity_operation().await,
-            None => RpcFiCurrentLiquidityOperationResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaCurrentLiquidityOperationResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_liquidity_list(
+    pub async fn fa_liquidity_list(
         &self,
         after: Option<String>,
-    ) -> RpcFiLiquidityOperationPageResult {
-        match &self.fi_driver {
+    ) -> RpcFaLiquidityOperationPageResult {
+        match &self.fa_driver {
             Some(driver) => driver.list_liquidity_operations(after).await,
-            None => RpcFiLiquidityOperationPageResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaLiquidityOperationPageResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_update_federation_metadata(
+    pub async fn fa_update_federation_metadata(
         &self,
-        update: RpcFiFederationMetadataUpdate,
-    ) -> RpcFiOperationResult {
-        match &self.fi_driver {
+        update: RpcFaFederationMetadataUpdate,
+    ) -> RpcFaOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.update_federation_metadata(update).await,
-            None => self.fi_initialization_failure(),
+            None => self.fa_initialization_failure(),
         }
     }
 
-    pub async fn fi_set_guardian_fee(&self, guardian_fee_ppm: u32) -> RpcFiOperationResult {
-        match &self.fi_driver {
+    pub async fn fa_set_guardian_fee(&self, guardian_fee_ppm: u32) -> RpcFaOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.set_guardian_fee(guardian_fee_ppm).await,
-            None => self.fi_initialization_failure(),
+            None => self.fa_initialization_failure(),
         }
     }
 
-    pub async fn fi_preview_selection(
+    pub async fn fa_preview_selection(
         &self,
-        request: RpcFiSelectionPreviewRequest,
-    ) -> RpcFiSelectionPreviewResult {
-        match &self.fi_driver {
+        request: RpcFaSelectionPreviewRequest,
+    ) -> RpcFaSelectionPreviewResult {
+        match &self.fa_driver {
             Some(driver) => driver.preview_selection(request).await,
-            None => RpcFiSelectionPreviewResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaSelectionPreviewResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_pay_and_create(
+    pub async fn fa_pay_and_create(
         &self,
         preview_id: String,
-        intent: RpcFiFormationIntent,
+        intent: RpcFaFormationIntent,
         payment_federation_id: String,
         max_total_msats: u64,
-    ) -> RpcFiOperationResult {
-        match &self.fi_driver {
+    ) -> RpcFaOperationResult {
+        match &self.fa_driver {
             Some(driver) => {
                 driver
                     .pay_and_create(preview_id, intent, payment_federation_id, max_total_msats)
                     .await
             }
-            None => self.fi_initialization_failure(),
+            None => self.fa_initialization_failure(),
         }
     }
 
-    pub async fn fi_preview_replacements(&self) -> RpcFiReplacementPreviewResult {
-        match &self.fi_driver {
+    pub async fn fa_preview_replacements(&self) -> RpcFaReplacementPreviewResult {
+        match &self.fa_driver {
             Some(driver) => driver.preview_replacements().await,
-            None => RpcFiReplacementPreviewResult::Error {
-                error: self.fi_initialization_error(),
+            None => RpcFaReplacementPreviewResult::Error {
+                error: self.fa_initialization_error(),
             },
         }
     }
 
-    pub async fn fi_apply_replacements(
+    pub async fn fa_apply_replacements(
         &self,
         preview_id: String,
         max_total_msats: u64,
-    ) -> RpcFiOperationResult {
-        match &self.fi_driver {
+    ) -> RpcFaOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.apply_replacements(preview_id, max_total_msats).await,
-            None => self.fi_initialization_failure(),
+            None => self.fa_initialization_failure(),
         }
     }
 
-    pub async fn fi_resume(&self) -> RpcFiOperationResult {
-        match &self.fi_driver {
+    pub async fn fa_resume(&self) -> RpcFaOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.resume().await,
-            None => self.fi_initialization_failure(),
+            None => self.fa_initialization_failure(),
         }
     }
 
-    pub async fn fi_abandon(&self) -> RpcFiOperationResult {
-        match &self.fi_driver {
+    pub async fn fa_abandon(&self) -> RpcFaOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.abandon().await,
-            None => self.fi_initialization_failure(),
+            None => self.fa_initialization_failure(),
         }
     }
 
-    pub async fn fi_decommission(&self) -> RpcFiDecommissionResult {
-        if !self.runtime.fi_client_reset_is_allowed() {
-            return RpcFiDecommissionResult::Error {
-                error: RpcFiOperationError {
-                    code: RpcFiErrorCode::CapabilityUnavailable,
+    pub async fn fa_decommission(&self) -> RpcFaDecommissionResult {
+        if !self.runtime.fa_client_reset_is_allowed() {
+            return RpcFaDecommissionResult::Error {
+                error: RpcFaOperationError {
+                    code: RpcFaErrorCode::CapabilityUnavailable,
                     message: "Wallet-service decommission is only available in internal builds"
                         .to_owned(),
                     detail: None,
                 },
             };
         }
-        let Ok(client) = &self.fi_client else {
-            return RpcFiDecommissionResult::Error {
-                error: self.fi_initialization_error(),
+        let Ok(client) = &self.fa_client else {
+            return RpcFaDecommissionResult::Error {
+                error: self.fa_initialization_error(),
             };
         };
         match client.decommission_seats().await {
-            Ok(outcome) => RpcFiDecommissionResult::Outcome {
+            Ok(outcome) => RpcFaDecommissionResult::Outcome {
                 decommissioned: outcome.decommissioned,
                 already_decommissioned: outcome.already_decommissioned,
                 refused: outcome
                     .refused
                     .into_iter()
-                    .map(|(index, reason)| RpcFiDecommissionRefusal { index, reason })
+                    .map(|(index, reason)| RpcFaDecommissionRefusal { index, reason })
                     .collect(),
             },
-            Err(error) => RpcFiDecommissionResult::Error {
-                error: fi_error_to_rpc(&error),
+            Err(error) => RpcFaDecommissionResult::Error {
+                error: fa_error_to_rpc(&error),
             },
         }
     }
 
-    pub async fn fi_restart_dkg(&self) -> RpcFiOperationResult {
-        match &self.fi_driver {
+    pub async fn fa_restart_dkg(&self) -> RpcFaOperationResult {
+        match &self.fa_driver {
             Some(driver) => driver.restart_dkg().await,
-            None => self.fi_initialization_failure(),
+            None => self.fa_initialization_failure(),
         }
     }
 
-    pub async fn fi_schedule_reset(&self) -> RpcFiOperationResult {
-        match self.runtime.schedule_fi_client_reset().await {
-            Ok(()) => RpcFiOperationResult::Success,
+    pub async fn fa_schedule_reset(&self) -> RpcFaOperationResult {
+        match self.runtime.schedule_fa_client_reset().await {
+            Ok(()) => RpcFaOperationResult::Success,
             Err(error) => {
-                tracing::warn!(%error, "failed to schedule FI client reset");
-                RpcFiOperationResult::Error {
-                    error: RpcFiOperationError {
-                        code: if !self.runtime.fi_client_reset_is_allowed()
-                            || self.runtime.fi_manifold_environment().await
-                                == FiManifoldEnvironment::Production
+                tracing::warn!(%error, "failed to schedule FA client reset");
+                RpcFaOperationResult::Error {
+                    error: RpcFaOperationError {
+                        code: if !self.runtime.fa_client_reset_is_allowed()
+                            || self.runtime.fa_manifold_environment().await
+                                == FaManifoldEnvironment::Production
                         {
-                            RpcFiErrorCode::CapabilityUnavailable
+                            RpcFaErrorCode::CapabilityUnavailable
                         } else {
-                            RpcFiErrorCode::Storage
+                            RpcFaErrorCode::Storage
                         },
                         message: "Wallet-service test reset could not be scheduled".to_owned(),
                         detail: None,
@@ -407,31 +410,31 @@ impl BridgeFull {
         }
     }
 
-    pub async fn fi_authorize_replacement_payments(
+    pub async fn fa_authorize_replacement_payments(
         &self,
         authorization_id: String,
-    ) -> RpcFiOperationResult {
-        match &self.fi_driver {
+    ) -> RpcFaOperationResult {
+        match &self.fa_driver {
             Some(driver) => {
                 driver
                     .authorize_replacement_payments(authorization_id)
                     .await
             }
-            None => self.fi_initialization_failure(),
+            None => self.fa_initialization_failure(),
         }
     }
 
-    fn fi_initialization_failure(&self) -> RpcFiOperationResult {
-        RpcFiOperationResult::Error {
-            error: self.fi_initialization_error(),
+    fn fa_initialization_failure(&self) -> RpcFaOperationResult {
+        RpcFaOperationResult::Error {
+            error: self.fa_initialization_error(),
         }
     }
 
-    fn fi_initialization_error(&self) -> rpc_types::fi_client::RpcFiOperationError {
-        let Err(error) = &self.fi_client else {
-            unreachable!("an FI driver is absent only when FI client initialization failed");
+    fn fa_initialization_error(&self) -> rpc_types::fa_client::RpcFaOperationError {
+        let Err(error) = &self.fa_client else {
+            unreachable!("an FA driver is absent only when FA client initialization failed");
         };
-        fi_error_to_rpc(error)
+        fa_error_to_rpc(error)
     }
 
     pub async fn new(
@@ -463,27 +466,31 @@ impl BridgeFull {
             return Err(BridgeOffboardingReason::DeviceIndexConflict);
         }
 
-        let fi_reset_failed = match runtime.apply_scheduled_fi_client_reset().await {
+        let fa_reset_failed = match runtime.apply_scheduled_fa_client_reset().await {
             Ok(true) => {
-                tracing::warn!("cleared scheduled FI client test state");
+                tracing::warn!("cleared scheduled FA client test state");
                 false
             }
             Ok(false) => false,
             Err(error) => {
-                tracing::error!(%error, "failed to clear scheduled FI client test state");
+                tracing::error!(%error, "failed to clear scheduled FA client test state");
                 true
             }
         };
 
         let device_registration_service = DeviceRegistrationService::new(runtime.clone()).await;
 
+        // before anything reads multispend records in the current encoding
+        multispend::migration::migrate_multispend_db(&runtime.multispend_db())
+            .await
+            .expect("multispend database migration failed");
         let multispend_services = MultispendServices::new(runtime.clone());
         let multispend_notifications =
             Arc::new(MultispendNotificationsProvider(multispend_services.clone()));
 
-        // The federations service is constructed before the FI client so the
-        // FI payment adapter can hold it; joined federations still load in
-        // the background below, and an FI payment against a still-loading
+        // The federations service is constructed before the FA client so the
+        // FA payment adapter can hold it; joined federations still load in
+        // the background below, and an FA payment against a still-loading
         // federation fails with a retryable error.
         let spt_notifier = Arc::new(SptTransferCompleteNotifier::new(runtime.clone()));
         let spt_notifications = Arc::new(SptNotificationsProvider(spt_notifier.clone()));
@@ -496,44 +503,38 @@ impl BridgeFull {
 
         let nostril = Arc::new(Nostril::new(&runtime).await);
         let push_root_secret = runtime.app_state.root_secret().await;
-        let fi_manifold_environment = runtime.fi_manifold_environment().await;
-        let fi_push_gateway = BridgeFiPushGateway::from_parts(
+        let fa_manifold_environment = runtime.fa_manifold_environment().await;
+        let fa_push_gateway = BridgeFaPushGatewayCache::from_parts(
             &push_root_secret,
             runtime.feature_catalog.runtime_env,
             &device_identifier,
-            runtime
-                .feature_catalog
-                .fi_push_gateway
-                .as_ref()
-                .map(|config| config.api_base_url.clone()),
-        )
-        .map(Arc::new)
-        .map_err(Arc::new);
-        // A failed reset or owner check leaves FI state intact. Do not open
+            runtime.feature_catalog.fa_push_gateway.as_ref(),
+        );
+        // A failed reset or owner check leaves FA state intact. Do not open
         // it against a possibly different environment's relays and issuers.
-        let fi_client = if fi_reset_failed {
-            Err(Arc::new(fi_client::FiError::Storage(
+        let fa_client = if fa_reset_failed {
+            Err(Arc::new(fa_client::FaError::Storage(
                 "wallet-service environment ownership or scheduled reset could not be verified"
                     .to_owned(),
             )))
         } else {
-            open_fi_client(
+            open_fa_client(
                 &runtime,
                 federations.clone(),
-                fi_manifold_environment,
+                fa_manifold_environment,
                 runtime.app_state.onboarding_method().await == Some(OnboardingMethod::Restored),
             )
             .await
             .map(Arc::new)
             .map_err(Arc::new)
         };
-        let fi_driver = fi_client.as_ref().ok().map(|client| {
-            start_fi_driver(
+        let fa_driver = fa_client.as_ref().ok().map(|client| {
+            start_fa_driver(
                 &runtime,
                 client.clone(),
                 federations.clone(),
-                fi_push_gateway.clone(),
-                fi_manifold_environment,
+                fa_push_gateway.get(fa_manifold_environment),
+                fa_manifold_environment,
             )
         });
 
@@ -543,16 +544,16 @@ impl BridgeFull {
 
         let spt_provider = Arc::new(SptFederationProviderWrapper(federations.clone()));
         let sp_transfers_services = SptServices::new(runtime.clone(), spt_provider, spt_notifier);
-        let fi_federation_handoff_locks = Arc::new(FiFederationHandoffLocks::default());
-        let fi_federation_join_report = FiFederationJoinReport::default();
-        if let Ok(client) = &fi_client {
-            start_fi_federation_auto_join(
+        let fa_federation_handoff_locks = Arc::new(FaFederationHandoffLocks::default());
+        let fa_federation_join_report = FaFederationJoinReport::default();
+        if let Ok(client) = &fa_client {
+            start_fa_federation_auto_join(
                 &runtime,
                 client.observe(),
                 federations.clone(),
                 sp_transfers_services.clone(),
-                fi_federation_handoff_locks.clone(),
-                fi_federation_join_report.clone(),
+                fa_federation_handoff_locks.clone(),
+                fa_federation_join_report.clone(),
             );
         }
 
@@ -574,11 +575,12 @@ impl BridgeFull {
             multispend_services,
             sp_transfers_services,
             nostril,
-            fi_client,
-            fi_push_gateway,
-            fi_driver,
-            fi_federation_handoff_locks,
-            fi_federation_join_report,
+            fa_client,
+            fa_push_gateway,
+            fa_manifold_environment,
+            fa_driver,
+            fa_federation_handoff_locks,
+            fa_federation_join_report,
         };
 
         bridge.start_bg().await;

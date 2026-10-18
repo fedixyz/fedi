@@ -11,7 +11,7 @@ use anyhow::{Context, bail};
 use bitcoin::Amount;
 use bitcoin::secp256k1::Message;
 use bridge::bg_matrix::BgMatrix;
-use bridge::fi_client::fi_client_status_stream;
+use bridge::fa_client::fa_client_status_stream;
 use bridge::mini_app_seed::{canonicalize_origin, derive_mini_app_seed};
 use bridge::onboarding::BridgeOnboarding;
 use bridge::providers::FederationProviderWrapper;
@@ -42,19 +42,20 @@ use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use mime::Mime;
 use multispend::db::RpcMultispendGroupStatus;
 use multispend::{
-    GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendGroupVoteType,
-    MultispendListedEvent, WithdrawRequestWithApprovals, WithdrawalResponseType,
+    FinalizedGroup, GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendAmount,
+    MultispendGroupKind, MultispendGroupVoteType, MultispendListedEvent,
+    WithdrawRequestWithApprovals, WithdrawalResponseType,
 };
 use rpc_types::communities::RpcCommunity;
 use rpc_types::error::{ErrorCode, RpcError};
 use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
-use rpc_types::fi_client::{
-    RpcFiClientStatus, RpcFiCurrentLiquidityOperationResult, RpcFiDecommissionResult,
-    RpcFiEligiblePayersResult, RpcFiFederationMetadataUpdate, RpcFiFormationIntent,
-    RpcFiLiquidityDiscoveryResult, RpcFiLiquidityNetwork, RpcFiLiquidityOperationPageResult,
-    RpcFiLiquidityOperationResult, RpcFiLiquidityRequestIntent, RpcFiMsats, RpcFiOperationResult,
-    RpcFiPushPlatform, RpcFiPushRegistrationResult, RpcFiReplacementPreviewResult,
-    RpcFiSelectionPreviewRequest, RpcFiSelectionPreviewResult, RpcFiSetupPaymentFederationsResult,
+use rpc_types::fa_client::{
+    RpcFaClientStatus, RpcFaCurrentLiquidityOperationResult, RpcFaDecommissionResult,
+    RpcFaEligiblePayersResult, RpcFaFederationMetadataUpdate, RpcFaFormationIntent,
+    RpcFaLiquidityDiscoveryResult, RpcFaLiquidityNetwork, RpcFaLiquidityOperationPageResult,
+    RpcFaLiquidityOperationResult, RpcFaLiquidityRequestIntent, RpcFaMsats, RpcFaOperationResult,
+    RpcFaPushPlatform, RpcFaPushRegistrationResult, RpcFaReplacementPreviewResult,
+    RpcFaSelectionPreviewRequest, RpcFaSelectionPreviewResult, RpcFaSetupPaymentFederationsResult,
 };
 use rpc_types::matrix::{
     RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession, RpcMatrixInitializeStatus,
@@ -81,12 +82,13 @@ use rpc_types::{
 use runtime::api::{IFediApi, LiveFediApi, MockFediApi};
 use runtime::bridge_runtime::Runtime;
 use runtime::event::IEventSink;
-use runtime::features::{FeatureCatalog, FiManifoldEnvironment, RuntimeEnvironment};
+use runtime::features::{FaManifoldEnvironment, FeatureCatalog, RuntimeEnvironment};
 use runtime::rpc_stream::{RpcStreamId, RpcVecDiffStreamId};
 use runtime::storage::state::FiatFXInfo;
 use runtime::storage::{BRIDGE_DB_PREFIX, OnboardingCompletionMethod, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use stability_pool_client::OwnAccount;
 use stability_pool_client::common::{AccountId, AccountType, FiatAmount, FiatOrAll};
 pub use tokio;
 use tracing::{Level, error, info, instrument};
@@ -1148,7 +1150,7 @@ async fn spv2OurPaymentAddress(
         account_id: federation
             .client
             .spv2()?
-            .our_account(AccountType::Seeker)
+            .own_account(OwnAccount::Seeker)
             .id(),
         federation_id_prefix: federation.federation_id().to_prefix(),
         federation_invite,
@@ -1246,16 +1248,16 @@ async fn setSensitiveLog(runtime: Arc<Runtime>, enable: bool) -> anyhow::Result<
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn getFiManifoldEnvironment(runtime: Arc<Runtime>) -> anyhow::Result<FiManifoldEnvironment> {
-    Ok(runtime.fi_manifold_environment().await)
+async fn getFaManifoldEnvironment(runtime: Arc<Runtime>) -> anyhow::Result<FaManifoldEnvironment> {
+    Ok(runtime.fa_manifold_environment().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn setFiManifoldEnvironment(
+async fn setFaManifoldEnvironment(
     runtime: Arc<Runtime>,
-    environment: FiManifoldEnvironment,
+    environment: FaManifoldEnvironment,
 ) -> anyhow::Result<()> {
-    runtime.set_fi_manifold_environment(environment).await
+    runtime.set_fa_manifold_environment(environment).await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -1454,188 +1456,188 @@ async fn bridgeStatus(bridge: &Bridge) -> anyhow::Result<RpcBridgeStatus> {
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientStatus(bridge: &BridgeFull) -> anyhow::Result<RpcFiClientStatus> {
-    Ok(bridge.fi_client_status())
+async fn faClientStatus(bridge: &BridgeFull) -> anyhow::Result<RpcFaClientStatus> {
+    Ok(bridge.fa_client_status())
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientEligiblePayers(bridge: &BridgeFull) -> anyhow::Result<RpcFiEligiblePayersResult> {
-    Ok(bridge.fi_eligible_payers().await)
+async fn faClientEligiblePayers(bridge: &BridgeFull) -> anyhow::Result<RpcFaEligiblePayersResult> {
+    Ok(bridge.fa_eligible_payers().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientSetupPaymentFederations(
+async fn faClientSetupPaymentFederations(
     bridge: &BridgeFull,
-) -> anyhow::Result<RpcFiSetupPaymentFederationsResult> {
-    Ok(bridge.fi_setup_payment_federations().await)
+) -> anyhow::Result<RpcFaSetupPaymentFederationsResult> {
+    Ok(bridge.fa_setup_payment_federations().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientRegisterPushInstallation(
+async fn faClientRegisterPushInstallation(
     bridge: &BridgeFull,
     fcm_token: String,
-    platform: RpcFiPushPlatform,
-) -> anyhow::Result<RpcFiPushRegistrationResult> {
+    platform: RpcFaPushPlatform,
+) -> anyhow::Result<RpcFaPushRegistrationResult> {
     Ok(bridge
-        .fi_register_push_installation(fcm_token, platform)
+        .fa_register_push_installation(fcm_token, platform)
         .await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientUnregisterPushInstallation(
+async fn faClientUnregisterPushInstallation(
     bridge: &BridgeFull,
-) -> anyhow::Result<RpcFiPushRegistrationResult> {
-    Ok(bridge.fi_unregister_push_installation().await)
+) -> anyhow::Result<RpcFaPushRegistrationResult> {
+    Ok(bridge.fa_unregister_push_installation().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientPreviewSelection(
+async fn faClientPreviewSelection(
     bridge: &BridgeFull,
-    request: RpcFiSelectionPreviewRequest,
-) -> anyhow::Result<RpcFiSelectionPreviewResult> {
-    Ok(bridge.fi_preview_selection(request).await)
+    request: RpcFaSelectionPreviewRequest,
+) -> anyhow::Result<RpcFaSelectionPreviewResult> {
+    Ok(bridge.fa_preview_selection(request).await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientPayAndCreate(
+async fn faClientPayAndCreate(
     bridge: &BridgeFull,
     preview_id: String,
-    intent: RpcFiFormationIntent,
+    intent: RpcFaFormationIntent,
     payment_federation_id: String,
-    max_total_msats: RpcFiMsats,
-) -> anyhow::Result<RpcFiOperationResult> {
+    max_total_msats: RpcFaMsats,
+) -> anyhow::Result<RpcFaOperationResult> {
     Ok(bridge
-        .fi_pay_and_create(preview_id, intent, payment_federation_id, max_total_msats.0)
+        .fa_pay_and_create(preview_id, intent, payment_federation_id, max_total_msats.0)
         .await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientPreviewReplacements(
+async fn faClientPreviewReplacements(
     bridge: &BridgeFull,
-) -> anyhow::Result<RpcFiReplacementPreviewResult> {
-    Ok(bridge.fi_preview_replacements().await)
+) -> anyhow::Result<RpcFaReplacementPreviewResult> {
+    Ok(bridge.fa_preview_replacements().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientApplyReplacements(
+async fn faClientApplyReplacements(
     bridge: &BridgeFull,
     preview_id: String,
-    max_total_msats: RpcFiMsats,
-) -> anyhow::Result<RpcFiOperationResult> {
+    max_total_msats: RpcFaMsats,
+) -> anyhow::Result<RpcFaOperationResult> {
     Ok(bridge
-        .fi_apply_replacements(preview_id, max_total_msats.0)
+        .fa_apply_replacements(preview_id, max_total_msats.0)
         .await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientAuthorizeReplacementPayments(
+async fn faClientAuthorizeReplacementPayments(
     bridge: &BridgeFull,
     authorization_id: String,
-) -> anyhow::Result<RpcFiOperationResult> {
+) -> anyhow::Result<RpcFaOperationResult> {
     Ok(bridge
-        .fi_authorize_replacement_payments(authorization_id)
+        .fa_authorize_replacement_payments(authorization_id)
         .await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientResume(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
-    Ok(bridge.fi_resume().await)
+async fn faClientResume(bridge: &BridgeFull) -> anyhow::Result<RpcFaOperationResult> {
+    Ok(bridge.fa_resume().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientAbandon(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
-    Ok(bridge.fi_abandon().await)
+async fn faClientAbandon(bridge: &BridgeFull) -> anyhow::Result<RpcFaOperationResult> {
+    Ok(bridge.fa_abandon().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientDecommission(bridge: &BridgeFull) -> anyhow::Result<RpcFiDecommissionResult> {
-    Ok(bridge.fi_decommission().await)
+async fn faClientDecommission(bridge: &BridgeFull) -> anyhow::Result<RpcFaDecommissionResult> {
+    Ok(bridge.fa_decommission().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientRestartDkg(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
-    Ok(bridge.fi_restart_dkg().await)
+async fn faClientRestartDkg(bridge: &BridgeFull) -> anyhow::Result<RpcFaOperationResult> {
+    Ok(bridge.fa_restart_dkg().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientScheduleReset(bridge: &BridgeFull) -> anyhow::Result<RpcFiOperationResult> {
-    Ok(bridge.fi_schedule_reset().await)
+async fn faClientScheduleReset(bridge: &BridgeFull) -> anyhow::Result<RpcFaOperationResult> {
+    Ok(bridge.fa_schedule_reset().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientLiquidityDiscover(
+async fn faClientLiquidityDiscover(
     bridge: &BridgeFull,
-    intent: RpcFiLiquidityRequestIntent,
-    network: RpcFiLiquidityNetwork,
-) -> anyhow::Result<RpcFiLiquidityDiscoveryResult> {
-    Ok(bridge.fi_liquidity_discover(intent, network).await)
+    intent: RpcFaLiquidityRequestIntent,
+    network: RpcFaLiquidityNetwork,
+) -> anyhow::Result<RpcFaLiquidityDiscoveryResult> {
+    Ok(bridge.fa_liquidity_discover(intent, network).await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientLiquidityStart(
+async fn faClientLiquidityStart(
     bridge: &BridgeFull,
     formation_id: String,
     provider_pubkey: String,
-    intent: RpcFiLiquidityRequestIntent,
-) -> anyhow::Result<RpcFiLiquidityOperationResult> {
+    intent: RpcFaLiquidityRequestIntent,
+) -> anyhow::Result<RpcFaLiquidityOperationResult> {
     Ok(bridge
-        .fi_liquidity_start(formation_id, provider_pubkey, intent)
+        .fa_liquidity_start(formation_id, provider_pubkey, intent)
         .await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientLiquidityResume(
+async fn faClientLiquidityResume(
     bridge: &BridgeFull,
     operation_id: String,
-) -> anyhow::Result<RpcFiLiquidityOperationResult> {
-    Ok(bridge.fi_liquidity_resume(operation_id).await)
+) -> anyhow::Result<RpcFaLiquidityOperationResult> {
+    Ok(bridge.fa_liquidity_resume(operation_id).await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientLiquidityStatus(
+async fn faClientLiquidityStatus(
     bridge: &BridgeFull,
     operation_id: String,
-) -> anyhow::Result<RpcFiLiquidityOperationResult> {
-    Ok(bridge.fi_liquidity_status(operation_id).await)
+) -> anyhow::Result<RpcFaLiquidityOperationResult> {
+    Ok(bridge.fa_liquidity_status(operation_id).await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientLiquidityCurrent(
+async fn faClientLiquidityCurrent(
     bridge: &BridgeFull,
-) -> anyhow::Result<RpcFiCurrentLiquidityOperationResult> {
-    Ok(bridge.fi_liquidity_current().await)
+) -> anyhow::Result<RpcFaCurrentLiquidityOperationResult> {
+    Ok(bridge.fa_liquidity_current().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientLiquidityList(
+async fn faClientLiquidityList(
     bridge: &BridgeFull,
     after: Option<String>,
-) -> anyhow::Result<RpcFiLiquidityOperationPageResult> {
-    Ok(bridge.fi_liquidity_list(after).await)
+) -> anyhow::Result<RpcFaLiquidityOperationPageResult> {
+    Ok(bridge.fa_liquidity_list(after).await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientUpdateFederationMetadata(
+async fn faClientUpdateFederationMetadata(
     bridge: &BridgeFull,
-    update: RpcFiFederationMetadataUpdate,
-) -> anyhow::Result<RpcFiOperationResult> {
-    Ok(bridge.fi_update_federation_metadata(update).await)
+    update: RpcFaFederationMetadataUpdate,
+) -> anyhow::Result<RpcFaOperationResult> {
+    Ok(bridge.fa_update_federation_metadata(update).await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientSetGuardianFee(
+async fn faClientSetGuardianFee(
     bridge: &BridgeFull,
     guardian_fee_ppm: u32,
-) -> anyhow::Result<RpcFiOperationResult> {
-    Ok(bridge.fi_set_guardian_fee(guardian_fee_ppm).await)
+) -> anyhow::Result<RpcFaOperationResult> {
+    Ok(bridge.fa_set_guardian_fee(guardian_fee_ppm).await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn fiClientSubscribe(
+async fn faClientSubscribe(
     bridge: &BridgeFull,
-    stream_id: RpcStreamId<RpcFiClientStatus>,
+    stream_id: RpcStreamId<RpcFaClientStatus>,
 ) -> anyhow::Result<()> {
-    let stream = fi_client_status_stream(bridge.fi_status_receiver());
+    let stream = fa_client_status_stream(bridge.fa_status_receiver());
     bridge
         .runtime
         .stream_pool
@@ -2452,10 +2454,11 @@ async fn matrixSubscribeMultispendGroup(
     bg_matrix: &BgMatrix,
     stream_id: RpcStreamId<RpcMultispendGroupStatus>,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bg_matrix.wait_multispend().await;
     let stream = multispend_matrix
-        .subscribe_multispend_group(room_id.into_typed()?)
+        .subscribe_multispend_group(room_id.into_typed()?, kind)
         .await;
     multispend_matrix
         .runtime
@@ -2468,13 +2471,11 @@ async fn matrixSubscribeMultispendGroup(
 async fn matrixSubscribeMultispendAccountInfo(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
     stream_id: RpcStreamId<Result<RpcSPv2SyncResponse, NetworkError>>,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let finalized_group = multispend_matrix
-        .get_multispend_finalized_group(room_id.clone())
-        .await?
-        .context("multispend group not finalized yet")?;
+    let finalized_group = multispend_finalized_group(bridge, &room_id, kind).await?;
 
     let room_id = room_id.into_typed()?;
     let federation_provider = Arc::new(FederationProviderWrapper(bridge.federations.clone()));
@@ -2497,6 +2498,7 @@ async fn matrixSubscribeMultispendAccountInfo(
 pub async fn matrixMultispendListEvents(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
     start_after: Option<u32>,
     limit: u32,
 ) -> anyhow::Result<Vec<MultispendListedEvent>> {
@@ -2504,6 +2506,7 @@ pub async fn matrixMultispendListEvents(
     Ok(multispend_matrix
         .list_multispend_events(
             &room_id,
+            kind,
             start_after.map(Into::into),
             usize::try_from(limit).unwrap(),
         )
@@ -2514,12 +2517,17 @@ pub async fn matrixMultispendListEvents(
 async fn matrixSendMultispendGroupInvitation(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
     signers: BTreeSet<RpcUserId>,
     threshold: u32,
     federation_id: RpcFederationId,
     federation_name: String,
 ) -> anyhow::Result<()> {
+    ensure_multispend_kind_enabled(bridge, kind)?;
     let fed = bridge.federations.get_federation(&federation_id.0)?;
+    if kind == MultispendGroupKind::Btc {
+        fed.multispend_ensure_btc_supported().await?;
+    }
     let proposer_pubkey = fed.multispend_public_key(room_id.0.clone())?;
     let invitation = GroupInvitation {
         signers,
@@ -2531,10 +2539,23 @@ async fn matrixSendMultispendGroupInvitation(
     multispend_matrix
         .send_multispend_group_invitation(
             &room_id.into_typed()?,
+            kind,
             invitation,
             RpcPublicKey(proposer_pubkey),
         )
         .await
+}
+
+/// Creating, joining and depositing into bitcoin groups is behind the
+/// `btc_multispend` feature. Withdrawing from an existing group is not.
+fn ensure_multispend_kind_enabled(
+    bridge: &BridgeFull,
+    kind: MultispendGroupKind,
+) -> anyhow::Result<()> {
+    if kind == MultispendGroupKind::Btc && bridge.runtime.feature_catalog.btc_multispend.is_none() {
+        bail!("btc_multispend feature is disabled");
+    }
+    Ok(())
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2544,13 +2565,17 @@ async fn matrixApproveMultispendGroupInvitation(
     invitation: RpcEventId,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let Some(MsEventData::GroupInvitation(GroupInvitationWithKeys { federation_id, .. })) =
-        multispend_matrix
-            .get_multispend_event_data(&room_id, &invitation)
-            .await
+    let Some(MsEventData::GroupInvitation(GroupInvitationWithKeys {
+        federation_id,
+        kind,
+        ..
+    })) = multispend_matrix
+        .get_multispend_event_data(&room_id, &invitation)
+        .await
     else {
         anyhow::bail!("invalid matrix invitation id")
     };
+    ensure_multispend_kind_enabled(bridge, kind)?;
     multispend_matrix
         .vote_multispend_group_invitation(
             &room_id.into_typed()?,
@@ -2587,60 +2612,79 @@ async fn matrixRejectMultispendGroupInvitation(
 async fn matrixCancelMultispendGroupInvitation(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
+    kind: MultispendGroupKind,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bg_matrix.wait_multispend().await;
     multispend_matrix
-        .cancel_multispend_group_invitation(&room_id.into_typed()?)
+        .cancel_multispend_group_invitation(&room_id.into_typed()?, kind)
         .await
+}
+
+async fn multispend_finalized_group(
+    bridge: &BridgeFull,
+    room_id: &RpcRoomId,
+    kind: MultispendGroupKind,
+) -> anyhow::Result<FinalizedGroup> {
+    bridge
+        .matrix
+        .wait_multispend()
+        .await
+        .get_multispend_finalized_group(room_id.clone(), kind)
+        .await?
+        .context("multispend group not finalized yet")
 }
 
 #[macro_rules_derive(rpc_method!)]
 async fn matrixMultispendDeposit(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
-    amount: RpcFiatAmount,
+    amount: MultispendAmount,
     description: String,
     frontend_meta: FrontendMetadata,
 ) -> anyhow::Result<()> {
-    let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let finalized_group = multispend_matrix
-        .get_multispend_finalized_group(room_id.clone())
-        .await?
-        .context("multispend group not finalized yet")?;
+    ensure_multispend_kind_enabled(bridge, amount.kind())?;
+    let finalized_group = multispend_finalized_group(bridge, &room_id, amount.kind()).await?;
     let fed = bridge
         .federations
         .get_federation(&finalized_group.federation_id.0)?;
-    fed.multispend_deposit(
-        FiatAmount(amount.0),
-        finalized_group.spv2_account.id(),
-        room_id,
-        description,
-        frontend_meta,
-    )
-    .await?;
-    Ok(())
+    let group_account = finalized_group.spv2_account.id();
+    match amount {
+        MultispendAmount::FiatAmount(amount) => {
+            fed.multispend_deposit(
+                FiatAmount(amount.0),
+                group_account,
+                room_id,
+                description,
+                frontend_meta,
+            )
+            .await
+        }
+        MultispendAmount::BtcAmount(amount) => {
+            fed.multispend_btc_deposit(amount.0, group_account, room_id, description)
+                .await
+        }
+    }
 }
+
 #[macro_rules_derive(rpc_method!)]
 async fn matrixSendMultispendWithdrawalRequest(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
-    amount: RpcFiatAmount,
+    amount: MultispendAmount,
     description: String,
 ) -> anyhow::Result<()> {
-    let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let finalized_group = multispend_matrix
-        .get_multispend_finalized_group(room_id.clone())
-        .await?
-        .context("multispend group not finalized yet")?;
+    let finalized_group = multispend_finalized_group(bridge, &room_id, amount.kind()).await?;
     let fed = bridge
         .federations
         .get_federation(&finalized_group.federation_id.0)?;
     let transfer_request =
-        fed.multispend_create_transfer_request(FiatAmount(amount.0), finalized_group.spv2_account)?;
-    multispend_matrix
+        fed.multispend_create_transfer_request(amount, finalized_group.spv2_account)?;
+    bridge
+        .matrix
+        .wait_multispend()
+        .await
         .send_multispend_withdraw_request(&room_id.into_typed()?, transfer_request, description)
-        .await?;
-    Ok(())
+        .await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2650,10 +2694,6 @@ async fn matrixSendMultispendWithdrawalApprove(
     withdraw_request_id: RpcEventId,
 ) -> anyhow::Result<()> {
     let multispend_matrix = bridge.matrix.wait_multispend().await;
-    let finalized_group = multispend_matrix
-        .get_multispend_finalized_group(room_id.clone())
-        .await?
-        .context("multispend group not finalized yet")?;
     let Some(MsEventData::WithdrawalRequest(WithdrawRequestWithApprovals {
         request: transfer_request,
         ..
@@ -2663,6 +2703,8 @@ async fn matrixSendMultispendWithdrawalApprove(
     else {
         anyhow::bail!("invalid matrix withdraw request id")
     };
+    let finalized_group =
+        multispend_finalized_group(bridge, &room_id, transfer_request.kind()).await?;
     let fed = bridge
         .federations
         .get_federation(&finalized_group.federation_id.0)?;
@@ -2838,31 +2880,31 @@ rpc_methods!(RpcMethods {
     onAppForeground,
     fedimintVersion,
     getFeatureCatalog,
-    // Federation Initiator
-    fiClientStatus,
-    fiClientEligiblePayers,
-    fiClientSetupPaymentFederations,
-    fiClientRegisterPushInstallation,
-    fiClientUnregisterPushInstallation,
-    fiClientPreviewSelection,
-    fiClientPayAndCreate,
-    fiClientPreviewReplacements,
-    fiClientApplyReplacements,
-    fiClientAuthorizeReplacementPayments,
-    fiClientResume,
-    fiClientAbandon,
-    fiClientDecommission,
-    fiClientRestartDkg,
-    fiClientScheduleReset,
-    fiClientLiquidityDiscover,
-    fiClientLiquidityStart,
-    fiClientLiquidityResume,
-    fiClientLiquidityStatus,
-    fiClientLiquidityCurrent,
-    fiClientLiquidityList,
-    fiClientUpdateFederationMetadata,
-    fiClientSetGuardianFee,
-    fiClientSubscribe,
+    // Federation Ambassador
+    faClientStatus,
+    faClientEligiblePayers,
+    faClientSetupPaymentFederations,
+    faClientRegisterPushInstallation,
+    faClientUnregisterPushInstallation,
+    faClientPreviewSelection,
+    faClientPayAndCreate,
+    faClientPreviewReplacements,
+    faClientApplyReplacements,
+    faClientAuthorizeReplacementPayments,
+    faClientResume,
+    faClientAbandon,
+    faClientDecommission,
+    faClientRestartDkg,
+    faClientScheduleReset,
+    faClientLiquidityDiscover,
+    faClientLiquidityStart,
+    faClientLiquidityResume,
+    faClientLiquidityStatus,
+    faClientLiquidityCurrent,
+    faClientLiquidityList,
+    faClientUpdateFederationMetadata,
+    faClientSetGuardianFee,
+    faClientSubscribe,
     // Federations
     joinFederation,
     federationPreview,
@@ -2971,8 +3013,8 @@ rpc_methods!(RpcMethods {
     // Developer
     getSensitiveLog,
     setSensitiveLog,
-    getFiManifoldEnvironment,
-    setFiManifoldEnvironment,
+    getFaManifoldEnvironment,
+    setFaManifoldEnvironment,
     internalMarkBridgeExport,
     internalExportBridgeState,
     setMintModuleFediFeeSchedule,

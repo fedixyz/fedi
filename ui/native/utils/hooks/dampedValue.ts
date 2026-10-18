@@ -12,11 +12,11 @@ export type DampedValueOptions = {
 /**
  * Holds a flapping value steady so the screen does not flicker.
  *
- * The FI driver reports failure as a *level*, not an event:
+ * The FA driver reports failure as a *level*, not an event:
  * `FormationSnapshot.last_error` carries a code while an attempt is failing and
  * is republished as `None` at the top of the next attempt, because the bridge
  * never persists it (`db.rs` reloads it as `None`). The retry backoff starts at
- * one second, so a single flaky fleet manager pushes error → clear → error at a
+ * one second, so a single flaky manifold guardian pushes error → clear → error at a
  * rate that reads as a strobing banner, worst at the moment the user is
  * watching most closely.
  *

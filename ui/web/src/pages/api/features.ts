@@ -14,6 +14,7 @@ const prodRemoteFeatures: RemoteFeatures = {
     walletServiceCreation: false,
     miniAppSeed: true,
     walletServiceDkgRestart: true,
+    btcMultispend: false,
 }
 // Edge-only overrides go here; with none, edge tracks production.
 const edgeRemoteFeatures: RemoteFeatures = {
@@ -28,6 +29,7 @@ const devRemoteFeatures: RemoteFeatures = {
     walletServiceCreation: true,
     miniAppSeed: true,
     walletServiceDkgRestart: true,
+    btcMultispend: true,
 }
 // edge has always been served the dev values here; swapping this for
 // edgeRemoteFeatures would flip several live edge flags at once

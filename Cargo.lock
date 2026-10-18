@@ -1401,14 +1401,15 @@ dependencies = [
  "communities",
  "device-registration",
  "either",
+ "fa-client",
  "federations",
  "fedi-decentralized-federation-preview",
  "fedi-decentralized-manifold-environment",
  "fedi-decentralized-nostr-clients",
  "fedi-decentralized-peer-badge-verifier",
  "fedi-decentralized-push-gateway-types",
- "fedi-decentralized-service-fleet-manager",
  "fedi-decentralized-service-liquidity-manager",
+ "fedi-decentralized-service-manifold-guardian",
  "fedi-iroh-rpc",
  "fedi-social-client",
  "fedimint-api-client",
@@ -1421,7 +1422,6 @@ dependencies = [
  "fedimint-mint-client",
  "fedimint-mintv2-client",
  "fedimint-tbs",
- "fi-client",
  "futures",
  "hex",
  "matrix",
@@ -3319,6 +3319,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "fa-client"
+version = "0.1.3"
+dependencies = [
+ "base64 0.22.1",
+ "bitcoin_hashes",
+ "chacha20poly1305",
+ "ciborium",
+ "fedi-decentralized-domain",
+ "fedi-decentralized-manifold-environment",
+ "fedi-decentralized-nostr",
+ "fedi-decentralized-nostr-clients",
+ "fedi-decentralized-peer-badge-verifier",
+ "fedi-decentralized-service-liquidity-manager",
+ "fedi-decentralized-service-manifold-guardian",
+ "fedi-iroh-rpc",
+ "fedimint-core",
+ "fedimint-derive-secret",
+ "futures",
+ "hex",
+ "iroh-base 0.35.0",
+ "nostr-sdk",
+ "rand 0.8.7",
+ "secp256k1 0.30.0",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "stability-pool-common",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3364,7 +3397,7 @@ dependencies = [
  "bug-report",
  "device-registration",
  "fedi-decentralized-domain",
- "fedi-decentralized-service-fleet-manager",
+ "fedi-decentralized-service-manifold-guardian",
  "fedi-social-client",
  "fedimint-aead",
  "fedimint-api-client",
@@ -3380,6 +3413,7 @@ dependencies = [
  "fedimint-ln-client",
  "fedimint-ln-common",
  "fedimint-lnv2-client",
+ "fedimint-lnv2-common",
  "fedimint-meta-client",
  "fedimint-mint-client",
  "fedimint-mintv2-client",
@@ -3429,7 +3463,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-domain"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "fedimint-core",
  "hex",
@@ -3449,7 +3483,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-federation-preview"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -3468,7 +3502,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-manifold-environment"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "bitcoin",
  "nostr",
@@ -3478,10 +3512,10 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-nostr"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "fedi-decentralized-domain",
- "fedi-decentralized-service-fleet-manager",
+ "fedi-decentralized-service-manifold-guardian",
  "nostr",
  "peerbadge-protocol",
  "serde",
@@ -3492,7 +3526,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-nostr-clients"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "fedi-decentralized-nostr",
  "fedimint-core",
@@ -3505,7 +3539,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-peer-badge-verifier"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "async-trait",
  "fedi-decentralized-domain",
@@ -3521,7 +3555,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-push-gateway-types"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "base64 0.22.1",
  "hex",
@@ -3532,8 +3566,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "fedi-decentralized-service-fleet-manager"
-version = "0.1.0"
+name = "fedi-decentralized-service-liquidity-manager"
+version = "0.1.3"
+dependencies = [
+ "ciborium",
+ "fedi-decentralized-services",
+ "fedi-iroh-rpc",
+ "peerbadge-protocol",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "strum 0.26.3",
+]
+
+[[package]]
+name = "fedi-decentralized-service-manifold-guardian"
+version = "0.1.3"
 dependencies = [
  "fedi-decentralized-services",
  "fedi-iroh-rpc",
@@ -3555,23 +3604,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "fedi-decentralized-service-liquidity-manager"
-version = "0.1.0"
-dependencies = [
- "ciborium",
- "fedi-decentralized-services",
- "fedi-iroh-rpc",
- "peerbadge-protocol",
- "serde",
- "serde_json",
- "serde_json_canonicalizer",
- "sha2 0.10.9",
- "strum 0.26.3",
-]
-
-[[package]]
 name = "fedi-decentralized-services"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "fedi-decentralized-domain",
  "fedi-iroh-rpc",
@@ -3690,7 +3724,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-iroh-rpc"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "async-trait",
  "ciborium",
@@ -3704,7 +3738,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-iroh-rpc-macros"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -5130,39 +5164,6 @@ name = "ffi-bindgen"
 version = "0.3.0"
 dependencies = [
  "uniffi",
-]
-
-[[package]]
-name = "fi-client"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "bitcoin_hashes",
- "chacha20poly1305",
- "ciborium",
- "fedi-decentralized-domain",
- "fedi-decentralized-manifold-environment",
- "fedi-decentralized-nostr",
- "fedi-decentralized-nostr-clients",
- "fedi-decentralized-peer-badge-verifier",
- "fedi-decentralized-service-fleet-manager",
- "fedi-decentralized-service-liquidity-manager",
- "fedi-iroh-rpc",
- "fedimint-core",
- "fedimint-derive-secret",
- "futures",
- "hex",
- "iroh-base 0.35.0",
- "nostr-sdk",
- "rand 0.8.7",
- "secp256k1 0.30.0",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "stability-pool-common",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
 ]
 
 [[package]]

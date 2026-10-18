@@ -16,9 +16,9 @@ import {
     Modal,
 } from 'react-native'
 
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fa'
 import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -67,7 +67,7 @@ import {
 } from '@fedi/common/redux/personal-backup-reminder/personalBackupReminderSelectors'
 import { FediModCacheMode, SupportedCurrency } from '@fedi/common/types'
 import {
-    FiManifoldEnvironment,
+    FaManifoldEnvironment,
     GuardianStatus,
     RpcFediFeeStream,
     RpcLightningGateway,
@@ -78,7 +78,7 @@ import { getGuardianStatuses } from '@fedi/common/utils/FederationUtils'
 import { isDev } from '@fedi/common/utils/environment'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fiDevTools } from '../bridge'
+import { faDevTools } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import CheckBox from '../components/ui/CheckBox'
 import SvgImage from '../components/ui/SvgImage'
@@ -98,7 +98,7 @@ import WalletServiceGuardianStates from './developer/WalletServiceGuardianStates
 
 const log = makeLog('DeveloperSettings')
 
-const MANIFOLD_ENVIRONMENTS: FiManifoldEnvironment[] = [
+const MANIFOLD_ENVIRONMENTS: FaManifoldEnvironment[] = [
     'Development',
     'Staging',
     'Production',
@@ -222,22 +222,22 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         paymentFederation?.id,
     )
     const fedimint = useFedimint()
-    const canResetFi = isDev() || isExperimental()
-    const [fiManifoldEnvironment, setFiManifoldEnvironment] =
-        useState<FiManifoldEnvironment | null>(null)
-    const canWipeFi =
-        canResetFi &&
-        (fiManifoldEnvironment === 'Development' ||
-            fiManifoldEnvironment === 'Staging')
+    const canResetFa = isDev() || isExperimental()
+    const [faManifoldEnvironment, setFaManifoldEnvironment] =
+        useState<FaManifoldEnvironment | null>(null)
+    const canWipeFa =
+        canResetFa &&
+        (faManifoldEnvironment === 'Development' ||
+            faManifoldEnvironment === 'Staging')
 
     // This is a partial refactor of state management from context to redux
     const reduxDispatch = useAppDispatch()
 
     useEffect(() => {
         fedimint
-            .getFiManifoldEnvironment()
-            .then(setFiManifoldEnvironment)
-            .catch(error => log.error('getFiManifoldEnvironment failed', error))
+            .getFaManifoldEnvironment()
+            .then(setFaManifoldEnvironment)
+            .catch(error => log.error('getFaManifoldEnvironment failed', error))
     }, [fedimint])
 
     useEffect(() => {
@@ -413,14 +413,14 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     // leaving the flow wedged with no lever at all.
     const handleAbandonFormation = async () => {
         try {
-            const result = await fedimint.fiClientAbandon()
-            log.info('fiClientAbandon', result)
+            const result = await fedimint.faClientAbandon()
+            log.info('faClientAbandon', result)
             toast.show({
                 content: `Abandon: ${JSON.stringify(result)}`,
                 status: 'success',
             })
         } catch (e) {
-            log.error('fiClientAbandon failed', e)
+            log.error('faClientAbandon failed', e)
             toast.show({ content: `Abandon failed: ${e}`, status: 'error' })
         }
     }
@@ -430,7 +430,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         summary: string
     }> => {
         try {
-            const result = await fedimint.fiClientDecommission()
+            const result = await fedimint.faClientDecommission()
             if (result.type === 'error') {
                 // no formation was ever recorded, so no seat is left running
                 if (result.error.code === 'noActiveFormation')
@@ -457,15 +457,15 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             }
             return { problem: null, summary }
         } catch (error) {
-            log.error('fiClientDecommission failed', error)
+            log.error('faClientDecommission failed', error)
             const problem = `Decommission failed: ${error}`
             return { problem, summary: problem }
         }
     }
 
-    const scheduleFiReset = async () => {
+    const scheduleFaReset = async () => {
         try {
-            const result = await fedimint.fiClientScheduleReset()
+            const result = await fedimint.faClientScheduleReset()
             if (result.type === 'error') {
                 throw new Error(result.error.message)
             }
@@ -474,7 +474,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 status: 'success',
             })
         } catch (error) {
-            log.error('fiClientScheduleReset failed', error)
+            log.error('faClientScheduleReset failed', error)
             toast.show({ content: `Reset failed: ${error}`, status: 'error' })
         }
     }
@@ -483,7 +483,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         // the wipe deletes the record the decommission reads
         const { problem } = await decommissionSeats()
         if (!problem) {
-            await scheduleFiReset()
+            await scheduleFaReset()
             return
         }
         Alert.alert(
@@ -494,13 +494,13 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 {
                     text: 'Wipe anyway',
                     style: 'destructive',
-                    onPress: scheduleFiReset,
+                    onPress: scheduleFaReset,
                 },
             ],
         )
     }
 
-    const handleResetFi = () => {
+    const handleResetFa = () => {
         Alert.alert(
             'Reset the wallet service?',
             'Both choices erase this app\u2019s wallet-service state on the next launch, and you should restart immediately. Ending the seats also shuts every hosted guardian down permanently, which destroys the federation for anyone else using it. Nothing is refunded and it cannot be undone. Keep the seats when you are only clearing this app, or when its state is too broken to reach them.',
@@ -509,7 +509,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 {
                     text: 'Wipe this app only',
                     style: 'destructive',
-                    onPress: scheduleFiReset,
+                    onPress: scheduleFaReset,
                 },
                 {
                     text: 'End seats and wipe',
@@ -521,9 +521,9 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     }
 
     const handleSelectManifoldEnvironment = (
-        environment: FiManifoldEnvironment,
+        environment: FaManifoldEnvironment,
     ) => {
-        if (environment === fiManifoldEnvironment) return
+        if (environment === faManifoldEnvironment) return
         Alert.alert(
             `Use the ${environment.toLowerCase()} Manifold environment?`,
             'This wipes this app’s wallet-service test state on the next launch. Switching to Production cannot be reversed without reinstalling. Restart immediately afterwards. Any federation you already joined stays joined.',
@@ -534,14 +534,14 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await fedimint.setFiManifoldEnvironment(environment)
-                            setFiManifoldEnvironment(environment)
+                            await fedimint.setFaManifoldEnvironment(environment)
+                            setFaManifoldEnvironment(environment)
                             toast.show({
                                 content: `Manifold environment set to ${environment.toLowerCase()}. Restart the app now.`,
                                 status: 'success',
                             })
                         } catch (error) {
-                            log.error('setFiManifoldEnvironment failed', error)
+                            log.error('setFaManifoldEnvironment failed', error)
                             toast.show({
                                 content: `Switch failed: ${error}`,
                                 status: 'error',
@@ -743,25 +743,25 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     containerStyle={style.buttonContainer}
                     onPress={handleAbandonFormation}
                 />
-                {canWipeFi && (
+                {canWipeFa && (
                     <Button
                         title="Reset wallet service"
                         containerStyle={style.buttonContainer}
-                        onPress={handleResetFi}
+                        onPress={handleResetFa}
                     />
                 )}
-                {canResetFi && fiManifoldEnvironment && (
+                {canResetFa && faManifoldEnvironment && (
                     <>
                         <Text small style={style.switchLabel}>
-                            {`Manifold environment: ${fiManifoldEnvironment.toLowerCase()}. This picks the Nostr relay the wallet service flow discovers Fleet Managers on, whose trust badges it accepts, and the Bitcoin network it forms on. Takes effect on the next restart.`}
+                            {`Manifold environment: ${faManifoldEnvironment.toLowerCase()}. This picks the Nostr relay the wallet service flow discovers Manifold Guardians on, whose trust badges it accepts, and the Bitcoin network it forms on. Takes effect on the next restart.`}
                         </Text>
-                        {fiManifoldEnvironment !== 'Production' &&
+                        {faManifoldEnvironment !== 'Production' &&
                             MANIFOLD_ENVIRONMENTS.map(environment => (
                                 <Button
                                     key={environment}
                                     day
                                     title={
-                                        environment === fiManifoldEnvironment
+                                        environment === faManifoldEnvironment
                                             ? `✓ ${environment}`
                                             : environment
                                     }
@@ -795,9 +795,9 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     />
                 </View>
             </SettingsSection>
-            {WalletServiceDevTools && fiDevTools && (
+            {WalletServiceDevTools && faDevTools && (
                 <WalletServiceDevTools
-                    tools={fiDevTools}
+                    tools={faDevTools}
                     navigation={navigation}
                 />
             )}

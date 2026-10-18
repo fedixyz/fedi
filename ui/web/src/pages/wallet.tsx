@@ -15,6 +15,7 @@ import { useWalletButtons } from '@fedi/common/hooks/wallet'
 import {
     selectCurrency,
     selectFeatureFlag,
+    selectFederationPinnedMessage,
     selectLoadedFederations,
     selectLoadedFederationsByRecency,
     selectPaymentType,
@@ -29,6 +30,7 @@ import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
 import FederationStatusAvatar from '../components/FederationStatusAvatar'
 import { Column, Row } from '../components/Flex'
+import PinnedMessage from '../components/Home/PinnedMessage'
 import { Icon } from '../components/Icon'
 import { IconButton } from '../components/IconButton'
 import { InstallBanner } from '../components/InstallBanner'
@@ -78,6 +80,9 @@ function WalletPage() {
     )
     const selectedCurrency = useAppSelector(s =>
         selectCurrency(s, federationId),
+    )
+    const pinnedMessage = useAppSelector(s =>
+        selectFederationPinnedMessage(s, federationId),
     )
     const showStableBalanceWeb = useAppSelector(s =>
         Boolean(selectFeatureFlag(s, 'show_stable_balance_web')),
@@ -199,43 +204,58 @@ function WalletPage() {
             </SetupContainer>
         ) : federation ? (
             <WalletContainer>
-                <PaymentFederationHeader
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push(federationRoute(federationId))}
-                    onKeyDown={e => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                <Column gap="sm">
+                    <PaymentFederationHeader
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
                             router.push(federationRoute(federationId))
                         }
-                    }}>
-                    <FederationStatusAvatar federation={federation} size="md" />
-                    <Text
-                        variant="h2"
-                        weight="bold"
-                        css={{ flexGrow: 1, textAlign: 'left' }}>
-                        {federation.name}
-                    </Text>
-                    <TourTip
-                        open={tooltipOpen}
-                        onOpenChange={setTooltipOpen}
-                        side="bottom"
-                        content={
-                            <Text variant="caption">
-                                {t('feature.wallet.wallet-provider-guidance')}
-                            </Text>
-                        }>
-                        <IconButton
-                            icon="Help"
+                        onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                router.push(federationRoute(federationId))
+                            }
+                        }}>
+                        <FederationStatusAvatar
+                            federation={federation}
                             size="md"
-                            style={{ color: theme.colors.darkGrey }}
-                            onClick={e => {
-                                e.stopPropagation()
-                                setTooltipOpen(true)
-                            }}
                         />
-                    </TourTip>
-                    <Icon icon="ChevronRight" color={theme.colors.darkGrey} />
-                </PaymentFederationHeader>
+                        <Text
+                            variant="h2"
+                            weight="bold"
+                            css={{ flexGrow: 1, textAlign: 'left' }}>
+                            {federation.name}
+                        </Text>
+                        <TourTip
+                            open={tooltipOpen}
+                            onOpenChange={setTooltipOpen}
+                            side="bottom"
+                            content={
+                                <Text variant="caption">
+                                    {t(
+                                        'feature.wallet.wallet-provider-guidance',
+                                    )}
+                                </Text>
+                            }>
+                            <IconButton
+                                icon="Help"
+                                size="md"
+                                style={{ color: theme.colors.darkGrey }}
+                                onClick={e => {
+                                    e.stopPropagation()
+                                    setTooltipOpen(true)
+                                }}
+                            />
+                        </TourTip>
+                        <Icon
+                            icon="ChevronRight"
+                            color={theme.colors.darkGrey}
+                        />
+                    </PaymentFederationHeader>
+                    {pinnedMessage && (
+                        <PinnedMessage pinnedMessage={pinnedMessage} compact />
+                    )}
+                </Column>
 
                 {shouldShowStableBalanceSwitcher ? (
                     <Switcher<'bitcoin' | 'stable-balance'>

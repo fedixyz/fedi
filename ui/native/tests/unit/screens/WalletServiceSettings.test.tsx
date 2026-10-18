@@ -10,19 +10,19 @@ import {
 
 import { FEDERATION_TERMS_URL } from '@fedi/common/constants/tos'
 import {
-    recordFiLiquidityAbsent,
+    recordFaLiquidityAbsent,
     selectLoadedFederation,
     setFederations,
-    setFiLiquidityOperation,
-    setFiLiquidityRequesting,
-    setFiStatus,
+    setFaLiquidityOperation,
+    setFaLiquidityRequesting,
+    setFaStatus,
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type {
-    RpcFiFormationSnapshot,
-    RpcFiLiquidityOperation,
+    RpcFaFormationSnapshot,
+    RpcFaLiquidityOperation,
 } from '@fedi/common/types/bindings'
 
 import { ServiceSheet } from '../../../components/feature/walletservice/ServiceSheet'
@@ -50,8 +50,8 @@ jest.mock('../../../utils/hooks/support', () => ({
 }))
 
 const makeFormation = (
-    overrides: Partial<RpcFiFormationSnapshot> = {},
-): RpcFiFormationSnapshot => ({
+    overrides: Partial<RpcFaFormationSnapshot> = {},
+): RpcFaFormationSnapshot => ({
     formationId: 'formation-1',
     phase: 'formed',
     intent: {
@@ -89,15 +89,15 @@ const makePreviewBridge = (
     overrides: Record<string, unknown> = {},
 ) =>
     createMockFedimintBridge({
-        fiClientUpdateFederationMetadata: { type: 'success' },
-        fiClientSetGuardianFee: { type: 'success' },
+        faClientUpdateFederationMetadata: { type: 'success' },
+        faClientSetGuardianFee: { type: 'success' },
         // no gateway attached unless a test says otherwise
-        fiClientLiquidityList: () =>
+        faClientLiquidityList: () =>
             Promise.resolve({
                 type: 'page',
                 page: { operations: [], nextAfter: null },
             }),
-        fiClientLiquidityCurrent: () =>
+        faClientLiquidityCurrent: () =>
             Promise.resolve({ type: 'current', operation: null }),
         federationPreview: () =>
             Promise.resolve({
@@ -124,7 +124,7 @@ const renderScreen = ({
     fedimint?: ReturnType<typeof createMockFedimintBridge>
     /** Pass one in to read what the screen wrote to it afterwards. */
     store?: ReturnType<typeof setupStore>
-    formation?: RpcFiFormationSnapshot
+    formation?: RpcFaFormationSnapshot
     /**
      * What the app-wide monitor has already found.
      *
@@ -133,17 +133,17 @@ const renderScreen = ({
      * RPCs a screen no longer makes. `undefined` means "read, nothing
      * attached", which is what most of these tests assume.
      */
-    liquidity?: RpcFiLiquidityOperation | null | false
+    liquidity?: RpcFaLiquidityOperation | null | false
 } = {}) => {
-    store.dispatch(setFiStatus({ type: 'formation', formation }))
+    store.dispatch(setFaStatus({ type: 'formation', formation }))
     // `hasRead: false` is the state before the monitor's durable read answers,
     // and is deliberately NOT the same as "nothing attached"
     if (liquidity === false) {
         // leave the slice untouched: the read has not answered
     } else if (liquidity) {
-        store.dispatch(setFiLiquidityOperation(liquidity))
+        store.dispatch(setFaLiquidityOperation(liquidity))
     } else {
-        store.dispatch(recordFiLiquidityAbsent())
+        store.dispatch(recordFaLiquidityAbsent())
     }
     renderWithProviders(
         <WalletServiceSettings
@@ -206,7 +206,7 @@ describe('screens/WalletServiceSettings', () => {
         await user.type(screen.getByTestId('settings-edit-input'), 'Renamed')
         await pressOverlayButton(i18n.t('words.save'))
 
-        expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledWith({
+        expect(fedimint.faClientUpdateFederationMetadata).toHaveBeenCalledWith({
             type: 'name',
             value: 'Renamed',
         })
@@ -318,7 +318,7 @@ describe('screens/WalletServiceSettings', () => {
 
         // the bridge has no description variant; welcomeMessage is what Fedi
         // renders as the description
-        expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledWith({
+        expect(fedimint.faClientUpdateFederationMetadata).toHaveBeenCalledWith({
             type: 'welcomeMessage',
             value: 'Community',
         })
@@ -336,7 +336,7 @@ describe('screens/WalletServiceSettings', () => {
         await user.press(screen.getByTestId('fee-option-10000'))
         await pressOverlayButton(i18n.t('words.save'))
 
-        expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(10_000)
+        expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(10_000)
     })
 
     // the row used to read `intent.guardianFeePpm`, which is creation-time and
@@ -483,7 +483,7 @@ describe('screens/WalletServiceSettings', () => {
         const save = screen.getByRole('button', { name: i18n.t('words.save') })
         expect(save).toBeDisabled()
         fireEvent.press(save)
-        expect(fedimint.fiClientSetGuardianFee).not.toHaveBeenCalled()
+        expect(fedimint.faClientSetGuardianFee).not.toHaveBeenCalled()
 
         await act(async () => {
             for (const answer of pendingPreviews)
@@ -498,7 +498,7 @@ describe('screens/WalletServiceSettings', () => {
 
         await pressOverlayButton(i18n.t('words.save'))
 
-        expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(2500)
+        expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(2500)
     })
 
     // a read that fails leaves the rate unknown for the life of the mount,
@@ -546,7 +546,7 @@ describe('screens/WalletServiceSettings', () => {
         })
         await pressOverlayButton(i18n.t('words.save'))
 
-        expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(2500)
+        expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(2500)
     })
 
     it('should choose a lightning provider in a sheet rather than leaving the screen', async () => {
@@ -568,7 +568,7 @@ describe('screens/WalletServiceSettings', () => {
         await user.press(screen.getByTestId('settings-terms-row'))
         await user.press(screen.getByTestId('terms-ready-made-row'))
 
-        expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledWith({
+        expect(fedimint.faClientUpdateFederationMetadata).toHaveBeenCalledWith({
             type: 'termsOfService',
             value: FEDERATION_TERMS_URL,
         })
@@ -586,7 +586,7 @@ describe('screens/WalletServiceSettings', () => {
         )
         await pressOverlayButton(i18n.t('words.save'))
 
-        expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledWith({
+        expect(fedimint.faClientUpdateFederationMetadata).toHaveBeenCalledWith({
             type: 'termsOfService',
             value: url,
         })
@@ -612,7 +612,7 @@ describe('screens/WalletServiceSettings', () => {
         expect(
             screen.getByRole('button', { name: i18n.t('words.save') }),
         ).toBeDisabled()
-        expect(fedimint.fiClientUpdateFederationMetadata).not.toHaveBeenCalled()
+        expect(fedimint.faClientUpdateFederationMetadata).not.toHaveBeenCalled()
     })
 
     it.each(['ready-made', 'custom'])(
@@ -623,7 +623,7 @@ describe('screens/WalletServiceSettings', () => {
                 fedimint: makePreviewBridge(
                     { 'fedi:tos_url': oldUrl },
                     {
-                        fiClientUpdateFederationMetadata: {
+                        faClientUpdateFederationMetadata: {
                             type: 'error',
                             error: { code: 'maintenanceRejected' },
                         },
@@ -929,7 +929,7 @@ describe('screens/WalletServiceSettings', () => {
             const store = setupStore()
             renderScreen({ liquidity: rejected, store })
             act(() => {
-                store.dispatch(setFiLiquidityRequesting(true))
+                store.dispatch(setFaLiquidityRequesting(true))
             })
             await user.press(screen.getByTestId('settings-lightning-row'))
         }
@@ -1087,11 +1087,11 @@ describe('screens/WalletServiceSettings', () => {
         )
         await pressOverlayButton(i18n.t('words.save'))
 
-        expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledWith({
+        expect(fedimint.faClientUpdateFederationMetadata).toHaveBeenCalledWith({
             type: 'iconUrl',
             value: 'https://example.com/icon.png',
         })
-        expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledTimes(
+        expect(fedimint.faClientUpdateFederationMetadata).toHaveBeenCalledTimes(
             1,
         )
     })
@@ -1112,7 +1112,7 @@ describe('screens/WalletServiceSettings', () => {
         ).toBeOnTheScreen()
 
         await pressOverlayButton(i18n.t('words.save'))
-        expect(fedimint.fiClientUpdateFederationMetadata).not.toHaveBeenCalled()
+        expect(fedimint.faClientUpdateFederationMetadata).not.toHaveBeenCalled()
     })
 
     it.each([
@@ -1138,7 +1138,7 @@ describe('screens/WalletServiceSettings', () => {
 
             await pressOverlayButton(i18n.t('words.save'))
             expect(
-                fedimint.fiClientUpdateFederationMetadata,
+                fedimint.faClientUpdateFederationMetadata,
             ).not.toHaveBeenCalled()
         },
     )
@@ -1333,7 +1333,7 @@ describe('screens/WalletServiceSettings', () => {
         )
         await pressOverlayButton(i18n.t('words.save'))
 
-        expect(fedimint.fiClientUpdateFederationMetadata).toHaveBeenCalledWith({
+        expect(fedimint.faClientUpdateFederationMetadata).toHaveBeenCalledWith({
             type: 'iconUrl',
             value: 'https://example.com/new.png',
         })
@@ -1416,6 +1416,6 @@ describe('screens/WalletServiceSettings', () => {
         await user.press(screen.getByTestId('settings-name-row'))
 
         expect(screen.queryByTestId('settings-edit-input')).toBeNull()
-        expect(fedimint.fiClientUpdateFederationMetadata).not.toHaveBeenCalled()
+        expect(fedimint.faClientUpdateFederationMetadata).not.toHaveBeenCalled()
     })
 })

@@ -13,26 +13,26 @@
 
 To report security issues send an email to security@fedi.xyz (not for support).
 
-## Federation Initiator bridge boundary
+## Federation Ambassador bridge boundary
 
-The bridge derives the stable FI key-family root at child id 17 of the app root
-and opens `fi-client` inside the globally reserved database prefix `0x07`.
+The bridge derives the stable FA key-family root at child id 17 of the app root
+and opens `fa-client` inside the globally reserved database prefix `0x07`.
 Manifold owns the protocol-signing, Nostr-author, and backup-encryption children
 below that scoped root. Changing either scope changes durable identity or
 storage ownership and requires an explicit migration. For a restored mnemonic in
-a fresh FI database and selected Manifold environment, `fi-client` checks the
+a fresh FA database and selected Manifold environment, `fa-client` checks the
 canonical relays before allowing a new formation. It claims its mutation guard
 before returning from open, and Fedi holds its RPC command queue until recovery
-completes. Manifold records a completed restored-or-no-backup check in its FI
+completes. Manifold records a completed restored-or-no-backup check in its FA
 namespace, scoped by the environment within that database; a fresh installation
 or environment needs a new check. Authenticated import and completion commit
-atomically, and an internal FI reset clears both. Relay failures and incomplete
+atomically, and an internal FA reset clears both. Relay failures and incomplete
 reads never complete the check: they remain visible as retryable recovery state
-and keep FI creation gated without failing bridge startup. A successful empty
+and keep FA creation gated without failing bridge startup. A successful empty
 result is a deployment-policy quorum of complete relay reads, not proof of
 absence on every relay.
 
-Fedi commits an internal environment switch and its queued FI wipe in one
+Fedi commits an internal environment switch and its queued FA wipe in one
 transaction. Switching away from Production is refused, and a namespace
 without a known non-Production owner cannot be wiped. Production selection is
 intentionally one-way even before a queued switch runs: this seed can have a
@@ -41,17 +41,17 @@ Production formation on relays even when its local namespace is empty.
 On first upgraded internal startup, the legacy app-state selection (or the build
 default) moves into the bridge database. A nonempty ownerless namespace receives
 that owner only when no wipe is pending: the previous implementation queued a
-wipe before changing the selection and applied it before opening FI. An ownerless
-legacy pending wipe remains ambiguous and blocks FI startup without deleting
+wipe before changing the selection and applied it before opening FA. An ownerless
+legacy pending wipe remains ambiguous and blocks FA startup without deleting
 data. There is no in-app escape from that state; reinstall is destructive and
 must not be presented as a value-safe recovery operation.
 
-Pinned Fleet Manager locators are untrusted dialing input plus the public key
+Pinned Manifold Guardian locators are untrusted dialing input plus the public key
 used to verify manager commitments. Parsing a locator is not a trust verdict.
-Every Iroh connect and Fleet Manager request must remain deadline-bounded, and
+Every Iroh connect and Manifold Guardian request must remain deadline-bounded, and
 responses that carry commitments must be verified against the locator key.
 
-Mutating FI formation work is owned by `Runtime.task_group`, serialized to one
+Mutating FA formation work is owned by `Runtime.task_group`, serialized to one
 driver, and cancellable at bridge shutdown. RPC caller cancellation must not
 detach an untracked formation future. The eligible-payer read is the deliberate
 exception: it performs a bounded, read-only authenticated policy refresh in the
@@ -60,11 +60,11 @@ Conversely, cancelling the task may leave durable protocol effects; launch
 recovery must reopen the same database and call `resume` so exact quotes and
 wallet operations are reconciled rather than replaced or spent twice. This
 includes an unsynced persisted `Formed` record: it stays projected as `Formed`,
-reports the launch recheck through `freshness`, and is resumed until the FMan
+reports the launch recheck through `freshness`, and is resumed until the MG
 directory reaches consensus before fresh terminal success is exposed.
 
 Explicit abandonment is a no-argument mutation serialized through that same
-driver. The bridge delegates the value-safety decision to `fi-client` and must
+driver. The bridge delegates the value-safety decision to `fa-client` and must
 never delete formation state directly: abandonment succeeds only before wallet
 output generation is durably armed and before the federation is formed. Before
 releasing the durable mutation's driver claim, Fedi invalidates every local
@@ -76,8 +76,8 @@ driver-lease release reports an error, so that error cannot retain stale local
 authorization.
 
 Internal dev, test, and staging builds have one explicit test-only exception.
-Developer Settings may schedule the non-Production FI namespace for deletion
-on the next launch, before `fi-client` or its driver opens. The reset
+Developer Settings may schedule the non-Production FA namespace for deletion
+on the next launch, before `fa-client` or its driver opens. The reset
 marker lives outside that namespace and the marker plus namespace are cleared
 atomically. Edge and production builds must neither schedule nor apply it. This
 is a destructive test wipe, not abandonment or remote cleanup: in-flight Fleet
@@ -85,7 +85,14 @@ Manager or liquidity work may continue, and payer-wallet holds and journals in
 joined federation databases are deliberately left untouched and may remain
 unavailable. The UI must say so and direct testers to disposable wallets.
 
-FI status snapshots are sensitive application state. They can contain Fleet
+The Manifold push-gateway client is cached with the Manifold deployment of the
+runtime environment that supplied its feature configuration. Registration,
+unregistration, and formation hooks may use that client only while the same
+deployment is selected. Switching an internal build to another deployment must
+fail push setup closed rather than send installation credentials or callback
+traffic to the previously configured gateway.
+
+FA status snapshots are sensitive application state. They can contain Fleet
 Manager locators, guardian/DKG codes, invite codes, quote-bound authorization
 details, and exact payment terms. Neither handled nor orphaned stream payloads
 may be written to routine UI logs or exported support logs. Stream diagnostics
@@ -94,13 +101,13 @@ and whether a handler existed; the subscribed callback still receives the full
 typed value in memory.
 
 Post-formation liquidity uses a second network-facing boundary. Provider
-advertisements are untrusted until `fi-client` verifies the signed Nostr event
+advertisements are untrusted until `fa-client` verifies the signed Nostr event
 and payload, the advertised provider identity, a current PeerBadge holder
 authorization for the selected Manifold environment, and the signed Iroh node
 identity. `BridgeLiquidityConnector` then dials that exact node with only the
 Public Liquidity API ALPN; transport success is not a trust verdict. Discovery
 is a fresh, bounded, no-private-data operation. The federation invite is passed
-to a provider only inside `fi-client`, after the complete admission gate is
+to a provider only inside `fa-client`, after the complete admission gate is
 repeated immediately before the request. The bridge must not log the invite,
 signed request, trust material, or endpoint capabilities. Operation snapshots
 also contain provider identity, endpoint hints, amount bounds, semantic hashes,
@@ -115,7 +122,7 @@ any private payload. In particular, support logs must exclude invite codes,
 credential documents, endpoint capabilities, raw requests, response payloads,
 and free-form error text.
 
-Liquidity `start` and `resume` mutations share the task-group-owned FI driver,
+Liquidity `start` and `resume` mutations share the task-group-owned FA driver,
 so dropping an RPC caller discards only its response while accepted work keeps
 one serialized owner. Bridge shutdown may cancel an in-flight call only at the
 Manifold durable checkpoint. The exact semantic operation remains available
@@ -129,14 +136,14 @@ liquidity as ready. `actionRequired` is surfaced for an operator decision, not
 converted into an automatic retry of a potentially irreversible provider
 operation.
 
-Completed gateway liquidity is not ready until `fi-client` registers the exact
+Completed gateway liquidity is not ready until `fa-client` registers the exact
 validated gateway URL with the guardians and a fresh threshold-aggregated LNv2
 read contains it. `BridgeFederationConsensusReader` must perform that real,
 uncached read through the invite code; fabricating or caching membership would
 silently defeat the post-write verification. The RPC projection exposes only
 the resulting `gatewayViewVerified` boolean, never the gateway capability.
 
-The Fedi wallet adapter (`bridge::fi_payments`) implements exact quote
+The Fedi wallet adapter (`bridge::fa_payments`) implements exact quote
 recovery and idempotent refund settlement for paid formation through the pinned
 Manifold contract. Production app RPCs expose only the verified selection
 preview followed by explicit-payer `Pay & create`; pinned locators and separate
@@ -154,15 +161,15 @@ rate. Manifold parses the exact federation id from its persisted formed invite
 and passes it to the bridge's local fee-account capability; the bridge resolves
 that already joined, Ready federation and returns
 `spv2.our_account(AccountType::BtcDepositor)`. UI, RPC, and driver messages must
-never carry an alternate FI recipient account. Missing joined state or SPv2
+never carry an alternate FA recipient account. Missing joined state or SPv2
 capability fails before any guardian vote, while Manifold retains account-shape,
-role-separation, recipient-policy, and consensus-readback validation. FI RPCs
+role-separation, recipient-policy, and consensus-readback validation. FA RPCs
 expose stable typed error categories; UI code must not branch on error strings,
 and payment errors surfaced through the port must not carry remote or
 wallet-internal detail.
 
 Seat payments hold these invariants. A per-quote journal record in the paying
-federation's client database (tag `0` under prefix `0xce`, `FiSeatPayment`;
+federation's client database (tag `0` under prefix `0xce`, `FaSeatPayment`;
 `0xcc` and `0xcd` remain owned by the LNURL event consumer) commits in the same
 database transaction as the funding transaction's submission state machines, so
 recoverability is durable strictly before any network submission; an absent
@@ -197,23 +204,23 @@ contradictory stops recovery and leaves the payment resumable.
 Refund key material is re-derived from the paying federation's auxiliary secret
 (child id 18) and the quote's public refund nonce; it is never persisted
 anywhere. Refund settlement atomically claims a reverse index keyed by
-refund-issuance hash (tag `1` under prefix `0xce`, `FiSeatPayment`) and records
+refund-issuance hash (tag `1` under prefix `0xce`, `FaSeatPayment`) and records
 a claim hash in the quote row before crediting,
 so concurrent sibling settlements cannot both own one deterministic issuance.
 It refuses a hash already claimed by another quote; exactly-once crediting
-additionally depends on the FMan re-presenting the byte-identical refund
+additionally depends on the MG re-presenting the byte-identical refund
 transaction when it retries a refusal for the same quote. A distinct credited
 hash is written only after deterministic mint receive reaches terminal success;
 the earlier claim is never sufficient proof for releasing/replacing a seat.
 
 Aggregate readiness owns an opaque durable virtual-wallet reservation (tag `0`
-under prefix `0xcf`, `FiFunding`) through Manifold's
+under prefix `0xcf`, `FaFunding`) through Manifold's
 `payment_outputs_started` tombstone and every journaled submission commit.
-An O(1) active total (tag `1` under prefix `0xcf`, `FiFunding`) is updated in
+An O(1) active total (tag `1` under prefix `0xcf`, `FaFunding`) is updated in
 the same transaction as every reservation/member transition; lifetime
 settlement tombstones are therefore never scanned on ordinary balance reads.
-`FederationV2::get_balance` subtracts every live FI reservation, so all ordinary
-wallet sends continue to exclude that value after an app crash/restart. The FI
+`FederationV2::get_balance` subtracts every live FA reservation, so all ordinary
+wallet sends continue to exclude that value after an app crash/restart. The FA
 owner sees only globally available virtual balance plus its own reservation.
 The row binds the exact signed quote/output plans and conservative fee ceilings
 and retains one settlement tombstone per quote. Each submitted quote consumes
@@ -223,7 +230,7 @@ released for replacement after the wallet proves the exact reservation member
 exists and no journal exists. Consensus rejection or a settled signed refund may
 authorize Manifold to replace a submitted seat, but the local member stays
 `Consumed`; terminal release validates that tombstone and never restores held
-value. A rejected funding transaction's automatic input refunds and an FMan-signed
+value. A rejected funding transaction's automatic input refunds and an MG-signed
 payment refund are separate deterministic wallet credits, and both must be spendable
 before their respective terminal proof exists. Dropping
 Manifold's id/capability never releases funds, and accepted, pending, ambiguous,
@@ -241,7 +248,7 @@ reservation; consuming the reservation, journaling the quote, and publishing
 the submission state machines are one atomic commit. It must not fund a seat
 from accrued Fedi-fee reserves merely because physical balance is larger.
 
-The FI database stores resolved intent, locators, signed public quotes,
+The FA database stores resolved intent, locators, signed public quotes,
 quote-bound aggregate authorization, seat ids, guardian codes, and the final
 invite. It must never contain identity secrets, raw ecash, payment signatures,
 or refund secrets; seat-payment journals and refund derivations belong to the
@@ -255,28 +262,28 @@ continues. The hold and its O(1) active total use distinct tags in prefix `0xcf`
 of that selected payer federation's local Fedimint client database. Payment
 journals and reverse refund claims likewise use distinct tags in prefix `0xce`.
 They do not
-live in the globally namespaced FI database, whose formation state may outlive
+live in the globally namespaced FA database, whose formation state may outlive
 or be restored independently of this payer-wallet evidence. Both rows are
 lifecycle state: changing their encoding, keys, or transition rules requires
 either an explicit migration or a coordinated pre-launch reset for every test
 or internal installation that may resume across revisions.
-The pre-rebase FI-only `0xcb`-`0xce` layout is not migratable after master
+The pre-rebase FA-only `0xcb`-`0xce` layout is not migratable after master
 assigned `0xcc`/`0xcd` to LNURL delivery state; internal installations from
 that unreleased layout require a coordinated reset before using this encoding.
 
 An ordinary process restart reopens the same payer database and must retain the
 hold, active total, and every terminal member state. A seed restore, backup
 restore, or federation rejoin can produce a new local payer database without
-those rows even when restored FI state remembers the formation. A missing local
-hold remains ambiguous, so `fi-client` fails before seat recovery. Once the
+those rows even when restored FA state remembers the formation. A missing local
+hold remains ambiguous, so `fa-client` fails before seat recovery. Once the
 exact hold and member exist, a missing journal proves that member has not
 started because consumption and journal creation are atomic. `Consumed` and
 `ReleasedUnstarted` members are durable replay tombstones. They must not be
-deleted or compacted unless a coordinated rule proves that no surviving FI
+deleted or compacted unless a coordinated rule proves that no surviving FA
 state, quote, journal, or refund can refer to their aggregate token.
 
 All balance checks and hold transitions are serialized by the funding
-federation's spend lock. FI APIs accept a federation-branded guard so a lock
+federation's spend lock. FA APIs accept a federation-branded guard so a lock
 from one joined federation cannot authorize another federation's funds. The
 atomic-consumption API also creates the database transaction from that exact
 payer and passes callers a non-forgeable wrapper; it never accepts an arbitrary
@@ -294,10 +301,10 @@ only after its transaction commits successfully. Emitting before commit
 recomputes the old balance and does not satisfy the post-commit refresh; the
 caller must retain the token across commit and emit it afterward.
 
-### FI push-gateway boundary
+### FA push-gateway boundary
 
-FI notification ownership is a third deterministic key family, separate from
-the FI protocol key and Fedi's social Nostr key. The bridge reserves global
+FA notification ownership is a third deterministic key family, separate from
+the FA protocol key and Fedi's social Nostr key. The bridge reserves global
 root-secret child id 19, then domain-separates it with
 `fedi-push-gateway/recipient-auth-nostr/v1` and the canonical Manifold
 environment before deriving the Nostr key used for NIP-98 management requests.
@@ -328,23 +335,20 @@ transport cannot enforce the no-redirect, bounded-streaming contract above.
 They therefore return the same sanitized unavailable result before any gateway
 request, quote, or wallet output instead of weakening that boundary.
 
-Installation registration is deliberately independent of FI selection and may
+Installation registration is deliberately independent of FA selection and may
 happen before a quote exists. It proves only recipient-key possession plus a
 gateway-validated Fedi-project FCM token, never a human identity or financial
-authority. Push payloads therefore contain only a generic FI workflow/action.
+authority. Push payloads therefore contain only a generic FA workflow/action.
 They must not contain or authorize payment, progress, an invite code, a
-federation mutation, or any decision. On tap, the UI reopens the FI surface and
+federation mutation, or any decision. On tap, the UI reopens the FA surface and
 uses authoritative status/recovery to choose the closest durable state.
 The exact routing fields are governed in `HACKING.md` and implemented by the
-single strict parser in `ui/common/utils/fiPush.ts`; consumers must not create a
+single strict parser in `ui/common/utils/faPush.ts`; consumers must not create a
 second string contract.
 
-Production Manifold formation always omits notification callbacks, including
-cached hooks, because production managers have push disabled. This follows the
-selected Manifold environment, including a nightly switched to production.
-In development and staging, at `Pay & create`, the bridge attempts to create
-one installation-scoped, one-use, 30-day hook before entering Manifold's paid
-operation; unavailable push setup does not block formation. The callback is passed
+At `Pay & create`, the bridge attempts to create one installation-scoped,
+one-use, 30-day hook before entering Manifold's paid operation; unavailable
+push setup does not block formation. The callback is passed
 only through the callback-aware `pay_and_create` method, which must persist it
 in the formation initialization transaction before external effects. A later
 setter is forbidden. Fedi does not duplicate the callback in its database; a
@@ -352,6 +356,14 @@ crash before Manifold initialization can leave only an expiring gateway orphan.
 Once a formation exists, Manifold is the sole durable owner and gateway failure
 must never roll back money or DKG. A hook may be revoked by Fedi only after the
 driver proves no durable formation owns it.
+
+This callback behavior must not deploy until the Manifold #69 fix is deployed
+to every Fleet Manager the app can select. Merging or pinning the fix in the
+client library does not establish server compatibility. A fixed manager ignores
+a supplied callback when callback delivery is unconfigured and continues DKG,
+but still rejects a configured callback that is malformed or has the wrong
+origin.
+
 The gateway response is accepted only when `expires_at == created_at + 30 days`
 without integer overflow and `created_at` is fresh relative to the bridge's
 trusted request-start/response-receive timestamps. The permitted gateway clock
@@ -367,7 +379,7 @@ an observed driver response, the driver returns its global operation claim to
 the callback coordinator, which releases it only after callback ownership and
 best-effort cleanup are settled. If the RPC caller disappears before that
 handoff, the driver still completes; the next preview must consult
-authoritative `fi-client` formation status before it may revoke the abandoned
+authoritative `fa-client` formation status before it may revoke the abandoned
 local hook. Pre-initialization terminal cleanup is best-effort, while any
 durable formation status forbids revocation. Executable production-coordinator
 and fake-gateway tests cover response handoff, caller-loss recovery, safe payer
@@ -377,7 +389,7 @@ Every selected federation manager receives the same callback and stable
 idempotency key.
 Gateway idempotency must survive for at least the hook's terminal lifetime so
 delayed/restarted guardians cannot enqueue a second push after event cleanup.
-Federation-manager and `fi-client` storage must erase the live bearer from
+Federation-manager and `fa-client` storage must erase the live bearer from
 their logical records as soon as their respective recovery ownership ends,
 while treating database pages, WAL, and backups as sensitive until normal
 storage retention or compaction removes historical bytes. Retryable delivery

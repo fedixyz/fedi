@@ -9,11 +9,11 @@ import { useMultispendWithdrawForm } from '@fedi/common/hooks/amount'
 import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    selectCurrency,
     selectFederation,
     selectMatrixRoom,
     selectMatrixRoomMultispendStatus,
 } from '@fedi/common/redux'
+import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { AmountScreen } from '../components/ui/AmountScreen'
 import Avatar from '../components/ui/Avatar'
@@ -53,10 +53,11 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
         minimumAmount,
         maximumAmount,
         setInputAmount: setAmount,
+        isBtcOnly,
     } = useMultispendWithdrawForm(roomId, matchingFederation?.id || '')
     const matrixRoom = useAppSelector(s => selectMatrixRoom(s, roomId))
-    const selectedFiatCurrency = useAppSelector(selectCurrency)
-    const { formattedMultispendBalance } = useMultispendDisplayUtils(t, roomId)
+    const { formattedMultispendBalance, balanceCurrencyText } =
+        useMultispendDisplayUtils(t, roomId)
     const toast = useToast()
 
     const onChangeAmount = (updatedValue: Sats) => {
@@ -75,7 +76,9 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
 
         navigation.navigate('MultispendConfirmWithdraw', {
             roomId: roomId,
-            amount: inputAmountCents,
+            amount: isBtcOnly
+                ? { btcAmount: amountUtils.satToMsat(amount) }
+                : { fiatAmount: inputAmountCents },
             notes,
             federationId: matchingFederation?.id || '',
         })
@@ -91,7 +94,8 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
             maximumAmount={maximumAmount}
             submitAttempts={submitAttempts}
             switcherEnabled={false}
-            lockToFiat
+            lockToFiat={!isBtcOnly}
+            lockToSats={isBtcOnly}
             verb={t('words.withdraw')}
             content={
                 <Column>
@@ -110,7 +114,7 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
                                     medium
                                     caption
                                     color={theme.colors.darkGrey}>
-                                    {`${formattedMultispendBalance} ${selectedFiatCurrency}`}
+                                    {`${formattedMultispendBalance} ${balanceCurrencyText}`}
                                 </Text>
                             </Row>
                         </Column>

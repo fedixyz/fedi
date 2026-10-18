@@ -4,8 +4,8 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
+import { useAppliedGuardianFeePpm } from '@fedi/common/hooks/fa'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { useAppliedGuardianFeePpm } from '@fedi/common/hooks/fi'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     DEFAULT_GUARDIAN_FEE_PPM,
@@ -16,7 +16,7 @@ import {
     selectWalletServiceGuardianCount,
     setWalletServiceGuardianFee,
 } from '@fedi/common/redux'
-import { RpcFiOperationError } from '@fedi/common/types/bindings'
+import { RpcFaOperationError } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
 import {
@@ -101,7 +101,7 @@ const WalletServiceFee: React.FC<Props> = ({ navigation, route }) => {
             toast.show({
                 content: getWalletServiceRetryableError(
                     t,
-                    (error as RpcFiOperationError | undefined)?.code,
+                    (error as RpcFaOperationError | undefined)?.code,
                 ),
                 status: 'error',
             })

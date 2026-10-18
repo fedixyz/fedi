@@ -18,6 +18,7 @@ import { RpcTransactionListEntry } from '../types/bindings'
 import amountUtils, { FIAT_MAX_DECIMAL_PLACES } from './AmountUtils'
 import {
     findUserDisplayName,
+    getMultispendGroupKind,
     isMultispendDepositEvent,
     isMultispendWithdrawalEvent,
 } from './matrix'
@@ -153,6 +154,86 @@ export function makeMultispendTransactionHistoryCSV(
     // Sort transactions by createdAt ascending
     const sortedTxs = txs.sort((a, b) => a.createdAt - b.createdAt)
 
+    const getFiatAmountCents = (
+        tx: MultispendTransactionListEntry,
+    ): UsdCents | undefined => {
+        if (isMultispendDepositEvent(tx.state)) {
+            const deposit = tx.state.event.depositNotification
+            if ('fiatAmount' in deposit) return deposit.fiatAmount as UsdCents
+        }
+        if (isMultispendWithdrawalEvent(tx.state)) {
+            const { request } = tx.state.event.withdrawalRequest
+            if (request.kind === 'fiat')
+                return request.transfer_amount as UsdCents
+        }
+        return undefined
+    }
+
+    const getBtcAmountMsats = (
+        tx: MultispendTransactionListEntry,
+    ): MSats | undefined => {
+        if (isMultispendDepositEvent(tx.state)) {
+            const deposit = tx.state.event.depositNotification
+            if ('btcAmount' in deposit) return deposit.btcAmount as MSats
+        }
+        if (isMultispendWithdrawalEvent(tx.state)) {
+            const { request } = tx.state.event.withdrawalRequest
+            if (request.kind === 'btc') return request.transfer_amount as MSats
+        }
+        return undefined
+    }
+
+    const amountColumns: CSVColumns<MultispendTransactionListEntry> =
+        getMultispendGroupKind(multispendStatus) === 'btc'
+            ? [
+                  {
+                      name: 'Amount (sats)',
+                      getValue: tx => {
+                          const msats = getBtcAmountMsats(tx)
+                          return msats === undefined
+                              ? ''
+                              : amountUtils.msatToSat(msats)
+                      },
+                  },
+              ]
+            : [
+                  {
+                      name: 'Amount (USD)',
+                      getValue: tx => {
+                          const amountCents = getFiatAmountCents(tx)
+                          return amountCents
+                              ? amountUtils.formatFiat(
+                                    amountCents / 100,
+                                    SupportedCurrency.USD,
+                                    {
+                                        symbolPosition: 'none',
+                                    },
+                                )
+                              : ''
+                      },
+                  },
+                  // only add a column for the preferred currency if it is different from USD
+                  ...(preferredCurrency && preferredCurrency !== 'USD'
+                      ? [
+                            {
+                                name: `Amount (${preferredCurrency})`,
+                                getValue: (
+                                    tx: MultispendTransactionListEntry,
+                                ) => {
+                                    const amountCents = getFiatAmountCents(tx)
+                                    // conversion function should already have the correct rate + currency code
+                                    return amountCents
+                                        ? convertCentsToFormattedFiat(
+                                              amountCents,
+                                              'none',
+                                          )
+                                        : ''
+                                },
+                            },
+                        ]
+                      : []),
+              ]
+
     return makeCSV(sortedTxs, [
         {
             name: 'ID',
@@ -177,52 +258,7 @@ export function makeMultispendTransactionHistoryCSV(
             getValue: tx =>
                 makeMultispendTxnStatusText(t, tx, multispendStatus, true),
         },
-        {
-            name: 'Amount (USD)',
-            getValue: tx => {
-                let amountCents: UsdCents | undefined
-                if (isMultispendDepositEvent(tx.state)) {
-                    amountCents = tx.state.event.depositNotification
-                        .fiatAmount as UsdCents
-                }
-                if (isMultispendWithdrawalEvent(tx.state)) {
-                    amountCents = tx.state.event.withdrawalRequest.request
-                        .transfer_amount as UsdCents
-                }
-                return amountCents
-                    ? amountUtils.formatFiat(
-                          amountCents / 100,
-                          SupportedCurrency.USD,
-                          {
-                              symbolPosition: 'none',
-                          },
-                      )
-                    : ''
-            },
-        },
-        // only add a column for the preferred currency if it is different from USD
-        ...(preferredCurrency && preferredCurrency !== 'USD'
-            ? [
-                  {
-                      name: `Amount (${preferredCurrency})`,
-                      getValue: (tx: MultispendTransactionListEntry) => {
-                          let amountCents: UsdCents | undefined
-                          if (isMultispendDepositEvent(tx.state)) {
-                              amountCents = tx.state.event.depositNotification
-                                  .fiatAmount as UsdCents
-                          }
-                          if (isMultispendWithdrawalEvent(tx.state)) {
-                              amountCents = tx.state.event.withdrawalRequest
-                                  .request.transfer_amount as UsdCents
-                          }
-                          // conversion function should already have the correct rate + currency code
-                          return amountCents
-                              ? convertCentsToFormattedFiat(amountCents, 'none')
-                              : ''
-                      },
-                  },
-              ]
-            : []),
+        ...amountColumns,
         {
             name: 'Description',
             getValue: tx => {

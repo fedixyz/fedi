@@ -62,6 +62,7 @@ pub use history_service::StabilityPoolHistoryService;
 pub use sync_service::StabilityPoolSyncService;
 
 const BTC_DEPOSITOR_ACCOUNT_CHILD_ID: ChildId = ChildId(0);
+const MULTISPEND_BTC_PAYOUT_ACCOUNT_CHILD_ID: ChildId = ChildId(1);
 
 #[derive(Debug, Clone, Default)]
 pub struct StabilityPoolClientInit {
@@ -115,6 +116,38 @@ impl ClientModuleInit for StabilityPoolClientInit {
         // Client minor is the minimum supported minor within major 0.
         MultiApiVersion::try_from_iter([ApiVersion { major: 0, minor: 0 }])
             .expect("no version conflicts")
+    }
+}
+
+/// An account this client holds the key of. Its account type does not
+/// determine its key, so callers name the account rather than the type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OwnAccount {
+    Seeker,
+    Provider,
+    /// The btc depositor account guardians remit fees to, signed by
+    /// [`StabilityPoolClientInit::with_btc_depositor_keypair`] when set.
+    FeeRemittance,
+    /// The btc depositor account that receives this client's bitcoin
+    /// multispend withdrawals. It is separate from [`Self::FeeRemittance`],
+    /// so sweeping payouts to ecash never touches remitted fees.
+    MultispendBtcPayout,
+}
+
+impl OwnAccount {
+    const ALL: [Self; 4] = [
+        Self::Seeker,
+        Self::Provider,
+        Self::FeeRemittance,
+        Self::MultispendBtcPayout,
+    ];
+
+    pub fn acc_type(self) -> AccountType {
+        match self {
+            Self::Seeker => AccountType::Seeker,
+            Self::Provider => AccountType::Provider,
+            Self::FeeRemittance | Self::MultispendBtcPayout => AccountType::BtcDepositor,
+        }
     }
 }
 
@@ -173,14 +206,14 @@ impl ClientModule for StabilityPoolClientModule {
 
         match command {
             CliCommand::Pubkey { account_type } => Ok(serde_json::to_value(
-                self.our_keypair(account_type.into()).public_key(),
+                self.own_keypair(account_type.into()).public_key(),
             )?),
 
             CliCommand::AccountInfo { account_type } => {
                 let sync_service = StabilityPoolSyncService::new(
                     self.module_api.clone(),
                     self.db.clone(),
-                    self.our_account(account_type.into()).id(),
+                    self.own_account(account_type.into()).id(),
                 )
                 .await;
                 let mut update_stream = sync_service.subscribe_to_updates();
@@ -194,7 +227,7 @@ impl ClientModule for StabilityPoolClientModule {
             }
 
             CliCommand::ActiveDeposits { account_type } => {
-                let account_id = self.our_account(account_type.into()).id();
+                let account_id = self.own_account(account_type.into()).id();
                 let active_deposits = self.active_deposits(account_id).await?;
                 Ok(serde_json::to_value(active_deposits)?)
             }
@@ -204,7 +237,7 @@ impl ClientModule for StabilityPoolClientModule {
                 start,
                 end,
             } => {
-                let account_id = self.our_account(account_type.into()).id();
+                let account_id = self.own_account(account_type.into()).id();
                 let history = self
                     .module_api
                     .account_history(account_id, start..end)
@@ -269,7 +302,7 @@ impl ClientModule for StabilityPoolClientModule {
             } => {
                 let operation_id = self
                     .deposit_to_btc_balance(
-                        self.our_account(AccountType::BtcDepositor).id(),
+                        self.own_account(OwnAccount::FeeRemittance).id(),
                         amount_msats,
                         metadata,
                         (),
@@ -329,18 +362,18 @@ impl ClientModule for StabilityPoolClientModule {
                 account_type,
                 request,
             } => {
-                let (sender_type, request_id) = match account_type {
+                let request_id = match account_type {
                     AccountTypeArg::BtcDepositor => {
                         let request: BtcTransferRequest = parse_json_value(&request)?;
-                        (request.from().acc_type(), TransferRequestId::from(&request))
+                        TransferRequestId::from(&request)
                     }
                     AccountTypeArg::Seeker | AccountTypeArg::Provider => {
                         let request: TransferRequest = parse_json_value(&request)?;
-                        (request.from().acc_type(), TransferRequestId::from(&request))
+                        TransferRequestId::from(&request)
                     }
                 };
                 Ok(serde_json::to_value(
-                    self.sign_transfer(sender_type, request_id),
+                    self.sign_transfer(account_type.into(), request_id),
                 )?)
             }
 
@@ -350,11 +383,10 @@ impl ClientModule for StabilityPoolClientModule {
                 amount,
                 new_fee_rate,
             } => {
-                let account_type = account_type.into();
-                let from = self.our_account(account_type);
+                let from = self.own_account(account_type.into());
                 let nonce = rand::thread_rng().r#gen();
                 match account_type {
-                    AccountType::BtcDepositor => {
+                    AccountTypeArg::BtcDepositor => {
                         ensure!(
                             new_fee_rate.is_none(),
                             "Fee rate only applies to provider-to-provider transfer"
@@ -367,14 +399,14 @@ impl ClientModule for StabilityPoolClientModule {
                             vec![],
                             u64::MAX,
                         )?;
-                        let signature =
-                            self.sign_transfer(account_type, TransferRequestId::from(&request));
+                        let signature = self
+                            .sign_transfer(account_type.into(), TransferRequestId::from(&request));
                         Ok(serde_json::to_value(SignedBtcTransferRequest::new(
                             request,
                             BTreeMap::from([(0, signature)]),
                         )?)?)
                     }
-                    AccountType::Seeker | AccountType::Provider => {
+                    AccountTypeArg::Seeker | AccountTypeArg::Provider => {
                         let request = TransferRequest::new(
                             nonce,
                             from,
@@ -384,8 +416,8 @@ impl ClientModule for StabilityPoolClientModule {
                             u64::MAX,
                             new_fee_rate,
                         )?;
-                        let signature =
-                            self.sign_transfer(account_type, TransferRequestId::from(&request));
+                        let signature = self
+                            .sign_transfer(account_type.into(), TransferRequestId::from(&request));
                         Ok(serde_json::to_value(SignedTransferRequest::new(
                             request,
                             BTreeMap::from([(0, signature)]),
@@ -662,21 +694,34 @@ pub enum StabilityPoolTransferOperationState {
 }
 
 impl StabilityPoolClientModule {
-    pub fn our_keypair(&self, acc_type: AccountType) -> Keypair {
-        match acc_type {
+    pub fn own_keypair(&self, which: OwnAccount) -> Keypair {
+        match which {
             // Keep the btc-depositor account on a separate derivation path so it
             // is not linkable to the normal seeker/provider account key.
-            AccountType::BtcDepositor => self.btc_depositor_keypair_override.unwrap_or_else(|| {
+            OwnAccount::FeeRemittance => self.btc_depositor_keypair_override.unwrap_or_else(|| {
                 self.module_root_secret
                     .child_key(BTC_DEPOSITOR_ACCOUNT_CHILD_ID)
                     .to_secp_key(secp256k1::SECP256K1)
             }),
-            AccountType::Seeker | AccountType::Provider => self.client_key_pair,
+            OwnAccount::MultispendBtcPayout => self
+                .module_root_secret
+                .child_key(MULTISPEND_BTC_PAYOUT_ACCOUNT_CHILD_ID)
+                .to_secp_key(secp256k1::SECP256K1),
+            OwnAccount::Seeker | OwnAccount::Provider => self.client_key_pair,
         }
     }
 
-    pub fn our_account(&self, acc_type: AccountType) -> Account {
-        Account::single(self.our_keypair(acc_type).public_key(), acc_type)
+    pub fn own_account(&self, which: OwnAccount) -> Account {
+        Account::single(self.own_keypair(which).public_key(), which.acc_type())
+    }
+
+    /// The key of `account` if it is one of [`OwnAccount`], or `None` for a
+    /// multisig account or another client's account.
+    fn keypair_for(&self, account: &Account) -> Option<Keypair> {
+        OwnAccount::ALL
+            .into_iter()
+            .find(|which| self.own_account(*which) == *account)
+            .map(|which| self.own_keypair(which))
     }
 
     /// Derive the secret for a given multispend group.
@@ -743,7 +788,7 @@ impl StabilityPoolClientModule {
         let (operation_id, _) = submit_tx_with_output(
             self,
             StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToSeek(DepositToSeekOutput {
-                account_id: self.our_account(AccountType::Seeker).id(),
+                account_id: self.own_account(OwnAccount::Seeker).id(),
                 seek_request: SeekRequest(amount),
             })),
             extra_meta,
@@ -913,7 +958,7 @@ impl StabilityPoolClientModule {
     ) -> StabilityPoolOutput {
         StabilityPoolOutput::V0(StabilityPoolOutputV0::DepositToProvide(
             DepositToProvideOutput {
-                account_id: self.our_account(AccountType::Provider).id(),
+                account_id: self.own_account(OwnAccount::Provider).id(),
                 provide_request: ProvideRequest {
                     amount,
                     min_fee_rate,
@@ -965,17 +1010,14 @@ impl StabilityPoolClientModule {
         )
     }
 
-    // Keep the typed fiat API used by the bridge.
-    pub fn sign_transfer_request(&self, request: &TransferRequest) -> schnorr::Signature {
-        self.sign_transfer(request.from().acc_type(), TransferRequestId::from(request))
-    }
-
+    /// Sign a transfer as `which`, alone for a single-key account or as one
+    /// cosigner of a multisig account.
     pub fn sign_transfer(
         &self,
-        account_type: AccountType,
+        which: OwnAccount,
         request_id: TransferRequestId,
     ) -> schnorr::Signature {
-        self.our_keypair(account_type)
+        self.own_keypair(which)
             .sign_schnorr(secp256k1::Message::from(&request_id))
     }
 
@@ -989,7 +1031,7 @@ impl StabilityPoolClientModule {
             StabilityPoolOutput::V0(StabilityPoolOutputV0::Transfer(TransferOutput {
                 signed_request,
             })),
-            AccountType::Seeker,
+            OwnAccount::Seeker,
             extra_meta,
         )
         .await
@@ -998,7 +1040,7 @@ impl StabilityPoolClientModule {
     pub async fn submit_transfer(
         &self,
         output: StabilityPoolOutput,
-        account_type: AccountType,
+        from: OwnAccount,
         extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<OperationId> {
         match &output {
@@ -1015,7 +1057,7 @@ impl StabilityPoolClientModule {
         let mut dbtx = self.db.begin_transaction().await;
         dbtx.insert_entry(
             &RecordedTransferItemKey {
-                account_id: self.our_account(account_type).id(),
+                account_id: self.own_account(from).id(),
                 txid,
             },
             &operation_id,
@@ -1063,18 +1105,69 @@ impl StabilityPoolClientModule {
 
     pub async fn withdraw(
         &self,
-        acc_type: AccountType,
+        which: OwnAccount,
         unlock_amount: FiatOrAll,
         extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<(OperationId, TransactionId)> {
+        let operation_id = OperationId::new_random();
+        let (tx, meta_gen) = self.withdrawal_tx(operation_id, which, unlock_amount, extra_meta)?;
+        let out_point_range = self
+            .client_ctx
+            .finalize_and_submit_transaction(
+                operation_id,
+                StabilityPoolCommonGen::KIND.as_str(),
+                meta_gen,
+                tx,
+            )
+            .await?;
+        Ok((operation_id, out_point_range.txid))
+    }
+
+    /// [`Self::withdraw`] inside a caller-provided module DB transaction, so
+    /// the caller can record the operation atomically with it.
+    ///
+    /// `dbtx` must be a transaction on this module instance's `module_db()`.
+    /// The caller owns the commit: the operation, with the id
+    /// `operation_id`, exists and is submitted only once `dbtx` commits.
+    /// An `operation_id` that already exists is an error.
+    pub async fn withdraw_dbtx(
+        &self,
+        dbtx: &mut DatabaseTransaction<'_>,
+        operation_id: OperationId,
+        which: OwnAccount,
+        unlock_amount: FiatOrAll,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<TransactionId> {
+        let (tx, meta_gen) = self.withdrawal_tx(operation_id, which, unlock_amount, extra_meta)?;
+        let out_point_range = self
+            .client_ctx
+            .finalize_and_submit_transaction_dbtx(
+                dbtx,
+                operation_id,
+                StabilityPoolCommonGen::KIND.as_str(),
+                meta_gen,
+                tx,
+            )
+            .await?;
+        Ok(out_point_range.txid)
+    }
+
+    fn withdrawal_tx(
+        &self,
+        operation_id: OperationId,
+        which: OwnAccount,
+        unlock_amount: FiatOrAll,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<(
+        TransactionBuilder,
+        impl Fn(OutPointRange) -> StabilityPoolMeta + Clone + MaybeSend + MaybeSync + 'static,
+    )> {
         if matches!(&unlock_amount, FiatOrAll::Fiat(amount) if amount.0 == 0) {
             bail!("Withdrawal amount must be non-0");
         }
 
-        let operation_id = OperationId::new_random();
-
-        let account = self.our_account(acc_type);
-        let signing_key = self.our_keypair(acc_type);
+        let account = self.own_account(which);
+        let signing_key = self.own_keypair(which);
         let input = ClientInput {
             amounts: Amounts::ZERO,
             input: StabilityPoolInput::V0(StabilityPoolInputV0::UnlockForWithdrawal(
@@ -1108,16 +1201,7 @@ impl StabilityPoolClientModule {
                 extra_meta: serde_json::to_value(extra_meta.clone())
                     .expect("to value must never fail"),
             };
-        let out_point_range = self
-            .client_ctx
-            .finalize_and_submit_transaction(
-                operation_id,
-                StabilityPoolCommonGen::KIND.as_str(),
-                withdrawal_meta_gen,
-                tx,
-            )
-            .await?;
-        Ok((operation_id, out_point_range.txid))
+        Ok((tx, withdrawal_meta_gen))
     }
 
     pub async fn subscribe_withdraw(
@@ -1192,24 +1276,74 @@ impl StabilityPoolClientModule {
 
     pub async fn withdraw_idle_balance(
         &self,
-        acc_type: AccountType,
+        which: OwnAccount,
         amount: Amount,
         extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<(OperationId, TransactionId)> {
+        let operation_id = OperationId::new_random();
+        let (tx, meta_gen) = self.idle_withdrawal_tx(which, amount, extra_meta)?;
+        let out_point_range = self
+            .client_ctx
+            .finalize_and_submit_transaction(
+                operation_id,
+                StabilityPoolCommonGen::KIND.as_str(),
+                meta_gen,
+                tx,
+            )
+            .await?;
+        Ok((operation_id, out_point_range.txid))
+    }
+
+    /// [`Self::withdraw_idle_balance`] inside a caller-provided module DB
+    /// transaction, so the caller can record the operation atomically with it.
+    ///
+    /// `dbtx` must be a transaction on this module instance's `module_db()`.
+    /// The caller owns the commit: the operation, with the id
+    /// `operation_id`, exists and is submitted only once `dbtx` commits.
+    /// An `operation_id` that already exists is an error.
+    pub async fn withdraw_idle_balance_dbtx(
+        &self,
+        dbtx: &mut DatabaseTransaction<'_>,
+        operation_id: OperationId,
+        which: OwnAccount,
+        amount: Amount,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<TransactionId> {
+        let (tx, meta_gen) = self.idle_withdrawal_tx(which, amount, extra_meta)?;
+        let out_point_range = self
+            .client_ctx
+            .finalize_and_submit_transaction_dbtx(
+                dbtx,
+                operation_id,
+                StabilityPoolCommonGen::KIND.as_str(),
+                meta_gen,
+                tx,
+            )
+            .await?;
+        Ok(out_point_range.txid)
+    }
+
+    fn idle_withdrawal_tx(
+        &self,
+        which: OwnAccount,
+        amount: Amount,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<(
+        TransactionBuilder,
+        impl Fn(OutPointRange) -> StabilityPoolMeta + Clone + MaybeSend + MaybeSync + 'static,
+    )> {
         if amount == Amount::ZERO {
             bail!("Withdrawal amount must be non-0");
         }
 
-        let operation_id = OperationId::new_random();
-
-        let account = self.our_account(acc_type);
+        let account = self.own_account(which);
         let input = ClientInput {
             amounts: Amounts::new_bitcoin(amount),
             input: StabilityPoolInput::V0(StabilityPoolInputV0::Withdrawal(WithdrawalInput {
                 account: account.clone(),
                 amount,
             })),
-            keys: vec![self.our_keypair(acc_type)],
+            keys: vec![self.own_keypair(which)],
         };
         let sm = ClientInputSM {
             state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
@@ -1226,16 +1360,7 @@ impl StabilityPoolClientModule {
                 extra_meta: serde_json::to_value(extra_meta.clone())
                     .expect("to value must never fail"),
             };
-        let out_point_range = self
-            .client_ctx
-            .finalize_and_submit_transaction(
-                operation_id,
-                StabilityPoolCommonGen::KIND.as_str(),
-                withdrawal_meta_gen,
-                tx,
-            )
-            .await?;
-        Ok((operation_id, out_point_range.txid))
+        Ok((tx, withdrawal_meta_gen))
     }
 
     pub async fn subscribe_withdraw_idle_balance(
@@ -1554,7 +1679,10 @@ async fn claim_idle_balance_input(
     old_state: StabilityPoolWithdrawalStateMachine,
     idle_balance: Amount,
 ) -> StabilityPoolWithdrawalStateMachine {
-    let signing_key = context.module.our_keypair(old_state.account.acc_type());
+    let signing_key = context
+        .module
+        .keypair_for(&old_state.account)
+        .expect("withdrawals only start from our own accounts");
     let input = ClientInput {
         amounts: Amounts::new_bitcoin(idle_balance),
         input: StabilityPoolInput::V0(StabilityPoolInputV0::Withdrawal(WithdrawalInput {
@@ -1603,12 +1731,12 @@ pub enum AccountTypeArg {
     BtcDepositor,
 }
 
-impl From<AccountTypeArg> for AccountType {
+impl From<AccountTypeArg> for OwnAccount {
     fn from(arg: AccountTypeArg) -> Self {
         match arg {
-            AccountTypeArg::Seeker => AccountType::Seeker,
-            AccountTypeArg::Provider => AccountType::Provider,
-            AccountTypeArg::BtcDepositor => AccountType::BtcDepositor,
+            AccountTypeArg::Seeker => OwnAccount::Seeker,
+            AccountTypeArg::Provider => OwnAccount::Provider,
+            AccountTypeArg::BtcDepositor => OwnAccount::FeeRemittance,
         }
     }
 }
@@ -1792,6 +1920,112 @@ mod tests {
         );
     }
 
+    /// `our_keypair(AccountType)` as it was before [`OwnAccount`], to pin
+    /// that each slot kept its key.
+    fn old_our_keypair(module: &StabilityPoolClientModule, acc_type: AccountType) -> Keypair {
+        match acc_type {
+            AccountType::BtcDepositor => {
+                module.btc_depositor_keypair_override.unwrap_or_else(|| {
+                    module
+                        .module_root_secret
+                        .child_key(ChildId(0))
+                        .to_secp_key(secp256k1::SECP256K1)
+                })
+            }
+            AccountType::Seeker | AccountType::Provider => module.client_key_pair,
+        }
+    }
+
+    #[test]
+    fn own_accounts_keep_their_keys() {
+        let module_root_secret =
+            DerivableSecret::new_root(&[42; 32], b"stability-pool-client-test");
+        let override_keypair = Keypair::from_secret_key(
+            secp256k1::SECP256K1,
+            &secp256k1::SecretKey::from_slice(&[1; 32]).expect("valid secret key"),
+        );
+        for keypair_override in [None, Some(override_keypair)] {
+            let module = test_module(module_root_secret.clone(), keypair_override);
+            for (which, acc_type) in [
+                (OwnAccount::Seeker, AccountType::Seeker),
+                (OwnAccount::Provider, AccountType::Provider),
+                (OwnAccount::FeeRemittance, AccountType::BtcDepositor),
+            ] {
+                let public_key = old_our_keypair(&module, acc_type).public_key();
+                let account = Account::single(public_key, acc_type);
+                assert_eq!(module.own_keypair(which).public_key(), public_key);
+                assert_eq!(module.own_account(which), account);
+                assert_eq!(
+                    module.keypair_for(&account).map(|key| key.public_key()),
+                    Some(public_key)
+                );
+            }
+            // the seeker key does not sign for a btc depositor account
+            let seeker_key = module.own_keypair(OwnAccount::Seeker).public_key();
+            assert!(
+                module
+                    .keypair_for(&Account::single(seeker_key, AccountType::BtcDepositor))
+                    .is_none()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn cli_cosigns_a_multisig_transfer_as_the_seeker() {
+        let module = test_module(
+            DerivableSecret::new_root(&[42; 32], b"stability-pool-client-test"),
+            None,
+        );
+        let cosigner = Keypair::from_secret_key(
+            secp256k1::SECP256K1,
+            &secp256k1::SecretKey::from_slice(&[7; 32]).unwrap(),
+        );
+        let keys = [module.own_keypair(OwnAccount::Seeker), cosigner];
+        let from: Account = stability_pool_common::AccountUnchecked {
+            acc_type: AccountType::Seeker,
+            pub_keys: keys.iter().map(|key| key.public_key()).collect(),
+            threshold: 2,
+        }
+        .try_into()
+        .unwrap();
+        let request = TransferRequest::new(
+            1,
+            from.clone(),
+            FiatAmount(10),
+            Account::single(cosigner.public_key(), AccountType::Seeker).id(),
+            vec![],
+            u64::MAX,
+            None,
+        )
+        .unwrap();
+        let ours = module
+            .handle_cli_command(&[
+                "sign-transfer".into(),
+                "--account-type".into(),
+                "seeker".into(),
+                serde_json::to_string(&request).unwrap().into(),
+            ])
+            .await
+            .unwrap();
+        let ours: schnorr::Signature = serde_json::from_value(ours).unwrap();
+        let theirs =
+            cosigner.sign_schnorr(secp256k1::Message::from(&TransferRequestId::from(&request)));
+        // signatures are indexed by the position of their key in the account
+        let signatures = from
+            .pub_keys()
+            .enumerate()
+            .map(|(index, key)| {
+                let signature = if *key == keys[0].public_key() {
+                    ours
+                } else {
+                    theirs
+                };
+                (index as u64, signature)
+            })
+            .collect();
+        SignedTransferRequest::new(request, signatures).unwrap();
+    }
+
     #[test]
     fn btc_depositor_keypair_is_stable() {
         let module_root_secret =
@@ -1802,7 +2036,7 @@ mod tests {
         );
         assert_eq!(
             default_module
-                .our_account(AccountType::BtcDepositor)
+                .own_account(OwnAccount::FeeRemittance)
                 .id()
                 .to_string(),
             "spd1uasx4zkkjywetgyp47xfj6nravuvv03jr5574kldkhvcqrmax5cswsrvjz"
@@ -1815,11 +2049,32 @@ mod tests {
         let overridden_module = test_module(module_root_secret, Some(override_keypair));
         assert_eq!(
             overridden_module
-                .our_account(AccountType::BtcDepositor)
+                .own_account(OwnAccount::FeeRemittance)
                 .id()
                 .to_string(),
             "spd1e7z9l3cql4tjdg84jwwrwng2hjyxqqec2va2jwtc65yjy2er2grs2lx0s5"
         );
+    }
+
+    #[test]
+    fn multispend_btc_payout_account_is_stable_and_separate() {
+        let module = test_module(
+            DerivableSecret::new_root(&[42; 32], b"stability-pool-client-test"),
+            None,
+        );
+        let payout = module.own_account(OwnAccount::MultispendBtcPayout);
+        assert_eq!(
+            payout.id().to_string(),
+            "spd1zfdsejwshe2xddr6kqxkegawgfs5vegzefeemxljtvpz6cu5gdfqgz2pxg"
+        );
+        let fee_account = module.own_account(OwnAccount::FeeRemittance);
+        assert_ne!(payout, fee_account);
+        for account in [payout, fee_account] {
+            assert_eq!(
+                module.keypair_for(&account).unwrap().public_key(),
+                *account.as_single().unwrap()
+            );
+        }
     }
 
     #[test]

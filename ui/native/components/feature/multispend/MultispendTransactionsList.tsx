@@ -54,7 +54,7 @@ const MultispendTransactionsList = ({
                 status: makeMultispendTxnStatusText(txn),
                 notes: makeMultispendTxnNotesText(txn),
                 amount: makeMultispendTxnAmountText(txn),
-                currencyText: makeMultispendTxnCurrencyText(),
+                currencyText: makeMultispendTxnCurrencyText(txn),
                 timestamp: makeMultispendTxnTimestampText(txn),
                 type: t('words.multispend'),
                 amountState: makeMultispendTxnAmountStateText(txn),

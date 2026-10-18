@@ -11,14 +11,14 @@ function guardians(total: number, online: number): GuardianStatus[] {
             ? {
                   online: {
                       guardian: `guardian-${i}`,
-                      fman_name: null,
+                      mg_name: null,
                       latency_ms: 5,
                   },
               }
             : {
                   timeout: {
                       guardian: `guardian-${i}`,
-                      fman_name: null,
+                      mg_name: null,
                       elapsed: '10s',
                   },
               },
@@ -71,19 +71,53 @@ describe('federation reachability', () => {
         expect(observe(9, 140)).toBe('online')
     })
 
-    it.each([7, 8, 9])(
-        'warns after six minutes with %i of ten guardians reachable',
-        online => {
-            const observe = observationSequence(10)
-            observe(10, -30)
+    it.each([
+        [4, 3],
+        [7, 5],
+        [10, 7],
+        [13, 9],
+    ])(
+        'warns after six minutes with %i guardians and only %i reachable',
+        (total, quorum) => {
+            const observe = observationSequence(total)
+            observe(total, -30)
             for (let seconds = 0; seconds < 360; seconds += 30) {
-                expect(observe(online, seconds)).toBe('online')
+                expect(observe(quorum, seconds)).toBe('online')
             }
-            expect(observe(online, 360)).toBe('unstable')
-            expect(observe(10, 390)).toBe('online')
-            expect(observe(7, 420)).toBe('online')
+            expect(observe(quorum, 360)).toBe('unstable')
+            expect(observe(total, 390)).toBe('online')
+            expect(observe(quorum, 420)).toBe('online')
         },
     )
+
+    it('shows online from the first check with seven of ten guardians reachable', () => {
+        const observe = observationSequence(10)
+        for (let seconds = 0; seconds < 360; seconds += 30) {
+            expect(observe(7, seconds)).toBe('online')
+        }
+        expect(observe(7, 360)).toBe('unstable')
+    })
+
+    it.each([
+        [7, 6],
+        [10, 8],
+        [10, 9],
+        [13, 10],
+        [13, 12],
+    ])('stays online with %i guardians and %i reachable', (total, online) => {
+        const observe = observationSequence(total)
+        for (let seconds = 0; seconds <= 3600; seconds += 30) {
+            expect(observe(online, seconds)).toBe('online')
+        }
+    })
+
+    it('clears a warning once more than the quorum is reachable', () => {
+        const observe = observationSequence(10)
+        for (let seconds = 0; seconds < 180; seconds += 30) observe(6, seconds)
+        expect(observe(6, 180)).toBe('offline')
+        expect(observe(7, 210)).toBe('unstable')
+        expect(observe(8, 240)).toBe('online')
+    })
 
     it('keeps measuring an outage when the count changes below quorum', () => {
         const observe = observationSequence(10)
@@ -117,7 +151,7 @@ describe('federation reachability', () => {
         changed[0] = {
             error: {
                 guardian: 'replacement',
-                fman_name: null,
+                mg_name: null,
                 error: 'unreachable',
             },
         }

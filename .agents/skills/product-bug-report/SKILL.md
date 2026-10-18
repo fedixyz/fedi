@@ -45,7 +45,7 @@ Read the window and throw out everything a real app user would never notice. In 
 If no, drop it. Things that almost always fail that test in this backlog:
 
 - **Internal test/QA automation.** Titles like `[e2e audit] Add Appium coverage for ...`, anything tagged `e2e testing` / `testing` / `ai generated`. This is the team writing tests for themselves. Invisible to users.
-- **Feature construction and epics.** `Build the fi-cli command-line tool`, `Implement the weighted guardian-fee split`, `Build bridge RPCs for setup`. These are *new things being built*, not *things broken for users*. A bug report is about what's broken, not the roadmap.
+- **Feature construction and epics.** `Build the fa-cli command-line tool`, `Implement the weighted guardian-fee split`, `Build bridge RPCs for setup`. These are *new things being built*, not *things broken for users*. A bug report is about what's broken, not the roadmap.
 - **Developer-only and infra chores.** `tech debt`, `cicd`, `nix`, `devops`, `dx`, dependency bumps, "symbol missing from dev build", flaky-test fixes, refactors. Real for engineers, meaningless to the reader.
 - **Pure internal ops tasks.** "Get Unilorin Spaces numbers", "Deploy a LNv2 gateway."
 

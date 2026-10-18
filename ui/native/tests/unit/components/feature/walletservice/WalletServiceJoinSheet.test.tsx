@@ -77,7 +77,7 @@ describe('WalletServiceJoinSheet', () => {
     it('should show placeholder rows under the same lead the loaded list uses', () => {
         const fedimint = createMockFedimintBridge({
             // never settles
-            fiClientSetupPaymentFederations: () => new Promise(() => {}),
+            faClientSetupPaymentFederations: () => new Promise(() => {}),
         })
         renderSheet(fedimint)
 
@@ -104,7 +104,7 @@ describe('WalletServiceJoinSheet', () => {
     // one test — a second render in a single test unmounts the first renderer.
     it('should reserve the shared body height while checking', () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: () => new Promise(() => {}),
+            faClientSetupPaymentFederations: () => new Promise(() => {}),
         })
         renderSheet(fedimint)
 
@@ -115,7 +115,7 @@ describe('WalletServiceJoinSheet', () => {
 
     it('should list the admitted services the user has not joined', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: admits([
+            faClientSetupPaymentFederations: admits([
                 {
                     federationId: JOINABLE_ID,
                     inviteCode: JOINABLE_INVITE,
@@ -135,7 +135,7 @@ describe('WalletServiceJoinSheet', () => {
 
     it('should hand the chosen service back rather than joining it here', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: admits([
+            faClientSetupPaymentFederations: admits([
                 {
                     federationId: JOINABLE_ID,
                     inviteCode: JOINABLE_INVITE,
@@ -163,7 +163,7 @@ describe('WalletServiceJoinSheet', () => {
     // a member the user is already in is not an offer to join
     it('should offer nothing when every admitted service is already joined', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: admits([
+            faClientSetupPaymentFederations: admits([
                 {
                     federationId: JOINABLE_ID,
                     inviteCode: JOINABLE_INVITE,
@@ -181,7 +181,7 @@ describe('WalletServiceJoinSheet', () => {
 
     it('should say no wallet can pay when the admitted set is empty', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: admits([]),
+            faClientSetupPaymentFederations: admits([]),
         })
         renderSheet(fedimint)
 
@@ -206,7 +206,7 @@ describe('WalletServiceJoinSheet', () => {
     // strength of a relay timeout.
     it('should distinguish a failed check from an empty one', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: () =>
+            faClientSetupPaymentFederations: () =>
                 Promise.resolve({
                     type: 'error',
                     error: {
@@ -237,7 +237,7 @@ describe('WalletServiceJoinSheet', () => {
 
     it('should report a thrown lookup as a failed check, not an empty one', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: () =>
+            faClientSetupPaymentFederations: () =>
                 Promise.reject(new Error('transport died')),
         })
         renderSheet(fedimint)
@@ -251,7 +251,7 @@ describe('WalletServiceJoinSheet', () => {
     // is what makes the next open possible.
     it('should return to the screen from the empty state', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: admits([]),
+            faClientSetupPaymentFederations: admits([]),
         })
         const { onDismiss, user } = renderSheet(fedimint)
 
@@ -264,7 +264,7 @@ describe('WalletServiceJoinSheet', () => {
 
     it('should return to the screen from the failed-check state', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: () =>
+            faClientSetupPaymentFederations: () =>
                 Promise.reject(new Error('transport died')),
         })
         const { onDismiss, user } = renderSheet(fedimint)
@@ -281,16 +281,16 @@ describe('WalletServiceJoinSheet', () => {
     // and would leave a stale answer ready to show as the current one.
     it('should not run the lookup while the sheet is closed', () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: admits([]),
+            faClientSetupPaymentFederations: admits([]),
         })
         renderSheet(fedimint, { show: false })
 
-        expect(fedimint.fiClientSetupPaymentFederations).not.toHaveBeenCalled()
+        expect(fedimint.faClientSetupPaymentFederations).not.toHaveBeenCalled()
     })
 
     it('should run a fresh lookup on each open', async () => {
         const fedimint = createMockFedimintBridge({
-            fiClientSetupPaymentFederations: admits([]),
+            faClientSetupPaymentFederations: admits([]),
         })
         const onDismiss = jest.fn()
         const onJoin = jest.fn()
@@ -305,7 +305,7 @@ describe('WalletServiceJoinSheet', () => {
 
         await waitFor(() => {
             expect(
-                fedimint.fiClientSetupPaymentFederations,
+                fedimint.faClientSetupPaymentFederations,
             ).toHaveBeenCalledTimes(1)
         })
 
@@ -326,7 +326,7 @@ describe('WalletServiceJoinSheet', () => {
 
         await waitFor(() => {
             expect(
-                fedimint.fiClientSetupPaymentFederations,
+                fedimint.faClientSetupPaymentFederations,
             ).toHaveBeenCalledTimes(2)
         })
     })

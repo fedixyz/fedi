@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::pin::pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use async_stream::stream;
@@ -16,16 +17,23 @@ use rpc_types::matrix::RpcRoomId;
 use rpc_types::{NetworkError, RpcEventId, RpcPublicKey, RpcSPv2SyncResponse};
 use runtime::bridge_runtime::Runtime;
 use runtime::utils::PoisonedLockExt as _;
-use stability_pool_client::common::TransferRequest;
 use tokio::sync::{Mutex, mpsc};
+use tracing::warn;
 
-use super::db::{MultispendGroupStatus, MultispendMarkedForScanning, RpcMultispendGroupStatus};
+use super::db::{
+    MultispendGroupStatus, MultispendInvitationKey, MultispendMarkedForScanning,
+    RpcMultispendGroupStatus,
+};
 use super::rescanner::RoomRescannerManager;
 use super::services::MultispendServices;
 use super::{
-    FederationProvider, FinalizedGroup, GroupInvitation, MsEventData, MultispendEvent,
-    MultispendGroupVoteType, MultispendListedEvent, WithdrawalResponseType,
+    FederationProvider, FinalizedGroup, GroupInvitation, GroupInvitationWithKeys, MsEvent,
+    MsEventData, MultispendGroupKind, MultispendGroupVoteType, MultispendListedEvent,
+    MultispendTransferRequest, WithdrawalResponseType,
 };
+
+/// How long a send waits for sync to deliver its own event.
+const SEND_SERVER_ACK_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct MultispendMatrix {
     pub client: Client,
@@ -47,7 +55,7 @@ pub struct MultispendMatrix {
     //
     // This ensures multispend events are properly synchronized with the server
     // before returning from the send method.
-    send_multispend_server_ack: std::sync::Mutex<Option<mpsc::Sender<OwnedEventId>>>,
+    send_multispend_server_ack: std::sync::Mutex<Option<mpsc::UnboundedSender<OwnedEventId>>>,
 }
 
 impl MultispendMatrix {
@@ -82,7 +90,8 @@ impl MultispendMatrix {
                     let is_multispend = matches!(
                         &event,
                         AnySyncMessageLikeEvent::RoomMessage(SyncMessageLikeEvent::Original(m))
-                            if m.content.msgtype() == super::MULTISPEND_MSGTYPE
+                            if [super::MULTISPEND_MSGTYPE, super::BTC_MULTISPEND_MSGTYPE]
+                                .contains(&m.content.msgtype())
                     );
 
                     if is_multispend {
@@ -98,8 +107,9 @@ impl MultispendMatrix {
                     if is_multispend {
                         // see docs on `send_multispend_server_ack`
                         let sender = this.send_multispend_server_ack.ensure_lock().clone();
+                        // unbounded so a waiting send can never block sync processing
                         if let Some(sender) = sender {
-                            sender.send(event_id.to_owned()).await.ok();
+                            sender.send(event_id.to_owned()).ok();
                         }
                     }
                 }
@@ -111,7 +121,7 @@ impl MultispendMatrix {
 
     pub fn send_multispend_server_ack(
         &self,
-    ) -> &std::sync::Mutex<Option<mpsc::Sender<OwnedEventId>>> {
+    ) -> &std::sync::Mutex<Option<mpsc::UnboundedSender<OwnedEventId>>> {
         &self.send_multispend_server_ack
     }
 
@@ -146,14 +156,14 @@ impl MultispendMatrix {
     pub async fn send_multispend_event(
         &self,
         room_id: &RoomId,
-        content: MultispendEvent,
+        content: MsEvent,
     ) -> anyhow::Result<()> {
         // Acquire the lock to prevent concurrent sends
         let _lock = self.send_multispend_mutex.lock().await;
 
         self.mark_room_for_scanning(room_id).await;
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let (tx, mut rx) = mpsc::unbounded_channel();
 
         // Store the sender in the global field. see docs for send_mulitspend_server_ack
         *self.send_multispend_server_ack.ensure_lock() = Some(tx);
@@ -162,12 +172,13 @@ impl MultispendMatrix {
         self.rescanner.wait_for_scanned(room_id).await;
 
         // Send the message
+        let (msgtype, content) = content.to_matrix();
         let event_id = self
             .send_message_json_no_queue(
                 room_id,
-                super::MULTISPEND_MSGTYPE,
+                msgtype,
                 String::from("This group has new multispend activity"),
-                serde_json::to_value(content)?
+                content
                     .as_object()
                     .context("invalid serialization of content")?
                     .clone(),
@@ -175,20 +186,26 @@ impl MultispendMatrix {
             )
             .await?;
 
-        // Receive messages until we find the one matching our event_id
-        let mut received = false;
-        while let Some(received_event_id) = rx.recv().await {
-            if received_event_id == event_id {
-                received = true;
-                break;
+        // Receive messages until we find the one matching our event_id. Sync may
+        // never deliver it: a limited timeline skips our event when more events
+        // arrive in the room before the next sync.
+        let received = fedimint_core::task::timeout(SEND_SERVER_ACK_TIMEOUT, async {
+            while let Some(received_event_id) = rx.recv().await {
+                if received_event_id == event_id {
+                    return;
+                }
             }
-        }
-        assert!(
-            received,
-            "only way to get out of loop because we don't drop the sender"
-        );
+            unreachable!("we don't drop the sender");
+        })
+        .await;
         // Drop the sender
         *self.send_multispend_server_ack.ensure_lock() = None;
+        if received.is_err() {
+            // the server accepted the event, the rescan back-paginates over the gap
+            warn!(%event_id, "multispend event not synced back, rescanning room");
+            self.rescanner.queue_rescan(room_id);
+            return Ok(());
+        }
         // wait for this event to be scanned in state.
         self.rescanner.wait_for_scanned(room_id).await;
 
@@ -225,12 +242,13 @@ impl MultispendMatrix {
     pub async fn subscribe_multispend_group(
         self: &Arc<Self>,
         room_id: OwnedRoomId,
+        kind: MultispendGroupKind,
     ) -> impl Stream<Item = RpcMultispendGroupStatus> + use<> {
         let this = self.clone();
         stream! {
             let mut stream = pin!(this.rescanner.scan_complete_stream(&room_id));
             loop {
-                yield this.get_multispend_group_status(&room_id).await;
+                yield this.get_multispend_group_status(&room_id, kind).await;
                 if stream.next().await.is_none() {
                     break;
                 }
@@ -263,17 +281,24 @@ impl MultispendMatrix {
         }
     }
 
-    pub async fn get_multispend_group_status(&self, room_id: &RoomId) -> RpcMultispendGroupStatus {
+    pub async fn get_multispend_group_status(
+        &self,
+        room_id: &RoomId,
+        kind: MultispendGroupKind,
+    ) -> RpcMultispendGroupStatus {
         let multispend_db = self.runtime.multispend_db();
         let mut dbtx = multispend_db.begin_transaction_nc().await;
         let room_id = RpcRoomId(room_id.to_string());
-        match super::get_group_status_db(&mut dbtx, &room_id).await {
+        match super::get_group_status_db(&mut dbtx, &room_id, kind).await {
             Some(MultispendGroupStatus::ActiveInvitation { active_invite_id }) => {
-                let Some(MsEventData::GroupInvitation(state)) =
-                    super::get_event_data_db(&mut dbtx, &room_id, &active_invite_id).await
-                else {
-                    panic!("inconsistent multispend db")
-                };
+                let state = dbtx
+                    .get_value(&MultispendInvitationKey(
+                        room_id.clone(),
+                        kind,
+                        active_invite_id.clone(),
+                    ))
+                    .await
+                    .expect("inconsistent multispend db");
                 RpcMultispendGroupStatus::ActiveInvitation {
                     active_invite_id,
                     state,
@@ -293,17 +318,19 @@ impl MultispendMatrix {
     pub async fn list_multispend_events(
         &self,
         room_id: &RpcRoomId,
+        kind: MultispendGroupKind,
         start_after: Option<u64>,
         limit: usize,
     ) -> Vec<MultispendListedEvent> {
         let multispend_db = self.runtime.multispend_db();
         let mut dbtx = multispend_db.begin_transaction_nc().await;
-        super::list_multispend_events(&mut dbtx, room_id, start_after, limit).await
+        super::list_multispend_events(&mut dbtx, room_id, kind, start_after, limit).await
     }
 
     pub async fn send_multispend_group_invitation(
         &self,
         room_id: &RoomId,
+        kind: MultispendGroupKind,
         invitation: GroupInvitation,
         proposer_pubkey: RpcPublicKey,
     ) -> Result<()> {
@@ -321,7 +348,8 @@ impl MultispendMatrix {
         );
         self.send_multispend_event(
             room_id,
-            MultispendEvent::GroupInvitation {
+            MsEvent::GroupInvitation {
+                group_kind: kind,
                 invitation,
                 proposer_pubkey,
             },
@@ -329,7 +357,11 @@ impl MultispendMatrix {
         .await
     }
 
-    pub async fn cancel_multispend_group_invitation(&self, room_id: &RoomId) -> Result<()> {
+    pub async fn cancel_multispend_group_invitation(
+        &self,
+        room_id: &RoomId,
+        kind: MultispendGroupKind,
+    ) -> Result<()> {
         let room = self.client.get_room(room_id).context("room not found")?;
         let own_member = room.member_with_sender_info(room.own_user_id()).await?;
         anyhow::ensure!(
@@ -337,13 +369,14 @@ impl MultispendMatrix {
                 == RoomMemberRole::Administrator,
             ErrorCode::BadRequest
         );
-        match self.get_multispend_group_status(room_id).await {
+        match self.get_multispend_group_status(room_id, kind).await {
             RpcMultispendGroupStatus::ActiveInvitation {
                 active_invite_id, ..
             } => {
                 self.send_multispend_event(
                     room_id,
-                    MultispendEvent::GroupInvitationCancel {
+                    MsEvent::GroupInvitationCancel {
+                        group_kind: kind,
                         invitation: active_invite_id,
                     },
                 )
@@ -361,9 +394,21 @@ impl MultispendMatrix {
         invitation: RpcEventId,
         vote: MultispendGroupVoteType,
     ) -> Result<()> {
+        let Some(MsEventData::GroupInvitation(GroupInvitationWithKeys {
+            kind: group_kind, ..
+        })) = self
+            .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation)
+            .await
+        else {
+            bail!("invitation not found")
+        };
         self.send_multispend_event(
             room_id,
-            MultispendEvent::GroupInvitationVote { invitation, vote },
+            MsEvent::GroupInvitationVote {
+                group_kind,
+                invitation,
+                vote,
+            },
         )
         .await
     }
@@ -371,12 +416,12 @@ impl MultispendMatrix {
     pub async fn send_multispend_withdraw_request(
         &self,
         room_id: &RoomId,
-        request: TransferRequest,
+        request: MultispendTransferRequest,
         description: String,
     ) -> anyhow::Result<()> {
         self.send_multispend_event(
             room_id,
-            MultispendEvent::WithdrawalRequest {
+            MsEvent::WithdrawalRequest {
                 request,
                 description,
             },
@@ -390,9 +435,20 @@ impl MultispendMatrix {
         request: RpcEventId,
         response: WithdrawalResponseType,
     ) -> anyhow::Result<()> {
+        let Some(MsEventData::WithdrawalRequest(state)) = self
+            .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &request)
+            .await
+        else {
+            bail!("withdrawal request not found")
+        };
+        let group_kind = state.request.kind();
         self.send_multispend_event(
             room_id,
-            MultispendEvent::WithdrawalResponse { request, response },
+            MsEvent::WithdrawalResponse {
+                group_kind,
+                request,
+                response,
+            },
         )
         .await
     }
@@ -400,10 +456,11 @@ impl MultispendMatrix {
     pub async fn get_multispend_finalized_group(
         &self,
         room_id: RpcRoomId,
+        kind: MultispendGroupKind,
     ) -> anyhow::Result<Option<FinalizedGroup>> {
         let multispend_db = self.runtime.multispend_db();
         let mut dbtx = multispend_db.begin_transaction_nc().await;
-        Ok(super::get_finalized_group_db(&mut dbtx, &room_id).await)
+        Ok(super::get_finalized_group_db(&mut dbtx, &room_id, kind).await)
     }
 
     /// Get all accumulated data for an event id.
@@ -463,40 +520,44 @@ impl MultispendMatrix {
         &self,
         room_id: &RoomId,
     ) -> anyhow::Result<()> {
-        match self.get_multispend_group_status(room_id).await {
-            RpcMultispendGroupStatus::Finalized {
-                invite_event_id,
-                finalized_group,
-            } => {
-                self.send_multispend_event(
-                    room_id,
-                    MultispendEvent::GroupReannounce {
-                        invitation_id: invite_event_id,
-                        invitation: finalized_group.invitation,
-                        proposer: finalized_group.proposer,
-                        pubkeys: finalized_group.pubkeys,
-                        rejections: BTreeSet::new(),
-                    },
-                )
-                .await?;
+        for kind in [MultispendGroupKind::Fiat, MultispendGroupKind::Btc] {
+            match self.get_multispend_group_status(room_id, kind).await {
+                RpcMultispendGroupStatus::Finalized {
+                    invite_event_id,
+                    finalized_group,
+                } => {
+                    self.send_multispend_event(
+                        room_id,
+                        MsEvent::GroupReannounce {
+                            group_kind: finalized_group.kind,
+                            invitation_id: invite_event_id,
+                            invitation: finalized_group.invitation,
+                            proposer: finalized_group.proposer,
+                            pubkeys: finalized_group.pubkeys,
+                            rejections: BTreeSet::new(),
+                        },
+                    )
+                    .await?;
+                }
+                RpcMultispendGroupStatus::ActiveInvitation {
+                    active_invite_id,
+                    state,
+                } => {
+                    self.send_multispend_event(
+                        room_id,
+                        MsEvent::GroupReannounce {
+                            group_kind: state.kind,
+                            invitation_id: active_invite_id,
+                            invitation: state.invitation,
+                            proposer: state.proposer,
+                            pubkeys: state.pubkeys,
+                            rejections: state.rejections,
+                        },
+                    )
+                    .await?;
+                }
+                RpcMultispendGroupStatus::Inactive => (),
             }
-            RpcMultispendGroupStatus::ActiveInvitation {
-                active_invite_id,
-                state,
-            } => {
-                self.send_multispend_event(
-                    room_id,
-                    MultispendEvent::GroupReannounce {
-                        invitation_id: active_invite_id,
-                        invitation: state.invitation,
-                        proposer: state.proposer,
-                        pubkeys: state.pubkeys,
-                        rejections: state.rejections,
-                    },
-                )
-                .await?;
-            }
-            RpcMultispendGroupStatus::Inactive => (),
         }
         Ok(())
     }

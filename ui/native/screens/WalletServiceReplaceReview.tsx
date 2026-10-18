@@ -12,11 +12,11 @@ import {
     applyWalletServiceReplacements,
     getWalletServiceRetryableError,
     previewWalletServiceReplacements,
-    selectFiReplacementRequirements,
+    selectFaReplacementRequirements,
     selectWalletServiceReplacementPreview,
 } from '@fedi/common/redux'
 import { MSats } from '@fedi/common/types'
-import { RpcFiOperationError } from '@fedi/common/types/bindings'
+import { RpcFaOperationError } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { AmountHeadline } from '../components/feature/walletservice/AmountHeadline'
@@ -54,7 +54,7 @@ const WalletServiceReplaceReview: React.FC<Props> = ({ navigation }) => {
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const toast = useToast()
-    const requirements = useAppSelector(selectFiReplacementRequirements)
+    const requirements = useAppSelector(selectFaReplacementRequirements)
     const preview = useAppSelector(selectWalletServiceReplacementPreview)
     const [isApplying, setIsApplying] = useState(false)
     const [isPreviewing, setIsPreviewing] = useState(false)
@@ -73,10 +73,10 @@ const WalletServiceReplaceReview: React.FC<Props> = ({ navigation }) => {
             ).unwrap()
         } catch (error) {
             log.error('previewWalletServiceReplacements', error)
-            const opError = error as RpcFiOperationError | undefined
+            const opError = error as RpcFaOperationError | undefined
             // no candidates is a waiting state, not a failure: the formation
             // is durable, so the honest offer is "check back soon"
-            if (opError?.detail?.type === 'insufficientFmanSeats') {
+            if (opError?.detail?.type === 'insufficientMgSeats') {
                 setInsufficientSeats({
                     requested: opError.detail.requested,
                     selected: opError.detail.selected,
@@ -130,7 +130,7 @@ const WalletServiceReplaceReview: React.FC<Props> = ({ navigation }) => {
             toast.show({
                 content: getWalletServiceRetryableError(
                     t,
-                    (error as RpcFiOperationError | undefined)?.code,
+                    (error as RpcFaOperationError | undefined)?.code,
                 ),
                 status: 'error',
             })

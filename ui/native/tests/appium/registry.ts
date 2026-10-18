@@ -3,6 +3,7 @@ import { Platform } from '../configs/appium/types'
 import { Chat } from './common/Chat.test'
 import { CommunityChatJoin } from './common/CommunityChatJoin.test'
 import { DeepLinks } from './common/DeepLinks.test'
+import { FederationMetadata } from './common/FederationMetadata.test'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { MiniAppSeed } from './common/MiniAppSeed.test'
 import { Multispend } from './common/Multispend.test'
@@ -30,6 +31,7 @@ export const availableTests: Record<string, TestClass> = {
     onboarding: OnboardingTest,
     settings: Settings,
     joinLeaveFederations: JoinLeaveFederation,
+    federationMetadata: FederationMetadata,
     chat: Chat,
     communityChatJoin: CommunityChatJoin,
     miniAppSeed: MiniAppSeed,

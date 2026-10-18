@@ -6,43 +6,43 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    clearFiLiquidity,
+    clearFaLiquidity,
     clearWalletServiceSelectionPreview,
     prepareWalletServicePayment,
     removeFederations,
-    setFiStatus,
+    setFaStatus,
     upsertFederation,
 } from '@fedi/common/redux'
 
 import SvgImage from '../../components/ui/SvgImage'
 import {
-    FI_SCREEN_GROUPS,
-    FI_SCRIPT_GROUPS,
-    FiDevSwitches,
-    FiDevTools,
-    FiPayerSource,
-    FiScreen,
-    FiSimulatorSwitch,
+    FA_SCREEN_GROUPS,
+    FA_SCRIPT_GROUPS,
+    FaDevSwitches,
+    FaDevTools,
+    FaPayerSource,
+    FaScreen,
+    FaSimulatorSwitch,
     makeMockPayerFederation,
     MOCK_PAYER_FEDERATIONS,
     MOCK_PAYER_FEDERATION_IDS,
-} from '../../devtools/fi'
+} from '../../devtools/fa'
 import { useAppDispatch } from '../../state/hooks'
 import { RootStackParamList } from '../../types/navigation'
 
-const SCRIPT_COUNT = FI_SCRIPT_GROUPS.reduce(
+const SCRIPT_COUNT = FA_SCRIPT_GROUPS.reduce(
     (n, group) => n + group.scripts.length,
     0,
 )
-const SCREEN_COUNT = FI_SCREEN_GROUPS.reduce(
+const SCREEN_COUNT = FA_SCREEN_GROUPS.reduce(
     (n, group) => n + group.screens.length,
     0,
 )
 // the settle and clear buttons
 const ADVANCED_TOOL_COUNT = 2
 
-const SIMULATOR_OPTIONS: FiSimulatorSwitch[] = ['on', 'off']
-const PAYER_SOURCE_OPTIONS: FiPayerSource[] = ['real', 'mock', 'none']
+const SIMULATOR_OPTIONS: FaSimulatorSwitch[] = ['on', 'off']
+const PAYER_SOURCE_OPTIONS: FaPayerSource[] = ['real', 'mock', 'none']
 
 const titleCase = (value: string) =>
     value.charAt(0).toUpperCase() + value.slice(1)
@@ -81,7 +81,7 @@ function SegmentedRow<T extends string>({
 }
 
 const WalletServiceDevTools: React.FC<{
-    tools: FiDevTools
+    tools: FaDevTools
     navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate'>
 }> = ({ tools, navigation }) => {
     const { theme } = useTheme()
@@ -89,7 +89,7 @@ const WalletServiceDevTools: React.FC<{
     const toast = useToast()
     const fedimint = useFedimint()
     const dispatch = useAppDispatch()
-    const [switches, setSwitchesState] = useState<FiDevSwitches>(() =>
+    const [switches, setSwitchesState] = useState<FaDevSwitches>(() =>
         tools.getSwitches(),
     )
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
@@ -100,14 +100,14 @@ const WalletServiceDevTools: React.FC<{
     const [openScreenGroup, setOpenScreenGroup] = useState<string | null>(null)
     const isSimulatorOn = switches.simulator === 'on'
 
-    const handleSimulatorChange = async (simulator: FiSimulatorSwitch) => {
+    const handleSimulatorChange = async (simulator: FaSimulatorSwitch) => {
         const next = { ...switches, simulator }
         setSwitchesState(next)
         await tools.setSwitches(next)
         setNeedsRelaunch(true)
     }
 
-    const handlePayerSourceChange = async (payerSource: FiPayerSource) => {
+    const handlePayerSourceChange = async (payerSource: FaPayerSource) => {
         if (payerSource === 'mock') {
             MOCK_PAYER_FEDERATIONS.forEach(mock =>
                 dispatch(upsertFederation(makeMockPayerFederation(mock))),
@@ -123,7 +123,7 @@ const WalletServiceDevTools: React.FC<{
     // navigate's overloads pair each route with its own params type, so a
     // route held in a union has to be handed over one literal at a time;
     // any route not listed here has its params dropped
-    const navigateToScreen = (target: FiScreen) => {
+    const navigateToScreen = (target: FaScreen) => {
         switch (target.route) {
             case 'WalletServiceSettings':
                 return navigation.navigate(target.route, target.params)
@@ -132,8 +132,8 @@ const WalletServiceDevTools: React.FC<{
         }
     }
 
-    const handleGoToScreen = async (screen: FiScreen) => {
-        dispatch(clearFiLiquidity())
+    const handleGoToScreen = async (screen: FaScreen) => {
+        dispatch(clearFaLiquidity())
         dispatch(clearWalletServiceSelectionPreview())
         try {
             const target = await tools.jumpTo(screen.id)
@@ -153,7 +153,7 @@ const WalletServiceDevTools: React.FC<{
     }
 
     const handlePlay = (scriptName: string) => {
-        dispatch(clearFiLiquidity())
+        dispatch(clearFaLiquidity())
         dispatch(clearWalletServiceSelectionPreview())
         try {
             tools.play(scriptName)
@@ -179,8 +179,8 @@ const WalletServiceDevTools: React.FC<{
         ]
         tools.simulator.clearSimulatedState()
         dispatch(removeFederations(seededIds))
-        dispatch(setFiStatus({ type: 'idle' }))
-        dispatch(clearFiLiquidity())
+        dispatch(setFaStatus({ type: 'idle' }))
+        dispatch(clearFaLiquidity())
         dispatch(clearWalletServiceSelectionPreview())
         toast.show({
             content: 'Simulated wallet service state cleared',
@@ -216,8 +216,8 @@ const WalletServiceDevTools: React.FC<{
                 </Text>
             )}
             <Text small style={style.switchLabel}>
-                The FI backend cannot complete a formation in dev, so the
-                fiClient* RPCs resolve from an in-memory simulator. Go to screen
+                The FA backend cannot complete a formation in dev, so the
+                faClient* RPCs resolve from an in-memory simulator. Go to screen
                 puts the flow straight on the screen you picked; Advanced plays
                 a whole scenario at its real pace and holds the state tools.
             </Text>
@@ -232,7 +232,7 @@ const WalletServiceDevTools: React.FC<{
                         Turn the simulator on to jump to a screen.
                     </Text>
                 ) : (
-                    FI_SCREEN_GROUPS.map(group => (
+                    FA_SCREEN_GROUPS.map(group => (
                         <CollapsibleSection
                             key={group.title}
                             title={group.title}
@@ -276,7 +276,7 @@ const WalletServiceDevTools: React.FC<{
                             Turn the simulator on to play a scenario.
                         </Text>
                     ) : (
-                        FI_SCRIPT_GROUPS.map(group => (
+                        FA_SCRIPT_GROUPS.map(group => (
                             <CollapsibleSection
                                 key={group.title}
                                 title={group.title}

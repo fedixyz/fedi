@@ -264,27 +264,27 @@ pub struct NonceReuseCheckFailedEvent {
 }
 
 /// Progress of the bridge's automatic join of the federation that the
-/// Federation Initiator formed or restored.
+/// Federation Ambassador formed or restored.
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
 #[ts(export)]
-pub enum RpcFiFederationJoinState {
+pub enum RpcFaFederationJoinState {
     Joining,
     Recovering,
     Ready,
     Failed { message: String },
 }
 
-/// Notify front-end how the automatic join of the FI's federation is going.
+/// Notify front-end how the automatic join of the FA's federation is going.
 ///
 /// `Ready` means the federation is joined and has passed the checks that can
 /// still make the bridge leave it, so the wallet backed by it is usable.
 #[derive(Serialize, Debug, Clone, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct FiFederationJoinEvent {
+pub struct FaFederationJoinEvent {
     pub federation_id: RpcFederationId,
-    pub state: RpcFiFederationJoinState,
+    pub state: RpcFaFederationJoinState,
 }
 
 #[derive(Debug, TS, VariantNames)]
@@ -309,7 +309,7 @@ pub enum Event {
     CommunityMetadataUpdated(CommunityMetadataUpdatedEvent),
     NonceReuseCheckFailed(NonceReuseCheckFailedEvent),
     CommunityMigratedToV2(CommunityMigratedToV2Event),
-    FiFederationJoin(FiFederationJoinEvent),
+    FaFederationJoin(FaFederationJoinEvent),
 }
 
 impl Event {
@@ -492,11 +492,11 @@ impl Event {
         Self::NonceReuseCheckFailed(NonceReuseCheckFailedEvent { federation_id })
     }
 
-    pub fn fi_federation_join(
+    pub fn fa_federation_join(
         federation_id: RpcFederationId,
-        state: RpcFiFederationJoinState,
+        state: RpcFaFederationJoinState,
     ) -> Self {
-        Self::FiFederationJoin(FiFederationJoinEvent {
+        Self::FaFederationJoin(FaFederationJoinEvent {
             federation_id,
             state,
         })
@@ -541,7 +541,7 @@ fn serialize_event(event: &Event) -> (String, String) {
         Event::CommunityMetadataUpdated(event) => ("communityMetadataUpdated".into(), body(event)),
         Event::CommunityMigratedToV2(event) => ("communityMigratedToV2".into(), body(event)),
         Event::NonceReuseCheckFailed(event) => ("nonceReuseCheckFailed".into(), body(event)),
-        Event::FiFederationJoin(event) => ("fiFederationJoin".into(), body(event)),
+        Event::FaFederationJoin(event) => ("faFederationJoin".into(), body(event)),
     }
 }
 

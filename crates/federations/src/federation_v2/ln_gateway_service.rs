@@ -7,6 +7,7 @@ use bitcoin::secp256k1::{self, PublicKey};
 use fedimint_client::Client;
 use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_ln_common::{LightningGateway, LightningGatewayAnnouncement};
+use fedimint_lnv2_common::gateway_api::PaymentFee;
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -14,6 +15,9 @@ use super::FederationV2;
 use super::client::ClientExt;
 use super::db::{LightningGatewayOverride, LightningGatewayOverrideKey};
 use super::meta::get_meta_field;
+
+#[cfg(test)]
+mod tests;
 
 pub const META_VETTED_GATEWAYS_KEY: &str = "vetted_gateways";
 
@@ -24,6 +28,14 @@ pub struct LnGatewayService {
 
 /// Duration to fetch updates before gateways are about to expire
 const ABOUT_TO_EXPIRE_DURATION: Duration = Duration::from_secs(30);
+
+#[derive(Clone, Copy)]
+enum GatewayFeePolicy {
+    /// Bound payment estimates, sends, and retries to the shared send limits.
+    Send,
+    /// Preserve the existing fee policy for invoice generation and remittance.
+    Unrestricted,
+}
 
 impl LnGatewayService {
     pub fn new(fed: &FederationV2) -> Self {
@@ -52,7 +64,11 @@ impl LnGatewayService {
         client: &Client,
         gateways: Vec<LightningGatewayAnnouncement>,
     ) -> Vec<LightningGatewayAnnouncement> {
-        let vetted_gws = get_meta_field::<Vec<String>>(client, META_VETTED_GATEWAYS_KEY)
+        Self::prefer_vetted_gateways(gateways, &Self::vetted_gateway_ids(client).await)
+    }
+
+    async fn vetted_gateway_ids(client: &Client) -> HashSet<PublicKey> {
+        get_meta_field::<Vec<String>>(client, META_VETTED_GATEWAYS_KEY)
             .await
             .unwrap_or_default()
             .into_iter()
@@ -61,8 +77,13 @@ impl LnGatewayService {
                     .inspect_err(|err| warn!(?err, %str, "failed to parse vetted gateway"))
                     .ok()
             })
-            .collect::<HashSet<_>>();
+            .collect()
+    }
 
+    fn prefer_vetted_gateways(
+        gateways: Vec<LightningGatewayAnnouncement>,
+        vetted_gws: &HashSet<PublicKey>,
+    ) -> Vec<LightningGatewayAnnouncement> {
         let (vetted, unvetted) = gateways
             .into_iter()
             .partition::<Vec<_>, _>(|g| vetted_gws.contains(&g.info.gateway_id));
@@ -73,23 +94,42 @@ impl LnGatewayService {
     async fn selectable_gateways(
         client: &Client,
         gateways: Vec<LightningGatewayAnnouncement>,
+        excluded_gateway_id: Option<PublicKey>,
+        fee_policy: GatewayFeePolicy,
     ) -> Vec<LightningGatewayAnnouncement> {
-        let gws: Vec<LightningGatewayAnnouncement> =
-            Self::maybe_filter_vetted_gateways(client, gateways)
-                .await
-                .into_iter()
-                // filter out all gateways are about to expire
-                .filter(|g| ABOUT_TO_EXPIRE_DURATION < g.ttl)
-                .collect();
+        Self::filter_selectable_gateways(
+            gateways,
+            &Self::vetted_gateway_ids(client).await,
+            excluded_gateway_id,
+            fee_policy,
+        )
+    }
+
+    fn filter_selectable_gateways(
+        gateways: Vec<LightningGatewayAnnouncement>,
+        vetted_gws: &HashSet<PublicKey>,
+        excluded_gateway_id: Option<PublicKey>,
+        fee_policy: GatewayFeePolicy,
+    ) -> Vec<LightningGatewayAnnouncement> {
+        // Apply eligibility before preference so an unavailable vetted gateway
+        // cannot hide a usable unvetted alternative.
+        let gws = gateways
+            .into_iter()
+            .filter(|g| ABOUT_TO_EXPIRE_DURATION < g.ttl)
+            .filter(|g| Some(g.info.gateway_id) != excluded_gateway_id)
+            // Use the same fee-component limits as Lightning v2 selection.
+            .filter(|g| match fee_policy {
+                GatewayFeePolicy::Send => {
+                    PaymentFee::from(g.info.fees).is_within(&PaymentFee::SEND_FEE_LIMIT)
+                }
+                GatewayFeePolicy::Unrestricted => true,
+            });
 
         // In bridge tests don't use iroh gateways
         #[cfg(feature = "test-support")]
-        let gws = gws
-            .into_iter()
-            .filter(|g| g.info.api.scheme() != "iroh")
-            .collect();
+        let gws = gws.filter(|g| g.info.api.scheme() != "iroh");
 
-        gws
+        Self::prefer_vetted_gateways(gws.collect(), vetted_gws)
     }
 
     pub async fn select_gateway(
@@ -97,7 +137,22 @@ impl LnGatewayService {
         client: &Client,
     ) -> anyhow::Result<Option<LightningGateway>> {
         let gateway_override = self.get_gateway_override(client).await;
-        self.select_gateway_excluding(client, None, gateway_override)
+        self.select_gateway_excluding(
+            client,
+            None,
+            gateway_override,
+            GatewayFeePolicy::Unrestricted,
+        )
+        .await
+    }
+
+    /// Select a gateway within the send fee limits, including any override.
+    pub async fn select_gateway_for_payment(
+        &self,
+        client: &Client,
+    ) -> anyhow::Result<Option<LightningGateway>> {
+        let gateway_override = self.get_gateway_override(client).await;
+        self.select_gateway_excluding(client, None, gateway_override, GatewayFeePolicy::Send)
             .await
     }
 
@@ -106,8 +161,13 @@ impl LnGatewayService {
         client: &Client,
         gateway_override: Option<PublicKey>,
     ) -> anyhow::Result<Option<LightningGateway>> {
-        self.select_gateway_excluding(client, None, gateway_override)
-            .await
+        self.select_gateway_excluding(
+            client,
+            None,
+            gateway_override,
+            GatewayFeePolicy::Unrestricted,
+        )
+        .await
     }
 
     pub async fn refresh_cache_and_select_gateway_excluding(
@@ -120,8 +180,13 @@ impl LnGatewayService {
         if let Err(error) = ln.update_gateway_cache().await {
             warn!(?error, "updating gateway cache failed");
         }
-        self.select_gateway_excluding(client, excluded_gateway_id, gateway_override)
-            .await
+        self.select_gateway_excluding(
+            client,
+            excluded_gateway_id,
+            gateway_override,
+            GatewayFeePolicy::Send,
+        )
+        .await
     }
 
     async fn select_gateway_excluding(
@@ -129,22 +194,39 @@ impl LnGatewayService {
         client: &Client,
         excluded_gateway_id: Option<secp256k1::PublicKey>,
         gateway_override: Option<PublicKey>,
+        fee_policy: GatewayFeePolicy,
     ) -> anyhow::Result<Option<LightningGateway>> {
         let ln = client.ln()?;
-        let mut gws = Self::selectable_gateways(client, ln.list_gateways().await).await;
+        let mut gws = Self::selectable_gateways(
+            client,
+            ln.list_gateways().await,
+            excluded_gateway_id,
+            fee_policy,
+        )
+        .await;
 
         // this should be rare, the background service should keep the gateways updated.
         if gws.is_empty() {
             if let Err(error) = ln.update_gateway_cache().await {
                 warn!(?error, "updating gateway cache failed");
             }
-            gws = Self::selectable_gateways(client, ln.list_gateways().await).await;
+            gws = Self::selectable_gateways(
+                client,
+                ln.list_gateways().await,
+                excluded_gateway_id,
+                fee_policy,
+            )
+            .await;
         }
 
-        if let Some(excluded_gateway_id) = excluded_gateway_id {
-            gws.retain(|g| g.info.gateway_id != excluded_gateway_id);
-        }
+        self.choose_gateway(gws, gateway_override).await
+    }
 
+    async fn choose_gateway(
+        &self,
+        mut gws: Vec<LightningGatewayAnnouncement>,
+        gateway_override: Option<PublicKey>,
+    ) -> anyhow::Result<Option<LightningGateway>> {
         // If override is set, it must be available or we error out
         if let Some(override_id) = gateway_override {
             let gw = gws

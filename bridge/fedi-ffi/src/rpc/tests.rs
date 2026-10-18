@@ -65,44 +65,44 @@ use crate::test_device::{MockFediApi, TestDevice, use_lnd_gateway};
 static INIT_TRACING: Once = Once::new();
 
 #[test]
-fn raw_fi_rpc_allowlist_excludes_formation_orchestration() {
+fn raw_fa_rpc_allowlist_excludes_formation_orchestration() {
     let mut methods = RpcMethods::METHOD_NAMES
         .iter()
         .copied()
-        .filter(|method| method.starts_with("fiClient"))
+        .filter(|method| method.starts_with("faClient"))
         .collect::<Vec<_>>();
     methods.sort_unstable();
 
     assert_eq!(
         methods,
         [
-            "fiClientAbandon",
-            "fiClientApplyReplacements",
-            "fiClientAuthorizeReplacementPayments",
-            "fiClientDecommission",
-            "fiClientEligiblePayers",
-            "fiClientLiquidityCurrent",
-            "fiClientLiquidityDiscover",
-            "fiClientLiquidityList",
-            "fiClientLiquidityResume",
-            "fiClientLiquidityStart",
-            "fiClientLiquidityStatus",
-            "fiClientPayAndCreate",
-            "fiClientPreviewReplacements",
-            "fiClientPreviewSelection",
-            "fiClientRegisterPushInstallation",
-            "fiClientRestartDkg",
-            "fiClientResume",
-            "fiClientScheduleReset",
-            "fiClientSetGuardianFee",
-            "fiClientSetupPaymentFederations",
-            "fiClientStatus",
-            "fiClientSubscribe",
-            "fiClientUnregisterPushInstallation",
-            "fiClientUpdateFederationMetadata",
+            "faClientAbandon",
+            "faClientApplyReplacements",
+            "faClientAuthorizeReplacementPayments",
+            "faClientDecommission",
+            "faClientEligiblePayers",
+            "faClientLiquidityCurrent",
+            "faClientLiquidityDiscover",
+            "faClientLiquidityList",
+            "faClientLiquidityResume",
+            "faClientLiquidityStart",
+            "faClientLiquidityStatus",
+            "faClientPayAndCreate",
+            "faClientPreviewReplacements",
+            "faClientPreviewSelection",
+            "faClientRegisterPushInstallation",
+            "faClientRestartDkg",
+            "faClientResume",
+            "faClientScheduleReset",
+            "faClientSetGuardianFee",
+            "faClientSetupPaymentFederations",
+            "faClientStatus",
+            "faClientSubscribe",
+            "faClientUnregisterPushInstallation",
+            "faClientUpdateFederationMetadata",
         ]
     );
-    for forbidden in ["fiClientCreatePinned", "fiClientAuthorizePayments"] {
+    for forbidden in ["faClientCreatePinned", "faClientAuthorizePayments"] {
         assert!(!RpcMethods::METHOD_NAMES.contains(&forbidden));
     }
 }
@@ -363,6 +363,9 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         multispend_tests::test_multispend_last_seen_cache_churn_does_not_panic,
         multispend_tests::test_multispend_seed_recovery_does_not_resubmit_withdrawals,
         multispend_tests::test_multispend_rescan_processes_every_synced_event,
+        multispend_tests::test_multispend_send_returns_when_sync_skips_own_event,
+        multispend_tests::test_multispend_btc_group_deposit_withdraw_sweep,
+        multispend_tests::test_multispend_withdrawal_is_submitted_by_the_paid_device,
         sp_transfer_tests::test_end_to_end,
         sp_transfer_tests::test_receiver_joins_federation_later,
         test_lightning_send_and_receive,

@@ -1,23 +1,29 @@
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import { StyleSheet } from 'react-native'
 
 import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
 
 import GradientView from '../../ui/GradientView'
+import LinkifiedText from '../../ui/LinkifiedText'
 import SvgImage from '../../ui/SvgImage'
 
 type Props = {
     message: string
+    /** Tighter padding and no pin icon, for use under a header */
+    compact?: boolean
 }
-const PinnedMessage = ({ message }: Props) => {
+const PinnedMessage = ({ message, compact = false }: Props) => {
     const { theme } = useTheme()
     const style = styles(theme)
     return (
-        <GradientView variant="sky-banner" style={style.content}>
-            <SvgImage name="Pin" />
-            <Text caption style={style.message}>
+        <GradientView
+            variant="sky-banner"
+            style={[style.content, compact && style.compactContent]}
+            testID="PinnedMessage">
+            {!compact && <SvgImage name="Pin" />}
+            <LinkifiedText caption style={style.message}>
                 {stripAndDeduplicateWhitespace(message)}
-            </Text>
+            </LinkifiedText>
         </GradientView>
     )
 }
@@ -32,6 +38,10 @@ const styles = (theme: Theme) =>
             paddingVertical: theme.spacing.lg,
             paddingHorizontal: theme.spacing.xl,
             borderRadius: theme.borders.defaultRadius,
+        },
+        compactContent: {
+            paddingVertical: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.md,
         },
         message: {
             flex: 1,

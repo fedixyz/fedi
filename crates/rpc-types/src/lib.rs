@@ -31,7 +31,7 @@ use crate::error::RpcError;
 pub mod communities;
 pub mod error;
 pub mod event;
-pub mod fi_client;
+pub mod fa_client;
 pub mod matrix;
 pub mod mini_app;
 pub mod multispend;
@@ -63,7 +63,7 @@ pub enum RpcAppFlavor {
     Tests,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, TS)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, TS, Encodable, Decodable)]
 #[ts(export)]
 pub struct RpcAmount(#[ts(type = "MSats")] pub fedimint_core::Amount);
 
@@ -201,18 +201,18 @@ pub struct RpcFederationPreview {
 pub enum GuardianStatus {
     Online {
         guardian: String,
-        /// Null when the cached FMan mapping is missing or invalid.
-        fman_name: Option<String>,
+        /// Null when the cached MG mapping is missing or invalid.
+        mg_name: Option<String>,
         latency_ms: u32,
     },
     Error {
         guardian: String,
-        fman_name: Option<String>,
+        mg_name: Option<String>,
         error: String,
     },
     Timeout {
         guardian: String,
-        fman_name: Option<String>,
+        mg_name: Option<String>,
         elapsed: String,
     },
 }
@@ -548,7 +548,7 @@ pub struct RpcTransactionListEntry {
 pub enum RpcTransactionKind {
     /// Paying for a federation being formed: one row for the whole
     /// formation, pending until every seat is paid.
-    FiFormationPayment {
+    FaFormationPayment {
         seats_paid: u32,
         seats_total: u32,
     },
@@ -1013,8 +1013,9 @@ pub enum EcashReceiveReason {
     #[default]
     Receive,
     Cancel,
-    /// Refund of an FI Fleet Manager seat-setup payment.
-    FiSeatPaymentRefund,
+    /// Refund of an FA Manifold Guardian seat-setup payment.
+    #[serde(rename = "fiSeatPaymentRefund")]
+    FaSeatPaymentRefund,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1048,6 +1049,8 @@ pub enum SPv2WithdrawMetadata {
     },
     /// Internal guardian remittance account withdrawal.
     GuardianRemittanceAccount,
+    /// Sweep of bitcoin multispend payouts from the payout account to ecash.
+    MultispendBtcPayout,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1082,6 +1085,11 @@ pub enum SPv2DepositMetadata {
     /// Internal remittance deposit that should not appear in normal UX flows.
     GuardianFeeRemittance {
         snapshot: GuardianFeeRemittanceSnapshot,
+    },
+    /// Deposit of ecash into a bitcoin multispend group account.
+    MultispendBtcDeposit {
+        room: RpcRoomId,
+        description: String,
     },
 }
 

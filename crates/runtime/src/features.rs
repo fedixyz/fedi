@@ -48,10 +48,10 @@ pub enum RuntimeEnvironment {
     Prod,
 }
 
-/// Only the FI client reads this, not chat or device registration.
+/// Only the FA client reads this, not chat or device registration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TS, Serialize, Deserialize)]
 #[ts(export)]
-pub enum FiManifoldEnvironment {
+pub enum FaManifoldEnvironment {
     Development,
     Staging,
     Production,
@@ -96,6 +96,10 @@ pub struct RemoteFeatures {
     /// cached/older payload that omits the field.
     #[serde(default)]
     pub wallet_service_dkg_restart: bool,
+    /// `#[serde(default)]` so the new bridge stays deserializable against any
+    /// cached/older payload that omits the field.
+    #[serde(default)]
+    pub btc_multispend: bool,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -151,10 +155,10 @@ pub struct FeatureCatalog {
     /// Configuration regarding the remittance of Fedi fee
     pub fedi_fee: FediFeeConfig,
 
-    /// Manifold push gateway used for installation registration and FI
+    /// Manifold push gateway used for installation registration and FA
     /// formation-completion hooks. Absence is an explicit fail-closed state;
     /// end-user devices never supply an override.
-    pub fi_push_gateway: Option<FiPushGatewayFeatureConfig>,
+    pub fa_push_gateway: Option<FaPushGatewayFeatureConfig>,
 
     /// SP Transfers Matrix feature flag.
     /// When enabled, allows stability pool transfers via Matrix messaging.
@@ -201,6 +205,12 @@ pub struct FeatureCatalog {
     /// Gates the offer to restart a stuck DKG on the wallet service setup
     /// progress screen.
     pub wallet_service_dkg_restart: Option<WalletServiceDkgRestartFeatureConfig>,
+
+    /// Gates only creating bitcoin-only multispend groups (the invitation),
+    /// joining them (the invitation vote) and depositing into them.
+    /// Withdrawal requests, approvals, rejections, cancelling and the payout
+    /// sweep always work, so members can take funds out of an existing group.
+    pub btc_multispend: Option<BtcMultispendFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -302,7 +312,7 @@ pub struct FediFeeConfig {
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
-pub struct FiPushGatewayFeatureConfig {
+pub struct FaPushGatewayFeatureConfig {
     /// Public HTTPS management origin. Callback bearer paths are returned by
     /// the service at runtime and are never stored in this catalog.
     #[ts(type = "string")]
@@ -348,6 +358,10 @@ pub struct MiniAppSeedFeatureConfig {}
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
 pub struct WalletServiceDkgRestartFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct BtcMultispendFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
@@ -422,6 +436,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        self.btc_multispend = if remote_features.btc_multispend {
+            Some(BtcMultispendFeatureConfig {})
+        } else {
+            None
+        };
     }
 
     fn new_dev() -> Self {
@@ -453,7 +472,7 @@ impl FeatureCatalog {
                 guardian_remittance_poll_interval_secs: 60, // 1 minute
             },
             // Deployment has not assigned the public gateway origin yet.
-            fi_push_gateway: None,
+            fa_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
@@ -470,6 +489,7 @@ impl FeatureCatalog {
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
+            btc_multispend: Some(BtcMultispendFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -514,7 +534,7 @@ impl FeatureCatalog {
                 guardian_remittance_poll_interval_secs: 5, // fast polling for tests
             },
             // Tests inject a loopback gateway at the bridge adapter boundary.
-            fi_push_gateway: None,
+            fa_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 10 * 60, // 10 minutes
             }),
@@ -531,6 +551,7 @@ impl FeatureCatalog {
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
+            btc_multispend: Some(BtcMultispendFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -568,7 +589,7 @@ impl FeatureCatalog {
             },
             // Deployed by k8s-devops argo/apps/manifold-staging: an
             // internet-facing NLB with NIP-98 auth per route, no SSO.
-            fi_push_gateway: Some(FiPushGatewayFeatureConfig {
+            fa_push_gateway: Some(FaPushGatewayFeatureConfig {
                 api_base_url: Url::parse(
                     "https://manifold-push-gateway.internal.k8s.us.dev.fedibtc.com",
                 )
@@ -590,6 +611,7 @@ impl FeatureCatalog {
             wallet_service_creation: Some(WalletServiceCreationFeatureConfig {}),
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
+            btc_multispend: Some(BtcMultispendFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -636,7 +658,7 @@ impl FeatureCatalog {
                 guardian_remittance_poll_interval_secs: 60 * 10, // 10 minutes
             },
             // Fail closed until the production deployment publishes its origin.
-            fi_push_gateway: None,
+            fa_push_gateway: None,
             sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
                 transfer_expiry_secs: 3 * 24 * 60 * 60, // 3 days for prod
             }),
@@ -653,6 +675,7 @@ impl FeatureCatalog {
             wallet_service_creation: None,
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
+            btc_multispend: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -769,5 +792,6 @@ mod tests {
         assert!(!remote_features.wallet_service_creation);
         assert!(!remote_features.mini_app_seed);
         assert!(!remote_features.wallet_service_dkg_restart);
+        assert!(!remote_features.btc_multispend);
     }
 }

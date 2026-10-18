@@ -52,11 +52,10 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     // // Reset preview when leaving the screen
     useEffect(() => {
         return () => {
-            if (communityPreview) setCommunityPreview(undefined)
-            else setFederationPreview(undefined)
+            setCommunityPreview(undefined)
             setFederationPreview(undefined)
         }
-    }, [communityPreview, setCommunityPreview, setFederationPreview])
+    }, [setCommunityPreview, setFederationPreview])
 
     const handleReject = useCallback(() => {
         setIsJoining(false)

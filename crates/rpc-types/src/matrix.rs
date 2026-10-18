@@ -32,7 +32,7 @@ use ts_rs::TS;
 use crate::communities::CommunityInvite;
 use crate::error::{ErrorCode, RpcError};
 use crate::matrix::ruma_events::AnyMessageLikeEvent;
-use crate::multispend::MultispendEvent;
+use crate::multispend::{BTC_MULTISPEND_MSGTYPE, MULTISPEND_MSGTYPE, MsEvent};
 use crate::sp_transfer::RpcSpTransferEvent;
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -1340,7 +1340,7 @@ pub enum RpcMsgLikeKind {
     #[serde(rename = "xyz.fedi.form")]
     Form(RpcFormMessageContent),
     #[serde(rename = "xyz.fedi.multispend")]
-    Multispend(MultispendEvent),
+    Multispend(MsEvent),
     #[serde(rename = "m.room.member")]
     RoomMember(RpcRoomMemberEventContent),
     SpTransfer(SpTransferVirtualEvent),
@@ -1483,7 +1483,19 @@ impl From<&RumaMessageType> for RpcMsgLikeKind {
             | RumaMessageType::ServerNotice(_)
             | RumaMessageType::VerificationRequest(_) => RpcMsgLikeKind::Unknown,
             msg => match msg.msgtype() {
-                "xyz.fedi.multispend" => parse_custom_msg(msg, RpcMsgLikeKind::Multispend),
+                // both kinds of group show as `xyz.fedi.multispend`
+                msgtype @ (MULTISPEND_MSGTYPE | BTC_MULTISPEND_MSGTYPE) => {
+                    match MsEvent::from_matrix(
+                        msgtype,
+                        serde_json::Value::Object(msg.data().into_owned()),
+                    ) {
+                        Ok(event) => RpcMsgLikeKind::Multispend(event),
+                        Err(e) => RpcMsgLikeKind::FailedToParseCustom {
+                            msg_type: msgtype.to_string(),
+                            error: e.to_string(),
+                        },
+                    }
+                }
                 "xyz.fedi.form" => parse_custom_msg(msg, RpcMsgLikeKind::Form),
                 "xyz.fedi.payment" => parse_custom_msg(msg, RpcMsgLikeKind::Payment),
                 "xyz.fedi.sp-transfer" => {

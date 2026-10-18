@@ -8,7 +8,7 @@ import React from 'react'
 
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 
-import { attachFiDevTools, FI_DEV_SWITCHES_KEY } from '../../../../devtools/fi'
+import { attachFaDevTools, FA_DEV_SWITCHES_KEY } from '../../../../devtools/fa'
 import WalletServiceDevTools from '../../../../screens/developer/WalletServiceDevTools'
 import { mockNavigation } from '../../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../../utils/render'
@@ -30,14 +30,14 @@ const memoryStorage = () => {
 const simulatorOnStorage = () => {
     const storage = memoryStorage()
     storage.setItem(
-        FI_DEV_SWITCHES_KEY,
+        FA_DEV_SWITCHES_KEY,
         JSON.stringify({ simulator: 'on', payerSource: 'mock' }),
     )
     return storage
 }
 
 const render = (
-    tools: ReturnType<typeof attachFiDevTools>,
+    tools: ReturnType<typeof attachFaDevTools>,
     fedimint = createMockFedimintBridge(),
 ) =>
     renderWithProviders(
@@ -51,7 +51,7 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should update the simulator switch and tell the developer to relaunch', async () => {
-        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        const tools = attachFaDevTools(jest.fn(), memoryStorage())
         await tools.ready
         render(tools)
 
@@ -64,7 +64,7 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should not ask for a relaunch when only the payer source changes', async () => {
-        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        const tools = attachFaDevTools(jest.fn(), memoryStorage())
         await tools.ready
         render(tools)
 
@@ -75,7 +75,7 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should seed the mock wallets into redux when the payer source becomes mock', async () => {
-        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        const tools = attachFaDevTools(jest.fn(), memoryStorage())
         await tools.ready
         await tools.setSwitches({ simulator: 'on', payerSource: 'none' })
         const { store } = render(tools)
@@ -91,7 +91,7 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should remove the mock wallets from redux when the payer source leaves mock', async () => {
-        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        const tools = attachFaDevTools(jest.fn(), memoryStorage())
         await tools.ready
         const { store } = render(tools)
 
@@ -105,7 +105,7 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should jump to the chosen screen and navigate to its route', async () => {
-        const tools = attachFiDevTools(jest.fn(), simulatorOnStorage())
+        const tools = attachFaDevTools(jest.fn(), simulatorOnStorage())
         await tools.ready
         const jumpTo = jest.spyOn(tools, 'jumpTo')
         render(tools)
@@ -124,10 +124,10 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should prepare the payment before navigating to a confirm screen', async () => {
-        const tools = attachFiDevTools(jest.fn(), simulatorOnStorage())
+        const tools = attachFaDevTools(jest.fn(), simulatorOnStorage())
         await tools.ready
         const fedimint = createMockFedimintBridge({
-            fiClientPreviewSelection: () =>
+            faClientPreviewSelection: () =>
                 Promise.resolve({
                     type: 'preview',
                     preview: {
@@ -140,7 +140,7 @@ describe('WalletServiceDevTools', () => {
                         seats: [],
                     },
                 }),
-            fiClientEligiblePayers: { type: 'payers', payers: [] },
+            faClientEligiblePayers: { type: 'payers', payers: [] },
         })
         render(tools, fedimint)
 
@@ -154,14 +154,14 @@ describe('WalletServiceDevTools', () => {
                 'ConfirmWalletService',
             ),
         )
-        expect(fedimint.fiClientPreviewSelection).toHaveBeenCalledWith({
+        expect(fedimint.faClientPreviewSelection).toHaveBeenCalledWith({
             federationSize: 10,
             plan: 'infiniteBestEffort',
         })
     })
 
     it('should cancel a running script when the simulated state is cleared', async () => {
-        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        const tools = attachFaDevTools(jest.fn(), memoryStorage())
         await tools.ready
         const cancel = jest.spyOn(tools.player, 'cancel')
         render(tools)
@@ -175,7 +175,7 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should play a script from the start without navigating', async () => {
-        const tools = attachFiDevTools(jest.fn(), simulatorOnStorage())
+        const tools = attachFaDevTools(jest.fn(), simulatorOnStorage())
         await tools.ready
         const play = jest.spyOn(tools, 'play')
         render(tools)
@@ -192,7 +192,7 @@ describe('WalletServiceDevTools', () => {
     })
 
     it("should pass a screen's params to navigate", async () => {
-        const tools = attachFiDevTools(jest.fn(), simulatorOnStorage())
+        const tools = attachFaDevTools(jest.fn(), simulatorOnStorage())
         await tools.ready
         render(tools)
 
@@ -210,7 +210,7 @@ describe('WalletServiceDevTools', () => {
     })
 
     it('should disable Go to screen while the simulator is off', async () => {
-        const tools = attachFiDevTools(jest.fn(), memoryStorage())
+        const tools = attachFaDevTools(jest.fn(), memoryStorage())
         await tools.ready
         await tools.setSwitches({ ...tools.getSwitches(), simulator: 'off' })
         render(tools)

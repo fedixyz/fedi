@@ -1,7 +1,11 @@
 import assert from 'assert'
 
 import { MatrixEvent, MatrixMultispendEvent, MatrixRoom } from '../../../types'
-import { RpcTimelineEventItemId } from '../../../types/bindings'
+import {
+    MultispendGroupKind,
+    RpcMultispendGroupStatus,
+    RpcTimelineEventItemId,
+} from '../../../types/bindings'
 import {
     CHAT_LIST_ROOM_RENDER_FIELDS,
     MATRIX_ROOM_PREVIEW_INPUT_FIELDS,
@@ -26,6 +30,10 @@ import {
     canReplyToMatrixEvent,
     makeMatrixReactionChips,
     makeMatrixReactionUsers,
+    coerceMultispendTxn,
+    isMultispendWithdrawalBtcEvent,
+    isMultispendWithdrawalEvent,
+    makeMultispendWalletHeader,
 } from '../../../utils/matrix'
 import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
 import {
@@ -36,6 +44,11 @@ import {
     mockMatrixEventVideo,
 } from '../../mock-data/matrix-event'
 import { createMockT } from '../../utils/setup'
+import {
+    makeTestMultispendBtcDepositEventData,
+    makeTestMultispendDepositEventData,
+    makeTestMultispendWithdrawalEventData,
+} from '../../utils/transaction'
 
 describe('encodeFediMatrixUserUri', () => {
     it('encodes a user URI', () => {
@@ -94,6 +107,7 @@ const mockGroupAnnounceEvent: MatrixMultispendEvent<'groupReannounce'> = {
     content: {
         msgtype: 'xyz.fedi.multispend',
         kind: 'groupReannounce',
+        groupKind: 'fiat',
         invitationId: 'iid1',
         invitation: {
             signers: ['@user1:m1.8fa.in', '@user2:m1.8fa.in'],
@@ -809,5 +823,92 @@ describe('room equality helpers (drift-prevention)', () => {
                 areMatrixRoomPreviewInputsEqual(MOCK_MATRIX_ROOM, mutated),
             ).toBe(true)
         })
+    })
+})
+
+describe('multispend bitcoin withdrawal helpers', () => {
+    it('detects the kind of a withdrawal event', () => {
+        const fiat = makeTestMultispendWithdrawalEventData('unknown', 100)
+        const btc = makeTestMultispendWithdrawalEventData('unknown', 100, 'btc')
+
+        expect(isMultispendWithdrawalEvent(fiat)).toBe(true)
+        expect(isMultispendWithdrawalEvent(btc)).toBe(true)
+        expect(isMultispendWithdrawalBtcEvent(fiat)).toBe(false)
+        expect(isMultispendWithdrawalBtcEvent(btc)).toBe(true)
+    })
+})
+
+describe('coerceMultispendTxn', () => {
+    it('carries the exact msats for bitcoin deposits and zero otherwise', () => {
+        const btcDeposit = coerceMultispendTxn(
+            makeTestMultispendBtcDepositEventData(1_500_000),
+        )
+        const fiatDeposit = coerceMultispendTxn(
+            makeTestMultispendDepositEventData(100, ''),
+        )
+
+        expect(btcDeposit.kind).toBe('multispendDeposit')
+        expect(btcDeposit.amount).toBe(1_500_000)
+        expect(fiatDeposit.amount).toBe(0)
+    })
+
+    it('carries the exact msats for bitcoin withdrawals and zero otherwise', () => {
+        const btcWithdrawal = coerceMultispendTxn(
+            makeTestMultispendWithdrawalEventData('unknown', 3_000_000, 'btc'),
+        )
+        const fiatWithdrawal = coerceMultispendTxn(
+            makeTestMultispendWithdrawalEventData('unknown', 100),
+        )
+
+        expect(btcWithdrawal.kind).toBe('multispendWithdrawal')
+        expect(btcWithdrawal.amount).toBe(3_000_000)
+        expect(fiatWithdrawal.amount).toBe(0)
+    })
+})
+
+describe('makeMultispendWalletHeader', () => {
+    const t = createMockT()
+
+    const makeFinalizedStatus = (
+        kind: MultispendGroupKind,
+    ): RpcMultispendGroupStatus =>
+        ({
+            status: 'finalized',
+            invite_event_id: 'evt1',
+            finalized_group: {
+                kind,
+                invitation: {
+                    signers: ['@a:s', '@b:s'],
+                    threshold: 2,
+                    federationInviteCode: 'fed1',
+                    federationName: 'testfed',
+                },
+                proposer: '@a:s',
+                pubkeys: {},
+                federationId: '1',
+            },
+        }) as unknown as RpcMultispendGroupStatus
+
+    it('surfaces the bitcoin kind for finalized groups', () => {
+        expect(
+            makeMultispendWalletHeader(t, makeFinalizedStatus('btc')),
+        ).toEqual(
+            expect.objectContaining({
+                federationName: 'testfed',
+                threshold: 2,
+                totalSigners: 2,
+                kind: 'btc',
+            }),
+        )
+    })
+
+    it('surfaces the fiat kind for finalized groups', () => {
+        expect(
+            makeMultispendWalletHeader(t, makeFinalizedStatus('fiat')).kind,
+        ).toBe('fiat')
+    })
+
+    it('defaults the kind to fiat when there is no status', () => {
+        expect(makeMultispendWalletHeader(t, undefined).kind).toBe('fiat')
     })
 })

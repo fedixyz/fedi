@@ -1,6 +1,6 @@
 import { cleanup, screen, userEvent } from '@testing-library/react-native'
 
-import { useWalletServiceFederationId } from '@fedi/common/hooks/fi'
+import { useWalletServiceFederationId } from '@fedi/common/hooks/fa'
 import { setFederations, setupStore } from '@fedi/common/redux'
 import {
     mockFederation1,
@@ -15,7 +15,7 @@ import { mockNavigation } from '../../../../setup/jest.setup.mocks'
 
 // the real hook parses the fi invite code through the bridge; the overlay
 // only needs the id it produces
-jest.mock('@fedi/common/hooks/fi', () => ({
+jest.mock('@fedi/common/hooks/fa', () => ({
     useWalletServiceFederationId: jest.fn(),
 }))
 

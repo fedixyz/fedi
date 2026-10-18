@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 out=$(mktemp -d)
-pattern='FiSimulator|devtools/fi|developer/WalletServiceDevTools|attachFiDevTools'
+pattern='FaSimulator|devtools/fi|developer/WalletServiceDevTools|attachFaDevTools'
 
 metro_config_args=()
 if [ -n "${METRO_CONFIG:-}" ]; then

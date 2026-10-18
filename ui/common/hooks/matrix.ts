@@ -39,6 +39,7 @@ import {
     unobserveMultispendEvent,
     observeMultispendAccountInfo,
     unobserveMultispendAccountInfo,
+    selectMultispendGroupKind,
     observeSpTransferState,
     unobserveSpTransferState,
     checkBolt11PaymentResult,
@@ -546,12 +547,13 @@ type PaymentThunkAction = ReturnType<
 export function useObserveMultispendAccountInfo(roomId: MatrixRoom['id']) {
     const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
+    const kind = useCommonSelector(s => selectMultispendGroupKind(s, roomId))
     useEffect(() => {
-        dispatch(observeMultispendAccountInfo({ fedimint, roomId }))
+        dispatch(observeMultispendAccountInfo({ fedimint, roomId, kind }))
         return () => {
             dispatch(unobserveMultispendAccountInfo({ fedimint, roomId }))
         }
-    }, [dispatch, roomId, fedimint])
+    }, [dispatch, roomId, kind, fedimint])
 }
 
 /**

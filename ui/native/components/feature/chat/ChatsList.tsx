@@ -2,7 +2,6 @@ import { useIsFocused, useNavigation } from '@react-navigation/native'
 import { Image, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import {
-    Dimensions,
     FlatList,
     ListRenderItem,
     StyleSheet,
@@ -27,7 +26,6 @@ import { NavigationHook } from '../../../types/navigation'
 import { ChatRoomActionsOverlay } from './ChatRoomActionsOverlay'
 import ChatRoomTile from './ChatRoomTile'
 
-const WINDOW_WIDTH = Dimensions.get('window').width
 const ROOM_LIST_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 1 }
 
 const ChatsList: React.FC = () => {
@@ -118,13 +116,6 @@ const ChatsList: React.FC = () => {
                 refreshing={isRefetching}
                 keyExtractor={item => `${item.id}`}
                 progressViewOffset={-10}
-                // optimization that allows skipping the measurement of dynamic content
-                // for fixed-size list items
-                getItemLayout={(data, index) => ({
-                    length: WINDOW_WIDTH,
-                    offset: 48 * index,
-                    index,
-                })}
                 onViewableItemsChanged={handleViewableItemsChanged}
                 viewabilityConfig={ROOM_LIST_VIEWABILITY_CONFIG}
             />

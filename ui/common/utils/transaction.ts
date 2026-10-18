@@ -63,7 +63,7 @@ export const getTxnDirection = (
         case 'sPV2Deposit':
         case 'sPV2TransferOut':
         case 'multispendWithdrawal':
-        case 'fiFormationPayment':
+        case 'faFormationPayment':
             return TransactionDirection.send
         default:
             txn.kind satisfies
@@ -164,7 +164,7 @@ export const makeTxnTypeText = (
             return t('words.deposit')
         case 'multispendWithdrawal':
             return t('words.withdrawal')
-        case 'fiFormationPayment':
+        case 'faFormationPayment':
             return t('words.federation')
         default:
             txn satisfies never
@@ -262,7 +262,7 @@ export const makeTxnDetailTitleText = (
             return t('feature.stabilitypool.you-deposited')
         case 'multispendWithdrawal':
             return t('feature.stabilitypool.you-withdrew')
-        case 'fiFormationPayment':
+        case 'faFormationPayment':
             return t('feature.send.you-sent')
         default:
             txn satisfies never
@@ -465,7 +465,7 @@ export const makeTxnStatusText = (
     // same rule as makeTxnStatusBadge: a missing state is a not-yet-terminal
     // operation, not an unknown outcome
     // formation rows are pending until every seat is paid
-    if (txn.kind === 'fiFormationPayment')
+    if (txn.kind === 'faFormationPayment')
         return txn.seats_paid === txn.seats_total
             ? t('words.complete')
             : t('words.pending')
@@ -669,7 +669,7 @@ export const makeTxnStatusBadge = (
 ): TransactionStatusBadge => {
     // A missing state means the operation is not terminal yet: terminal
     // outcomes always carry one, a fresh operation's state can just lag
-    if (txn.kind === 'fiFormationPayment')
+    if (txn.kind === 'faFormationPayment')
         return txn.seats_paid === txn.seats_total ? 'outgoing' : 'pending'
     if (!txn.state) return 'pending'
 
@@ -1305,7 +1305,12 @@ export const makeMultispendTxnDetailItems = (
                 value: makeNameWithSuffix(matchingMember),
             })
         }
-        if (deposit.fiatAmount) {
+        if ('btcAmount' in deposit) {
+            items.push({
+                label: t('words.amount'),
+                value: formatMultispendSats(t, deposit.btcAmount as MSats),
+            })
+        } else if (deposit.fiatAmount) {
             items.push({
                 label: t('words.amount'),
                 value: convertCentsToFormattedFiat(
@@ -1326,18 +1331,30 @@ export const makeMultispendTxnDetailItems = (
                 value: makeNameWithSuffix(matchingMember),
             })
         }
-        if (withdrawalRequest.request.transfer_amount) {
+        const { request } = withdrawalRequest
+        if (request.transfer_amount) {
             items.push({
                 label: t('words.amount'),
-                value: convertCentsToFormattedFiat(
-                    withdrawalRequest.request.transfer_amount as UsdCents,
-                ),
+                value:
+                    request.kind === 'btc'
+                        ? formatMultispendSats(
+                              t,
+                              request.transfer_amount as MSats,
+                          )
+                        : convertCentsToFormattedFiat(
+                              request.transfer_amount as UsdCents,
+                          ),
             })
         }
     }
 
     return items
 }
+
+const formatMultispendSats = (t: TFunction, msats: MSats): string =>
+    `${amountUtils.formatSats(amountUtils.msatToSat(msats))} ${t(
+        'words.sats',
+    ).toUpperCase()}`
 
 // Maps status badges to amount states
 export const TransactionAmountStateMap = {
@@ -1388,7 +1405,7 @@ export const isMultispendTransfer = (txn: TransactionListEntry) => {
 
 export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
     // Show the "Ask Fedi" button if the txn has no state (should not happen)
-    if (txn.kind === 'fiFormationPayment') return false
+    if (txn.kind === 'faFormationPayment') return false
     if (!txn.state) return true
 
     switch (txn.kind) {

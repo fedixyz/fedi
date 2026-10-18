@@ -101,52 +101,52 @@ export class FedimintBridge {
         return this.rpcTyped('onAppForeground', {})
     }
 
-    /** Authoritative current FI state, including typed initialization failure. */
-    async fiClientStatus() {
-        return this.rpcTyped('fiClientStatus', {})
+    /** Authoritative current FA state, including typed initialization failure. */
+    async faClientStatus() {
+        return this.rpcTyped('faClientStatus', {})
     }
 
-    /** Joined federations whose wallets are ready to fund FI formation. */
-    async fiClientSetupPaymentFederations() {
-        return this.rpcTyped('fiClientSetupPaymentFederations', {})
+    /** Joined federations whose wallets are ready to fund FA formation. */
+    async faClientSetupPaymentFederations() {
+        return this.rpcTyped('faClientSetupPaymentFederations', {})
     }
 
-    async fiClientEligiblePayers() {
-        return this.rpcTyped('fiClientEligiblePayers', {})
+    async faClientEligiblePayers() {
+        return this.rpcTyped('faClientEligiblePayers', {})
     }
 
-    async fiClientRegisterPushInstallation(
+    async faClientRegisterPushInstallation(
         fcmToken: string,
-        platform: bindings.RpcFiPushPlatform,
+        platform: bindings.RpcFaPushPlatform,
     ) {
-        return this.rpcTyped('fiClientRegisterPushInstallation', {
+        return this.rpcTyped('faClientRegisterPushInstallation', {
             fcmToken,
             platform,
         })
     }
 
-    async fiClientUnregisterPushInstallation() {
-        return this.rpcTyped('fiClientUnregisterPushInstallation', {})
+    async faClientUnregisterPushInstallation() {
+        return this.rpcTyped('faClientUnregisterPushInstallation', {})
     }
 
     /** Informational verified estimate only; this does not reserve guardians. */
-    async fiClientPreviewSelection(
-        request: bindings.RpcFiSelectionPreviewRequest,
+    async faClientPreviewSelection(
+        request: bindings.RpcFaSelectionPreviewRequest,
     ) {
-        return this.rpcTyped('fiClientPreviewSelection', { request })
+        return this.rpcTyped('faClientPreviewSelection', { request })
     }
 
     /**
      * Seal a preview, select its explicit payer, and start formation under the
-     * caller-approved spend cap. Current FI status remains authoritative.
+     * caller-approved spend cap. Current FA status remains authoritative.
      */
-    async fiClientPayAndCreate(
+    async faClientPayAndCreate(
         previewId: string,
-        intent: bindings.RpcFiFormationIntent,
+        intent: bindings.RpcFaFormationIntent,
         paymentFederationId: string,
-        maxTotalMsats: bindings.RpcFiMsats,
+        maxTotalMsats: bindings.RpcFaMsats,
     ) {
-        return this.rpcTyped('fiClientPayAndCreate', {
+        return this.rpcTyped('faClientPayAndCreate', {
             previewId,
             intent,
             paymentFederationId,
@@ -154,48 +154,48 @@ export class FedimintBridge {
         })
     }
 
-    async fiClientPreviewReplacements() {
-        return this.rpcTyped('fiClientPreviewReplacements', {})
+    async faClientPreviewReplacements() {
+        return this.rpcTyped('faClientPreviewReplacements', {})
     }
 
-    async fiClientApplyReplacements(
+    async faClientApplyReplacements(
         previewId: string,
-        maxTotalMsats: bindings.RpcFiMsats,
+        maxTotalMsats: bindings.RpcFaMsats,
     ) {
-        return this.rpcTyped('fiClientApplyReplacements', {
+        return this.rpcTyped('faClientApplyReplacements', {
             previewId,
             maxTotalMsats,
         })
     }
 
-    async fiClientAuthorizeReplacementPayments(authorizationId: string) {
-        return this.rpcTyped('fiClientAuthorizeReplacementPayments', {
+    async faClientAuthorizeReplacementPayments(authorizationId: string) {
+        return this.rpcTyped('faClientAuthorizeReplacementPayments', {
             authorizationId,
         })
     }
 
     /** Attempt durable reconciliation; read/subscribe to status for the outcome. */
-    async fiClientResume() {
-        return this.rpcTyped('fiClientResume', {})
+    async faClientResume() {
+        return this.rpcTyped('faClientResume', {})
     }
 
     /** Abandon only while Manifold proves no payment output has been armed. */
-    async fiClientAbandon() {
-        return this.rpcTyped('fiClientAbandon', {})
+    async faClientAbandon() {
+        return this.rpcTyped('faClientAbandon', {})
     }
 
     /** End every seat of the recorded formation. Run before the state wipe. */
-    async fiClientDecommission() {
-        return this.rpcTyped('fiClientDecommission', {})
+    async faClientDecommission() {
+        return this.rpcTyped('faClientDecommission', {})
     }
 
-    async fiClientRestartDkg() {
-        return this.rpcTyped('fiClientRestartDkg', {})
+    async faClientRestartDkg() {
+        return this.rpcTyped('faClientRestartDkg', {})
     }
 
-    /** Wipe all local FI protocol state when an internal build next starts. */
-    async fiClientScheduleReset() {
-        return this.rpcTyped('fiClientScheduleReset', {})
+    /** Wipe all local FA protocol state when an internal build next starts. */
+    async faClientScheduleReset() {
+        return this.rpcTyped('faClientScheduleReset', {})
     }
 
     /**
@@ -204,11 +204,11 @@ export class FedimintBridge {
      * At least one source minimum must be positive; SP is administrative
      * post-formation work and is not part of the Fedi formation flow.
      */
-    async fiClientLiquidityDiscover(
-        intent: bindings.RpcFiLiquidityRequestIntent,
-        network: bindings.RpcFiLiquidityNetwork,
+    async faClientLiquidityDiscover(
+        intent: bindings.RpcFaLiquidityRequestIntent,
+        network: bindings.RpcFaLiquidityNetwork,
     ) {
-        return this.rpcTyped('fiClientLiquidityDiscover', { intent, network })
+        return this.rpcTyped('faClientLiquidityDiscover', { intent, network })
     }
 
     /**
@@ -217,12 +217,12 @@ export class FedimintBridge {
      * endpoint checks. Treat a lost response as recoverable, not as permission
      * to create a second request.
      */
-    async fiClientLiquidityStart(
+    async faClientLiquidityStart(
         formationId: string,
         providerPubkey: string,
-        intent: bindings.RpcFiLiquidityRequestIntent,
+        intent: bindings.RpcFaLiquidityRequestIntent,
     ) {
-        return this.rpcTyped('fiClientLiquidityStart', {
+        return this.rpcTyped('faClientLiquidityStart', {
             formationId,
             providerPubkey,
             intent,
@@ -234,8 +234,8 @@ export class FedimintBridge {
      * Do not invoke automatically for an actionRequired item: that state
      * requires an operator decision.
      */
-    async fiClientLiquidityResume(operationId: string) {
-        return this.rpcTyped('fiClientLiquidityResume', { operationId })
+    async faClientLiquidityResume(operationId: string) {
+        return this.rpcTyped('faClientLiquidityResume', { operationId })
     }
 
     /**
@@ -244,36 +244,36 @@ export class FedimintBridge {
      * joined federation before the app presents liquidity as ready. GatewayId
      * is FLIP-opaque and is not a listGateways identity.
      */
-    async fiClientLiquidityStatus(operationId: string) {
-        return this.rpcTyped('fiClientLiquidityStatus', { operationId })
+    async faClientLiquidityStatus(operationId: string) {
+        return this.rpcTyped('faClientLiquidityStatus', { operationId })
     }
 
     /** Canonical non-terminal liquidity operation for the active formation. */
-    async fiClientLiquidityCurrent() {
-        return this.rpcTyped('fiClientLiquidityCurrent', {})
+    async faClientLiquidityCurrent() {
+        return this.rpcTyped('faClientLiquidityCurrent', {})
     }
 
     /**
      * Bounded, read-only durable recovery page; pass nextAfter back unchanged
      * until null. Listing performs no provider network work.
      */
-    async fiClientLiquidityList(after: string | null = null) {
-        return this.rpcTyped('fiClientLiquidityList', { after })
+    async faClientLiquidityList(after: string | null = null) {
+        return this.rpcTyped('faClientLiquidityList', { after })
     }
 
-    async fiClientUpdateFederationMetadata(
-        update: bindings.RpcFiFederationMetadataUpdate,
+    async faClientUpdateFederationMetadata(
+        update: bindings.RpcFaFederationMetadataUpdate,
     ) {
-        return this.rpcTyped('fiClientUpdateFederationMetadata', { update })
+        return this.rpcTyped('faClientUpdateFederationMetadata', { update })
     }
 
-    async fiClientSetGuardianFee(guardianFeePpm: number) {
-        return this.rpcTyped('fiClientSetGuardianFee', { guardianFeePpm })
+    async faClientSetGuardianFee(guardianFeePpm: number) {
+        return this.rpcTyped('faClientSetGuardianFee', { guardianFeePpm })
     }
 
     /** Emit current state first, then changes; initialization failure is a value. */
-    fiClientSubscribe(args: StreamRpcArgs<'fiClientSubscribe'>): UnsubscribeFn {
-        return this.rpcStream('fiClientSubscribe', args)
+    faClientSubscribe(args: StreamRpcArgs<'faClientSubscribe'>): UnsubscribeFn {
+        return this.rpcStream('faClientSubscribe', args)
     }
 
     async federationPreview(inviteCode: string) {
@@ -950,14 +950,14 @@ export class FedimintBridge {
         return this.rpcTyped('setSensitiveLog', { enable })
     }
 
-    async getFiManifoldEnvironment() {
-        return this.rpcTyped('getFiManifoldEnvironment', {})
+    async getFaManifoldEnvironment() {
+        return this.rpcTyped('getFaManifoldEnvironment', {})
     }
 
-    async setFiManifoldEnvironment(
-        environment: bindings.FiManifoldEnvironment,
+    async setFaManifoldEnvironment(
+        environment: bindings.FaManifoldEnvironment,
     ) {
-        return this.rpcTyped('setFiManifoldEnvironment', { environment })
+        return this.rpcTyped('setFaManifoldEnvironment', { environment })
     }
 
     async internalMarkBridgeExport() {

@@ -10,8 +10,8 @@ import React from 'react'
 import { setupStore } from '@fedi/common/redux'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
-    RpcFiFormationSnapshot,
-    RpcFiOperationResult,
+    RpcFaFormationSnapshot,
+    RpcFaOperationResult,
 } from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
 
@@ -23,7 +23,7 @@ import {
 } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
 
-const makeFormedFormation = (): RpcFiFormationSnapshot => ({
+const makeFormedFormation = (): RpcFaFormationSnapshot => ({
     formationId: 'formation-1',
     phase: 'formed',
     intent: {
@@ -46,15 +46,15 @@ const makeFormedFormation = (): RpcFiFormationSnapshot => ({
     lastError: null,
 })
 
-// what the bridge reports while the launch recheck still holds the FI
+// what the bridge reports while the launch recheck still holds the FA
 // operation lock: still formed, but not yet fresh
-const makeReconcilingFormation = (): RpcFiFormationSnapshot => ({
+const makeReconcilingFormation = (): RpcFaFormationSnapshot => ({
     ...makeFormedFormation(),
     freshness: 'unsynced',
 })
 
 /** An invite code is what `useAppliedGuardianFeePpm` reads the rate through. */
-const makeFormedFormationWithInvite = (): RpcFiFormationSnapshot => ({
+const makeFormedFormationWithInvite = (): RpcFaFormationSnapshot => ({
     ...makeFormedFormation(),
     inviteCode: 'fed11invite',
 })
@@ -77,14 +77,14 @@ const renderFee = ({
     federationPreview,
 }: {
     mode?: 'onboarding' | 'edit'
-    setGuardianFeeResult?: RpcFiOperationResult
-    formation?: RpcFiFormationSnapshot
+    setGuardianFeeResult?: RpcFaOperationResult
+    formation?: RpcFaFormationSnapshot
     /** How the federation's metadata answers, when a test cares. */
     federationPreview?: () => Promise<unknown>
 } = {}) => {
     const user = userEvent.setup()
     const fedimint = createMockFedimintBridge({
-        fiClientSetGuardianFee: Promise.resolve(
+        faClientSetGuardianFee: Promise.resolve(
             setGuardianFeeResult ?? { type: 'success' },
         ),
         ...(federationPreview ? { federationPreview } : {}),
@@ -215,9 +215,9 @@ describe('WalletServiceFee screen', () => {
         await user.press(await findCtaButton())
 
         await waitFor(() => {
-            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(5000)
+            expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(5000)
         })
-        expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledTimes(1)
+        expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledTimes(1)
     })
 
     it.each([
@@ -233,7 +233,7 @@ describe('WalletServiceFee screen', () => {
             await user.press(await findCtaButton())
 
             await waitFor(() => {
-                expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(
+                expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(
                     expectedPpm,
                 )
             })
@@ -248,7 +248,7 @@ describe('WalletServiceFee screen', () => {
         await user.press(await findCtaButton())
 
         await waitFor(() => {
-            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(1500)
+            expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(1500)
         })
     })
 
@@ -266,7 +266,7 @@ describe('WalletServiceFee screen', () => {
         await user.press(await findCtaButton())
 
         await waitFor(() => {
-            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(2500)
+            expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(2500)
         })
     })
 
@@ -296,7 +296,7 @@ describe('WalletServiceFee screen', () => {
         await user.press(await findCtaButton())
 
         await waitFor(() => {
-            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(5000)
+            expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(5000)
         })
     })
 
@@ -322,7 +322,7 @@ describe('WalletServiceFee screen', () => {
         await user.press(await findCtaButton())
 
         await waitFor(() => {
-            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(7500)
+            expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(7500)
         })
     })
 
@@ -352,7 +352,7 @@ describe('WalletServiceFee screen', () => {
         await user.press(await findCtaButton())
 
         await waitFor(() => {
-            expect(fedimint.fiClientSetGuardianFee).toHaveBeenCalledWith(10000)
+            expect(fedimint.faClientSetGuardianFee).toHaveBeenCalledWith(10000)
         })
     })
 

@@ -38,11 +38,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # FI sources are fetched by Nix, then exposed to Cargo as a local path
-    # dependency. Keep these revisions aligned with Manifold's fi-client and
+    # FA sources are fetched by Nix, then exposed to Cargo as a local path
+    # dependency. Keep these revisions aligned with Manifold's fa-client and
     # peerbadge-sdk input.
     manifold-src = {
-      url = "github:fedibtc/manifold/c6d3851a6ee4b5ce1dfc6d7c5b34d83c9235f45e";
+      url = "github:fedibtc/manifold/51af73349ba9f2f88833c2b5e744bf164b997bb4";
       flake = false;
     };
     peerbadge-sdk-src = {
@@ -166,7 +166,7 @@
 
         # Manifold's workspace uses a Nix-provided peerbadge-sdk path. Build
         # the same source layout here so Cargo uses the pinned input.
-        manifoldSource = pkgs.runCommand "manifold-fi-client-source" { } ''
+        manifoldSource = pkgs.runCommand "manifold-fa-client-source" { } ''
           cp -a ${manifold-src} "$out"
           chmod -R u+w "$out"
           mkdir -p "$out/.nix-deps"

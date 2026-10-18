@@ -30,6 +30,7 @@ import AutojoinedCommunityNotice from '../components/feature/home/AutojoinedComm
 import DefaultChatTile from '../components/feature/home/DefaultChatTile'
 import { Column, Row } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
+import LinkifiedText from '../components/ui/LinkifiedText'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import ShadowScrollView from '../components/ui/ShadowScrollView'
 import { useAppSelector } from '../state/hooks'
@@ -153,7 +154,9 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                     </Column>
                 )}
                 {welcomeMessage && (
-                    <Text maxFontSizeMultiplier={1.2}>{welcomeMessage}</Text>
+                    <LinkifiedText maxFontSizeMultiplier={1.2}>
+                        {welcomeMessage}
+                    </LinkifiedText>
                 )}
             </ShadowScrollView>
             <Column style={style.actionsContainer} gap="md">

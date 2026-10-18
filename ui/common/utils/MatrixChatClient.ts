@@ -26,6 +26,7 @@ import {
 import {
     JSONObject,
     MsEventData,
+    MultispendGroupKind,
     MultispendListedEvent,
     NetworkError,
     RpcBackPaginationStatus,
@@ -115,6 +116,7 @@ interface MatrixChatClientEventMap {
     ignoredUsers: MatrixUser['id'][]
     multispendUpdate: {
         roomId: MatrixRoom['id']
+        kind: MultispendGroupKind
         status: RpcMultispendGroupStatus | null
     }
     multispendEventUpdate: {
@@ -172,7 +174,7 @@ export class MatrixChatClient {
     > = {}
     private multispendUnsubscribeMap: Record<
         MatrixRoom['id'],
-        UnsubscribeFn | undefined
+        UnsubscribeFn[] | undefined
     > = {}
     private multispendEventUnsubscribeMap: Record<
         MatrixRoom['id'],
@@ -180,7 +182,7 @@ export class MatrixChatClient {
     > = {}
     private multispendAccountUnsubscribeMap: Record<
         MatrixRoom['id'],
-        UnsubscribeFn | undefined
+        { kind: MultispendGroupKind; unsubscribe: UnsubscribeFn } | undefined
     > = {}
     private spTransferStateUnsubscribeMap: Record<
         MatrixRoom['id'],
@@ -422,20 +424,21 @@ export class MatrixChatClient {
     }
 
     // MUST be in the federation to use
-    observeMultispendAccount(roomId: string) {
-        this.observeMultispendAccountInfo(roomId).catch(err => {
+    observeMultispendAccount(roomId: string, kind: MultispendGroupKind) {
+        this.observeMultispendAccountInfo(roomId, kind).catch(err => {
             log.warn('Failed to observe multispend account info', {
                 roomId,
+                kind,
                 err,
             })
         })
     }
 
     unobserveMultispendAccount(roomId: string) {
-        const multispendAccountUnsubscribe =
+        const multispendAccountSubscription =
             this.multispendAccountUnsubscribeMap[roomId]
-        if (multispendAccountUnsubscribe !== undefined) {
-            multispendAccountUnsubscribe()
+        if (multispendAccountSubscription !== undefined) {
+            multispendAccountSubscription.unsubscribe()
             delete this.multispendAccountUnsubscribeMap[roomId]
         }
     }
@@ -451,9 +454,9 @@ export class MatrixChatClient {
             delete this.roomPaginationStatusUnsubscribeMap[roomId]
         }
 
-        const multispendUnsubscribe = this.multispendUnsubscribeMap[roomId]
-        if (multispendUnsubscribe !== undefined) {
-            multispendUnsubscribe()
+        const multispendUnsubscribes = this.multispendUnsubscribeMap[roomId]
+        if (multispendUnsubscribes !== undefined) {
+            multispendUnsubscribes.forEach(unsubscribe => unsubscribe())
             delete this.multispendUnsubscribeMap[roomId]
         }
     }
@@ -724,6 +727,7 @@ export class MatrixChatClient {
 
     async fetchMultispendTransactions({
         roomId,
+        kind,
         startAfter = null,
         limit = 100,
     }: bindings.RpcPayload<'matrixMultispendListEvents'>) {
@@ -731,6 +735,7 @@ export class MatrixChatClient {
             const transactions = await this.fedimint.matrixMultispendListEvents(
                 {
                     roomId,
+                    kind,
                     startAfter,
                     limit,
                 },
@@ -931,20 +936,24 @@ export class MatrixChatClient {
         this.roomInfoUnsubscribeMap[roomId] = unsubscribe
     }
 
+    // a room can hold one group per kind
     private async observeMultispendGroup(roomId: string) {
         if (this.multispendUnsubscribeMap[roomId] !== undefined) return
 
-        const unsubscribe = this.fedimint.matrixSubscribeMultispendGroup({
-            roomId,
-            callback: update => {
-                this.emit('multispendUpdate', {
-                    roomId,
-                    status: update,
-                })
-            },
-        })
-
-        this.multispendUnsubscribeMap[roomId] = unsubscribe
+        const kinds: MultispendGroupKind[] = ['fiat', 'btc']
+        this.multispendUnsubscribeMap[roomId] = kinds.map(kind =>
+            this.fedimint.matrixSubscribeMultispendGroup({
+                roomId,
+                kind,
+                callback: update => {
+                    this.emit('multispendUpdate', {
+                        roomId,
+                        kind,
+                        status: update,
+                    })
+                },
+            }),
+        )
     }
 
     public async observeMultispendEvent(roomId: string, eventId: string) {
@@ -964,7 +973,7 @@ export class MatrixChatClient {
         })
 
         this.multispendEventUnsubscribeMap[roomId] = {
-            ...(this.multispendUnsubscribeMap[roomId] || {}),
+            ...(this.multispendEventUnsubscribeMap[roomId] || {}),
             [eventId]: unsubscribe,
         }
     }
@@ -1019,11 +1028,17 @@ export class MatrixChatClient {
         }
     }
 
-    private async observeMultispendAccountInfo(roomId: string) {
-        if (this.multispendAccountUnsubscribeMap[roomId] !== undefined) return
+    private async observeMultispendAccountInfo(
+        roomId: string,
+        kind: MultispendGroupKind,
+    ) {
+        const existing = this.multispendAccountUnsubscribeMap[roomId]
+        if (existing?.kind === kind) return
+        if (existing !== undefined) this.unobserveMultispendAccount(roomId)
 
         const unsubscribe = this.fedimint.matrixSubscribeMultispendAccountInfo({
             roomId,
+            kind,
             callback: info => {
                 this.emit('multispendAccountUpdate', {
                     roomId,
@@ -1032,7 +1047,7 @@ export class MatrixChatClient {
             },
         })
 
-        this.multispendAccountUnsubscribeMap[roomId] = unsubscribe
+        this.multispendAccountUnsubscribeMap[roomId] = { kind, unsubscribe }
     }
 
     private async observeRoomTimeline(

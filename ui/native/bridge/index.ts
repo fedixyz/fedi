@@ -1,8 +1,7 @@
 export {
     fedimint,
-    fiDevTools,
+    faDevTools,
     subscribeToBridgeEvents,
-    unsubscribeFromBridgeEvents,
     getAppFlavor,
     initializeBridge,
 } from './native'
@@ -11,7 +10,6 @@ export {
 // export {
 //     fedimint,
 //     subscribeToBridgeEvents,
-//     unsubscribeFromBridgeEvents,
 //     getAppFlavor,
 //     initializeBridge,
 // } from './remote'
