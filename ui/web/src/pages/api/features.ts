@@ -7,6 +7,7 @@ import type { RemoteFeatures } from '@fedi/common/types/bindings'
 // latest remote layer.
 const prodRemoteFeatures: RemoteFeatures = {
     dummyFeature: false,
+    federationTransfers: false,
     showStableBalanceWeb: false,
     privateRoomKnocking: true,
     messageReactions: true,
@@ -16,12 +17,13 @@ const prodRemoteFeatures: RemoteFeatures = {
     walletServiceDkgRestart: true,
     btcMultispend: false,
 }
-// Edge-only overrides go here; with none, edge tracks production.
 const edgeRemoteFeatures: RemoteFeatures = {
     ...prodRemoteFeatures,
+    federationTransfers: true,
 }
 const devRemoteFeatures: RemoteFeatures = {
     dummyFeature: true,
+    federationTransfers: true,
     showStableBalanceWeb: true,
     privateRoomKnocking: true,
     messageReactions: true,

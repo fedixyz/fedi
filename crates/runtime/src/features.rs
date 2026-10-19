@@ -71,6 +71,8 @@ pub enum FaManifoldEnvironment {
 pub struct RemoteFeatures {
     pub dummy_feature: bool,
     #[serde(default)]
+    pub federation_transfers: Option<bool>,
+    #[serde(default)]
     pub show_stable_balance_web: bool,
     /// `#[serde(default)]` so the new bridge stays deserializable against any
     /// cached/older payload that omits the field.
@@ -178,6 +180,7 @@ pub struct FeatureCatalog {
 
     /// Remote-controlled dummy feature flag.
     pub dummy_feature: Option<DummyFeatureFeatureConfig>,
+    pub federation_transfers: Option<FederationTransfersFeatureConfig>,
 
     /// Enables stable balance features on web.
     pub show_stable_balance_web: Option<ShowStableBalanceWebFeatureConfig>,
@@ -333,6 +336,10 @@ pub struct DummyFeatureFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct FederationTransfersFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct ShowStableBalanceWebFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -396,6 +403,9 @@ impl FeatureCatalog {
 
     /// Apply the remote feature layer on top of the compiled-in base catalog.
     pub fn apply_remote_layer(&mut self, remote_features: RemoteFeatures) {
+        if let Some(enabled) = remote_features.federation_transfers {
+            self.federation_transfers = enabled.then_some(FederationTransfersFeatureConfig {});
+        }
         self.dummy_feature = if remote_features.dummy_feature {
             Some(DummyFeatureFeatureConfig {})
         } else {
@@ -482,6 +492,7 @@ impl FeatureCatalog {
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
+            federation_transfers: Some(FederationTransfersFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
@@ -544,6 +555,7 @@ impl FeatureCatalog {
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
+            federation_transfers: Some(FederationTransfersFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
@@ -604,6 +616,7 @@ impl FeatureCatalog {
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: Some(DummyFeatureFeatureConfig {}),
+            federation_transfers: Some(FederationTransfersFeatureConfig {}),
             show_stable_balance_web: Some(ShowStableBalanceWebFeatureConfig {}),
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
@@ -624,6 +637,7 @@ impl FeatureCatalog {
     fn new_edge() -> Self {
         Self {
             runtime_env: RuntimeEnvironment::Edge,
+            federation_transfers: Some(FederationTransfersFeatureConfig {}),
             ..Self::new_prod()
         }
     }
@@ -668,6 +682,7 @@ impl FeatureCatalog {
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
             dummy_feature: None,
+            federation_transfers: None,
             show_stable_balance_web: None,
             private_room_knocking: Some(PrivateRoomKnockingFeatureConfig {}),
             message_reactions: Some(MessageReactionsFeatureConfig {}),
@@ -777,7 +792,7 @@ macro_rules! nightly_panic {
 
 #[cfg(test)]
 mod tests {
-    use super::RemoteFeatures;
+    use super::{FeatureCatalog, RemoteFeatures};
 
     #[test]
     fn remote_features_decode_cached_value_without_newer_fields() {
@@ -785,6 +800,7 @@ mod tests {
             serde_json::from_str(r#"{"dummyFeature":false}"#).unwrap();
 
         assert!(!remote_features.dummy_feature);
+        assert!(remote_features.federation_transfers.is_none());
         assert!(!remote_features.show_stable_balance_web);
         assert!(!remote_features.private_room_knocking);
         assert!(!remote_features.message_reactions);
@@ -793,5 +809,36 @@ mod tests {
         assert!(!remote_features.mini_app_seed);
         assert!(!remote_features.wallet_service_dkg_restart);
         assert!(!remote_features.btc_multispend);
+    }
+
+    #[test]
+    fn federation_transfers_default_to_testing_environments_only() {
+        assert!(FeatureCatalog::new_prod().federation_transfers.is_none());
+        assert!(FeatureCatalog::new_edge().federation_transfers.is_some());
+        assert!(FeatureCatalog::new_dev().federation_transfers.is_some());
+        assert!(FeatureCatalog::new_staging().federation_transfers.is_some());
+    }
+
+    #[test]
+    fn remote_layer_can_enable_and_disable_federation_transfers() {
+        let mut catalog = FeatureCatalog::new_prod();
+        for enabled in [true, false] {
+            let remote = serde_json::from_value(serde_json::json!({
+                "dummyFeature": false,
+                "federationTransfers": enabled,
+            }))
+            .unwrap();
+            catalog.apply_remote_layer(remote);
+            assert_eq!(catalog.federation_transfers.is_some(), enabled);
+        }
+    }
+
+    #[test]
+    fn older_remote_payload_preserves_transfer_environment_defaults() {
+        for mut catalog in [FeatureCatalog::new_prod(), FeatureCatalog::new_staging()] {
+            let enabled = catalog.federation_transfers.is_some();
+            catalog.apply_remote_layer(serde_json::from_str(r#"{"dummyFeature":false}"#).unwrap());
+            assert_eq!(catalog.federation_transfers.is_some(), enabled);
+        }
     }
 }
