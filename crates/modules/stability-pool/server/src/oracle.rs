@@ -11,6 +11,14 @@ use tracing::{info, warn};
 
 const MAX_ORACLE_RESPONSE_LOG_LEN: usize = 2048;
 
+/// Some sources (e.g. Coinbase) reject requests that have no User-Agent.
+fn oracle_client() -> Client {
+    Client::builder()
+        .user_agent(concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .expect("oracle HTTP client must build")
+}
+
 fn truncate_oracle_response(response: &str) -> String {
     let mut chars = response.chars();
     let truncated = chars
@@ -300,7 +308,7 @@ impl AggregateOracle {
             Box::new(GeminiAPI),
         ];
         AggregateOracle {
-            client: Client::new(),
+            client: oracle_client(),
             sources,
         }
     }
@@ -427,7 +435,7 @@ mod tests {
             return Ok(());
         }
 
-        let response = Client::new()
+        let response = oracle_client()
             .get(source.get_url())
             .timeout(Duration::from_secs(15))
             .send()
