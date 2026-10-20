@@ -369,6 +369,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         sp_transfer_tests::test_end_to_end,
         sp_transfer_tests::test_receiver_joins_federation_later,
         test_lightning_send_and_receive,
+        test_refunded_lightning_updates_spendable_balance,
         test_lnurl_receive,
         test_ecash,
         test_ecash_duplicate_receive_rejected,
@@ -865,6 +866,89 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 
     // TODO shaurya unsure how to account for gateway fee when verifying fedi fee
     // amount
+    Ok(())
+}
+
+async fn test_refunded_lightning_updates_spendable_balance(dev_fed: DevFed) -> anyhow::Result<()> {
+    use bitcoin::hashes::{Hash, sha256};
+    use bitcoin::secp256k1::{SECP256K1, SecretKey};
+    use lightning_invoice::{Currency, InvoiceBuilder, PaymentSecret};
+
+    let td = TestDevice::new().await?;
+    let bridge = td.bridge_full().await?;
+    let federation = td.join_default_fed().await?;
+    use_lnd_gateway(federation).await?;
+    setLightningModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 1_000, 0).await?;
+    let funding_invoice = generateInvoice(
+        federation.clone(),
+        RpcAmount(Amount::from_sats(1_000)),
+        String::new(),
+        None,
+        FrontendMetadata::default(),
+    )
+    .await?;
+    dev_fed
+        .gw_ldk
+        .client()
+        .pay_invoice(funding_invoice.parse()?)
+        .await?;
+    devimint::util::poll("refund test funding", || async {
+        if federation.get_balance().await >= Amount::from_sats(500) {
+            Ok(())
+        } else {
+            Err(ControlFlow::Continue(anyhow!("awaiting invoice payment")))
+        }
+    })
+    .await?;
+
+    // No lightning node holds this key, so the gateway cannot route and refunds.
+    let secret_key = SecretKey::from_slice(&[42; 32])?;
+    let invoice = InvoiceBuilder::new(Currency::Regtest)
+        .description(String::new())
+        .payment_hash(sha256::Hash::hash(&[43; 32]))
+        .payment_secret(PaymentSecret([44; 32]))
+        .current_timestamp()
+        .min_final_cltv_expiry_delta(18)
+        .amount_milli_satoshis(100_000)
+        .build_signed(|message| SECP256K1.sign_ecdsa_recoverable(message, &secret_key))?;
+    let result = payInvoice(
+        federation.clone(),
+        invoice.to_string(),
+        FrontendMetadata::default(),
+    )
+    .await;
+    assert!(result.is_err());
+    assert!(
+        listTransactions(federation.clone(), None, None)
+            .await?
+            .iter()
+            .any(|entry| matches!(
+                entry,
+                Ok(RpcTransactionListEntry {
+                    transaction: RpcTransaction {
+                        kind: RpcTransactionKind::LnPay {
+                            state: Some(RpcLnPayState::Refunded { .. }),
+                            ..
+                        },
+                        ..
+                    },
+                    ..
+                })
+            ))
+    );
+    let balance = federation.get_balance().await;
+    let last_balance = td
+        .event_sink()
+        .events()
+        .iter()
+        .rev()
+        .filter(|(kind, _)| kind == "balance")
+        .map(|(_, body)| serde_json::from_str::<serde_json::Value>(body))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .find(|event| event["federationId"] == federation.federation_id().to_string())
+        .context("missing balance event after refund")?;
+    assert_eq!(last_balance["balance"], balance.msats);
     Ok(())
 }
 

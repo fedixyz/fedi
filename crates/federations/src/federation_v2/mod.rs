@@ -475,6 +475,9 @@ pub struct FederationV2 {
     pub spend_guard: Mutex<()>,
     // Mutex to prevent concurrent generate_ecash because logic is very fragile.
     pub generate_ecash_lock: Mutex<()>,
+    // Held from reading the balance to emitting its event, so two emitters
+    // cannot publish a stale balance after a newer one.
+    pub balance_event_lock: Mutex<()>,
     // Operation ids with a subscriber task in flight, so the several places
     // that can spawn one for the same operation (startup replay, creation,
     // lazy recovery from a transaction listing) don't pile up duplicates.
@@ -800,6 +803,7 @@ impl FederationV2 {
             spend_guard: Default::default(),
             operation_subscriptions: Default::default(),
             generate_ecash_lock: Default::default(),
+            balance_event_lock: Default::default(),
             this_weak: weak.clone(),
             guard,
             multispend_services,
@@ -2301,6 +2305,7 @@ impl FederationV2 {
 
     /// Send whenever balance changes
     pub async fn send_balance_event(&self) {
+        let _guard = self.balance_event_lock.lock().await;
         self.runtime.event_sink.typed_event(&Event::balance(
             self.federation_id().to_string(),
             self.get_balance().await,
@@ -4768,10 +4773,14 @@ impl FederationV2 {
             .unwrap_autocommit();
 
         match res {
-            Ok(_) => info!(
-                "Successfully wrote failed send fedi fees for op ID {}",
-                operation_id.fmt_short()
-            ),
+            Ok(_) => {
+                // A released fee reservation changes no mint balance, so no event fires.
+                self.send_balance_event().await;
+                info!(
+                    "Successfully wrote failed send fedi fees for op ID {}",
+                    operation_id.fmt_short()
+                );
+            }
             Err(ref e) => warn!(
                 "Error writing failed send fedi fees for op ID {}: {}",
                 operation_id.fmt_short(),
