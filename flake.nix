@@ -11,7 +11,7 @@
     # Keep this fork tag aligned with the Fedimint version used by
     # devimint in Cargo.toml; a mismatch makes the upstream bridge test time out during setup.
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.12.0-fedi11";
+      url = "github:fedibtc/fedimint?ref=v0.12.0-fedi14";
     };
 
     fenix = {
