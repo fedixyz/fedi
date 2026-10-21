@@ -116,21 +116,6 @@ describe('checkForReceivablePayments', () => {
         expect(transactionListeners.size).toBe(1)
     }
 
-    it('should publish a receipt once when a timed-out receive settles later', async () => {
-        await timeOutFirstClaim()
-
-        settle('done')
-        await jest.advanceTimersByTimeAsync(300)
-        expect(sentStatuses()).toEqual(['receiving', 'received'])
-
-        // later transaction updates rescan without publishing again
-        settle('done')
-        await jest.advanceTimersByTimeAsync(300)
-        expect(sentStatuses()).toEqual(['receiving', 'received'])
-        expect(fedimint.receiveEcash).toHaveBeenCalledTimes(1)
-        expect(transactionListeners.size).toBe(1)
-    })
-
     it('should retry a receipt whose final message failed to send', async () => {
         await timeOutFirstClaim()
 

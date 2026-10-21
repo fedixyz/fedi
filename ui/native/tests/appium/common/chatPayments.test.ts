@@ -4,8 +4,10 @@ import WebSocket from 'ws'
 
 import { resources } from '@fedi/common/localization'
 import type {
+    JSONObject,
     RpcMethodNames,
     RpcPayload,
+    RpcPaymentMessageContent,
     RpcResponse,
     RpcTimelineItem,
     RpcVecDiffStreamId,
@@ -21,6 +23,7 @@ import { setupOnboardedLocalFed } from '../fixtures/setupOnboardedLocalFed'
 import {
     generateDevfedEcash,
     getDevfedInvite,
+    pauseDevfedGuardians,
     removeDevfedPortsFromDevice,
     reverseDevfedPortsIntoDevices,
 } from './devfed'
@@ -41,18 +44,30 @@ import {
 // and joins her federation from the receive sheet. Later payments are claimed
 // as soon as his device sees them.
 //
+// Carol and bob's second device are headless bridges. They post statuses
+// this app never sends: older app receipts and statuses from the sender.
+//
 // Cancelling a sent payment is not covered. The cancel control only exists
 // while the payment is still pending, and two devices that are both online
 // never leave it pending long enough. Reaching it needs the recipient
 // offline, so it stays a manual check.
 
 const en = resources.en.translation
-const FAILED_PAYMENT_SENDER = 'Spent ecash sender'
+const CAROL = 'Carol'
 const FUND_SATS = 10000
 const SEND_SATS = 500
 const REQUEST_SATS = 300
 const REJECT_SATS = 200
+const BOB_PAYS_SATS = 100
+const STALLED_SATS = 110
+const EARLY_RECEIPT_SATS = 120
+const SPOOFED_SATS = 130
+const OTHER_DEVICE_SATS = 140
 const ALICE_HELLO = 'e2e chat payments'
+const CAROL_HELLO = 'Payment status test'
+// Matches the claim timeout in claimMatrixPayment.
+const CLAIM_WAIT_MS = 60000
+const TIMELINE_STREAM = 1
 
 export class ChatPayments extends AppiumTestBase {
     // A local fed's invite only exists at runtime, so execute() joins both
@@ -147,9 +162,54 @@ export class ChatPayments extends AppiumTestBase {
         }
         console.log('[phase4] rejected request moved no money')
 
-        console.log('[spent-ecash] reject a payment with already-spent notes')
-        await assertSpentEcashRejected(bob, invite, bobProfile)
-        console.log('[spent-ecash] failed history and chat, unchanged balance')
+        const carol = new HeadlessMember()
+        const bobsOtherDevice = new HeadlessMember()
+        // Alice idles from here on, and Appium ends a session after 600
+        // seconds without a command.
+        const keepAliceAwake = setInterval(() => {
+            alice.driver.getWindowSize().catch(() => undefined)
+        }, 120000)
+        const restoreIdleWaits = await skipIdleWaits(bob)
+        try {
+            console.log('[carol] carol joins the fed and messages bob')
+            const room = await openRoomWithBob(carol, invite, bobProfile)
+
+            console.log(
+                '[spent-ecash] reject a payment with already-spent notes',
+            )
+            const spent = await assertSpentEcashRejected(bob, carol, room)
+            console.log(
+                '[spent-ecash] failed history and chat, unchanged balance',
+            )
+
+            console.log("[sender-failed] carol reports bob's payment as failed")
+            await assertSenderSeesFailure(bob, carol, room)
+
+            console.log("[other-device] restore bob's seed on a second device")
+            await restoreOnSecondDevice(bob, bobsOtherDevice, room)
+
+            console.log('[stalled] claims wait out a federation that stopped')
+            const stalled = await assertStalledReceiveSettles(
+                bob,
+                carol,
+                bobsOtherDevice,
+                room,
+            )
+
+            console.log("[offline] receipts posted while bob's app was closed")
+            await assertReceiptsReconciledOnRelaunch(
+                bob,
+                carol,
+                bobsOtherDevice,
+                room,
+                { spent, ...stalled },
+            )
+        } finally {
+            clearInterval(keepAliceAwake)
+            await restoreIdleWaits().catch(() => undefined)
+            await carol.close()
+            await bobsOtherDevice.close()
+        }
     }
 
     catch(error: unknown) {
@@ -158,6 +218,22 @@ export class ChatPayments extends AppiumTestBase {
 }
 
 type Profile = { userId: string; displayName: string }
+
+type ChatRoom = {
+    id: string
+    federationId: string
+    invite: string
+    carolId: string
+    bobId: string
+}
+
+type PaymentEvent = {
+    eventId: string
+    sender: string
+    content: RpcPaymentMessageContent
+}
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 async function onboardWithoutFederation(t: AppiumTestBase): Promise<void> {
     await t.clickElementByKey('Get started', COLD_START_TIMEOUT)
@@ -207,6 +283,24 @@ async function readOwnProfile(t: AppiumTestBase): Promise<Profile> {
     if (!displayName) throw new Error('settings drawer showed no display name')
     await t.clickElementByKey('HeaderCloseButton')
     return { userId: decodeURIComponent(match[1]), displayName }
+}
+
+async function readSeedWords(t: AppiumTestBase): Promise<string[]> {
+    if (await t.elementIsDisplayed('MessageInput-TextInput', 3000)) {
+        await t.clickElementByKey('HeaderBackButton')
+    }
+    await t.clickElementByKey('HomeTabButton')
+    await t.clickElementByKey('AvatarButton')
+    await t.scrollToElement('Personal Backup')
+    await t.clickElementByKey('Personal Backup')
+    await t.scrollToElement('SeedWord12')
+    const words: string[] = []
+    for (let i = 1; i <= 12; i++) {
+        words.push((await t.getTextByKey(`SeedWord${i}`)).trim().toLowerCase())
+    }
+    await t.clickElementByKey('ContinueButton')
+    await t.clickElementByKey('HeaderCloseButton')
+    return words
 }
 
 // The fedi:// scheme is registered in the manifest. The https universal link
@@ -294,132 +388,474 @@ async function balanceOnWallet(t: AppiumTestBase): Promise<number> {
     return readWalletSats(t)
 }
 
-async function assertSpentEcashRejected(
-    t: AppiumTestBase,
-    invite: string,
-    recipient: Profile,
-): Promise<void> {
-    const openingBalance = await balanceOnWallet(t)
-
-    const sender = new PaymentSender()
-    try {
-        await sender.initialize()
-        await sender.rpc('completeOnboardingNewSeed', {})
-        const account = await sender.rpc('matrixGetAccountSession', {
-            cached: false,
-        })
-        await sender.rpc('matrixSetDisplayName', {
-            displayName: FAILED_PAYMENT_SENDER,
-        })
-        const federation = await sender.rpc('joinFederation', {
-            inviteCode: invite,
-            recoverFromScratch: false,
-        })
-        const ecash = await generateDevfedEcash(SEND_SATS * 1000)
-        const [, operationId] = await sender.rpc('receiveEcash', {
-            federationId: federation.id,
-            ecash,
-            frontendMetadata: {
-                initialNotes: null,
-                senderMatrixId: null,
-                recipientMatrixId: null,
-            },
-        })
-        await sender.waitForReceive(federation.id, operationId)
-
-        const roomId = await sender.rpc('matrixRoomCreateOrGetDm', {
-            userId: recipient.userId,
-        })
-        const paymentId = randomUUID()
-        await sender.watchPayment(roomId, paymentId)
-        await sender.rpc('matrixSendMessage', {
-            roomId,
-            data: {
-                msgtype: 'm.text',
-                body: 'Payment status test',
-                data: {},
-                mentions: null,
-            },
-        })
-        await enterRoom(t, FAILED_PAYMENT_SENDER)
-        await t.waitForText('Payment status test', 0, false, MATRIX_TIMEOUT)
-        await sender.rpc('matrixSendMessage', {
-            roomId,
-            data: {
-                msgtype: 'xyz.fedi.payment',
-                body: 'Sent payment of 500 SATS.',
-                data: {
-                    paymentId,
-                    status: 'pushed',
-                    amount: SEND_SATS * 1000,
-                    senderId: account.userId,
-                    recipientId: recipient.userId,
-                    federationId: federation.id,
-                    inviteCode: invite,
-                    ecash,
-                },
-                mentions: null,
-            },
-        })
-        await t.waitForText('sent you', 0, false, MATRIX_TIMEOUT)
-
-        await t.clickElementByKey('HeaderBackButton')
-        await goToWallet(t)
-        await t.clickElementByKey('BalanceCard__TransactionHistory')
-        await t.waitForText(en.words.failed, 0, true, 120000)
-        await t.saveScreenshot('chat-payment-failed-history')
-        await t.clickOnText(en.words.failed, 0, true)
-        await t.clickElementByKey('HistoryDetailCloseButton')
-        await t.clickElementByKey('HeaderBackButton')
-        const closingBalance = await readWalletSats(t)
-        if (closingBalance !== openingBalance) {
-            throw new Error(
-                `spent ecash changed recipient balance from ${openingBalance} to ${closingBalance}`,
-            )
-        }
-
-        await enterRoom(t, FAILED_PAYMENT_SENDER)
-        await t.saveScreenshot('chat-payment-failed-receipt')
-        if (await t.isTextPresent(en.words.received, true, 3000)) {
-            throw new Error(
-                'chat says Received for a failed payment that credited no money',
-            )
-        }
-        await t.waitForText(en.words.failed, 0, true, MATRIX_TIMEOUT)
-        await t.waitForText(
-            en.feature.chat['payment-failed-recipient'],
-            0,
-            true,
-        )
-        await t.clickOnText(en.feature.chat['payment-view-history'], 0, true)
-        await t.waitForElementDisplayed('transaction-item', MATRIX_TIMEOUT)
-        await t.clickElementByKey('HeaderBackButton')
-
-        await sender.waitForPaymentStatus('failed')
-        // statuses are recorded in the order the sender's timeline first
-        // showed them
-        const statuses = sender.paymentStatuses
-        const receiving = statuses.indexOf('receiving')
-        if (
-            receiving === -1 ||
-            receiving > statuses.indexOf('failed') ||
-            statuses.includes('received')
-        ) {
-            throw new Error(
-                `sender saw payment statuses ${statuses.join(', ')}, expected receiving then failed and never received`,
-            )
-        }
-    } finally {
-        await sender.close()
+// A pending payment's spinner keeps the app busy, and the driver waits up to
+// ten seconds for idle before each command.
+async function skipIdleWaits(t: AppiumTestBase): Promise<() => Promise<void>> {
+    const { waitForIdleTimeout } = await t.driver.getSettings()
+    await t.driver.updateSettings({ waitForIdleTimeout: 0 })
+    return async () => {
+        await t.driver.updateSettings({ waitForIdleTimeout })
     }
+}
+
+function appIdentity() {
+    return currentPlatform === Platform.IOS
+        ? { bundleId: process.env.BUNDLE_ID || 'org.fedi.alpha' }
+        : { appId: process.env.APP_PACKAGE || 'com.fedi' }
+}
+
+async function closeApp(t: AppiumTestBase): Promise<void> {
+    await t.driver.executeScript('mobile: terminateApp', [appIdentity()])
+}
+
+async function openApp(t: AppiumTestBase): Promise<void> {
+    await t.driver.executeScript('mobile: activateApp', [appIdentity()])
+    await t.waitForElementDisplayed('ChatTabButton', 90000)
+}
+
+// Reads only rendered bubbles, so scroll older payments into view first.
+async function waitForPaymentBubble(
+    t: AppiumTestBase,
+    paymentId: string,
+    status: string,
+    help?: string,
+): Promise<void> {
+    const read = async (key: string) => {
+        try {
+            return (await t.getTextByKey(key)).trim()
+        } catch {
+            return undefined
+        }
+    }
+    const deadline = Date.now() + MATRIX_TIMEOUT
+    let shown = await read(`PaymentStatus-${paymentId}`)
+    while (shown !== status && Date.now() < deadline) {
+        await sleep(1000)
+        shown = await read(`PaymentStatus-${paymentId}`)
+    }
+    if (shown !== status) {
+        throw new Error(
+            `payment ${paymentId} shows ${shown ? `"${shown}"` : 'no status'}, expected "${status}"`,
+        )
+    }
+    if (help === undefined) return
+    const shownHelp = await read(`PaymentHelp-${paymentId}`)
+    if (shownHelp !== help) {
+        throw new Error(
+            `payment ${paymentId} explains "${shownHelp}", expected "${help}"`,
+        )
+    }
+}
+
+async function scrollToPayment(
+    t: AppiumTestBase,
+    paymentId: string,
+): Promise<void> {
+    const key = `PaymentStatus-${paymentId}`
+    const found = await t.scrollToElement(key, {
+        scrollDirection: 'up',
+        scrollPercentage: 30,
+        scrollDuration: 500,
+        maxScrolls: 20,
+    })
+    if (!found) {
+        throw new Error(`no payment ${paymentId} in the room`)
+    }
+}
+
+async function openPaymentHistory(
+    t: AppiumTestBase,
+    paymentId: string,
+): Promise<void> {
+    await t.clickElementByKey(
+        `PaymentButton-${paymentId}-${en.feature.chat['payment-view-history']}`,
+    )
+    await t.waitForElementDisplayed('transaction-item', MATRIX_TIMEOUT)
     await t.clickElementByKey('HeaderBackButton')
 }
 
-class PaymentSender {
+async function expectStatuses(
+    carol: HeadlessMember,
+    paymentId: string,
+    sender: string,
+    expected: string[],
+    timeout = MATRIX_TIMEOUT,
+): Promise<void> {
+    const deadline = Date.now() + timeout
+    let seen = carol.statuses(paymentId, sender)
+    while (seen.join() !== expected.join() && Date.now() < deadline) {
+        await sleep(500)
+        seen = carol.statuses(paymentId, sender)
+    }
+    if (seen.join() !== expected.join()) {
+        throw new Error(
+            `bob posted ${seen.join(', ') || 'nothing'} for payment ${paymentId}, expected ${expected.join(', ')}`,
+        )
+    }
+}
+
+async function openRoomWithBob(
+    carol: HeadlessMember,
+    invite: string,
+    bob: Profile,
+): Promise<ChatRoom> {
+    await carol.initialize()
+    const carolId = await carol.onboard(CAROL)
+    const federationId = await carol.joinFederation(invite)
+    const id = await carol.rpc('matrixRoomCreateOrGetDm', {
+        userId: bob.userId,
+    })
+    await carol.watchRoom(id)
+    await carol.sendText(id, CAROL_HELLO)
+    return { id, federationId, invite, carolId, bobId: bob.userId }
+}
+
+async function pushPayment(
+    carol: HeadlessMember,
+    room: ChatRoom,
+    ecash: string,
+    extra: Partial<RpcPaymentMessageContent> = {},
+): Promise<RpcPaymentMessageContent> {
+    // generate_ecash can overpay with a larger note.
+    const { amount } = await carol.rpc('parseEcash', { ecash })
+    const content: RpcPaymentMessageContent = {
+        body: `Sent payment of ${Math.floor(amount / 1000)} SATS.`,
+        status: 'pushed',
+        paymentId: randomUUID(),
+        amount,
+        senderId: room.carolId,
+        recipientId: room.bobId,
+        federationId: room.federationId,
+        inviteCode: room.invite,
+        ecash,
+        ...extra,
+    }
+    await carol.sendPayment(room.id, content)
+    return content
+}
+
+async function assertSpentEcashRejected(
+    bob: AppiumTestBase,
+    carol: HeadlessMember,
+    room: ChatRoom,
+): Promise<PaymentEvent> {
+    const openingBalance = await balanceOnWallet(bob)
+
+    const ecash = await generateDevfedEcash(SEND_SATS * 1000)
+    await carol.receiveEcash(room.federationId, ecash)
+    await enterRoom(bob, CAROL)
+    await bob.waitForText(CAROL_HELLO, 0, false, MATRIX_TIMEOUT)
+    const { paymentId } = await pushPayment(carol, room, ecash)
+    await bob.waitForText('sent you', 0, false, MATRIX_TIMEOUT)
+
+    await bob.clickElementByKey('HeaderBackButton')
+    await goToWallet(bob)
+    await bob.clickElementByKey('BalanceCard__TransactionHistory')
+    await bob.waitForText(en.words.failed, 0, true, 120000)
+    await bob.saveScreenshot('chat-payment-failed-history')
+    await bob.clickOnText(en.words.failed, 0, true)
+    await bob.clickElementByKey('HistoryDetailCloseButton')
+    await bob.clickElementByKey('HeaderBackButton')
+    const closingBalance = await readWalletSats(bob)
+    if (closingBalance !== openingBalance) {
+        throw new Error(
+            `spent ecash changed recipient balance from ${openingBalance} to ${closingBalance}`,
+        )
+    }
+
+    await enterRoom(bob, CAROL)
+    if (await bob.isTextPresent(en.words.received, true, 3000)) {
+        throw new Error(
+            'chat says Received for a failed payment that credited no money',
+        )
+    }
+    await waitForPaymentBubble(
+        bob,
+        paymentId,
+        en.words.failed,
+        en.feature.chat['payment-failed-recipient'],
+    )
+    await bob.saveScreenshot('chat-payment-failed-receipt')
+    await openPaymentHistory(bob, paymentId)
+
+    await expectStatuses(carol, paymentId, room.bobId, ['receiving', 'failed'])
+    return carol.waitForStatus(paymentId, room.bobId, 'failed')
+}
+
+async function assertSenderSeesFailure(
+    bob: AppiumTestBase,
+    carol: HeadlessMember,
+    room: ChatRoom,
+): Promise<void> {
+    await enterRoom(bob, CAROL)
+    await sendChatPayment(bob, BOB_PAYS_SATS)
+    const { content } = await carol.waitForEvent(
+        event =>
+            event.sender === room.bobId && event.content.status === 'pushed',
+        'a payment from bob',
+    )
+
+    await carol.sendPayment(room.id, {
+        ...content,
+        body: 'Receiving payment.',
+        status: 'receiving',
+    })
+    await waitForPaymentBubble(
+        bob,
+        content.paymentId,
+        en.words.pending,
+        en.feature.chat['payment-confirming'],
+    )
+    await bob.saveScreenshot('chat-payment-sender-pending')
+
+    await carol.sendPayment(room.id, {
+        ...content,
+        body: 'Payment failed.',
+        status: 'failed',
+    })
+    await waitForPaymentBubble(
+        bob,
+        content.paymentId,
+        en.words.failed,
+        en.feature.chat['payment-failed-sender'],
+    )
+    await bob.saveScreenshot('chat-payment-sender-failed')
+    await openPaymentHistory(bob, content.paymentId)
+}
+
+async function restoreOnSecondDevice(
+    bob: AppiumTestBase,
+    device: HeadlessMember,
+    room: ChatRoom,
+): Promise<void> {
+    const seedWords = await readSeedWords(bob)
+    await device.initialize()
+    const userId = await device.restore(seedWords)
+    if (userId !== room.bobId) {
+        throw new Error(`bob's seed restored as ${userId}, not ${room.bobId}`)
+    }
+    await device.joinFederation(room.invite)
+    await device.watchRoom(room.id)
+}
+
+async function assertStalledReceiveSettles(
+    bob: AppiumTestBase,
+    carol: HeadlessMember,
+    bobsOtherDevice: HeadlessMember,
+    room: ChatRoom,
+): Promise<{
+    stalledId: string
+    earlyId: string
+    settledOperationId?: string
+    balance: number
+}> {
+    const openingBalance = await balanceOnWallet(bob)
+    const stalledEcash = await generateDevfedEcash(STALLED_SATS * 1000)
+    const earlyEcash = await generateDevfedEcash(EARLY_RECEIPT_SATS * 1000)
+    await enterRoom(bob, CAROL)
+
+    const confirming = en.feature.chat['payment-confirming']
+    const resumeGuardians = await pauseDevfedGuardians()
+    let stalled: RpcPaymentMessageContent
+    let early: RpcPaymentMessageContent
+    let stalledId: string
+    let earlyId: string
+    try {
+        stalled = await pushPayment(carol, room, stalledEcash)
+        early = await pushPayment(carol, room, earlyEcash)
+        stalledId = stalled.paymentId
+        earlyId = early.paymentId
+        await carol.waitForStatus(stalledId, room.bobId, 'receiving')
+        const earlyReceiving = await carol.waitForStatus(
+            earlyId,
+            room.bobId,
+            'receiving',
+        )
+        const claimsGiveUp = Date.now() + CLAIM_WAIT_MS
+        await bobsOtherDevice.sendPayment(room.id, {
+            ...earlyReceiving.content,
+            body: 'Payment received.',
+            status: 'received',
+        })
+        await carol.waitForStatus(earlyId, room.bobId, 'received')
+
+        while (Date.now() < claimsGiveUp + 5000) {
+            await waitForPaymentBubble(
+                bob,
+                stalledId,
+                en.words.receiving,
+                confirming,
+            )
+            await waitForPaymentBubble(
+                bob,
+                earlyId,
+                en.words.receiving,
+                confirming,
+            )
+            await sleep(5000)
+        }
+        await bob.saveScreenshot('chat-payment-receiving')
+        await expectStatuses(carol, stalledId, room.bobId, ['receiving'], 0)
+        await expectStatuses(
+            carol,
+            earlyId,
+            room.bobId,
+            ['receiving', 'received'],
+            0,
+        )
+    } finally {
+        resumeGuardians()
+    }
+
+    const settled = await carol.waitForStatus(
+        stalledId,
+        room.bobId,
+        'received',
+        180000,
+    )
+    await waitForPaymentBubble(bob, stalledId, en.words.received)
+    await waitForPaymentBubble(bob, earlyId, en.words.received)
+    await bob.saveScreenshot('chat-payment-stalled-received')
+
+    const balance = await balanceOnWallet(bob)
+    expectCredited(
+        openingBalance,
+        balance,
+        [stalled, early],
+        'after the stalled payments settled',
+    )
+    return {
+        stalledId,
+        earlyId,
+        settledOperationId: settled.content.receiverOperationId,
+        balance,
+    }
+}
+
+async function assertReceiptsReconciledOnRelaunch(
+    bob: AppiumTestBase,
+    carol: HeadlessMember,
+    bobsOtherDevice: HeadlessMember,
+    room: ChatRoom,
+    earlier: {
+        spent: PaymentEvent
+        stalledId: string
+        earlyId: string
+        settledOperationId?: string
+        balance: number
+    },
+): Promise<void> {
+    const spoofedEcash = await generateDevfedEcash(SPOOFED_SATS * 1000)
+    const otherDeviceEcash = await generateDevfedEcash(OTHER_DEVICE_SATS * 1000)
+    const spentId = earlier.spent.content.paymentId
+    await closeApp(bob)
+
+    const spoofed = await pushPayment(carol, room, spoofedEcash, {
+        receiverOperationId: earlier.settledOperationId,
+    })
+    await carol.sendPayment(room.id, {
+        ...spoofed,
+        body: 'Payment received.',
+        status: 'received',
+    })
+
+    await bobsOtherDevice.sendPayment(room.id, {
+        ...earlier.spent.content,
+        body: 'Payment received.',
+        status: 'received',
+    })
+
+    const other = await pushPayment(carol, room, otherDeviceEcash)
+    const operationId = await bobsOtherDevice.receiveEcash(
+        room.federationId,
+        otherDeviceEcash,
+    )
+    await bobsOtherDevice.sendPayment(room.id, {
+        ...other,
+        body: 'Receiving payment.',
+        status: 'receiving',
+        receiverOperationId: operationId,
+    })
+    await bobsOtherDevice.sendPayment(room.id, {
+        ...other,
+        body: 'Payment received.',
+        status: 'received',
+        receiverOperationId: operationId,
+    })
+    await expectStatuses(carol, spentId, room.bobId, [
+        'receiving',
+        'failed',
+        'received',
+    ])
+    await expectStatuses(carol, other.paymentId, room.bobId, [
+        'receiving',
+        'received',
+    ])
+
+    await openApp(bob)
+    await enterRoom(bob, CAROL)
+    await expectStatuses(carol, spoofed.paymentId, room.bobId, [
+        'receiving',
+        'received',
+    ])
+    await expectStatuses(carol, spentId, room.bobId, [
+        'receiving',
+        'failed',
+        'received',
+        'failed',
+    ])
+    await waitForPaymentBubble(bob, other.paymentId, en.words.received)
+    await waitForPaymentBubble(bob, spoofed.paymentId, en.words.received)
+    await bob.saveScreenshot('chat-payment-relaunch-receipts')
+    await scrollToPayment(bob, earlier.earlyId)
+    await waitForPaymentBubble(bob, earlier.earlyId, en.words.received)
+    await scrollToPayment(bob, earlier.stalledId)
+    await waitForPaymentBubble(bob, earlier.stalledId, en.words.received)
+    await scrollToPayment(bob, spentId)
+    await waitForPaymentBubble(
+        bob,
+        spentId,
+        en.words.failed,
+        en.feature.chat['payment-failed-recipient'],
+    )
+    await bob.saveScreenshot('chat-payment-relaunch-corrected')
+
+    await expectStatuses(carol, earlier.stalledId, room.bobId, [
+        'receiving',
+        'received',
+    ])
+    await expectStatuses(carol, earlier.earlyId, room.bobId, [
+        'receiving',
+        'received',
+    ])
+    await expectStatuses(carol, other.paymentId, room.bobId, [
+        'receiving',
+        'received',
+    ])
+
+    const balance = await balanceOnWallet(bob)
+    expectCredited(earlier.balance, balance, [spoofed], 'after reopening')
+}
+
+// The receive fee and msat rounding move the balance by up to two sats.
+function expectCredited(
+    before: number,
+    after: number,
+    payments: RpcPaymentMessageContent[],
+    when: string,
+): void {
+    const msats = payments.reduce((sum, payment) => sum + payment.amount, 0)
+    const expected = before + Math.floor(msats / 1000)
+    if (Math.abs(after - expected) > 2) {
+        throw new Error(`bob has ${after} sats ${when}, expected ${expected}`)
+    }
+}
+
+class HeadlessMember {
     private readonly deviceId = `test:chat-payment:${randomUUID()}`
     private readonly baseUrl = `http://127.0.0.1:${process.env.REMOTE_BRIDGE_PORT}/${this.deviceId}`
     private events: WebSocket | undefined
-    readonly paymentStatuses: string[] = []
+    readonly payments: PaymentEvent[] = []
 
     async initialize(): Promise<void> {
         await this.post('/init', {
@@ -446,35 +882,42 @@ class PaymentSender {
         return response.result
     }
 
-    async watchPayment(roomId: string, paymentId: string): Promise<void> {
-        this.events?.on('message', raw => {
-            const message = JSON.parse(raw.toString())
-            if (message.event !== 'streamUpdate') return
-            collectPaymentStatuses(
-                JSON.parse(message.data),
-                paymentId,
-                this.paymentStatuses,
-            )
+    async onboard(displayName: string): Promise<string> {
+        await this.rpc('completeOnboardingNewSeed', {})
+        const account = await this.rpc('matrixGetAccountSession', {
+            cached: false,
         })
-        await this.rpc('matrixSubscribeRoomTimelineItems', {
-            streamId: 1 as RpcVecDiffStreamId<RpcTimelineItem>,
-            roomId,
-        })
+        await this.rpc('matrixSetDisplayName', { displayName })
+        return account.userId
     }
 
-    async waitForPaymentStatus(status: string): Promise<void> {
-        const deadline = Date.now() + MATRIX_TIMEOUT
-        while (!this.paymentStatuses.includes(status)) {
-            if (Date.now() > deadline) {
-                throw new Error(
-                    `sender never saw a ${status} payment status, saw ${this.paymentStatuses.join(', ')}`,
-                )
-            }
-            await new Promise(resolve => setTimeout(resolve, 500))
-        }
+    async restore(seedWords: string[]): Promise<string> {
+        await this.rpc('restoreMnemonic', { mnemonic: seedWords })
+        await this.rpc('onboardRegisterAsNewDevice', { index: null })
+        const account = await this.rpc('matrixGetAccountSession', {
+            cached: false,
+        })
+        return account.userId
     }
 
-    async waitForReceive(federationId: string, operationId: string) {
+    async joinFederation(invite: string): Promise<string> {
+        const federation = await this.rpc('joinFederation', {
+            inviteCode: invite,
+            recoverFromScratch: false,
+        })
+        return federation.id
+    }
+
+    async receiveEcash(federationId: string, ecash: string): Promise<string> {
+        const [, operationId] = await this.rpc('receiveEcash', {
+            federationId,
+            ecash,
+            frontendMetadata: {
+                initialNotes: null,
+                senderMatrixId: null,
+                recipientMatrixId: null,
+            },
+        })
         const deadline = Date.now() + 120000
         while (Date.now() < deadline) {
             const transaction = await this.rpc('getTransaction', {
@@ -486,17 +929,109 @@ class PaymentSender {
                     `unexpected transaction kind ${transaction.kind}`,
                 )
             }
-            if (transaction.state?.type === 'done') return
+            if (transaction.state?.type === 'done') return operationId
             if (transaction.state?.type === 'failed') {
-                throw new Error('fixture failed to spend its ecash')
+                throw new Error('headless member failed to redeem its ecash')
             }
-            await new Promise(resolve => setTimeout(resolve, 500))
+            await sleep(500)
         }
-        throw new Error('fixture ecash did not settle')
+        throw new Error('headless member ecash did not settle')
+    }
+
+    // A device restored from a seed only knows the room once matrix has
+    // synced it.
+    async watchRoom(roomId: string): Promise<void> {
+        this.events?.on('message', raw => {
+            const message = JSON.parse(raw.toString())
+            if (message.event !== 'streamUpdate') return
+            const update = JSON.parse(message.data)
+            if (update.stream_id !== TIMELINE_STREAM) return
+            collectPaymentEvents(update.data, this.payments)
+        })
+        const deadline = Date.now() + MATRIX_TIMEOUT
+        for (;;) {
+            try {
+                await this.rpc('matrixSubscribeRoomTimelineItems', {
+                    streamId:
+                        TIMELINE_STREAM as RpcVecDiffStreamId<RpcTimelineItem>,
+                    roomId,
+                })
+                return
+            } catch (error) {
+                if (Date.now() > deadline) throw error
+                await sleep(1000)
+            }
+        }
+    }
+
+    async sendText(roomId: string, body: string): Promise<void> {
+        await this.rpc('matrixSendMessage', {
+            roomId,
+            data: { msgtype: 'm.text', body, data: {}, mentions: null },
+        })
+    }
+
+    async sendPayment(
+        roomId: string,
+        content: RpcPaymentMessageContent,
+    ): Promise<void> {
+        const { body, ...data } = content
+        await this.rpc('matrixSendMessage', {
+            roomId,
+            data: {
+                msgtype: 'xyz.fedi.payment',
+                body,
+                data: data as JSONObject,
+                mentions: null,
+            },
+        })
+    }
+
+    statuses(paymentId: string, sender: string): string[] {
+        return this.payments
+            .filter(
+                event =>
+                    event.content.paymentId === paymentId &&
+                    event.sender === sender,
+            )
+            .map(event => event.content.status)
+    }
+
+    async waitForEvent(
+        matches: (event: PaymentEvent) => boolean,
+        description: string,
+        timeout = MATRIX_TIMEOUT,
+    ): Promise<PaymentEvent> {
+        const deadline = Date.now() + timeout
+        for (;;) {
+            const event = this.payments.find(matches)
+            if (event) return event
+            if (Date.now() > deadline) {
+                throw new Error(`carol never saw ${description}`)
+            }
+            await sleep(500)
+        }
+    }
+
+    waitForStatus(
+        paymentId: string,
+        sender: string,
+        status: string,
+        timeout = MATRIX_TIMEOUT,
+    ): Promise<PaymentEvent> {
+        return this.waitForEvent(
+            event =>
+                event.content.paymentId === paymentId &&
+                event.sender === sender &&
+                event.content.status === status,
+            `a ${status} status for payment ${paymentId}`,
+            timeout,
+        )
     }
 
     async close() {
-        this.events?.close()
+        if (!this.events) return
+        this.events.close()
         await this.post('/shutdown', {})
     }
 
@@ -513,7 +1048,7 @@ class PaymentSender {
             const body = await response.json()
             if (!response.ok || body.error) {
                 throw new Error(
-                    `fixture ${path} failed: ${JSON.stringify(body)}`,
+                    `headless member ${path} failed: ${JSON.stringify(body)}`,
                 )
             }
             return body
@@ -523,21 +1058,24 @@ class PaymentSender {
     }
 }
 
-function collectPaymentStatuses(
-    value: unknown,
-    paymentId: string,
-    statuses: string[],
-): void {
+function collectPaymentEvents(value: unknown, events: PaymentEvent[]): void {
     if (!value || typeof value !== 'object') return
-    const record = value as Record<string, unknown>
+    const item = value as { id?: unknown; sender?: unknown; content?: unknown }
     if (
-        record.paymentId === paymentId &&
-        typeof record.status === 'string' &&
-        !statuses.includes(record.status)
+        typeof item.id === 'string' &&
+        typeof item.sender === 'string' &&
+        item.content &&
+        typeof item.content === 'object'
     ) {
-        statuses.push(record.status)
+        const { msgtype, ...content } = item.content as {
+            msgtype?: string
+        } & RpcPaymentMessageContent
+        if (msgtype === 'xyz.fedi.payment') {
+            if (!events.some(event => event.eventId === item.id)) {
+                events.push({ eventId: item.id, sender: item.sender, content })
+            }
+            return
+        }
     }
-    Object.values(record).forEach(child =>
-        collectPaymentStatuses(child, paymentId, statuses),
-    )
+    Object.values(value).forEach(child => collectPaymentEvents(child, events))
 }

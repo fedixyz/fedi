@@ -30,9 +30,11 @@ type PaymentEventButton = {
 export const PaymentEventStatus = ({
     statusIcon = undefined,
     statusText,
+    testID,
 }: {
     statusIcon: string | undefined
     statusText: string
+    testID?: string
 }) => {
     const { theme } = useTheme()
     const style = styles(theme)
@@ -60,15 +62,19 @@ export const PaymentEventStatus = ({
     return (
         <Row align="center" style={style.paymentResult}>
             {icon}
-            <Text style={style.statusText}>{statusText}</Text>
+            <Text testID={testID} style={style.statusText}>
+                {statusText}
+            </Text>
         </Row>
     )
 }
 
 export const PaymentEventButtons = ({
     buttons,
+    testID,
 }: {
     buttons: PaymentEventButton[]
+    testID?: string
 }) => {
     const { theme } = useTheme()
     const style = styles(theme)
@@ -78,6 +84,7 @@ export const PaymentEventButtons = ({
             {buttons.map(button => (
                 <Button
                     key={button.label}
+                    testID={testID && `${testID}-${button.label}`}
                     color={theme.colors.secondary}
                     size="sm"
                     onPress={button.handler}
@@ -117,7 +124,7 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
     const { theme } = useTheme()
     const style = styles(theme)
     const navigation = useNavigation<NavigationHook>()
-    const { federationId } = event.content
+    const { federationId, paymentId } = event.content
 
     const {
         messageText,
@@ -161,10 +168,12 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
                     <PaymentEventStatus
                         statusIcon={statusIcon}
                         statusText={statusText}
+                        testID={`PaymentStatus-${paymentId}`}
                     />
                 )}
                 {statusHelp && (
                     <Text
+                        testID={`PaymentHelp-${paymentId}`}
                         small
                         color={theme.colors.secondary}
                         style={style.paymentResult}>
@@ -172,7 +181,10 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
                     </Text>
                 )}
                 {buttons.length > 0 && (
-                    <PaymentEventButtons buttons={buttons} />
+                    <PaymentEventButtons
+                        buttons={buttons}
+                        testID={`PaymentButton-${paymentId}`}
+                    />
                 )}
             </>
         )

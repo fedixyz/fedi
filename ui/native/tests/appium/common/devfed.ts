@@ -79,6 +79,40 @@ export async function removeDevfedPortsFromDevice(
     console.log(`[devfed] removed the fed ports from ${udid}`)
 }
 
+// SIGSTOP keeps connections open, so client requests hang the way they do
+// against an unreachable federation.
+export async function pauseDevfedGuardians(): Promise<() => void> {
+    const pids = new Set<number>()
+    for (const port of await fetchDevfedPorts()) {
+        let listing: string
+        try {
+            listing = execFileSync(
+                'lsof',
+                ['+c', '0', '-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fpc'],
+                { encoding: 'utf8' },
+            )
+        } catch {
+            continue
+        }
+        let pid: number | undefined
+        for (const line of listing.split('\n')) {
+            if (line.startsWith('p')) pid = Number(line.slice(1))
+            if (line.startsWith('c') && line.includes('fedimintd') && pid) {
+                pids.add(pid)
+            }
+        }
+    }
+    if (pids.size === 0) {
+        throw new Error('no fedimintd process listens on the dev-fed ports')
+    }
+    pids.forEach(pid => process.kill(pid, 'SIGSTOP'))
+    console.log(`[devfed] paused guardians ${[...pids].join(', ')}`)
+    return () => {
+        pids.forEach(pid => process.kill(pid, 'SIGCONT'))
+        console.log(`[devfed] resumed guardians ${[...pids].join(', ')}`)
+    }
+}
+
 async function fetchDevfedPorts(): Promise<number[]> {
     const body = await fetchDevfedText('/ports')
     const ports: number[] = JSON.parse(body).ports
