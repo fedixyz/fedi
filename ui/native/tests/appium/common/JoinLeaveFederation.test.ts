@@ -16,9 +16,7 @@ import {
     waitForDevfedBackupCountAbove,
 } from './devfed'
 
-// E-Cash Club is the one pasteable federation the runner can reach: the
-// suite's own list-joins prove it, while the other federations in
-// meta-federations.json are external and their previews time out on CI.
+// The pasted-invite and Discover rejoin scenarios must use the same federation.
 const INVITE_PREVIEW_FEDERATION_NAME = 'E-Cash Club'
 const DEVFED_NAME = 'Devimint Federation'
 const NEW_MEMBERS_DISABLED_NOTICE = 'You cannot join this federation.'
@@ -28,10 +26,10 @@ type PublicFederationMeta = {
     invite_code?: string
 }
 
-function getPublicFederationInvite(federationName: string): string {
+function getNightlyFederationInvite(federationName: string): string {
     const metaPath = path.resolve(
         __dirname,
-        '../../../../web/public/meta-federations.json',
+        '../../../../web/public/meta-federations-nightly.json',
     )
     const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as Record<
         string,
@@ -42,7 +40,7 @@ function getPublicFederationInvite(federationName: string): string {
     )
     if (!federation?.invite_code) {
         throw new Error(
-            `No invite code found for public federation "${federationName}"`,
+            `No invite code found for nightly federation "${federationName}"`,
         )
     }
     return federation.invite_code
@@ -191,7 +189,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await this.clickElementByKey('WalletTabButton')
         await this.waitForElementDisplayed('FediTestnetDetailsButton')
         await this.joinFederationByPastedInvite(
-            getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
+            getNightlyFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
             INVITE_PREVIEW_FEDERATION_NAME,
             'E-CashClubDetailsButton',
         )
@@ -403,7 +401,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await this.clickOnText('Fedi Testnet', 0, true)
         await this.waitForElementDisplayed('FediTestnetDetailsButton', 30000)
         await this.pasteInviteOfJoinedFederation(
-            getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
+            getNightlyFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
             'E-CashClubDetailsButton',
             'FediTestnetDetailsButton',
         )
