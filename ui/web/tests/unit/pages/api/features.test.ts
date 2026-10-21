@@ -9,6 +9,27 @@ describe('remote feature serving', () => {
         else process.env.VERCEL_ENV = originalEnv
     })
 
+    const serve = async (env: string, flavor: string | undefined) => {
+        process.env.VERCEL_ENV = env
+        let handler: typeof import('../../../../src/pages/api/features').default
+        jest.isolateModules(() => {
+            handler = require('../../../../src/pages/api/features').default
+        })
+        const response = {
+            setHeader: jest.fn(),
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn(),
+        }
+        await handler!(
+            {
+                method: 'GET',
+                query: { env: flavor },
+            } as unknown as NextApiRequest,
+            response as unknown as NextApiResponse<RemoteFeatures>,
+        )
+        return response
+    }
+
     it.each([
         ['production', undefined, false],
         ['production', 'edge', true],
@@ -18,23 +39,7 @@ describe('remote feature serving', () => {
     ])(
         'should serve transfers for %s with flavor %s as %s',
         async (env, flavor, enabled) => {
-            process.env.VERCEL_ENV = env as string
-            let handler: typeof import('../../../../src/pages/api/features').default
-            jest.isolateModules(() => {
-                handler = require('../../../../src/pages/api/features').default
-            })
-            const response = {
-                setHeader: jest.fn(),
-                status: jest.fn().mockReturnThis(),
-                json: jest.fn(),
-            }
-            await handler!(
-                {
-                    method: 'GET',
-                    query: { env: flavor },
-                } as unknown as NextApiRequest,
-                response as unknown as NextApiResponse<RemoteFeatures>,
-            )
+            const response = await serve(env, flavor)
             expect(response.json).toHaveBeenCalledWith(
                 expect.objectContaining({ federationTransfers: enabled }),
             )
@@ -54,23 +59,7 @@ describe('remote feature serving', () => {
     ])(
         'should serve the update prompt for %s with flavor %s as %s',
         async (env, flavor, enabled) => {
-            process.env.VERCEL_ENV = env as string
-            let handler: typeof import('../../../../src/pages/api/features').default
-            jest.isolateModules(() => {
-                handler = require('../../../../src/pages/api/features').default
-            })
-            const response = {
-                setHeader: jest.fn(),
-                status: jest.fn().mockReturnThis(),
-                json: jest.fn(),
-            }
-            await handler!(
-                {
-                    method: 'GET',
-                    query: { env: flavor },
-                } as unknown as NextApiRequest,
-                response as unknown as NextApiResponse<RemoteFeatures>,
-            )
+            const response = await serve(env, flavor)
             expect(response.json).toHaveBeenCalledWith(
                 expect.objectContaining({ updateScreen: enabled }),
             )
