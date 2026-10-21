@@ -102,6 +102,8 @@ pub struct RemoteFeatures {
     /// cached/older payload that omits the field.
     #[serde(default)]
     pub btc_multispend: bool,
+    #[serde(default)]
+    pub update_screen: Option<bool>,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -451,6 +453,11 @@ impl FeatureCatalog {
         } else {
             None
         };
+        if let Some(enabled) = remote_features.update_screen {
+            self.update_screen = enabled.then_some(UpdateScreenConfig {
+                platform: UpdateScreenPlatform::All,
+            });
+        }
     }
 
     fn new_dev() -> Self {
@@ -809,6 +816,7 @@ mod tests {
         assert!(!remote_features.mini_app_seed);
         assert!(!remote_features.wallet_service_dkg_restart);
         assert!(!remote_features.btc_multispend);
+        assert!(remote_features.update_screen.is_none());
     }
 
     #[test]
@@ -839,6 +847,24 @@ mod tests {
             let enabled = catalog.federation_transfers.is_some();
             catalog.apply_remote_layer(serde_json::from_str(r#"{"dummyFeature":false}"#).unwrap());
             assert_eq!(catalog.federation_transfers.is_some(), enabled);
+        }
+    }
+
+    #[test]
+    fn remote_layer_switches_update_screen_only_when_sent() {
+        for mut catalog in [FeatureCatalog::new_prod(), FeatureCatalog::new_staging()] {
+            let compiled = catalog.update_screen.is_some();
+            catalog.apply_remote_layer(serde_json::from_str(r#"{"dummyFeature":false}"#).unwrap());
+            assert_eq!(catalog.update_screen.is_some(), compiled);
+            for enabled in [true, false] {
+                let remote = serde_json::from_value(serde_json::json!({
+                    "dummyFeature": false,
+                    "updateScreen": enabled,
+                }))
+                .unwrap();
+                catalog.apply_remote_layer(remote);
+                assert_eq!(catalog.update_screen.is_some(), enabled);
+            }
         }
     }
 }

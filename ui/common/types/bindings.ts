@@ -598,6 +598,7 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   btcMultispend: boolean;
+  updateScreen: boolean | null;
 };
 
 export type RpcAccountId = string;

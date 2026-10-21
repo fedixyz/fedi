@@ -44,4 +44,36 @@ describe('remote feature serving', () => {
             )
         },
     )
+
+    it.each([
+        ['production', undefined, false],
+        ['production', 'edge', false],
+        ['preview', undefined, true],
+        ['preview', 'edge', false],
+        ['development', undefined, true],
+    ])(
+        'should serve the update prompt for %s with flavor %s as %s',
+        async (env, flavor, enabled) => {
+            process.env.VERCEL_ENV = env as string
+            let handler: typeof import('../../../../src/pages/api/features').default
+            jest.isolateModules(() => {
+                handler = require('../../../../src/pages/api/features').default
+            })
+            const response = {
+                setHeader: jest.fn(),
+                status: jest.fn().mockReturnThis(),
+                json: jest.fn(),
+            }
+            await handler!(
+                {
+                    method: 'GET',
+                    query: { env: flavor },
+                } as unknown as NextApiRequest,
+                response as unknown as NextApiResponse<RemoteFeatures>,
+            )
+            expect(response.json).toHaveBeenCalledWith(
+                expect.objectContaining({ updateScreen: enabled }),
+            )
+        },
+    )
 })

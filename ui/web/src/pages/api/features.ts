@@ -16,6 +16,7 @@ const prodRemoteFeatures: RemoteFeatures = {
     miniAppSeed: true,
     walletServiceDkgRestart: true,
     btcMultispend: false,
+    updateScreen: false,
 }
 const edgeRemoteFeatures: RemoteFeatures = {
     ...prodRemoteFeatures,
@@ -32,12 +33,14 @@ const devRemoteFeatures: RemoteFeatures = {
     miniAppSeed: true,
     walletServiceDkgRestart: true,
     btcMultispend: true,
+    updateScreen: true,
 }
 // edge has always been served the dev values here; swapping this for
 // edgeRemoteFeatures would flip several live edge flags at once
 const edgeDevRemoteFeatures: RemoteFeatures = {
     ...devRemoteFeatures,
     miniAppSeed: false,
+    updateScreen: false,
 }
 const isProduction = process.env.VERCEL_ENV === 'production'
 
