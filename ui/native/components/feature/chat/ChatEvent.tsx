@@ -395,7 +395,11 @@ const areEqual = (
     if (isPaymentEvent(currEvent) && isPaymentEvent(prevEvent)) {
         return (
             prevEvent.id === currEvent.id &&
-            prevEvent.content.status === currEvent.content.status
+            prevEvent.content.status === currEvent.content.status &&
+            prevEvent.content.senderOperationId ===
+                currEvent.content.senderOperationId &&
+            prevEvent.content.receiverOperationId ===
+                currEvent.content.receiverOperationId
         )
     } else if (isPollEvent(currEvent) && isPollEvent(prevEvent)) {
         return arePollEventsEqual(prevEvent, currEvent)

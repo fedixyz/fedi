@@ -85,9 +85,7 @@ import {
     SendableMatrixEvent,
 } from '../types'
 import {
-    RpcFederationId,
     RpcFormOption,
-    RpcOperationId,
     RpcPollResultAnswer,
     RpcTimelineEventItemId,
     RpcTransaction,
@@ -567,6 +565,7 @@ export function useMatrixPaymentEvent({
     onPayWithForeignEcash,
     onViewBolt11,
     onCopyBolt11,
+    onViewTransaction,
 }: {
     event: MatrixPaymentEvent
     t: TFunction
@@ -574,6 +573,7 @@ export function useMatrixPaymentEvent({
     onPayWithForeignEcash?: () => void
     onViewBolt11?: (bolt11: string) => void
     onCopyBolt11?: (bolt11: string) => void
+    onViewTransaction?: () => void
 }) {
     const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
@@ -725,11 +725,22 @@ export function useMatrixPaymentEvent({
         makeFormattedAmountsFromTxn,
     })
 
-    const paymentStatus = event.content.status
     const isBolt11 = !!event.content.bolt11
+    const receiveState =
+        transaction?.kind === 'oobReceive' ? transaction.state?.type : undefined
+    const paymentStatus =
+        !isBolt11 && isRecipient && receiveState === 'failed'
+            ? 'failed'
+            : !isBolt11 &&
+                isRecipient &&
+                event.content.status === 'received' &&
+                (receiveState === 'created' || receiveState === 'issuing')
+              ? 'receiving'
+              : event.content.status
 
     let statusIcon: 'x' | 'reject' | 'check' | 'error' | 'loading' | undefined
     let statusText: string | undefined
+    let statusHelp: string | undefined
     let buttons: ChatEventAction[] = []
 
     if (isBolt11) {
@@ -747,7 +758,29 @@ export function useMatrixPaymentEvent({
         }
     }
 
-    if (paymentStatus === 'received') {
+    if (paymentStatus === 'failed') {
+        statusIcon = 'error'
+        statusText = t('words.failed')
+        statusHelp = isRecipient
+            ? t('feature.chat.payment-failed-recipient')
+            : isSentByMe
+              ? t('feature.chat.payment-failed-sender')
+              : undefined
+        buttons =
+            onViewTransaction && (isRecipient || isSentByMe)
+                ? [
+                      {
+                          label: t('feature.chat.payment-view-history'),
+                          handler: onViewTransaction,
+                      },
+                  ]
+                : []
+    } else if (paymentStatus === 'receiving') {
+        statusIcon = 'loading'
+        statusText = isRecipient ? t('words.receiving') : t('words.pending')
+        statusHelp = t('feature.chat.payment-confirming')
+        buttons = []
+    } else if (paymentStatus === 'received') {
         statusIcon = 'check'
         statusText = isBolt11
             ? t('words.complete')
@@ -855,6 +888,7 @@ export function useMatrixPaymentEvent({
         messageText,
         statusIcon,
         statusText,
+        statusHelp,
         buttons,
         isHandlingForeignEcash,
         setIsHandlingForeignEcash,
@@ -1464,114 +1498,99 @@ export function useMatrixPaymentTransaction({
 }: {
     event: MatrixPaymentEvent
 }) {
-    // undefined = not yet tried (or loading), null = tried & got nothing, object = got a transaction
-    const [transaction, setTransaction] = useState<
-        RpcTransaction | null | undefined
-    >(undefined)
-    const [hasTriedFetch, setHasTriedFetch] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
-    const [error, setError] = useState<unknown>(null)
-
-    const matrixAuth = useCommonSelector(selectMatrixAuth)
-    const currentUserId = matrixAuth?.userId
+    const currentUserId = useCommonSelector(selectMatrixAuth)?.userId
     const fedimint = useFedimint()
+    const { federationId, senderId, senderOperationId, receiverOperationId } =
+        event.content
+    const operationId =
+        senderId === currentUserId ? senderOperationId : receiverOperationId
+    const key = `${currentUserId}:${federationId}:${operationId}`
+    const [state, setState] = useState<{
+        key: string
+        transaction: RpcTransaction | null | undefined
+        hasTriedFetch: boolean
+        isLoading: boolean
+        error: unknown
+    }>({
+        key,
+        transaction: undefined,
+        hasTriedFetch: false,
+        isLoading: false,
+        error: null,
+    })
 
     useEffect(() => {
-        // skip if we've already tried
-        if (hasTriedFetch) return
+        let active = true
+        let receivedUpdate = false
+        setState({
+            key,
+            transaction: null,
+            hasTriedFetch: true,
+            isLoading: !!operationId && !!federationId,
+            error: null,
+        })
+        if (!operationId || !federationId) return
 
-        const { senderOperationId, receiverOperationId, federationId } =
-            event.content
-
-        const isSentByMe = event.content.senderId === currentUserId
-
-        // for legacy payments without senderOperationId (from old clients),
-        // we can't fetch transaction history, so just mark as tried and return null
-        if (isSentByMe && !senderOperationId) {
-            log.debug(
-                'Legacy payment detected (no senderOperationId), skipping transaction fetch',
+        const unsubscribe = fedimint.addListener('transaction', update => {
+            if (
+                !active ||
+                update.federationId !== federationId ||
+                update.transaction.id !== operationId
             )
-            setHasTriedFetch(true)
-            setTransaction(null)
-            setIsLoading(false)
-            return
-        }
-
-        const operationId = isSentByMe ? senderOperationId : receiverOperationId
-
-        if (!operationId || !federationId) {
-            log.debug(
-                'Waiting for operationId & federationId to fetch transaction',
-            )
-            // for receiver of legacy payment, mark as tried if there's no receiverOperationId
-            if (!isSentByMe && !receiverOperationId && federationId) {
-                log.debug(
-                    'Receiver of legacy payment (no receiverOperationId yet), marking as tried',
-                )
-                setHasTriedFetch(true)
-                setTransaction(null)
-                setIsLoading(false)
-            }
-            return
-        }
-
-        const fetchTransaction = async () => {
-            let chosenOp: string | undefined
-            if (isSentByMe && senderOperationId) {
-                chosenOp = senderOperationId
-            } else if (!isSentByMe && receiverOperationId) {
-                chosenOp = receiverOperationId
-            } else {
-                log.warn(
-                    `Missing ${
-                        isSentByMe ? 'sender' : 'receiver'
-                    }OperationId for payment ${event.content.paymentId}`,
-                )
-                setHasTriedFetch(true)
-                setTransaction(null)
                 return
-            }
-
-            setHasTriedFetch(true)
-            setIsLoading(true)
-            setError(null)
-
-            log.debug(
-                `Fetching transaction for ${
-                    isSentByMe ? 'sender' : 'receiver'
-                } operation: ${chosenOp}`,
-            )
-
-            try {
-                const result = await fedimint.getTransaction(
-                    federationId as RpcFederationId,
-                    chosenOp as RpcOperationId,
-                )
-                setTransaction(result ?? null)
-
-                if (result) {
-                    log.debug(
-                        `Successfully fetched transaction for operation ${chosenOp}`,
-                    )
-                } else {
-                    log.debug(`No transaction found for operation ${chosenOp}`)
+            receivedUpdate = true
+            setState({
+                key,
+                transaction: update.transaction,
+                hasTriedFetch: true,
+                isLoading: false,
+                error: null,
+            })
+        })
+        Promise.resolve(fedimint.getTransaction(federationId, operationId))
+            .then(transaction => {
+                if (active && !receivedUpdate) {
+                    setState({
+                        key,
+                        transaction: transaction ?? null,
+                        hasTriedFetch: true,
+                        isLoading: false,
+                        error: null,
+                    })
                 }
-            } catch (err) {
-                log.error(
-                    `Failed to fetch transaction for operation ${chosenOp}:`,
-                    err,
-                )
-                setError(err)
-                setTransaction(null)
-            } finally {
-                setIsLoading(false)
-            }
+            })
+            .catch(error => {
+                if (active && !receivedUpdate) {
+                    setState({
+                        key,
+                        transaction: null,
+                        hasTriedFetch: true,
+                        isLoading: false,
+                        error,
+                    })
+                }
+            })
+        return () => {
+            active = false
+            unsubscribe()
         }
+    }, [fedimint, federationId, operationId, key])
 
-        fetchTransaction()
-    }, [event.content, fedimint, currentUserId, hasTriedFetch])
-
-    return { transaction, hasTriedFetch, isLoading, error }
+    const current =
+        state.key === key
+            ? state
+            : {
+                  transaction: undefined,
+                  hasTriedFetch: false,
+                  isLoading: false,
+                  error: null,
+              }
+    return {
+        transaction: current.transaction,
+        hasTriedFetch: current.hasTriedFetch,
+        isLoading: current.isLoading,
+        error: current.error,
+    }
 }
 
 /**

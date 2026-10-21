@@ -28,6 +28,7 @@ import {
     MentionSelect,
 } from '@fedi/common/types'
 
+import type { RpcTransaction, TransactionEvent } from '../../../types/bindings'
 import { mockFederation1 } from '../../mock-data/federation'
 import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
 import {
@@ -479,6 +480,118 @@ describe('useMatrixPaymentTransaction', () => {
 
         expect(result.current.transaction).toEqual(mockTransaction)
         expect(result.current.isLoading).toBe(false)
+    })
+    it('should fetch an operation ID that arrives after the first render', async () => {
+        store.dispatch(setMatrixAuth({ userId: 'recipient' } as MatrixAuth))
+        const completed = createMockTransaction({
+            id: 'receive-op',
+            kind: 'oobReceive',
+            state: { type: 'done' },
+        })
+        const bridge = createMockFedimintBridge({ getTransaction: completed })
+        let event = createMockPaymentEvent({
+            content: {
+                recipientId: 'recipient',
+                receiverOperationId: undefined,
+            },
+        })
+        const { result, rerender } = renderHookWithState(
+            () => useMatrixPaymentTransaction({ event }),
+            store,
+            bridge,
+        )
+        expect(result.current.transaction).toBeNull()
+        expect(bridge.getTransaction).not.toHaveBeenCalled()
+        event = createMockPaymentEvent({
+            ...event,
+            content: { ...event.content, receiverOperationId: 'receive-op' },
+        })
+        rerender()
+        await waitFor(() =>
+            expect(result.current.transaction).toEqual(completed),
+        )
+        expect(result.current.error).toBeNull()
+        expect(result.current.isLoading).toBe(false)
+        expect(result.current.hasTriedFetch).toBe(true)
+    })
+
+    it('should retain a live failure when an older read finishes later', async () => {
+        store.dispatch(setMatrixAuth({ userId: 'recipient' } as MatrixAuth))
+        const pending = createMockTransaction({
+            id: 'receive-op',
+            kind: 'oobReceive',
+            state: { type: 'created' },
+        })
+        const failed: RpcTransaction = {
+            ...createMockTransaction(),
+            id: 'receive-op',
+            kind: 'oobReceive',
+            state: { type: 'failed', error: 'already spent' },
+        }
+        let finishRead!: (transaction: typeof pending) => void
+        const bridge = createMockFedimintBridge({
+            getTransaction: () =>
+                new Promise(resolve => {
+                    finishRead = resolve
+                }),
+        })
+        const listeners: Array<(update: TransactionEvent) => void> = []
+        bridge.addListener.mockImplementation((type, listener) => {
+            if (type === 'transaction')
+                listeners.push(listener as (update: TransactionEvent) => void)
+            return () => {}
+        })
+        const federationId = 'fed123'
+        const event = createMockPaymentEvent({
+            content: {
+                federationId,
+                recipientId: 'recipient',
+                receiverOperationId: 'receive-op',
+            },
+        })
+        const { result } = renderHookWithState(
+            () => useMatrixPaymentTransaction({ event }),
+            store,
+            bridge,
+        )
+        expect(result.current.isLoading).toBe(true)
+        act(() =>
+            listeners.forEach(listener =>
+                listener({
+                    federationId,
+                    transaction: failed,
+                }),
+            ),
+        )
+        await act(async () => finishRead(pending))
+        expect(result.current.transaction).toEqual(failed)
+        expect(result.current.isLoading).toBe(false)
+        expect(result.current.error).toBeNull()
+    })
+
+    it('should expose a failed transaction lookup without inventing success', async () => {
+        store.dispatch(setMatrixAuth({ userId: 'recipient' } as MatrixAuth))
+        const failure = new Error('transaction unavailable')
+        const bridge = createMockFedimintBridge({
+            getTransaction: async () => {
+                throw failure
+            },
+        })
+        const event = createMockPaymentEvent({
+            content: {
+                recipientId: 'recipient',
+                receiverOperationId: 'receive-op',
+            },
+        })
+        const { result } = renderHookWithState(
+            () => useMatrixPaymentTransaction({ event }),
+            store,
+            bridge,
+        )
+        await waitFor(() => expect(result.current.error).toBe(failure))
+        expect(result.current.transaction).toBeNull()
+        expect(result.current.isLoading).toBe(false)
+        expect(result.current.hasTriedFetch).toBe(true)
     })
 })
 

@@ -1537,6 +1537,8 @@ export type RpcMatrixPaymentStatus =
   | "accepted"
   | "rejected"
   | "canceled"
+  | "receiving"
+  | "failed"
   | "received";
 
 export type RpcMatrixRoomState =

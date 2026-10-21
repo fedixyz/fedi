@@ -123,6 +123,17 @@ export const mxcHttpUrlToDownloadUrl = (url: string) => {
 }
 
 /**
+ * Only the recipient redeems ecash, so only the recipient can report
+ * whether redemption is in progress, succeeded or failed. The same status
+ * from anyone else in the room is ignored. Bolt11 requests carry no
+ * recipient and are settled by the requester, so they are exempt.
+ */
+const isSpoofedEcashSettlement = (event: MatrixPaymentEvent) =>
+    !event.content.bolt11 &&
+    ['receiving', 'received', 'failed'].includes(event.content.status) &&
+    event.sender !== event.content.recipientId
+
+/**
  * Filter out payment events that aren't the initial push or request
  * since we only render the original event. Keep track of the latest
  * payment for each payment ID, and replace the initial event's content
@@ -134,8 +145,9 @@ export const consolidatePaymentEvents = (events: MatrixEvent[]) => {
     const filteredEvents = events.filter(event => {
         // Return non-payment events as-is
         if (!isPaymentEvent(event)) return true
-        // Always set the newest event to the payment ID record map
-        latestPayments[event.content.paymentId] = event
+        // Always set the newest trusted event to the payment ID record map
+        if (!isSpoofedEcashSettlement(event))
+            latestPayments[event.content.paymentId] = event
         // Only return the payment events that are the initial push or request
         return ['pushed', 'requested'].includes(event.content.status)
     })
@@ -599,10 +611,17 @@ export function getReceivablePaymentEvents(
             )
             return
         }
+        if (isSpoofedEcashSettlement(item)) return
         latestPayments[item.content.paymentId] = item
     })
     return Object.values(latestPayments).reduce((prev, event) => {
-        if (['accepted', 'pushed'].includes(event.content.status)) {
+        if (
+            ['accepted', 'pushed', 'receiving'].includes(
+                event.content.status,
+            ) ||
+            (event.content.status === 'received' &&
+                event.content.receiverOperationId)
+        ) {
             prev.push(event)
         }
         return prev

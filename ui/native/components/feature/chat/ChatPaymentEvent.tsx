@@ -115,12 +115,15 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
     const { t } = useTranslation()
     const toast = useToast()
     const { theme } = useTheme()
+    const style = styles(theme)
     const navigation = useNavigation<NavigationHook>()
+    const { federationId } = event.content
 
     const {
         messageText,
         statusIcon,
         statusText,
+        statusHelp,
         buttons,
         isHandlingForeignEcash,
         setIsHandlingForeignEcash,
@@ -132,6 +135,12 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
         event,
         t,
         onError: (err: unknown) => toast.error(t, err),
+        onViewTransaction: federationId
+            ? () =>
+                  navigation.navigate('Transactions', {
+                      federationId,
+                  })
+            : undefined,
         onPayWithForeignEcash: () => {
             if (event.content?.amount && event.roomId) {
                 navigation.navigate('ConfirmSendChatPayment', {
@@ -153,6 +162,14 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
                         statusIcon={statusIcon}
                         statusText={statusText}
                     />
+                )}
+                {statusHelp && (
+                    <Text
+                        small
+                        color={theme.colors.secondary}
+                        style={style.paymentResult}>
+                        {statusHelp}
+                    </Text>
                 )}
                 {buttons.length > 0 && (
                     <PaymentEventButtons buttons={buttons} />

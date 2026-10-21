@@ -1,4 +1,16 @@
 /* eslint-disable no-console */
+import { randomUUID } from 'crypto'
+import WebSocket from 'ws'
+
+import { resources } from '@fedi/common/localization'
+import type {
+    RpcMethodNames,
+    RpcPayload,
+    RpcResponse,
+    RpcTimelineItem,
+    RpcVecDiffStreamId,
+} from '@fedi/common/types/bindings'
+
 import {
     AppiumTestBase,
     COLD_START_TIMEOUT,
@@ -34,6 +46,8 @@ import {
 // never leave it pending long enough. Reaching it needs the recipient
 // offline, so it stays a manual check.
 
+const en = resources.en.translation
+const FAILED_PAYMENT_SENDER = 'Spent ecash sender'
 const FUND_SATS = 10000
 const SEND_SATS = 500
 const REQUEST_SATS = 300
@@ -64,13 +78,14 @@ export class ChatPayments extends AppiumTestBase {
         await alice.clickOnText('Go to wallet', 0, true)
         await waitForWalletReceive(alice)
 
+        const aliceProfile = await readOwnProfile(alice)
+        const bobProfile = await readOwnProfile(bob)
+
         console.log('[phase1] open a direct message between the two')
         // A direct message deep link lands on a screen with no room behind it,
         // and the room is only created by sending into it. The in-chat wallet
         // control needs that room, so alice opens the link and sends first:
         // she is the one who pays first.
-        const aliceProfile = await readOwnProfile(alice)
-        const bobProfile = await readOwnProfile(bob)
         await openDirectMessage(alice, bobProfile.userId)
         await sendChatMessage(alice, ALICE_HELLO)
 
@@ -131,6 +146,10 @@ export class ChatPayments extends AppiumTestBase {
             )
         }
         console.log('[phase4] rejected request moved no money')
+
+        console.log('[spent-ecash] reject a payment with already-spent notes')
+        await assertSpentEcashRejected(bob, invite, bobProfile)
+        console.log('[spent-ecash] failed history and chat, unchanged balance')
     }
 
     catch(error: unknown) {
@@ -273,4 +292,252 @@ async function balanceOnWallet(t: AppiumTestBase): Promise<number> {
     }
     await goToWallet(t)
     return readWalletSats(t)
+}
+
+async function assertSpentEcashRejected(
+    t: AppiumTestBase,
+    invite: string,
+    recipient: Profile,
+): Promise<void> {
+    const openingBalance = await balanceOnWallet(t)
+
+    const sender = new PaymentSender()
+    try {
+        await sender.initialize()
+        await sender.rpc('completeOnboardingNewSeed', {})
+        const account = await sender.rpc('matrixGetAccountSession', {
+            cached: false,
+        })
+        await sender.rpc('matrixSetDisplayName', {
+            displayName: FAILED_PAYMENT_SENDER,
+        })
+        const federation = await sender.rpc('joinFederation', {
+            inviteCode: invite,
+            recoverFromScratch: false,
+        })
+        const ecash = await generateDevfedEcash(SEND_SATS * 1000)
+        const [, operationId] = await sender.rpc('receiveEcash', {
+            federationId: federation.id,
+            ecash,
+            frontendMetadata: {
+                initialNotes: null,
+                senderMatrixId: null,
+                recipientMatrixId: null,
+            },
+        })
+        await sender.waitForReceive(federation.id, operationId)
+
+        const roomId = await sender.rpc('matrixRoomCreateOrGetDm', {
+            userId: recipient.userId,
+        })
+        const paymentId = randomUUID()
+        await sender.watchPayment(roomId, paymentId)
+        await sender.rpc('matrixSendMessage', {
+            roomId,
+            data: {
+                msgtype: 'm.text',
+                body: 'Payment status test',
+                data: {},
+                mentions: null,
+            },
+        })
+        await enterRoom(t, FAILED_PAYMENT_SENDER)
+        await t.waitForText('Payment status test', 0, false, MATRIX_TIMEOUT)
+        await sender.rpc('matrixSendMessage', {
+            roomId,
+            data: {
+                msgtype: 'xyz.fedi.payment',
+                body: 'Sent payment of 500 SATS.',
+                data: {
+                    paymentId,
+                    status: 'pushed',
+                    amount: SEND_SATS * 1000,
+                    senderId: account.userId,
+                    recipientId: recipient.userId,
+                    federationId: federation.id,
+                    inviteCode: invite,
+                    ecash,
+                },
+                mentions: null,
+            },
+        })
+        await t.waitForText('sent you', 0, false, MATRIX_TIMEOUT)
+
+        await t.clickElementByKey('HeaderBackButton')
+        await goToWallet(t)
+        await t.clickElementByKey('BalanceCard__TransactionHistory')
+        await t.waitForText(en.words.failed, 0, true, 120000)
+        await t.saveScreenshot('chat-payment-failed-history')
+        await t.clickOnText(en.words.failed, 0, true)
+        await t.clickElementByKey('HistoryDetailCloseButton')
+        await t.clickElementByKey('HeaderBackButton')
+        const closingBalance = await readWalletSats(t)
+        if (closingBalance !== openingBalance) {
+            throw new Error(
+                `spent ecash changed recipient balance from ${openingBalance} to ${closingBalance}`,
+            )
+        }
+
+        await enterRoom(t, FAILED_PAYMENT_SENDER)
+        await t.saveScreenshot('chat-payment-failed-receipt')
+        if (await t.isTextPresent(en.words.received, true, 3000)) {
+            throw new Error(
+                'chat says Received for a failed payment that credited no money',
+            )
+        }
+        await t.waitForText(en.words.failed, 0, true, MATRIX_TIMEOUT)
+        await t.waitForText(
+            en.feature.chat['payment-failed-recipient'],
+            0,
+            true,
+        )
+        await t.clickOnText(en.feature.chat['payment-view-history'], 0, true)
+        await t.waitForElementDisplayed('transaction-item', MATRIX_TIMEOUT)
+        await t.clickElementByKey('HeaderBackButton')
+
+        await sender.waitForPaymentStatus('failed')
+        // statuses are recorded in the order the sender's timeline first
+        // showed them
+        const statuses = sender.paymentStatuses
+        const receiving = statuses.indexOf('receiving')
+        if (
+            receiving === -1 ||
+            receiving > statuses.indexOf('failed') ||
+            statuses.includes('received')
+        ) {
+            throw new Error(
+                `sender saw payment statuses ${statuses.join(', ')}, expected receiving then failed and never received`,
+            )
+        }
+    } finally {
+        await sender.close()
+    }
+    await t.clickElementByKey('HeaderBackButton')
+}
+
+class PaymentSender {
+    private readonly deviceId = `test:chat-payment:${randomUUID()}`
+    private readonly baseUrl = `http://127.0.0.1:${process.env.REMOTE_BRIDGE_PORT}/${this.deviceId}`
+    private events: WebSocket | undefined
+    readonly paymentStatuses: string[] = []
+
+    async initialize(): Promise<void> {
+        await this.post('/init', {
+            dataDir: '/remote-data',
+            deviceIdentifier: this.deviceId,
+            logLevel: 'info',
+            appFlavor: { type: 'dev' },
+        })
+        const events = new WebSocket(
+            `${this.baseUrl.replace('http:', 'ws:')}/events`,
+        )
+        this.events = events
+        await new Promise<void>((resolve, reject) => {
+            events.once('open', resolve)
+            events.once('error', reject)
+        })
+    }
+
+    async rpc<M extends RpcMethodNames>(
+        method: M,
+        payload: RpcPayload<M>,
+    ): Promise<RpcResponse<M>> {
+        const response = await this.post(`/rpc/${method}`, payload)
+        return response.result
+    }
+
+    async watchPayment(roomId: string, paymentId: string): Promise<void> {
+        this.events?.on('message', raw => {
+            const message = JSON.parse(raw.toString())
+            if (message.event !== 'streamUpdate') return
+            collectPaymentStatuses(
+                JSON.parse(message.data),
+                paymentId,
+                this.paymentStatuses,
+            )
+        })
+        await this.rpc('matrixSubscribeRoomTimelineItems', {
+            streamId: 1 as RpcVecDiffStreamId<RpcTimelineItem>,
+            roomId,
+        })
+    }
+
+    async waitForPaymentStatus(status: string): Promise<void> {
+        const deadline = Date.now() + MATRIX_TIMEOUT
+        while (!this.paymentStatuses.includes(status)) {
+            if (Date.now() > deadline) {
+                throw new Error(
+                    `sender never saw a ${status} payment status, saw ${this.paymentStatuses.join(', ')}`,
+                )
+            }
+            await new Promise(resolve => setTimeout(resolve, 500))
+        }
+    }
+
+    async waitForReceive(federationId: string, operationId: string) {
+        const deadline = Date.now() + 120000
+        while (Date.now() < deadline) {
+            const transaction = await this.rpc('getTransaction', {
+                federationId,
+                operationId,
+            })
+            if (transaction.kind !== 'oobReceive') {
+                throw new Error(
+                    `unexpected transaction kind ${transaction.kind}`,
+                )
+            }
+            if (transaction.state?.type === 'done') return
+            if (transaction.state?.type === 'failed') {
+                throw new Error('fixture failed to spend its ecash')
+            }
+            await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        throw new Error('fixture ecash did not settle')
+    }
+
+    async close() {
+        this.events?.close()
+        await this.post('/shutdown', {})
+    }
+
+    private async post(path: string, payload: object) {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 120000)
+        try {
+            const response = await fetch(`${this.baseUrl}${path}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+            })
+            const body = await response.json()
+            if (!response.ok || body.error) {
+                throw new Error(
+                    `fixture ${path} failed: ${JSON.stringify(body)}`,
+                )
+            }
+            return body
+        } finally {
+            clearTimeout(timeout)
+        }
+    }
+}
+
+function collectPaymentStatuses(
+    value: unknown,
+    paymentId: string,
+    statuses: string[],
+): void {
+    if (!value || typeof value !== 'object') return
+    const record = value as Record<string, unknown>
+    if (
+        record.paymentId === paymentId &&
+        typeof record.status === 'string' &&
+        !statuses.includes(record.status)
+    ) {
+        statuses.push(record.status)
+    }
+    Object.values(record).forEach(child =>
+        collectPaymentStatuses(child, paymentId, statuses),
+    )
 }

@@ -2,6 +2,7 @@ import { makeTxnDetailTitleText } from '../../../../utils/transaction'
 import { createMockT } from '../../../utils/setup'
 import {
     makeTestLnReceiveState,
+    makeTestOOBReissueState,
     makeTestOnchainDepositState,
     makeTestSPV2TransferInState,
     makeTestSPV2TransferOutState,
@@ -20,7 +21,7 @@ describe('makeTxnDetailTitleText', () => {
             onchainWithdraw: t('feature.send.you-sent'),
             onchainDeposit: t('phrases.receive-pending'),
             oobSend: t('feature.send.you-sent'),
-            oobReceive: t('feature.receive.you-received'),
+            oobReceive: t('phrases.receive-pending'),
             oobCancel: t('phrases.canceled-ecash-send'),
             spWithdraw: t('feature.stabilitypool.you-withdrew'),
         } as const
@@ -35,6 +36,18 @@ describe('makeTxnDetailTitleText', () => {
                 ),
             ).toBe(title)
         })
+    })
+
+    it.each([
+        ['created', 'phrases.receive-pending'],
+        ['issuing', 'phrases.receive-pending'],
+        ['done', 'feature.receive.you-received'],
+        ['failed', 'words.failed'],
+    ] as const)('should title an ecash receive in state %s', (state, title) => {
+        const transaction = makeTestTxnEntry('oobReceive', {
+            state: makeTestOOBReissueState(state),
+        })
+        expect(makeTxnDetailTitleText(t, transaction)).toBe(t(title))
     })
 
     it('[lnPay, oobSend, onchainWithdraw] should return "you-sent"', () => {

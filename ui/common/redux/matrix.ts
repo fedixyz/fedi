@@ -77,6 +77,7 @@ import {
     RpcSpTransferState,
     RpcTimelineEventItemId,
     RpcTimelineItem,
+    RpcTransaction,
     VectorDiff,
 } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
@@ -1779,20 +1780,76 @@ export const claimMatrixPayment = createAsyncThunk<
         initialNotes: null,
     } satisfies FrontendMetadata
 
-    // receive the ecash and get the receiver operation ID
-    const [, receiverOperationId] = await fedimint.receiveEcash(
-        ecash,
-        federationId,
-        frontendMetadata,
+    const recordedOperationId =
+        event.sender === matrixAuth.userId &&
+        ['receiving', 'received'].includes(event.content.status)
+            ? event.content.receiverOperationId
+            : undefined
+    const receiverOperationId =
+        recordedOperationId ||
+        (await fedimint.receiveEcash(ecash, federationId, frontendMetadata))[1]
+
+    if (!recordedOperationId) {
+        await client.sendMessage(event.roomId, {
+            ...event.content,
+            body: 'Receiving payment.',
+            status: 'receiving',
+            receiverOperationId,
+        })
+    }
+
+    const outcome = await new Promise<'received' | 'failed'>(
+        (resolve, reject) => {
+            let settled = false
+            const finish = (transaction: RpcTransaction) => {
+                if (
+                    settled ||
+                    transaction.id !== receiverOperationId ||
+                    transaction.kind !== 'oobReceive'
+                )
+                    return
+                const state = transaction.state?.type
+                if (state !== 'done' && state !== 'failed') return
+                settled = true
+                clearTimeout(timeout)
+                unsubscribe()
+                resolve(state === 'done' ? 'received' : 'failed')
+            }
+            const timeout = setTimeout(() => {
+                settled = true
+                unsubscribe()
+                reject(new Error('Payment is still receiving'))
+            }, 60000)
+            const unsubscribe = fedimint.addListener('transaction', update => {
+                if (update.federationId === federationId)
+                    finish(update.transaction)
+            })
+            // Settlement can finish before the listener is attached.
+            fedimint
+                .getTransaction(federationId, receiverOperationId)
+                .then(finish)
+                .catch(error => {
+                    if (settled) return
+                    settled = true
+                    clearTimeout(timeout)
+                    unsubscribe()
+                    reject(error)
+                })
+        },
     )
 
-    // send back the same payment event with updated status
-    // old clients will ignore receiverOperationId, new clients will use it
+    if (
+        outcome === 'received' &&
+        event.content.status === 'received' &&
+        recordedOperationId
+    )
+        return
+
     await client.sendMessage(event.roomId, {
         ...event.content,
-        body: 'Payment received.', // TODO: i18n?
-        status: 'received',
-        receiverOperationId, // will be undefined for old clients, which is fine
+        body: outcome === 'received' ? 'Payment received.' : 'Payment failed.',
+        status: outcome,
+        receiverOperationId,
     })
 
     await client.markRoomAsUnread(event.roomId, true)
