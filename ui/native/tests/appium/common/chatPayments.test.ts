@@ -20,6 +20,7 @@ import {
 } from '../../configs/appium/AppiumTestBase'
 import { Platform, currentPlatform } from '../../configs/appium/types'
 import { setupOnboardedLocalFed } from '../fixtures/setupOnboardedLocalFed'
+import { readAppLog } from './appLogs'
 import {
     generateDevfedEcash,
     getDevfedInvite,
@@ -832,9 +833,47 @@ async function assertReceiptsReconciledOnRelaunch(
         'receiving',
         'received',
     ])
+    await assertClaimedOnce(bob, carol, room, other.paymentId)
 
     const balance = await balanceOnWallet(bob)
     expectCredited(earlier.balance, balance, [spoofed], 'after reopening')
+}
+
+// Each message reruns the receivable check, so a receipt the app keeps
+// retrying gets one more claim attempt per message.
+async function assertClaimedOnce(
+    bob: AppiumTestBase,
+    carol: HeadlessMember,
+    room: ChatRoom,
+    paymentId: string,
+): Promise<void> {
+    const countLines = (...parts: string[]) =>
+        (readAppLog(bob.handle, 'ui')?.toString() ?? '')
+            .split('\n')
+            .filter(line => parts.every(part => line.includes(part))).length
+    const checks = () => countLines('Looking for receivable payment events')
+
+    for (let i = 1; i <= 3; i++) {
+        const before = checks()
+        await carol.sendText(room.id, `${CAROL_HELLO} ${i}`)
+        const deadline = Date.now() + MATRIX_TIMEOUT
+        while (checks() === before) {
+            if (Date.now() > deadline) {
+                throw new Error(
+                    `bob never checked for payments after message ${i}`,
+                )
+            }
+            await sleep(1000)
+        }
+    }
+    await sleep(2000)
+
+    const attempts = countLines('attempting to claim', paymentId)
+    if (attempts !== 1) {
+        throw new Error(
+            `bob tried to claim payment ${paymentId} ${attempts} times, expected once`,
+        )
+    }
 }
 
 // The receive fee and msat rounding move the balance by up to two sats.

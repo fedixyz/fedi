@@ -85,6 +85,7 @@ import {
     getDefaultGroupChats,
     shouldShowInviteCode,
 } from '../utils/FederationUtils'
+import { isTransactionNotFoundError } from '../utils/errors'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import {
@@ -1798,7 +1799,7 @@ export const claimMatrixPayment = createAsyncThunk<
         })
     }
 
-    const outcome = await new Promise<'received' | 'failed'>(
+    const outcome = await new Promise<'received' | 'failed' | 'elsewhere'>(
         (resolve, reject) => {
             let settled = false
             const finish = (transaction: RpcTransaction) => {
@@ -1833,10 +1834,18 @@ export const claimMatrixPayment = createAsyncThunk<
                     settled = true
                     clearTimeout(timeout)
                     unsubscribe()
-                    reject(error)
+                    // A receive started on another device is not in this wallet.
+                    if (
+                        recordedOperationId &&
+                        isTransactionNotFoundError(error)
+                    )
+                        resolve('elsewhere')
+                    else reject(error)
                 })
         },
     )
+
+    if (outcome === 'elsewhere') return
 
     if (
         outcome === 'received' &&

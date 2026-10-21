@@ -57,3 +57,7 @@ export function isPeerConnectionError(e: unknown): e is BridgeError {
         e.error.includes('Failed to connect to peer')
     )
 }
+
+export function isTransactionNotFoundError(e: unknown): e is BridgeError {
+    return e instanceof BridgeError && e.error.includes('transaction not found')
+}
