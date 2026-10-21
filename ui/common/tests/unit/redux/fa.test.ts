@@ -1713,6 +1713,38 @@ describe('common/redux/fi › updateWalletServiceMetadata', () => {
         })
     })
 
+    it.each([
+        ['stabilityPoolDisabled', 'fedi:stability_pool_disabled', 'false'],
+        ['defaultGroupChats', 'fedi:default_group_chats', '[]'],
+        ['maxBalanceMsats', 'fedi:max_balance_msats', '9007199254740993'],
+    ] as const)(
+        'should publish the saved %s for member-facing screens',
+        async (setting, key, value) => {
+            const fedimint = createMockFedimintBridge({
+                faClientUpdateFederationMetadata: { type: 'success' },
+            })
+            const store = storeWithFederation()
+            const update = { type: 'appSetting' as const, setting, value }
+            await store
+                .dispatch(
+                    updateWalletServiceMetadata({
+                        fedimint,
+                        update,
+                        federationId: FED,
+                    }),
+                )
+                .unwrap()
+            expect(
+                fedimint.faClientUpdateFederationMetadata,
+            ).toHaveBeenCalledWith(update)
+            expect(loadedMeta(store)).toEqual({
+                federation_name: 'Old Name',
+                other: 'kept',
+                [key]: value,
+            })
+        },
+    )
+
     it('should publish the saved terms URL for member-facing screens', async () => {
         const fedimint = createMockFedimintBridge({
             faClientUpdateFederationMetadata: { type: 'success' },

@@ -24,15 +24,15 @@ use fa_client::FaId;
 use fa_client::{
     AbandonUnavailableReason, BackupRecoveryHint, DkgRestartResult,
     FA_LIQUIDITY_OPERATION_PAGE_MAX, FaClient, FaError, FaErrorCode, FaFeeAccountError,
-    FaFeeAccountProvider, FaIdentity, FaResult, FaStatus, FederationConsensusError,
-    FederationConsensusReader, FederationConsensusSnapshot, FederationMetadataUpdate,
-    FederationName, FederationSize, FedimintFederationId, FedimintdVersion, FedimintdVersionRange,
-    FormationActionRequired, FormationFreshness, FormationId, FormationIntent, FormationPhase,
-    FormationRunOptions, FormationSnapshot, GatewayApiUrl, GuardianFeeAccount, GuardianFeePpm,
-    GuardianReplacementRequirements, LiquidityDiscovery, LiquidityOperationId,
-    LiquidityOperationPage, LiquidityOperationPhase, LiquidityOperationSnapshot,
-    LiquidityProviderConnector, LiquidityProviderConnectorError, LiquidityRequestIntent,
-    MAX_GUARDIAN_FEE_PPM, MaintenanceRunOptions, ManifoldGuardianCallError,
+    FaFeeAccountProvider, FaIdentity, FaResult, FaStatus, FederationAppSetting,
+    FederationConsensusError, FederationConsensusReader, FederationConsensusSnapshot,
+    FederationMetadataUpdate, FederationName, FederationSize, FedimintFederationId,
+    FedimintdVersion, FedimintdVersionRange, FormationActionRequired, FormationFreshness,
+    FormationId, FormationIntent, FormationPhase, FormationRunOptions, FormationSnapshot,
+    GatewayApiUrl, GuardianFeeAccount, GuardianFeePpm, GuardianReplacementRequirements,
+    LiquidityDiscovery, LiquidityOperationId, LiquidityOperationPage, LiquidityOperationPhase,
+    LiquidityOperationSnapshot, LiquidityProviderConnector, LiquidityProviderConnectorError,
+    LiquidityRequestIntent, MAX_GUARDIAN_FEE_PPM, MaintenanceRunOptions, ManifoldGuardianCallError,
     ManifoldGuardianConnector, ManifoldGuardianConnectorError, MgDiscoveryOptions,
     MgReplacementApproval, MgReplacementPreview, MgSelectionApproval, MgSelectionPreview,
     MgSelectionRequest, PaymentAuthorizationId, PlanPreference, ResolvedFormationIntent,
@@ -83,23 +83,24 @@ use rpc_types::event::{
     TypedEventExt as _,
 };
 use rpc_types::fa_client::{
-    RpcFaAbandonUnavailableReason, RpcFaClientStatus, RpcFaCurrentLiquidityOperationResult,
-    RpcFaEligiblePayer, RpcFaEligiblePayersResult, RpcFaErrorCode, RpcFaFederationMetadataUpdate,
-    RpcFaFormationActionRequired, RpcFaFormationFreshness, RpcFaFormationIntent,
-    RpcFaFormationMilestones, RpcFaFormationPhase, RpcFaFormationSnapshot,
-    RpcFaGuardianReplacementRequirements, RpcFaGuardianReplacementSeat, RpcFaLiquidityAmountBounds,
-    RpcFaLiquidityCompletionEvidence, RpcFaLiquidityDiscoveryResult, RpcFaLiquidityItemPhase,
-    RpcFaLiquidityItemStatus, RpcFaLiquidityItemTarget, RpcFaLiquidityNetwork,
-    RpcFaLiquidityOperation, RpcFaLiquidityOperationPage as RpcLiquidityOperationPage,
-    RpcFaLiquidityOperationPageResult, RpcFaLiquidityOperationPhase, RpcFaLiquidityOperationResult,
-    RpcFaLiquidityProvider, RpcFaLiquidityProviderRejection, RpcFaLiquidityRequestIntent,
-    RpcFaLiquiditySource, RpcFaMsats, RpcFaOperationError, RpcFaOperationErrorDetail,
-    RpcFaOperationResult, RpcFaPaymentRequirements, RpcFaPlanPreference, RpcFaReplacementPreview,
-    RpcFaReplacementPreviewResult, RpcFaReplacementPreviewSeat, RpcFaResolvedFormationIntent,
-    RpcFaRestoredFormationSnapshot, RpcFaRestoredSeat, RpcFaSeatPaymentRequirement, RpcFaSeatPhase,
-    RpcFaSeatProgress, RpcFaSelectionPreview, RpcFaSelectionPreviewRequest,
-    RpcFaSelectionPreviewResult, RpcFaSelectionPreviewSeat, RpcFaSelectionReauthorizationReason,
-    RpcFaSetupPaymentFederation, RpcFaSetupPaymentFederationsResult, RpcFaStatus,
+    RpcFaAbandonUnavailableReason, RpcFaAppSetting, RpcFaClientStatus,
+    RpcFaCurrentLiquidityOperationResult, RpcFaEligiblePayer, RpcFaEligiblePayersResult,
+    RpcFaErrorCode, RpcFaFederationMetadataUpdate, RpcFaFormationActionRequired,
+    RpcFaFormationFreshness, RpcFaFormationIntent, RpcFaFormationMilestones, RpcFaFormationPhase,
+    RpcFaFormationSnapshot, RpcFaGuardianReplacementRequirements, RpcFaGuardianReplacementSeat,
+    RpcFaLiquidityAmountBounds, RpcFaLiquidityCompletionEvidence, RpcFaLiquidityDiscoveryResult,
+    RpcFaLiquidityItemPhase, RpcFaLiquidityItemStatus, RpcFaLiquidityItemTarget,
+    RpcFaLiquidityNetwork, RpcFaLiquidityOperation,
+    RpcFaLiquidityOperationPage as RpcLiquidityOperationPage, RpcFaLiquidityOperationPageResult,
+    RpcFaLiquidityOperationPhase, RpcFaLiquidityOperationResult, RpcFaLiquidityProvider,
+    RpcFaLiquidityProviderRejection, RpcFaLiquidityRequestIntent, RpcFaLiquiditySource, RpcFaMsats,
+    RpcFaOperationError, RpcFaOperationErrorDetail, RpcFaOperationResult, RpcFaPaymentRequirements,
+    RpcFaPlanPreference, RpcFaReplacementPreview, RpcFaReplacementPreviewResult,
+    RpcFaReplacementPreviewSeat, RpcFaResolvedFormationIntent, RpcFaRestoredFormationSnapshot,
+    RpcFaRestoredSeat, RpcFaSeatPaymentRequirement, RpcFaSeatPhase, RpcFaSeatProgress,
+    RpcFaSelectionPreview, RpcFaSelectionPreviewRequest, RpcFaSelectionPreviewResult,
+    RpcFaSelectionPreviewSeat, RpcFaSelectionReauthorizationReason, RpcFaSetupPaymentFederation,
+    RpcFaSetupPaymentFederationsResult, RpcFaStatus,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::FA_CLIENT_CHILD_ID;
@@ -2662,6 +2663,32 @@ fn metadata_update_from_rpc(
         RpcFaFederationMetadataUpdate::TermsOfService { value } => {
             FederationMetadataUpdate::terms_of_service_url(value)
         }
+        RpcFaFederationMetadataUpdate::AppSetting { setting, value } => {
+            let setting = match setting {
+                RpcFaAppSetting::AutojoinCommunities => FederationAppSetting::AutojoinCommunities,
+                RpcFaAppSetting::DefaultGroupChats => FederationAppSetting::DefaultGroupChats,
+                RpcFaAppSetting::PinnedMessage => FederationAppSetting::PinnedMessage,
+                RpcFaAppSetting::DefaultCurrency => FederationAppSetting::DefaultCurrency,
+                RpcFaAppSetting::StabilityPoolDisabled => {
+                    FederationAppSetting::StabilityPoolDisabled
+                }
+                RpcFaAppSetting::MultispendDisabled => FederationAppSetting::MultispendDisabled,
+                RpcFaAppSetting::InviteCodesDisabled => FederationAppSetting::InviteCodesDisabled,
+                RpcFaAppSetting::NewMembersDisabled => FederationAppSetting::NewMembersDisabled,
+                RpcFaAppSetting::OfflineWalletDisabled => {
+                    FederationAppSetting::OfflineWalletDisabled
+                }
+                RpcFaAppSetting::OnchainDepositsDisabled => {
+                    FederationAppSetting::OnchainDepositsDisabled
+                }
+                RpcFaAppSetting::MaxBalanceMsats => FederationAppSetting::MaxBalanceMsats,
+                RpcFaAppSetting::MaxInvoiceMsats => FederationAppSetting::MaxInvoiceMsats,
+                RpcFaAppSetting::MaxStableBalanceMsats => {
+                    FederationAppSetting::MaxStableBalanceMsats
+                }
+            };
+            FederationMetadataUpdate::app_setting(setting, value)
+        }
     };
     update.map_err(|error| operation_error(RpcFaErrorCode::InvalidIntent, error.to_string()))
 }
@@ -2766,8 +2793,8 @@ fn guardian_replacement_requirements_to_rpc(
             .iter()
             .map(|seat| RpcFaGuardianReplacementSeat {
                 index: seat.index,
-                previous_mg_id: seat.previous_mg_id.map(|id| id.to_string()),
-                previous_mg_name: seat.previous_mg_name().map(|name| name.to_string()),
+                previous_mg_id: Some(seat.previous_mg_id.to_string()),
+                previous_mg_name: Some(seat.previous_mg_name().to_string()),
                 previous_quote_id: hex::encode(seat.previous_quote_id.0),
                 previous_locator: seat.previous_locator.to_json(),
             })
@@ -3162,8 +3189,8 @@ pub fn formation_snapshot_to_rpc(snapshot: FormationSnapshot) -> RpcFaFormationS
             .into_iter()
             .map(|seat| RpcFaSeatProgress {
                 index: seat.index,
-                mg_id: seat.mg_id.map(|id| id.to_string()),
-                mg_name: seat.mg_name().map(|name| name.to_string()),
+                mg_id: Some(seat.mg_id.to_string()),
+                mg_name: Some(seat.mg_name().to_string()),
                 locator: seat.locator.to_json(),
                 seat_id: seat.seat_id.map(|seat_id| seat_id.to_string()),
                 guardian_code: seat.guardian_code.map(|code| code.0),
@@ -3192,8 +3219,8 @@ pub fn formation_snapshot_to_rpc(snapshot: FormationSnapshot) -> RpcFaFormationS
                         .into_iter()
                         .map(|requirement| RpcFaSeatPaymentRequirement {
                             index: requirement.index,
-                            mg_id: requirement.mg_id.map(|id| id.to_string()),
-                            mg_name: requirement.mg_name().map(|name| name.to_string()),
+                            mg_id: Some(requirement.mg_id.to_string()),
+                            mg_name: Some(requirement.mg_name().to_string()),
                             quote_id: hex::encode(requirement.quote_id.0),
                             payment_federation_id: requirement.payment_federation_id.0,
                             amount_msats: RpcFaMsats::from(requirement.amount_msats),
@@ -3287,6 +3314,9 @@ pub(crate) fn fa_push_error_to_rpc(error: &FaPushError) -> RpcFaOperationError {
 
 fn fa_error_detail_to_rpc(error: &FaError) -> Option<RpcFaOperationErrorDetail> {
     match error {
+        FaError::MaintenanceUnsupported { .. } => {
+            Some(RpcFaOperationErrorDetail::MaintenanceUnsupported)
+        }
         FaError::InsufficientMgSeats {
             requested,
             selected,
@@ -3381,7 +3411,7 @@ fn fa_error_message(code: RpcFaErrorCode) -> &'static str {
         }
         RpcFaErrorCode::MaintenanceConsensusInvalid => "The federation metadata is invalid",
         RpcFaErrorCode::MaintenanceConvergence => {
-            "Federation maintenance did not reach consensus in time"
+            "Could not confirm the change; it may still take effect. Retry to check."
         }
         RpcFaErrorCode::PushNotifications => "FA push notification setup failed",
         RpcFaErrorCode::Timeout => "The FA operation timed out",

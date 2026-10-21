@@ -240,10 +240,45 @@ pub enum RpcFaSetupPaymentFederationsResult {
 /// `WelcomeMessage` is also the federation description shown by Fedi.
 /// Fedi supplies the URL for both ready-made and custom terms.
 pub enum RpcFaFederationMetadataUpdate {
-    Name { value: String },
-    IconUrl { value: String },
-    WelcomeMessage { value: String },
-    TermsOfService { value: String },
+    Name {
+        value: String,
+    },
+    IconUrl {
+        value: String,
+    },
+    WelcomeMessage {
+        value: String,
+    },
+    TermsOfService {
+        value: String,
+    },
+    /// Exact metadata text: JSON arrays for lists, `true`/`false` for flags,
+    /// decimal msats for limits, and plain text for currency and pinned
+    /// message. Clear lists with `[]` and the pinned message with an empty
+    /// string.
+    AppSetting {
+        setting: RpcFaAppSetting,
+        value: String,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcFaAppSetting {
+    AutojoinCommunities,
+    DefaultGroupChats,
+    PinnedMessage,
+    DefaultCurrency,
+    StabilityPoolDisabled,
+    MultispendDisabled,
+    InviteCodesDisabled,
+    NewMembersDisabled,
+    OfflineWalletDisabled,
+    OnchainDepositsDisabled,
+    MaxBalanceMsats,
+    MaxInvoiceMsats,
+    MaxStableBalanceMsats,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -637,6 +672,8 @@ pub enum RpcFaAbandonUnavailableReason {
 )]
 #[ts(export)]
 pub enum RpcFaOperationErrorDetail {
+    /// Too few guardians support this setting to reach consensus.
+    MaintenanceUnsupported,
     InsufficientMgSeats {
         requested: u16,
         selected: u16,

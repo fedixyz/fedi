@@ -10,6 +10,7 @@ import type { CommonState } from '.'
 import { MSats } from '../types'
 import {
     FaFederationJoinEvent,
+    RpcFaAppSetting,
     RpcFaClientStatus,
     RpcFaEligiblePayer,
     RpcFaErrorCode,
@@ -754,6 +755,22 @@ const METADATA_UPDATE_META_KEYS = {
     termsOfService: 'fedi:tos_url',
 } as const
 
+const APP_SETTING_META_KEYS = {
+    autojoinCommunities: 'fedi:autojoin_communities',
+    defaultGroupChats: 'fedi:default_group_chats',
+    pinnedMessage: 'fedi:pinned_message',
+    defaultCurrency: 'fedi:default_currency',
+    stabilityPoolDisabled: 'fedi:stability_pool_disabled',
+    multispendDisabled: 'fedi:multispend_disabled',
+    inviteCodesDisabled: 'fedi:invite_codes_disabled',
+    newMembersDisabled: 'fedi:new_members_disabled',
+    offlineWalletDisabled: 'fedi:offline_wallet_disabled',
+    onchainDepositsDisabled: 'fedi:onchain_deposits_disabled',
+    maxBalanceMsats: 'fedi:max_balance_msats',
+    maxInvoiceMsats: 'fedi:max_invoice_msats',
+    maxStableBalanceMsats: 'fedi:max_stable_balance_msats',
+} as const satisfies Record<RpcFaAppSetting, string>
+
 export const updateWalletServiceMetadata = createAsyncThunk<
     void,
     {
@@ -783,11 +800,15 @@ export const updateWalletServiceMetadata = createAsyncThunk<
         // The bridge's own meta poll is ten minutes apart, which is where a
         // rename that "did not take" was hiding.
         if (federationId) {
+            const key =
+                update.type === 'appSetting'
+                    ? APP_SETTING_META_KEYS[update.setting]
+                    : METADATA_UPDATE_META_KEYS[update.type]
             dispatch(
                 mergeFederationMeta({
                     federationId,
                     meta: {
-                        [METADATA_UPDATE_META_KEYS[update.type]]: update.value,
+                        [key]: update.value,
                     },
                 }),
             )

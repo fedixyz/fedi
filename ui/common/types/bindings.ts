@@ -703,6 +703,21 @@ export type RpcFaAbandonUnavailableReason =
   | "paymentOutputsStarted"
   | "dkgComplete";
 
+export type RpcFaAppSetting =
+  | "autojoinCommunities"
+  | "defaultGroupChats"
+  | "pinnedMessage"
+  | "defaultCurrency"
+  | "stabilityPoolDisabled"
+  | "multispendDisabled"
+  | "inviteCodesDisabled"
+  | "newMembersDisabled"
+  | "offlineWalletDisabled"
+  | "onchainDepositsDisabled"
+  | "maxBalanceMsats"
+  | "maxInvoiceMsats"
+  | "maxStableBalanceMsats";
+
 export type RpcFaClientStatus =
   | { type: "ready"; status: RpcFaStatus }
   | { type: "failed"; error: RpcFaOperationError };
@@ -796,7 +811,8 @@ export type RpcFaFederationMetadataUpdate =
   | { type: "name"; value: string }
   | { type: "iconUrl"; value: string }
   | { type: "welcomeMessage"; value: string }
-  | { type: "termsOfService"; value: string };
+  | { type: "termsOfService"; value: string }
+  | { type: "appSetting"; setting: RpcFaAppSetting; value: string };
 
 export type RpcFaFormationActionRequired =
   | { type: "authorizePayments"; requirements: RpcFaPaymentRequirements }
@@ -1090,6 +1106,7 @@ export type RpcFaOperationError = {
 };
 
 export type RpcFaOperationErrorDetail =
+  | { type: "maintenanceUnsupported" }
   | {
       type: "insufficientMgSeats";
       requested: number;
