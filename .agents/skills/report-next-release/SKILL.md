@@ -1,7 +1,7 @@
 ---
 name: report-next-release
 description: >-
-  Report what is queued for the Fedi app's next release, at any time, independent of any cut or deployment. Use whenever someone asks what is going into the next release, what has merged to master since the last cut, whether a backport or hotfix is in progress, which milestone issues are done vs planned vs untagged, or what has passed QA, or wants to prep release notes, a release readout, a release rundown, or a monthly-cut check, even if they never say "report" or name a version.
+  Report what is queued for the Fedi app's next release, at any time, independent of any cut or deployment. Use whenever someone asks what is going into the next release, what has merged to master since the last cut, whether a backport or hotfix is in progress, which milestone issues are done vs planned vs untagged, or what has passed QA, or wants to prep release notes, a release readout, a release rundown, or a monthly-cut check, even if they never say "report" or name a version. Also use it when someone asks to turn a feature on in production, which is a flag release this report presents.
 ---
 
 # Report the next release
@@ -9,7 +9,7 @@ description: >-
 Generate, at any time, a grounded report of what the next Fedi release will contain, plus the milestone bookkeeping that tends to rot when developers merge faster than anyone tags issues.
 
 The output is one self-contained HTML file with two tabs, rendered by the bundled script:
-- **Summary** (default): a condensed, plain-language product view for a non-technical reader (product, ops, leadership). Clustered product items, not a ticket dump, and no release mechanics at all. A scope line says which apps the release updates and anything unusual about it, the suggested store notes follow, then two card sections: "In this release", which holds merged work only, and a collapsed "Not in this release yet" for milestone work that has not merged.
+- **Summary** (default): a condensed, plain-language product view for a non-technical reader (product, ops, leadership). Clustered product items, not a ticket dump, and no release mechanics at all. A scope line says which apps the release updates and anything unusual about it, the suggested store notes follow, then a thin "Feature flags" section that opens only when a feature goes live, then two card sections: "In this release", which holds merged work only, and a collapsed "Not in this release yet" for milestone work that has not merged.
 - **Full report**: the PR-by-PR breakdown, release-track state, milestone status with each issue's Zenhub board columns, QA sign-off, backport detail, and the prepared milestone-tagging commands.
 
 Those are two altitudes rather than two lengths, which is the distinction that decides whether the report is usable.
@@ -42,7 +42,7 @@ The Summary is not a shorter Full report, it is a higher one. It goes wrong by a
 
 **The card grids ship three layouts and default to All.** A `Layout` switch on the section heading regroups them in the browser, and the merged section shows it only when its cards span more than one platform set. All is the authored order in two flat sections. Status and Platform both group into collapsible panels, with one Expand all control rather than a click per panel. Platform groups on the whole platform set, so a change that lands everywhere appears once instead of once per platform. Leave the default alone unless a release genuinely reads better grouped, and never hand-order cards to fake a grouping the switch already does.
 
-**A platform filter narrows the summary to one platform.** It renders under the store notes when the cards span two or more platforms. It hides every card that does not land on the chosen platform, and any section left empty. `?platform=ios`, `?platform=android` or `?platform=web` on the report URL opens it preselected, so one report serves every release it covers. A web release links the report with `?platform=web` instead of carrying its own notes.
+**A platform filter narrows the summary to one platform.** It renders under the store notes when the cards span two or more platforms. It hides every card and feature flag that does not land on the chosen platform, and any section left empty. `?platform=ios`, `?platform=android` or `?platform=web` on the report URL opens it preselected, so one report serves every release it covers. A web release links the report with `?platform=web` instead of carrying its own notes.
 
 ## Merged is the line between the two card sections
 
@@ -66,7 +66,7 @@ The test, run against the screenshot rather than the markup: **read only the fir
 
 - **Calendar versioning (CalVer).** A version is `YY.M[.patch]` where `M` is the calendar month: `26.6` is June 2026, `26.7` is July 2026. The monthly release is `26.M.0`, patches are `26.M.1`, `26.M.2`, and the next major is next month's `26.(M+1).0`.
 - **Two tracks, cut and deployed independently.** Native ships from a `release/26.M` branch. Web ships as a `web/X.Y.Z` tag with no branch. Neither waits for the other, so a single "current version" is always a lie. Step 1 pins both.
-- **"Shipped" is wrong for unreleased work.** Merged to master is *not* released. On the Summary, merged work sits in "In this release" with no status chip. A not-merged card is **"In progress"** (an open PR ready for review) or **"Planned"** (a draft or no PR). Reserve "shipped/live" for a production flag actually being on, which this report does not assert.
+- **"Shipped" is wrong for unreleased work.** Merged to master is *not* released. On the Summary, merged work sits in "In this release" with no status chip. A not-merged card is **"In progress"** (an open PR ready for review) or **"Planned"** (a draft or no PR). Reserve "shipped/live" for a feature actually on in production, which only the Feature flags section says, from the values the resolver reads.
 - **No em or en dashes anywhere** in any file you write. Use a regular hyphen. The renderer warns if any slip into the HTML.
 
 ## What a milestone means here, and when an issue closes
@@ -174,8 +174,10 @@ Steps 2, 4 and 5 are mechanical, high-volume, and where this report goes wrong w
 
 ```bash
 python3 <skill-dir>/scripts/resolve_window.py --repo fedibtc/fedi --repo-path . \
-  --milestone "26.7.0" --milestone "web-26.7" > window.json
+  --milestone "26.7.0" --milestone "web-26.7" --target origin/master > window.json
 ```
+
+`--target` is the ref the release is built from: `origin/master` before the cut, `origin/release/26.(M+1)` after it, the backport branch for a patch, and the commit the web tag goes on for a web release. A web release also takes `--web-only`, because it ships no app build and people keep the app they have. The `flags` block reads the flag values the release carries there. Step 7 covers it.
 
 It derives both baselines, lists every PR merged to master since the earlier of them, scrapes `#NNNN` out of every PR body, resolves each reference to issue-or-PR with its state, milestone, labels and title, marks bot-filed `agentic-workflows` refs as noise, and pulls **all** milestones with `state=all`. Read its stderr: it warns when the release branch has been rebased off its tag, and when the newest web tag is a lineage carrying commits you may need to subtract from the web window.
 
@@ -335,6 +337,40 @@ Name everything that has to be true for a real person to see the change, and che
 
 Auditing which flags are on is a different pass from auditing how flags propagate, and passing the first says nothing about the second. One card that lumps a gated change together with an ungated one cannot be badged honestly, so split it.
 
+### Feature flags
+
+A thin "Feature flags" section sits on the Summary between the platform filter and the cards. A reader opens it to answer "is this on for people yet" without asking an engineer. Its closed heading carries count badges: Unreleased, Going live when this release turns a feature on, and Live. The renderer opens the section only when a feature goes live with this release. Otherwise it stays closed and the badges give the counts.
+
+Open, it shows two columns joined by a line. Unreleased lists the features that are in the app and switched off in production. Production starts with "Going live in" the release version, then a collapsed "Live features" list. Each feature is a chip with an icon and its name. Hovering or tapping a chip opens its card: the name, `does`, who it is for and which app, and a Details block with "What the flag changes in the app" and a footer with the flag key and the PR link. `?flag=<key>` on the report URL opens that card.
+
+The resolver's `flags` block holds the data. Copy it into the report JSON as it is, then write the fields below. Each item carries:
+
+- `key`, the flag as the code names it, shown in the card footer and on Full report
+- `control`: `remote` for a flag the server can switch in the app people have after the release, a field of `RemoteFeatures` in `crates/runtime/src/features.rs` served from `prodRemoteFeatures` in `ui/web/src/pages/api/features.ts`. That app is the release's own build, or with `--web-only` the current native release. `app` for a built-in switch that only the compiled-in values in `new_prod()` set, including a served flag that app does not take from the server yet. Its card says it changes only with an app update.
+- `now`, the value in the app on the current native release: `on`, `off`, `edge` (on in Fedi Edge only), or `null` when the flag does not exist yet. A remote flag's value comes from what `https://app.fedi.xyz/api/features` serves, and its Edge value from the endpoint Fedi Edge reads, which the staging deployment answers with `edgeDevRemoteFeatures`. A flag that app does not take from the server, or that the server does not send, has its compiled-in value. When production does not answer, the resolver reads the web baseline and warns.
+- `next`: the same for the app people have after the release, with the values served at `--target`, or `null` when the release removes the flag
+- `added` and `added_pr`, the first commit that mentions the flag. Older than the clone's history means `null`.
+- `platforms`, from where the code reads the flag, and `doc`, its doc comment
+
+Never edit `now` or `next`. The column comes from them: `next` on is Production, and going live when `now` is not on. Everything else is Unreleased, including Edge only, because Fedi Edge follows master rather than releases.
+
+Every flag has a compiled-in value for each build, set in `new_prod()` and its siblings. The app fetches `/api/features` at launch and when it returns to the foreground, caches it, and applies it over the compiled-in values at the next launch. Only the fields of `RemoteFeatures` take a server value, and only in app versions whose `RemoteFeatures` has that field. A web release changes what the server sends, so it switches remote flags and nothing else. A built-in switch changes only when people install an app update that sets it. The resolver lists a built-in switch when the release changes it, or when Nightly has it on and production does not. Delete a built-in item that configures a service rather than switching something a person sees.
+
+Delete an item whose feature is not in the release. A flag can exist before the code that reads it, for example while that code sits in an open PR. `git grep -w <field> <target>` outside the flag definitions and tests tells you.
+
+Write these per item, from the doc comment and the code that reads the flag, never from the key:
+
+- `name`: the feature as a person would name it. "Reactions in chat", not `messageReactions`.
+- `does`: one sentence under 140 characters on what a person gets. "Ask to join a private group, and an admin approves."
+- `who`, optional: the audience when it is narrower than everyone using the app, such as "Federation creators".
+- `icon`: one of `flag`, `group`, `bank`, `key`, `shield`, `smile`, `lock`, `dollar`, `update`, `restart`, `chat`, `send`.
+- `touch`: one line per place in the app the flag changes, as `[text]` or `[text, where]`. Say what a person sees with the flag on and what happens without it, in words a normal person uses: "Creating a private group shows an Allow join requests switch, on by default. Without the flag every new private group is invite-only." No file, function or code names. The PR link in the footer covers the code. `where` is a short note for a line that applies to one surface only, such as "Web app" or "Background".
+- `pr`, optional: the PR that built the feature, when it is not `added_pr`.
+
+Correct `platforms` when the reading code is shared but the feature exists on one app only. The backup reminder switch is read in `ui/common`, so the resolver says every app, but only the native app shows the reminder.
+
+A flag the release removes needs `after`: `on` when the feature stays for everyone, `off` when it leaves with the switch. Read the diff that removes it. A removed flag shows on Full report only, which gets a table with each key, both values, the control and the PR that added it.
+
 ### The store notes are written here, from the cards
 
 The App Store What's New, the Play release notes and the GitHub release body all come from the cards you just wrote, never from PR titles, by the rules in `references/release-notes-copy.md`. Write them now, while the cards are in front of you, into `summary.release_notes`: `store` is the one or two sentences every store locale gets, and `bullets` are the one-per-PR lines for the GitHub body. The Summary renders the store text as the release notes under the scope line, and Full report renders the GitHub body with its release notes link ready to paste. This skill writes nothing to a store. The `ios-release` and `android-release` skills take the store text from here.
@@ -357,6 +393,7 @@ See `references/example-report.json` for a complete, fillable example with every
   - `sections` holds merged work for one audience, each `{id, tag, title, note, features[], fixes[]}`. `tag` is one word stamped on the heading and every card, such as `Manifold`, `title` says who the section is for, and `note` is one sentence under about 240 characters on whether the feature is on. The cards take the same fields as `features` and `fixes`.
   - `platforms` is any of `["ios","android","web"]` and renders as three fixed icon slots in the card corner, lit for the platforms the change lands on. It replaces the old track word chip on the Summary. Set it whenever a change is narrower than its `track`: an android-only redirect bug, an iOS-only layout fix. Leave it out and the renderer derives it from `track`, where Native means both phone platforms.
   - `track` is still required. Full report and the briefing use the words, and it is the fallback when `platforms` is absent.
+- `flags`: the resolver's block as it is, `{served, next_ref, native_ref, app_ref, items[]}`, with `name`, `does`, `icon` and `touch` added to each item, and `who`, `pr` and `after` where they apply. See Feature flags in Step 7.
 - `user_facing[]` / `non_user_facing[]`: `{theme, prs:[{number, title, author, date, issue}]}`. PR titles stay as written on GitHub. `titles_note` is an optional sentence under the user-facing heading that maps a renamed term in older titles to its current name.
 - `milestones`: `{next_major:{name, issues:[{number, title, status, board}]}, next_web:{...}}` where status is one of `done | inprogress | backport | pending | closed` and `board` is `{dev, qa}` copied straight from `window.json`
 - `needs_milestone[]`: `{number, title, resolved_by:[prNums], suggested, board}`
@@ -372,7 +409,7 @@ Keep all prose plain and dash-free. The `summary` copy is for a non-technical re
 python3 <skill-dir>/scripts/render_report.py <report.json> <out.html>
 ```
 
-Replace `<skill-dir>` with this skill's directory. The script writes the HTML, prints the briefing to stdout, and warns on stderr about em dashes, a missing `tracks` block, a missing store text, progress words in a quirk, and any summary copy over budget. Read the stderr and fix the JSON rather than shipping past a warning.
+Replace `<skill-dir>` with this skill's directory. The script writes the HTML, prints the briefing to stdout, and warns on stderr about em dashes, a missing `tracks` block, a missing store text, progress words in a quirk, a flag with no `name`, `does` or `touch`, and any summary copy over budget. Read the stderr and fix the JSON rather than shipping past a warning.
 
 Then look at what you built, because the failure this report is prone to is invisible in the markup:
 
@@ -397,6 +434,20 @@ Verify before you claim. If you assert a fix is "in progress / not yet on master
 
 When the user asks for the report to be deployed, shared or linked, upload it to the release notes site as `references/internal-site.md` describes. Never put it on surge.sh or another public host.
 
+## A flag release: turning a feature on
+
+Turning a feature on in production is a release even when no other code ships, and this report is how it is presented. The report leads with the feature going live, and its flag section opens on its own.
+
+1. **Find the switch.** Look for the feature's field in `RemoteFeatures` and `apply_remote_layer` in `crates/runtime/src/features.rs` on the release branch people run. If it is there, it is a remote flag, served from `prodRemoteFeatures` in `ui/web/src/pages/api/features.ts`. If it is there only on `origin/master`, a web release reaches only the app versions that carry it, from the next app release on. If it is only in the per-build constructors such as `new_prod()`, it is a built-in switch, and a web release cannot change it. Every remote flag also has a compiled-in value in `new_prod()`, so a field there alone does not decide it. Read the code that reads the flag, because those reads become the touch list.
+2. **Change the value in a PR to master.**
+   - A remote flag goes to `true` in `prodRemoteFeatures`. That ships in a web release, a `web/X.Y.Z` tag on master or a lineage that carries only the flip (Step 1, Web, and the `web-release` skill). Each app fetches the new value at launch or when it returns to the foreground, and applies it at the next launch. App versions whose `RemoteFeatures` lacks the field keep their compiled-in value.
+   - A built-in switch is a flag that was never made remote, and a web release cannot turn it on. Tell the requester that first. Then open a PR to master that makes it remote, following the `feature-flags` skill: an `Option<bool>` field with `#[serde(default)]` in `RemoteFeatures`, applied in `apply_remote_layer` only when present. Serve every build the value it has compiled in, in each map in `features.ts`, so nothing changes until a web release flips the production value. Edge builds read `edgeDevRemoteFeatures` from the staging deployment, so that map carries the Edge value. Leave `new_prod()` alone. Once an app release carrying that PR is out, a web release turns the feature on for everyone on that version or later. Older versions keep their compiled-in value.
+3. **Run the resolver** with `--target` at the commit the web tag goes on, and `--web-only`. In the release that turns the feature on, the flag comes back with `next` on and `now` not on. A flag the app people run does not take from the server comes back as a built-in switch, which is the second case in step 2.
+4. **Build the report JSON** as in Step 8. `next_release` is the web release that carries the change, such as `web 26.10.4`, and the section labels the going-live group with it. The title and the lede name the feature going live and what a person gets. Other work in the same release keeps its cards. When nothing else ships, leave `features` and `fixes` empty and the renderer drops "In this release". A web-only release has no store text. Its scope line says web app only, so a remote flag needs a quirk saying the native app gets the feature without an update, at the first launch after it fetches the new value.
+5. **Render and hand over** as in Step 9, with `?flag=<key>` on the report link so the reader lands on the feature's card.
+
+Merging the PR, tagging, deploying and submitting to the stores stay with the release owner, as in every release skill.
+
 ## What good looks like
 
 - Both tracks are pinned before any PR is read, with the right web baseline (the newest web tag **on master**, not the newest web tag), and the web window reduced by whatever later lineage tags already carried.
@@ -420,6 +471,7 @@ When the user asks for the report to be deployed, shared or linked, upload it to
 - No text anywhere reports a missing translation.
 - Every card body was written from a diff or a PR body rather than a title, and every sentence about machinery, above all about when a change takes effect, has a line of code behind it.
 - Every feature card was checked against what gates it: the production flag values as served, the compiled-in defaults, federation config, and the platform derived from touched paths rather than from a parity note.
+- Every flag chip names the feature the way a person would, and its card says in one sentence what a person gets and lists what the flag changes in the app in plain words, written from the code that reads the flag. The values are the resolver's, untouched, and the section is open only when a feature goes live.
 - The Summary reads like a product briefing a non-technical person understands at a glance, and every card says which track it lands on.
 - The render was screenshotted in both themes and read before handing over, not just written.
 - Nothing reads as "shipped" that is merely merged. No em dashes. Nothing is called a phone app.

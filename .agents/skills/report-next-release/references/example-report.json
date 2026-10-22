@@ -146,6 +146,172 @@
    }
   ]
  },
+ "flags": {
+  "served": {
+   "url": "https://app.fedi.xyz/api/features",
+   "version": "26.6.2",
+   "live": true
+  },
+  "next_ref": "origin/master",
+  "native_ref": "origin/release/26.6",
+  "app_ref": "origin/master",
+  "items": [
+   {
+    "key": "showStableBalanceWeb",
+    "field": "show_stable_balance_web",
+    "control": "remote",
+    "now": "off",
+    "next": "off",
+    "added": "2026-05-27",
+    "added_pr": null,
+    "platforms": [
+     "web"
+    ],
+    "order": 2,
+    "name": "Stable Balance on the web app",
+    "does": "Web app users get Stable Balance.",
+    "icon": "dollar",
+    "touch": [
+     [
+      "The Wallet page shows a switcher between bitcoin and Stable Balance, for federations that offer Stable Balance."
+     ],
+     [
+      "With Stable Balance picked, the balance, history, Receive and Send all use Stable Balance. With the flag off, the page always shows bitcoin."
+     ],
+     [
+      "The wallet picker lists a Stable Balance option under each wallet that offers it."
+     ]
+    ]
+   },
+   {
+    "key": "privateRoomKnocking",
+    "field": "private_room_knocking",
+    "control": "remote",
+    "now": "off",
+    "next": "on",
+    "added": "2026-05-28",
+    "added_pr": 11109,
+    "platforms": [
+     "ios",
+     "android",
+     "web"
+    ],
+    "order": 3,
+    "name": "Private groups with join requests",
+    "does": "Ask to join a private group, and an admin approves.",
+    "icon": "lock",
+    "pr": 11109,
+    "touch": [
+     [
+      "Creating a private group shows an Allow join requests switch, on by default. Without the flag every new private group is invite-only."
+     ],
+     [
+      "Admins of a private group can turn join requests on or off from its invite screen. Without the flag the switch is hidden."
+     ],
+     [
+      "Opening a link or QR code for a private group shows its name and whether you can ask to join. Without the flag every private group shows a generic title and a request button, and an invite-only group refuses the request after it is sent."
+     ],
+     [
+      "Opening a group you have not joined shows a preview. Without the flag, private groups fail to open and the app sends you back."
+     ],
+     [
+      "Asking to join and approving requests work with the flag on or off, for groups already set to accept requests."
+     ]
+    ]
+   },
+   {
+    "key": "messageReactions",
+    "field": "message_reactions",
+    "control": "remote",
+    "now": "on",
+    "next": "on",
+    "added": "2026-06-03",
+    "added_pr": 11435,
+    "platforms": [
+     "ios",
+     "android",
+     "web"
+    ],
+    "order": 4,
+    "name": "Reactions in chat",
+    "does": "React to messages with emoji.",
+    "icon": "smile",
+    "pr": 11435,
+    "touch": [
+     [
+      "Reactions show as bubbles with a count under each message. Without the flag no reactions show, including ones sent from other chat apps."
+     ],
+     [
+      "Tapping a reaction shows who reacted and lets you add or remove your own. A plus button opens the full emoji picker."
+     ],
+     [
+      "Long-pressing a message shows a row of quick reactions above Reply. On the web, right-clicking does the same. Without the flag the row is hidden."
+     ],
+     [
+      "In a chat where you cannot post, right-clicking or long-pressing a message opens a sheet with only reactions. Without the flag nothing opens.",
+      "Web app"
+     ]
+    ]
+   },
+   {
+    "key": "personalBackupReminder",
+    "field": "personal_backup_reminder",
+    "control": "remote",
+    "now": null,
+    "next": "off",
+    "added": "2026-06-25",
+    "added_pr": 11506,
+    "platforms": [
+     "ios",
+     "android"
+    ],
+    "order": 5,
+    "name": "Backup reminders",
+    "does": "New wallets get a reminder to back up.",
+    "icon": "shield",
+    "pr": 11506,
+    "touch": [
+     [
+      "A full-screen reminder to back up opens on the Wallet or Spaces tab. It shows for new accounts that have not backed up, once they hold 210 sats or 30 days have passed."
+     ],
+     [
+      "The app counts the 30 days and remembers the 210 sats mark while the flag is off. Anyone who already qualifies sees the reminder as soon as the flag turns on."
+     ]
+    ]
+   },
+   {
+    "key": "update_screen",
+    "field": "update_screen",
+    "control": "app",
+    "now": "off",
+    "next": "off",
+    "added": "2026-04-27",
+    "added_pr": null,
+    "platforms": [
+     "ios",
+     "android"
+    ],
+    "order": 6,
+    "name": "Update prompt",
+    "does": "Anyone on an old version is asked to update.",
+    "icon": "update",
+    "touch": [
+     [
+      "At launch, the app looks up the newest Fedi release."
+     ],
+     [
+      "A full-screen page announcing the new release opens at launch, once for each new version."
+     ],
+     [
+      "A banner to update sits at the top of the Spaces, Chat, Mini Apps and Wallet tabs while the app is out of date."
+     ],
+     [
+      "Settings shows a card with an Update button while the app is out of date."
+     ]
+    ]
+   }
+  ]
+ },
  "user_facing": [
   {
    "theme": "Chat: groups",
