@@ -305,5 +305,63 @@ describe('common/hooks/federation', () => {
             expect(onSuccess).toHaveBeenCalledWith('community')
             expect(result.current.communityPreview).toBeUndefined()
         })
+
+        it('should keep handleCode stable when the joined federations change', () => {
+            const { result } = renderHookWithState(
+                () => useFederationPreview(t, ''),
+                store,
+            )
+            const initialHandleCode = result.current.handleCode
+
+            act(() => {
+                store.dispatch(setFederations([mockFederation1]))
+            })
+
+            expect(result.current.handleCode).toBe(initialHandleCode)
+        })
+
+        it('should check membership against federations joined while the preview loads', async () => {
+            let resolvePreview: (value: unknown) => void = () => {}
+            const fedimint = createMockFedimintBridge({
+                federationPreview: jest.fn(
+                    () =>
+                        new Promise(resolve => {
+                            resolvePreview = resolve
+                        }),
+                ),
+            })
+            const onSuccess = jest.fn()
+
+            const { result } = renderHookWithState(
+                () => useFederationPreview(t, ''),
+                store,
+                fedimint,
+            )
+
+            let handleCodePromise: Promise<void> = Promise.resolve()
+            act(() => {
+                handleCodePromise = result.current.handleCode(
+                    'fed1test',
+                    onSuccess,
+                )
+            })
+            act(() => {
+                store.dispatch(setFederations([mockFederation1]))
+            })
+            await act(async () => {
+                resolvePreview({
+                    id: mockFederation1.id,
+                    name: mockFederation1.name,
+                    inviteCode: 'fed1test',
+                    meta: {},
+                    returningMemberStatus: { type: 'newMember' },
+                })
+                await handleCodePromise
+            })
+
+            expect(onSuccess).toHaveBeenCalledWith('federation')
+            expect(onSuccess).toHaveBeenCalledTimes(1)
+            expect(result.current.federationPreview).toBeUndefined()
+        })
     })
 })

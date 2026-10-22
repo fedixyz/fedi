@@ -70,6 +70,7 @@ import { BridgeError, isPeerConnectionError } from '../utils/errors'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
+import { useUpdatingRef } from './util'
 
 const log = makeLog('common/hooks/federation')
 
@@ -447,6 +448,12 @@ export function useFederationPreview(t: TFunction, invite: string) {
     const [federationPreview, setFederationPreview] =
         useState<RpcFederationPreview>()
     const [communityPreview, setCommunityPreview] = useState<CommunityPreview>()
+    // handleCode must keep its identity while the store fills, or every effect
+    // that depends on it starts another preview fetch
+    const federationIdsRef = useUpdatingRef(federationIds)
+    const communityIdsRef = useUpdatingRef(communityIds)
+    const toastRef = useUpdatingRef(toast)
+    const tRef = useUpdatingRef(t)
 
     const handleJoinFederation = useCallback(
         async (inviteCode: string, recoverFromScratch = false) => {
@@ -542,7 +549,11 @@ export function useFederationPreview(t: TFunction, invite: string) {
                         code,
                         fedimint,
                     )
-                    if (federationIds.includes(federationPreviewResult.id)) {
+                    if (
+                        federationIdsRef.current.includes(
+                            federationPreviewResult.id,
+                        )
+                    ) {
                         dispatch(
                             setSelectedFederationId(federationPreviewResult.id),
                         )
@@ -556,7 +567,11 @@ export function useFederationPreview(t: TFunction, invite: string) {
                         fedimint,
                     )
 
-                    if (communityIds.includes(communityPreviewResult.id)) {
+                    if (
+                        communityIdsRef.current.includes(
+                            communityPreviewResult.id,
+                        )
+                    ) {
                         dispatch(
                             setLastSelectedCommunityId(
                                 communityPreviewResult.id,
@@ -577,25 +592,27 @@ export function useFederationPreview(t: TFunction, invite: string) {
 
                 if (err instanceof BridgeError) {
                     if (isPeerConnectionError(err)) {
-                        toast.show({
-                            content: t('errors.network-connection-failed'),
+                        toastRef.current.show({
+                            content: tRef.current(
+                                'errors.network-connection-failed',
+                            ),
                             status: 'error',
                         })
                     } else {
-                        toast.show({
-                            content: t('errors.invalid-invite-code'),
+                        toastRef.current.show({
+                            content: tRef.current('errors.invalid-invite-code'),
                             status: 'error',
                         })
                     }
                     return
                 }
 
-                toast.error(t, err)
+                toastRef.current.error(tRef.current, err)
             } finally {
                 setIsFetchingPreview(false)
             }
         },
-        [fedimint, federationIds, communityIds, dispatch, toast, t],
+        [fedimint, dispatch, federationIdsRef, communityIdsRef, toastRef, tRef],
     )
 
     const handleJoin = useCallback(
