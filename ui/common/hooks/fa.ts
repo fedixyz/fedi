@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
     type WalletServiceLightningStage,
     type WalletServiceLightningStatus,
+    type WalletServiceMetadata,
     clearFaLiquidity,
     clearFaLiquidityError,
     logFaClientStatusChange,
@@ -28,6 +29,11 @@ import {
     setFaLiquidityError,
     setFaLiquidityOperation,
     setFaLiquidityRequesting,
+    fetchWalletServiceMetadata,
+    holdWalletServiceMetadata,
+    selectHasWalletServiceMetadataLoaded,
+    selectWalletServiceMetadata,
+    selectWalletServiceMetadataStatus,
 } from '../redux'
 import type {
     RpcBitcoinNetwork,
@@ -37,12 +43,8 @@ import type {
     RpcFaLiquidityOperation,
     RpcFaLiquidityRequestIntent,
 } from '../types/bindings'
-import { type FederationMetadata, SupportedMetaFields } from '../types/fedimint'
-import {
-    getFederationIconUrl,
-    getFederationWelcomeMessage,
-    getMetaField,
-} from '../utils/FederationUtils'
+import { type FederationMetadata } from '../types/fedimint'
+import { getAutojoinCommunities } from '../utils/FederationUtils'
 import { makeLog } from '../utils/log'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
@@ -731,19 +733,20 @@ export function useWalletServiceLightningAttach(): WalletServiceLightningAttach 
     }
 }
 
-/** The metadata fields the wallet service settings screen reads back. */
-export type WalletServiceMetadata = {
-    name: string | null
-    iconUrl: string | null
-    description: string | null
-    termsUrl: string | null
-}
-
-const EMPTY_METADATA: WalletServiceMetadata = {
-    name: null,
-    iconUrl: null,
-    description: null,
-    termsUrl: null,
+const parseAutojoinSpaces = (autojoinCommunities: string | null): string[] => {
+    if (autojoinCommunities === null) return []
+    const parsed: unknown = getAutojoinCommunities({
+        autojoin_communities: autojoinCommunities,
+    })
+    // the key is hand-editable consensus text, so valid JSON is not
+    // necessarily a list
+    if (!Array.isArray(parsed)) return []
+    // the app joins by code without regard to case, so the editor and the
+    // settings count must see one entry per space
+    const codes = parsed
+        .filter((code): code is string => typeof code === 'string')
+        .map(code => code.trim().toLowerCase())
+    return Array.from(new Set(codes))
 }
 
 /**
@@ -769,78 +772,55 @@ const EMPTY_METADATA: WalletServiceMetadata = {
  * `markApplied` holds just-saved values on screen until a fetch agrees with
  * them: every write is a guardian consensus vote and takes a moment to settle,
  * so re-reading too early would flip a row back to its old value right after a
- * save that worked.
+ * save that worked. The reads and the holds share one record in the `fa`
+ * slice, so a value saved from one screen is what every other screen shows and
+ * builds on, and an older read can never replace a newer one.
+ *
+ * `hasLoaded` stays false until a read succeeds. Before then every field reads
+ * as unset, so an edit built on them would overwrite what is published.
+ * `hasFailed` is a first read that failed; a failed refresh keeps the last
+ * good read instead.
  */
 export function useWalletServiceMetadata() {
+    const dispatch = useCommonDispatch()
     const fedimint = useFedimint()
     const inviteCode = useCommonSelector(selectFaInviteCode)
-
-    const [consensus, setConsensus] =
-        useState<WalletServiceMetadata>(EMPTY_METADATA)
-    const [pending, setPending] = useState<Partial<WalletServiceMetadata>>({})
-    const [isLoading, setIsLoading] = useState(false)
+    const formationId = useCommonSelector(selectWalletServiceFormationId)
+    const { autojoinCommunities, ...fields } = useCommonSelector(
+        selectWalletServiceMetadata,
+    )
+    const status = useCommonSelector(selectWalletServiceMetadataStatus)
+    const hasLoaded = useCommonSelector(selectHasWalletServiceMetadataLoaded)
 
     const refresh = useCallback(async () => {
-        if (!inviteCode) return
-        setIsLoading(true)
-        try {
-            const preview = await fedimint.federationPreview(inviteCode)
-            setConsensus({
-                name:
-                    getMetaField(
-                        SupportedMetaFields.federation_name,
-                        preview.meta,
-                    ) || preview.name,
-                iconUrl: getFederationIconUrl(preview.meta),
-                description: getFederationWelcomeMessage(preview.meta),
-                termsUrl: getMetaField(
-                    SupportedMetaFields.tos_url,
-                    preview.meta,
-                ),
-            })
-        } catch (error) {
-            // a metadata read that fails leaves the last known values alone
-            // rather than reporting every field as unset
-            log.warn('federationPreview for wallet service metadata', error)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [fedimint, inviteCode])
+        await dispatch(fetchWalletServiceMetadata({ fedimint }))
+    }, [dispatch, fedimint])
 
-    // `refresh` never rejects — it catches its own failure
+    // the thunk reads the invite code itself, so this effect is what re-reads
+    // once the status first reports one
     useEffect(() => {
         refresh()
-    }, [refresh])
-
-    // once consensus reports a value we asked for, that local hold is spent
-    useEffect(() => {
-        setPending(held => {
-            const spent = Object.keys(held).filter(
-                key =>
-                    held[key as keyof WalletServiceMetadata] ===
-                    consensus[key as keyof WalletServiceMetadata],
-            )
-            if (spent.length === 0) return held
-            const next = { ...held }
-            for (const key of spent)
-                delete next[key as keyof WalletServiceMetadata]
-            return next
-        })
-    }, [consensus])
+    }, [refresh, inviteCode])
 
     const markApplied = useCallback(
         (applied: Partial<WalletServiceMetadata>) =>
-            setPending(held => ({ ...held, ...applied })),
-        [],
+            dispatch(
+                holdWalletServiceMetadata({ formationId, values: applied }),
+            ),
+        [dispatch, formationId],
+    )
+
+    const autojoinSpaces = useMemo(
+        () => parseAutojoinSpaces(autojoinCommunities),
+        [autojoinCommunities],
     )
 
     return {
-        // `null` means the federation publishes nothing for that field
-        name: pending.name ?? consensus.name,
-        iconUrl: pending.iconUrl ?? consensus.iconUrl,
-        description: pending.description ?? consensus.description,
-        termsUrl: pending.termsUrl ?? consensus.termsUrl,
-        isLoading,
+        ...fields,
+        autojoinSpaces,
+        isLoading: status === 'loading',
+        hasLoaded,
+        hasFailed: status === 'failed',
         refresh,
         markApplied,
     }

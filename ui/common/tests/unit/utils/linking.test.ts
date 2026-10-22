@@ -1,3 +1,5 @@
+import { bech32m } from 'bech32'
+
 import * as linking from '../../../utils/linking'
 
 describe('common/utils/linking', () => {
@@ -431,5 +433,76 @@ describe('common/utils/linking', () => {
 
             expect(result).toEqual([])
         })
+    })
+})
+
+describe('extractCommunityInviteCode', () => {
+    const encode = (prefix: string, seed: number) =>
+        bech32m.encode(
+            prefix,
+            bech32m.toWords(Buffer.from(Array(40).fill(seed))),
+            2000,
+        )
+    const v2Code = encode('fedi:community2', 7)
+    const v1Code = encode('fedi:community', 9)
+    const bareV2 = linking.stripFediPrefix(v2Code)
+    const federationCode = encode('fed', 3)
+
+    it('should return a prefixed code unchanged', () => {
+        expect(linking.extractCommunityInviteCode(v2Code)).toBe(v2Code)
+        expect(linking.extractCommunityInviteCode(v1Code)).toBe(v1Code)
+    })
+
+    it('should lowercase an upper case code', () => {
+        expect(linking.extractCommunityInviteCode(v2Code.toUpperCase())).toBe(
+            v2Code,
+        )
+    })
+
+    it('should add the fedi prefix to a bare code', () => {
+        expect(linking.extractCommunityInviteCode(bareV2)).toBe(v2Code)
+    })
+
+    it('should read the code from a share link', () => {
+        const link = `https://app.fedi.xyz/link#screen=join&id=${bareV2}`
+        expect(linking.extractCommunityInviteCode(link)).toBe(v2Code)
+    })
+
+    it('should pick the community code from a join-then-join link', () => {
+        const link = `https://app.fedi.xyz/link#screen=join-then-join&federation=${federationCode}&community=${bareV2}`
+        expect(linking.extractCommunityInviteCode(link)).toBe(v2Code)
+    })
+
+    it('should read a URL encoded code', () => {
+        const link = `https://app.fedi.xyz/link?screen=join&id=${encodeURIComponent(v2Code)}`
+        expect(linking.extractCommunityInviteCode(link)).toBe(v2Code)
+    })
+
+    it('should ignore text, quotes and punctuation around the code', () => {
+        const message = `Join our space: "${v2Code}".\nThanks!`
+        expect(linking.extractCommunityInviteCode(message)).toBe(v2Code)
+    })
+
+    it('should rejoin a code split over two lines', () => {
+        const split = `${v2Code.slice(0, 40)}\n${v2Code.slice(40)}`
+        expect(linking.extractCommunityInviteCode(split)).toBe(v2Code)
+    })
+
+    it('should search the raw text when it has a stray percent sign', () => {
+        expect(linking.extractCommunityInviteCode(`100% ${v2Code}`)).toBe(
+            v2Code,
+        )
+    })
+
+    it('should return null for a code with a bad checksum', () => {
+        const last = v2Code.slice(-1)
+        const broken = v2Code.slice(0, -1) + (last === 'q' ? 'p' : 'q')
+        expect(linking.extractCommunityInviteCode(broken)).toBeNull()
+    })
+
+    it('should return null for a federation code or plain text', () => {
+        expect(linking.extractCommunityInviteCode(federationCode)).toBeNull()
+        expect(linking.extractCommunityInviteCode('hello')).toBeNull()
+        expect(linking.extractCommunityInviteCode('')).toBeNull()
     })
 })

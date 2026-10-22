@@ -6,7 +6,7 @@ import {
     LoadedFederation,
 } from '@fedi/common/types'
 
-import { RpcFederationPreview } from '../../types/bindings'
+import { RpcCommunity, RpcFederationPreview } from '../../types/bindings'
 
 export const mockFederation1 = {
     status: 'online',
@@ -98,6 +98,17 @@ export const mockCommunity2 = {
     ...mockCommunity,
     id: '2',
 }
+
+/** A community as the bridge returns it, e.g. from `listCreatedCommunities`. */
+export const createMockRpcCommunity = (
+    overrides: Partial<RpcCommunity> = {},
+): RpcCommunity => ({
+    communityInvite: mockCommunity.communityInvite,
+    name: mockCommunity.name,
+    meta: mockCommunity.meta,
+    status: mockCommunity.status,
+    ...overrides,
+})
 
 const MOCK_FEDERATION_PREVIEW: RpcFederationPreview = {
     id: '1',

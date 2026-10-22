@@ -10,6 +10,8 @@ import {
     describeFaClientStatusChange,
     getWalletServiceCreationStage,
     getWalletServiceErrorKey,
+    getWalletServiceMaintenanceErrorKey,
+    holdWalletServiceMetadata,
     isTerminalWalletServiceError,
     prepareWalletServicePayment,
     previewWalletServiceReplacements,
@@ -33,6 +35,11 @@ import {
     selectWalletServiceFlowStatus,
     selectWalletServiceGuardianCount,
     selectWalletServiceGuardianProgress,
+    selectWalletServiceMetadata,
+    selectWalletServiceMetadataHolds,
+    selectWalletServiceMetadataStatus,
+    selectHasWalletServiceMetadataLoaded,
+    fetchWalletServiceMetadata,
     selectWalletServicePayerAvailability,
     selectWalletServicePaymentShortfall,
     selectWalletServiceRecoveryStage,
@@ -63,7 +70,10 @@ import {
     RpcFaSelectionPreview,
 } from '../../../types/bindings'
 import { LoadedFederation } from '../../../types/fedimint'
-import { mockFederation1 } from '../../mock-data/federation'
+import {
+    createMockFederationPreview,
+    mockFederation1,
+} from '../../mock-data/federation'
 import { createMockFedimintBridge } from '../../utils/fedimint'
 
 /*** Fixtures ***/
@@ -228,6 +238,13 @@ const buildStore = ({
                 isRequesting: false,
             },
             operationError: null,
+            walletServiceMetadata: {
+                formationId: null,
+                published: null,
+                holds: {},
+                status: 'idle',
+                latestRequestId: null,
+            },
             ...fi,
         },
         ...(federation ? { federation } : {}),
@@ -1611,6 +1628,54 @@ describe('common/redux/fi › getWalletServiceErrorKey', () => {
     )
 })
 
+describe('common/redux/fi › getWalletServiceMaintenanceErrorKey', () => {
+    it('should ask for a guardian update when the detail says the change is unsupported', () => {
+        expect(
+            getWalletServiceMaintenanceErrorKey({
+                code: 'maintenanceRejected',
+                message: 'unsupported',
+                detail: { type: 'maintenanceUnsupported' },
+            }),
+        ).toBe('feature.wallet-service.error-guardians-need-update')
+    })
+
+    // the detail is what changes the message, not the code it rides on
+    it('should keep the rejected mapping for the same code without that detail', () => {
+        expect(
+            getWalletServiceMaintenanceErrorKey({
+                code: 'maintenanceRejected',
+                message: 'rejected',
+                detail: null,
+            }),
+        ).toBe('feature.wallet-service.error-maintenance-rejected')
+    })
+
+    it('should keep the code mapping for another detail', () => {
+        expect(
+            getWalletServiceMaintenanceErrorKey({
+                code: 'selectionReauthorizationRequired',
+                message: 'changed',
+                detail: {
+                    type: 'insufficientMgSeats',
+                    requested: 7,
+                    selected: 5,
+                    seen: 5,
+                    eligible: 5,
+                },
+            }),
+        ).toBe('feature.wallet-service.error-selection-changed')
+    })
+
+    it.each([[null], [undefined]])(
+        'should fall back to the generic error for %p',
+        error => {
+            expect(getWalletServiceMaintenanceErrorKey(error)).toBe(
+                'feature.wallet-service.error-generic',
+            )
+        },
+    )
+})
+
 describe('common/redux/fi › updateWalletServiceMetadata', () => {
     const FED = 'wallet-service-federation'
     const storeWithFederation = () =>
@@ -1768,6 +1833,300 @@ describe('common/redux/fi › updateWalletServiceMetadata', () => {
             federation_name: 'Old Name',
             other: 'kept',
             'fedi:tos_url': 'https://example.com/terms',
+        })
+    })
+})
+
+describe('common/redux/fi › wallet service metadata holds', () => {
+    it('should merge holds for the current formation', () => {
+        const store = buildFormationStore()
+
+        store.dispatch(
+            holdWalletServiceMetadata({
+                formationId: 'formation-1',
+                values: { name: 'Neo' },
+            }),
+        )
+        store.dispatch(
+            holdWalletServiceMetadata({
+                formationId: 'formation-1',
+                values: { autojoinCommunities: '["fedi:community1a"]' },
+            }),
+        )
+
+        expect(selectWalletServiceMetadataHolds(store.getState())).toEqual({
+            name: 'Neo',
+            autojoinCommunities: '["fedi:community1a"]',
+        })
+    })
+
+    it('should replace the holds of another formation', () => {
+        const store = buildFormationStore()
+        store.dispatch(
+            holdWalletServiceMetadata({
+                formationId: 'formation-0',
+                values: { name: 'Old' },
+            }),
+        )
+
+        store.dispatch(
+            holdWalletServiceMetadata({
+                formationId: 'formation-1',
+                values: { iconUrl: 'https://example.com/icon.png' },
+            }),
+        )
+
+        expect(selectWalletServiceMetadataHolds(store.getState())).toEqual({
+            iconUrl: 'https://example.com/icon.png',
+        })
+    })
+
+    it('should ignore holds made for another formation', () => {
+        const store = buildFormationStore({ formationId: 'formation-2' })
+
+        store.dispatch(
+            holdWalletServiceMetadata({
+                formationId: 'formation-1',
+                values: { name: 'Neo' },
+            }),
+        )
+
+        expect(selectWalletServiceMetadataHolds(store.getState())).toEqual({})
+    })
+})
+
+describe('common/redux/fi › fetchWalletServiceMetadata', () => {
+    const INVITE = 'fed11invite'
+    const AUTOJOIN_KEY = 'fedi:autojoin_communities'
+    const OLD = '["fedi:community1a"]'
+    const NEW = '["fedi:community1a","fedi:community1b"]'
+
+    const previewWith = (meta: Record<string, string>) =>
+        createMockFederationPreview({ name: 'Morpheus', meta })
+
+    /** Every read waits until the test answers it, in any order. */
+    const makeHeldBridge = () => {
+        const reads: Array<{
+            resolve: (value: unknown) => void
+            reject: (error: Error) => void
+        }> = []
+        const fedimint = createMockFedimintBridge({
+            federationPreview: () =>
+                new Promise((resolve, reject) =>
+                    reads.push({ resolve, reject }),
+                ),
+        })
+        return { fedimint, reads }
+    }
+
+    const makeStore = () => buildFormationStore({ inviteCode: INVITE })
+
+    const published = (store: ReturnType<typeof buildStore>) =>
+        selectWalletServiceMetadata(store.getState()).autojoinCommunities
+
+    it('should read the published metadata into the record', async () => {
+        const store = makeStore()
+        const fedimint = createMockFedimintBridge({
+            federationPreview: previewWith({
+                federation_name: 'Neo',
+                'fedi:federation_icon_url': 'https://example.com/icon.png',
+                'fedi:welcome_message': 'Welcome',
+                'fedi:tos_url': 'https://example.com/terms',
+                [AUTOJOIN_KEY]: OLD,
+            }),
+        })
+
+        await store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        expect(fedimint.federationPreview).toHaveBeenCalledWith(INVITE)
+        expect(fedimint.federationPreview).toHaveBeenCalledTimes(1)
+        expect(selectWalletServiceMetadata(store.getState())).toEqual({
+            name: 'Neo',
+            iconUrl: 'https://example.com/icon.png',
+            description: 'Welcome',
+            termsUrl: 'https://example.com/terms',
+            autojoinCommunities: OLD,
+        })
+        expect(selectWalletServiceMetadataStatus(store.getState())).toBe(
+            'loaded',
+        )
+        expect(selectHasWalletServiceMetadataLoaded(store.getState())).toBe(
+            true,
+        )
+    })
+
+    it('should fall back to the preview name when no name is published', async () => {
+        const store = makeStore()
+        const fedimint = createMockFedimintBridge({
+            federationPreview: previewWith({}),
+        })
+
+        await store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        expect(selectWalletServiceMetadata(store.getState()).name).toBe(
+            'Morpheus',
+        )
+    })
+
+    it('should not read without an invite code', async () => {
+        const store = buildFormationStore()
+        const fedimint = createMockFedimintBridge({
+            federationPreview: previewWith({}),
+        })
+
+        await store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        expect(fedimint.federationPreview).not.toHaveBeenCalled()
+        expect(selectWalletServiceMetadataStatus(store.getState())).toBe('idle')
+    })
+
+    it('should report loading while a read runs', () => {
+        const store = makeStore()
+        const { fedimint } = makeHeldBridge()
+
+        store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        expect(selectWalletServiceMetadataStatus(store.getState())).toBe(
+            'loading',
+        )
+    })
+
+    it('should ignore an older read that answers after a newer one', async () => {
+        const store = makeStore()
+        const { fedimint, reads } = makeHeldBridge()
+        const older = store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+        const newer = store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        reads[1].resolve(previewWith({ [AUTOJOIN_KEY]: NEW }))
+        await newer
+        reads[0].resolve(previewWith({ [AUTOJOIN_KEY]: OLD }))
+        await older
+
+        expect(published(store)).toBe(NEW)
+    })
+
+    it('should ignore an older read that fails while a newer one runs', async () => {
+        const store = makeStore()
+        const { fedimint, reads } = makeHeldBridge()
+        const older = store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+        store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        reads[0].reject(new Error('bridge down'))
+        await older
+
+        expect(selectWalletServiceMetadataStatus(store.getState())).toBe(
+            'loading',
+        )
+    })
+
+    it('should ignore a read for a formation that has since changed', async () => {
+        const store = makeStore()
+        const { fedimint, reads } = makeHeldBridge()
+        const read = store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        store.dispatch(
+            setFaStatus({
+                type: 'formation',
+                formation: makeFormation({
+                    formationId: 'formation-2',
+                    inviteCode: 'fed11other',
+                }),
+            }),
+        )
+        reads[0].resolve(previewWith({ [AUTOJOIN_KEY]: OLD }))
+        await read
+        store.dispatch(
+            setFaStatus({
+                type: 'formation',
+                formation: makeFormation({ inviteCode: INVITE }),
+            }),
+        )
+
+        expect(selectHasWalletServiceMetadataLoaded(store.getState())).toBe(
+            false,
+        )
+    })
+
+    it('should release only the holds a read agrees with', async () => {
+        const store = makeStore()
+        store.dispatch(
+            holdWalletServiceMetadata({
+                formationId: 'formation-1',
+                values: {
+                    name: 'Morpheus',
+                    termsUrl: null,
+                    autojoinCommunities: NEW,
+                },
+            }),
+        )
+        const fedimint = createMockFedimintBridge({
+            federationPreview: previewWith({ [AUTOJOIN_KEY]: OLD }),
+        })
+
+        await store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        expect(selectWalletServiceMetadataHolds(store.getState())).toEqual({
+            autojoinCommunities: NEW,
+        })
+        expect(published(store)).toBe(NEW)
+    })
+
+    it('should set failed when the first read fails', async () => {
+        const store = makeStore()
+        const fedimint = createMockFedimintBridge({
+            federationPreview: () => Promise.reject(new Error('bridge down')),
+        })
+
+        await store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        expect(selectWalletServiceMetadataStatus(store.getState())).toBe(
+            'failed',
+        )
+        expect(selectHasWalletServiceMetadataLoaded(store.getState())).toBe(
+            false,
+        )
+    })
+
+    it('should keep the last read when a refresh fails', async () => {
+        const store = makeStore()
+        const { fedimint, reads } = makeHeldBridge()
+        const first = store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+        reads[0].resolve(previewWith({ [AUTOJOIN_KEY]: OLD }))
+        await first
+
+        const refresh = store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+        reads[1].reject(new Error('bridge down'))
+        await refresh
+
+        expect(selectWalletServiceMetadataStatus(store.getState())).toBe(
+            'loaded',
+        )
+        expect(published(store)).toBe(OLD)
+    })
+
+    it('should show each hold over the published value', async () => {
+        const store = makeStore()
+        const fedimint = createMockFedimintBridge({
+            federationPreview: previewWith({
+                'fedi:welcome_message': 'Welcome',
+                [AUTOJOIN_KEY]: OLD,
+            }),
+        })
+        await store.dispatch(fetchWalletServiceMetadata({ fedimint }))
+
+        store.dispatch(
+            holdWalletServiceMetadata({
+                formationId: 'formation-1',
+                values: { name: 'Neo', autojoinCommunities: NEW },
+            }),
+        )
+
+        expect(selectWalletServiceMetadata(store.getState())).toEqual({
+            name: 'Neo',
+            iconUrl: null,
+            description: 'Welcome',
+            termsUrl: null,
+            autojoinCommunities: NEW,
         })
     })
 })

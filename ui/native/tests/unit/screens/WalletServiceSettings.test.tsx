@@ -10,6 +10,7 @@ import {
 
 import { FEDERATION_TERMS_URL } from '@fedi/common/constants/tos'
 import {
+    holdWalletServiceMetadata,
     recordFaLiquidityAbsent,
     selectLoadedFederation,
     setFederations,
@@ -33,6 +34,7 @@ import {
     mockHardwareBack,
     mockNavigation,
     mockRoute,
+    mockScreenFocus,
     mockToast,
 } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
@@ -189,6 +191,7 @@ describe('screens/WalletServiceSettings', () => {
             'general',
             'manage',
             'features',
+            'spaces',
             'legal',
             'members',
         ] as const) {
@@ -1417,5 +1420,181 @@ describe('screens/WalletServiceSettings', () => {
 
         expect(screen.queryByTestId('settings-edit-input')).toBeNull()
         expect(fedimint.faClientUpdateFederationMetadata).not.toHaveBeenCalled()
+    })
+
+    describe('auto-join spaces row', () => {
+        const AUTOJOIN_KEY = 'fedi:autojoin_communities'
+
+        it('should show how many spaces are linked and open the editor', async () => {
+            renderScreen({
+                fedimint: makePreviewBridge({
+                    [AUTOJOIN_KEY]:
+                        '["fedi:community1signal","fedi:community1savers"]',
+                }),
+            })
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.settings-autojoin-count', {
+                        count: 2,
+                    }),
+                ),
+            ).toBeOnTheScreen()
+            await user.press(screen.getByTestId('autojoin-spaces-row'))
+
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'WalletServiceAutojoinSpaces',
+            )
+            expect(mockNavigation.navigate).toHaveBeenCalledTimes(1)
+        })
+
+        it('should not open the editor before the service is formed', async () => {
+            renderScreen({
+                formation: makeFormation({ phase: 'dkgUnderway' }),
+            })
+
+            await user.press(screen.getByTestId('autojoin-spaces-row'))
+
+            expect(mockNavigation.navigate).not.toHaveBeenCalled()
+        })
+
+        // the editor's save is held app-wide, so a read that still reports the
+        // old list must not put the old count back
+        it('should keep the count the editor saved when a refocus still reads the old list', async () => {
+            const store = setupStore()
+            const fedimint = renderScreen({
+                store,
+                fedimint: makePreviewBridge({ [AUTOJOIN_KEY]: '[]' }),
+            })
+            await waitFor(() =>
+                expect(fedimint.federationPreview).toHaveBeenCalled(),
+            )
+            const readsOnMount = fedimint.federationPreview.mock.calls.length
+
+            // what the editor's save leaves behind once it has unmounted
+            act(() => {
+                store.dispatch(
+                    holdWalletServiceMetadata({
+                        formationId: 'formation-1',
+                        values: {
+                            autojoinCommunities: '["fedi:community1signal"]',
+                        },
+                    }),
+                )
+            })
+            act(() => {
+                mockScreenFocus.blur()
+                mockScreenFocus.focus()
+            })
+
+            await waitFor(() =>
+                expect(fedimint.federationPreview).toHaveBeenCalledTimes(
+                    readsOnMount + 1,
+                ),
+            )
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.settings-autojoin-count', {
+                        count: 1,
+                    }),
+                ),
+            ).toBeOnTheScreen()
+        })
+
+        it('should not put an older count back when an older read answers last', async () => {
+            let published = '[]'
+            let holdNextRead = false
+            let answerHeldRead: () => void = () => undefined
+            const previewOf = (value: string) => ({
+                id: 'fed-1',
+                name: 'My Wallet Service',
+                meta: { [AUTOJOIN_KEY]: value },
+                inviteCode: 'fed11invite',
+                returningMemberStatus: { type: 'newMember' },
+            })
+            const fedimint = makePreviewBridge(
+                {},
+                {
+                    federationPreview: () => {
+                        if (!holdNextRead)
+                            return Promise.resolve(previewOf(published))
+                        holdNextRead = false
+                        const value = published
+                        return new Promise(resolve => {
+                            answerHeldRead = () => resolve(previewOf(value))
+                        })
+                    },
+                },
+            )
+            renderScreen({ fedimint })
+            await waitFor(() =>
+                expect(fedimint.federationPreview).toHaveBeenCalled(),
+            )
+            const readsOnMount = fedimint.federationPreview.mock.calls.length
+
+            // this read starts before the save and answers after a newer one
+            holdNextRead = true
+            act(() => {
+                mockScreenFocus.blur()
+                mockScreenFocus.focus()
+            })
+            published = '["fedi:community1signal"]'
+            act(() => {
+                mockScreenFocus.blur()
+                mockScreenFocus.focus()
+            })
+            const countOfOne = i18n.t(
+                'feature.wallet-service.settings-autojoin-count',
+                { count: 1 },
+            )
+            expect(await screen.findByText(countOfOne)).toBeOnTheScreen()
+
+            await act(async () => answerHeldRead())
+
+            expect(fedimint.federationPreview).toHaveBeenCalledTimes(
+                readsOnMount + 2,
+            )
+            expect(screen.getByText(countOfOne)).toBeOnTheScreen()
+        })
+
+        // the read on mount is old by the time the screen is back in view
+        it('should re-read the count when the screen comes back into focus', async () => {
+            let published = '[]'
+            const fedimint = makePreviewBridge(
+                {},
+                {
+                    federationPreview: () =>
+                        Promise.resolve({
+                            id: 'fed-1',
+                            name: 'My Wallet Service',
+                            meta: { [AUTOJOIN_KEY]: published },
+                            inviteCode: 'fed11invite',
+                            returningMemberStatus: { type: 'newMember' },
+                        }),
+                },
+            )
+            renderScreen({ fedimint })
+            await waitFor(() =>
+                expect(fedimint.federationPreview).toHaveBeenCalled(),
+            )
+            const readsOnMount = fedimint.federationPreview.mock.calls.length
+
+            published = '["fedi:community1signal"]'
+            act(() => {
+                mockScreenFocus.blur()
+                mockScreenFocus.focus()
+            })
+
+            expect(
+                await screen.findByText(
+                    i18n.t('feature.wallet-service.settings-autojoin-count', {
+                        count: 1,
+                    }),
+                ),
+            ).toBeOnTheScreen()
+            expect(fedimint.federationPreview).toHaveBeenCalledTimes(
+                readsOnMount + 1,
+            )
+        })
     })
 })

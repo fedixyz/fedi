@@ -230,6 +230,13 @@ const renderScreen = ({
                     clientError: null,
                     federationJoin: null,
                     creationHighWaterMark: null,
+                    walletServiceMetadata: {
+                        formationId: null,
+                        published: null,
+                        holds: {},
+                        status: 'idle',
+                        latestRequestId: null,
+                    },
                     draft: { name: '', size: 10 },
                     selectionPreview: null,
                     replacementPreview: null,

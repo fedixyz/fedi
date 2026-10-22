@@ -27,6 +27,7 @@ import {
     recoveryJoinFails,
     recoverySlowJoin,
 } from './scripts/recovery'
+import { settingsAutojoinUnsupported } from './scripts/settings'
 import {
     setupHappyPath,
     setupInsufficientBalance,
@@ -52,6 +53,7 @@ export type FaScreenRoute =
     | 'WalletServiceReplaceReview'
     | 'WalletServiceLightningProvider'
     | 'WalletServiceSettings'
+    | 'WalletServiceAutojoinSpaces'
 
 export type FaScreenParams = { openSheet: 'provider' } | undefined
 
@@ -90,6 +92,7 @@ const replaceReview = on('WalletServiceReplaceReview')
 const providerScreen = (id: string, label: string, s: FaScript) =>
     on('WalletServiceLightningProvider')(id, label, s, 'provider')
 const settings = on('WalletServiceSettings', { openSheet: 'provider' })
+const autojoin = on('WalletServiceAutojoinSpaces')
 
 export const FA_SCREEN_GROUPS: FaScreenGroup[] = [
     {
@@ -366,6 +369,17 @@ export const FA_SCREEN_GROUPS: FaScreenGroup[] = [
                 'Settings: attached and verified',
                 lightningAlreadyAttached,
                 'settings',
+            ),
+        ],
+    },
+    {
+        title: 'Settings',
+        screens: [
+            autojoin(
+                'settings.autojoinUnsupported',
+                'Settings: auto join guardians not updated',
+                settingsAutojoinUnsupported,
+                'autojoin',
             ),
         ],
     },
