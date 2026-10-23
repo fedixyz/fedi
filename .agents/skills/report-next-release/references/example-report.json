@@ -87,10 +87,10 @@
   ],
   "fixes": [
    {
-    "headline": "Send button greys out when funds are short",
+    "headline": "Payments above your balance are stopped clearly",
     "kind": "Fix",
     "badge": "",
-    "summary": "The confirm button is disabled when the balance is too low.",
+    "summary": "You cannot confirm a payment your balance does not cover.",
     "track": "Native"
    }
   ],
@@ -118,11 +118,11 @@
   ],
   "not_merged": [
    {
-    "headline": "Crash on older iPhones (iOS 15)",
+    "headline": "The app opens on older iPhones (iOS 15)",
     "kind": "Fix",
     "status": "In progress",
     "badge": "",
-    "summary": "Opening the app on iOS 15 crashes before the home screen.",
+    "summary": "A crash on launch on iOS 15 is fixed.",
     "track": "Native",
     "platforms": [
      "ios"

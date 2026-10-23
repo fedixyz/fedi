@@ -184,6 +184,20 @@ SUMMARY_JARGON = (
     r"\bCI\b", r"\bnightly\b", r"\bQA\b", r"\bzenhub\b", r"\bboards?\b", r"\bupstream\b",
     r"\bcrates?\b", r"\bwasm\b", r"\bbridge\b", r"\bsha\b", r"#\d{3,}", r"\b[0-9a-f]{7,40}\b",
 )
+FIX_MECHANICS = (
+    r"\binstead of\b", r"\brather than\b", r"\bbecause\b", r"\bdepending on\b", r"\buntil\b",
+    r"\bon the first try\b", r"\bno longer\b", r"\bcould\b", r"\bused to\b", r"\bsat over\b",
+    r"\bdropped back\b", r"\bagain and again\b",
+)
+
+
+def scan_fix_mechanics(name, card):
+    text = " ".join(str(card.get(k) or "") for k in ("headline", "summary"))
+    for pat in FIX_MECHANICS:
+        m = re.search(pat, text, re.I)
+        if m:
+            warn(f"{name} says {m.group(0)!r}. That narrates what the bug did. Name the everyday action "
+                 "and the situation a person recognizes, and move the mechanics to the GitHub bullet on Full report.")
 
 
 def scan_summary_jargon(summary_html):
@@ -346,6 +360,8 @@ def summary_cards(items, section, with_status):
         name = f'summary.{section} card "{it.get("headline","")}"'
         budget(it.get("summary"), 300, name)
         kind, status = it.get("kind", ""), it.get("status", "")
+        if kind == "Fix":
+            scan_fix_mechanics(name, it)
         if with_status and status not in NOT_MERGED_STATUSES:
             warn(f"{name} has status {status!r}. A not-merged card is 'In progress' (an open PR "
                  "ready for review) or 'Planned' (a draft or no PR). Merged work goes in features or fixes.")

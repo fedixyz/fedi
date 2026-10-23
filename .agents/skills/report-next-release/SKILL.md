@@ -60,6 +60,8 @@ The split is structural rather than a chip because two questions get asked of th
 
 No dates, day counts, version numbers, PR totals or "still uncut" phrasing in either the title or the lede. If the only thing you can think to say is how long something has been waiting, you have not read the cards closely enough: name the two or three changes a person would actually notice. Keep the title near 90 characters and the lede to one or two sentences that carry the next most important things, or who they affect.
 
+**The title and the lede are two framings, not two lengths of one sentence.** The title is the feature-level introduction: the areas that got better and the one new thing, in the fewest words. "Smoother joining, chat and payments, plus four more federations to discover." The lede goes one level down to the situations those changes cover and who the new thing is for, and repeats no phrase from the title. "The fixes cover opening a shared invite link, a missed tap on Send on some iPhones, and the balance after a failed Lightning payment. Federation creators can choose the spaces members join automatically." A lede that restates the title with more words has wasted the second most valuable line on the page.
+
 The test, run against the screenshot rather than the markup: **read only the first screen as a product manager who was not in this session. Do you know what is going out, on which app, and what is being asked of you?** If not, the fix is more altitude, never more detail.
 
 ## Fedi release conventions you need
@@ -295,13 +297,13 @@ One kind of change is product-facing even though nobody using the app notices it
 
 Never report a missing translation. English is the primary language and the other languages catch up, so text that shows in English in another language gets no card, no caveat in a card body, no known issue and no line in any release notes.
 
-For the **Summary** tab, cluster into a handful of product items written in plain language (what a user would tell a friend), each with a `kind` (New feature / Improvement / Fix) and a `track` (Native / Web / Native + web). A card goes in `features` or `fixes` only when every PR behind it is merged to master in the window. Milestone work that has not merged goes in `not_merged`, and only those cards carry a `status`: `In progress` when the issue has an open PR ready for review, `Planned` when it has a draft or nothing. Read that off `open_prs` in `window.json` rather than off the board. The track chip is what stops a reader assuming everything lands everywhere at once. Split distinct fixes into their own cards rather than lumping them. Keep it to roughly a page or two: this is a briefing, not a changelog.
+For the **Summary** tab, cluster into a handful of product items written in plain language (what a user would tell a friend), each with a `kind` (New feature / Improvement / Fix) and a `track` (Native / Web / Native + web). A card goes in `features` or `fixes` only when every PR behind it is merged to master in the window. Milestone work that has not merged goes in `not_merged`, and only those cards carry a `status`: `In progress` when the issue has an open PR ready for review, `Planned` when it has a draft or nothing. Read that off `open_prs` in `window.json` rather than off the board. The track chip is what stops a reader assuming everything lands everywhere at once. One card per situation a person notices, however many PRs sit behind it: two fixes to opening an invite link are one card, a fix to invite links and a fix to chat sending are two. Keep it to roughly a page or two: this is a briefing, not a changelog.
 
 The App Store What's New, the Play release notes and the GitHub release body are written from these cards. Their rules are in `references/release-notes-copy.md`, and the store release skills point there rather than carrying their own.
 
 ### The card body is the hardest 20 words in the report
 
-The headline says what changes. The body adds what the headline structurally cannot: **when it fires, who hits it, how bad it was, what people did instead.** That is the whole job.
+The headline names the outcome in an everyday action a person recognizes. The body adds one layer at most: **the situation the change covers, and who it reaches when that is narrower than everyone.** Both are written for someone who never met the bug and will never see the code. The trigger sequence, what the screen did instead, which part of a button or which internal value was wrong, and why: that is Full report material, and the GitHub bullet for the PR is where it goes (`references/release-notes-copy.md`).
 
 Everything else on the card is already rendered as a chip, so writing it again is pure tax:
 
@@ -310,9 +312,27 @@ Everything else on the card is already rendered as a chip, so writing it again i
 - **Never put a QA verdict in the body.** "Signed off by a tester" is the Zenhub `Passed Test` column, which is release mechanics and belongs on Full report with the rest of the board state. Gathering the QA data is not a reason to place it here.
 - **Never narrate the work.** "The rename to Federation is under review", "a follow-up PR is open", "a fix is in review and not yet on master" describe the progress of the work, not the change. The section a card sits in already says whether it merged, and the status chip in the not-merged section says how far it got. The body says what a person will notice and nothing about PRs, reviews, renames pending or what comes next. A reader of these cards is trying to understand the change, and a sentence about its progress is the sentence they skip.
 - **Never explain the system before the outcome.** A body that has to say how something works ("the status is computed from how many guardians answered in a window") before the reader learns what changes for them is at mechanism altitude, even in plain words, and the vocabulary scan does not flag it. Sourcing a mechanism sentence makes it true, not readable. Lead with what a person or the Fedi team gets, in the sentence they would repeat to a friend ("a federation stays green through a brief guardian drop"), then add one layer for a product reader only if they need it.
-- **Never paraphrase the headline.** "Crash when opening community chats" followed by "The app could crash on opening a community chat" is the same sentence twice. If the headline already covers it, either add scope ("it fired from the Spaces list, which is the main way in") or ship the headline with no body at all.
+- **Never paraphrase the headline.** "Crash when opening community chats" followed by "The app could crash on opening a community chat" is the same sentence twice. If the headline already covers it, either add scope (how rare it was, who it reached) or ship the headline with no body at all.
 
-The 300-character cap is a **ceiling, not a target**. A body of eight words that names the trigger beats three padded sentences. When a fix is genuinely self-evident, the honest card is a headline and nothing else.
+The 300-character cap is a **ceiling, not a target**. A body of eight words that names the situation beats three padded sentences. When a fix is genuinely self-evident, the honest card is a headline and nothing else.
+
+### A fix card names the situation, never what the bug did
+
+A fix card goes wrong in one specific way. The writer reads the diff, learns exactly how the bug behaved, and writes that down in plain words. The vocabulary scan passes it, every sentence is true, and the reader gets the mechanics of a bug they never met instead of the situation that got better. One card at three altitudes, from the 26.10.3 report:
+
+- mechanics: "The whole chat Send button responds to taps on iPhone. Tapping the center of Send could do nothing, because the empty message label sat over it."
+- plain words, still mechanics: "Send in chat responds wherever you tap it. On some iPhone screens a tap on one part of the Send button could be missed, depending on exactly where you tapped."
+- the situation: "Sending chat messages on iPhone is more reliable. A rare case where a tap on Send did not register on some iPhone screens is fixed."
+
+The third is the register. The headline says which everyday action got better. The body says how much of a case it was, rare and on some iPhone screens, and nothing about where the tap landed or what sat over the button. The other two cards of that report, at the first and third altitude:
+
+- mechanics: "With a wallet joined, opening a space invite link showed the preview, then dropped back to the loading animation, sometimes again and again until you tapped Join." The situation: "Joining from an invite link is more reliable. Opening a space or federation from a shared link works more smoothly."
+- mechanics: "After a failed payment was refunded, the balance stayed lower by the reserved fee until something else changed it." The situation: "Your balance stays accurate after a failed payment. If a Lightning payment does not go through, your balance reflects that right away."
+
+- **The headline is the everyday action plus the outcome.** "X is more reliable", "Y stays accurate", "Z opens as expected". Not the bug ("No Invalid invite code error over a loaded preview") and not a promise about a component ("The whole Send button responds").
+- **The body is one sentence about the situation, in the words a person would use to describe it to support.** Scope words are welcome when the diff makes them true: rare, some iPhone screens, only after a failed payment. Sequence words mark a mechanics sentence: "instead of", "because", "until", "depending on", "on the first try", "no longer", "could", and past-tense narration of what the screen did. The renderer warns on the fixed phrases. The narration is yours to catch.
+- **Never name a part.** Not the label over the button, the center of the button, the loading animation, the reserved fee, the second fetch. A person does not know the parts, and a product reader does not need them to understand that chat sending got better.
+- **Read the diff anyway.** The broad sentence has to be true, and the diff is how you know "rare" and "some iPhone screens" are not guesses. What the diff taught you about the trigger goes into the GitHub bullet for that PR, one altitude down, where an engineer reading Full report wants it.
 
 Before rendering, read the cards as a block rather than one at a time. Repetition is invisible in isolation and obvious in a column.
 
@@ -320,9 +340,9 @@ Before rendering, read the cards as a block rather than one at a time. Repetitio
 
 The card body is the only prose in the report that nobody wrote before you. The PR tab quotes titles, the milestone tables copy the board, the resolver produces the mapping. The body is synthesis, which makes it the one part that can be fluent, well-shaped and false.
 
-**Source it from the diff or the PR body, never from the title.** A title names the area that changed. It does not carry when the change fires, what the behavior was before, or who hit it, and that is the entire job of the body. Reading the diff to write a card is the work, not preparation for the work.
+**Source it from the diff or the PR body, never from the title.** A title names the area that changed. It does not say whether the fix covers a rare case or the main path, who it reaches, or whether a second PR fixes the same situation, and a card is wrong without that. Reading the diff to write a card is the work, not preparation for the work. What the diff says about the trigger goes to the GitHub bullet, never the card.
 
-**Write what a user observes. Treat any sentence about machinery as a claim needing a line of code behind it.** "The action menu only appeared on a second try" is observed. "The clear was debounced" is a claim about how the code works, and if you did not read the debounce you invented it. When the mechanism genuinely is the point, find the line first and write the sentence second.
+**Write what a user observes, then lift it to the situation. Treat any sentence about machinery as a claim needing a line of code behind it.** "The action menu only appeared on a second try" is observed, and it is the GitHub bullet. The card says opening the action menu is more reliable. "The clear was debounced" is a claim about how the code works, and if you did not read the debounce you invented it. When the mechanism genuinely is the point, find the line first and write the sentence second, and it still lands in the bullet.
 
 **Sentences about when something takes effect are the most dangerous ones on the page.** Lands without a restart, applies immediately, refreshes in the background, stays cached until, reaches the session you are in. Propagation and caching behavior never appears in a title, and it is routinely the opposite of what the title suggests: a change that fetches a value sooner usually still applies it at the next launch. Trace every one of these to code, every time. Read the doc comment on the function and the comment at the call site first, because on this class of claim they are usually explicit, and usually the thing you are about to contradict.
 
@@ -409,7 +429,7 @@ Keep all prose plain and dash-free. The `summary` copy is for a non-technical re
 python3 <skill-dir>/scripts/render_report.py <report.json> <out.html>
 ```
 
-Replace `<skill-dir>` with this skill's directory. The script writes the HTML, prints the briefing to stdout, and warns on stderr about em dashes, a missing `tracks` block, a missing store text, progress words in a quirk, a flag with no `name`, `does` or `touch`, and any summary copy over budget. Read the stderr and fix the JSON rather than shipping past a warning.
+Replace `<skill-dir>` with this skill's directory. The script writes the HTML, prints the briefing to stdout, and warns on stderr about em dashes, a missing `tracks` block, a missing store text, progress words in a quirk, sequence words on a fix card, a flag with no `name`, `does` or `touch`, and any summary copy over budget. Read the stderr and fix the JSON rather than shipping past a warning.
 
 Then look at what you built, because the failure this report is prone to is invisible in the markup:
 
@@ -462,12 +482,13 @@ Merging the PR, tagging, deploying and submitting to the stores stay with the re
 - Every card in "In this release" is backed by a PR merged to master in the window, and none of them carries a status chip. Milestone work that has not merged is in the collapsed "Not in this release yet" section, In progress only when a non-draft PR is open for it.
 - No card body narrates the work: nothing about a review, a follow-up PR, a pending rename or what comes next.
 - The renderer's Summary vocabulary scan is silent. No PR, merge, cut, milestone, deploy or QA word appears on that tab, and no quirk says where the release is in the pipeline.
-- The title and the lede name changes, not dates. No version number, day count or PR total appears in either.
+- The title and the lede name changes, not dates. No version number, day count or PR total appears in either, and the lede repeats no phrase from the title.
 - The scope line is one line unless something about the release is unusual, and every quirk on it is about the release rather than its progress.
 - The release notes read as one or two sentences a person outside the company understands, say nothing about a gated feature, and match the cards.
 - The first product card sits within about 500 pixels. Past that, the hero has started narrating the schedule again.
 - No card body restates its own chips, repeats its headline, says "Fixed", or reports a QA verdict. Cards with nothing to add are headline-only rather than padded to fill the budget.
 - Every card leads with what a person or the Fedi team gets. A capability for the team sits under New features and improvements with a headline that names who gains it.
+- Every fix card names an everyday action and the situation that got better, with no part of the screen, no trigger sequence and no account of what the bug did. That detail sits in the GitHub bullet on Full report.
 - No text anywhere reports a missing translation.
 - Every card body was written from a diff or a PR body rather than a title, and every sentence about machinery, above all about when a change takes effect, has a line of code behind it.
 - Every feature card was checked against what gates it: the production flag values as served, the compiled-in defaults, federation config, and the platform derived from touched paths rather than from a parity note.
