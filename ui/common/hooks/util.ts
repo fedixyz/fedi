@@ -28,7 +28,9 @@ export const useDebouncedEffect = (
 
 export const useDebounce = <T>(value: T, delay = 1000): T => {
     const [debouncedValue, setDebouncedValue] = useState<T>(value)
-    const timerRef = useRef<NodeJS.Timeout | undefined>(undefined)
+    const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+        undefined,
+    )
 
     useEffect(() => {
         timerRef.current = setTimeout(() => setDebouncedValue(value), delay)
@@ -42,7 +44,9 @@ export const useDebounce = <T>(value: T, delay = 1000): T => {
 }
 
 export const useDebouncePress = (onPress: () => void, delay = 200) => {
-    const timerRef = useRef<NodeJS.Timeout | undefined>(undefined)
+    const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+        undefined,
+    )
     return () => {
         if (!timerRef.current) {
             onPress()

@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, waitFor } from '@testing-library/react-native'
 import React from 'react'
-import { Image, Keyboard, Pressable, StyleSheet } from 'react-native'
+import { Image, Keyboard, StyleSheet } from 'react-native'
 
 import { MAX_CHAT_MEDIA_HEIGHT } from '@fedi/common/constants/matrix'
 import { selectSelectedChatMessage, setupStore } from '@fedi/common/redux'
@@ -73,7 +73,9 @@ describe('ChatImageEvent', () => {
             { store },
         )
 
-        fireEvent(UNSAFE_getByType(Pressable), 'onLongPress')
+        // The long press handler lives on the Pressable wrapping the image,
+        // so firing on the image bubbles up to it
+        fireEvent(UNSAFE_getByType(Image), 'longPress')
 
         expect(dismissKeyboard).toHaveBeenCalled()
         await waitFor(() => {

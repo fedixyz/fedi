@@ -5,7 +5,7 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 import React from 'react'
-import { Keyboard, Pressable } from 'react-native'
+import { Keyboard } from 'react-native'
 
 import {
     selectSelectedChatMessage,
@@ -171,12 +171,11 @@ describe('ChatFederationInviteEvent', () => {
         })
         const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss')
 
-        const { UNSAFE_getByType } = renderWithProviders(
-            <ChatFederationInviteEvent event={event} />,
-            { store },
-        )
+        renderWithProviders(<ChatFederationInviteEvent event={event} />, {
+            store,
+        })
 
-        fireEvent(UNSAFE_getByType(Pressable), 'onLongPress')
+        fireEvent(screen.getByText(FEDERATION_NAME), 'longPress')
 
         expect(dismissKeyboard).toHaveBeenCalled()
         await waitFor(() => {

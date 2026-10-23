@@ -5,7 +5,7 @@ import {
     waitFor,
 } from '@testing-library/react-native'
 import React from 'react'
-import { Keyboard, Pressable } from 'react-native'
+import { Keyboard } from 'react-native'
 
 import {
     handleMatrixRoomTimelineStreamUpdates,
@@ -133,7 +133,7 @@ describe('ChatPollEvent', () => {
         seedRoomState(store, event, ROOM_ADMIN_ID, MatrixPowerLevel.Admin)
         const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss')
 
-        const { UNSAFE_getByType } = renderWithProviders(
+        renderWithProviders(
             <>
                 <ChatPollEvent event={event} />
                 <SelectedMessageOverlay />
@@ -143,7 +143,7 @@ describe('ChatPollEvent', () => {
             },
         )
 
-        fireEvent(UNSAFE_getByType(Pressable), 'onLongPress')
+        fireEvent(screen.getByText(event.content.body), 'longPress')
 
         expect(dismissKeyboard).toHaveBeenCalled()
         await waitFor(() => {
@@ -159,7 +159,7 @@ describe('ChatPollEvent', () => {
         const event = makePollEvent()
         seedRoomState(store, event, ROOM_MEMBER_ID, MatrixPowerLevel.Member)
 
-        const { UNSAFE_getByType } = renderWithProviders(
+        renderWithProviders(
             <>
                 <ChatPollEvent event={event} />
                 <SelectedMessageOverlay />
@@ -169,7 +169,7 @@ describe('ChatPollEvent', () => {
             },
         )
 
-        fireEvent(UNSAFE_getByType(Pressable), 'onLongPress')
+        fireEvent(screen.getByText(event.content.body), 'longPress')
 
         expect(selectSelectedChatMessage(store.getState())).toBe(null)
         expect(

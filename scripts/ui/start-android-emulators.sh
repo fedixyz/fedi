@@ -35,28 +35,28 @@ declare -A SCREEN_WIDTH
 declare -A SCREEN_HEIGHT
 declare -A SCREEN_DENSITY
 # Two device sets, one picked per run:
-#   single-actor: android-7.1 + android-14 cross-OS pair (CI) or android-14 alone (local)
-#   multi-actor:  android-14-a + android-14-b clones, matching OS so one test drives both
+#   single-actor: android-7.1 + android-16 cross-OS pair (CI) or android-16 alone (local)
+#   multi-actor:  android-16-a + android-16-b clones, matching OS so one test drives both
 AVD_CONFIGS["android-7.1"]="system-images;android-25;google_apis;${ABI}"
-AVD_CONFIGS["android-14"]="system-images;android-34;google_apis;${ABI}"
-AVD_CONFIGS["android-14-a"]="system-images;android-34;google_apis;${ABI}"
-AVD_CONFIGS["android-14-b"]="system-images;android-34;google_apis;${ABI}"
+AVD_CONFIGS["android-16"]="system-images;android-36;google_apis;${ABI}"
+AVD_CONFIGS["android-16-a"]="system-images;android-36;google_apis;${ABI}"
+AVD_CONFIGS["android-16-b"]="system-images;android-36;google_apis;${ABI}"
 SCREEN_WIDTH["android-7.1"]=720
 SCREEN_HEIGHT["android-7.1"]=1280
 SCREEN_DENSITY["android-7.1"]=320
-SCREEN_WIDTH["android-14"]=1440
-SCREEN_HEIGHT["android-14"]=3120
-SCREEN_DENSITY["android-14"]=505
-SCREEN_WIDTH["android-14-a"]=1440
-SCREEN_HEIGHT["android-14-a"]=3120
-SCREEN_DENSITY["android-14-a"]=505
-SCREEN_WIDTH["android-14-b"]=1440
-SCREEN_HEIGHT["android-14-b"]=3120
-SCREEN_DENSITY["android-14-b"]=505
+SCREEN_WIDTH["android-16"]=1440
+SCREEN_HEIGHT["android-16"]=3120
+SCREEN_DENSITY["android-16"]=505
+SCREEN_WIDTH["android-16-a"]=1440
+SCREEN_HEIGHT["android-16-a"]=3120
+SCREEN_DENSITY["android-16-a"]=505
+SCREEN_WIDTH["android-16-b"]=1440
+SCREEN_HEIGHT["android-16-b"]=3120
+SCREEN_DENSITY["android-16-b"]=505
 
 # Pick which set to boot from the actor count the selected tests require.
 # count >= 2: same-OS clones so one test can drive both as actors a/b.
-# count == 1: master's cross-OS pair in CI for OS coverage; just android-14 locally.
+# count == 1: master's cross-OS pair in CI for OS coverage; just android-16 locally.
 DEVICE_COUNT="${E2E_DEVICE_COUNT:-1}"
 if ! [[ "$DEVICE_COUNT" =~ ^[0-9]+$ ]] || (( DEVICE_COUNT < 1 )); then
   echo "ERROR: E2E_DEVICE_COUNT='$DEVICE_COUNT' is not a positive integer"
@@ -69,13 +69,13 @@ if (( DEVICE_COUNT > MAX_CLONES )); then
 fi
 if (( DEVICE_COUNT >= 2 )); then
   ANDROID_DEVICES=("emulator-5554" "emulator-5556")
-  AVD_NAMES=("android-14-a" "android-14-b")
+  AVD_NAMES=("android-16-a" "android-16-b")
 elif [[ -n "${CI:-}" ]]; then
   ANDROID_DEVICES=("emulator-5554" "emulator-5556")
-  AVD_NAMES=("android-7.1" "android-14")
+  AVD_NAMES=("android-7.1" "android-16")
 else
   ANDROID_DEVICES=("emulator-5554")
-  AVD_NAMES=("android-14")
+  AVD_NAMES=("android-16")
 fi
 echo "Starting Android emulator(s) for count=$DEVICE_COUNT: ${AVD_NAMES[*]}"
 
@@ -138,7 +138,8 @@ start_and_wait_for_device() {
     sleep 10
     
     echo "Waiting for $device to connect..."
-    timeout 120 adb -s $device wait-for-device || {
+    # API 36 cold boots can take over four minutes alongside CI builds.
+    timeout 300 adb -s $device wait-for-device || {
         echo "WARNING: Timed out waiting for $device to connect"
         return 1
     }

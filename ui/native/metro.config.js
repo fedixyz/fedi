@@ -6,13 +6,13 @@
  * @type {import('@react-native/metro-config').MetroConfig}
  */
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config')
-const defaultSourceExts =
-    require('metro-config/src/defaults/defaults').sourceExts
-const defaultAssetExts = require('metro-config/src/defaults/defaults').assetExts
-const exclusionList = require('metro-config/src/defaults/exclusionList')
 const path = require('path')
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), {
+const defaultConfig = getDefaultConfig(__dirname)
+const defaultSourceExts = defaultConfig.resolver.sourceExts
+const defaultAssetExts = defaultConfig.resolver.assetExts
+
+module.exports = mergeConfig(defaultConfig, {
     transformer: {
         babelTransformerPath: require.resolve('./custom-metro-transformer.js'),
         getTransformOptions: async () => ({
@@ -34,7 +34,7 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), {
             '@fedi/injections': path.resolve(__dirname, '../injections'),
         },
         // Ignore @fedi/common/dist/*
-        blockList: exclusionList([/.*\/common\/dist\/.*/]),
+        blockList: /.*\/common\/dist\/.*/,
     },
     watchFolders: [path.resolve(__dirname, '../')],
 })

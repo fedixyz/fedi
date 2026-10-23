@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, waitFor } from '@testing-library/react-native'
 import React from 'react'
-import { Keyboard, Pressable } from 'react-native'
+import { Keyboard } from 'react-native'
 
 import { selectSelectedChatMessage, setupStore } from '@fedi/common/redux'
 import { mockMatrixEventFile } from '@fedi/common/tests/mock-data/matrix-event'
@@ -25,12 +25,12 @@ describe('ChatFileEvent', () => {
         const store = setupStore()
         const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss')
 
-        const { UNSAFE_getAllByType } = renderWithProviders(
+        const { getByText } = renderWithProviders(
             <ChatFileEvent event={mockMatrixEventFile} />,
             { store },
         )
 
-        fireEvent(UNSAFE_getAllByType(Pressable)[0], 'onLongPress')
+        fireEvent(getByText(mockMatrixEventFile.content.body), 'longPress')
 
         expect(dismissKeyboard).toHaveBeenCalled()
         await waitFor(() => {

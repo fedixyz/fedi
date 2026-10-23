@@ -344,10 +344,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await this.clickElementByKey('HomeTabButton')
         // END of the process of re-joining to a Public Federation without TOS
 
-        // Wallet switching: both federations are joined at this point, with
-        // E-Cash Club active from the re-join. The switcher rows are selected
-        // by visible name because their testIDs are keyed by federation id,
-        // which is a runtime hash.
+        // switcher test IDs use runtime federation IDs, so select by name.
         await this.clickElementByKey('WalletTabButton')
         await this.openWalletSwitcher()
         await this.clickOnText('Fedi Testnet', 0, true)
@@ -368,8 +365,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         }
         // END of the process of switching the active wallet between federations
 
-        // Switch away from E-Cash Club first, so landing on its wallet proves
-        // that take me there selected it rather than leaving it selected.
+        // select another wallet first to prove the invite changes selection.
         await this.openWalletSwitcher()
         await this.clickOnText('Fedi Testnet', 0, true)
         await this.waitForElementDisplayed('FediTestnetDetailsButton', 30000)
