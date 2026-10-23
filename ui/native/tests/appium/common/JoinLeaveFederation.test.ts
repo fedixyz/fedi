@@ -1,7 +1,4 @@
 /* eslint-disable no-console */
-import fs from 'fs'
-import path from 'path'
-
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 import { setupOnboarded } from '../fixtures/setupOnboarded'
 import {
@@ -15,36 +12,12 @@ import {
     setDevfedMeta,
     waitForDevfedBackupCountAbove,
 } from './devfed'
+import { getNightlyFederationInvite } from './nightlyFederations'
 
 // The pasted-invite and Discover rejoin scenarios must use the same federation.
 const INVITE_PREVIEW_FEDERATION_NAME = 'E-Cash Club'
 const DEVFED_NAME = 'Devimint Federation'
 const NEW_MEMBERS_DISABLED_NOTICE = 'You cannot join this federation.'
-
-type PublicFederationMeta = {
-    federation_name?: string
-    invite_code?: string
-}
-
-function getNightlyFederationInvite(federationName: string): string {
-    const metaPath = path.resolve(
-        __dirname,
-        '../../../../web/public/meta-federations-nightly.json',
-    )
-    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as Record<
-        string,
-        PublicFederationMeta
-    >
-    const federation = Object.values(meta).find(
-        f => f.federation_name === federationName,
-    )
-    if (!federation?.invite_code) {
-        throw new Error(
-            `No invite code found for nightly federation "${federationName}"`,
-        )
-    }
-    return federation.invite_code
-}
 
 export class JoinLeaveFederation extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
