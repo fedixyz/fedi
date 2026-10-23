@@ -144,7 +144,7 @@ jobs:
         name: 'iOS e2e tests (${{ matrix.federation_kind }})'
         if: ${{ contains(fromJSON('["all", "ios"]'), inputs.platforms || 'all') }}
         runs-on: [self-hosted, macos, arm64, macstadium, gui]
-        timeout-minutes: 120
+        timeout-minutes: 150
         strategy:
             fail-fast: false
             matrix:
