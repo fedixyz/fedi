@@ -51,7 +51,7 @@ The end-to-end workflow runs scheduled and manual e2e coverage across native and
 
 ## Generate an APK
 
-The manual APK workflows configure dependencies, build the bridge, assemble an APK, verify that the APK embeds the expected bridge commit hash, and publish the artifact to GitHub.
+The manual APK workflows configure dependencies, build the bridge, assemble an APK, verify that the APK embeds the expected bridge commit hash, check 16 KB page-size alignment for packaged 64-bit native libraries with `scripts/ci/check-apk-16kb-alignment.sh`, and publish the artifact to GitHub.
 
 - [Upload APK to GitHub](https://github.com/fedibtc/fedi/actions/workflows/upload-android-apk.yml) creates a draft GitHub release with a production APK.
 - [Deploy Public APK](https://github.com/fedibtc/fedi/actions/workflows/deploy-public-apk-to-github.yml) builds the public APK path used by the Vercel public APK deployment script.
@@ -66,7 +66,7 @@ These workflows have the same core Android build path as the production release 
 
 ## Play Store
 
-This workflow also has all the same build steps as the APK workflow but assembles an AAB instead of an APK so it can be automatically uploaded to the Play Store via [fastlane](https://docs.fastlane.tools/getting-started/android/beta-deployment/). See the [Authentication](#authentication) section below to make sure the credentials are configured properly.
+This workflow also has all the same build steps as the APK workflow but assembles an AAB instead of an APK so it can be automatically uploaded to the Play Store via [fastlane](https://docs.fastlane.tools/getting-started/android/beta-deployment/). The Fastlane upload lanes check 16 KB page-size alignment on the exact AAB before uploading it. See the [Authentication](#authentication) section below to make sure the credentials are configured properly.
 
 - [Deploy to Google Play - Internal Testing](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-gp-internal-testing.yml)
 - [Deploy to Google Play - Internal Testing (Fedi Nightly)](https://github.com/fedibtc/fedi/actions/workflows/deploy-to-gp-internal-testing-nightly.yml)

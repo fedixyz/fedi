@@ -23,6 +23,8 @@ The following meta fields are interpretable by the Fedi app to provide additiona
 * [`fedi:max_balance_msats`](max_balance_msats.md): Number value in millisats that prevents users from having a balance higher than the specified amount
 * [`fedi:max_stable_balance_msats`](max_stable_balance_msats.md): Number value in millisats that prevents users from having a stable balance higher than the specified amount
 * [`fedi:fedimods`](fedimods.md): Stringified JSON array of objects representing the default FediMods shown to users upon joining the federation
+* [`fedi:autojoin_communities`](autojoin_communities.md): Stringified JSON array of space invite codes that members join automatically
 * [`fedi:default_group_chats`](default_group_chats.md): Stringified JSON array of strings representing the IDs of any chat groups that all users will join automatically upon creating their username
+* [`fedi:multispend_disabled`](multispend_disabled.md): Boolean value that disables bitcoin multispend features
 * [`fedi:welcome_message`](welcome_message.md): A message presented to users upon joining the federation
-* [`fedi:pinned_message`](pinned_message.md): A message presented to users on the main Communtity home screen
+* [`fedi:pinned_message`](pinned_message.md): A message presented to users on the main Community home screen
