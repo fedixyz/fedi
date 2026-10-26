@@ -1678,6 +1678,7 @@ export type RpcMethods = {
   generateInvoice: [generateInvoice, string];
   parseInvoice: [parseInvoice, RpcInvoice];
   estimateLnFees: [estimateLnFees, RpcFeeDetails];
+  calculateMaxPayInvoice: [calculateMaxPayInvoice, RpcAmount];
   payInvoice: [payInvoice, RpcPayInvoiceResponse];
   getPrevPayInvoiceResult: [getPrevPayInvoiceResult, RpcPrevPayInvoiceResult];
   listGateways: [listGateways, Array<RpcLightningGateway>];
@@ -2040,6 +2041,12 @@ export type RpcParseInviteCodeResult = { federationId: RpcFederationId };
 export type RpcPayAddressLimits = {
   minSpendable: RpcAmount;
   maxSpendable: RpcAmount;
+  balance: RpcAmount;
+  minimumFees: RpcFeeDetails;
+  /**
+   * False when the balance cannot fund a dry-run; fees are then a lower bound.
+   */
+  minimumFeesExact: boolean;
 };
 
 export type RpcPayAddressResponse = { txid: string };
@@ -2877,6 +2884,8 @@ export type backupNow = { federationId: RpcFederationId };
 export type bridgeStatus = {};
 
 export type calculateMaxGenerateEcash = { federationId: RpcFederationId };
+
+export type calculateMaxPayInvoice = { federationId: RpcFederationId };
 
 export type cancelEcash = { federationId: RpcFederationId; ecash: string };
 

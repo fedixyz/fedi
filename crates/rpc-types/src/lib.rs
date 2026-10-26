@@ -362,6 +362,11 @@ pub struct RpcFeeDetails {
 pub struct RpcPayAddressLimits {
     pub min_spendable: RpcAmount,
     pub max_spendable: RpcAmount,
+    pub balance: RpcAmount,
+    pub minimum_fees: RpcFeeDetails,
+    /// False when the balance cannot fund a dry-run; fees are then a lower
+    /// bound.
+    pub minimum_fees_exact: bool,
 }
 
 #[derive(Debug, Serialize, TS)]

@@ -1573,6 +1573,10 @@ impl FederationV2 {
             .await
     }
 
+    async fn payment_gateways(&self) -> anyhow::Result<Vec<LightningGateway>> {
+        self.gateway_service()?.payment_gateways(&self.client).await
+    }
+
     pub(crate) async fn select_gateway_with_override(
         &self,
         gateway_override: Option<PublicKey>,
@@ -1826,13 +1830,19 @@ impl FederationV2 {
             .get_fee_ppms_by_stream(module, direction)
             .await?
             .into_iter()
-            .map(|(stream, fee_ppm)| {
-                (
-                    stream,
-                    Amount::from_msats((amount.msats * fee_ppm).div_ceil(MILLION)),
-                )
-            })
+            .map(|(stream, fee_ppm)| (stream, Self::fedi_fee_amount(amount, fee_ppm)))
             .collect())
+    }
+
+    fn fedi_fee_amount(amount: Amount, fee_ppm: u64) -> Amount {
+        Amount::from_msats((amount.msats * fee_ppm).div_ceil(MILLION))
+    }
+
+    fn total_fedi_fee(amount: Amount, fee_ppms: &[(FediFeeStream, u64)]) -> Amount {
+        fee_ppms
+            .iter()
+            .map(|(_, fee_ppm)| Self::fedi_fee_amount(amount, *fee_ppm))
+            .sum()
     }
 
     fn total_fedi_fee_amount(fees_by_stream: &[(FediFeeStream, Amount)]) -> Amount {
@@ -1897,6 +1907,13 @@ impl FederationV2 {
     /// Estimates fees for paying a lightning invoice in this federation
     pub async fn estimate_ln_fees(&self, invoice: &Bolt11Invoice) -> Result<RpcFeeDetails> {
         self.ln_ops.estimate_ln_fees(self, invoice).await
+    }
+
+    pub async fn calculate_max_pay_invoice(&self) -> Result<Amount> {
+        if self.get_balance().await < Amount::from_sats(1) {
+            return Ok(Amount::ZERO);
+        }
+        self.ln_ops.max_pay_invoice_amount(self).await
     }
 
     /// Pay lightning invoice

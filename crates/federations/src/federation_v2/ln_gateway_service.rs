@@ -91,28 +91,11 @@ impl LnGatewayService {
         if !vetted.is_empty() { vetted } else { unvetted }
     }
 
-    async fn selectable_gateways(
-        client: &Client,
+    fn eligible_gateways(
         gateways: Vec<LightningGatewayAnnouncement>,
         excluded_gateway_id: Option<PublicKey>,
         fee_policy: GatewayFeePolicy,
     ) -> Vec<LightningGatewayAnnouncement> {
-        Self::filter_selectable_gateways(
-            gateways,
-            &Self::vetted_gateway_ids(client).await,
-            excluded_gateway_id,
-            fee_policy,
-        )
-    }
-
-    fn filter_selectable_gateways(
-        gateways: Vec<LightningGatewayAnnouncement>,
-        vetted_gws: &HashSet<PublicKey>,
-        excluded_gateway_id: Option<PublicKey>,
-        fee_policy: GatewayFeePolicy,
-    ) -> Vec<LightningGatewayAnnouncement> {
-        // Apply eligibility before preference so an unavailable vetted gateway
-        // cannot hide a usable unvetted alternative.
         let gws = gateways
             .into_iter()
             .filter(|g| ABOUT_TO_EXPIRE_DURATION < g.ttl)
@@ -129,7 +112,7 @@ impl LnGatewayService {
         #[cfg(feature = "test-support")]
         let gws = gws.filter(|g| g.info.api.scheme() != "iroh");
 
-        Self::prefer_vetted_gateways(gws.collect(), vetted_gws)
+        gws.collect()
     }
 
     pub async fn select_gateway(
@@ -154,6 +137,18 @@ impl LnGatewayService {
         let gateway_override = self.get_gateway_override(client).await;
         self.select_gateway_excluding(client, None, gateway_override, GatewayFeePolicy::Send)
             .await
+    }
+
+    /// Every gateway a payment may select, without advancing the round robin.
+    /// The retry after an unavailable gateway drops the vetted preference, so
+    /// unvetted gateways bound the fee too.
+    pub async fn payment_gateways(&self, client: &Client) -> anyhow::Result<Vec<LightningGateway>> {
+        let gateway_override = self.get_gateway_override(client).await;
+        let gws = Self::candidate_gateways(client, None, GatewayFeePolicy::Send).await?;
+        if let Some(override_id) = gateway_override {
+            return Ok(vec![Self::override_gateway(&gws, override_id)?]);
+        }
+        Ok(gws.into_iter().map(|g| g.info).collect())
     }
 
     pub async fn select_gateway_with_override(
@@ -196,30 +191,42 @@ impl LnGatewayService {
         gateway_override: Option<PublicKey>,
         fee_policy: GatewayFeePolicy,
     ) -> anyhow::Result<Option<LightningGateway>> {
+        let gws = Self::candidate_gateways(client, excluded_gateway_id, fee_policy).await?;
+        // Apply eligibility before preference so an unavailable vetted gateway
+        // cannot hide a usable unvetted alternative.
+        let gws = Self::prefer_vetted_gateways(gws, &Self::vetted_gateway_ids(client).await);
+        self.choose_gateway(gws, gateway_override).await
+    }
+
+    async fn candidate_gateways(
+        client: &Client,
+        excluded_gateway_id: Option<secp256k1::PublicKey>,
+        fee_policy: GatewayFeePolicy,
+    ) -> anyhow::Result<Vec<LightningGatewayAnnouncement>> {
         let ln = client.ln()?;
-        let mut gws = Self::selectable_gateways(
-            client,
-            ln.list_gateways().await,
-            excluded_gateway_id,
-            fee_policy,
-        )
-        .await;
+        let mut gws =
+            Self::eligible_gateways(ln.list_gateways().await, excluded_gateway_id, fee_policy);
 
         // this should be rare, the background service should keep the gateways updated.
         if gws.is_empty() {
             if let Err(error) = ln.update_gateway_cache().await {
                 warn!(?error, "updating gateway cache failed");
             }
-            gws = Self::selectable_gateways(
-                client,
-                ln.list_gateways().await,
-                excluded_gateway_id,
-                fee_policy,
-            )
-            .await;
+            gws =
+                Self::eligible_gateways(ln.list_gateways().await, excluded_gateway_id, fee_policy);
         }
 
-        self.choose_gateway(gws, gateway_override).await
+        Ok(gws)
+    }
+
+    fn override_gateway(
+        gws: &[LightningGatewayAnnouncement],
+        override_id: PublicKey,
+    ) -> anyhow::Result<LightningGateway> {
+        gws.iter()
+            .find(|g| g.info.gateway_id == override_id)
+            .map(|g| g.info.clone())
+            .context("gateway override is set but gateway is unavailable")
     }
 
     async fn choose_gateway(
@@ -229,11 +236,7 @@ impl LnGatewayService {
     ) -> anyhow::Result<Option<LightningGateway>> {
         // If override is set, it must be available or we error out
         if let Some(override_id) = gateway_override {
-            let gw = gws
-                .iter()
-                .find(|g| g.info.gateway_id == override_id)
-                .context("gateway override is set but gateway is unavailable")?;
-            return Ok(Some(gw.info.clone()));
+            return Ok(Some(Self::override_gateway(&gws, override_id)?));
         }
 
         if gws.is_empty() {
