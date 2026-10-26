@@ -5,8 +5,8 @@ use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::util::update_merge::UpdateMerge;
 use fedimint_core::util::{backoff_util, retry};
 use futures::Stream;
-use stability_pool_common::AccountId;
 use stability_pool_common::config::StabilityPoolClientConfig;
+use stability_pool_common::{AccountId, LegacyTime};
 use tokio::sync::{Notify, watch};
 use tokio_stream::wrappers::WatchStream;
 
@@ -59,7 +59,7 @@ impl StabilityPoolSyncService {
                     .sync_response
                     .borrow()
                     .as_ref()
-                    .map(|x| x.value.current_cycle.start_time);
+                    .map(|x| x.value.current_cycle.start_time.0);
                 if let Some(last_sync_time) = last_sync_time {
                     let mut sleep_time = client_config
                         .next_cycle_start_time(last_sync_time)
@@ -104,7 +104,7 @@ impl StabilityPoolSyncService {
             .merge(async {
                 let sync_response = self.module_api.account_sync(self.account_id).await?;
                 let cached_sync_response = CachedSyncResponseValue {
-                    fetch_time: fedimint_core::time::now(),
+                    fetch_time: LegacyTime(fedimint_core::time::now()),
                     value: sync_response,
                 };
 

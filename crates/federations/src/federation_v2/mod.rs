@@ -3767,6 +3767,7 @@ impl FederationV2 {
             .value
             .current_cycle
             .start_time
+            .0
             .checked_add(config.cycle_duration)
             .ok_or(anyhow!(ErrorCode::BadRequest))?;
         to_unix_time(next_time)
