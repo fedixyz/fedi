@@ -74,12 +74,12 @@ Confirm the delta against the previous tag is the intended change and nothing el
 ```bash
 git push -u origin web-release/26.6.2
 sha=$(git rev-parse HEAD)
-gh release create web/26.6.2 --repo fedibtc/fedi --draft --latest=false \
+gh release create web/26.6.2 --repo fedibtc/fedi --draft \
   --target "$sha" --title "Fedi Web 26.6.2" --notes "Built from commit: $sha"
 git ls-remote origin refs/tags/web/26.6.2   # expect nothing until publish
 ```
 
-`--latest=false` keeps the native release as the repository's latest. The draft is invisible outside the repo and ships nothing.
+The draft is invisible outside the repo and ships nothing. A `--latest=false` here does nothing: GitHub picks the latest release when the draft is published, in step 6.
 
 **5. Link the release report from the draft.** The body is the `Built from commit:` line and a link to the release report on the release notes site, filtered to web, as the `report-next-release` skill's `references/release-notes-copy.md` sets out. Write it to the draft:
 
@@ -90,7 +90,8 @@ gh release edit web/26.6.2 --repo fedibtc/fedi --notes-file <file>
 **6. Publish the draft and deploy its tag.** Live production, so confirm the go first. Publishing creates the tag at the draft's target commit. When the web release goes with a native release, do both when the native one goes out.
 
 ```bash
-gh release edit web/26.6.2 --repo fedibtc/fedi --draft=false
+gh release edit web/26.6.2 --repo fedibtc/fedi --draft=false --latest=false
+gh api repos/fedibtc/fedi/releases/latest --jq .tag_name   # the native release, never web/*
 git ls-remote origin refs/tags/web/26.6.2        # the tag now exists
 gh workflow run vercel-prod.yml --repo fedibtc/fedi --ref web/26.6.2
 gh run list --repo fedibtc/fedi --workflow vercel-prod.yml --limit 1 \
@@ -98,6 +99,8 @@ gh run list --repo fedibtc/fedi --workflow vercel-prod.yml --limit 1 \
 gh run watch <run-id> --repo fedibtc/fedi --exit-status
 git push origin --delete web-release/26.6.2   # the tag holds the commit now
 ```
+
+`--latest=false` belongs on the publish command. GitHub marks a newly published release as the repository's latest unless that call says otherwise. The flag given at create time is not kept. The native release has to stay latest, because the releases page and `releases/latest` present it as the current app. If a web release took the flag, `--latest=false` on it does not move it back. Set it on the native release: `gh release edit 26.6.3 --repo fedibtc/fedi --latest`.
 
 A run that fails within seconds with zero steps means the ref was not an allowed tag.
 
