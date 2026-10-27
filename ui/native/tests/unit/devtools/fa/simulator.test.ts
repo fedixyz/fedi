@@ -974,6 +974,30 @@ describe('FaSimulator', () => {
             expect(after.meta['fedi:guardian_fee_send_ppm']).toBe('5000')
         })
 
+        it('should publish a saved app setting in the preview', async () => {
+            const { simulator } = attached()
+            const inviteCode = await formedInvite(simulator)
+
+            const result = (await simulator.handle(
+                'faClientUpdateFederationMetadata',
+                {
+                    update: {
+                        type: 'appSetting',
+                        setting: 'autojoinCommunities',
+                        value: '["fedi:community1signal"]',
+                    },
+                },
+            )) as RpcFaOperationResult
+
+            expect(result).toEqual({ type: 'success' })
+            const after = (await simulator.handle('federationPreview', {
+                inviteCode,
+            })) as RpcFederationPreview
+            expect(after.meta['fedi:autojoin_communities']).toBe(
+                '["fedi:community1signal"]',
+            )
+        })
+
         it('should attach the Lightning provider once formed, with no extra seeding', async () => {
             const { simulator } = attached()
             await formedInvite(simulator)

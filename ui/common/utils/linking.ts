@@ -1,3 +1,5 @@
+import { bech32m } from 'bech32'
+
 import {
     DEEPLINK_HOSTS,
     FEDI_PREFIX,
@@ -133,6 +135,37 @@ export const normalizeCommunityInviteCode = (code: string): string => {
 export const stripFediPrefix = (code: string): string => {
     if (code.toLowerCase().startsWith('fedi:')) return code.slice(5)
     return code
+}
+
+const COMMUNITY_CODE_PATTERN =
+    /(?:fedi:)?community2?1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,}/gi
+const BECH32_MAX_LENGTH = 2000
+
+const findCommunityInviteCode = (text: string): string | null => {
+    for (const match of text.match(COMMUNITY_CODE_PATTERN) ?? []) {
+        const code = normalizeCommunityInviteCode(match.toLowerCase())
+        if (bech32m.decodeUnsafe(code, BECH32_MAX_LENGTH)) return code
+    }
+    return null
+}
+
+/**
+ * Find a valid community invite code inside pasted text: a bare code, a
+ * share link, a join-then-join link or a sentence. Returns null when no
+ * code passes the bech32m checksum.
+ */
+export const extractCommunityInviteCode = (raw: string): string | null => {
+    let text = raw
+    try {
+        text = decodeURIComponent(raw)
+    } catch {
+        // A stray `%` is not URL encoding; search the raw text.
+    }
+    // Fallback for a code that a chat app wrapped onto two lines.
+    return (
+        findCommunityInviteCode(text) ??
+        findCommunityInviteCode(text.replace(/\s+/g, ''))
+    )
 }
 
 export interface DeepLinkParam {

@@ -425,19 +425,19 @@ run_pipeline_android() {
     local summary_rows=""
 
     # Two boot modes from start-android-emulators.sh:
-    #   count == 1: android-14 is emulator-5556 in CI, emulator-5554 locally.
-    #   count >= 2: android-14-a + android-14-b clones for multi-actor.
+    #   count == 1: android-16 is emulator-5556 in CI, emulator-5554 locally.
+    #   count >= 2: android-16-a + android-16-b clones for multi-actor.
     local avd_a=""
     local device_a="emulator-5554"
     local avd_b=""
     local device_b=""
     if (( actor_count >= 2 )); then
-        avd_a="android-14-a"
-        avd_b="android-14-b"
+        avd_a="android-16-a"
+        avd_b="android-16-b"
         device_b="emulator-5556"
         echo "🧪 Running $tests on $avd_a (a) + $avd_b (b)..."
     else
-        avd_a="android-14"
+        avd_a="android-16"
         if [[ -n "${CI:-}" ]]; then
             device_a="emulator-5556"
         fi

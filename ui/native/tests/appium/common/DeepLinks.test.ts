@@ -10,21 +10,21 @@ import AppiumManager from '../../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 import { Platform, currentPlatform } from '../../configs/appium/types'
 import { openFediTestnetPreview } from '../fixtures/setupOnboarded'
+import { getNightlyFederationInvite } from './nightlyFederations'
 
 const en = resources.en.translation
 const CREATION_TITLE = en.feature['wallet-service']['guardian-set-title']
+const INVALID_INVITE = en.errors['invalid-invite-code']
 const APP_START_TIMEOUT = 60_000
 const PIN = ['1', '2', '3', '4'] as const
 const SPACE_NAME = 'E2E Invite Link Space'
 const SPACE_WATCH_MS = 30_000
 const SPACE_FETCH_DELAY_MS = 2_000
-const SPACE_RESPONSE_GAP_MS = 2_000
 
 export class DeepLinks extends AppiumTestBase {
     static produces = ['onboarded', 'pinProtected'] as const
 
     private spaceFetches = 0
-    private lastSpaceResponseAt = 0
 
     async execute(): Promise<void> {
         console.log('Opening a Manifold creation link before onboarding')
@@ -73,6 +73,29 @@ export class DeepLinks extends AppiumTestBase {
         await this.clickElementByKey('HomeTabButton')
         await this.openSpaceInviteLinks()
 
+        console.log('Opening a space invite link that does not decode')
+        await this.openDeepLink('fedi://join/community1broken')
+        await this.waitForText(INVALID_INVITE, 0, true, APP_START_TIMEOUT)
+        await this.clickElementByKey('HeaderBackButton')
+
+        console.log('Opening the invite link of a joined federation')
+        await this.terminateApp()
+        await this.openDeepLink(
+            `fedi://join/${getNightlyFederationInvite('Fedi Testnet')}`,
+        )
+        await this.waitForElementDisplayed(
+            'FediTestnetDetailsButton',
+            APP_START_TIMEOUT,
+        )
+        if (await this.elementIsDisplayed('JoinFederationButton', 2000)) {
+            throw new Error(
+                'The invite link of a joined federation opened its preview',
+            )
+        }
+        // the fifth launch after onboarding asks for analytics consent on home
+        await this.clickElementByKey('HomeTabButton')
+        await this.clickOnText(en.phrases['not-now'], 0, true)
+
         await this.enablePin()
         console.log('Opening a Manifold creation link while PIN protected')
         await this.terminateApp()
@@ -102,19 +125,13 @@ export class DeepLinks extends AppiumTestBase {
                 return
             }
             this.spaceFetches++
-            // wallet updates mid-fetch start a second fetch. its answer has to land
-            // after the first preview is showing for a reload to be visible
-            const respondAt = Math.max(
-                Date.now() + SPACE_FETCH_DELAY_MS,
-                this.lastSpaceResponseAt + SPACE_RESPONSE_GAP_MS,
-            )
-            this.lastSpaceResponseAt = respondAt
+            // a slow answer keeps the fetch open while wallet updates land
             setTimeout(() => {
                 response.writeHead(200, {
                     'Content-Type': 'application/json',
                 })
                 response.end(JSON.stringify({ version: 1, name: SPACE_NAME }))
-            }, respondAt - Date.now())
+            }, SPACE_FETCH_DELAY_MS)
         })
         await new Promise<void>((resolve, reject) => {
             server.once('error', reject)
@@ -153,13 +170,11 @@ export class DeepLinks extends AppiumTestBase {
             await this.driver.executeScript('mobile: backgroundApp', [
                 { seconds: -1 },
             ])
-            await this.openDeepLink(link)
-            await this.watchSpacePreview('background')
+            await this.watchSpacePreview(link, 'background')
 
             console.log('Opening a space invite link from a cold start')
             await this.terminateApp()
-            await this.openDeepLink(link)
-            await this.watchSpacePreview('cold start')
+            await this.watchSpacePreview(link, 'cold start')
         } finally {
             if (forwardedDevice) {
                 execFileSync('adb', [
@@ -175,15 +190,16 @@ export class DeepLinks extends AppiumTestBase {
         }
     }
 
-    private async watchSpacePreview(label: string): Promise<void> {
-        const fetchesBefore = this.spaceFetches
+    private async watchSpacePreview(
+        link: string,
+        label: string,
+    ): Promise<void> {
+        this.spaceFetches = 0
+        await this.openDeepLink(link)
         await this.waitForElementDisplayed(
             'JoinFederationButton',
             APP_START_TIMEOUT,
         )
-        // the screen only fetches again after clearing its preview, and
-        // Appium can miss the button leaving on iOS
-        const fetchesWhenShown = this.spaceFetches
         let reloads = 0
         let shown = true
         const deadline = Date.now() + SPACE_WATCH_MS
@@ -196,15 +212,13 @@ export class DeepLinks extends AppiumTestBase {
             shown = visible
             await new Promise(resolve => setTimeout(resolve, 250))
         }
-        const fetches = this.spaceFetches - fetchesBefore
-        const refetches = this.spaceFetches - fetchesWhenShown
         console.log(
-            `${label}: space preview left the screen ${reloads} times, fetched ${fetches} times, ${refetches} after it showed`,
+            `${label}: space preview left the screen ${reloads} times, fetched ${this.spaceFetches} times`,
         )
-        if (reloads > 0 || refetches > 0) {
-            await this.saveScreenshot(`space-preview-reload-${label}`)
+        if (reloads > 0 || this.spaceFetches !== 1) {
+            await this.saveScreenshot(`space-preview-${label}`)
             throw new Error(
-                `The space preview went back to loading after the ${label} link. It left the screen ${reloads} times, and the app fetched it ${refetches} times after it showed`,
+                `The ${label} space link fetched the space ${this.spaceFetches} times, and the preview left the screen ${reloads} times`,
             )
         }
         await this.waitForText(SPACE_NAME, 0, true)

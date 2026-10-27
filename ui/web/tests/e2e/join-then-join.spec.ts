@@ -2,9 +2,6 @@ import { nightlyFederationInvite } from '../utils/federations'
 import { E2E_LONG_TIMEOUT } from './fixtures/constants'
 import { test, expect } from './fixtures/test'
 
-// Joined via the deep link below. The nightly meta is the source of truth for
-// the code (guarded by tests/unit/utils/federations.test.ts); signet, so no
-// real funds.
 const FEDI_TESTNET = nightlyFederationInvite('Fedi Testnet')
 
 // Self-contained: the creator publishes a fresh community in the community tool,

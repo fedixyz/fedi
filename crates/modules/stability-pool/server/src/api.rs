@@ -229,7 +229,8 @@ async fn next_cycle_start_time(
         .ok_or(ApiError::server_error(
             "First cycle not yet started".to_owned(),
         ))?
-        .start_time;
+        .start_time
+        .0;
 
     let cycle_duration = stability_pool.cfg.consensus.cycle_duration;
     let next_cycle_start_time = current_cycle_start_time + cycle_duration;

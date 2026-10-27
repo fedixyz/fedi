@@ -7,6 +7,7 @@ use fedimint_ln_client::{
     InternalPayState, LightningOperationMeta, LightningOperationMetaPay,
     LightningOperationMetaVariant, LnPayState, LnReceiveState, OutgoingLightningPayment, PayType,
 };
+use fedimint_ln_common::LightningGateway;
 use fedimint_ln_common::config::FeeToAmount;
 use futures::StreamExt;
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
@@ -18,14 +19,17 @@ use rpc_types::{
 };
 use tracing::{error, info, warn};
 
-use super::{FeeRemittance, FeeRemittanceGatewayOverride, FeeRemittanceRoute, LnOps};
+use super::{
+    FeeRemittance, FeeRemittanceGatewayOverride, FeeRemittanceRoute, LnOps, gateway_fee_estimate,
+    maximum_invoice_amount,
+};
 use crate::federation_v2::client::ClientExt;
 use crate::federation_v2::{
     FederationTransactionParts, FederationV2, FediFeeStream, GatewayPayError, display_currency,
-    get_max_spendable_amount, handle_pay_bolt11_invoice_error, internal_pay_is_bad_state,
-    internal_pay_update_sanitized_log, invoice_has_internal_payment_markers,
-    invoice_routes_back_to_federation, is_gateway_availability_error, ln_pay_update_sanitized_log,
-    ln_receive_update_sanitized_log, log_update, zero_gateway_fees,
+    handle_pay_bolt11_invoice_error, internal_pay_is_bad_state, internal_pay_update_sanitized_log,
+    invoice_has_internal_payment_markers, invoice_routes_back_to_federation,
+    is_gateway_availability_error, ln_pay_update_sanitized_log, ln_receive_update_sanitized_log,
+    log_update, zero_gateway_fees,
 };
 
 pub struct LnOpsV1;
@@ -44,6 +48,31 @@ fn fee_remittance_invoice_amount(
     Ok(Amount::from_msats(
         amt_to_request_numerator / amt_to_request_denominator,
     ))
+}
+
+async fn maximum_via_gateways(
+    fed: &FederationV2,
+    balance: Amount,
+    fee_ppms: &[(FediFeeStream, u64)],
+    gateways: &[LightningGateway],
+) -> Result<Amount> {
+    let ln = fed.client.ln()?;
+    Ok(maximum_invoice_amount(
+        balance,
+        fee_ppms,
+        // the send path checks the estimate while the contract charges `to_amount`
+        |amount| {
+            gateways
+                .iter()
+                .map(|gateway| {
+                    gateway_fee_estimate(gateway.fees, amount).max(gateway.fees.to_amount(&amount))
+                })
+                .max()
+                .unwrap_or(Amount::ZERO)
+        },
+        |contract| ln.send_fee_quote(contract),
+    )
+    .await)
 }
 
 impl LnOpsV1 {
@@ -350,25 +379,19 @@ impl LnOps for LnOpsV1 {
         let gateway = fed.select_gateway_for_payment().await?;
         let spend_guard = fed.spend_guard.lock().await;
         let virtual_balance = fed.get_balance().await;
-        let ensure_spendable = |gateway_fees: RoutingFees| -> Result<u64> {
-            let network_fee = gateway_fees.base_msat as u64
-                + (amount.msats * gateway_fees.proportional_millionths as u64)
-                    .div_ceil(runtime::constants::MILLION);
+        let ensure_spendable = async |gateway_fees: RoutingFees| -> Result<u64> {
+            let network_fee = gateway_fee_estimate(gateway_fees, amount).msats;
             let est_total_spend = amount.msats + fedi_fee.msats + network_fee;
             if est_total_spend > virtual_balance.msats {
+                let gateways = fed.payment_gateways().await?;
                 bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                    get_max_spendable_amount(
-                        virtual_balance,
-                        FederationV2::total_fedi_fee_ppm(&fee_ppms),
-                        None,
-                        Some(gateway_fees),
-                    )
+                    maximum_via_gateways(fed, virtual_balance, &fee_ppms, &gateways).await?
                 )));
             }
             Ok(est_total_spend)
         };
         let mut est_total_spend =
-            ensure_spendable(gateway.as_ref().map_or_else(zero_gateway_fees, |g| g.fees))?;
+            ensure_spendable(gateway.as_ref().map_or_else(zero_gateway_fees, |g| g.fees)).await?;
 
         let extra_meta = LightningSendMetadata {
             is_fedi_fee_remittance: false,
@@ -392,7 +415,7 @@ impl LnOps for LnOpsV1 {
                     .refresh_cache_and_select_gateway_excluding(Some(failed_gateway_id))
                     .await?
                     .ok_or_else(|| anyhow!(ErrorCode::NoLnGatewayAvailable))?;
-                est_total_spend = ensure_spendable(retry_gateway.fees)?;
+                est_total_spend = ensure_spendable(retry_gateway.fees).await?;
                 let retry_gateway_id = retry_gateway.gateway_id;
 
                 match ln
@@ -750,6 +773,14 @@ impl LnOps for LnOpsV1 {
             .await?;
 
         Ok(payment_code.code)
+    }
+
+    async fn max_pay_invoice_amount(&self, fed: &FederationV2) -> Result<Amount> {
+        let fee_ppms = fed
+            .get_fee_ppms_by_stream(fedimint_ln_common::KIND, RpcTransactionDirection::Send)
+            .await?;
+        let gateways = fed.payment_gateways().await?;
+        maximum_via_gateways(fed, fed.get_balance().await, &fee_ppms, &gateways).await
     }
 
     fn version(&self) -> super::Version {

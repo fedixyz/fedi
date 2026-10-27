@@ -4,7 +4,7 @@ use bitcoin::address::NetworkUnchecked;
 use fedimint_client::module::oplog::OperationLogEntry;
 use fedimint_core::core::OperationId;
 use fedimint_core::{Amount, apply};
-use fedimint_wallet_client::PegOutFees;
+use fedimint_walletv2_client::common::config::WalletClientConfig;
 use fedimint_walletv2_client::{
     FinalReceiveOperationState, FinalSendOperationState, WalletOperationMeta,
 };
@@ -17,22 +17,19 @@ use rpc_types::{
 use tracing::{error, warn};
 
 use super::super::client::ClientExt;
-use super::super::{FederationTransactionParts, FederationV2, get_max_spendable_amount};
-use super::WalletOps;
+use super::super::{FederationTransactionParts, FederationV2};
+use super::{WalletOps, checked_funding_fee, funding_quote, onchain_send_limits};
 use crate::federation_v2::async_trait_maybe_send;
 
 pub struct WalletOpsV2;
 
 impl WalletOpsV2 {
-    /// walletv2's consensus dust limit: the module rejects sends below it, so
-    /// it is the effective minimum onchain send.
-    async fn dust_limit(fed: &FederationV2) -> Result<bitcoin::Amount> {
+    async fn wallet_config(fed: &FederationV2) -> Result<WalletClientConfig> {
         let config = fed.client.config().await;
-        let (_, cfg) = config
-            .get_first_module_by_kind::<fedimint_walletv2_client::common::config::WalletClientConfig>(
-                fedimint_walletv2_client::common::KIND,
-            )?;
-        Ok(cfg.dust_limit)
+        let (_, cfg) = config.get_first_module_by_kind::<WalletClientConfig>(
+            fedimint_walletv2_client::common::KIND,
+        )?;
+        Ok(cfg.clone())
     }
 
     /// Spawns the receive subscriber for a deposit operation, deduplicated
@@ -144,22 +141,18 @@ impl WalletOps for WalletOpsV2 {
         _address: bitcoin::Address<NetworkUnchecked>,
     ) -> Result<RpcPayAddressLimits> {
         let walletv2 = fed.client.walletv2()?;
-        let fee_ppms = fed
-            .get_fee_ppms_by_stream(fedimint_wallet_client::KIND, RpcTransactionDirection::Send)
-            .await?;
-        let dust_limit = Self::dust_limit(fed).await?;
-        let network_fee = walletv2.send_fee().await?;
-        let virtual_balance = fed.get_balance().await;
-        let max_spendable = get_max_spendable_amount(
-            virtual_balance,
-            FederationV2::total_fedi_fee_ppm(&fee_ppms),
-            Some(PegOutFees::from_amount(network_fee)),
-            None,
-        );
-        Ok(RpcPayAddressLimits {
-            min_spendable: RpcAmount(Amount::from_msats(dust_limit.to_sat() * 1000)),
-            max_spendable: RpcAmount(max_spendable),
-        })
+        let config = Self::wallet_config(fed).await?;
+        let network_fee = Amount::from_sats(walletv2.send_fee().await?.to_sat());
+        onchain_send_limits(
+            fed,
+            // walletv2's consensus dust limit: the module rejects sends below it, so
+            // it is the effective minimum onchain send.
+            Amount::from_sats(config.dust_limit.to_sat()),
+            |_| std::future::ready(Ok(network_fee)),
+            |amount| config.fee_consensus.fee(amount),
+            |funded| funding_quote(fed, funded, config.fee_consensus.fee(funded)),
+        )
+        .await
     }
 
     /// Returns the fee details for making a payment on-chain.
@@ -170,7 +163,8 @@ impl WalletOps for WalletOpsV2 {
         _address: bitcoin::Address<NetworkUnchecked>,
         amount: bitcoin::Amount,
     ) -> Result<RpcFeeDetails> {
-        let dust_limit = Self::dust_limit(fed).await?;
+        let config = Self::wallet_config(fed).await?;
+        let dust_limit = config.dust_limit;
         if amount < dust_limit {
             bail!(ErrorCode::BelowMinimumSendAmount(RpcAmount(
                 Amount::from_msats(dust_limit.to_sat() * 1000)
@@ -189,20 +183,16 @@ impl WalletOps for WalletOpsV2 {
             .await?;
         let walletv2 = fed.client.walletv2()?;
         let network_fee = walletv2.send_fee().await?;
-        let fedi_fee = FederationV2::total_fedi_fee_amount(&fees_by_stream);
+        let federation_fee = checked_funding_fee(
+            fed.get_balance().await,
+            Amount::from_sats(dust_limit.to_sat()),
+            Amount::from_sats(amount.to_sat()),
+            Amount::from_sats(network_fee.to_sat()),
+            &fee_ppms,
+            |funded| funding_quote(fed, funded, config.fee_consensus.fee(funded)),
+        )
+        .await?;
         let network_fee_msat = network_fee.to_sat() * 1000;
-        let est_total_spend = amount_msat + fedi_fee.msats + network_fee_msat;
-        let virtual_balance = fed.get_balance().await;
-        if est_total_spend > virtual_balance.msats {
-            bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(
-                    virtual_balance,
-                    FederationV2::total_fedi_fee_ppm(&fee_ppms),
-                    Some(PegOutFees::from_amount(network_fee)),
-                    None,
-                )
-            )));
-        }
 
         Ok(RpcFeeDetails {
             fedi_app_fee: RpcAmount(FederationV2::fedi_fee_amount_for_stream(
@@ -214,7 +204,7 @@ impl WalletOps for WalletOpsV2 {
                 crate::fedi_fee::FediFeeStream::Guardian,
             )),
             network_fee: RpcAmount(Amount::from_msats(network_fee_msat)),
-            federation_fee: RpcAmount(Amount::ZERO),
+            federation_fee: RpcAmount(federation_fee),
         })
     }
 
@@ -227,7 +217,8 @@ impl WalletOps for WalletOpsV2 {
         _frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
         let walletv2 = fed.client.walletv2()?;
-        let dust_limit = Self::dust_limit(fed).await?;
+        let config = Self::wallet_config(fed).await?;
+        let dust_limit = config.dust_limit;
         if amount < dust_limit {
             bail!(ErrorCode::BelowMinimumSendAmount(RpcAmount(
                 Amount::from_msats(dust_limit.to_sat() * 1000)
@@ -250,20 +241,19 @@ impl WalletOps for WalletOpsV2 {
         let est_total_spend = amount_msat + fedi_fee.msats + network_fee_msat;
 
         let spend_guard = fed.spend_guard.lock().await;
-        let virtual_balance = fed.get_balance().await;
-        if est_total_spend > virtual_balance.msats {
-            bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(
-                    virtual_balance,
-                    FederationV2::total_fedi_fee_ppm(&fee_ppms),
-                    Some(PegOutFees::from_amount(network_fee)),
-                    None,
-                )
-            )));
-        }
+        let federation_fee = checked_funding_fee(
+            fed.get_balance().await,
+            Amount::from_sats(dust_limit.to_sat()),
+            Amount::from_sats(amount.to_sat()),
+            Amount::from_sats(network_fee.to_sat()),
+            &fee_ppms,
+            |funded| funding_quote(fed, funded, config.fee_consensus.fee(funded)),
+        )
+        .await?;
+        let est_total_spend = est_total_spend + federation_fee.msats;
 
         let operation_id = walletv2
-            .send(address, amount, None, serde_json::Value::Null)
+            .send(address, amount, Some(network_fee), serde_json::Value::Null)
             .await?;
         fed.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
             .await?;

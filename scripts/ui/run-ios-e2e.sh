@@ -83,6 +83,11 @@ xcrun simctl uninstall "$DEVICE_ID" "$BUNDLE_ID" || {
     echo "App not currently installed, continuing..."
 }
 
+echo "Installing pods before the build..."
+# rn cli 20 would otherwise auto-run `bundle exec pod install`, which needs a
+# Gemfile at the app root that this repo doesn't have
+"$REPO_ROOT/scripts/ui/install-ios-deps.sh"
+
 echo "Building iOS debug bundle..."
 pushd "$REPO_ROOT/ui/native"
 run_options="--extra-params ARCHS=arm64 --udid $DEVICE_ID --no-packager --verbose"

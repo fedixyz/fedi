@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, waitFor } from '@testing-library/react-native'
 import React from 'react'
-import { Keyboard, Pressable } from 'react-native'
+import { Keyboard } from 'react-native'
 
 import { selectSelectedChatMessage, setupStore } from '@fedi/common/redux'
 import { createMockCommunityInviteEvent } from '@fedi/common/tests/mock-data/matrix-event'
@@ -34,12 +34,12 @@ describe('ChatCommunityInviteEvent', () => {
         const event = createMockCommunityInviteEvent()
         const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss')
 
-        const { UNSAFE_getByType } = renderWithProviders(
+        const { getByText } = renderWithProviders(
             <ChatCommunityInviteEvent event={event} />,
             { store },
         )
 
-        fireEvent(UNSAFE_getByType(Pressable), 'onLongPress')
+        fireEvent(getByText('Test Community'), 'longPress')
 
         expect(dismissKeyboard).toHaveBeenCalled()
         await waitFor(() => {

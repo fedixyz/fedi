@@ -34,7 +34,7 @@
         "neverthrow": "^8.2.0",
         "pako": "^2.1.0",
         "query-string": "^7.1.3",
-        "react": "19.0.0",
+        "react": "19.1.4",
         "react-redux": "^8.0.5",
         "uuid": "^9.0.0"
     },

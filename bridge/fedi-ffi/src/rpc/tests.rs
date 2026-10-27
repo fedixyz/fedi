@@ -16,6 +16,7 @@ use devimint::cmd;
 use devimint::util::FedimintCli;
 use federations::federation_sm::FederationState;
 use federations::federation_v2::FederationV2;
+use federations::federation_v2::client::ClientExt;
 use federations::federation_v2::db::{FedimintEventLogCursorKey, LnurlReceivePendingKey};
 use federations::fedi_fee::{FediFeeStream, parse_fedi_guardian_fee_config};
 use fedi_social_client::common::VerificationDocument;
@@ -125,6 +126,9 @@ async fn amount_from_ecash(ecash_string: String) -> anyhow::Result<fedimint_core
 }
 
 async fn cli_generate_ecash(amount: fedimint_core::Amount) -> anyhow::Result<String> {
+    static FUNDING_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    // note selection and reissuance share one wallet across concurrent tests
+    let _funding_guard = FUNDING_LOCK.lock().await;
     // On a kind-two federation the internal client's funds live in mintv2;
     // the v1 `spend` command has no module (or no balance) to draw from.
     if devimint::util::supports_mint_v2() {
@@ -142,18 +146,46 @@ async fn cli_generate_ecash(amount: fedimint_core::Amount) -> anyhow::Result<Str
         .context("mintv2 send must return the ecash string")?;
         return Ok(ecash_string);
     }
-    let ecash_string = cmd!(
-        FedimintCli,
-        "spend",
-        "--allow-overpay",
-        amount.msats.to_string()
-    )
-    .out_json()
-    .await?["notes"]
+    // an overpaid spend takes a bigger note than asked and drains the shared wallet
+    devimint::util::poll("generating ecash from the cli wallet", || async {
+        let exact_error = match cmd!(FedimintCli, "spend", amount.msats.to_string())
+            .out_json()
+            .await
+        {
+            Ok(value) => return cli_notes_from_spend(&value).map_err(ControlFlow::Break),
+            Err(error) => error,
+        };
+        let text = format!("{exact_error:#}");
+        if text.contains("Insufficient balance") {
+            return Err(ControlFlow::Continue(exact_error));
+        }
+        if !text.contains("Could not select notes with exact amount") {
+            return Err(ControlFlow::Break(exact_error));
+        }
+        let overpaid = cmd!(
+            FedimintCli,
+            "spend",
+            "--allow-overpay",
+            amount.msats.to_string()
+        )
+        .out_json()
+        .await
+        .map_err(ControlFlow::Continue)?;
+        let overpaid = cli_notes_from_spend(&overpaid).map_err(ControlFlow::Break)?;
+        cmd!(FedimintCli, "reissue", overpaid)
+            .run()
+            .await
+            .map_err(ControlFlow::Break)?;
+        Err(ControlFlow::Continue(exact_error))
+    })
+    .await
+}
+
+fn cli_notes_from_spend(value: &serde_json::Value) -> anyhow::Result<String> {
+    value["notes"]
         .as_str()
         .map(|s| s.to_owned())
-        .expect("'note' key not found generating ecash with fedimint-cli");
-    Ok(ecash_string)
+        .context("'notes' key not found generating ecash with fedimint-cli")
 }
 
 async fn cli_receive_ecash(ecash: String) -> anyhow::Result<()> {
@@ -369,6 +401,8 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         sp_transfer_tests::test_end_to_end,
         sp_transfer_tests::test_receiver_joins_federation_later,
         test_lightning_send_and_receive,
+        test_refunded_lightning_updates_spendable_balance,
+        test_max_pay_invoice_fits_every_gateway,
         test_lnurl_receive,
         test_ecash,
         test_ecash_duplicate_receive_rejected,
@@ -865,6 +899,370 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 
     // TODO shaurya unsure how to account for gateway fee when verifying fedi fee
     // amount
+    Ok(())
+}
+
+async fn test_refunded_lightning_updates_spendable_balance(dev_fed: DevFed) -> anyhow::Result<()> {
+    use bitcoin::hashes::{Hash, sha256};
+    use bitcoin::secp256k1::{SECP256K1, SecretKey};
+    use lightning_invoice::{Currency, InvoiceBuilder, PaymentSecret};
+
+    let td = TestDevice::new().await?;
+    let bridge = td.bridge_full().await?;
+    let federation = td.join_default_fed().await?;
+    use_lnd_gateway(federation).await?;
+    setLightningModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 1_000, 0).await?;
+    let funding_invoice = generateInvoice(
+        federation.clone(),
+        RpcAmount(Amount::from_sats(1_000)),
+        String::new(),
+        None,
+        FrontendMetadata::default(),
+    )
+    .await?;
+    dev_fed
+        .gw_ldk
+        .client()
+        .pay_invoice(funding_invoice.parse()?)
+        .await?;
+    devimint::util::poll("refund test funding", || async {
+        if federation.get_balance().await >= Amount::from_sats(500) {
+            Ok(())
+        } else {
+            Err(ControlFlow::Continue(anyhow!("awaiting invoice payment")))
+        }
+    })
+    .await?;
+
+    // No lightning node holds this key, so the gateway cannot route and refunds.
+    let secret_key = SecretKey::from_slice(&[42; 32])?;
+    let invoice = InvoiceBuilder::new(Currency::Regtest)
+        .description(String::new())
+        .payment_hash(sha256::Hash::hash(&[43; 32]))
+        .payment_secret(PaymentSecret([44; 32]))
+        .current_timestamp()
+        .min_final_cltv_expiry_delta(18)
+        .amount_milli_satoshis(100_000)
+        .build_signed(|message| SECP256K1.sign_ecdsa_recoverable(message, &secret_key))?;
+    let result = payInvoice(
+        federation.clone(),
+        invoice.to_string(),
+        FrontendMetadata::default(),
+    )
+    .await;
+    assert!(result.is_err());
+    assert!(
+        listTransactions(federation.clone(), None, None)
+            .await?
+            .iter()
+            .any(|entry| matches!(
+                entry,
+                Ok(RpcTransactionListEntry {
+                    transaction: RpcTransaction {
+                        kind: RpcTransactionKind::LnPay {
+                            state: Some(RpcLnPayState::Refunded { .. }),
+                            ..
+                        },
+                        ..
+                    },
+                    ..
+                })
+            ))
+    );
+    let balance = federation.get_balance().await;
+    let last_balance = td
+        .event_sink()
+        .events()
+        .iter()
+        .rev()
+        .filter(|(kind, _)| kind == "balance")
+        .map(|(_, body)| serde_json::from_str::<serde_json::Value>(body))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .find(|event| event["federationId"] == federation.federation_id().to_string())
+        .context("missing balance event after refund")?;
+    assert_eq!(last_balance["balance"], balance.msats);
+    Ok(())
+}
+
+async fn test_max_pay_invoice_fits_every_gateway(dev_fed: DevFed) -> anyhow::Result<()> {
+    let td = TestDevice::new().await?;
+    let bridge = td.bridge_full().await?;
+    let federation = td.join_default_fed().await?;
+    use_lnd_gateway(federation).await?;
+    setLightningModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 1_000, 0).await?;
+    let funding_invoice = generateInvoice(
+        federation.clone(),
+        RpcAmount(Amount::from_sats(10_000)),
+        String::new(),
+        None,
+        FrontendMetadata::default(),
+    )
+    .await?;
+    dev_fed
+        .gw_ldk
+        .client()
+        .pay_invoice(funding_invoice.parse()?)
+        .await?;
+    devimint::util::poll("max pay invoice funding", || async {
+        if federation.get_balance().await >= Amount::from_sats(5_000) {
+            Ok(())
+        } else {
+            Err(ControlFlow::Continue(anyhow!("awaiting invoice payment")))
+        }
+    })
+    .await?;
+
+    // an lnv1 fee change reaches clients only on the gateway's registration
+    // timer, so kind one writes a dearer rival straight into the client's cache
+    let fed_id = federation.federation_id().to_string();
+    let lnd_node = dev_fed.gw_lnd.client().lightning_pubkey().await?;
+    let restore_fee = if devimint::util::supports_lnv1() {
+        use bitcoin::secp256k1::{PublicKey, SECP256K1, SecretKey};
+        use fedimint_ln_client::db::LightningGatewayKey;
+        use lightning_invoice::RoutingFees;
+
+        let ln = federation.client.ln()?;
+        // the client replaces its whole cache 30 s before the announcements expire
+        let mut dearer = devimint::util::poll_with_timeout(
+            "fresh LND announcement",
+            Duration::from_secs(240),
+            || async {
+                ln.list_gateways()
+                    .await
+                    .into_iter()
+                    .find(|gateway| {
+                        gateway.info.node_pub_key == lnd_node && gateway.info.api.scheme() != "iroh"
+                    })
+                    .filter(|gateway| gateway.ttl >= Duration::from_secs(120))
+                    .ok_or_else(|| {
+                        ControlFlow::Continue(anyhow!("LND announcement is about to be refreshed"))
+                    })
+            },
+        )
+        .await?;
+        let key = PublicKey::from_secret_key(SECP256K1, &SecretKey::from_slice(&[7; 32])?);
+        dearer.info.gateway_id = key;
+        dearer.info.gateway_redeem_key = key;
+        dearer.info.node_pub_key = key;
+        dearer.info.fees = RoutingFees {
+            base_msat: 2_000,
+            proportional_millionths: 5_000,
+        };
+        let mut dbtx = ln.db.begin_transaction().await;
+        dbtx.insert_entry(&LightningGatewayKey(key), &dearer.anchor())
+            .await;
+        dbtx.commit_tx().await;
+        None
+    } else {
+        let gateway = dev_fed.gw_ldk_second.client();
+        let fee = gateway.get_lightning_fee(fed_id.clone()).await?;
+        gateway
+            .set_federation_routing_fee(fed_id.clone(), 2_000, 5_000)
+            .await?;
+        Some(fee)
+    };
+
+    let result = async {
+        setGatewayOverride(federation.clone(), None).await?;
+        // bridge tests never select iroh gateways
+        let gateways: Vec<_> = listGateways(federation.clone())
+            .await?
+            .into_iter()
+            .filter(|gateway| !gateway.api.starts_with("iroh:"))
+            .collect();
+        assert!(gateways.len() >= 2, "the quote needs a choice of gateways");
+        let maximum = calculateMaxPayInvoice(federation.clone()).await?.0;
+        for _ in 0..gateways.len() {
+            assert_eq!(
+                calculateMaxPayInvoice(federation.clone()).await?.0,
+                maximum,
+                "the quote must not depend on which gateway is up next"
+            );
+        }
+        let mut per_gateway = Vec::new();
+        for gateway in &gateways {
+            setGatewayOverride(federation.clone(), Some(gateway.id.clone())).await?;
+            per_gateway.push(calculateMaxPayInvoice(federation.clone()).await?.0);
+        }
+        assert_eq!(
+            per_gateway.iter().min(),
+            Some(&maximum),
+            "the quote is the tightest single gateway maximum"
+        );
+        assert!(
+            per_gateway.iter().any(|single| *single > maximum),
+            "one gateway must be cheaper than the dearest"
+        );
+
+        // the kind one rival only exists in the cache, so LND carries that payment
+        let payer_node = if devimint::util::supports_lnv1() {
+            lnd_node
+        } else {
+            dev_fed.gw_ldk_second.client().lightning_pubkey().await?
+        };
+        let payer = gateways
+            .iter()
+            .find(|gateway| gateway.node_pub_key.0 == payer_node)
+            .context("the paying gateway is not listed")?;
+        setGatewayOverride(federation.clone(), Some(payer.id.clone())).await?;
+        assert!(
+            calculateMaxPayInvoice(federation.clone()).await?.0 >= maximum,
+            "pinning one gateway never quotes below the shared maximum"
+        );
+        let invoice = dev_fed
+            .gw_ldk
+            .client()
+            .create_invoice(maximum.msats)
+            .await?;
+        payInvoice(
+            federation.clone(),
+            invoice.to_string(),
+            FrontendMetadata::default(),
+        )
+        .await?;
+        dev_fed
+            .gw_ldk
+            .client()
+            .wait_bolt11_invoice(invoice.payment_hash().consensus_encode_to_vec())
+            .await?;
+        anyhow::Ok(())
+    }
+    .await;
+    if let Some(fee) = restore_fee {
+        dev_fed
+            .gw_ldk_second
+            .client()
+            .set_federation_routing_fee(fed_id, fee.base.msats, fee.parts_per_million)
+            .await?;
+    }
+    result
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_max_pay_invoice_fits_the_failover_gateway() -> anyhow::Result<()> {
+    if !devimint::util::supports_lnv1() {
+        info!("Skipping on a kind-two federation, lnv2 has no vetted gateway preference");
+        return Ok(());
+    }
+    use bitcoin::secp256k1::{PublicKey, SECP256K1, SecretKey};
+    use fedimint_ln_client::db::LightningGatewayKey;
+    use lightning_invoice::RoutingFees;
+
+    let dev_fed = DevFed::new_with_setup(4).await?;
+    let vetted_key = PublicKey::from_secret_key(SECP256K1, &SecretKey::from_slice(&[9; 32])?);
+    let meta = serde_json::json!({
+        "stability_pool_disabled": false,
+        "multispend_disabled": false,
+        "vetted_gateways": [vetted_key.to_string()],
+    });
+    cli_submit_meta(&meta).await?;
+    cli_wait_for_meta(&meta).await?;
+
+    let td = TestDevice::new().await?;
+    let federation = td.join_default_fed().await?;
+    assert_eq!(
+        federation.get_cached_meta().await.get("vetted_gateways"),
+        Some(&format!(r#"["{vetted_key}"]"#)),
+        "the device must read the vetted gateway from meta"
+    );
+    let funding_invoice = generateInvoice(
+        federation.clone(),
+        RpcAmount(Amount::from_sats(10_000)),
+        String::new(),
+        None,
+        FrontendMetadata::default(),
+    )
+    .await?;
+    dev_fed
+        .gw_ldk
+        .client()
+        .pay_invoice(funding_invoice.parse()?)
+        .await?;
+    devimint::util::poll("failover funding", || async {
+        if federation.get_balance().await >= Amount::from_sats(5_000) {
+            Ok(())
+        } else {
+            Err(ControlFlow::Continue(anyhow!("awaiting invoice payment")))
+        }
+    })
+    .await?;
+
+    let lnd_node = dev_fed.gw_lnd.client().lightning_pubkey().await?;
+    let ln = federation.client.ln()?;
+    // the client replaces its whole cache 30 s before the announcements expire
+    let lnd =
+        devimint::util::poll_with_timeout("LND announcement", Duration::from_secs(240), || async {
+            ln.update_gateway_cache()
+                .await
+                .map_err(ControlFlow::Continue)?;
+            ln.list_gateways()
+                .await
+                .into_iter()
+                .find(|gateway| {
+                    gateway.info.node_pub_key == lnd_node && gateway.info.api.scheme() != "iroh"
+                })
+                .filter(|gateway| gateway.ttl >= Duration::from_secs(120))
+                .ok_or_else(|| ControlFlow::Continue(anyhow!("LND has not announced yet")))
+        })
+        .await?;
+    // other tests pay through LND at the same time, so the dearer fee goes only
+    // into this cache
+    let mut dearer = lnd.clone();
+    dearer.info.fees = RoutingFees {
+        base_msat: 2_000,
+        proportional_millionths: 5_000,
+    };
+    let mut vetted = lnd;
+    vetted.info.gateway_id = vetted_key;
+    vetted.info.gateway_redeem_key = vetted_key;
+    vetted.info.node_pub_key = vetted_key;
+    vetted.info.fees = RoutingFees {
+        base_msat: 0,
+        proportional_millionths: 0,
+    };
+    // nothing listens on port 1, so this gateway fails the availability check
+    vetted.info.api = "http://127.0.0.1:1/".parse()?;
+    let mut dbtx = ln.db.begin_transaction().await;
+    dbtx.insert_entry(
+        &LightningGatewayKey(dearer.info.gateway_id),
+        &dearer.anchor(),
+    )
+    .await;
+    dbtx.insert_entry(&LightningGatewayKey(vetted_key), &vetted.anchor())
+        .await;
+    dbtx.commit_tx().await;
+
+    let maximum = calculateMaxPayInvoice(federation.clone()).await?.0;
+    let vetted_id = listGateways(federation.clone())
+        .await?
+        .into_iter()
+        .find(|gateway| gateway.node_pub_key.0 == vetted_key)
+        .context("the vetted gateway is not listed")?
+        .id;
+    setGatewayOverride(federation.clone(), Some(vetted_id)).await?;
+    assert!(
+        calculateMaxPayInvoice(federation.clone()).await?.0 > maximum,
+        "the quote must reserve the failover gateway's fee, not the vetted gateway's"
+    );
+    setGatewayOverride(federation.clone(), None).await?;
+
+    let invoice = dev_fed
+        .gw_ldk
+        .client()
+        .create_invoice(maximum.msats)
+        .await?;
+    payInvoice(
+        federation.clone(),
+        invoice.to_string(),
+        FrontendMetadata::default(),
+    )
+    .await?;
+    dev_fed
+        .gw_ldk
+        .client()
+        .wait_bolt11_invoice(invoice.payment_hash().consensus_encode_to_vec())
+        .await?;
     Ok(())
 }
 
@@ -1951,7 +2349,7 @@ async fn test_pay_address_limits(_dev_fed: DevFed) -> anyhow::Result<()> {
     let td = TestDevice::new().await?;
     let federation = td.join_default_fed().await?;
 
-    let ecash = cli_generate_ecash(Amount::from_msats(1_000_000)).await?;
+    let ecash = cli_generate_ecash(Amount::from_sats(7_000)).await?;
     receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
     wait_for_ecash_reissue(federation).await?;
 
@@ -1971,6 +2369,13 @@ async fn test_pay_address_limits(_dev_fed: DevFed) -> anyhow::Result<()> {
         limits.max_spendable.0 <= federation.get_balance().await,
         "max spendable cannot exceed the balance"
     );
+
+    assert_eq!(limits.balance.0, federation.get_balance().await);
+    assert!(limits.minimum_fees.network_fee.0 > Amount::ZERO);
+    if devimint::util::supports_wallet_v2() {
+        assert_eq!(limits.max_spendable.0, Amount::ZERO);
+        assert!(!limits.minimum_fees_exact);
+    }
 
     // On kind-two the balance here is also below the minimum, pinning the
     // ordering: the minimum check must beat the insufficient-balance check.
@@ -1995,6 +2400,39 @@ async fn test_pay_address_limits(_dev_fed: DevFed) -> anyhow::Result<()> {
             "expected the typed below-minimum error, got: {error:?}"
         );
     }
+
+    let ecash = cli_generate_ecash(Amount::from_sats(100_000)).await?;
+    receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
+    wait_for_ecash_reissue(federation).await?;
+    let limits = getPayAddressLimits(federation.clone(), address.clone()).await?;
+    assert!(limits.minimum_fees_exact);
+    assert!(limits.max_spendable.0 >= limits.min_spendable.0);
+    let maximum = limits.max_spendable.0.sats_round_down();
+    let error = previewPayAddress(
+        federation.clone(),
+        address.clone(),
+        limits.balance.0.sats_round_down(),
+    )
+    .await
+    .expect_err("the full balance cannot also cover fees");
+    assert!(matches!(
+        RpcError::from_anyhow(&error).error_code,
+        Some(ErrorCode::InsufficientBalance(_))
+    ));
+    let fees = previewPayAddress(federation.clone(), address.clone(), maximum).await?;
+    let total = Amount::from_sats(maximum)
+        + fees.network_fee.0
+        + fees.federation_fee.0
+        + fees.fedi_app_fee.0
+        + fees.fedi_guardian_fee.0;
+    assert!(total <= limits.balance.0);
+    payAddress(
+        federation.clone(),
+        address,
+        maximum,
+        FrontendMetadata::default(),
+    )
+    .await?;
 
     Ok(())
 }

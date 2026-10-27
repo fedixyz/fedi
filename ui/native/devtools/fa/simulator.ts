@@ -1,3 +1,4 @@
+import { APP_SETTING_META_KEYS } from '@fedi/common/redux'
 import type { LoadedFederation, MSats } from '@fedi/common/types'
 import {
     FaFederationJoinEvent,
@@ -7,6 +8,7 @@ import {
     RpcFaClientStatus,
     RpcFaEligiblePayersResult,
     RpcFaErrorCode,
+    RpcFaFederationMetadataUpdate,
     RpcFaCurrentLiquidityOperationResult,
     RpcFaFederationJoinState,
     RpcFaFormationSnapshot,
@@ -589,7 +591,9 @@ export class FaSimulator implements FaWorld {
             case 'faClientSetGuardianFee':
                 return this.setGuardianFee(payload.guardianFeePpm as number)
             case 'faClientUpdateFederationMetadata':
-                return this.updateMetadata()
+                return this.updateMetadata(
+                    payload.update as RpcFaFederationMetadataUpdate,
+                )
             case 'faClientLiquidityDiscover':
                 return this.liquidityDiscover(
                     payload.network as RpcFaLiquidityNetwork,
@@ -1409,7 +1413,9 @@ export class FaSimulator implements FaWorld {
         return { type: 'success' }
     }
 
-    private updateMetadata(): RpcFaOperationResult {
+    private updateMetadata(
+        update: RpcFaFederationMetadataUpdate,
+    ): RpcFaOperationResult {
         const formation = this.currentFormation()
         if (!formation || formation.phase !== 'formed') {
             return {
@@ -1420,6 +1426,13 @@ export class FaSimulator implements FaWorld {
                 ),
             }
         }
+        // published so the settings screens read the saved value back from
+        // the preview, as they do against real consensus
+        if (update.type === 'appSetting')
+            this.setWalletServiceMeta(
+                APP_SETTING_META_KEYS[update.setting],
+                update.value,
+            )
         return { type: 'success' }
     }
 

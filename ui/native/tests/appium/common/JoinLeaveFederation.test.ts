@@ -1,7 +1,4 @@
 /* eslint-disable no-console */
-import fs from 'fs'
-import path from 'path'
-
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 import { setupOnboarded } from '../fixtures/setupOnboarded'
 import {
@@ -15,38 +12,12 @@ import {
     setDevfedMeta,
     waitForDevfedBackupCountAbove,
 } from './devfed'
+import { getNightlyFederationInvite } from './nightlyFederations'
 
-// E-Cash Club is the one pasteable federation the runner can reach: the
-// suite's own list-joins prove it, while the other federations in
-// meta-federations.json are external and their previews time out on CI.
+// The pasted-invite and Discover rejoin scenarios must use the same federation.
 const INVITE_PREVIEW_FEDERATION_NAME = 'E-Cash Club'
 const DEVFED_NAME = 'Devimint Federation'
 const NEW_MEMBERS_DISABLED_NOTICE = 'You cannot join this federation.'
-
-type PublicFederationMeta = {
-    federation_name?: string
-    invite_code?: string
-}
-
-function getPublicFederationInvite(federationName: string): string {
-    const metaPath = path.resolve(
-        __dirname,
-        '../../../../web/public/meta-federations.json',
-    )
-    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as Record<
-        string,
-        PublicFederationMeta
-    >
-    const federation = Object.values(meta).find(
-        f => f.federation_name === federationName,
-    )
-    if (!federation?.invite_code) {
-        throw new Error(
-            `No invite code found for public federation "${federationName}"`,
-        )
-    }
-    return federation.invite_code
-}
 
 export class JoinLeaveFederation extends AppiumTestBase {
     static prerequisites = ['onboarded'] as const
@@ -191,7 +162,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await this.clickElementByKey('WalletTabButton')
         await this.waitForElementDisplayed('FediTestnetDetailsButton')
         await this.joinFederationByPastedInvite(
-            getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
+            getNightlyFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
             INVITE_PREVIEW_FEDERATION_NAME,
             'E-CashClubDetailsButton',
         )
@@ -373,10 +344,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
         await this.clickElementByKey('HomeTabButton')
         // END of the process of re-joining to a Public Federation without TOS
 
-        // Wallet switching: both federations are joined at this point, with
-        // E-Cash Club active from the re-join. The switcher rows are selected
-        // by visible name because their testIDs are keyed by federation id,
-        // which is a runtime hash.
+        // switcher test IDs use runtime federation IDs, so select by name.
         await this.clickElementByKey('WalletTabButton')
         await this.openWalletSwitcher()
         await this.clickOnText('Fedi Testnet', 0, true)
@@ -397,13 +365,12 @@ export class JoinLeaveFederation extends AppiumTestBase {
         }
         // END of the process of switching the active wallet between federations
 
-        // Switch away from E-Cash Club first, so landing on its wallet proves
-        // that take me there selected it rather than leaving it selected.
+        // select another wallet first to prove the invite changes selection.
         await this.openWalletSwitcher()
         await this.clickOnText('Fedi Testnet', 0, true)
         await this.waitForElementDisplayed('FediTestnetDetailsButton', 30000)
         await this.pasteInviteOfJoinedFederation(
-            getPublicFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
+            getNightlyFederationInvite(INVITE_PREVIEW_FEDERATION_NAME),
             'E-CashClubDetailsButton',
             'FediTestnetDetailsButton',
         )

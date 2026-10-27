@@ -261,6 +261,13 @@ export class FedimintBridge {
         return this.rpcTyped('faClientLiquidityList', { after })
     }
 
+    /**
+     * App settings use exact metadata text: JSON arrays for lists, 'true'/'false'
+     * for flags, decimal strings for msat limits, and plain text otherwise.
+     * Clear lists with '[]' and the pinned message with ''.
+     * maintenanceUnsupported detail means more guardians need to upgrade;
+     * maintenanceConvergence means the change may still take effect.
+     */
     async faClientUpdateFederationMetadata(
         update: bindings.RpcFaFederationMetadataUpdate,
     ) {

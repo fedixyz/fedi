@@ -6,6 +6,23 @@
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Fedi</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>fedi</string>
+			</array>
+			<key>CFBundleTypeName</key>
+			<string>Fedi Backup</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER).fedi</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -17,49 +34,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>26.10.0</string>
+	<string>26.10.3</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
-  <!-- Support .fedi file type -->
-  <key>UTExportedTypeDeclarations</key>
-	<array>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>$(PRODUCT_BUNDLE_IDENTIFIER).fedi</string>
-			<key>UTTypeDescription</key>
-			<string>Fedi Backup File</string>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.data</string>
-			</array>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>fedi</string>
-				</array>
-			</dict>
-		</dict>
-	</array>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Fedi Backup</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>$(PRODUCT_BUNDLE_IDENTIFIER).fedi</string>
-			</array>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>fedi</string>
-			</array>
-			<key>LSHandlerRank</key>
-			<string>Owner</string>
-		</dict>
-	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -105,15 +82,19 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>MinimumOSVersion</key>
+	<string>15.1</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-		<!-- This is needed for the FediModBrowser to be able to open captive portal URLs used by wireless APs -->
 		<key>NSAllowsArbitraryLoadsInWebContent</key>
 		<false/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<!-- captive portal mini apps require HTTP access to these connection domains. -->
 		<key>NSExceptionDomains</key>
 		<dict>
 			<key>connect.fedi.xyz</key>
@@ -121,7 +102,7 @@
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
 			</dict>
-			<!-- This is an alternate domain for the same purpose as connect.fedi.xyz -->
+			<!-- alternate captive portal domain for connect.fedi.xyz. -->
 			<key>connect.satenet.org</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
@@ -129,8 +110,6 @@
 			</dict>
 		</dict>
 	</dict>
-	<key>MinimumOSVersion</key>
-	<string>15.1</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Fedi needs access to the camera to scan QR codes</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -141,6 +120,8 @@
 	<string>Fedi needs access to save photos to your photo library</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Fedi needs access to your photo library to select media for your avatar and chat attachments</string>
+	<key>RCTNewArchEnabled</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>FontAwesome.ttf</string>
@@ -187,5 +168,25 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Fedi Backup File</string>
+			<key>UTTypeIdentifier</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).fedi</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>fedi</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

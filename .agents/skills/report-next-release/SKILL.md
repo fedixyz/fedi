@@ -1,7 +1,7 @@
 ---
 name: report-next-release
 description: >-
-  Report what is queued for the Fedi app's next release, at any time, independent of any cut or deployment. Use whenever someone asks what is going into the next release, what has merged to master since the last cut, whether a backport or hotfix is in progress, which milestone issues are done vs planned vs untagged, or what has passed QA, or wants to prep release notes, a release readout, a release rundown, or a monthly-cut check, even if they never say "report" or name a version.
+  Report what is queued for the Fedi app's next release, at any time, independent of any cut or deployment. Use whenever someone asks what is going into the next release, what has merged to master since the last cut, whether a backport or hotfix is in progress, which milestone issues are done vs planned vs untagged, or what has passed QA, or wants to prep release notes, a release readout, a release rundown, or a monthly-cut check, even if they never say "report" or name a version. Also use it when someone asks to turn a feature on in production, which is a flag release this report presents.
 ---
 
 # Report the next release
@@ -9,7 +9,7 @@ description: >-
 Generate, at any time, a grounded report of what the next Fedi release will contain, plus the milestone bookkeeping that tends to rot when developers merge faster than anyone tags issues.
 
 The output is one self-contained HTML file with two tabs, rendered by the bundled script:
-- **Summary** (default): a condensed, plain-language product view for a non-technical reader (product, ops, leadership). Clustered product items, not a ticket dump, and no release mechanics at all. A scope line says which apps the release updates and anything unusual about it, the suggested store notes follow, then two card sections: "In this release", which holds merged work only, and a collapsed "Not in this release yet" for milestone work that has not merged.
+- **Summary** (default): a condensed, plain-language product view for a non-technical reader (product, ops, leadership). Clustered product items, not a ticket dump, and no release mechanics at all. A scope line says which apps the release updates and anything unusual about it, the suggested store notes follow, then a thin "Feature flags" section that opens only when a feature goes live, then two card sections: "In this release", which holds merged work only, and a collapsed "Not in this release yet" for milestone work that has not merged.
 - **Full report**: the PR-by-PR breakdown, release-track state, milestone status with each issue's Zenhub board columns, QA sign-off, backport detail, and the prepared milestone-tagging commands.
 
 Those are two altitudes rather than two lengths, which is the distinction that decides whether the report is usable.
@@ -42,7 +42,7 @@ The Summary is not a shorter Full report, it is a higher one. It goes wrong by a
 
 **The card grids ship three layouts and default to All.** A `Layout` switch on the section heading regroups them in the browser, and the merged section shows it only when its cards span more than one platform set. All is the authored order in two flat sections. Status and Platform both group into collapsible panels, with one Expand all control rather than a click per panel. Platform groups on the whole platform set, so a change that lands everywhere appears once instead of once per platform. Leave the default alone unless a release genuinely reads better grouped, and never hand-order cards to fake a grouping the switch already does.
 
-**A platform filter narrows the summary to one platform.** It renders under the store notes when the cards span two or more platforms. It hides every card that does not land on the chosen platform, and any section left empty. `?platform=ios`, `?platform=android` or `?platform=web` on the report URL opens it preselected, so one report serves every release it covers. A web release links the report with `?platform=web` instead of carrying its own notes.
+**A platform filter narrows the summary to one platform.** It renders under the store notes when the cards span two or more platforms. It hides every card and feature flag that does not land on the chosen platform, and any section left empty. `?platform=ios`, `?platform=android` or `?platform=web` on the report URL opens it preselected, so one report serves every release it covers. A web release links the report with `?platform=web` instead of carrying its own notes.
 
 ## Merged is the line between the two card sections
 
@@ -60,13 +60,15 @@ The split is structural rather than a chip because two questions get asked of th
 
 No dates, day counts, version numbers, PR totals or "still uncut" phrasing in either the title or the lede. If the only thing you can think to say is how long something has been waiting, you have not read the cards closely enough: name the two or three changes a person would actually notice. Keep the title near 90 characters and the lede to one or two sentences that carry the next most important things, or who they affect.
 
+**The title and the lede are two framings, not two lengths of one sentence.** The title is the feature-level introduction: the areas that got better and the one new thing, in the fewest words. "Smoother joining, chat and payments, plus four more federations to discover." The lede goes one level down to the situations those changes cover and who the new thing is for, and repeats no phrase from the title. "The fixes cover opening a shared invite link, a missed tap on Send on some iPhones, and the balance after a failed Lightning payment. Federation creators can choose the spaces members join automatically." A lede that restates the title with more words has wasted the second most valuable line on the page.
+
 The test, run against the screenshot rather than the markup: **read only the first screen as a product manager who was not in this session. Do you know what is going out, on which app, and what is being asked of you?** If not, the fix is more altitude, never more detail.
 
 ## Fedi release conventions you need
 
 - **Calendar versioning (CalVer).** A version is `YY.M[.patch]` where `M` is the calendar month: `26.6` is June 2026, `26.7` is July 2026. The monthly release is `26.M.0`, patches are `26.M.1`, `26.M.2`, and the next major is next month's `26.(M+1).0`.
 - **Two tracks, cut and deployed independently.** Native ships from a `release/26.M` branch. Web ships as a `web/X.Y.Z` tag with no branch. Neither waits for the other, so a single "current version" is always a lie. Step 1 pins both.
-- **"Shipped" is wrong for unreleased work.** Merged to master is *not* released. On the Summary, merged work sits in "In this release" with no status chip. A not-merged card is **"In progress"** (an open PR ready for review) or **"Planned"** (a draft or no PR). Reserve "shipped/live" for a production flag actually being on, which this report does not assert.
+- **"Shipped" is wrong for unreleased work.** Merged to master is *not* released. On the Summary, merged work sits in "In this release" with no status chip. A not-merged card is **"In progress"** (an open PR ready for review) or **"Planned"** (a draft or no PR). Reserve "shipped/live" for a feature actually on in production, which only the Feature flags section says, from the values the resolver reads.
 - **No em or en dashes anywhere** in any file you write. Use a regular hyphen. The renderer warns if any slip into the HTML.
 
 ## What a milestone means here, and when an issue closes
@@ -174,8 +176,10 @@ Steps 2, 4 and 5 are mechanical, high-volume, and where this report goes wrong w
 
 ```bash
 python3 <skill-dir>/scripts/resolve_window.py --repo fedibtc/fedi --repo-path . \
-  --milestone "26.7.0" --milestone "web-26.7" > window.json
+  --milestone "26.7.0" --milestone "web-26.7" --target origin/master > window.json
 ```
+
+`--target` is the ref the release is built from: `origin/master` before the cut, `origin/release/26.(M+1)` after it, the backport branch for a patch, and the commit the web tag goes on for a web release. A web release also takes `--web-only`, because it ships no app build and people keep the app they have. The `flags` block reads the flag values the release carries there. Step 7 covers it.
 
 It derives both baselines, lists every PR merged to master since the earlier of them, scrapes `#NNNN` out of every PR body, resolves each reference to issue-or-PR with its state, milestone, labels and title, marks bot-filed `agentic-workflows` refs as noise, and pulls **all** milestones with `state=all`. Read its stderr: it warns when the release branch has been rebased off its tag, and when the newest web tag is a lineage carrying commits you may need to subtract from the web window.
 
@@ -293,13 +297,13 @@ One kind of change is product-facing even though nobody using the app notices it
 
 Never report a missing translation. English is the primary language and the other languages catch up, so text that shows in English in another language gets no card, no caveat in a card body, no known issue and no line in any release notes.
 
-For the **Summary** tab, cluster into a handful of product items written in plain language (what a user would tell a friend), each with a `kind` (New feature / Improvement / Fix) and a `track` (Native / Web / Native + web). A card goes in `features` or `fixes` only when every PR behind it is merged to master in the window. Milestone work that has not merged goes in `not_merged`, and only those cards carry a `status`: `In progress` when the issue has an open PR ready for review, `Planned` when it has a draft or nothing. Read that off `open_prs` in `window.json` rather than off the board. The track chip is what stops a reader assuming everything lands everywhere at once. Split distinct fixes into their own cards rather than lumping them. Keep it to roughly a page or two: this is a briefing, not a changelog.
+For the **Summary** tab, cluster into a handful of product items written in plain language (what a user would tell a friend), each with a `kind` (New feature / Improvement / Fix) and a `track` (Native / Web / Native + web). A card goes in `features` or `fixes` only when every PR behind it is merged to master in the window. Milestone work that has not merged goes in `not_merged`, and only those cards carry a `status`: `In progress` when the issue has an open PR ready for review, `Planned` when it has a draft or nothing. Read that off `open_prs` in `window.json` rather than off the board. The track chip is what stops a reader assuming everything lands everywhere at once. One card per situation a person notices, however many PRs sit behind it: two fixes to opening an invite link are one card, a fix to invite links and a fix to chat sending are two. Keep it to roughly a page or two: this is a briefing, not a changelog.
 
 The App Store What's New, the Play release notes and the GitHub release body are written from these cards. Their rules are in `references/release-notes-copy.md`, and the store release skills point there rather than carrying their own.
 
 ### The card body is the hardest 20 words in the report
 
-The headline says what changes. The body adds what the headline structurally cannot: **when it fires, who hits it, how bad it was, what people did instead.** That is the whole job.
+The headline names the outcome in an everyday action a person recognizes. The body adds one layer at most: **the situation the change covers, and who it reaches when that is narrower than everyone.** Both are written for someone who never met the bug and will never see the code. The trigger sequence, what the screen did instead, which part of a button or which internal value was wrong, and why: that is Full report material, and the GitHub bullet for the PR is where it goes (`references/release-notes-copy.md`).
 
 Everything else on the card is already rendered as a chip, so writing it again is pure tax:
 
@@ -308,9 +312,27 @@ Everything else on the card is already rendered as a chip, so writing it again i
 - **Never put a QA verdict in the body.** "Signed off by a tester" is the Zenhub `Passed Test` column, which is release mechanics and belongs on Full report with the rest of the board state. Gathering the QA data is not a reason to place it here.
 - **Never narrate the work.** "The rename to Federation is under review", "a follow-up PR is open", "a fix is in review and not yet on master" describe the progress of the work, not the change. The section a card sits in already says whether it merged, and the status chip in the not-merged section says how far it got. The body says what a person will notice and nothing about PRs, reviews, renames pending or what comes next. A reader of these cards is trying to understand the change, and a sentence about its progress is the sentence they skip.
 - **Never explain the system before the outcome.** A body that has to say how something works ("the status is computed from how many guardians answered in a window") before the reader learns what changes for them is at mechanism altitude, even in plain words, and the vocabulary scan does not flag it. Sourcing a mechanism sentence makes it true, not readable. Lead with what a person or the Fedi team gets, in the sentence they would repeat to a friend ("a federation stays green through a brief guardian drop"), then add one layer for a product reader only if they need it.
-- **Never paraphrase the headline.** "Crash when opening community chats" followed by "The app could crash on opening a community chat" is the same sentence twice. If the headline already covers it, either add scope ("it fired from the Spaces list, which is the main way in") or ship the headline with no body at all.
+- **Never paraphrase the headline.** "Crash when opening community chats" followed by "The app could crash on opening a community chat" is the same sentence twice. If the headline already covers it, either add scope (how rare it was, who it reached) or ship the headline with no body at all.
 
-The 300-character cap is a **ceiling, not a target**. A body of eight words that names the trigger beats three padded sentences. When a fix is genuinely self-evident, the honest card is a headline and nothing else.
+The 300-character cap is a **ceiling, not a target**. A body of eight words that names the situation beats three padded sentences. When a fix is genuinely self-evident, the honest card is a headline and nothing else.
+
+### A fix card names the situation, never what the bug did
+
+A fix card goes wrong in one specific way. The writer reads the diff, learns exactly how the bug behaved, and writes that down in plain words. The vocabulary scan passes it, every sentence is true, and the reader gets the mechanics of a bug they never met instead of the situation that got better. One card at three altitudes, from the 26.10.3 report:
+
+- mechanics: "The whole chat Send button responds to taps on iPhone. Tapping the center of Send could do nothing, because the empty message label sat over it."
+- plain words, still mechanics: "Send in chat responds wherever you tap it. On some iPhone screens a tap on one part of the Send button could be missed, depending on exactly where you tapped."
+- the situation: "Sending chat messages on iPhone is more reliable. A rare case where a tap on Send did not register on some iPhone screens is fixed."
+
+The third is the register. The headline says which everyday action got better. The body says how much of a case it was, rare and on some iPhone screens, and nothing about where the tap landed or what sat over the button. The other two cards of that report, at the first and third altitude:
+
+- mechanics: "With a wallet joined, opening a space invite link showed the preview, then dropped back to the loading animation, sometimes again and again until you tapped Join." The situation: "Joining from an invite link is more reliable. Opening a space or federation from a shared link works more smoothly."
+- mechanics: "After a failed payment was refunded, the balance stayed lower by the reserved fee until something else changed it." The situation: "Your balance stays accurate after a failed payment. If a Lightning payment does not go through, your balance reflects that right away."
+
+- **The headline is the everyday action plus the outcome.** "X is more reliable", "Y stays accurate", "Z opens as expected". Not the bug ("No Invalid invite code error over a loaded preview") and not a promise about a component ("The whole Send button responds").
+- **The body is one sentence about the situation, in the words a person would use to describe it to support.** Scope words are welcome when the diff makes them true: rare, some iPhone screens, only after a failed payment. Sequence words mark a mechanics sentence: "instead of", "because", "until", "depending on", "on the first try", "no longer", "could", and past-tense narration of what the screen did. The renderer warns on the fixed phrases. The narration is yours to catch.
+- **Never name a part.** Not the label over the button, the center of the button, the loading animation, the reserved fee, the second fetch. A person does not know the parts, and a product reader does not need them to understand that chat sending got better.
+- **Read the diff anyway.** The broad sentence has to be true, and the diff is how you know "rare" and "some iPhone screens" are not guesses. What the diff taught you about the trigger goes into the GitHub bullet for that PR, one altitude down, where an engineer reading Full report wants it.
 
 Before rendering, read the cards as a block rather than one at a time. Repetition is invisible in isolation and obvious in a column.
 
@@ -318,9 +340,9 @@ Before rendering, read the cards as a block rather than one at a time. Repetitio
 
 The card body is the only prose in the report that nobody wrote before you. The PR tab quotes titles, the milestone tables copy the board, the resolver produces the mapping. The body is synthesis, which makes it the one part that can be fluent, well-shaped and false.
 
-**Source it from the diff or the PR body, never from the title.** A title names the area that changed. It does not carry when the change fires, what the behavior was before, or who hit it, and that is the entire job of the body. Reading the diff to write a card is the work, not preparation for the work.
+**Source it from the diff or the PR body, never from the title.** A title names the area that changed. It does not say whether the fix covers a rare case or the main path, who it reaches, or whether a second PR fixes the same situation, and a card is wrong without that. Reading the diff to write a card is the work, not preparation for the work. What the diff says about the trigger goes to the GitHub bullet, never the card.
 
-**Write what a user observes. Treat any sentence about machinery as a claim needing a line of code behind it.** "The action menu only appeared on a second try" is observed. "The clear was debounced" is a claim about how the code works, and if you did not read the debounce you invented it. When the mechanism genuinely is the point, find the line first and write the sentence second.
+**Write what a user observes, then lift it to the situation. Treat any sentence about machinery as a claim needing a line of code behind it.** "The action menu only appeared on a second try" is observed, and it is the GitHub bullet. The card says opening the action menu is more reliable. "The clear was debounced" is a claim about how the code works, and if you did not read the debounce you invented it. When the mechanism genuinely is the point, find the line first and write the sentence second, and it still lands in the bullet.
 
 **Sentences about when something takes effect are the most dangerous ones on the page.** Lands without a restart, applies immediately, refreshes in the background, stays cached until, reaches the session you are in. Propagation and caching behavior never appears in a title, and it is routinely the opposite of what the title suggests: a change that fetches a value sooner usually still applies it at the next launch. Trace every one of these to code, every time. Read the doc comment on the function and the comment at the call site first, because on this class of claim they are usually explicit, and usually the thing you are about to contradict.
 
@@ -334,6 +356,40 @@ Name everything that has to be true for a real person to see the change, and che
 - **the platform**: derive it from the paths the PRs touch. `ui/native` only is native, `ui/web` only is web, and `ui/common`, `bridge/` or `crates/` is all three, because the wasm bridge compiles the same crates the native app does. The diff beats the PR's own parity note, which is written from intent and is wrong often enough to matter. For a merge commit use `git show --diff-merges=first-parent`, since a plain `--name-only` prints nothing and reads as touching no files at all.
 
 Auditing which flags are on is a different pass from auditing how flags propagate, and passing the first says nothing about the second. One card that lumps a gated change together with an ungated one cannot be badged honestly, so split it.
+
+### Feature flags
+
+A thin "Feature flags" section sits on the Summary between the platform filter and the cards. A reader opens it to answer "is this on for people yet" without asking an engineer. Its closed heading carries count badges: Unreleased, Going live when this release turns a feature on, and Live. The renderer opens the section only when a feature goes live with this release. Otherwise it stays closed and the badges give the counts.
+
+Open, it shows two columns joined by a line. Unreleased lists the features that are in the app and switched off in production. Production starts with "Going live in" the release version, then a collapsed "Live features" list. Each feature is a chip with an icon and its name. Hovering or tapping a chip opens its card: the name, `does`, who it is for and which app, and a Details block with "What the flag changes in the app" and a footer with the flag key and the PR link. `?flag=<key>` on the report URL opens that card.
+
+The resolver's `flags` block holds the data. Copy it into the report JSON as it is, then write the fields below. Each item carries:
+
+- `key`, the flag as the code names it, shown in the card footer and on Full report
+- `control`: `remote` for a flag the server can switch in the app people have after the release, a field of `RemoteFeatures` in `crates/runtime/src/features.rs` served from `prodRemoteFeatures` in `ui/web/src/pages/api/features.ts`. That app is the release's own build, or with `--web-only` the current native release. `app` for a built-in switch that only the compiled-in values in `new_prod()` set, including a served flag that app does not take from the server yet. Its card says it changes only with an app update.
+- `now`, the value in the app on the current native release: `on`, `off`, `edge` (on in Fedi Edge only), or `null` when the flag does not exist yet. A remote flag's value comes from what `https://app.fedi.xyz/api/features` serves, and its Edge value from the endpoint Fedi Edge reads, which the staging deployment answers with `edgeDevRemoteFeatures`. A flag that app does not take from the server, or that the server does not send, has its compiled-in value. When production does not answer, the resolver reads the web baseline and warns.
+- `next`: the same for the app people have after the release, with the values served at `--target`, or `null` when the release removes the flag
+- `added` and `added_pr`, the first commit that mentions the flag. Older than the clone's history means `null`.
+- `platforms`, from where the code reads the flag, and `doc`, its doc comment
+
+Never edit `now` or `next`. The column comes from them: `next` on is Production, and going live when `now` is not on. Everything else is Unreleased, including Edge only, because Fedi Edge follows master rather than releases.
+
+Every flag has a compiled-in value for each build, set in `new_prod()` and its siblings. The app fetches `/api/features` at launch and when it returns to the foreground, caches it, and applies it over the compiled-in values at the next launch. Only the fields of `RemoteFeatures` take a server value, and only in app versions whose `RemoteFeatures` has that field. A web release changes what the server sends, so it switches remote flags and nothing else. A built-in switch changes only when people install an app update that sets it. The resolver lists a built-in switch when the release changes it, or when Nightly has it on and production does not. Delete a built-in item that configures a service rather than switching something a person sees.
+
+Delete an item whose feature is not in the release. A flag can exist before the code that reads it, for example while that code sits in an open PR. `git grep -w <field> <target>` outside the flag definitions and tests tells you.
+
+Write these per item, from the doc comment and the code that reads the flag, never from the key:
+
+- `name`: the feature as a person would name it. "Reactions in chat", not `messageReactions`.
+- `does`: one sentence under 140 characters on what a person gets. "Ask to join a private group, and an admin approves."
+- `who`, optional: the audience when it is narrower than everyone using the app, such as "Federation creators".
+- `icon`: one of `flag`, `group`, `bank`, `key`, `shield`, `smile`, `lock`, `dollar`, `update`, `restart`, `chat`, `send`.
+- `touch`: one line per place in the app the flag changes, as `[text]` or `[text, where]`. Say what a person sees with the flag on and what happens without it, in words a normal person uses: "Creating a private group shows an Allow join requests switch, on by default. Without the flag every new private group is invite-only." No file, function or code names. The PR link in the footer covers the code. `where` is a short note for a line that applies to one surface only, such as "Web app" or "Background".
+- `pr`, optional: the PR that built the feature, when it is not `added_pr`.
+
+Correct `platforms` when the reading code is shared but the feature exists on one app only. The backup reminder switch is read in `ui/common`, so the resolver says every app, but only the native app shows the reminder.
+
+A flag the release removes needs `after`: `on` when the feature stays for everyone, `off` when it leaves with the switch. Read the diff that removes it. A removed flag shows on Full report only, which gets a table with each key, both values, the control and the PR that added it.
 
 ### The store notes are written here, from the cards
 
@@ -357,6 +413,7 @@ See `references/example-report.json` for a complete, fillable example with every
   - `sections` holds merged work for one audience, each `{id, tag, title, note, features[], fixes[]}`. `tag` is one word stamped on the heading and every card, such as `Manifold`, `title` says who the section is for, and `note` is one sentence under about 240 characters on whether the feature is on. The cards take the same fields as `features` and `fixes`.
   - `platforms` is any of `["ios","android","web"]` and renders as three fixed icon slots in the card corner, lit for the platforms the change lands on. It replaces the old track word chip on the Summary. Set it whenever a change is narrower than its `track`: an android-only redirect bug, an iOS-only layout fix. Leave it out and the renderer derives it from `track`, where Native means both phone platforms.
   - `track` is still required. Full report and the briefing use the words, and it is the fallback when `platforms` is absent.
+- `flags`: the resolver's block as it is, `{served, next_ref, native_ref, app_ref, items[]}`, with `name`, `does`, `icon` and `touch` added to each item, and `who`, `pr` and `after` where they apply. See Feature flags in Step 7.
 - `user_facing[]` / `non_user_facing[]`: `{theme, prs:[{number, title, author, date, issue}]}`. PR titles stay as written on GitHub. `titles_note` is an optional sentence under the user-facing heading that maps a renamed term in older titles to its current name.
 - `milestones`: `{next_major:{name, issues:[{number, title, status, board}]}, next_web:{...}}` where status is one of `done | inprogress | backport | pending | closed` and `board` is `{dev, qa}` copied straight from `window.json`
 - `needs_milestone[]`: `{number, title, resolved_by:[prNums], suggested, board}`
@@ -372,7 +429,7 @@ Keep all prose plain and dash-free. The `summary` copy is for a non-technical re
 python3 <skill-dir>/scripts/render_report.py <report.json> <out.html>
 ```
 
-Replace `<skill-dir>` with this skill's directory. The script writes the HTML, prints the briefing to stdout, and warns on stderr about em dashes, a missing `tracks` block, a missing store text, progress words in a quirk, and any summary copy over budget. Read the stderr and fix the JSON rather than shipping past a warning.
+Replace `<skill-dir>` with this skill's directory. The script writes the HTML, prints the briefing to stdout, and warns on stderr about em dashes, a missing `tracks` block, a missing store text, progress words in a quirk, sequence words on a fix card, a flag with no `name`, `does` or `touch`, and any summary copy over budget. Read the stderr and fix the JSON rather than shipping past a warning.
 
 Then look at what you built, because the failure this report is prone to is invisible in the markup:
 
@@ -397,6 +454,20 @@ Verify before you claim. If you assert a fix is "in progress / not yet on master
 
 When the user asks for the report to be deployed, shared or linked, upload it to the release notes site as `references/internal-site.md` describes. Never put it on surge.sh or another public host.
 
+## A flag release: turning a feature on
+
+Turning a feature on in production is a release even when no other code ships, and this report is how it is presented. The report leads with the feature going live, and its flag section opens on its own.
+
+1. **Find the switch.** Look for the feature's field in `RemoteFeatures` and `apply_remote_layer` in `crates/runtime/src/features.rs` on the release branch people run. If it is there, it is a remote flag, served from `prodRemoteFeatures` in `ui/web/src/pages/api/features.ts`. If it is there only on `origin/master`, a web release reaches only the app versions that carry it, from the next app release on. If it is only in the per-build constructors such as `new_prod()`, it is a built-in switch, and a web release cannot change it. Every remote flag also has a compiled-in value in `new_prod()`, so a field there alone does not decide it. Read the code that reads the flag, because those reads become the touch list.
+2. **Change the value in a PR to master.**
+   - A remote flag goes to `true` in `prodRemoteFeatures`. That ships in a web release, a `web/X.Y.Z` tag on master or a lineage that carries only the flip (Step 1, Web, and the `web-release` skill). Each app fetches the new value at launch or when it returns to the foreground, and applies it at the next launch. App versions whose `RemoteFeatures` lacks the field keep their compiled-in value.
+   - A built-in switch is a flag that was never made remote, and a web release cannot turn it on. Tell the requester that first. Then open a PR to master that makes it remote, following the `feature-flags` skill: an `Option<bool>` field with `#[serde(default)]` in `RemoteFeatures`, applied in `apply_remote_layer` only when present. Serve every build the value it has compiled in, in each map in `features.ts`, so nothing changes until a web release flips the production value. Edge builds read `edgeDevRemoteFeatures` from the staging deployment, so that map carries the Edge value. Leave `new_prod()` alone. Once an app release carrying that PR is out, a web release turns the feature on for everyone on that version or later. Older versions keep their compiled-in value.
+3. **Run the resolver** with `--target` at the commit the web tag goes on, and `--web-only`. In the release that turns the feature on, the flag comes back with `next` on and `now` not on. A flag the app people run does not take from the server comes back as a built-in switch, which is the second case in step 2.
+4. **Build the report JSON** as in Step 8. `next_release` is the web release that carries the change, such as `web 26.10.4`, and the section labels the going-live group with it. The title and the lede name the feature going live and what a person gets. Other work in the same release keeps its cards. When nothing else ships, leave `features` and `fixes` empty and the renderer drops "In this release". A web-only release has no store text. Its scope line says web app only, so a remote flag needs a quirk saying the native app gets the feature without an update, at the first launch after it fetches the new value.
+5. **Render and hand over** as in Step 9, with `?flag=<key>` on the report link so the reader lands on the feature's card.
+
+Merging the PR, tagging, deploying and submitting to the stores stay with the release owner, as in every release skill.
+
 ## What good looks like
 
 - Both tracks are pinned before any PR is read, with the right web baseline (the newest web tag **on master**, not the newest web tag), and the web window reduced by whatever later lineage tags already carried.
@@ -411,15 +482,17 @@ When the user asks for the report to be deployed, shared or linked, upload it to
 - Every card in "In this release" is backed by a PR merged to master in the window, and none of them carries a status chip. Milestone work that has not merged is in the collapsed "Not in this release yet" section, In progress only when a non-draft PR is open for it.
 - No card body narrates the work: nothing about a review, a follow-up PR, a pending rename or what comes next.
 - The renderer's Summary vocabulary scan is silent. No PR, merge, cut, milestone, deploy or QA word appears on that tab, and no quirk says where the release is in the pipeline.
-- The title and the lede name changes, not dates. No version number, day count or PR total appears in either.
+- The title and the lede name changes, not dates. No version number, day count or PR total appears in either, and the lede repeats no phrase from the title.
 - The scope line is one line unless something about the release is unusual, and every quirk on it is about the release rather than its progress.
 - The release notes read as one or two sentences a person outside the company understands, say nothing about a gated feature, and match the cards.
 - The first product card sits within about 500 pixels. Past that, the hero has started narrating the schedule again.
 - No card body restates its own chips, repeats its headline, says "Fixed", or reports a QA verdict. Cards with nothing to add are headline-only rather than padded to fill the budget.
 - Every card leads with what a person or the Fedi team gets. A capability for the team sits under New features and improvements with a headline that names who gains it.
+- Every fix card names an everyday action and the situation that got better, with no part of the screen, no trigger sequence and no account of what the bug did. That detail sits in the GitHub bullet on Full report.
 - No text anywhere reports a missing translation.
 - Every card body was written from a diff or a PR body rather than a title, and every sentence about machinery, above all about when a change takes effect, has a line of code behind it.
 - Every feature card was checked against what gates it: the production flag values as served, the compiled-in defaults, federation config, and the platform derived from touched paths rather than from a parity note.
+- Every flag chip names the feature the way a person would, and its card says in one sentence what a person gets and lists what the flag changes in the app in plain words, written from the code that reads the flag. The values are the resolver's, untouched, and the section is open only when a feature goes live.
 - The Summary reads like a product briefing a non-technical person understands at a glance, and every card says which track it lands on.
 - The render was screenshotted in both themes and read before handing over, not just written.
 - Nothing reads as "shipped" that is merely merged. No em dashes. Nothing is called a phone app.

@@ -1,6 +1,6 @@
 # `fedi:pinned_message`
 
-A message displayed to existing users on the main Communtity home screen.
+A message displayed to existing users on the main Community home screen.
 
 Use this field to provide a customized message that will be shown to all members of the community.
 

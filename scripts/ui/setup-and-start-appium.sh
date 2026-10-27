@@ -51,7 +51,7 @@ if [[ "${PROMPT:-}" == "true" ]]; then
   done
 fi
 
-# ensure Appium 2.x exists, required drivers are installed,
+# ensure Appium 3.x exists, required drivers are installed,
 # then start the server in the background and store its PID.
 
 echo "=== Ensuring Appium is installed & drivers are up to date ==="
@@ -101,24 +101,29 @@ IOS_DRIVER_READY=0
 
 if [[ "$DO_ANDROID" == "1" ]]; then
   echo "=== Setting up Android driver ==="
+  # 6.7.10 excludes Stetho sockets that hang ADB on API 36.
+  # https://github.com/appium/appium-android-driver/issues/1049
+  ANDROID_DRIVER_VERSION="6.7.10"
   android_driver_output=$(grep -i uiautomator2 "$DRIVER_LIST_FILE" || echo "")
   if [[ -n "$android_driver_output" ]]; then
     android_version=$(echo "$android_driver_output" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    if check_version "$android_version" "5"; then
+    if [[ "$android_version" == "$ANDROID_DRIVER_VERSION" ]]; then
       echo "✓ UiAutomator2 driver $android_version is correct version"
     else
-      echo "❌ UiAutomator2 driver version $android_version is wrong, need 5.x"
-      if appium driver uninstall uiautomator2 && appium driver install uiautomator2@5; then
-        echo "✓ Installed UiAutomator2 driver 5.x"
+      echo "❌ UiAutomator2 driver version $android_version is wrong, need $ANDROID_DRIVER_VERSION"
+      if appium driver uninstall uiautomator2 && appium driver install "uiautomator2@$ANDROID_DRIVER_VERSION"; then
+        echo "✓ Installed UiAutomator2 driver $ANDROID_DRIVER_VERSION"
       else
         echo "❌ Failed to install UiAutomator2 driver"
+        exit 1
       fi
     fi
   else
-    if appium driver install uiautomator2@5; then
+    if appium driver install "uiautomator2@$ANDROID_DRIVER_VERSION"; then
       echo "✓ Installed UiAutomator2 driver"
     else
       echo "❌ Failed to install UiAutomator2 driver"
+      exit 1
     fi
   fi
 

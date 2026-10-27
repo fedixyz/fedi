@@ -130,7 +130,12 @@ export class BackupRestore extends AppiumTestBase {
             await this.typeIntoElementByKey(key, seedWords[i])
         }
         await this.clickElementByKey('Recover wallet')
-        await this.clickElementByKey('Okay')
+        // an Okay tap fired during the success screen's entrance animation is
+        // reported clicked but swallowed, so re-click until the next screen shows
+        await this.clickAndCheckForNextElement(
+            'Okay',
+            'TransferExistingWalletButton',
+        )
         await this.clickElementByKey('TransferExistingWalletButton')
         await this.clickElementByKey('Continue')
         await this.clickElementByKey('DeviceIndex0Button')

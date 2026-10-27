@@ -38,6 +38,8 @@ Design choices that matter (learned the hard way, keep them):
   - No em or en dashes anywhere in output. Use a regular hyphen. (Repo rule.)
   - Chips never wrap mid-word (white-space:nowrap); the chip row wraps whole
     pills instead.
+  - A feature flag's column, and whether it is going live, come from its now
+    and next values, so a chip cannot claim a change the values do not show.
 
 See SKILL.md for the JSON schema and how to fill it.
 """
@@ -182,6 +184,20 @@ SUMMARY_JARGON = (
     r"\bCI\b", r"\bnightly\b", r"\bQA\b", r"\bzenhub\b", r"\bboards?\b", r"\bupstream\b",
     r"\bcrates?\b", r"\bwasm\b", r"\bbridge\b", r"\bsha\b", r"#\d{3,}", r"\b[0-9a-f]{7,40}\b",
 )
+FIX_MECHANICS = (
+    r"\binstead of\b", r"\brather than\b", r"\bbecause\b", r"\bdepending on\b", r"\buntil\b",
+    r"\bon the first try\b", r"\bno longer\b", r"\bcould\b", r"\bused to\b", r"\bsat over\b",
+    r"\bdropped back\b", r"\bagain and again\b",
+)
+
+
+def scan_fix_mechanics(name, card):
+    text = " ".join(str(card.get(k) or "") for k in ("headline", "summary"))
+    for pat in FIX_MECHANICS:
+        m = re.search(pat, text, re.I)
+        if m:
+            warn(f"{name} says {m.group(0)!r}. That narrates what the bug did. Name the everyday action "
+                 "and the situation a person recognizes, and move the mechanics to the GitHub bullet on Full report.")
 
 
 def scan_summary_jargon(summary_html):
@@ -267,6 +283,8 @@ def store_notes_block(summary):
     rn = summary.get("release_notes") or {}
     store = rn.get("store")
     if not store:
+        if not {"ios", "android"} & set(summary_platforms(summary)):
+            return ""
         warn("summary.release_notes.store is missing, so the Summary carries no store release notes. "
              "Write it from the cards by references/release-notes-copy.md. See SKILL.md step 7.")
         return ""
@@ -342,6 +360,8 @@ def summary_cards(items, section, with_status):
         name = f'summary.{section} card "{it.get("headline","")}"'
         budget(it.get("summary"), 300, name)
         kind, status = it.get("kind", ""), it.get("status", "")
+        if kind == "Fix":
+            scan_fix_mechanics(name, it)
         if with_status and status not in NOT_MERGED_STATUSES:
             warn(f"{name} has status {status!r}. A not-merged card is 'In progress' (an open PR "
                  "ready for review) or 'Planned' (a draft or no PR). Merged work goes in features or fixes.")
@@ -390,6 +410,160 @@ def not_merged_section(summary):
         f'exists and is being checked. Planned means no fix exists yet.</p>{layout_switch(LAYOUTS)}</div>',
         f'<div class="scards" data-grid>{summary_cards(items, "not_merged", True)}</div>',
         '</div></details>'])
+
+
+FLAG_STATES = ("on", "off", "edge")
+FLAG_COLS = ("go", "stop", "off", "live")
+FLAG_SVG = {
+    "flag": '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4 2.5 4H5"/>',
+    "group": '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.2c3 .3 5.5 2.8 5.5 5.8"/>',
+    "bank": '<path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 20h18"/>',
+    "key": '<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/>',
+    "shield": '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+    "smile": '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.3 2.2 2 3.5 2s2.5-.7 3.5-2"/><path d="M9 10h.01M15 10h.01" stroke-width="2.6"/>',
+    "lock": '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    "dollar": '<circle cx="12" cy="12" r="9"/><path d="M14.6 9.6c-.4-1-1.4-1.6-2.6-1.6-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1.2 0-2.2-.6-2.6-1.6M12 6.5v11"/>',
+    "update": '<circle cx="12" cy="12" r="9"/><path d="M12 16.5V8M8.5 11.5L12 8l3.5 3.5"/>',
+    "restart": '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/>',
+    "chat": '<path d="M4 5h16v11H9l-5 4z"/>',
+    "send": '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
+}
+FLAG_INFO = '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.6h.01" stroke-width="2.6"/>'
+FLAG_ONLY = {
+    ("ios", "android"): "Native app", ("web",): "Web app", ("ios",): "iPhone only",
+    ("android",): "Android only", ("ios", "web"): "iPhone and the web app",
+    ("android", "web"): "Android and the web app",
+}
+FLAG_TIP = ("Unreleased", "In the app and switched off in production. It is on in Nightly, Fedi's internal test build.")
+
+
+def flag_svg(path, cls):
+    return (f'<svg class="{cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{path}</svg>')
+
+
+def flag_column(f):
+    """go turns on with this release, stop turns off, off stays off, live was already on.
+    Fedi Edge follows master rather than releases, so Edge only counts as off."""
+    if f.get("next") == "on":
+        return "live" if f.get("now") == "on" else "go"
+    return "stop" if f.get("now") == "on" else "off"
+
+
+def flag_plats(f):
+    return [p for p in PLATFORM_ORDER if p in (f.get("platforms") or PLATFORM_ORDER)]
+
+
+def flag_touch(f):
+    return [t if isinstance(t, list) else [t] for t in f.get("touch") or [] if t]
+
+
+def flag_order(items):
+    newest = sorted(items, key=lambda f: (f.get("added") or "", f.get("order", -1)), reverse=True)
+    return sorted(newest, key=lambda f: FLAG_COLS.index(flag_column(f)) if f.get("next") else len(FLAG_COLS))
+
+
+def flag_items(data):
+    items = [f for f in (data.get("flags") or {}).get("items") or [] if f.get("key")]
+    for f in items:
+        name = f'flags item "{f["key"]}"'
+        for field in ("now", "next", "after"):
+            if f.get(field) not in (None, *FLAG_STATES):
+                warn(f"{name} has {field} {f.get(field)!r}. Use on, off, edge, or null when the flag does not exist.")
+        if f.get("next") is None:
+            if f.get("now") is not None and f.get("after") not in ("on", "off"):
+                warn(f"{name} is removed in this release with no 'after'. Set after to on when the feature "
+                     "stays, or off when it goes with the switch.")
+            continue
+        if not f.get("name") or not f.get("does"):
+            warn(f"{name} has no name or does. Name the feature the way a person would, and say in one "
+                 "sentence what it lets them do. See SKILL.md, Feature flags.")
+        if not flag_touch(f):
+            warn(f"{name} has no touch list, so its details do not say what the flag changes in the app. "
+                 "Write one line per place a person sees a difference. See SKILL.md, Feature flags.")
+        if f.get("icon") and f["icon"] not in FLAG_SVG:
+            warn(f"{name} has icon {f['icon']!r}. Use one of {', '.join(FLAG_SVG)}.")
+        if f.get("off_note"):
+            warn(f"{name} has an off_note, which is no longer rendered. Put what a person keeps while the "
+                 "flag is off into its touch lines.")
+        budget(f.get("does"), 140, f"{name} does")
+    return items
+
+
+def flag_chip(f):
+    col = flag_column(f)
+    icon = FLAG_SVG.get(f.get("icon")) or FLAG_SVG["flag"]
+    group = "u" if col in ("off", "stop") else "g" if col == "go" else "p"
+    return (f'<div class="fchip {col}" tabindex="0" role="button" aria-haspopup="dialog" '
+            f'data-f="{esc(f["key"])}" data-col="{group}" data-plat="{" ".join(flag_plats(f))}">'
+            f'{flag_svg(icon, "fic")}<span class="fn">{esc(f.get("name") or f["key"])}</span>'
+            f'{flag_svg(FLAG_INFO, "finfo")}</div>')
+
+
+def flag_pop(f, repo):
+    update = "Changes only with an app update" if f.get("control") == "app" else None
+    meta = " · ".join(x for x in (f.get("who"), FLAG_ONLY.get(tuple(flag_plats(f))), update) if x)
+    rows = []
+    for t in flag_touch(f):
+        where = f'<span class="w">{esc(t[1])}</span>' if len(t) > 1 and t[1] else ""
+        rows.append(f"<li>{esc(t[0])}{where}</li>")
+    pr = f.get("pr") or f.get("added_pr")
+    ref = [f'Flag <code>{esc(f["key"])}</code>']
+    if pr:
+        ref.append(f'<a href="{pr_url(repo, pr)}" target="_blank" rel="noopener">#{esc(pr)}</a>')
+    body = (f'<div class="pn">{esc(f.get("name") or f["key"])}</div><div class="pd">{esc(f.get("does", ""))}</div>'
+            + (f'<div class="pm">{esc(meta)}</div>' if meta else "")
+            + '<details><summary>Details</summary>'
+            + (f'<div class="tl">What the flag changes in the app</div><ul>{"".join(rows)}</ul>' if rows else "")
+            + f'<div class="pf">{" · ".join(ref)}</div></details>')
+    return f'<template id="fp-{esc(f["key"])}">{body}</template>'
+
+
+def flags_section(data):
+    """Open only when a feature goes live with this release."""
+    if "flags" not in data:
+        warn("no 'flags' block, so the Summary cannot say which features are live. "
+             "Copy it from window.json. See SKILL.md, Feature flags.")
+    shown = [f for f in flag_order(flag_items(data)) if f.get("next")]
+    if not shown:
+        return ""
+    rel = esc(data.get("next_release") or "this release")
+    by = {c: [f for f in shown if flag_column(f) == c] for c in FLAG_COLS}
+
+    def group(fs, label=""):
+        if not fs:
+            return ""
+        head = f'<div class="flbl">{label}</div>' if label else ""
+        return f'<div class="fgrp">{head}{"".join(flag_chip(f) for f in fs)}</div>'
+
+    def badge(cls, label, of, n):
+        return (f'<span class="fbadge {cls}"{"" if n else " hidden"}><span class="fdot"></span>{label}'
+                f'<b class="fcount" data-of="{of}">{n}</b></span>')
+
+    unreleased = by["stop"] + by["off"]
+    live = by["live"]
+    live_html = ""
+    if live:
+        live_html = ('<details class="flive fgrp"><summary class="flbl"><span class="chev" aria-hidden="true"></span>'
+                     f'Live features<b class="fcount" data-of="p">{len(live)}</b></summary>'
+                     f'{"".join(flag_chip(f) for f in live)}</details>')
+    tip = flag_svg(FLAG_INFO, "finfo")
+    out = [f'<details class="tucked flags" id="flags"{" open" if by["go"] else ""}>',
+           '<summary><span class="chev" aria-hidden="true"></span><span>Feature flags</span><span class="fbadges">',
+           badge("b-u", "Unreleased", "u", len(unreleased)), badge("b-g", "Going live", "g", len(by["go"])),
+           badge("b-p", "Live", "p", len(live)), '</span></summary>',
+           '<div class="fbody"><div class="fline">',
+           '<div class="fst fu"><div class="fsth"><span class="fdot2"></span>'
+           f'<span class="ftip" tabindex="0" role="button" aria-haspopup="dialog" data-tip="unreleased">Unreleased{tip}</span></div>'
+           f'<div class="fstb">{group(by["stop"], f"Switching off in {rel}")}{group(by["off"])}</div></div>',
+           '<div class="fst fp"><div class="fsth"><span class="fdot2"></span>Production</div>'
+           f'<div class="fstb">{group(by["go"], f"Going live in {rel}")}{live_html}</div></div>',
+           '</div></div></details>']
+    repo = data.get("repo", "")
+    out.append(f'<template id="fp-unreleased"><div class="pn">{esc(FLAG_TIP[0])}</div>'
+               f'<div class="pd">{esc(FLAG_TIP[1])}</div></template>')
+    out.extend(flag_pop(f, repo) for f in shown)
+    return "\n".join(out)
 
 
 def pending_counts(data):
@@ -505,23 +679,26 @@ def render_summary(data):
     parts.append(release_scope(data))
     parts.append(store_notes_block(s))
     parts.append(platform_filter(s))
+    parts.append(flags_section(data))
     main_cards = [it for key in ("features", "fixes") for it in s.get(key) or []]
-    sw = layout_switch(MERGED_LAYOUTS) if len({tuple(card_platforms(it)) for it in main_cards}) > 1 else ""
-    merged = ['<section class="cardsec" id="merged">',
-              f'<div class="h2row"><h2>In this release</h2>{sw}</div>']
-    if s.get("features"):
-        merged.append('<div class="subhead" data-sub>New features and improvements</div>')
-        merged.append(f'<div class="scards" data-grid>{summary_cards(s["features"], "features", False)}</div>')
-    if s.get("fixes"):
-        merged.append('<div class="subhead" data-sub>Fixes</div>')
-        merged.append(f'<div class="scards" data-grid>{summary_cards(s["fixes"], "fixes", False)}</div>')
-    merged.append('</section>')
-    parts.append("\n".join(merged))
+    if main_cards:
+        sw = layout_switch(MERGED_LAYOUTS) if len({tuple(card_platforms(it)) for it in main_cards}) > 1 else ""
+        merged = ['<section class="cardsec" id="merged">',
+                  f'<div class="h2row"><h2>In this release</h2>{sw}</div>']
+        if s.get("features"):
+            merged.append('<div class="subhead" data-sub>New features and improvements</div>')
+            merged.append(f'<div class="scards" data-grid>{summary_cards(s["features"], "features", False)}</div>')
+        if s.get("fixes"):
+            merged.append('<div class="subhead" data-sub>Fixes</div>')
+            merged.append(f'<div class="scards" data-grid>{summary_cards(s["fixes"], "fixes", False)}</div>')
+        merged.append('</section>')
+        parts.append("\n".join(merged))
     parts.extend(audience_section(sec) for sec in s.get("sections") or [])
     parts.append(not_merged_section(s))
     parts.append('<p class="sub" style="margin-top:22px">Every change in full is on the <b>Full report</b> tab.</p>')
     out = "\n".join(p for p in parts if p)
-    scan_summary_jargon(out)
+    # flag footers name the key and PR, and the Unreleased tip names Nightly, so the scan skips both.
+    scan_summary_jargon(re.sub(r'<div class="pf">.*?</div>|<template id="fp-unreleased">.*?</template>', "", out, flags=re.S))
     return out
 
 
@@ -708,6 +885,44 @@ def release_notes_full(data):
     return "\n".join(parts)
 
 
+FLAG_BADGE = {"on": '<span class="badge ok">on</span>', "off": '<span class="badge none">off</span>',
+              "edge": '<span class="badge bp">Edge only</span>', None: '<span class="badge none">absent</span>'}
+
+
+def flags_full(data):
+    items = flag_items(data)
+    if not items:
+        return ""
+    repo = data.get("repo", "")
+    fl = data.get("flags") or {}
+    served = fl.get("served") or {}
+    where = f'web {esc(served["version"])}' if served.get("version") else "the live endpoint"
+    next_ref = fl.get("next_ref", "master")
+    sub = (f'Now is what the app built from <code>{esc(fl.get("native_ref", "the release branch"))}</code> gets: '
+           f'the value <code>{esc(served.get("url", "app.fedi.xyz/api/features"))}</code> served from {where} '
+           f'when this report was generated, or its built-in value for a flag that app does not take from the server. '
+           f'After is the same for the app built from <code>{esc(fl.get("app_ref") or next_ref)}</code>, '
+           f'with the values served at <code>{esc(next_ref)}</code>.')
+    if served and not served.get("live"):
+        sub += ' The live endpoint did not answer, so Now comes from the web baseline.'
+    rows = []
+    for f in flag_order(items):
+        pr = f.get("pr") or f.get("added_pr")
+        added = esc(f.get("added") or "") + (f' <a href="{pr_url(repo, pr)}">#{esc(pr)}</a>' if pr else "")
+        control = "built in" if f.get("control") == "app" else "remote"
+        after = FLAG_BADGE.get(f.get("next"), "")
+        if f.get("next") is None and f.get("now") is not None:
+            after = f'<span class="badge none">removed, {"stays on" if f.get("after") == "on" else "off"}</span>'
+        rows.append(f'<tr><td><code>{esc(f["key"])}</code></td><td>{esc(f.get("name", ""))}</td>'
+                    f'<td>{FLAG_BADGE.get(f.get("now"), "")}</td><td>{after}</td>'
+                    f'<td>{control}</td><td class="nowrap">{added}</td></tr>')
+    return "\n".join([f'<h2 id="flag-table">Feature flags <span class="cnt">{len(items)}</span></h2>',
+                      f'<p class="sub">{sub}</p>',
+                      '<table class="ftable"><thead><tr><th>Flag</th><th>Feature</th><th>Now</th><th>After</th>'
+                      '<th>Control</th><th>Added</th></tr></thead><tbody>',
+                      "\n".join(rows), '</tbody></table>'])
+
+
 def render_full(data):
     repo = data.get("repo", "")
     w = data.get("window", {})
@@ -737,6 +952,7 @@ def render_full(data):
         parts.append(f'<div class="note">{esc(data["intro"])}</div>')
 
     parts.append(release_notes_full(data))
+    parts.append(flags_full(data))
 
     parts.append(f'<h2>User-facing changes <span class="cnt">{nfeat}</span></h2>')
     if data.get("titles_note"):
@@ -811,7 +1027,8 @@ CSS_VARS = """
  --bp-bg:rgba(169,142,255,.14);--bp-bd:rgba(169,142,255,.42);--on-bp:#15111f;
  --prog-bg:rgba(126,162,245,.14);--prog-bd:rgba(126,162,245,.4);
  --acc-bg:rgba(126,162,245,.1);--acc-bd:rgba(126,162,245,.32);
- --p-ios:#e9ebf2;--p-android:#4fe08a;--p-web:#7cb2ff;--p-off:#4d525f;}
+ --p-ios:#e9ebf2;--p-android:#4fe08a;--p-web:#7cb2ff;--p-off:#4d525f;
+ --pop:#24242c;--shadow:0 12px 32px rgba(0,0,0,.5);}
 html[data-theme="light"]{color-scheme:light;
  --bg:#f6f7f9;--card:#fff;--card2:#f0f2f5;--line:#e2e5ea;
  --tx:#1a1d23;--tx2:#3f4651;--mut:#5c6470;
@@ -826,7 +1043,8 @@ html[data-theme="light"]{color-scheme:light;
  --bp-bg:rgba(103,65,217,.1);--bp-bd:rgba(103,65,217,.35);--on-bp:#fff;
  --prog-bg:rgba(25,113,194,.1);--prog-bd:rgba(25,113,194,.35);
  --acc-bg:rgba(25,113,194,.07);--acc-bd:rgba(25,113,194,.3);
- --p-ios:#1b1e25;--p-android:#0b8043;--p-web:#1a73e8;--p-off:#bcc2cc;}
+ --p-ios:#1b1e25;--p-android:#0b8043;--p-web:#1a73e8;--p-off:#bcc2cc;
+ --pop:#fff;--shadow:0 12px 32px rgba(20,30,50,.16);}
 """
 
 
@@ -969,6 +1187,62 @@ details.tucked[open]>summary .chev{{transform:rotate(45deg);margin:0 2px 0 0}}
 .tbody{{padding:4px 18px 18px}}
 .thead2{{margin:10px 0 4px;padding-bottom:0;border-bottom:none}}
 .thead2 .sub{{flex:1 1 320px;margin:0}}
+details.flags{{margin:16px 0 0}}
+details.flags>summary{{flex-wrap:wrap;row-gap:6px;padding:11px 18px}}
+.fbadges{{display:inline-flex;flex-wrap:wrap;gap:6px;text-transform:none;letter-spacing:0}}
+.fbadge{{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px;font-weight:600;color:var(--tx2);background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:2px 9px 2px 8px}}
+.fbadge[hidden]{{display:none}}
+.fbadge b{{font-weight:800;color:var(--tx)}}
+.fdot{{width:8px;height:8px;border-radius:50%;flex:none}}
+.b-u .fdot{{background:var(--acc)}} .b-p .fdot{{background:var(--ok)}}
+.b-g{{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-bd)}} .b-g b{{color:var(--ok)}} .b-g .fdot{{background:var(--ok)}}
+.fbody{{padding:6px 18px 18px;container-type:inline-size}}
+.fline{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}}
+.fst{{position:relative;min-width:0}}
+.fu::after{{content:"";position:absolute;top:7px;left:16px;right:-20px;height:2px;background:var(--line)}}
+.fsth{{position:relative;padding-top:26px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tx2)}}
+.fdot2{{position:absolute;left:0;top:0;width:16px;height:16px;border-radius:50%;z-index:1;box-shadow:0 0 0 4px var(--bg)}}
+.fu .fdot2{{background:var(--acc)}} .fp .fdot2{{background:var(--ok)}}
+.ftip{{display:inline-flex;align-items:center;gap:6px;cursor:help;outline:none}}
+.flbl{{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}}
+.fgrp:first-child>.flbl{{margin-top:8px}}
+.flbl b{{font-weight:800;color:var(--tx2);background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:0 7px;letter-spacing:0}}
+details.flive{{margin-top:10px}}
+details.flive>summary{{cursor:pointer;list-style:none;user-select:none;padding:4px 0;margin:0}}
+details.flive>summary::-webkit-details-marker{{display:none}}
+details.flive>summary .chev{{border-color:var(--mut)}}
+details.flive[open]>summary .chev{{transform:rotate(45deg);margin:0 2px 0 0}}
+details.flive>summary:hover,details.flive>summary:focus-visible{{color:var(--tx);outline:none}}
+.fchip{{display:flex;align-items:center;gap:8px;padding:7px 10px;margin-top:6px;border-radius:9px;background:var(--card2);border:1px solid transparent;font-size:14px;color:var(--tx);cursor:help;outline:none;transition:border-color .12s}}
+.fchip:hover,.fchip:focus-visible{{border-color:var(--acc-bd)}}
+.fchip.go{{background:var(--ok-bg);border-color:var(--ok-bd)}} .fchip.go:hover,.fchip.go:focus-visible{{border-color:var(--ok)}}
+.fchip.stop{{background:var(--wait-bg);border-color:var(--wait-bd)}} .fchip.stop:hover,.fchip.stop:focus-visible{{border-color:var(--wait)}}
+.fn{{min-width:0}}
+.fic{{width:16px;height:16px;flex:none;color:var(--mut)}}
+.fchip.go .fic{{color:var(--ok)}} .fchip.stop .fic{{color:var(--wait)}}
+.finfo{{width:15px;height:15px;flex:none;color:var(--mut);opacity:.75;transition:color .12s,opacity .12s}}
+.fchip .finfo{{margin-left:auto}}
+.ftip .finfo{{width:14px;height:14px}}
+.fchip:hover .finfo,.fchip:focus-visible .finfo,.ftip:hover .finfo,.ftip:focus-visible .finfo{{color:var(--acc);opacity:1}}
+@container (max-width:560px){{
+  .fline{{grid-template-columns:1fr;gap:18px}}
+  .fu::after{{top:16px;left:7px;right:auto;bottom:-18px;width:2px;height:auto}}
+  .fsth{{padding-top:0;padding-left:26px}} .fdot2{{top:50%;margin-top:-8px}} .fstb{{padding-left:26px}}
+}}
+#fpop{{position:absolute;z-index:30;width:360px;max-width:calc(100vw - 20px);background:var(--pop);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;font-size:13.5px;line-height:1.5}}
+#fpop[hidden]{{display:none}}
+#fpop .pn{{font-weight:700;font-size:14.5px}}
+#fpop .pd{{margin-top:4px;color:var(--tx2)}}
+#fpop .pm{{margin-top:6px;color:var(--mut);font-size:12.5px}}
+#fpop details{{margin-top:8px;font-size:13px;border-top:1px solid var(--card2);padding-top:6px}}
+#fpop summary{{cursor:pointer;color:var(--acc);font-size:12.5px;font-weight:600;margin:0}}
+#fpop .tl{{margin-top:8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}}
+#fpop ul{{margin:4px 0 0;padding:0;list-style:none}}
+#fpop li{{position:relative;padding:4px 0 4px 14px;color:var(--tx2);line-height:1.45}}
+#fpop li::before{{content:"";position:absolute;left:2px;top:12px;width:5px;height:5px;border-radius:50%;background:var(--mut)}}
+#fpop li .w{{display:block;color:var(--mut);font-size:11.5px}}
+#fpop .pf{{margin-top:8px;color:var(--mut);font-size:12.5px}}
+@media (max-width:640px){{.ftable{{display:block;overflow-x:auto}}}}
 @media print{{html{{color-scheme:light}} .tabbar{{display:none}} .tabpane{{display:block!important}}}}
 </style></head>
 <body>
@@ -985,6 +1259,7 @@ details.tucked[open]>summary .chev{{transform:rotate(45deg);margin:0 2px 0 0}}
 {render_full(data)}
 </div>
 </div>
+<div id="fpop" role="dialog" hidden></div>
 <script>
 document.querySelectorAll('.tab').forEach(function(t){{
   t.addEventListener('click', function(){{
@@ -1122,11 +1397,11 @@ document.querySelectorAll('.tab').forEach(function(t){{
   function apply(){{
     var p = current;
     btns.forEach(function(b){{ b.classList.toggle('active', b.dataset.p === p); }});
-    document.querySelectorAll('.scard').forEach(function(el){{
+    document.querySelectorAll('.scard, .fchip').forEach(function(el){{
       el.hidden = !!p && !has(el, p);
     }});
-    document.querySelectorAll('.scards, details.gwrap, .cardsec').forEach(function(box){{
-      var all = box.querySelectorAll('.scard');
+    document.querySelectorAll('.scards, details.gwrap, .cardsec, .fgrp, details.flags').forEach(function(box){{
+      var all = box.querySelectorAll('.scard, .fchip');
       if (!all.length) return;
       var n = [].filter.call(all, function(c){{ return !c.hidden; }}).length;
       box.hidden = !n;
@@ -1136,6 +1411,12 @@ document.querySelectorAll('.tab').forEach(function(t){{
       if (count) count.textContent = n;
       var note = box.querySelector(':scope > summary .tknote');
       if (note) note.hidden = !!p;
+    }});
+    document.querySelectorAll('.fcount').forEach(function(c){{
+      var n = document.querySelectorAll('.fchip[data-col="' + c.dataset.of + '"]:not([hidden])').length;
+      c.textContent = n;
+      var badge = c.closest('.fbadge');
+      if (badge) badge.hidden = !n;
     }});
   }}
   window.rnrFilter = apply;
@@ -1151,6 +1432,64 @@ document.querySelectorAll('.tab').forEach(function(t){{
   var q = new URLSearchParams(location.search).get('platform');
   current = valid.indexOf(q) > 0 ? q : '';
   apply();
+}})();
+(function(){{
+  var pop = document.getElementById('fpop');
+  var TRIG = '[data-f],[data-tip]';
+  var hideT = null, pinned = false, anchor = null;
+  function show(el, pin){{
+    clearTimeout(hideT);
+    if (pin) pinned = true;
+    if (anchor !== el || pop.hidden) {{
+      var t = document.getElementById('fp-' + (el.dataset.f || el.dataset.tip));
+      pop.innerHTML = t ? t.innerHTML : '';
+    }}
+    anchor = el;
+    pop.hidden = false;
+    var r = el.getBoundingClientRect(), w = pop.offsetWidth;
+    var maxLeft = window.scrollX + document.documentElement.clientWidth - w - 10;
+    pop.style.left = Math.max(10, Math.min(window.scrollX + r.left, maxLeft)) + 'px';
+    pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+  }}
+  function hide(force){{
+    if (force) {{ pinned = false; anchor = null; pop.hidden = true; return; }}
+    if (pinned) return;
+    hideT = setTimeout(function(){{ pop.hidden = true; anchor = null; }}, 220);
+  }}
+  document.addEventListener('click', function(e){{
+    if (e.target.closest('#fpop')) return;
+    var t = e.target.closest(TRIG);
+    if (t) {{ show(t, true); return; }}
+    hide(true);
+  }});
+  document.addEventListener('mouseover', function(e){{
+    if (e.target.closest('#fpop')) {{ clearTimeout(hideT); return; }}
+    var t = e.target.closest(TRIG);
+    if (t && !pinned) show(t, false);
+  }});
+  document.addEventListener('mouseout', function(e){{
+    if (e.target.closest(TRIG) || e.target.closest('#fpop')) hide(false);
+  }});
+  document.addEventListener('focusin', function(e){{
+    var t = e.target.closest(TRIG);
+    if (t && !pinned) show(t, false);
+  }});
+  document.addEventListener('keydown', function(e){{
+    if (e.key === 'Escape') hide(true);
+    var t = e.target.closest && e.target.closest(TRIG);
+    if (t && (e.key === 'Enter' || e.key === ' ')) {{ e.preventDefault(); show(t, true); }}
+  }});
+  var key = new URLSearchParams(location.search).get('flag');
+  var el = key && document.querySelector('.fchip[data-f="' + CSS.escape(key) + '"]');
+  if (el) {{
+    var sec = el.closest('details.flags'), live = el.closest('details.flive');
+    if (sec) sec.open = true;
+    if (live) live.open = true;
+    el.scrollIntoView({{block: 'center'}});
+    show(el, true);
+    var d = pop.querySelector('details');
+    if (d) d.open = true;
+  }}
 }})();
 var btn = document.getElementById('themebtn');
 function paintBtn(){{ btn.textContent = document.documentElement.dataset.theme === 'dark' ? 'Light' : 'Dark'; }}
@@ -1206,6 +1545,14 @@ def render_briefing(data):
         for it in not_merged:
             meta = " / ".join(x for x in [it.get("status"), it.get("kind"), it.get("track")] if x)
             lines.append(f"- **{it.get('headline','')}** ({meta})")
+    words = {"go": "goes live", "stop": "switches off"}
+    changing = [f for f in flag_order(flag_items(data))
+                if (flag_column(f) in words if f.get("next") else f.get("now") is not None)]
+    if changing:
+        lines += ["", "Feature flags changing in this release:"]
+        for f in changing:
+            what = words.get(flag_column(f)) if f.get("next") else "flag removed"
+            lines.append(f"- **{f.get('name') or f['key']}** (`{f['key']}`): {what}")
     lines.append(cut_decision(data))
     lines.append(milestone_ask(data))
     return "\n".join(lines) + "\n"

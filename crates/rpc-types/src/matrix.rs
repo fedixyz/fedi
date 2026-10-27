@@ -1195,6 +1195,8 @@ pub enum RpcMatrixPaymentStatus {
     Accepted,
     Rejected,
     Canceled,
+    Receiving,
+    Failed,
     Received,
 }
 

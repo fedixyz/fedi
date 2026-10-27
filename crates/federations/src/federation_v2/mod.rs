@@ -475,6 +475,9 @@ pub struct FederationV2 {
     pub spend_guard: Mutex<()>,
     // Mutex to prevent concurrent generate_ecash because logic is very fragile.
     pub generate_ecash_lock: Mutex<()>,
+    // Held from reading the balance to emitting its event, so two emitters
+    // cannot publish a stale balance after a newer one.
+    pub balance_event_lock: Mutex<()>,
     // Operation ids with a subscriber task in flight, so the several places
     // that can spawn one for the same operation (startup replay, creation,
     // lazy recovery from a transaction listing) don't pile up duplicates.
@@ -800,6 +803,7 @@ impl FederationV2 {
             spend_guard: Default::default(),
             operation_subscriptions: Default::default(),
             generate_ecash_lock: Default::default(),
+            balance_event_lock: Default::default(),
             this_weak: weak.clone(),
             guard,
             multispend_services,
@@ -1569,6 +1573,10 @@ impl FederationV2 {
             .await
     }
 
+    async fn payment_gateways(&self) -> anyhow::Result<Vec<LightningGateway>> {
+        self.gateway_service()?.payment_gateways(&self.client).await
+    }
+
     pub(crate) async fn select_gateway_with_override(
         &self,
         gateway_override: Option<PublicKey>,
@@ -1822,13 +1830,19 @@ impl FederationV2 {
             .get_fee_ppms_by_stream(module, direction)
             .await?
             .into_iter()
-            .map(|(stream, fee_ppm)| {
-                (
-                    stream,
-                    Amount::from_msats((amount.msats * fee_ppm).div_ceil(MILLION)),
-                )
-            })
+            .map(|(stream, fee_ppm)| (stream, Self::fedi_fee_amount(amount, fee_ppm)))
             .collect())
+    }
+
+    fn fedi_fee_amount(amount: Amount, fee_ppm: u64) -> Amount {
+        Amount::from_msats((amount.msats * fee_ppm).div_ceil(MILLION))
+    }
+
+    fn total_fedi_fee(amount: Amount, fee_ppms: &[(FediFeeStream, u64)]) -> Amount {
+        fee_ppms
+            .iter()
+            .map(|(_, fee_ppm)| Self::fedi_fee_amount(amount, *fee_ppm))
+            .sum()
     }
 
     fn total_fedi_fee_amount(fees_by_stream: &[(FediFeeStream, Amount)]) -> Amount {
@@ -1893,6 +1907,13 @@ impl FederationV2 {
     /// Estimates fees for paying a lightning invoice in this federation
     pub async fn estimate_ln_fees(&self, invoice: &Bolt11Invoice) -> Result<RpcFeeDetails> {
         self.ln_ops.estimate_ln_fees(self, invoice).await
+    }
+
+    pub async fn calculate_max_pay_invoice(&self) -> Result<Amount> {
+        if self.get_balance().await < Amount::from_sats(1) {
+            return Ok(Amount::ZERO);
+        }
+        self.ln_ops.max_pay_invoice_amount(self).await
     }
 
     /// Pay lightning invoice
@@ -2301,6 +2322,7 @@ impl FederationV2 {
 
     /// Send whenever balance changes
     pub async fn send_balance_event(&self) {
+        let _guard = self.balance_event_lock.lock().await;
         self.runtime.event_sink.typed_event(&Event::balance(
             self.federation_id().to_string(),
             self.get_balance().await,
@@ -3762,6 +3784,7 @@ impl FederationV2 {
             .value
             .current_cycle
             .start_time
+            .0
             .checked_add(config.cycle_duration)
             .ok_or(anyhow!(ErrorCode::BadRequest))?;
         to_unix_time(next_time)
@@ -4768,10 +4791,14 @@ impl FederationV2 {
             .unwrap_autocommit();
 
         match res {
-            Ok(_) => info!(
-                "Successfully wrote failed send fedi fees for op ID {}",
-                operation_id.fmt_short()
-            ),
+            Ok(_) => {
+                // A released fee reservation changes no mint balance, so no event fires.
+                self.send_balance_event().await;
+                info!(
+                    "Successfully wrote failed send fedi fees for op ID {}",
+                    operation_id.fmt_short()
+                );
+            }
             Err(ref e) => warn!(
                 "Error writing failed send fedi fees for op ID {}: {}",
                 operation_id.fmt_short(),

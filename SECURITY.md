@@ -146,8 +146,7 @@ the resulting `gatewayViewVerified` boolean, never the gateway capability.
 The Fedi wallet adapter (`bridge::fa_payments`) implements exact quote
 recovery and idempotent refund settlement for paid formation through the pinned
 Manifold contract. Production app RPCs expose only the verified selection
-preview followed by explicit-payer `Pay & create`; pinned locators and separate
-payment authorization remain internal diagnostic seams. If one exact paid row
+preview followed by explicit-payer `Pay & create`. If one exact paid row
 is later proven safe to replace, production exposes only a fresh verified
 replacement preview followed by its sealed approve/apply call. That one renewed
 user action durably sets the replacement subset's cap; exact quotes at or below

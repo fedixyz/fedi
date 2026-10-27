@@ -362,6 +362,11 @@ pub struct RpcFeeDetails {
 pub struct RpcPayAddressLimits {
     pub min_spendable: RpcAmount,
     pub max_spendable: RpcAmount,
+    pub balance: RpcAmount,
+    pub minimum_fees: RpcFeeDetails,
+    /// False when the balance cannot fund a dry-run; fees are then a lower
+    /// bound.
+    pub minimum_fees_exact: bool,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -1242,7 +1247,7 @@ pub struct RpcSPv2SyncResponse {
 impl From<CachedSyncResponseValue> for RpcSPv2CachedSyncResponse {
     fn from(value: CachedSyncResponseValue) -> Self {
         Self {
-            fetch_time: to_unix_time(value.fetch_time).expect("fetch time must be valid"),
+            fetch_time: to_unix_time(value.fetch_time.0).expect("fetch time must be valid"),
             sync_response: value.value.into(),
         }
     }
@@ -1275,7 +1280,7 @@ impl From<SyncResponse> for RpcSPv2SyncResponse {
 
         Self {
             curr_cycle_idx: value.current_cycle.idx,
-            curr_cycle_start_time: to_unix_time(value.current_cycle.start_time)
+            curr_cycle_start_time: to_unix_time(value.current_cycle.start_time.0)
                 .expect("cycle time must be valid"),
             curr_cycle_start_price: price.0,
             staged: RpcFiatAndBtcAmount {

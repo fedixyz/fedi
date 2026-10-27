@@ -313,6 +313,14 @@ export function initializeCommonStore({
         event => {
             log.debug('Transaction update', event)
             dispatch(updateTransaction(event))
+            if (
+                event.transaction.kind === 'oobReceive' &&
+                ['done', 'failed'].includes(event.transaction.state?.type || '')
+            ) {
+                dispatch(
+                    checkForReceivablePayments({ fedimint, receivedPayments }),
+                )
+            }
         },
     )
 

@@ -94,6 +94,8 @@ describe('/screens/RecoveryDeviceSelection', () => {
         await waitFor(() => {
             expect(selectOnboardingCompleted(store.getState())).toBe(true)
         })
+
+        await builder.withChatReady()
     })
 
     it('can reset unrecognized-seed recovery and navigate back to choose recovery method', async () => {

@@ -1,11 +1,11 @@
-use std::time::SystemTime;
-
 use fedimint_client::OperationId;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{Amount, TransactionId, impl_db_lookup, impl_db_record};
 use futures::StreamExt;
-use stability_pool_common::{AccountHistoryItem, AccountId, CycleInfo, FiatAmount, SyncResponse};
+use stability_pool_common::{
+    AccountHistoryItem, AccountId, CycleInfo, FiatAmount, LegacyTime, SyncResponse,
+};
 
 #[repr(u8)]
 #[derive(Clone, Debug)]
@@ -54,7 +54,7 @@ pub struct CachedSyncResponseKey {
 
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct CachedSyncResponseValue {
-    pub fetch_time: SystemTime,
+    pub fetch_time: LegacyTime,
     pub value: SyncResponse,
 }
 

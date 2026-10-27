@@ -1088,6 +1088,10 @@ export class AppiumTestBase {
                 `Unexpected error getting clipboard: ${(error as Error).message}`,
             )
             return ''
+        } finally {
+            if (currentPlatform === Platform.ANDROID) {
+                await this.waitForAndroidClipboardPreviewToClose()
+            }
         }
     }
 
@@ -1104,10 +1108,11 @@ export class AppiumTestBase {
                         },
                     ])
                 } catch (error: unknown) {
-                    this.log(
+                    throw new Error(
                         `Unable to push content to clipboard on Android. Reason: ${(error as Error).message}`,
                     )
                 }
+                await this.waitForAndroidClipboardPreviewToClose()
                 break
             case Platform.IOS:
                 try {
@@ -1125,6 +1130,26 @@ export class AppiumTestBase {
                 break
             default:
                 this.log(`TODO: Implement clipboard functions for PWA`)
+        }
+    }
+
+    private async waitForAndroidClipboardPreviewToClose(): Promise<void> {
+        // A tap on an expiring preview can reach the app underneath.
+        const settings = await this.driver.getSettings()
+        await this.driver.updateSettings({ enableMultiWindows: true })
+        try {
+            const dismiss = this.driver.$(
+                '//*[@resource-id="com.android.systemui:id/dismiss_button"]',
+            )
+            const visible = await dismiss
+                .waitForDisplayed({ timeout: 3000 })
+                .catch(() => false)
+            if (!visible) return
+            await dismiss.waitForDisplayed({ reverse: true, timeout: 15000 })
+        } finally {
+            await this.driver.updateSettings({
+                enableMultiWindows: settings.enableMultiWindows === true,
+            })
         }
     }
 
@@ -1286,6 +1311,13 @@ export class AppiumTestBase {
                     { appId },
                 ])
                 await this.driver.executeScript('mobile: clearApp', [{ appId }])
+                // clearApp removes the camera grant from autoGrantPermissions.
+                await this.driver.executeScript('mobile: shell', [
+                    {
+                        command: 'pm',
+                        args: ['grant', appId, 'android.permission.CAMERA'],
+                    },
+                ])
                 // matrix's first-run POST_NOTIFICATIONS prompt drops over
                 // the tab bar mid-flow and blocks taps; clearApp wipes
                 // runtime grants so the grant has to come after it.
@@ -1380,15 +1412,19 @@ export class AppiumTestBase {
         return (await this.driver.getContexts()) as string[]
     }
 
-    // Polls until the in-app browser's WEBVIEW context exists, then switches
-    // to it. The context only appears once the page has a live document, so a
-    // freshly opened browser needs a beat. Returns the context name.
+    // Android discovery includes background apps and WebViews without pages.
     async switchToWebviewContext(timeout = MATRIX_TIMEOUT): Promise<string> {
         const start = Date.now()
+        const appPackage = (this.driver.capabilities as { appPackage?: string })
+            .appPackage
         let last: string[] = []
         while (Date.now() - start < timeout) {
             last = await this.getContexts()
-            const webview = last.find(c => c.startsWith('WEBVIEW'))
+            const webview = last.find(c =>
+                currentPlatform === Platform.ANDROID
+                    ? c === `WEBVIEW_${appPackage || 'com.fedi'}`
+                    : c.startsWith('WEBVIEW'),
+            )
             if (webview) {
                 await this.driver.switchContext(webview)
                 return webview
