@@ -60,5 +60,6 @@ bumped version to 26.M.P. master sync in #4444
 ## Finish
 
 - CI green on both PRs. Rerun only for a known flake
+- the e2e suite runs on every push to the backport PR, all three platforms on both federation kinds, and its `E2E Status` check is required on release branches. Read a failed suite's logs and screenshots artifact before calling it a flake, then rerun the failed jobs rather than dispatching the suite again on the branch
 - merging is the release owner's call. Never merge and never mark a draft ready unasked
 - report the milestone contents, both PR links, every pick that conflicted and how it was resolved, and every PR still open on master
