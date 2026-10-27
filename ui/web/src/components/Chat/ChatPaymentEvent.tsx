@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -5,6 +6,7 @@ import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import { MatrixPaymentEvent } from '@fedi/common/types'
 
+import { transactionsRoute } from '../../constants/routes'
 import { styled } from '../../styles'
 import { Button } from '../Button'
 import { CircularLoader } from '../CircularLoader'
@@ -18,11 +20,14 @@ interface Props {
 export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
     const toast = useToast()
+    const router = useRouter()
+    const { federationId } = event.content
 
     const {
         messageText,
         statusIcon,
         statusText,
+        statusHelp,
         buttons,
         isLoadingTransaction,
         isSentByMe,
@@ -34,6 +39,13 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
         event,
         t,
         onError: _ => toast.error(t, 'errors.chat-payment-failed'),
+        onViewTransaction: federationId
+            ? () => {
+                  router.push(
+                      `${transactionsRoute}#id=${encodeURIComponent(federationId)}`,
+                  )
+              }
+            : undefined,
         onCopyBolt11: (bolt11: string) => {
             try {
                 navigator.clipboard.writeText(bolt11)
@@ -80,6 +92,7 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
                             <div>{statusText}</div>
                         </PaymentResult>
                     )}
+                    {statusHelp && <NotesText>{statusHelp}</NotesText>}
                     {buttons.length > 0 && (
                         <PaymentButtons>
                             {buttons.map(button => (

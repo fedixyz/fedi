@@ -8,7 +8,8 @@ The words that reach a user through the App Store What's New, the Play release n
 
 ## What the copy says
 
-- one item per user-facing change, written as what a person can now do or stops running into
+- the store text is one holistic statement of what the release adds up to, never an item per change. A patch names the areas that got more reliable: "Reliability improvements and bug fixes for joining federations, chat and payments." A feature release leads with the headline capability in a person's words, then "plus fixes for" the two or three areas people recognize. It sits one altitude above the cards, so it never names an individual fix, a screen, a button or a case
+- the GitHub release bullets are the one place in the copy for detail: one per PR, what a person gains or stops seeing in that PR, trigger included. The mechanics a fix card leaves out go here
 
 ## What the copy never says
 

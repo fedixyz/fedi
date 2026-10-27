@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
-use std::time::SystemTime;
 
 use anyhow::ensure;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
@@ -9,7 +8,7 @@ use fedimint_core::module::ModuleConsensusVersion;
 use fedimint_core::{Amount, PeerId, TransactionId, impl_db_lookup, impl_db_record};
 use futures::StreamExt;
 use stability_pool_common::{
-    AccountHistoryItem, AccountId, CycleInfo, FeeRate, FiatAmount, Provide, Seek,
+    AccountHistoryItem, AccountId, CycleInfo, FeeRate, FiatAmount, LegacyTime, Provide, Seek,
     StabilityPoolConsensusItem, TransferRequestId, UnlockRequest,
 };
 
@@ -140,7 +139,7 @@ impl_db_lookup!(
 #[derive(Debug, Encodable, Decodable)]
 pub struct Cycle {
     pub index: u64,
-    pub start_time: SystemTime,
+    pub start_time: LegacyTime,
     pub start_price: FiatAmount,
     pub fee_rate: FeeRate,
     pub locked_seeks: BTreeMap<AccountId, Vec<Seek>>,

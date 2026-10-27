@@ -75,6 +75,16 @@ if [ -z "$build_deps_only" ]; then
   fi
 fi
 
+# Google Play requires 16 KB page-size support for 64-bit native libs; the
+# pinned NDK still links 4 KB pages by default. Keep this in env vars: flakebox
+# exports the same vars, so a .cargo/config.toml entry is silently ignored.
+# https://github.com/fedibtc/fedi/issues/11187
+for rustflags_var in \
+  CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS \
+  CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS; do
+  export "$rustflags_var=${!rustflags_var:-} -C link-arg=-Wl,-z,max-page-size=16384"
+done
+
 # Resource management function to throttle compilation processes
 # We don't want to build everything in parallel all at once
 # What we want instead, is to start a new build when the existing ones

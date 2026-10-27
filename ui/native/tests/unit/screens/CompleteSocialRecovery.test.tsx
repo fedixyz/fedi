@@ -114,6 +114,10 @@ describe('/screens/CompleteSocialRecovery', () => {
                 screen.getByTestId('loader')
             })
 
+            // Flush the recoveryQr promise so the approvals polling interval
+            // is registered with the QR code available
+            await act(async () => {})
+
             // Advance time by 3 seconds to trigger interval
             await act(async () => {
                 jest.advanceTimersByTime(3000)
@@ -189,6 +193,10 @@ describe('/screens/CompleteSocialRecovery', () => {
             await waitFor(() => {
                 screen.getByTestId('loader')
             })
+
+            // Flush the recoveryQr promise so the approvals polling interval
+            // is registered with the QR code available
+            await act(async () => {})
 
             // Advance time by 3 seconds to trigger interval
             await act(async () => {

@@ -191,7 +191,14 @@ export const makeTxnDetailTitleText = (
                 ? t('feature.guardian-fees.transfer-success')
                 : t('feature.stabilitypool.you-withdrew')
         case 'oobReceive':
-            return t('feature.receive.you-received')
+            switch (txn.state?.type) {
+                case 'done':
+                    return t('feature.receive.you-received')
+                case 'failed':
+                    return t('words.failed')
+                default:
+                    return t('phrases.receive-pending')
+            }
         case 'oobCancel':
             return t('phrases.canceled-ecash-send')
         case 'lnReceive':

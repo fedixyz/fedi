@@ -50,6 +50,10 @@ platform :android do
 
   desc "Upload the latest build to Play Store Console for internal testing"
   lane :upload_internal_build do
+    sh("bash",
+       File.expand_path("../../../../scripts/ci/check-apk-16kb-alignment.sh", __dir__),
+       File.expand_path("../app/build/outputs/bundle/productionRelease/app-production-release.aab", __dir__))
+
     upload_to_play_store(
       track: 'internal',
       package_name: 'com.fedi',
@@ -63,6 +67,10 @@ platform :android do
 
   desc "Upload the latest build to Play Store Console for beta testing"
   lane :upload_beta_build_production do
+    sh("bash",
+       File.expand_path("../../../../scripts/ci/check-apk-16kb-alignment.sh", __dir__),
+       File.expand_path("../app/build/outputs/bundle/productionRelease/app-production-release.aab", __dir__))
+
     upload_to_play_store(
       track: 'beta',
       package_name: 'com.fedi',
@@ -107,6 +115,10 @@ platform :android do
 
   desc "Upload the latest build to internal track (Nightly)"
   lane :upload_internal_build_nightly  do
+    sh("bash",
+       File.expand_path("../../../../scripts/ci/check-apk-16kb-alignment.sh", __dir__),
+       File.expand_path("../app/build/outputs/bundle/nightlyRelease/app-nightly-release.aab", __dir__))
+
     upload_to_play_store(
       track: 'internal',
       package_name: 'com.fedi.nightly',
@@ -145,6 +157,10 @@ platform :android do
 
   desc "Upload the latest build to internal track (Nova)"
   lane :upload_internal_build_nova do
+    sh("bash",
+       File.expand_path("../../../../scripts/ci/check-apk-16kb-alignment.sh", __dir__),
+       File.expand_path("../app/build/outputs/bundle/novaRelease/app-nova-release.aab", __dir__))
+
     upload_to_play_store(
       track: 'internal',
       package_name: 'com.fedi.nova',
@@ -183,6 +199,10 @@ platform :android do
 
   desc "Upload the latest build to internal track (Edge)"
   lane :upload_internal_build_edge do
+    sh("bash",
+       File.expand_path("../../../../scripts/ci/check-apk-16kb-alignment.sh", __dir__),
+       File.expand_path("../app/build/outputs/bundle/edgeRelease/app-edge-release.aab", __dir__))
+
     upload_to_play_store(
       track: 'internal',
       package_name: 'com.fedi.edge',

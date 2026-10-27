@@ -1,11 +1,12 @@
 use std::time::Duration;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use fedimint_client::module::oplog::OperationLogEntry;
 use fedimint_core::core::OperationId;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::{Amount, apply, async_trait_maybe_send};
 use fedimint_eventlog::{Event, EventLogEntry, EventLogId};
+use fedimint_lnv2_client::common::gateway_api::PaymentFee;
 use fedimint_lnv2_client::events::ReceivePaymentEvent;
 use fedimint_lnv2_client::{
     FinalSendOperationState as LnV2FinalSendOperationState, InvoiceSendStatus,
@@ -14,7 +15,7 @@ use fedimint_lnv2_client::{
     SendOperationState as LnV2SendOperationState,
 };
 use futures::StreamExt;
-use lightning_invoice::{Bolt11Invoice, RoutingFees};
+use lightning_invoice::Bolt11Invoice;
 use rpc_types::error::ErrorCode;
 use rpc_types::{
     BaseMetadata, FrontendMetadata, LightningSendMetadata, RpcAmount, RpcFeeDetails,
@@ -25,16 +26,69 @@ use tracing::{debug, error, warn};
 
 use super::{
     FeeRemittance, FeeRemittanceGatewayOverride, FeeRemittanceRoute, LnOps, Lnv2SendCreated,
+    maximum_invoice_amount,
 };
 use crate::federation_v2::client::ClientExt;
 use crate::federation_v2::db::{
     FedimintEventLogCursorKey, LnurlReceivePendingKey, LnurlReceivePendingKeyPrefix,
 };
-use crate::federation_v2::{
-    FederationTransactionParts, FederationV2, FediFeeStream, get_max_spendable_amount,
-};
+use crate::federation_v2::{FederationTransactionParts, FederationV2, FediFeeStream};
 
 pub struct LnOpsV2;
+
+async fn maximum_via_send_fees(
+    fed: &FederationV2,
+    balance: Amount,
+    fee_ppms: &[(FediFeeStream, u64)],
+    send_fees: &[PaymentFee],
+) -> Result<Amount> {
+    let lnv2 = fed.client.lnv2()?;
+    Ok(maximum_invoice_amount(
+        balance,
+        fee_ppms,
+        |amount| {
+            send_fees
+                .iter()
+                .map(|send_fee| send_fee.fee(amount.msats))
+                .max()
+                .unwrap_or(Amount::ZERO)
+        },
+        |contract| lnv2.send_fee_quote(contract),
+    )
+    .await)
+}
+
+async fn payment_send_fees(fed: &FederationV2) -> Result<Vec<PaymentFee>> {
+    let lnv2 = fed.client.lnv2()?;
+    // no invoice yet, so reserve the higher lightning swap fee
+    if let Some(gateway) = fed.get_lnv2_gateway_override().await? {
+        let send_fee = lnv2
+            .routing_info(&gateway)
+            .await?
+            .context("lnv2 gateway override is unavailable")?
+            .send_fee_default;
+        ensure!(
+            send_fee.is_within(&PaymentFee::SEND_FEE_LIMIT),
+            "Gateway send fee exceeds the limit"
+        );
+        return Ok(vec![send_fee]);
+    }
+    let mut send_fees = Vec::new();
+    for gateway in lnv2.list_gateways(None).await? {
+        if let Ok(Some(routing_info)) = lnv2.routing_info(&gateway).await
+            && routing_info
+                .send_fee_default
+                .is_within(&PaymentFee::SEND_FEE_LIMIT)
+        {
+            send_fees.push(routing_info.send_fee_default);
+        }
+    }
+    ensure!(
+        !send_fees.is_empty(),
+        "No gateway within the send fee limit is available"
+    );
+    Ok(send_fees)
+}
 
 impl LnOpsV2 {
     /// Spawns the subscriber for an LNURL receive, deduplicated through
@@ -527,27 +581,16 @@ impl LnOps for LnOpsV2 {
         };
         let (send_fee, _) = routing_info.send_parameters(invoice);
         let gateway_fee = send_fee.fee(amount.msats);
-        let gateway_routing_fees = RoutingFees {
-            base_msat: send_fee.base.msats as u32,
-            proportional_millionths: send_fee.parts_per_million as u32,
-        };
 
         let spend_guard = fed.spend_guard.lock().await;
         let virtual_balance = fed.get_balance().await;
         if amount + fedi_fee + gateway_fee > virtual_balance {
+            let fee_ppms = fed
+                .get_fee_ppms_by_stream(fedimint_ln_common::KIND, RpcTransactionDirection::Send)
+                .await?;
+            let send_fees = payment_send_fees(fed).await?;
             bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(
-                    virtual_balance,
-                    FederationV2::total_fedi_fee_ppm(
-                        &fed.get_fee_ppms_by_stream(
-                            fedimint_ln_common::KIND,
-                            RpcTransactionDirection::Send,
-                        )
-                        .await?,
-                    ),
-                    None,
-                    Some(gateway_routing_fees),
-                )
+                maximum_via_send_fees(fed, virtual_balance, &fee_ppms, &send_fees).await?
             )));
         }
         let extra_meta = LightningSendMetadata {
@@ -1026,6 +1069,14 @@ impl LnOps for LnOpsV2 {
             )
             .await
             .map_err(Into::into)
+    }
+
+    async fn max_pay_invoice_amount(&self, fed: &FederationV2) -> Result<Amount> {
+        let fee_ppms = fed
+            .get_fee_ppms_by_stream(fedimint_ln_common::KIND, RpcTransactionDirection::Send)
+            .await?;
+        let send_fees = payment_send_fees(fed).await?;
+        maximum_via_send_fees(fed, fed.get_balance().await, &fee_ppms, &send_fees).await
     }
 
     fn start_background_services(&self, fed: &FederationV2) {

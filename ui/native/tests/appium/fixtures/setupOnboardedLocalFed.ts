@@ -26,7 +26,19 @@ export async function setupOnboardedLocalFed(
     await t.clickElementByKey('PasteButton')
     await allowPasteIfPrompted(t)
     await t.clickOnText('Continue', 0, true)
-    await t.waitForElementDisplayed('JoinFederationButton', 45000)
+    // a Continue tap fired mid-transition is reported clicked but can be
+    // swallowed, so re-click until the federation preview shows
+    const previewDeadline = Date.now() + 45000
+    while (!(await t.elementIsDisplayed('JoinFederationButton', 3000))) {
+        if (Date.now() > previewDeadline) {
+            throw new Error('Federation preview never appeared after Continue')
+        }
+        try {
+            await t.clickOnText('Continue', 0, true)
+        } catch {
+            // Continue may already be gone while the preview is still loading
+        }
+    }
     await t.clickElementByKey('JoinFederationButton')
     await t.clickElementByKey('HomeTabButton')
 }

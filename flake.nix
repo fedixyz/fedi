@@ -11,7 +11,7 @@
     # Keep this fork tag aligned with the Fedimint version used by
     # devimint in Cargo.toml; a mismatch makes the upstream bridge test time out during setup.
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.12.0-fedi11";
+      url = "github:fedibtc/fedimint?ref=v0.12.0-fedi16";
     };
 
     fenix = {
@@ -42,7 +42,7 @@
     # dependency. Keep these revisions aligned with Manifold's fa-client and
     # peerbadge-sdk input.
     manifold-src = {
-      url = "github:fedibtc/manifold/51af73349ba9f2f88833c2b5e744bf164b997bb4";
+      url = "github:fedibtc/manifold/06deeb60daa1119e01544f571c2ed5686228f2c3";
       flake = false;
     };
     peerbadge-sdk-src = {
@@ -51,8 +51,10 @@
     };
 
     android-nixpkgs = {
-      url = "github:fedibtc/android-nixpkgs?rev=f89ea2d6f9dbc4014c6a0d189ffe94d445bfbd25"; # stable
-      # inputs.nixpkgs.follows = "fedimint-pkgs/nixpkgs";
+      url = "github:tadfisher/android-nixpkgs?rev=abd3c743f157299ccdf30fd0feede7612339d653"; # stable
+      # the sdk needs a nixpkgs new enough for libgbm; the shared transitive
+      # node the other inputs use predates it
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     andy = {
@@ -257,32 +259,36 @@
           sdkPkgs:
           with sdkPkgs;
           [
-            cmdline-tools-latest
+            # newer tools download Android CLI during the sandboxed SDK build
+            cmdline-tools-19-0
             build-tools-30-0-3
             build-tools-32-0-0
             build-tools-33-0-0
             build-tools-34-0-0
             build-tools-35-0-0
+            build-tools-36-0-0
             platform-tools
             platforms-android-25
             platforms-android-31
             platforms-android-33
             platforms-android-34
             platforms-android-35
+            platforms-android-36
             emulator
             # must match ndkVersion in ui/native/android/build.gradle
             ndk-27-1-12297006
             cmake-3-22-1
-            tools
           ]
           # emulator images only run on the host cpu
           ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
             system-images-android-25-google-apis-x86-64
             system-images-android-34-google-apis-x86-64
+            system-images-android-36-google-apis-x86-64
           ]
           ++ lib.optionals pkgs.stdenv.hostPlatform.isAarch64 [
             system-images-android-25-google-apis-arm64-v8a
             system-images-android-34-google-apis-arm64-v8a
+            system-images-android-36-google-apis-arm64-v8a
           ]
         );
 
@@ -619,17 +625,17 @@
               # Disavle turbo telemetry, see https://turbo.build/repo/docs/telemetry#how-do-i-opt-out
               export TURBO_TELEMETRY_DISABLED=1
 
-              # Make gradle build work on NixOS, otherwise it will try to run a downloaded
-              # generic Linux version of aapt2, which doesn't work on NixOS due to dynamic
-              # linking idiosyncrasies
-              export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt2"
-
               export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="--cfg getrandom_backend=\"wasm_js\" $CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS"
 
               # E2E test framework (Appium) expects these to be configured
               export ANDROID_SDK_ROOT=${androidSdk}/share/android-sdk
               export ANDROID_HOME="$ANDROID_SDK_ROOT"
-              export PATH=$PATH:''${ANDROID_SDK_ROOT}/emulator:''${ANDROID_SDK_ROOT}/platform-tools:''${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin
+
+              # Make gradle build work on NixOS, otherwise it will try to run a downloaded
+              # generic Linux version of aapt2, which doesn't work on NixOS due to dynamic
+              # linking idiosyncrasies
+              export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
+              export PATH=$PATH:''${ANDROID_SDK_ROOT}/emulator:''${ANDROID_SDK_ROOT}/platform-tools:''${ANDROID_SDK_ROOT}/cmdline-tools/19.0/bin
               # expose repo-local UI helper scripts like steve in the dev shell
               export PATH="$PATH:''${REPO_ROOT}/scripts/ui"
               # ensure appium binary installed via npm is available in path

@@ -33,7 +33,7 @@ export const useUpdateZendeskNotificationCount = () => {
     const nostrNpub = useSelector(selectNostrNpub)
     const displayName = useDisplayName()
     const zendeskRefreshTime = 8_000 // 8 seconds
-    const intervalRef = useRef<NodeJS.Timeout | null>(null) // Stores interval reference
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null) // Stores interval reference
 
     const fetchUnreadMessageCount = useCallback(async () => {
         if (!zendeskInitialized) {

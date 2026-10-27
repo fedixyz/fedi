@@ -9,7 +9,10 @@ use anyhow::{Context, anyhow, bail, ensure};
 use bitcoin::bech32::{self, Bech32m, Hrp};
 use bitcoin::hashes::sha256;
 use fedimint_core::core::{Decoder, ModuleInstanceId, ModuleKind};
-use fedimint_core::encoding::{Decodable, DecodeError, Encodable};
+use fedimint_core::encoding::{
+    Decodable, DecodeError, Encodable, decode_legacy_system_time_from_finite_reader,
+    encode_legacy_system_time,
+};
 use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::module::{CommonModuleInit, ModuleCommon, ModuleConsensusVersion};
 use fedimint_core::{
@@ -108,6 +111,33 @@ impl FiatAmount {
 
         // Since end result is an msat value it should comfortably fit in u64
         Ok(Amount::from_msats(msats.try_into()?))
+    }
+}
+
+/// A `SystemTime` with fedimint's legacy consensus encoding.
+///
+/// Consensus items and persisted DB records contain these bytes, so the
+/// encoding must stay byte-identical to the fork's legacy `SystemTime`
+/// encoding. This delegates to the same `encode_legacy_system_time` and
+/// `decode_legacy_system_time_from_finite_reader` helpers that back the fork's
+/// `SystemTime` impls. Upstream 0.13 ships those helpers but drops the
+/// `SystemTime` trait impls, and orphan rules prevent implementing them here.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct LegacyTime(pub SystemTime);
+
+impl Encodable for LegacyTime {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+        encode_legacy_system_time(&self.0, writer)
+    }
+}
+
+impl Decodable for LegacyTime {
+    fn consensus_decode_partial_from_finite_reader<D: std::io::Read>(
+        d: &mut D,
+        modules: &ModuleDecoderRegistry,
+    ) -> Result<Self, DecodeError> {
+        decode_legacy_system_time_from_finite_reader(d, modules).map(Self)
     }
 }
 
@@ -871,7 +901,7 @@ extensible_associated_module_type!(
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Encodable, Decodable, Serialize, Deserialize)]
 pub struct StabilityPoolConsensusItemV0 {
     pub next_cycle_index: u64,
-    pub time: SystemTime,
+    pub time: LegacyTime,
     pub price: FiatAmount,
 }
 
@@ -901,7 +931,7 @@ impl StabilityPoolConsensusItem {
     ) -> StabilityPoolConsensusItem {
         StabilityPoolConsensusItem::V0(StabilityPoolConsensusItemV0 {
             next_cycle_index,
-            time,
+            time: LegacyTime(time),
             price,
         })
     }
@@ -937,7 +967,7 @@ impl StabilityPoolConsensusItem {
 
     pub fn time(&self) -> anyhow::Result<SystemTime> {
         match self {
-            StabilityPoolConsensusItem::V0(StabilityPoolConsensusItemV0 { time, .. }) => Ok(*time),
+            StabilityPoolConsensusItem::V0(StabilityPoolConsensusItemV0 { time, .. }) => Ok(time.0),
             StabilityPoolConsensusItem::V1(version) => {
                 bail!("Unsupported module consensus version vote {version:?}")
             }
@@ -1188,7 +1218,7 @@ impl Display for StabilityPoolConsensusItemV0 {
         write!(
             f,
             "Consensus item for cycle index {:?} with time {:?} and price {}",
-            self.next_cycle_index, self.time, self.price.0
+            self.next_cycle_index, self.time.0, self.price.0
         )
     }
 }
@@ -1339,7 +1369,7 @@ pub struct AccountHistoryRequest {
 pub struct CycleInfo {
     pub idx: u64,
     pub start_price: FiatAmount,
-    pub start_time: SystemTime,
+    pub start_time: LegacyTime,
 }
 
 /// - History is stored per account
@@ -1422,6 +1452,8 @@ pub enum AccountHistoryItemKind {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::fmt::Debug;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use fedimint_core::Amount;
     use fedimint_core::encoding::{Decodable, Encodable};
@@ -1431,8 +1463,9 @@ mod tests {
 
     use super::{
         Account, AccountId, AccountType, AccountUnchecked, BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION,
-        BtcTransferRequest, FiatAmount, SignedBtcTransferRequest, SignedTransferRequest,
-        StabilityPoolConsensusItem, TransferRequest, TransferRequestId,
+        BtcTransferRequest, CycleInfo, FiatAmount, LegacyTime, SignedBtcTransferRequest,
+        SignedTransferRequest, StabilityPoolConsensusItem, StabilityPoolConsensusItemV0,
+        TransferRequest, TransferRequestId,
     };
 
     fn price_strategy() -> impl Strategy<Value = FiatAmount> {
@@ -1647,5 +1680,89 @@ mod tests {
                 .expect("version vote should parse"),
             Some(BTC_BALANCE_DEPOSIT_CONSENSUS_VERSION)
         );
+    }
+
+    // Generated with fedibtc/fedimint v0.12.0-fedi14's `impl Encodable for
+    // SystemTime`.
+    const EPOCH_TIME_BYTES: [u8; 2] = [0x00, 0x00];
+    const SAMPLE_TIME_BYTES: [u8; 10] =
+        [0xfe, 0x65, 0x53, 0xf1, 0x00, 0xfe, 0x07, 0x5b, 0xcd, 0x15];
+    const CONSENSUS_ITEM_V0_BYTES: [u8; 14] = [
+        0x2a, 0xfe, 0x65, 0x53, 0xf1, 0x00, 0xfe, 0x07, 0x5b, 0xcd, 0x15, 0xfd, 0x09, 0x29,
+    ];
+    const CYCLE_INFO_BYTES: [u8; 14] = [
+        0x07, 0xfd, 0x13, 0x88, 0xfe, 0x65, 0x53, 0xf1, 0x00, 0xfe, 0x07, 0x5b, 0xcd, 0x15,
+    ];
+
+    fn sample_time() -> SystemTime {
+        UNIX_EPOCH + Duration::new(1_700_000_000, 123_456_789)
+    }
+
+    fn assert_golden<T>(value: &T, golden: &[u8])
+    where
+        T: Encodable + Decodable + PartialEq + Debug,
+    {
+        assert_eq!(value.consensus_encode_to_vec(), golden);
+
+        let decoded = T::consensus_decode_whole(golden, &Default::default())
+            .expect("golden bytes should decode");
+        assert_eq!(&decoded, value);
+    }
+
+    #[test]
+    fn legacy_time_matches_fork_golden_bytes() {
+        assert_golden(&LegacyTime(UNIX_EPOCH), &EPOCH_TIME_BYTES);
+        assert_golden(&LegacyTime(sample_time()), &SAMPLE_TIME_BYTES);
+    }
+
+    #[test]
+    fn consensus_item_v0_matches_fork_golden_bytes() {
+        let item = StabilityPoolConsensusItemV0 {
+            next_cycle_index: 42,
+            time: LegacyTime(sample_time()),
+            price: FiatAmount(2345),
+        };
+
+        assert_golden(&item, &CONSENSUS_ITEM_V0_BYTES);
+    }
+
+    #[test]
+    fn cycle_info_matches_fork_golden_bytes() {
+        let cycle = CycleInfo {
+            idx: 7,
+            start_price: FiatAmount(5000),
+            start_time: LegacyTime(sample_time()),
+        };
+
+        assert_golden(&cycle, &CYCLE_INFO_BYTES);
+    }
+
+    #[test]
+    fn legacy_time_serde_matches_system_time() {
+        for time in [UNIX_EPOCH, sample_time()] {
+            let json = serde_json::to_string(&time).expect("system time should serialize");
+
+            assert_eq!(
+                serde_json::to_string(&LegacyTime(time)).expect("legacy time should serialize"),
+                json
+            );
+            assert_eq!(
+                serde_json::from_str::<LegacyTime>(&json).expect("legacy time should deserialize"),
+                LegacyTime(time)
+            );
+        }
+    }
+
+    // Relies on the fork's `impl Encodable for SystemTime`; delete this test
+    // when the fedimint dependency moves to upstream 0.13, which drops that
+    // impl.
+    #[test]
+    fn legacy_time_matches_fork_system_time_encoding() {
+        for time in [UNIX_EPOCH, sample_time()] {
+            assert_eq!(
+                LegacyTime(time).consensus_encode_to_vec(),
+                time.consensus_encode_to_vec()
+            );
+        }
     }
 }

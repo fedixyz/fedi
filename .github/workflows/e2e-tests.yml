@@ -49,8 +49,15 @@ on:
                 description: 'Verbose logging: full Appium + WebdriverIO + xcodebuild output, all selector strategies tried, every retry logged. Also dumps each task log inline at the end of the run.'
                 type: boolean
                 default: false
+    pull_request:
+        branches: ['release/**']
     schedule: # runs 3x a day at 04:00, 12:00, 23:00 UTC
         - cron: '0 4,12,23 * * *'
+
+# run_id keeps scheduled and dispatched runs in their own groups, so a PR run never cancels them
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -64,7 +71,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                federation_kind: ${{ (inputs.tests == 'all' || inputs.tests == 'payments' || github.event_name == 'schedule') && fromJSON('["one", "two"]') || fromJSON('["one"]') }}
+                federation_kind: ${{ (inputs.tests == 'all' || inputs.tests == 'payments' || github.event_name == 'schedule' || github.event_name == 'pull_request') && fromJSON('["one", "two"]') || fromJSON('["one"]') }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
@@ -144,11 +151,11 @@ jobs:
         name: 'iOS e2e tests (${{ matrix.federation_kind }})'
         if: ${{ contains(fromJSON('["all", "ios"]'), inputs.platforms || 'all') }}
         runs-on: [self-hosted, macos, arm64, macstadium, gui]
-        timeout-minutes: 120
+        timeout-minutes: 150
         strategy:
             fail-fast: false
             matrix:
-                federation_kind: ${{ (inputs.tests == 'all' || inputs.tests == 'payments' || github.event_name == 'schedule') && fromJSON('["one", "two"]') || fromJSON('["one"]') }}
+                federation_kind: ${{ (inputs.tests == 'all' || inputs.tests == 'payments' || github.event_name == 'schedule' || github.event_name == 'pull_request') && fromJSON('["one", "two"]') || fromJSON('["one"]') }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
             - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
@@ -182,3 +189,18 @@ jobs:
                       ./metro.log
                       ./**/screenshots/*.png
                       ./**/screenshots/*.xml
+
+    # the release/** ruleset requires this context by name
+    e2e-status:
+        name: E2E Status
+        needs: [android-e2e, web-e2e, ios-e2e]
+        if: ${{ always() }}
+        runs-on: [self-hosted, linux]
+        steps:
+            - name: Check status of all e2e jobs
+              if: >-
+                ${{
+                  contains(needs.*.result, 'failure') ||
+                  contains(needs.*.result, 'cancelled')
+                }}
+              run: exit 1

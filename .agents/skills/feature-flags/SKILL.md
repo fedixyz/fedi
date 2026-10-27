@@ -30,10 +30,12 @@ If the remote flag already exists in `RemoteFeatures`, usually only edit:
 ui/web/src/pages/api/features.ts
 ```
 
-Update both maps intentionally:
+Update each served map intentionally:
 
 - `prodRemoteFeatures`: production values for `app.fedi.xyz`.
-- `devRemoteFeatures`: values for all other envs, including preview branches and local development.
+- `edgeRemoteFeatures`: production Edge overrides served when the bridge requests `env=edge`.
+- `devRemoteFeatures`: values for preview branches and local development.
+- `edgeDevRemoteFeatures`: non-production Edge overrides served when the bridge requests `env=edge`.
 
 Use camelCase field names in this file because it imports the generated `RemoteFeatures` TypeScript type.
 
@@ -46,9 +48,9 @@ Use `dummy_feature` as the guide in `crates/runtime/src/features.rs`.
 1. Add the field to `RemoteFeatures`.
 2. Add or update the matching `FeatureCatalog` field/config if needed.
 3. Update `FeatureCatalog::apply_remote_layer()` so the remote value is translated into the final catalog value.
-4. Set compiled-in defaults in `new_dev()`, `new_staging()`, `new_prod()`, and `new_tests()`.
+4. Set compiled-in defaults in `new_dev()`, `new_staging()`, `new_prod()`, `new_edge()`, and `new_tests()`.
 5. Keep compiled-in defaults aligned with web remote defaults where possible so first launch and offline startup behave consistently.
-6. Update `ui/web/src/pages/api/features.ts` and return the new camelCase key from both `prodRemoteFeatures` and `devRemoteFeatures`.
+6. Update `ui/web/src/pages/api/features.ts` and return the new camelCase key from `prodRemoteFeatures`, `edgeRemoteFeatures`, `devRemoteFeatures`, and `edgeDevRemoteFeatures`.
 7. Regenerate TypeScript bindings so `ui/common/types/bindings.ts` includes the updated `RemoteFeatures` shape.
 8. Rebuild the bridge and test locally.
 
@@ -81,7 +83,7 @@ Turning a flag on is a rollout step, not the end of its life. Once a flag is on 
 Useful checks:
 
 ```bash
-rg -n "dummy_feature|RemoteFeatures|apply_remote_layer|prodRemoteFeatures|devRemoteFeatures" crates/runtime/src/features.rs ui/web/src/pages/api/features.ts ui/common/types/bindings.ts
+rg -n "dummy_feature|RemoteFeatures|apply_remote_layer|prodRemoteFeatures|edgeRemoteFeatures|devRemoteFeatures|edgeDevRemoteFeatures" crates/runtime/src/features.rs ui/web/src/pages/api/features.ts ui/common/types/bindings.ts
 ```
 
 From `ui/`, run the narrowest relevant checks first. If the user asked for code changes but not tests, follow repo instructions and ask whether to run tests after the implementation is complete.

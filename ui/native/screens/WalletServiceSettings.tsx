@@ -1,6 +1,7 @@
+import { useFocusEffect } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
@@ -210,8 +211,20 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
         iconUrl,
         description,
         termsUrl,
+        autojoinSpaces,
+        refresh: refreshMetadata,
         markApplied: markMetadataApplied,
     } = useWalletServiceMetadata()
+    // the published values may have moved while another screen was on top,
+    // and only a read releases the holds the editor left behind. The first
+    // focus is the mount, which the hook already reads on.
+    const hasFocused = useRef(false)
+    useFocusEffect(
+        useCallback(() => {
+            if (hasFocused.current) refreshMetadata()
+            hasFocused.current = true
+        }, [refreshMetadata]),
+    )
     // the intent is the last resort: all there is before the first preview
     // resolves, and on a fresh install of a pre-consensus service
     const name = consensusName || formationName
@@ -556,6 +569,26 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
                         )}
                         onPress={() => setSheet('stableBalance')}
                         testID="settings-stable-balance-row"
+                    />
+                </ServiceSettingsSection>
+
+                <ServiceSettingsSection title={t('words.spaces')}>
+                    <ServiceActionRow
+                        icon="Community"
+                        name={t('feature.wallet-service.settings-autojoin')}
+                        detail={
+                            autojoinSpaces.length > 0
+                                ? t(
+                                      'feature.wallet-service.settings-autojoin-count',
+                                      { count: autojoinSpaces.length },
+                                  )
+                                : t('feature.wallet-service.settings-not-set')
+                        }
+                        disabled={!isFormed}
+                        onPress={() =>
+                            navigation.navigate('WalletServiceAutojoinSpaces')
+                        }
+                        testID="autojoin-spaces-row"
                     />
                 </ServiceSettingsSection>
 

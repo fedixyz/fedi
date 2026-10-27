@@ -120,6 +120,13 @@ const renderReview = ({
             clientError: null,
             federationJoin: null,
             creationHighWaterMark: null,
+            walletServiceMetadata: {
+                formationId: null,
+                published: null,
+                holds: {},
+                status: 'idle',
+                latestRequestId: null,
+            },
             draft: { name: '', size: 7 },
             selectionPreview: null,
             replacementPreview,

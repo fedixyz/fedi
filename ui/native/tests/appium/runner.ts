@@ -1,11 +1,11 @@
 /* eslint-disable no-console */
-import { execFileSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
 import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
-import { Platform, currentPlatform } from '../configs/appium/types'
+import { currentPlatform } from '../configs/appium/types'
+import { readAppLog } from './common/appLogs'
 import { setupOnboarded } from './fixtures/setupOnboarded'
 import { Fixture } from './fixtures/types'
 import {
@@ -19,97 +19,21 @@ const fixtures: Record<string, Fixture> = {
     [setupOnboarded.produces]: setupOnboarded,
 }
 
-// The bridge logs tracing JSON to files/fedi.log.<unixday> inside the app
-// sandbox (not logcat), and resetAppToFresh wipes it, so pull the logs
-// before the post-failure reset runs.
-function captureAndroidAppLogs(testName: string) {
-    if (currentPlatform !== Platform.ANDROID) return
-    const appId = process.env.APP_PACKAGE || 'com.fedi'
+// resetAppToFresh wipes the app sandbox, so pull the logs before the
+// post-failure reset runs.
+function captureAppLogs(testName: string) {
     const outDir = path.join(process.cwd(), '.appium')
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
     for (const h of AppiumManager.activeHandles()) {
-        const udid = AppiumManager.deviceId(h)
-        if (!udid) continue
-        const logs = [
-            ['bridge', 'files/fedi.log.*'],
-            ['ui', 'files/fedi-ui.*.log'],
-        ]
-        for (const [label, glob] of logs) {
+        for (const label of ['bridge', 'ui'] as const) {
             const outPath = path.join(
                 outDir,
                 `${testName}-failure-${label}-${h}.log`,
             )
             try {
-                const out = execFileSync(
-                    'adb',
-                    [
-                        '-s',
-                        udid,
-                        'exec-out',
-                        'run-as',
-                        appId,
-                        'sh',
-                        '-c',
-                        `cat ${glob}`,
-                    ],
-                    { maxBuffer: 64 * 1024 * 1024 },
-                )
+                const out = readAppLog(h, label)
+                if (!out) continue
                 fs.writeFileSync(outPath, out)
-                console.log(`Device ${label} log saved to: ${outPath}`)
-            } catch (logError) {
-                console.error(
-                    `Failed to capture ${label} log for actor "${h}":`,
-                    logError,
-                )
-            }
-        }
-    }
-}
-
-// iOS twin of captureAndroidAppLogs: the same fedi.log.<unixday> and
-// fedi-ui.<i>.log files live in the app's Documents dir (the bridge dataDir
-// on iOS), which simctl exposes on the host filesystem through the app's
-// data container.
-function captureIosAppLogs(testName: string) {
-    if (currentPlatform !== Platform.IOS) return
-    const bundleId = process.env.APP_BUNDLE_ID || 'org.fedi.alpha'
-    const outDir = path.join(process.cwd(), '.appium')
-    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
-    for (const h of AppiumManager.activeHandles()) {
-        const udid = AppiumManager.deviceId(h)
-        if (!udid) continue
-        let docsDir: string
-        try {
-            const container = execFileSync(
-                'xcrun',
-                ['simctl', 'get_app_container', udid, bundleId, 'data'],
-                { encoding: 'utf8' },
-            ).trim()
-            docsDir = path.join(container, 'Documents')
-        } catch (containerError) {
-            console.error(
-                `Failed to locate app container for actor "${h}":`,
-                containerError,
-            )
-            continue
-        }
-        const logs = [
-            ['bridge', 'fedi.log.'],
-            ['ui', 'fedi-ui.'],
-        ] as const
-        for (const [label, prefix] of logs) {
-            const outPath = path.join(
-                outDir,
-                `${testName}-failure-${label}-${h}.log`,
-            )
-            try {
-                const parts = fs
-                    .readdirSync(docsDir)
-                    .filter(f => f.startsWith(prefix))
-                    .sort()
-                    .map(f => fs.readFileSync(path.join(docsDir, f)))
-                if (parts.length === 0) continue
-                fs.writeFileSync(outPath, Buffer.concat(parts))
                 console.log(`Device ${label} log saved to: ${outPath}`)
             } catch (logError) {
                 console.error(
@@ -365,8 +289,7 @@ async function runTests(testNames: string[]): Promise<void> {
                     }
                 }
 
-                captureAndroidAppLogs(testName)
-                captureIosAppLogs(testName)
+                captureAppLogs(testName)
 
                 // Device state untrusted after failure: reset primary,
                 // tear down spawned actors.

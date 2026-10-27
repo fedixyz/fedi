@@ -1,6 +1,10 @@
-import { MatrixPaymentEvent } from '../../../types'
+import { LoadedFederation, MatrixPaymentEvent } from '../../../types'
 import { RpcTimelineEventItemId } from '../../../types/bindings'
-import { consolidatePaymentEvents } from '../../../utils/matrix'
+import {
+    consolidatePaymentEvents,
+    getReceivablePaymentEvents,
+} from '../../../utils/matrix'
+import { mockFederation1 } from '../../mock-data/federation'
 import {
     createMockPaymentEvent,
     createMockNonPaymentEvent,
@@ -89,6 +93,7 @@ it('merges latest status into initial event content', () => {
     })
     const receivedEvent = createMockPaymentEvent({
         id: 'event2' as RpcTimelineEventItemId,
+        sender: 'npub1user456',
         content: {
             paymentId: 'pay123',
             status: 'received',
@@ -158,6 +163,7 @@ it('handles multiple different payment IDs correctly', () => {
     })
     const payment1Update = createMockPaymentEvent({
         id: 'event3' as RpcTimelineEventItemId,
+        sender: 'npub1user456',
         content: {
             paymentId: 'pay123',
             status: 'received',
@@ -189,4 +195,55 @@ it('handles multiple different payment IDs correctly', () => {
 
     expect(payment1Result.content.status).toBe('received')
     expect(payment2Result.content.status).toBe('requested')
+})
+
+// BUSINESS: Only the recipient knows whether ecash was redeemed
+it.each(['receiving', 'received', 'failed'] as const)(
+    'ignores a %s status posted by someone other than the recipient',
+    status => {
+        const pushedEvent = createMockPaymentEvent({
+            id: 'event1' as RpcTimelineEventItemId,
+            content: { paymentId: 'pay123', status: 'pushed', ecash: 'ecash' },
+        })
+        const spoofedEvent = createMockPaymentEvent({
+            id: 'event2' as RpcTimelineEventItemId,
+            content: { paymentId: 'pay123', status },
+        })
+
+        const [displayed] = consolidatePaymentEvents([
+            pushedEvent,
+            spoofedEvent,
+        ]) as MatrixPaymentEvent[]
+        expect(displayed.content.status).toBe('pushed')
+
+        const receivable = getReceivablePaymentEvents(
+            [pushedEvent, spoofedEvent],
+            'npub1user456',
+            [{ ...mockFederation1, id: 'fed123' } as LoadedFederation],
+        )
+        expect(receivable.map(event => event.id)).toEqual(['event1'])
+    },
+)
+
+// BUSINESS: A paid bolt11 request is settled by the requester, who is not a recipient
+it('accepts a bolt11 settlement from the requester', () => {
+    const requestEvent = createMockPaymentEvent({
+        id: 'event1' as RpcTimelineEventItemId,
+        content: {
+            paymentId: 'pay123',
+            status: 'requested',
+            bolt11: 'lnbc1',
+            recipientId: undefined,
+        },
+    })
+    const paidEvent = createMockPaymentEvent({
+        id: 'event2' as RpcTimelineEventItemId,
+        content: { ...requestEvent.content, status: 'received' },
+    })
+
+    const [displayed] = consolidatePaymentEvents([
+        requestEvent,
+        paidEvent,
+    ]) as MatrixPaymentEvent[]
+    expect(displayed.content.status).toBe('received')
 })

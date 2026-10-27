@@ -243,6 +243,7 @@ export type FeatureCatalog = {
    * Remote-controlled dummy feature flag.
    */
   dummy_feature: DummyFeatureFeatureConfig | null;
+  federation_transfers: FederationTransfersFeatureConfig | null;
   /**
    * Enables stable balance features on web.
    */
@@ -281,9 +282,10 @@ export type FeatureCatalog = {
    */
   wallet_service_dkg_restart: WalletServiceDkgRestartFeatureConfig | null;
   /**
-   * Gates creating, depositing to, requesting and approving withdrawals
-   * from bitcoin-only multispend groups, and sweeping their payouts.
-   * Rejecting stays available.
+   * Gates only creating bitcoin-only multispend groups (the invitation),
+   * joining them (the invitation vote) and depositing into them.
+   * Withdrawal requests, approvals, rejections, cancelling and the payout
+   * sweep always work, so members can take funds out of an existing group.
    */
   btc_multispend: BtcMultispendFeatureConfig | null;
   /**
@@ -295,6 +297,8 @@ export type FeatureCatalog = {
    */
   update_screen: UpdateScreenConfig | null;
 };
+
+export type FederationTransfersFeatureConfig = Record<string, never>;
 
 export type FediFeeConfig = {
   /**
@@ -557,6 +561,7 @@ export type RecoveryProgressEvent = {
  */
 export type RemoteFeatures = {
   dummyFeature: boolean;
+  federationTransfers: boolean | null;
   showStableBalanceWeb: boolean;
   /**
    * `#[serde(default)]` so the new bridge stays deserializable against any
@@ -593,6 +598,7 @@ export type RemoteFeatures = {
    * cached/older payload that omits the field.
    */
   btcMultispend: boolean;
+  updateScreen: boolean | null;
 };
 
 export type RpcAccountId = string;
@@ -698,6 +704,21 @@ export type RpcFaAbandonUnavailableReason =
   | "paymentOutputsStarted"
   | "dkgComplete";
 
+export type RpcFaAppSetting =
+  | "autojoinCommunities"
+  | "defaultGroupChats"
+  | "pinnedMessage"
+  | "defaultCurrency"
+  | "stabilityPoolDisabled"
+  | "multispendDisabled"
+  | "inviteCodesDisabled"
+  | "newMembersDisabled"
+  | "offlineWalletDisabled"
+  | "onchainDepositsDisabled"
+  | "maxBalanceMsats"
+  | "maxInvoiceMsats"
+  | "maxStableBalanceMsats";
+
 export type RpcFaClientStatus =
   | { type: "ready"; status: RpcFaStatus }
   | { type: "failed"; error: RpcFaOperationError };
@@ -791,7 +812,8 @@ export type RpcFaFederationMetadataUpdate =
   | { type: "name"; value: string }
   | { type: "iconUrl"; value: string }
   | { type: "welcomeMessage"; value: string }
-  | { type: "termsOfService"; value: string };
+  | { type: "termsOfService"; value: string }
+  | { type: "appSetting"; setting: RpcFaAppSetting; value: string };
 
 export type RpcFaFormationActionRequired =
   | { type: "authorizePayments"; requirements: RpcFaPaymentRequirements }
@@ -1085,6 +1107,7 @@ export type RpcFaOperationError = {
 };
 
 export type RpcFaOperationErrorDetail =
+  | { type: "maintenanceUnsupported" }
   | {
       type: "insufficientMgSeats";
       requested: number;
@@ -1532,6 +1555,8 @@ export type RpcMatrixPaymentStatus =
   | "accepted"
   | "rejected"
   | "canceled"
+  | "receiving"
+  | "failed"
   | "received";
 
 export type RpcMatrixRoomState =
@@ -1653,6 +1678,7 @@ export type RpcMethods = {
   generateInvoice: [generateInvoice, string];
   parseInvoice: [parseInvoice, RpcInvoice];
   estimateLnFees: [estimateLnFees, RpcFeeDetails];
+  calculateMaxPayInvoice: [calculateMaxPayInvoice, RpcAmount];
   payInvoice: [payInvoice, RpcPayInvoiceResponse];
   getPrevPayInvoiceResult: [getPrevPayInvoiceResult, RpcPrevPayInvoiceResult];
   listGateways: [listGateways, Array<RpcLightningGateway>];
@@ -2015,6 +2041,12 @@ export type RpcParseInviteCodeResult = { federationId: RpcFederationId };
 export type RpcPayAddressLimits = {
   minSpendable: RpcAmount;
   maxSpendable: RpcAmount;
+  balance: RpcAmount;
+  minimumFees: RpcFeeDetails;
+  /**
+   * False when the balance cannot fund a dry-run; fees are then a lower bound.
+   */
+  minimumFeesExact: boolean;
 };
 
 export type RpcPayAddressResponse = { txid: string };
@@ -2852,6 +2884,8 @@ export type backupNow = { federationId: RpcFederationId };
 export type bridgeStatus = {};
 
 export type calculateMaxGenerateEcash = { federationId: RpcFederationId };
+
+export type calculateMaxPayInvoice = { federationId: RpcFederationId };
 
 export type cancelEcash = { federationId: RpcFederationId; ecash: string };
 

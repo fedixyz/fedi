@@ -14,6 +14,14 @@ import { renderHookWithState } from '../../utils/render'
 
 describe('useOnchainSendLimits', () => {
     const limits: RpcPayAddressLimits = {
+        balance: 20_000_000 as MSats,
+        minimumFees: {
+            fediAppFee: 0 as MSats,
+            fediGuardianFee: 0 as MSats,
+            federationFee: 0 as MSats,
+            networkFee: 1 as MSats,
+        },
+        minimumFeesExact: true,
         minSpendable: 10_000_000 as MSats,
         maxSpendable: 19_999_999 as MSats,
     }

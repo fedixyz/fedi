@@ -294,6 +294,7 @@ export type RootStackParamList = {
     WalletServiceFee: { mode: 'onboarding' | 'edit' }
     WalletServiceLightningProvider: undefined
     WalletServiceSettings: { openSheet?: 'provider' } | undefined
+    WalletServiceAutojoinSpaces: undefined
     DeveloperSettings: undefined
     SetPin: undefined
     CreatedPin: undefined

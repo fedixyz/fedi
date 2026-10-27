@@ -75,6 +75,9 @@ const getCapabilities = (handle: string): AppiumConfig => {
             // Fetch a chromedriver matching the debug build's WebView so a
             // test can switch into the in-app browser context (community tool).
             'appium:chromedriverAutodownload': true,
+            // Probing frozen background WebViews can stall the ADB transport.
+            'appium:ensureWebviewsHavePages': false,
+            'appium:enableWebviewDetailsCollection': false,
         }
     } else {
         const udid = envForHandle('DEVICE_ID', handle)

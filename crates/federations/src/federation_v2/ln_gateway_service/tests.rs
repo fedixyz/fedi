@@ -44,11 +44,9 @@ fn select(
     excluded: Option<PublicKey>,
     policy: GatewayFeePolicy,
 ) -> Vec<LightningGatewayAnnouncement> {
-    LnGatewayService::filter_selectable_gateways(
-        gateways,
+    LnGatewayService::prefer_vetted_gateways(
+        LnGatewayService::eligible_gateways(gateways, excluded, policy),
         &vetted.iter().copied().collect(),
-        excluded,
-        policy,
     )
 }
 
@@ -144,6 +142,31 @@ fn eligible_vetted_gateway_still_has_preference() {
             GatewayFeePolicy::Send
         ),
         vec![vetted],
+    );
+}
+
+#[test]
+fn payment_bound_covers_the_failover_gateway() {
+    let vetted = gateway(1, 60, 0, 0);
+    let unvetted = gateway(2, 60, 100_000, 15_000);
+    let gateways = vec![vetted.clone(), unvetted.clone(), gateway(3, 60, 0, 15_001)];
+    let vetted_ids = [vetted.info.gateway_id];
+    assert_eq!(
+        select(gateways.clone(), &vetted_ids, None, GatewayFeePolicy::Send),
+        vec![vetted.clone()],
+    );
+    assert_eq!(
+        select(
+            gateways.clone(),
+            &vetted_ids,
+            Some(vetted.info.gateway_id),
+            GatewayFeePolicy::Send
+        ),
+        vec![unvetted.clone()],
+    );
+    assert_eq!(
+        LnGatewayService::eligible_gateways(gateways, None, GatewayFeePolicy::Send),
+        vec![vetted, unvetted],
     );
 }
 

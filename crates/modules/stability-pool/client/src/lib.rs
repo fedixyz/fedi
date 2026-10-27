@@ -200,6 +200,15 @@ impl ClientModule for StabilityPoolClientModule {
         &self,
         args: &[ffi::OsString],
     ) -> anyhow::Result<serde_json::Value> {
+        self.handle_cli_command_inner(args).await
+    }
+}
+
+impl StabilityPoolClientModule {
+    async fn handle_cli_command_inner(
+        &self,
+        args: &[ffi::OsString],
+    ) -> anyhow::Result<serde_json::Value> {
         let command = CliCommand::parse_from(
             iter::once(&ffi::OsString::from("stability-pool")).chain(args.iter()),
         );

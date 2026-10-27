@@ -7,6 +7,7 @@ import type { RemoteFeatures } from '@fedi/common/types/bindings'
 // latest remote layer.
 const prodRemoteFeatures: RemoteFeatures = {
     dummyFeature: false,
+    federationTransfers: false,
     showStableBalanceWeb: false,
     privateRoomKnocking: true,
     messageReactions: true,
@@ -15,13 +16,15 @@ const prodRemoteFeatures: RemoteFeatures = {
     miniAppSeed: true,
     walletServiceDkgRestart: true,
     btcMultispend: false,
+    updateScreen: false,
 }
-// Edge-only overrides go here; with none, edge tracks production.
 const edgeRemoteFeatures: RemoteFeatures = {
     ...prodRemoteFeatures,
+    federationTransfers: true,
 }
 const devRemoteFeatures: RemoteFeatures = {
     dummyFeature: true,
+    federationTransfers: true,
     showStableBalanceWeb: true,
     privateRoomKnocking: true,
     messageReactions: true,
@@ -30,12 +33,14 @@ const devRemoteFeatures: RemoteFeatures = {
     miniAppSeed: true,
     walletServiceDkgRestart: true,
     btcMultispend: true,
+    updateScreen: true,
 }
 // edge has always been served the dev values here; swapping this for
 // edgeRemoteFeatures would flip several live edge flags at once
 const edgeDevRemoteFeatures: RemoteFeatures = {
     ...devRemoteFeatures,
     miniAppSeed: false,
+    updateScreen: false,
 }
 const isProduction = process.env.VERCEL_ENV === 'production'
 

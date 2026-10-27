@@ -192,6 +192,9 @@ import TabsNavigator from './TabsNavigator'
 import Transactions from './Transactions'
 import UpdateApp from './UpdateApp'
 import UploadAvatarImage from './UploadAvatarImage'
+import WalletServiceAutojoinSpaces, {
+    WalletServiceAutojoinSpacesHeader,
+} from './WalletServiceAutojoinSpaces'
 import WalletServiceDashboard from './WalletServiceDashboard'
 import WalletServiceFee from './WalletServiceFee'
 import WalletServiceLightningProvider from './WalletServiceLightningProvider'
@@ -964,6 +967,15 @@ export const MainNavigator = () => {
                                     options={() => ({
                                         header: () => (
                                             <WalletServiceSettingsHeader />
+                                        ),
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="WalletServiceAutojoinSpaces"
+                                    component={WalletServiceAutojoinSpaces}
+                                    options={() => ({
+                                        header: () => (
+                                            <WalletServiceAutojoinSpacesHeader />
                                         ),
                                     })}
                                 />

@@ -463,6 +463,110 @@ fn maintenance_rpc_constructs_only_supported_typed_metadata() {
 }
 
 #[test]
+fn app_settings_preserve_exact_keys_and_values_from_json() {
+    let cases = [
+        ("autojoinCommunities", "autojoin_communities", "[]"),
+        (
+            "defaultGroupChats",
+            "default_group_chats",
+            r#"["!room:example.com"]"#,
+        ),
+        ("pinnedMessage", "pinned_message", "Welcome back"),
+        ("defaultCurrency", "default_currency", "USD"),
+        ("stabilityPoolDisabled", "stability_pool_disabled", "false"),
+        ("multispendDisabled", "multispend_disabled", "false"),
+        ("inviteCodesDisabled", "invite_codes_disabled", "true"),
+        ("newMembersDisabled", "new_members_disabled", "true"),
+        ("offlineWalletDisabled", "offline_wallet_disabled", "false"),
+        (
+            "onchainDepositsDisabled",
+            "onchain_deposits_disabled",
+            "false",
+        ),
+        ("maxBalanceMsats", "max_balance_msats", "9007199254740993"),
+        ("maxInvoiceMsats", "max_invoice_msats", "0"),
+        (
+            "maxStableBalanceMsats",
+            "max_stable_balance_msats",
+            "2100000000000000000",
+        ),
+        ("defaultGroupChats", "default_group_chats", "[]"),
+        ("pinnedMessage", "pinned_message", ""),
+    ];
+    for (setting, key, value) in cases {
+        let json = serde_json::json!({ "type": "appSetting", "setting": setting, "value": value });
+        let update: RpcFaFederationMetadataUpdate = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&update).unwrap(), json);
+        let (actual_key, actual_value) = metadata_update_from_rpc(update).unwrap().into_field();
+        assert_eq!(actual_key.0, format!("fedi:{key}"));
+        assert_eq!(actual_value.0, value);
+    }
+}
+
+#[test]
+fn app_settings_reject_invalid_values_before_dispatch() {
+    for (setting, value) in [
+        (RpcFaAppSetting::AutojoinCommunities, r#"["not-an-invite"]"#),
+        (RpcFaAppSetting::DefaultGroupChats, r#"["not-a-room"]"#),
+        (RpcFaAppSetting::PinnedMessage, "hello\nworld"),
+        (RpcFaAppSetting::DefaultCurrency, "not-a-currency"),
+        (RpcFaAppSetting::StabilityPoolDisabled, "False"),
+        (RpcFaAppSetting::MaxBalanceMsats, "01"),
+        (RpcFaAppSetting::MaxInvoiceMsats, "-1"),
+        (
+            RpcFaAppSetting::MaxStableBalanceMsats,
+            "2100000000000000001",
+        ),
+    ] {
+        let error = metadata_update_from_rpc(RpcFaFederationMetadataUpdate::AppSetting {
+            setting,
+            value: value.to_owned(),
+        })
+        .unwrap_err();
+        assert_eq!(error.code, RpcFaErrorCode::InvalidIntent);
+    }
+    for setting in [
+        "fedimods",
+        "vetted_gateways",
+        "fixedExchangeRate",
+        "popupEndTimestamp",
+    ] {
+        assert!(
+            serde_json::from_value::<RpcFaFederationMetadataUpdate>(serde_json::json!({
+                "type": "appSetting", "setting": setting, "value": "[]",
+            }))
+            .is_err()
+        );
+    }
+    // Amounts and flags must arrive as exact text, never JavaScript numbers or
+    // booleans.
+    for value in [
+        serde_json::json!(9007199254740993_u64),
+        serde_json::json!(false),
+    ] {
+        assert!(
+            serde_json::from_value::<RpcFaFederationMetadataUpdate>(serde_json::json!({
+                "type": "appSetting", "setting": "maxBalanceMsats", "value": value,
+            }))
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn unsupported_maintenance_has_typed_detail_without_guardian_data() {
+    let error = fa_error_to_rpc(&FaError::MaintenanceUnsupported {
+        unsupported: vec![0, 1],
+        required: 3,
+    });
+    assert_eq!(error.code, RpcFaErrorCode::MaintenanceRejected);
+    assert_eq!(
+        serde_json::to_value(error.detail).unwrap(),
+        serde_json::json!({ "type": "maintenanceUnsupported" }),
+    );
+}
+
+#[test]
 fn terms_rpc_preserves_the_url_and_rejects_invalid_values() {
     let url = "https://example.com/terms";
     let update = metadata_update_from_rpc(RpcFaFederationMetadataUpdate::TermsOfService {
@@ -1818,7 +1922,7 @@ fn replacement_state_projects_stable_rows_and_narrow_payment_action() {
     let locator = test_locator();
     let replacement_seat = fa_client::GuardianReplacementSeat {
         index: 2,
-        previous_mg_id: None,
+        previous_mg_id: Keys::generate().public_key(),
         previous_quote_id: fa_client::QuoteId([9; 32]),
         previous_locator: locator.clone(),
     };
@@ -1840,7 +1944,7 @@ fn replacement_state_projects_stable_rows_and_narrow_payment_action() {
         phase: FormationPhase::Preparing,
         seats: vec![fa_client::SeatProgress {
             index: 2,
-            mg_id: None,
+            mg_id: Keys::generate().public_key(),
             locator,
             seat_id: None,
             guardian_code: None,
@@ -1875,7 +1979,7 @@ fn replacement_state_projects_stable_rows_and_narrow_payment_action() {
             max_total_msats: Some(10_000),
             seats: vec![fa_client::SeatPaymentRequirement {
                 index: 2,
-                mg_id: None,
+                mg_id: Keys::generate().public_key(),
                 quote_id: fa_client::QuoteId([8; 32]),
                 payment_federation_id: FederationId("payer".to_owned()),
                 amount_msats: 12_000,
@@ -2049,7 +2153,7 @@ async fn fa_status_stream_emits_current_formation_and_typed_init_failure() {
         phase: FormationPhase::DkgUnderway,
         seats: vec![fa_client::SeatProgress {
             index: 0,
-            mg_id: None,
+            mg_id: Keys::generate().public_key(),
             locator,
             seat_id: None,
             guardian_code: None,

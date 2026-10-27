@@ -662,6 +662,35 @@ describe('lightning scripts', () => {
     })
 })
 
+describe('settings scripts', () => {
+    beforeEach(() => jest.useFakeTimers())
+    afterEach(() => jest.useRealTimers())
+
+    it('should refuse an auto-join save as unsupported by the guardians', async () => {
+        const { status, simulator } = await jumpAndRead(
+            'settings.autojoinUnsupported',
+        )
+
+        expect(formationOf(status).phase).toBe('formed')
+        expect(
+            await simulator.handle('faClientUpdateFederationMetadata', {
+                update: {
+                    type: 'appSetting',
+                    setting: 'autojoinCommunities',
+                    value: '["fedi:community1signal"]',
+                },
+            }),
+        ).toEqual({
+            type: 'error',
+            error: {
+                code: 'maintenanceRejected',
+                message: 'simulated guardians without auto join support',
+                detail: { type: 'maintenanceUnsupported' },
+            },
+        })
+    })
+})
+
 describe('script catalogue', () => {
     it('should list every script exactly once with a unique name', () => {
         const names = FA_SCRIPT_GROUPS.flatMap(g => g.scripts.map(s => s.name))

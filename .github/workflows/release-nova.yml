@@ -71,6 +71,14 @@ jobs:
 
                   bash ./scripts/ci/verify-bridge-hash.sh "$APK_PATH" "${{ github.sha }}"
 
+            - name: Check 16 KB page-size alignment
+              env:
+                  APK_PATH: ${{ steps.prep-apk.outputs.APK_PATH }}
+              run: |
+                  set -euo pipefail
+
+                  bash ./scripts/ci/check-apk-16kb-alignment.sh "$APK_PATH"
+
             - name: Create draft GitHub release with APK
               uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
               with:

@@ -59,9 +59,9 @@ use stability_pool_common::endpoint_constants::SUPPORTED_MODULE_CONSENSUS_VERSIO
 use stability_pool_common::{
     Account, AccountHistoryItem, AccountHistoryItemKind, AccountId, AccountType, CycleInfo,
     Deposit, DepositToBtcBalanceOutput, DepositToProvideOutput, DepositToSeekOutput, FeeRate,
-    FiatAmount, FiatOrAll, SignedBtcTransferRequest, SignedTransferRequest, StabilityPoolInputV0,
-    StabilityPoolOutputV0, StabilityPoolOutputV1, StabilityPoolOutputV2, TransferRequestId,
-    UnlockForWithdrawalInput, WithdrawalInput, verify_transfer_signatures,
+    FiatAmount, FiatOrAll, LegacyTime, SignedBtcTransferRequest, SignedTransferRequest,
+    StabilityPoolInputV0, StabilityPoolOutputV0, StabilityPoolOutputV1, StabilityPoolOutputV2,
+    TransferRequestId, UnlockForWithdrawalInput, WithdrawalInput, verify_transfer_signatures,
 };
 use tokio::sync::{Mutex, RwLock, watch};
 use tracing::{info, warn};
@@ -386,7 +386,7 @@ impl ServerModule for StabilityPool {
                 // This should only happen when the DB is fresh (no stability pool cycles
                 // logged) and the guardians are trying to arrive at consensus regarding the
                 // first cycle.
-                match last_cp_v0.time.elapsed() {
+                match last_cp_v0.time.0.elapsed() {
                     Ok(duration) => duration > enough_time_duration,
                     Err(_) => false,
                 }
@@ -398,7 +398,7 @@ impl ServerModule for StabilityPool {
                 //
                 // This should only happen when an upgraded fedimintd binary is run for the
                 // first time where stability pool cycles already exist in the DB.
-                match current_cycle.start_time.elapsed() {
+                match current_cycle.start_time.0.elapsed() {
                     Ok(duration) => duration > self.cfg.consensus.cycle_duration,
                     Err(_) => false,
                 }
@@ -413,10 +413,10 @@ impl ServerModule for StabilityPool {
                 //
                 // This should be the usual case whereby stability pool cycles already exist in
                 // the DB and consensus items have been proposed by this module in the past.
-                match current_cycle.start_time.elapsed() {
+                match current_cycle.start_time.0.elapsed() {
                     Ok(duration) if duration > self.cfg.consensus.cycle_duration => {
                         if last_cp_v0.next_cycle_index == current_cycle.index + 1 {
-                            match last_cp_v0.time.elapsed() {
+                            match last_cp_v0.time.0.elapsed() {
                                 Ok(duration) => duration > enough_time_duration,
                                 Err(_) => false,
                             }
@@ -575,7 +575,7 @@ impl ServerModule for StabilityPool {
                 &mut current_cycle.locked_provides,
                 CycleInfo {
                     idx: next_cycle_index,
-                    start_time: new_time,
+                    start_time: LegacyTime(new_time),
                     start_price: new_price,
                 },
             )
@@ -2079,7 +2079,7 @@ async fn distribute_fees_and_write_cycle(
     let cycle_info = CycleInfo {
         idx: cycle_index,
         start_price: cycle_price,
-        start_time: cycle_time,
+        start_time: LegacyTime(cycle_time),
     };
 
     // Update history for both seeks and provides
@@ -2179,7 +2179,7 @@ async fn distribute_fees_and_write_cycle(
         &CurrentCycleKey,
         &Cycle {
             index: cycle_index,
-            start_time: cycle_time,
+            start_time: LegacyTime(cycle_time),
             start_price: cycle_price,
             fee_rate: FeeRate(fee_rate),
             locked_seeks: locked_seeks_map,
@@ -2423,7 +2423,7 @@ mod tests {
                 &CurrentCycleKey,
                 &Cycle {
                     index: CYCLE_INDEX,
-                    start_time: UNIX_EPOCH,
+                    start_time: LegacyTime(UNIX_EPOCH),
                     start_price: FiatAmount(1_000_000),
                     fee_rate: FeeRate(0),
                     locked_seeks: BTreeMap::new(),

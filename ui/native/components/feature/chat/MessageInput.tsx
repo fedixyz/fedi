@@ -348,6 +348,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         ]}>
                         <Input
                             testID="MessageInput-TextInput"
+                            renderErrorMessage={false}
                             disableFullscreenUI
                             textBreakStrategy="simple"
                             onChangeText={value => setMessageText(value)}

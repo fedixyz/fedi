@@ -7,9 +7,10 @@ import {
 import { TFunction } from 'i18next'
 
 import type { CommonState } from '.'
-import { MSats } from '../types'
+import { type FederationMetadata, MSats, SupportedMetaFields } from '../types'
 import {
     FaFederationJoinEvent,
+    RpcFaAppSetting,
     RpcFaClientStatus,
     RpcFaEligiblePayer,
     RpcFaErrorCode,
@@ -23,6 +24,11 @@ import {
     RpcFaSelectionPreview,
     RpcFaStatus,
 } from '../types/bindings'
+import {
+    getFederationIconUrl,
+    getFederationWelcomeMessage,
+    getMetaField,
+} from '../utils/FederationUtils'
 import { isDev } from '../utils/environment'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
@@ -114,6 +120,80 @@ export type WalletServiceTopUpInvoice = {
     createdAt: number
 }
 
+/** The metadata fields the wallet service settings screens read back. */
+export type WalletServiceMetadata = {
+    name: string | null
+    iconUrl: string | null
+    description: string | null
+    termsUrl: string | null
+    /**
+     * The auto join spaces exactly as published: a JSON array of invite
+     * codes. Held as text so a just-saved list compares with `===`.
+     */
+    autojoinCommunities: string | null
+}
+
+/**
+ * The one copy of the published metadata every screen reads, scoped to the
+ * formation it was read for. A record for another formation is ignored.
+ */
+type WalletServiceMetadataRecord = {
+    formationId: string | null
+    /** `null` until a read succeeds. */
+    published: WalletServiceMetadata | null
+    /** Saved values that consensus has not reported yet. */
+    holds: Partial<WalletServiceMetadata>
+    status: 'idle' | 'loading' | 'loaded' | 'failed'
+    /** The newest read; an answer to any older one is dropped. */
+    latestRequestId: string | null
+}
+
+const EMPTY_METADATA: WalletServiceMetadata = {
+    name: null,
+    iconUrl: null,
+    description: null,
+    termsUrl: null,
+    autojoinCommunities: null,
+}
+
+const readPublishedMetadata = (
+    previewName: string,
+    meta: FederationMetadata,
+): WalletServiceMetadata => ({
+    name:
+        getMetaField(SupportedMetaFields.federation_name, meta) || previewName,
+    iconUrl: getFederationIconUrl(meta),
+    description: getFederationWelcomeMessage(meta),
+    termsUrl: getMetaField(SupportedMetaFields.tos_url, meta),
+    autojoinCommunities: getMetaField(
+        SupportedMetaFields.autojoin_communities,
+        meta,
+    ),
+})
+
+const applyHolds = (
+    consensus: WalletServiceMetadata,
+    pending: Partial<WalletServiceMetadata>,
+): WalletServiceMetadata => ({
+    // `null` means the federation publishes nothing for that field
+    name: pending.name ?? consensus.name,
+    iconUrl: pending.iconUrl ?? consensus.iconUrl,
+    description: pending.description ?? consensus.description,
+    termsUrl: pending.termsUrl ?? consensus.termsUrl,
+    autojoinCommunities:
+        pending.autojoinCommunities ?? consensus.autojoinCommunities,
+})
+
+const makeMetadataRecord = (
+    formationId: string | null,
+): WalletServiceMetadataRecord => ({
+    formationId,
+    published: null,
+    holds: {},
+    status: 'idle',
+    latestRequestId: null,
+})
+
 const initialState = {
     status: null as RpcFaStatus | null,
     clientError: null as RpcFaOperationError | null,
@@ -170,6 +250,14 @@ const initialState = {
          */
         isRequesting: false,
     },
+    /**
+     * Process-local and app-wide rather than per screen: the screen that saves
+     * a value is often unmounted before consensus reports it, and every other
+     * screen still has to show the saved value and build on it. One copy also
+     * means a read that releases a hold cannot expose another screen's older
+     * read.
+     */
+    walletServiceMetadata: makeMetadataRecord(null),
 }
 
 export type FaState = typeof initialState
@@ -177,6 +265,29 @@ export type FaState = typeof initialState
 /** The one definition of "done", shared by the mark and the selector. */
 const formationIsComplete = (formation: RpcFaFormationSnapshot) =>
     formation.phase === 'formed' || formation.milestones.walletServiceCreated
+
+const getStatusFormationId = (status: RpcFaStatus | null) =>
+    status?.type === 'formation' || status?.type === 'restored'
+        ? status.formation.formationId
+        : null
+
+/** The metadata record for `formationId`, replacing one for another formation. */
+function metadataRecordFor(state: FaState, formationId: string | null) {
+    if (state.walletServiceMetadata.formationId !== formationId)
+        state.walletServiceMetadata = makeMetadataRecord(formationId)
+    return state.walletServiceMetadata
+}
+
+/**
+ * The record a read answers into, or `null` when a newer read has started or
+ * the formation has changed since it was asked.
+ */
+function getCurrentMetadataRead(state: FaState, requestId: string) {
+    const record = state.walletServiceMetadata
+    if (record.latestRequestId !== requestId) return null
+    if (record.formationId !== getStatusFormationId(state.status)) return null
+    return record
+}
 
 /** Raises {@link CreationHighWaterMark} to whatever the new status reports. */
 function recordCreationHighWaterMark(state: FaState) {
@@ -428,6 +539,18 @@ export const faSlice = createSlice({
         ) {
             state.topUpInvoice = action.payload
         },
+        /** Show saved values until consensus reports them. */
+        holdWalletServiceMetadata(
+            state,
+            action: PayloadAction<{
+                formationId: string | null
+                values: Partial<WalletServiceMetadata>
+            }>,
+        ) {
+            const { formationId, values } = action.payload
+            const record = metadataRecordFor(state, formationId)
+            record.holds = { ...record.holds, ...values }
+        },
         /** A new guardian count invalidates the quoted seats and payers. */
         clearWalletServiceSelectionPreview(state) {
             state.selectionPreview = null
@@ -436,6 +559,47 @@ export const faSlice = createSlice({
         },
     },
     extraReducers: builder => {
+        builder.addCase(fetchWalletServiceMetadata.pending, (state, action) => {
+            const record = metadataRecordFor(
+                state,
+                getStatusFormationId(state.status),
+            )
+            record.latestRequestId = action.meta.requestId
+            record.status = 'loading'
+        })
+        builder.addCase(
+            fetchWalletServiceMetadata.fulfilled,
+            (state, action) => {
+                const record = getCurrentMetadataRead(
+                    state,
+                    action.meta.requestId,
+                )
+                if (!record) return
+                const published = action.payload
+                record.published = published
+                record.status = 'loaded'
+                // once consensus reports a value we asked for, that hold is
+                // spent
+                for (const key of Object.keys(
+                    record.holds,
+                ) as (keyof WalletServiceMetadata)[]) {
+                    if (record.holds[key] === published[key])
+                        delete record.holds[key]
+                }
+            },
+        )
+        builder.addCase(
+            fetchWalletServiceMetadata.rejected,
+            (state, action) => {
+                const record = getCurrentMetadataRead(
+                    state,
+                    action.meta.requestId,
+                )
+                if (!record) return
+                // a failed refresh leaves the last good read on screen
+                record.status = record.published ? 'loaded' : 'failed'
+            },
+        )
         builder.addCase(prepareWalletServicePayment.pending, state => {
             state.operationError = null
             state.payerError = null
@@ -548,6 +712,7 @@ export const {
     recordFaLiquidityAbsent,
     clearFaLiquidity,
     setFaLiquidityRequesting,
+    holdWalletServiceMetadata,
 } = faSlice.actions
 
 /*** Async thunk actions ***/
@@ -754,6 +919,50 @@ const METADATA_UPDATE_META_KEYS = {
     termsOfService: 'fedi:tos_url',
 } as const
 
+export const APP_SETTING_META_KEYS = {
+    autojoinCommunities: 'fedi:autojoin_communities',
+    defaultGroupChats: 'fedi:default_group_chats',
+    pinnedMessage: 'fedi:pinned_message',
+    defaultCurrency: 'fedi:default_currency',
+    stabilityPoolDisabled: 'fedi:stability_pool_disabled',
+    multispendDisabled: 'fedi:multispend_disabled',
+    inviteCodesDisabled: 'fedi:invite_codes_disabled',
+    newMembersDisabled: 'fedi:new_members_disabled',
+    offlineWalletDisabled: 'fedi:offline_wallet_disabled',
+    onchainDepositsDisabled: 'fedi:onchain_deposits_disabled',
+    maxBalanceMsats: 'fedi:max_balance_msats',
+    maxInvoiceMsats: 'fedi:max_invoice_msats',
+    maxStableBalanceMsats: 'fedi:max_stable_balance_msats',
+} as const satisfies Record<RpcFaAppSetting, string>
+
+/**
+ * Reads the name, icon, description, terms and auto join spaces the wallet
+ * service federation publishes, into the one record every screen reads.
+ */
+export const fetchWalletServiceMetadata = createAsyncThunk<
+    WalletServiceMetadata,
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>(
+    'fi/fetchWalletServiceMetadata',
+    async ({ fedimint }, { getState }) => {
+        const inviteCode = selectFaInviteCode(getState())
+        if (!inviteCode) throw new Error('no wallet service invite code')
+        try {
+            const preview = await fedimint.federationPreview(inviteCode)
+            return readPublishedMetadata(preview.name, preview.meta)
+        } catch (error) {
+            log.warn('federationPreview for wallet service metadata', error)
+            throw error
+        }
+    },
+    {
+        // with no invite code there is nothing to read, and a read that never
+        // ran must not report a failure
+        condition: (_, { getState }) => selectFaInviteCode(getState()) !== null,
+    },
+)
+
 export const updateWalletServiceMetadata = createAsyncThunk<
     void,
     {
@@ -783,11 +992,15 @@ export const updateWalletServiceMetadata = createAsyncThunk<
         // The bridge's own meta poll is ten minutes apart, which is where a
         // rename that "did not take" was hiding.
         if (federationId) {
+            const key =
+                update.type === 'appSetting'
+                    ? APP_SETTING_META_KEYS[update.setting]
+                    : METADATA_UPDATE_META_KEYS[update.type]
             dispatch(
                 mergeFederationMeta({
                     federationId,
                     meta: {
-                        [METADATA_UPDATE_META_KEYS[update.type]]: update.value,
+                        [key]: update.value,
                     },
                 }),
             )
@@ -978,12 +1191,36 @@ export const selectIsWalletServiceWaitingOnDkg = (s: CommonState) => {
     )
 }
 
-export const selectWalletServiceFormationId = (s: CommonState) => {
-    const status = selectFaStatus(s)
-    return status?.type === 'formation' || status?.type === 'restored'
-        ? status.formation.formationId
-        : null
+export const selectWalletServiceFormationId = (s: CommonState) =>
+    getStatusFormationId(selectFaStatus(s))
+
+const NO_METADATA_RECORD = makeMetadataRecord(null)
+
+/** The metadata record for the current formation. */
+const selectWalletServiceMetadataRecord = (s: CommonState) => {
+    const record = s.fi.walletServiceMetadata
+    return record.formationId === selectWalletServiceFormationId(s)
+        ? record
+        : NO_METADATA_RECORD
 }
+
+/** Saved metadata values for the current formation that consensus lags. */
+export const selectWalletServiceMetadataHolds = (s: CommonState) =>
+    selectWalletServiceMetadataRecord(s).holds
+
+/** The published metadata with any just-saved values over it. */
+export const selectWalletServiceMetadata = createSelector(
+    (s: CommonState) => selectWalletServiceMetadataRecord(s).published,
+    selectWalletServiceMetadataHolds,
+    (published, holds) => applyHolds(published ?? EMPTY_METADATA, holds),
+)
+
+export const selectWalletServiceMetadataStatus = (s: CommonState) =>
+    selectWalletServiceMetadataRecord(s).status
+
+/** False until a read succeeds; every field reads as unset before then. */
+export const selectHasWalletServiceMetadataLoaded = (s: CommonState) =>
+    selectWalletServiceMetadataRecord(s).published !== null
 
 export const selectWalletServiceGuardianCount = (s: CommonState) => {
     const status = selectFaStatus(s)
@@ -1486,6 +1723,20 @@ export const getWalletServiceErrorKey = (
     code && code in FA_ERROR_MESSAGE_KEYS
         ? FA_ERROR_MESSAGE_KEYS[code as keyof typeof FA_ERROR_MESSAGE_KEYS]
         : ('feature.wallet-service.error-generic' as const)
+
+/**
+ * The message for a failed federation metadata save.
+ *
+ * `maintenanceUnsupported` arrives as a detail on a `maintenanceRejected`
+ * code: too few guardians run a release that knows the setting. The code alone
+ * reads as a refusal, when what the operator needs to do is ask them to update.
+ */
+export const getWalletServiceMaintenanceErrorKey = (
+    error: RpcFaOperationError | null | undefined,
+) =>
+    error?.detail?.type === 'maintenanceUnsupported'
+        ? ('feature.wallet-service.error-guardians-need-update' as const)
+        : getWalletServiceErrorKey(error?.code)
 
 /**
  * The error, followed by the invitation to repeat the action that failed.
