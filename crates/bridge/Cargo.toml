@@ -58,7 +58,7 @@ either = "1.15.0"
 url = "2.3.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-zip = { version = "4", default-features = false, features = [
+zip = { version = "9.1.0", default-features = false, features = [
   "deflate",
   "time",
 ] }
