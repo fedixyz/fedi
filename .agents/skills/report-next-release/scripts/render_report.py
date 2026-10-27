@@ -855,6 +855,18 @@ def backport_full(bp, repo):
     return head + sub + "\n".join(items)
 
 
+def notes_url(release):
+    """The page name has to match what the site's upload script accepts: 26.10.3,
+    or web-26.10.2 for a web release."""
+    m = re.match(r"^\s*(web)?[\s/-]*(\d+\.\d+(?:\.\d+)?)\s*$", str(release or ""), re.I)
+    if not m:
+        return ""
+    number = m.group(2) if m.group(2).count(".") >= 2 else m.group(2) + ".0"
+    if m.group(1):
+        return f"{SITE}/web-{number}/?platform=web"
+    return f"{SITE}/{number}/"
+
+
 def release_notes_full(data):
     """Ready to paste. The Built from commit line is CI's, so the GitHub body
     here starts after it."""
@@ -869,9 +881,8 @@ def release_notes_full(data):
     if rn.get("store"):
         parts.append(f'<h4>App Store and Google Play</h4><p>{esc(rn["store"])}</p>')
     parts.append('<h4>GitHub release</h4>')
-    version = str(data.get("next_release", ""))
-    if version:
-        url = f'{SITE}/{version if version.count(".") >= 2 else version + ".0"}/'
+    url = notes_url(data.get("next_release", ""))
+    if url:
         parts.append(f'<p>Release notes: <a href="{esc(url)}">{esc(url)}</a></p>')
     bullets = rn.get("bullets") or []
     if bullets:

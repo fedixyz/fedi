@@ -16,7 +16,7 @@ Upload only when the user asks for the report to be deployed, shared or linked. 
    ~/fedibtc/release-notes/scripts/upload.sh <version> <out.html> [<extra files>]
    ```
 
-   `<version>` is the full version the report describes, `26.10.0` for a feature release or `26.9.3` for a patch. Extra files, such as the PDF, are copied next to the page.
+   `<version>` is the full version the report describes, `26.10.0` for a feature release, `26.9.3` for a patch, or `web-26.10.2` for a web release that goes out with no native release. A web release that goes out with a native one has no page of its own: its GitHub body links the native page with `?platform=web`. Extra files, such as the PDF, are copied next to the page.
 
    The script needs `DEPLOY_BROKER_TOKEN`, a token from https://deploy.apps.fedibtc.com/tokens. The site accepts uploads from its owner and from App Kit deploy admins. Anyone else hands the file to one of them.
 
