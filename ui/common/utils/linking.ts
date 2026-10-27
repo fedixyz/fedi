@@ -182,6 +182,7 @@ export const DEEP_LINK_SCREENS = [
     'browser',
     'ecash',
     'join',
+    'discover',
     'create-manifold',
     'join-then-ecash',
     'join-then-browse',
@@ -210,6 +211,13 @@ export const DEEP_LINKS = [
             'Shows a federation preview and prompts the user to join. If they are already a member, an already-joined message appears.',
         screen: 'join',
         params: [{ name: 'invite', label: 'Invite Code' }],
+    },
+    {
+        key: 'discover',
+        label: 'Discover Federations',
+        description: 'Opens the Discover list of public federations.',
+        screen: 'discover',
+        params: [],
     },
     {
         key: 'join-community',

@@ -10,6 +10,31 @@ import { resetToHomeWithScreen } from '../../../state/navigation'
 import * as linking from '../../../utils/linking'
 
 describe('linking', () => {
+    it.each([
+        'fedi://discover',
+        'fedi:discover',
+        'https://app.fedi.xyz/link?screen=discover',
+        'https://app.fedi.xyz/link#screen=discover',
+        'https://link.fedi.xyz/link?screen=discover',
+    ])(
+        'should open Discover with Wallet as the back destination for %s',
+        url => {
+            const path = getNavigationLink(url) ?? ''
+            expect(linking.getInternalLinkRoute(path)).toEqual({
+                routes: [{ name: 'PublicFederations', params: {} }],
+            })
+            expect(linking.getInternalLinkNavigationArgs(path)).toEqual([
+                'PublicFederations',
+                {},
+            ])
+            expect(linking.getInternalLinkResetAction(path)).toMatchObject(
+                resetToHomeWithScreen('Wallet', {
+                    name: 'PublicFederations',
+                }),
+            )
+        },
+    )
+
     describe('Manifold creation links', () => {
         it.each([
             'fedi://create-manifold',

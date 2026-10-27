@@ -2,6 +2,17 @@ import { getDeepLinkPath } from '../../../src/utils/linking'
 
 describe('utils/linking', () => {
     it.each(['?', '#'])(
+        'should open the Discover tab for a link with a %s separator',
+        separator => {
+            expect(
+                getDeepLinkPath(
+                    `https://app.fedi.xyz/link${separator}screen=discover`,
+                ),
+            ).toBe('/onboarding?tab=discover')
+        },
+    )
+
+    it.each(['?', '#'])(
         'should send a Manifold creation link to Wallet on web with a %s separator',
         separator => {
             expect(
