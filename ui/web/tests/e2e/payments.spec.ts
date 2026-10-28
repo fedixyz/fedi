@@ -6,7 +6,12 @@ import {
     ONCHAIN_TEST_ADDRESS,
 } from '@fedi/common/tests/utils/onchainTestFederation'
 
-import { devfedAvailable, getDevfedInvite } from './fixtures/devfed'
+import {
+    awaitDevfedInvoice,
+    devfedAvailable,
+    generateDevfedInvoice,
+    getDevfedInvite,
+} from './fixtures/devfed'
 import { OnboardingPage } from './fixtures/onboarding.page'
 import { WalletPage } from './fixtures/wallet.page'
 
@@ -49,6 +54,56 @@ test('joins a local federation and claims ecash into the balance', async ({
     const entry = page.getByRole('button').filter({ hasText: /ecash/i }).first()
     await expect(entry).toBeVisible({ timeout: 60_000 })
     await expect(entry).toContainText('Complete')
+})
+
+test('pays a lightning invoice and credits the recipient', async ({
+    page,
+}, testInfo) => {
+    test.setTimeout(240000)
+    const amount = 500
+    const wallet = new WalletPage(page)
+    await test.step('fund the sender', async () => {
+        await new OnboardingPage(page).completeWithNewSeed()
+        await wallet.joinByInvite(await getDevfedInvite())
+        await wallet.claimEcash(generateOnchainTestEcash(FUND_SATS, 'atLeast'))
+        await wallet.waitForSatsAtLeast(FUND_SATS - 10)
+    })
+    const before = await wallet.readSats()
+    const { invoice, operationId } = await test.step('create the invoice', () =>
+        generateDevfedInvoice(amount * 1000))
+    const receiver = new AbortController()
+    const claimed = awaitDevfedInvoice(operationId, receiver.signal).catch(
+        error => error,
+    )
+    try {
+        await test.step('pay the invoice', async () => {
+            await openAmount(page, invoice)
+            await expect(page.getByTestId('AmountInputSats')).toHaveText(
+                '500 sats',
+            )
+            await page
+                .getByRole('button', { name: 'Send', exact: true })
+                .click()
+            await expect(
+                page.getByText('You sent 500 sats', { exact: true }),
+            ).toBeVisible({ timeout: 60000 })
+        })
+        await test.step('verify recipient credit', async () => {
+            expect(await claimed).toBeUndefined()
+        })
+        await page.screenshot({
+            path: testInfo.outputPath('payments-lightning-funded-success.png'),
+        })
+        await test.step('verify sender balance', async () => {
+            await page.goto('/wallet')
+            await expect
+                .poll(() => wallet.readSats())
+                .toBeLessThanOrEqual(before - amount)
+        })
+    } finally {
+        receiver.abort()
+        await claimed
+    }
 })
 
 test('blocks unaffordable on-chain payments and sends funded amounts', async ({
@@ -137,6 +192,11 @@ test('blocks unaffordable on-chain payments and sends funded amounts', async ({
     await openAmount(page)
     await enterAmount(page, minimum - 1)
     await expect(error).toHaveText(minimumMessage)
+    await page.screenshot({
+        path: testInfo.outputPath(
+            `payments-onchain-${kind}-funded-minimum.png`,
+        ),
+    })
     await error
         .getByRole('button', {
             name: `${minimum.toLocaleString('en-US')} sats`,
