@@ -163,6 +163,14 @@ pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
     let user2 = m2.client.user_id().unwrap();
     let room_id = m1.create_or_get_dm(user2).await?;
     let num_messages = 50;
+    let has_all_messages = |timeline: &Vector<RpcTimelineItem>| {
+        timeline_as_text(timeline)
+            .into_iter()
+            .flatten()
+            .filter(|text| text.starts_with('#'))
+            .count()
+            == num_messages
+    };
 
     m2.wait_for_room_id(&room_id).await?;
     m2.room_join(&room_id).await?;
@@ -170,7 +178,7 @@ pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
     let (timeline1, timeline2) = try_join(
         // user 1
         async {
-            let items1 = pin!(m1.room_timeline_items(&room_id).await?);
+            let mut items1 = pin!(m1.room_timeline_items(&room_id).await?);
             for i in 0..num_messages {
                 m1.send_message(&room_id, SendMessageData::text(format!("#{i}")))
                     .await?;
@@ -178,11 +186,11 @@ pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
 
             let mut timeline1 = imbl::Vector::new();
             timeout(
-                apply_diffs_continuously(&mut timeline1, items1),
-                Duration::from_secs(10),
+                apply_diffs_until(&mut timeline1, &mut items1, has_all_messages),
+                Duration::from_secs(60),
             )
             .await
-            .ok();
+            .context("sender timeline did not contain all DM messages")?;
 
             anyhow::Ok(timeline_as_text(&timeline1))
         },
@@ -195,32 +203,30 @@ pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
             .await;
             let mut items2 = pin!(m2.room_timeline_items(&room_id).await?);
             let mut timeline2 = imbl::Vector::new();
+            let paginate = async {
+                let mut pagination_stream = pin!(
+                    m2.subscribe_timeline_items_paginate_backwards_status(&room_id)
+                        .await?
+                );
+                while let Some(value) = pagination_stream.next().await {
+                    if let RpcBackPaginationStatus::Idle = value {
+                        m2.room_timeline_items_paginate_backwards(&room_id, 100)
+                            .await?;
+                    }
+                }
+                anyhow::bail!("pagination stream ended before all DM messages arrived")
+            };
             timeout(
-                try_join(
-                    async {
-                        apply_diffs_continuously(&mut timeline2, &mut items2).await;
-                        anyhow::Ok(())
-                    },
-                    // keep scrolling to top
-                    async {
-                        let mut pagination_stream = pin!(
-                            m2.subscribe_timeline_items_paginate_backwards_status(&room_id)
-                                .await?
-                        );
-                        while let Some(value) = pagination_stream.next().await {
-                            if let RpcBackPaginationStatus::Idle = value {
-                                m2.room_timeline_items_paginate_backwards(&room_id, 100)
-                                    .await?;
-                            }
-                        }
-
-                        Ok(())
-                    },
-                ),
-                Duration::from_secs(20),
+                async {
+                    tokio::select! {
+                        () = apply_diffs_until(&mut timeline2, &mut items2, has_all_messages) => Ok(()),
+                        result = paginate => result,
+                    }
+                },
+                Duration::from_secs(60),
             )
             .await
-            .ok();
+            .context("receiver timeline did not contain all DM messages")??;
 
             anyhow::Ok(timeline_as_text(&timeline2))
         },

@@ -1680,6 +1680,26 @@ pub async fn test_multispend_send_returns_when_sync_skips_own_event(
         .get_room(&room_id)
         .context("td2 joined the room")?;
 
+    retry(
+        "wait for td2 to sync its joined membership",
+        multispend_sync_backoff(),
+        || async {
+            let member = room2
+                .get_member_no_sync(matrix2.client.user_id().unwrap())
+                .await?;
+            anyhow::ensure!(
+                room2.state() == matrix_sdk::RoomState::Joined
+                    && member.is_some_and(|member| {
+                        member.membership()
+                            == &matrix_sdk::ruma::events::room::member::MembershipState::Join
+                    }),
+                "td2 has not synced its joined membership"
+            );
+            Ok(())
+        },
+    )
+    .await?;
+
     // event handlers run inside sync response processing, so blocking one
     // pauses td1's sync until `resume` is notified
     let paused = Arc::new(tokio::sync::Notify::new());
