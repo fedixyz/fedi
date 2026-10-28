@@ -38,10 +38,17 @@ export class JoinLeaveFederation extends AppiumTestBase {
         while (Date.now() < deadline) {
             // the accordion click toggles, so only expand when the leave
             // item is not already on the list
-            if ((await this.scrollToElement(leaveKey)) === null) {
+            if (
+                (await this.scrollToElement(leaveKey, {
+                    scrollPercentage: 50,
+                    scrollDuration: 500,
+                })) === null
+            ) {
                 if (
                     (await this.scrollToElement(accordionKey, {
                         scrollDirection: 'up',
+                        scrollPercentage: 50,
+                        scrollDuration: 500,
                     })) === null
                 ) {
                     if (attempted) {
@@ -52,7 +59,10 @@ export class JoinLeaveFederation extends AppiumTestBase {
                     )
                 }
                 await this.clickElementByKey(accordionKey)
-                await this.scrollToElement(leaveKey)
+                await this.scrollToElement(leaveKey, {
+                    scrollPercentage: 50,
+                    scrollDuration: 500,
+                })
             }
             await this.clickElementByKey(leaveKey)
             if (
