@@ -25,11 +25,9 @@ Design choices that matter (learned the hard way, keep them):
     baselines, so a single current version is always wrong for one of them.
     That state is Full report's. The Summary says which apps a release
     updates and never where the release is in the pipeline.
-  - MERGED IS THE LINE BETWEEN THE TWO CARD SECTIONS. "In this release"
-    holds only work on master and its cards carry no status chip, because the
-    section is the status. Milestone work that has not merged renders in a
-    collapsed "Not in this release yet" section with an In progress or Planned
-    chip. The renderer warns when a card sits on the wrong side.
+  - THE SUMMARY CARRIES NO MERGE STATE. A card is a card, merged or not.
+    Where the work stands is Full report's (milestone table, PR list). A
+    status on a card warns, and a not_merged key is not rendered.
   - THE SUMMARY SPEAKS PRODUCT, NEVER WORKFLOW. Its reader does not know what
     a PR, a merge or a cut is. The renderer scans that tab for workflow
     vocabulary and warns on every hit.
@@ -52,7 +50,6 @@ SITE = "https://release-notes.apps.fedibtc.com"
 
 # ---- chip vocab -> color class -------------------------------------------
 KIND_CLS = {"New feature": "k-feat", "Improvement": "k-imp", "Fix": "k-fix"}
-STATUS_CLS = {"Pending release": "s-ship", "In progress": "s-prog", "Planned": "s-plan"}
 
 # Milestone-issue status -> badge. "done" = a merged window PR addresses it;
 # "inprogress" = an open PR ready for review; "pending" = a draft PR or no PR;
@@ -172,10 +169,7 @@ PROGRESS_WORDS = (
     r"\bnot started\b", r"\bnot cut\b", r"\bnot yet\b",
 )
 
-LAYOUTS = (("all", "All"), ("status", "Status"), ("platform", "Platform"))
-# Every merged card has the same status, so grouping on it yields one panel.
-MERGED_LAYOUTS = tuple(l for l in LAYOUTS if l[0] != "status")
-NOT_MERGED_STATUSES = ("In progress", "Planned")
+LAYOUTS = (("all", "All"), ("platform", "Platform"))
 
 SUMMARY_JARGON = (
     r"\bPRs?\b", r"\bpull requests?\b", r"\bmerged?s?\b", r"\bmaster\b", r"\bbranch(es)?\b",
@@ -211,17 +205,17 @@ def scan_summary_jargon(summary_html):
 
 
 def summary_platforms(summary):
-    """Explicit summary.platforms wins. Otherwise the union of what the merged
-    cards land on, so an iOS-only release reads iOS-only without being told."""
+    """Explicit summary.platforms wins. Otherwise the union of what the cards
+    land on, so an iOS-only release reads iOS-only without being told."""
     p = summary.get("platforms")
     if p:
         return [x for x in PLATFORM_ORDER if x in p]
-    cards = merged_cards(summary)
+    cards = all_cards(summary)
     return [x for x in PLATFORM_ORDER if any(x in card_platforms(it) for it in cards)]
 
 
-def merged_cards(summary):
-    """Every card that is on master: the main grids plus the audience sections."""
+def all_cards(summary):
+    """Every card on the Summary: the main grids plus the audience sections."""
     cards = [it for key in ("features", "fixes") for it in summary.get(key) or []]
     for sec in summary.get("sections") or []:
         cards += [it for key in ("features", "fixes") for it in sec.get(key) or []]
@@ -265,7 +259,7 @@ def release_scope(data):
     s = data.get("summary") or {}
     plats = summary_platforms(s)
     if not plats:
-        warn("summary.platforms is empty and no merged card names a platform, so the scope line "
+        warn("summary.platforms is empty and no card names a platform, so the scope line "
              "cannot say which apps this release updates. Set summary.platforms.")
     ver = data.get("next_release") or ""
     row = [f'<div class="scope-row"><span class="scope-ver">{esc(ver)}</span>']
@@ -352,64 +346,42 @@ def platform_marks(active, cls="pmarks"):
     return f'<span class="{cls}" aria-label="{esc(label)}">{"".join(cells)}</span>'
 
 
-def summary_cards(items, section, with_status):
-    """`with_status` is on for the not-merged grid only. Every card in "What users
-    will get" is on master, so a status chip there would restate the section."""
+def summary_cards(items, section):
+    """A status on a card is merge state, which is Full report's, so it warns
+    instead of rendering."""
     out = []
     for it in items:
         name = f'summary.{section} card "{it.get("headline","")}"'
         budget(it.get("summary"), 300, name)
-        kind, status = it.get("kind", ""), it.get("status", "")
+        kind = it.get("kind", "")
         if kind == "Fix":
             scan_fix_mechanics(name, it)
-        if with_status and status not in NOT_MERGED_STATUSES:
-            warn(f"{name} has status {status!r}. A not-merged card is 'In progress' (an open PR "
-                 "ready for review) or 'Planned' (a draft or no PR). Merged work goes in features or fixes.")
-        elif not with_status and status and status != "Pending release":
-            warn(f"{name} has status {status!r} in a merged-only section. Move it to "
-                 "summary.not_merged, or drop the status if it is on master.")
+        if it.get("status"):
+            warn(f"{name} has status {it['status']!r}. The Summary carries no merge state, so drop it. "
+                 "Whether the work is on master is on Full report, in the milestone table and the PR list.")
         badge = it.get("badge") or ""
         badge_html = f'<span class="flagbadge">{esc(badge)}</span>' if badge else ""
         tag = it.get("tag") or ""
         badge_html = (f'<span class="tagchip">{esc(tag)}</span>' if tag else "") + badge_html
-        status_html = (f'<span class="chip {STATUS_CLS.get(status,"")}">{esc(status)}</span>'
-                       if with_status else "")
         plats = card_platforms(it)
         body = it.get("summary") or ""
         body_html = f'<p class="ssum">{esc(body)}</p>' if body else ""
         out.append(
-            f'<article class="scard" data-plat="{" ".join(plats)}" '
-            f'data-status="{esc(status)}" data-kind="{esc(kind)}">'
+            f'<article class="scard" data-plat="{" ".join(plats)}" data-kind="{esc(kind)}">'
             f'<div class="schips"><span class="chip {KIND_CLS.get(kind,"")}">{esc(kind)}</span>'
-            f'{status_html}{badge_html}{platform_marks(plats)}</div>'
+            f'{badge_html}{platform_marks(plats)}</div>'
             f'<h3 class="shead">{esc(it.get("headline",""))}</h3>'
             f'{body_html}</article>'
         )
     return "\n".join(out)
 
 
-def not_merged_section(summary):
-    """Collapsed under the merged cards, so a reader who stops at "What users will
-    get" has only read things that are on master."""
-    for old in ("planned_keep", "planned_park"):
+def legacy_summary_keys(summary):
+    for old in ("planned_keep", "planned_park", "not_merged"):
         if summary.get(old):
-            warn(f"summary.{old} is no longer rendered. Write each item as a card in "
-                 "summary.not_merged with status 'Planned'.")
-    items = summary.get("not_merged") or []
-    if not items:
-        return ""
-    prog = sum(1 for it in items if it.get("status") == "In progress")
-    plan = len(items) - prog
-    bits = [f"{n} {label}" for n, label in ((prog, "in progress"), (plan, "planned")) if n]
-    return "\n".join([
-        '<details class="cardsec tucked" id="notmerged">',
-        '<summary><span class="chev" aria-hidden="true"></span><span>Not in this release yet</span>'
-        f'<span class="cnt">{len(items)}</span><span class="tknote">{esc(", ".join(bits))}</span></summary>',
-        '<div class="tbody">',
-        f'<div class="h2row thead2"><p class="sub">Planned for this release and not in it. In progress means a fix '
-        f'exists and is being checked. Planned means no fix exists yet.</p>{layout_switch(LAYOUTS)}</div>',
-        f'<div class="scards" data-grid>{summary_cards(items, "not_merged", True)}</div>',
-        '</div></details>'])
+            warn(f"summary.{old} is no longer rendered. The Summary carries no merge state: a change the "
+                 "release owner wants in the release is a card in summary.features or summary.fixes with no "
+                 "status, and whether its PR has merged is on Full report.")
 
 
 FLAG_STATES = ("on", "off", "edge")
@@ -644,18 +616,18 @@ def audience_section(sec):
     if feats:
         if fixes:
             out.append('<div class="subhead" data-sub>New features and improvements</div>')
-        out.append(f'<div class="scards" data-grid>{summary_cards(feats, sid, False)}</div>')
+        out.append(f'<div class="scards" data-grid>{summary_cards(feats, sid)}</div>')
     if fixes:
         if feats:
             out.append('<div class="subhead" data-sub>Fixes</div>')
-        out.append(f'<div class="scards" data-grid>{summary_cards(fixes, sid, False)}</div>')
+        out.append(f'<div class="scards" data-grid>{summary_cards(fixes, sid)}</div>')
     out.append('</section>')
     return "\n".join(out)
 
 
 def platform_filter(summary):
     """`?platform=web` in the URL preselects a button, so a release can link its own view."""
-    cards = merged_cards(summary) + list(summary.get("not_merged") or [])
+    cards = all_cards(summary)
     present = [p for p in PLATFORM_ORDER if any(p in card_platforms(it) for it in cards)]
     if len(present) < 2:
         return ""
@@ -667,6 +639,7 @@ def platform_filter(summary):
 
 def render_summary(data):
     s = data.get("summary", {})
+    legacy_summary_keys(s)
     budget(s.get("title"), 90, "summary.title")
     budget(s.get("lede"), 240, "summary.lede")
     parts = [f'<h1>{esc(s.get("title","At a glance"))}</h1>']
@@ -682,19 +655,18 @@ def render_summary(data):
     parts.append(flags_section(data))
     main_cards = [it for key in ("features", "fixes") for it in s.get(key) or []]
     if main_cards:
-        sw = layout_switch(MERGED_LAYOUTS) if len({tuple(card_platforms(it)) for it in main_cards}) > 1 else ""
-        merged = ['<section class="cardsec" id="merged">',
-                  f'<div class="h2row"><h2>In this release</h2>{sw}</div>']
+        sw = layout_switch(LAYOUTS) if len({tuple(card_platforms(it)) for it in main_cards}) > 1 else ""
+        main = ['<section class="cardsec" id="cards">',
+                f'<div class="h2row"><h2>In this release</h2>{sw}</div>']
         if s.get("features"):
-            merged.append('<div class="subhead" data-sub>New features and improvements</div>')
-            merged.append(f'<div class="scards" data-grid>{summary_cards(s["features"], "features", False)}</div>')
+            main.append('<div class="subhead" data-sub>New features and improvements</div>')
+            main.append(f'<div class="scards" data-grid>{summary_cards(s["features"], "features")}</div>')
         if s.get("fixes"):
-            merged.append('<div class="subhead" data-sub>Fixes</div>')
-            merged.append(f'<div class="scards" data-grid>{summary_cards(s["fixes"], "fixes", False)}</div>')
-        merged.append('</section>')
-        parts.append("\n".join(merged))
+            main.append('<div class="subhead" data-sub>Fixes</div>')
+            main.append(f'<div class="scards" data-grid>{summary_cards(s["fixes"], "fixes")}</div>')
+        main.append('</section>')
+        parts.append("\n".join(main))
     parts.extend(audience_section(sec) for sec in s.get("sections") or [])
-    parts.append(not_merged_section(s))
     parts.append('<p class="sub" style="margin-top:22px">Every change in full is on the <b>Full report</b> tab.</p>')
     out = "\n".join(p for p in parts if p)
     # flag footers name the key and PR, and the Unreleased tip names Nightly, so the scan skips both.
@@ -1032,7 +1004,6 @@ CSS_VARS = """
  --tabbg:rgba(22,22,26,.92);--hover:rgba(126,162,245,.09);
  --pre-bg:#101014;--pre-tx:#d8d8de;
  --k-feat:#7048e8;--k-imp:#0b7285;--k-fix:#b54708;
- --s-ship:#2b7a3b;--s-prog:#1971c2;--s-plan:#5f6570;
  --ok-bg:rgba(105,219,124,.14);--ok-bd:rgba(105,219,124,.4);
  --wait-bg:rgba(245,165,36,.14);--wait-bd:rgba(245,165,36,.4);
  --bp-bg:rgba(169,142,255,.14);--bp-bd:rgba(169,142,255,.42);--on-bp:#15111f;
@@ -1048,7 +1019,6 @@ html[data-theme="light"]{color-scheme:light;
  --tabbg:rgba(246,247,249,.92);--hover:rgba(25,113,194,.05);
  --pre-bg:#f3f4f6;--pre-tx:#1f2937;
  --k-feat:#7048e8;--k-imp:#0b7285;--k-fix:#b54708;
- --s-ship:#2b7a3b;--s-prog:#1971c2;--s-plan:#5c6370;
  --ok-bg:rgba(43,138,62,.12);--ok-bd:rgba(43,138,62,.35);
  --wait-bg:rgba(154,103,0,.12);--wait-bd:rgba(154,103,0,.35);
  --bp-bg:rgba(103,65,217,.1);--bp-bd:rgba(103,65,217,.35);--on-bp:#fff;
@@ -1172,7 +1142,6 @@ details.gwrap .scards{{margin:14px 18px 18px}}
 .schips{{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}}
 .chip{{display:inline-block;white-space:nowrap;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:3px 9px;border-radius:999px}}
 .k-feat{{background:var(--k-feat)}} .k-imp{{background:var(--k-imp)}} .k-fix{{background:var(--k-fix)}}
-.s-ship{{background:var(--s-ship)}} .s-prog{{background:var(--s-prog)}} .s-plan{{background:var(--s-plan)}}
 .shead{{font-size:16.5px;margin:0 0 6px;line-height:1.3}}
 .ssum{{margin:0;color:var(--tx2);font-size:14px;line-height:1.5}}
 .flagbadge,.trackchip{{display:inline-block;white-space:nowrap;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:3px 9px;border-radius:999px}}
@@ -1194,10 +1163,6 @@ details.tucked>summary:hover{{color:var(--tx);background:var(--hover);border-rad
 details.tucked>summary .chev{{border-color:var(--mut)}}
 details.tucked[open]>summary{{border-bottom:1px dashed var(--line);border-radius:12px 12px 0 0;color:var(--tx2)}}
 details.tucked[open]>summary .chev{{transform:rotate(45deg);margin:0 2px 0 0}}
-.tknote{{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600}}
-.tbody{{padding:4px 18px 18px}}
-.thead2{{margin:10px 0 4px;padding-bottom:0;border-bottom:none}}
-.thead2 .sub{{flex:1 1 320px;margin:0}}
 details.flags{{margin:16px 0 0}}
 details.flags>summary{{flex-wrap:wrap;row-gap:6px;padding:11px 18px}}
 .fbadges{{display:inline-flex;flex-wrap:wrap;gap:6px;text-transform:none;letter-spacing:0}}
@@ -1283,7 +1248,6 @@ document.querySelectorAll('.tab').forEach(function(t){{
 }});
 (function(){{
   var PLAT = {PLATFORM_JS};
-  var STATUS_ORDER = ['In progress','Planned','Pending release'];
 
   function cards(g){{ return [].slice.call(g.querySelectorAll('.scard')); }}
   // The grid is emptied before groups are built, so only a group's own cards
@@ -1318,21 +1282,9 @@ document.querySelectorAll('.tab').forEach(function(t){{
       return {{keys:keys, label:keys.length ? setLabel(keys) : 'Unspecified', items:map[key]}};
     }});
   }}
-  function byStatus(list){{
-    var seen = STATUS_ORDER.filter(function(s){{
-      return list.some(function(c){{ return c.dataset.status === s; }}); }});
-    list.forEach(function(c){{ if (seen.indexOf(c.dataset.status) < 0) seen.push(c.dataset.status); }});
-    return seen.map(function(s){{
-      return {{key:'', label:s || 'Unlabelled', items:list.filter(function(c){{
-        return c.dataset.status === s; }})}};
-    }});
-  }}
-  function group(mode, list){{
-    return mode === 'status' ? byStatus(list) : byPlatform(list);
-  }}
 
   // Each card section owns its switch, grids and expand-all control, so
-  // regrouping the merged cards leaves the not-merged ones alone.
+  // regrouping one section leaves the others alone.
   function wire(sec){{
     var grids = [].slice.call(sec.querySelectorAll('[data-grid]'));
     if (!grids.length) return;
@@ -1350,13 +1302,12 @@ document.querySelectorAll('.tab').forEach(function(t){{
       grids.forEach(function(g){{
         g.innerHTML = g.dataset.orig;
         if (mode === 'all') return;
-        var groups = group(mode, cards(g));
+        var groups = byPlatform(cards(g));
         g.innerHTML = '';
         groups.forEach(function(gr){{
           var inner = document.createElement('div');
           inner.className = 'scards';
-          // Status groups carry no marks: a status set spans every platform.
-          var marks = mode === 'platform' ? marksFor(gr.items[0]) : '';
+          var marks = marksFor(gr.items[0]);
           gr.items.forEach(function(c){{ inner.appendChild(c); }});
           var d = document.createElement('details');
           d.className = 'gwrap';
@@ -1420,8 +1371,6 @@ document.querySelectorAll('.tab').forEach(function(t){{
       if (prev && prev.hasAttribute('data-sub')) prev.hidden = !n;
       var count = box.querySelector(':scope > summary .gcount, :scope > summary .cnt');
       if (count) count.textContent = n;
-      var note = box.querySelector(':scope > summary .tknote');
-      if (note) note.hidden = !!p;
     }});
     document.querySelectorAll('.fcount').forEach(function(c){{
       var n = document.querySelectorAll('.fchip[data-col="' + c.dataset.of + '"]:not([hidden])').length;
@@ -1547,15 +1496,9 @@ def render_briefing(data):
     if needs:
         lines.append(f"- {len(needs)} resolved issues carry no milestone. Nothing applied, see the ask below.")
     lines.append("")
-    for it in merged_cards(s):
+    for it in all_cards(s):
         meta = " / ".join(x for x in [it.get("kind"), it.get("track")] if x)
         lines.append(f"- **{it.get('headline','')}** ({meta})")
-    not_merged = s.get("not_merged") or []
-    if not_merged:
-        lines += ["", "Not in this release yet:"]
-        for it in not_merged:
-            meta = " / ".join(x for x in [it.get("status"), it.get("kind"), it.get("track")] if x)
-            lines.append(f"- **{it.get('headline','')}** ({meta})")
     words = {"go": "goes live", "stop": "switches off"}
     changing = [f for f in flag_order(flag_items(data))
                 if (flag_column(f) in words if f.get("next") else f.get("now") is not None)]
