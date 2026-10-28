@@ -1,0 +1,12 @@
+[package]
+name = "ios-local-network-prompt-check"
+version = "0.3.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+bridge = { workspace = true }
+fedi-ffi = { workspace = true }
+fedimint-connectors = { workspace = true }
+fedimint-core = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }

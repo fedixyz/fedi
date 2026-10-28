@@ -4,6 +4,7 @@ members = [
   "bridge/fedi-ffi",
   "bridge/fedi-wasm",
   "bridge/ffi-bindgen",
+  "bridge/ios-local-network-prompt-check",
   "crates/api-types",
   "crates/bridge",
   "crates/federations",

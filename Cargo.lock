@@ -6588,6 +6588,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-local-network-prompt-check"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "bridge",
+ "fedi-ffi",
+ "fedimint-connectors",
+ "fedimint-core",
+ "tokio",
+]
+
+[[package]]
 name = "ipconfig"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

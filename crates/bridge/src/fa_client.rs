@@ -823,7 +823,7 @@ impl FederationConsensusReader for BridgeFederationConsensusReader {
     }
 }
 
-async fn bind_n0_endpoint() -> Result<Endpoint, fedi_iroh_rpc::iroh::endpoint::BindError> {
+pub async fn bind_n0_endpoint() -> Result<Endpoint, fedi_iroh_rpc::iroh::endpoint::BindError> {
     let builder = Endpoint::builder(presets::N0);
     #[cfg(target_os = "ios")]
     let builder = builder.portmapper_config(PortmapperConfig::Disabled);
