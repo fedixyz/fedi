@@ -268,12 +268,8 @@ jobs:
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
               continue-on-error: true
 
-            - name: Build iOS bridge artifacts
-              # note: can't use --ignore-environment as it uses globally installed xcode
-              run: nix develop -L .#xcode --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-ios ./scripts/bridge/build-bridge-ios.sh
-
-            - name: Check the iOS bridge does not trigger the Local Network prompt
-              run: nix develop -L .#xcode --command env HOME="$HOME" CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-ios ./scripts/bridge/check-ios-local-network-prompt.sh
+            - name: Build and check iOS bridge artifacts
+              run: ./scripts/ci/build-and-check-ios.sh
 
     shell:
         strategy:
