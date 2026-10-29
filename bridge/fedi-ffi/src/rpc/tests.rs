@@ -21,13 +21,14 @@ use federations::federation_v2::db::{FedimintEventLogCursorKey, LnurlReceivePend
 use federations::fedi_fee::{FediFeeStream, parse_fedi_guardian_fee_config};
 use fedi_social_client::common::VerificationDocument;
 use fedimint_client::db::{CachedApiVersionSetKey, PeerLastApiVersionsSummaryKey};
-use fedimint_core::Amount;
 use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCore, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::Encodable;
+use fedimint_core::invite_code::InviteCode;
 use fedimint_core::task::sleep_in_test;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::{BoxFuture, FmtCompact as _, FmtCompactAnyhow as _, retry};
+use fedimint_core::{Amount, PeerId};
 use fedimint_lnv2_client::common::gateway_api::PaymentFee;
 use fedimint_logging::TracingSetup;
 use nostr::nips::nip44;
@@ -547,7 +548,12 @@ async fn test_join_and_leave_and_join(_dev_fed: DevFed) -> anyhow::Result<()> {
     let RpcFederationMaybeLoading::Ready(rpc_federation) = &federations[0] else {
         panic!("federation is not loaded");
     };
-    assert_eq!(env_invite_code.clone(), rpc_federation.invite_code);
+    // The federation shows a code with more guardians than the one it was
+    // joined with
+    let joined_code = InviteCode::from_str(&env_invite_code)?;
+    let shown_code = InviteCode::from_str(&rpc_federation.invite_code)?;
+    assert_eq!(shown_code.federation_id(), joined_code.federation_id());
+    assert_eq!(shown_code.peers().len(), 2);
 
     // leaveFederation works
     leaveFederation(bridge, rpc_federation.id.clone()).await?;
@@ -4916,6 +4922,41 @@ async fn test_lnurl_support_from_native_and_string_wrapped_meta() -> anyhow::Res
     Ok(())
 }
 
+/// A member shares the federation's code. A newcomer joins with it while the
+/// first guardian it lists, which is also the guardian of the member's own
+/// join code, is down.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_join_with_shared_invite_code_while_a_listed_guardian_is_down() -> anyhow::Result<()> {
+    let mut dev_fed = DevFed::new_with_setup(4).await?;
+    let join_code = dev_fed.fed.invite_code()?;
+
+    let member = TestDevice::new().await?;
+    let member_federation =
+        joinFederation(member.bridge_full().await?, join_code.clone(), false).await?;
+    let shared_code = InviteCode::from_str(&member_federation.invite_code)?;
+    assert_eq!(
+        shared_code.federation_id(),
+        InviteCode::from_str(&join_code)?.federation_id()
+    );
+    assert_eq!(
+        shared_code.peers().into_keys().collect::<Vec<_>>(),
+        vec![PeerId::from(0), PeerId::from(1)]
+    );
+    assert_eq!(InviteCode::from_str(&join_code)?.peer(), PeerId::from(0));
+
+    dev_fed.fed.terminate_server(0).await?;
+
+    let newcomer = TestDevice::new().await?;
+    let newcomer_federation = joinFederation(
+        newcomer.bridge_full().await?,
+        member_federation.invite_code.clone(),
+        false,
+    )
+    .await?;
+    assert_eq!(newcomer_federation.id, member_federation.id);
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
     // The offline half of this test is v1-mint-shaped: it expects
@@ -4975,7 +5016,10 @@ async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
                             bail!("federation {:?} loading failed: {}", id, error.detail)
                         }
                         RpcFederationMaybeLoading::Ready(rpc_federation) => {
-                            assert!(rpc_federation.invite_code == invite_code);
+                            assert_eq!(
+                                InviteCode::from_str(&rpc_federation.invite_code)?.federation_id(),
+                                InviteCode::from_str(&invite_code)?.federation_id()
+                            );
                             break 'check Ok::<_, anyhow::Error>(rpc_federation);
                         }
                     }
@@ -5121,7 +5165,10 @@ async fn test_bridge_handles_federation_offline_v2() -> anyhow::Result<()> {
                             bail!("federation {:?} loading failed: {}", id, error.detail)
                         }
                         RpcFederationMaybeLoading::Ready(rpc_federation) => {
-                            assert!(rpc_federation.invite_code == invite_code);
+                            assert_eq!(
+                                InviteCode::from_str(&rpc_federation.invite_code)?.federation_id(),
+                                InviteCode::from_str(&invite_code)?.federation_id()
+                            );
                             break 'check Ok::<_, anyhow::Error>(rpc_federation);
                         }
                     }

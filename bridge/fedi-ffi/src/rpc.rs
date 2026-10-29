@@ -901,7 +901,7 @@ async fn nostrRateFederation(
 ) -> anyhow::Result<()> {
     let invite_code = if include_invite_code {
         let federation = bridge.federations.get_federation(&federation_id)?;
-        Some(federation.get_invite_code().await)
+        Some(federation.shareable_invite_code().await)
     } else {
         None
     };
@@ -1151,7 +1151,7 @@ async fn spv2OurPaymentAddress(
     include_invite: bool,
 ) -> anyhow::Result<String> {
     let federation_invite = if include_invite {
-        federation.get_invite_code().await.parse().ok()
+        federation.shareable_invite_code().await.parse().ok()
     } else {
         None
     };
@@ -2587,7 +2587,7 @@ async fn matrixSendMultispendGroupInvitation(
     let invitation = GroupInvitation {
         signers,
         threshold: threshold.into(),
-        federation_invite_code: fed.get_invite_code().await,
+        federation_invite_code: fed.shareable_invite_code().await,
         federation_name,
     };
     let multispend_matrix = bridge.matrix.wait_multispend().await;
