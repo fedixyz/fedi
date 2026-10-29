@@ -7,6 +7,8 @@ import { StyleSheet, View } from 'react-native'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
+    useMonitorGuardianTransfer,
+    useMonitorReplacementCandidates,
     useWalletServiceFederationId,
     useWalletServiceRecoveryStage,
 } from '@fedi/common/hooks/fa'
@@ -23,18 +25,28 @@ import {
     selectFaInviteCode,
     selectFaIsUnsynced,
     selectIsWalletServiceRestoreFlow,
+    selectGuardianTransfer,
+    selectIsGuardianTransferOpen,
+    selectReplacementCandidates,
+    selectIsWalletServiceFormed,
+    selectIsWalletServiceGuardianTransferEnabled,
     selectIsWalletServiceLightningRunning,
     selectWalletServiceGuardianCount,
     selectLoadedFederation,
     refreshGuardianStatuses as refreshGuardianStatusesThunk,
 } from '@fedi/common/redux'
-import { readGuardianStatus } from '@fedi/common/utils/federationHealth'
+import {
+    federationHasQuorum,
+    readGuardianStatus,
+} from '@fedi/common/utils/federationHealth'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
+import { GuardianReplacementBanner } from '../components/feature/walletservice/GuardianReplacementBanner'
 import { WalletServiceDashboardHeader } from '../components/feature/walletservice/WalletServiceDashboardHeader'
 import {
     GuardiansOfflineBanner,
+    GuardiansSheetReplacement,
     WalletServiceGuardiansSheet,
 } from '../components/feature/walletservice/WalletServiceGuardiansSheet'
 import { WalletServiceInviteSheet } from '../components/feature/walletservice/WalletServiceInviteSheet'
@@ -73,7 +85,83 @@ const HERO_ICON_RADIUS = 14
  */
 const TOUR_DELAY_MS = 620
 
-const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
+/**
+ * Shows the sheet once the push has landed: a sheet shown while the screen is
+ * still entering races the native transition, and the jump was flaky.
+ */
+const useOpenGuardiansAfterPush = ({
+    navigation,
+    route,
+    setIsShown,
+}: {
+    navigation: Props['navigation']
+    route: Props['route']
+    setIsShown: (isShown: boolean) => void
+}) => {
+    const shouldOpen = route.params?.openSheet === 'guardians'
+    useEffect(() => {
+        if (!shouldOpen) return
+        const unsubscribe = navigation.addListener('transitionEnd', e => {
+            if (e.data.closing) return
+            unsubscribe()
+            setIsShown(true)
+        })
+        return unsubscribe
+    }, [shouldOpen, navigation, setIsShown])
+}
+
+/**
+ * Guardian replacement as the dashboard shows it: the open replacement and
+ * the guardians the latest check flagged, both streamed by the bridge. Both
+ * are empty for a service that cannot replace guardians.
+ */
+const useGuardianReplacement = () => {
+    const isTransferEnabled = useAppSelector(
+        selectIsWalletServiceGuardianTransferEnabled,
+    )
+    const isFormed = useAppSelector(selectIsWalletServiceFormed)
+    const isAvailable = isTransferEnabled && isFormed
+    useMonitorReplacementCandidates()
+    useMonitorGuardianTransfer()
+    const transfer = useAppSelector(selectGuardianTransfer)
+    const isTransferOpen = useAppSelector(selectIsGuardianTransferOpen)
+    const candidates = useAppSelector(selectReplacementCandidates)
+
+    return {
+        isAvailable,
+        transfer: isAvailable ? transfer : null,
+        candidates: isAvailable ? candidates : [],
+        // `undefined` is a replacement not read yet, which offers nothing
+        canStart: isAvailable && transfer !== undefined && !isTransferOpen,
+    }
+}
+
+/** The Guardians sheet's shown state, its open-on-push and its replace offer */
+const useGuardiansSheet = ({ navigation, route }: Props) => {
+    const [isShown, setIsShown] = useState(false)
+    useOpenGuardiansAfterPush({ navigation, route, setIsShown })
+    const { isAvailable, transfer, candidates, canStart } =
+        useGuardianReplacement()
+    const replacement: GuardiansSheetReplacement | undefined = isAvailable
+        ? {
+              candidates,
+              replacingName:
+                  transfer && transfer.phase !== 'completed'
+                      ? transfer.sourceMgName
+                      : null,
+              canStart,
+              onReplace: seatIndex => {
+                  setIsShown(false)
+                  navigation.navigate('WalletServiceGuardianTransfer', {
+                      seatIndex,
+                  })
+              },
+          }
+        : undefined
+    return { isShown, setIsShown, replacement, transfer, candidates }
+}
+
+const WalletServiceDashboard: React.FC<Props> = ({ navigation, route }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const fedimint = useFedimint()
@@ -110,7 +198,13 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     )
     const [isBalanceRevealed, setIsBalanceRevealed] = useState(false)
     const [isInviteShown, setIsInviteShown] = useState(false)
-    const [isGuardiansShown, setIsGuardiansShown] = useState(false)
+    const {
+        isShown: isGuardiansShown,
+        setIsShown: setIsGuardiansShown,
+        replacement,
+        transfer,
+        candidates,
+    } = useGuardiansSheet({ navigation, route })
 
     const federation = useAppSelector(s =>
         federationId ? selectLoadedFederation(s, federationId) : undefined,
@@ -150,6 +244,7 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
             unknown: 'Dot',
         },
     })
+    const hasQuorum = federationHasQuorum(federationStatus)
 
     // A `backupEligible` restored service reaches this screen before its
     // federation is joined, so the join can still fail underneath it. The
@@ -479,6 +574,22 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                             containerStyle={style.withdrawButton}
                         />
                     </View>
+                    {(candidates.length > 0 ||
+                        (transfer && transfer.phase !== 'completed')) && (
+                        <View style={style.offlineBanner}>
+                            <GuardianReplacementBanner
+                                transfer={transfer}
+                                candidates={candidates}
+                                hasQuorum={hasQuorum}
+                                onViewTransfer={() =>
+                                    navigation.navigate(
+                                        'WalletServiceGuardianTransfer',
+                                    )
+                                }
+                                onReviewCandidates={refreshAndShowGuardians}
+                            />
+                        </View>
+                    )}
                     {guardianStatuses && federationStatus === 'offline' && (
                         <View style={style.offlineBanner}>
                             <GuardiansOfflineBanner
@@ -505,6 +616,7 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
                     statuses={guardianStatuses}
                     federationStatus={federationStatus}
                     statusColor={statusIconColor}
+                    replacement={replacement}
                     onDismiss={() => setIsGuardiansShown(false)}
                 />
             )}

@@ -16,13 +16,20 @@ import {
     RpcFaErrorCode,
     RpcFaFederationMetadataUpdate,
     RpcFaFormationSnapshot,
+    RpcFaGuardianTransfer,
+    RpcFaGuardianTransferPhase,
     RpcFaLiquidityOperation,
     RpcFaOperationError,
     RpcFaPlanPreference,
+    RpcFaReplacementCandidate,
+    RpcFaReplacementCandidates,
+    RpcFaReplacementCheck,
     RpcFaReplacementPreview,
     RpcFaSeatPhase,
     RpcFaSelectionPreview,
+    RpcFaSelectionReauthorizationReason,
     RpcFaStatus,
+    RpcFaTransferDestinationPreview,
 } from '../types/bindings'
 import {
     getFederationIconUrl,
@@ -213,6 +220,22 @@ const initialState = {
     selectionPreview: null as RpcFaSelectionPreview | null,
     // process-local for the same reason as `selectionPreview`
     replacementPreview: null as RpcFaReplacementPreview | null,
+    // process-local for the same reason as `selectionPreview`
+    transferDestinationPreview: null as RpcFaTransferDestinationPreview | null,
+    /**
+     * The guardian move from the bridge's stream, where `undefined` is "not
+     * heard yet". A finished move stays `completed` until the next start.
+     *
+     * `null` is the claim that no move is open, which is what unlocks the
+     * offer to start one. Collapsing the two would offer a start before the
+     * bridge has said, and the bridge answers that with `Busy`.
+     */
+    guardianTransfer: undefined as RpcFaGuardianTransfer | null | undefined,
+    /**
+     * The bridge's latest replacement check, from its stream. `null` until a
+     * check of the formed service succeeds; then the guardians it flagged.
+     */
+    replacementCheck: null as RpcFaReplacementCheck | null,
     // process-local: the bridge keeps the receive and claims a late payment
     // after a restart, so a forgotten invoice still lands in the balance
     topUpInvoice: null as WalletServiceTopUpInvoice | null,
@@ -445,6 +468,21 @@ export const faSlice = createSlice({
     name: 'fi',
     initialState,
     reducers: {
+        setReplacementCandidates(
+            state,
+            action: PayloadAction<RpcFaReplacementCandidates>,
+        ) {
+            // a failed stream says nothing about the guardians, so the last
+            // check stays up rather than hiding every Replace
+            if (action.payload.type === 'ready')
+                state.replacementCheck = action.payload.check
+        },
+        setGuardianTransfer(
+            state,
+            action: PayloadAction<RpcFaGuardianTransfer | null>,
+        ) {
+            state.guardianTransfer = action.payload
+        },
         setFaClientStatus(state, action: PayloadAction<RpcFaClientStatus>) {
             if (action.payload.type === 'ready') {
                 state.status = action.payload.status
@@ -686,6 +724,38 @@ export const faSlice = createSlice({
                 state.operationError = action.payload ?? null
             },
         )
+        builder.addCase(previewGuardianTransferDestination.pending, state => {
+            state.operationError = null
+        })
+        builder.addCase(
+            previewGuardianTransferDestination.fulfilled,
+            (state, action) => {
+                state.transferDestinationPreview = action.payload
+            },
+        )
+        builder.addCase(
+            previewGuardianTransferDestination.rejected,
+            (state, action) => {
+                state.transferDestinationPreview = null
+                state.operationError = action.payload ?? null
+            },
+        )
+        builder.addCase(startGuardianTransfer.pending, state => {
+            state.operationError = null
+        })
+        // the move itself arrives on the transfer stream, which may already
+        // be past the phase this start's run ended on
+        builder.addCase(startGuardianTransfer.fulfilled, state => {
+            // the previewId is spent, so a second start must re-preview
+            state.transferDestinationPreview = null
+        })
+        builder.addCase(startGuardianTransfer.rejected, (state, action) => {
+            // `busy` is the bridge declining to start right now, not the
+            // preview going stale, so the same one is still good on a retry
+            if (action.payload?.code !== 'busy')
+                state.transferDestinationPreview = null
+            state.operationError = action.payload ?? null
+        })
         builder.addCase(resumeWalletService.pending, state => {
             state.operationError = null
         })
@@ -701,6 +771,8 @@ export const {
     setFaClientStatus,
     setFaStatus,
     setFaFederationJoin,
+    setReplacementCandidates,
+    setGuardianTransfer,
     setWalletServiceDraft,
     clearFaOperationError,
     clearWalletServiceSelectionPreview,
@@ -1058,6 +1130,84 @@ export const applyWalletServiceReplacements = createAsyncThunk<
     },
 )
 
+/**
+ * The bridge previews only for a guardian its latest check flagged, and keeps
+ * that decision with the preview, so a later check cannot take it back.
+ */
+export const previewGuardianTransferDestination = createAsyncThunk<
+    RpcFaTransferDestinationPreview,
+    { fedimint: FedimintBridge; seatIndex: number },
+    { state: CommonState; rejectValue: RpcFaOperationError }
+>(
+    'fi/previewGuardianTransferDestination',
+    async ({ fedimint, seatIndex }, { getState, rejectWithValue }) => {
+        const result =
+            await fedimint.faClientPreviewTransferDestination(seatIndex)
+        if (result.type === 'error') {
+            log.error(
+                'previewGuardianTransferDestination',
+                faLogContext(getState()),
+                result.error,
+            )
+            return rejectWithValue(result.error)
+        }
+        return result.preview
+    },
+)
+
+/**
+ * The spend cap and the previewId both come from the preview in state, so the
+ * amount approved is always the price the user is looking at.
+ *
+ * There is no resume counterpart: the bridge's own loop carries an open move
+ * forward, and the transfer stream reports it, including a move that failed
+ * part way.
+ */
+export const startGuardianTransfer = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        paymentFederationId: string
+    },
+    { state: CommonState; rejectValue: RpcFaOperationError }
+>(
+    'fi/startGuardianTransfer',
+    async (
+        { fedimint, paymentFederationId },
+        { getState, rejectWithValue },
+    ) => {
+        const preview = selectTransferDestinationPreview(getState())
+        if (!preview) {
+            return rejectWithValue({
+                code: 'selection',
+                message: 'no transfer destination preview to pay for',
+                detail: null,
+            })
+        }
+        const { previewId, advertisedPriceMsats } = preview
+        log.info('startGuardianTransfer requested', {
+            ...faLogContext(getState()),
+            previewId,
+            paymentFederationId,
+            maxMsats: advertisedPriceMsats,
+        })
+        // the preview names the guardian it was made for
+        const result = await fedimint.faClientStartGuardianTransfer(
+            previewId,
+            paymentFederationId,
+            advertisedPriceMsats,
+        )
+        if (result.type === 'error') {
+            log.error(
+                'startGuardianTransfer',
+                { ...faLogContext(getState()), previewId },
+                result.error,
+            )
+            return rejectWithValue(result.error)
+        }
+    },
+)
+
 export const resumeWalletService = createAsyncThunk<
     void,
     { fedimint: FedimintBridge },
@@ -1111,6 +1261,9 @@ export const selectIsWalletServiceCreationEnabled = (s: CommonState) =>
 // unlocked creation with the tap override.
 export const selectIsWalletServiceDkgRestartEnabled = (s: CommonState) =>
     Boolean(selectFeatureFlag(s, 'wallet_service_dkg_restart'))
+
+export const selectIsWalletServiceGuardianTransferEnabled = (s: CommonState) =>
+    Boolean(selectFeatureFlag(s, 'wallet_service_guardian_transfer'))
 
 export const selectFaStatus = (s: CommonState) => s.fi.status
 
@@ -1557,6 +1710,132 @@ export const selectFaReplacementRequirements = createSelector(
 export const selectWalletServiceReplacementPreview = (s: CommonState) =>
     s.fi.replacementPreview
 
+/*** Guardian transfer ***/
+
+/** The guardian move, `null` for none and `undefined` for not heard yet. */
+export const selectGuardianTransfer = (s: CommonState) => s.fi.guardianTransfer
+
+export const selectTransferDestinationPreview = (s: CommonState) =>
+    s.fi.transferDestinationPreview
+
+/**
+ * The guardians the latest check flagged that still hold their seat, so a
+ * guardian already replaced stops being offered before the next check.
+ */
+export const selectReplacementCandidates = createSelector(
+    (s: CommonState) => s.fi.replacementCheck,
+    selectFaStatus,
+    (check, status): RpcFaReplacementCandidate[] => {
+        if (!check) return []
+        // the same seat indexes as `selectGuardianTransferSeats`
+        const seatMgId = (index: number) =>
+            status?.type === 'formed'
+                ? status.federation.seats[index]?.mgId
+                : undefined
+        return check.candidates.filter(
+            candidate => seatMgId(candidate.seatIndex) === candidate.mgId,
+        )
+    },
+)
+
+/** When the latest replacement check finished; null before the first one. */
+export const selectReplacementCheckedAt = (s: CommonState) =>
+    s.fi.replacementCheck?.checkedAt ?? null
+
+/** A move that has not finished blocks a second move and liquidity requests. */
+export const selectIsGuardianTransferOpen = (s: CommonState) => {
+    const transfer = selectGuardianTransfer(s)
+    return !!transfer && transfer.phase !== 'completed'
+}
+
+/**
+ * The guardians a move can pick from. The formed federation lists its seats
+ * in seat order, which is the index the move takes.
+ */
+export const selectGuardianTransferSeats = createSelector(
+    selectFaStatus,
+    (status): { index: number; name: string | null }[] => {
+        if (status?.type !== 'formed') return []
+        return status.federation.seats.map((seat, index) => ({
+            index,
+            name: seat.mgName,
+        }))
+    },
+)
+
+/** The steps of a move, in order. `completed` is the end, not a step. */
+export const GUARDIAN_TRANSFER_STEPS = [
+    'buyingSeat',
+    'awaitingSource',
+    'publishingBinding',
+    'removingSource',
+] as const satisfies RpcFaGuardianTransferPhase[]
+
+/**
+ * Where a move has got to, as a step list position.
+ *
+ * `current` is the 0-based index of the step underway, and the step count
+ * once the move is done, so every step reads as behind it.
+ */
+export const getGuardianTransferProgress = (
+    phase: RpcFaGuardianTransferPhase,
+) =>
+    phase === 'completed'
+        ? {
+              current: GUARDIAN_TRANSFER_STEPS.length,
+              total: GUARDIAN_TRANSFER_STEPS.length,
+              isCompleted: true,
+          }
+        : {
+              current: GUARDIAN_TRANSFER_STEPS.indexOf(phase),
+              total: GUARDIAN_TRANSFER_STEPS.length,
+              isCompleted: false,
+          }
+
+// a full Record so a reason the bridge adds is a compile error here rather
+// than one vague "the selection changed" standing in for all of them. Each
+// reason is a different thing for the user to do about it.
+const TRANSFER_REAUTHORIZATION_MESSAGE_KEYS = {
+    previewExpired: 'feature.wallet-service.transfer-error-preview-expired',
+    advertisementEstimateExceedsLimit:
+        'feature.wallet-service.transfer-error-advertised-price-changed',
+    selectedMgUnavailable:
+        'feature.wallet-service.transfer-error-host-unavailable',
+    quoteTotalExceedsLimit:
+        'feature.wallet-service.transfer-error-quote-price-changed',
+    quoteTermsChanged: 'feature.wallet-service.transfer-error-terms-changed',
+    selectedPayerUnavailable:
+        'feature.wallet-service.transfer-error-payer-unavailable',
+    selectedPayerInsufficientFunds:
+        'feature.wallet-service.transfer-error-payer-insufficient-funds',
+    verifierEnvironmentChanged:
+        'feature.wallet-service.transfer-error-verifier-changed',
+    paymentFederationRequired:
+        'feature.wallet-service.transfer-error-payment-federation-required',
+} as const satisfies Record<RpcFaSelectionReauthorizationReason, string>
+
+/**
+ * Two codes need more than {@link getWalletServiceErrorKey} can say here.
+ * Only the reauthorization reason says whether the user picks again, tops up,
+ * or waits. `busy` is worth retrying shortly, which the setup-wide wording
+ * does not offer.
+ */
+export const getGuardianTransferErrorKey = (
+    error: RpcFaOperationError | null | undefined,
+) => {
+    if (error?.detail?.type === 'selectionReauthorizationRequired')
+        return TRANSFER_REAUTHORIZATION_MESSAGE_KEYS[error.detail.reason]
+    if (error?.code === 'busy')
+        return 'feature.wallet-service.transfer-error-busy' as const
+    if (error?.code === 'replacementNotEligible')
+        return 'feature.wallet-service.transfer-error-not-eligible' as const
+    // the setup wording for this detail suggests a smaller size, which a move
+    // does not have
+    if (error?.detail?.type === 'insufficientMgSeats')
+        return 'feature.wallet-service.transfer-error-no-free-host' as const
+    return getWalletServiceErrorKey(error?.code)
+}
+
 // a full Record so a seat phase the bridge adds is a compile error here
 // rather than a silent miscount in "{confirmed} of {total}"
 const SEAT_PHASE_COUNTS_AS_CONFIRMED = {
@@ -1715,6 +1994,8 @@ const FA_ERROR_MESSAGE_KEYS = {
         'feature.wallet-service.error-selection-changed',
     storage: 'feature.wallet-service.error-generic',
     timeout: 'feature.wallet-service.error-timeout',
+    replacementNotEligible:
+        'feature.wallet-service.transfer-error-not-eligible',
 } as const satisfies Record<RpcFaErrorCode, string>
 
 // error codes are the stable bridge contract; never branch on message strings

@@ -32,13 +32,26 @@ export const MilestoneRow: React.FC<{
     detailTestID: string
     isActive: boolean
     isDone: boolean
-}> = ({ label, detail, testID, detailTestID, isActive, isDone }) => {
+    /**
+     * Fade the steps not reached yet. Off where every step must stay
+     * readable, as in a guardian replacement the user waits on for days.
+     */
+    recede?: boolean
+}> = ({
+    label,
+    detail,
+    testID,
+    detailTestID,
+    isActive,
+    isDone,
+    recede = true,
+}) => {
     const { theme } = useTheme()
     const style = styles(theme)
 
     const animatedCardStyle = useAnimatedStyle(
         () => ({
-            opacity: withTiming(isActive || isDone ? 1 : 0.4, {
+            opacity: withTiming(isActive || isDone || !recede ? 1 : 0.4, {
                 duration: 300,
             }),
             borderColor: withTiming(
@@ -46,8 +59,9 @@ export const MilestoneRow: React.FC<{
                 { duration: 300 },
             ),
         }),
-        [isActive, isDone],
+        [isActive, isDone, recede],
     )
+    const isPending = !isActive && !isDone
 
     return (
         <Animated.View
@@ -71,7 +85,13 @@ export const MilestoneRow: React.FC<{
                     ) : null}
                 </View>
                 <Column gap="xxs" grow shrink>
-                    <Text style={style.milestoneLabel}>{label}</Text>
+                    <Text
+                        style={[
+                            style.milestoneLabel,
+                            isPending && !recede && style.milestoneLabelPending,
+                        ]}>
+                        {label}
+                    </Text>
                     <Text style={style.milestoneDetail} testID={detailTestID}>
                         {detail}
                     </Text>
@@ -118,5 +138,8 @@ const styles = (theme: Theme) =>
             fontSize: fediTheme.fontSizes.caption,
             fontWeight: '600',
             lineHeight: 18,
+        },
+        milestoneLabelPending: {
+            color: theme.colors.darkGrey,
         },
     })

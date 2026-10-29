@@ -2865,3 +2865,116 @@ async fn command_channel_preserves_typed_start_and_resume_liquidity_responses() 
         .await
         .expect("the typed response supervisor shuts down");
 }
+
+#[test]
+fn guardian_transfer_projects_both_hosts_and_every_phase() {
+    let source = Keys::generate().public_key();
+    let destination = Keys::generate().public_key();
+    let source_seat_id = fa_client::SeatId::new("aa".repeat(32)).unwrap();
+    let destination_seat_id = fa_client::SeatId::new("bb".repeat(32)).unwrap();
+    for (phase, expected) in [
+        (
+            GuardianTransferPhase::BuyingSeat,
+            RpcFaGuardianTransferPhase::BuyingSeat,
+        ),
+        (
+            GuardianTransferPhase::AwaitingSource,
+            RpcFaGuardianTransferPhase::AwaitingSource,
+        ),
+        (
+            GuardianTransferPhase::PublishingBinding,
+            RpcFaGuardianTransferPhase::PublishingBinding,
+        ),
+        (
+            GuardianTransferPhase::RemovingSource,
+            RpcFaGuardianTransferPhase::RemovingSource,
+        ),
+        (
+            GuardianTransferPhase::Completed,
+            RpcFaGuardianTransferPhase::Completed,
+        ),
+    ] {
+        let transfer = guardian_transfer_to_rpc(GuardianTransfer {
+            seat_index: 2,
+            source_mg_id: source,
+            source_seat_id: source_seat_id.clone(),
+            destination_mg_id: destination,
+            destination_seat_id: Some(destination_seat_id.clone()),
+            phase,
+        });
+        assert_eq!(transfer.phase, expected);
+        assert_eq!(transfer.seat_index, 2);
+        assert_eq!(transfer.source_mg_id, source.to_string());
+        assert_eq!(
+            transfer.source_mg_name,
+            MgName::from_mg_id(source).to_string()
+        );
+        assert_eq!(transfer.source_seat_id, "aa".repeat(32));
+        assert_eq!(transfer.destination_mg_id, destination.to_string());
+        assert_eq!(
+            transfer.destination_mg_name,
+            MgName::from_mg_id(destination).to_string()
+        );
+        assert_eq!(transfer.destination_seat_id, Some("bb".repeat(32)));
+    }
+
+    // While the seat is bought, the new host is known but its seat is not.
+    let buying = guardian_transfer_to_rpc(GuardianTransfer {
+        seat_index: 2,
+        source_mg_id: source,
+        source_seat_id,
+        destination_mg_id: destination,
+        destination_seat_id: None,
+        phase: GuardianTransferPhase::BuyingSeat,
+    });
+    assert_eq!(buying.destination_seat_id, None);
+}
+
+#[test]
+fn replacement_candidate_projects_its_seat_and_every_reason() {
+    let mg_id = Keys::generate().public_key();
+    let candidate = replacement_candidate_to_rpc(&fa_client::ReplacementCandidate {
+        seat_index: 3,
+        mg_id,
+        seat_id: fa_client::SeatId::new("cc".repeat(32)).unwrap(),
+        reasons: vec![
+            ReplacementReason::Offline {
+                last_seen_secs: 1_700_000_000,
+            },
+            ReplacementReason::MissedSessions { sessions: 480 },
+            ReplacementReason::Disconnected,
+            ReplacementReason::LowWeekScore {
+                basis_points: 7_250,
+            },
+            ReplacementReason::LowMonthScore {
+                basis_points: 8_100,
+            },
+            ReplacementReason::HolderRevoked,
+        ],
+    });
+    assert_eq!(candidate.seat_index, 3);
+    assert_eq!(candidate.mg_id, mg_id.to_string());
+    assert_eq!(candidate.mg_name, MgName::from_mg_id(mg_id).to_string());
+    assert_eq!(
+        candidate.reasons,
+        vec![
+            RpcFaReplacementReason::Offline {
+                last_seen_secs: 1_700_000_000
+            },
+            RpcFaReplacementReason::MissedSessions { sessions: 480 },
+            RpcFaReplacementReason::Disconnected,
+            RpcFaReplacementReason::LowWeekScore {
+                basis_points: 7_250
+            },
+            RpcFaReplacementReason::LowMonthScore {
+                basis_points: 8_100
+            },
+            RpcFaReplacementReason::HolderRevoked,
+        ]
+    );
+    // the app reads the tag and camelCase fields
+    assert_eq!(
+        serde_json::to_value(&candidate.reasons[3]).unwrap(),
+        serde_json::json!({ "type": "lowWeekScore", "basisPoints": 7_250 })
+    );
+}

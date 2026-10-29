@@ -16,11 +16,12 @@ use rpc_types::event::TypedEventExt as _;
 use rpc_types::fa_client::{
     RpcFaClientStatus, RpcFaCurrentLiquidityOperationResult, RpcFaDecommissionRefusal,
     RpcFaDecommissionResult, RpcFaEligiblePayersResult, RpcFaErrorCode,
-    RpcFaFederationMetadataUpdate, RpcFaFormationIntent, RpcFaLiquidityDiscoveryResult,
-    RpcFaLiquidityNetwork, RpcFaLiquidityOperationPageResult, RpcFaLiquidityOperationResult,
-    RpcFaLiquidityRequestIntent, RpcFaOperationError, RpcFaOperationResult, RpcFaPushPlatform,
-    RpcFaPushRegistrationResult, RpcFaReplacementPreviewResult, RpcFaSelectionPreviewRequest,
-    RpcFaSelectionPreviewResult, RpcFaSetupPaymentFederationsResult,
+    RpcFaFederationMetadataUpdate, RpcFaFormationIntent, RpcFaGuardianTransferResult,
+    RpcFaLiquidityDiscoveryResult, RpcFaLiquidityNetwork, RpcFaLiquidityOperationPageResult,
+    RpcFaLiquidityOperationResult, RpcFaLiquidityRequestIntent, RpcFaOperationError,
+    RpcFaOperationResult, RpcFaPushPlatform, RpcFaPushRegistrationResult,
+    RpcFaReplacementPreviewResult, RpcFaSelectionPreviewRequest, RpcFaSelectionPreviewResult,
+    RpcFaSetupPaymentFederationsResult, RpcFaTransferDestinationPreviewResult,
 };
 use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
@@ -117,6 +118,30 @@ impl BridgeFull {
         self.fa_client
             .as_ref()
             .map(|client| client.observe())
+            .map_err(|_| self.fa_initialization_error())
+    }
+
+    pub fn fa_replacement_candidates_receiver(
+        &self,
+    ) -> Result<
+        tokio::sync::watch::Receiver<Option<Arc<fa_client::ReplacementCheck>>>,
+        RpcFaOperationError,
+    > {
+        self.fa_client
+            .as_ref()
+            .map(|client| client.observe_replacement_candidates())
+            .map_err(|_| self.fa_initialization_error())
+    }
+
+    pub fn fa_guardian_transfer_receiver(
+        &self,
+    ) -> Result<
+        tokio::sync::watch::Receiver<Option<fa_client::GuardianTransfer>>,
+        RpcFaOperationError,
+    > {
+        self.fa_client
+            .as_ref()
+            .map(|client| client.observe_guardian_transfer())
             .map_err(|_| self.fa_initialization_error())
     }
 
@@ -311,6 +336,36 @@ impl BridgeFull {
                     .await
             }
             None => self.fa_initialization_failure(),
+        }
+    }
+
+    pub async fn fa_preview_transfer_destination(
+        &self,
+        seat_index: u16,
+    ) -> RpcFaTransferDestinationPreviewResult {
+        match &self.fa_driver {
+            Some(driver) => driver.preview_transfer_destination(seat_index).await,
+            None => RpcFaTransferDestinationPreviewResult::Error {
+                error: self.fa_initialization_error(),
+            },
+        }
+    }
+
+    pub async fn fa_start_guardian_transfer(
+        &self,
+        preview_id: String,
+        payment_federation_id: String,
+        max_msats: u64,
+    ) -> RpcFaGuardianTransferResult {
+        match &self.fa_driver {
+            Some(driver) => {
+                driver
+                    .start_guardian_transfer(preview_id, payment_federation_id, max_msats)
+                    .await
+            }
+            None => RpcFaGuardianTransferResult::Error {
+                error: self.fa_initialization_error(),
+            },
         }
     }
 

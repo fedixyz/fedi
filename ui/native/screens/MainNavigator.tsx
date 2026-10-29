@@ -197,6 +197,7 @@ import WalletServiceAutojoinSpaces, {
 } from './WalletServiceAutojoinSpaces'
 import WalletServiceDashboard from './WalletServiceDashboard'
 import WalletServiceFee from './WalletServiceFee'
+import WalletServiceGuardianTransfer from './WalletServiceGuardianTransfer'
 import WalletServiceLightningProvider from './WalletServiceLightningProvider'
 import WalletServiceProgress from './WalletServiceProgress'
 import WalletServiceReplaceReview from './WalletServiceReplaceReview'
@@ -933,6 +934,13 @@ export const MainNavigator = () => {
                                 <Stack.Screen
                                     name="WalletServiceReplaceReview"
                                     component={WalletServiceReplaceReview}
+                                    options={{
+                                        headerShown: false,
+                                    }}
+                                />
+                                <Stack.Screen
+                                    name="WalletServiceGuardianTransfer"
+                                    component={WalletServiceGuardianTransfer}
                                     options={{
                                         headerShown: false,
                                     }}

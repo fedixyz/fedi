@@ -97,6 +97,9 @@ const renderFee = ({
             eligiblePayers: null,
             operationError: null,
             replacementPreview: null,
+            transferDestinationPreview: null,
+            guardianTransfer: undefined,
+            replacementCheck: null,
             topUpInvoice: null,
             payerError: null,
             liquidity: {

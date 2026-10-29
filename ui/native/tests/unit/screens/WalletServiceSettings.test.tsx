@@ -17,11 +17,13 @@ import {
     setFaLiquidityOperation,
     setFaLiquidityRequesting,
     setFaStatus,
+    setFeatureFlags,
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type {
+    FeatureCatalog,
     RpcFaFormationPhase,
     RpcFaFormedFederation,
     RpcFaLiquidityOperation,
@@ -151,6 +153,12 @@ const renderScreen = ({
     liquidity?: RpcFaLiquidityOperation | null | false
 } = {}) => {
     store.dispatch(setFaStatus(status))
+    // with the guardian move on, so its absence here is not the flag
+    store.dispatch(
+        setFeatureFlags({
+            wallet_service_guardian_transfer: {},
+        } as FeatureCatalog),
+    )
     // `hasRead: false` is the state before the monitor's durable read answers,
     // and is deliberately NOT the same as "nothing attached"
     if (liquidity === false) {
@@ -1609,5 +1617,19 @@ describe('screens/WalletServiceSettings', () => {
                 readsOnMount + 1,
             )
         })
+    })
+
+    it('should not offer a guardian move, which starts from the dashboard', async () => {
+        renderScreen()
+        // the withdraw row needs the parsed invite, so the screen has
+        // settled once it is pressable
+        await waitFor(() =>
+            expect(
+                screen.getByTestId('settings-withdraw-row'),
+            ).toBeOnTheScreen(),
+        )
+        expect(
+            screen.queryByTestId('settings-transfer-row'),
+        ).not.toBeOnTheScreen()
     })
 })

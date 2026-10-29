@@ -9,6 +9,7 @@ import React from 'react'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 
 import { attachFaDevTools, FA_DEV_SWITCHES_KEY } from '../../../../devtools/fa'
+import { TRANSFER_SEAT_INDEX } from '../../../../devtools/fa/scripts/transfer'
 import WalletServiceDevTools from '../../../../screens/developer/WalletServiceDevTools'
 import { mockNavigation } from '../../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../../utils/render'
@@ -38,7 +39,10 @@ const simulatorOnStorage = () => {
 
 const render = (
     tools: ReturnType<typeof attachFaDevTools>,
-    fedimint = createMockFedimintBridge(),
+    // every jump re-reads the catalog
+    fedimint = createMockFedimintBridge({
+        getFeatureCatalog: () => Promise.resolve({}),
+    }),
 ) =>
     renderWithProviders(
         <WalletServiceDevTools tools={tools} navigation={mockNavigation} />,
@@ -141,6 +145,7 @@ describe('WalletServiceDevTools', () => {
                     },
                 }),
             faClientEligiblePayers: { type: 'payers', payers: [] },
+            getFeatureCatalog: () => Promise.resolve({}),
         })
         render(tools, fedimint)
 
@@ -207,6 +212,145 @@ describe('WalletServiceDevTools', () => {
                 { openSheet: 'provider' },
             ),
         )
+    })
+
+    describe('guardian replacement screens', () => {
+        it('should list the guardian replacement states once, under Go to screen', async () => {
+            const tools = attachFaDevTools(jest.fn(), simulatorOnStorage())
+            await tools.ready
+            render(tools)
+
+            fireEvent.press(screen.getByText('Go to screen'))
+            fireEvent.press(screen.getByText('Advanced'))
+            fireEvent.press(screen.getByText('Play scenario from start'))
+
+            expect(screen.getAllByText('Guardian replacement')).toHaveLength(1)
+            expect(
+                within(screen.getByTestId('advanced-section')).queryByText(
+                    'Guardian replacement',
+                ),
+            ).not.toBeOnTheScreen()
+        })
+
+        const goTo = (label: string) => {
+            fireEvent.press(screen.getByText('Go to screen'))
+            const goToScreen = within(
+                screen.getByTestId('go-to-screen-section'),
+            )
+            fireEvent.press(goToScreen.getByText('Guardian replacement'))
+            fireEvent.press(goToScreen.getByText(label))
+        }
+        const transferFlag = (store: ReturnType<typeof render>['store']) =>
+            store.getState().environment.featureFlags
+                ?.wallet_service_guardian_transfer
+        // a bridge older than the flag leaves it out of the catalog entirely
+        const renderWithOldBridge = async () => {
+            const tools = attachFaDevTools(jest.fn(), simulatorOnStorage())
+            await tools.ready
+            const fedimint = createMockFedimintBridge({
+                getFeatureCatalog: () => Promise.resolve({ other_flag: {} }),
+            })
+            const rendered = render(tools, fedimint)
+            return { tools, fedimint, ...rendered }
+        }
+
+        it('should open the review on the seat the scenario replaces', async () => {
+            const { tools } = await renderWithOldBridge()
+
+            goTo('Review: paid')
+
+            await waitFor(() =>
+                expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                    'WalletServiceGuardianTransfer',
+                    { seatIndex: TRANSFER_SEAT_INDEX },
+                ),
+            )
+            tools.player.cancel()
+        })
+
+        it('should open the dashboard with the guardian list shown', async () => {
+            const { tools } = await renderWithOldBridge()
+
+            goTo('Entry: Guardians sheet')
+
+            await waitFor(() =>
+                expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                    'WalletServiceDashboard',
+                    { openSheet: 'guardians' },
+                ),
+            )
+            tools.player.cancel()
+        })
+
+        it("should force the flag on over a bridge that lacks it, keeping the bridge's other flags", async () => {
+            const { tools, store } = await renderWithOldBridge()
+
+            goTo('Review: paid')
+
+            await waitFor(() =>
+                expect(mockNavigation.navigate).toHaveBeenCalled(),
+            )
+            expect(transferFlag(store)).toEqual({})
+            expect(store.getState().environment.featureFlags).toMatchObject({
+                other_flag: {},
+            })
+            tools.player.cancel()
+        })
+
+        it('should turn the flag off for a flag-off screen and back on at the next jump', async () => {
+            const { tools, store } = await renderWithOldBridge()
+
+            goTo('Flag off: Settings')
+
+            await waitFor(() => expect(transferFlag(store)).toBeNull())
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'WalletServiceSettings',
+                undefined,
+            )
+
+            // a jump closes the list but leaves the group it came from open
+            fireEvent.press(screen.getByText('Go to screen'))
+            fireEvent.press(screen.getByText('Entry: Settings row'))
+
+            await waitFor(() => expect(transferFlag(store)).toEqual({}))
+            tools.player.cancel()
+        })
+
+        it('should turn the flag back on after Developer Settings remounts the panel', async () => {
+            const { tools, store, rerender } = await renderWithOldBridge()
+            goTo('Flag off: Guardians sheet')
+            await waitFor(() => expect(transferFlag(store)).toBeNull())
+
+            rerender(
+                <WalletServiceDevTools
+                    key="remounted"
+                    tools={tools}
+                    navigation={mockNavigation}
+                />,
+            )
+            goTo('Entry: Settings row')
+
+            await waitFor(() => expect(transferFlag(store)).toEqual({}))
+            tools.player.cancel()
+        })
+
+        it("should put the bridge's own catalog back when the simulated state is cleared", async () => {
+            const { tools, store } = await renderWithOldBridge()
+            goTo('Flag off: Guardians sheet')
+            await waitFor(() => expect(transferFlag(store)).toBeNull())
+
+            fireEvent.press(screen.getByText('Advanced'))
+            fireEvent.press(
+                screen.getByText('Clear simulated wallet service state'),
+            )
+
+            await waitFor(() =>
+                expect(store.getState().environment.featureFlags).toEqual({
+                    other_flag: {},
+                }),
+            )
+            tools.player.cancel()
+        })
     })
 
     it('should disable Go to screen while the simulator is off', async () => {

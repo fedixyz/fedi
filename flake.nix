@@ -42,7 +42,7 @@
     # dependency. Keep these revisions aligned with Manifold's fa-client and
     # peerbadge-sdk input.
     manifold-src = {
-      url = "github:fedibtc/manifold/c5123c0ff265e147775bf1240b5e436b401fdff0";
+      url = "github:fedibtc/manifold/27d97003ae192ae0eb1b1a40818dafe48930901c";
       flake = false;
     };
     peerbadge-sdk-src = {

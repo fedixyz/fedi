@@ -104,6 +104,10 @@ pub struct RemoteFeatures {
     pub btc_multispend: bool,
     #[serde(default)]
     pub update_screen: Option<bool>,
+    /// Absent in remote layers that predate the field; the compiled-in value
+    /// then stays.
+    #[serde(default)]
+    pub wallet_service_guardian_transfer: Option<bool>,
 }
 
 /// We represent the catalog of all the features for a given runtime as a
@@ -216,6 +220,11 @@ pub struct FeatureCatalog {
     /// Withdrawal requests, approvals, rejections, cancelling and the payout
     /// sweep always work, so members can take funds out of an existing group.
     pub btc_multispend: Option<BtcMultispendFeatureConfig>,
+
+    /// Lets a formed wallet service replace one guardian with a seat from
+    /// another host. Off in prod until the feature ships; the remote layer can
+    /// switch it on.
+    pub wallet_service_guardian_transfer: Option<WalletServiceGuardianTransferFeatureConfig>,
 
     /// Config for detecting and processing incoming LNURL receives
     pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
@@ -374,6 +383,10 @@ pub struct BtcMultispendFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
+pub struct WalletServiceGuardianTransferFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct LnurlReceivesFeatureConfig {
     /// How long to wait between re-checking with fedimint client whether there
     /// are any new incoming LNURL invoices
@@ -458,6 +471,10 @@ impl FeatureCatalog {
                 platform: UpdateScreenPlatform::All,
             });
         }
+        if let Some(enabled) = remote_features.wallet_service_guardian_transfer {
+            self.wallet_service_guardian_transfer =
+                enabled.then_some(WalletServiceGuardianTransferFeatureConfig {});
+        }
     }
 
     fn new_dev() -> Self {
@@ -508,6 +525,7 @@ impl FeatureCatalog {
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
             btc_multispend: Some(BtcMultispendFeatureConfig {}),
+            wallet_service_guardian_transfer: Some(WalletServiceGuardianTransferFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -571,6 +589,7 @@ impl FeatureCatalog {
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
             btc_multispend: Some(BtcMultispendFeatureConfig {}),
+            wallet_service_guardian_transfer: Some(WalletServiceGuardianTransferFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 2,
             }),
@@ -632,6 +651,7 @@ impl FeatureCatalog {
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
             btc_multispend: Some(BtcMultispendFeatureConfig {}),
+            wallet_service_guardian_transfer: Some(WalletServiceGuardianTransferFeatureConfig {}),
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -698,6 +718,7 @@ impl FeatureCatalog {
             mini_app_seed: Some(MiniAppSeedFeatureConfig {}),
             wallet_service_dkg_restart: Some(WalletServiceDkgRestartFeatureConfig {}),
             btc_multispend: None,
+            wallet_service_guardian_transfer: None,
             lnurl_receives: Some(LnurlReceivesFeatureConfig {
                 bg_service_polling_delay_secs: 30,
             }),
@@ -816,6 +837,7 @@ mod tests {
         assert!(!remote_features.mini_app_seed);
         assert!(!remote_features.wallet_service_dkg_restart);
         assert!(!remote_features.btc_multispend);
+        assert!(remote_features.wallet_service_guardian_transfer.is_none());
         assert!(remote_features.update_screen.is_none());
     }
 
@@ -866,5 +888,28 @@ mod tests {
                 assert_eq!(catalog.update_screen.is_some(), enabled);
             }
         }
+    }
+
+    #[test]
+    fn remote_layer_switches_guardian_transfer_only_when_sent() {
+        for mut catalog in [FeatureCatalog::new_prod(), FeatureCatalog::new_staging()] {
+            let compiled = catalog.wallet_service_guardian_transfer.is_some();
+            catalog.apply_remote_layer(serde_json::from_str(r#"{"dummyFeature":false}"#).unwrap());
+            assert_eq!(catalog.wallet_service_guardian_transfer.is_some(), compiled);
+            for enabled in [true, false] {
+                let remote = serde_json::from_value(serde_json::json!({
+                    "dummyFeature": false,
+                    "walletServiceGuardianTransfer": enabled,
+                }))
+                .unwrap();
+                catalog.apply_remote_layer(remote);
+                assert_eq!(catalog.wallet_service_guardian_transfer.is_some(), enabled);
+            }
+        }
+        assert!(
+            FeatureCatalog::new_staging()
+                .wallet_service_guardian_transfer
+                .is_some()
+        );
     }
 }

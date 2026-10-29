@@ -113,7 +113,9 @@ describe('formation status builders', () => {
                 seats: [0, 1, 2].map(index => ({
                     index,
                     mgId: `mg_${SEED.formationId}_${index}`,
-                    mgName: `guardian ${index + 1}`,
+                    mgName: ['amber-otter', 'brisk-heron', 'calm-marmot'][
+                        index
+                    ],
                     quoteId: `quote_${index}`,
                     paymentFederationId: 'payer_1',
                     amountMsats: '2100000',
@@ -139,7 +141,7 @@ describe('formation status builders', () => {
                     {
                         index: 0,
                         previousMgId: `mg_${SEED.formationId}_0`,
-                        previousMgName: 'guardian 1',
+                        previousMgName: 'amber-otter',
                         previousQuoteId: 'quote_0',
                         previousLocator: parked.seats[0].locator,
                     },
@@ -176,6 +178,7 @@ describe('formation status builders', () => {
         expect(federation.seats).toHaveLength(7)
         expect(federation.seats[6]).toEqual({
             mgId: `mg_${SEED.formationId}_6`,
+            mgName: 'bright-kestrel',
             seatId: 'seat_6',
             locator: JSON.stringify({ v: 1, mgId: `mg_${SEED.formationId}_6` }),
         })
@@ -224,6 +227,7 @@ describe('formation status builders', () => {
         expect(status.federation.seats).toHaveLength(10)
         expect(status.federation.seats[0]).toEqual({
             mgId: `mg_${SEED.formationId}_0`,
+            mgName: 'amber-otter',
             seatId: 'seat_0',
             locator: JSON.stringify({ v: 1, mgId: `mg_${SEED.formationId}_0` }),
         })

@@ -1,10 +1,13 @@
 import type {
     FaFederationJoinEvent,
+    GuardianStatus,
     RpcFaClientStatus,
     RpcFaFormationSnapshot,
     RpcFaFormedFederation,
+    RpcFaGuardianTransferResult,
     RpcFaSelectionPreviewResult,
     RpcFaSetupPaymentFederationsResult,
+    RpcFaTransferDestinationPreviewResult,
 } from '@fedi/common/types/bindings'
 
 import { FaPlayer } from '../../../../devtools/fa/player'
@@ -19,6 +22,7 @@ import {
     recoverySlowJoin,
 } from '../../../../devtools/fa/scripts/recovery'
 import { setupHappyPath } from '../../../../devtools/fa/scripts/setup'
+import { TRANSFER_SEAT_INDEX } from '../../../../devtools/fa/scripts/transfer'
 import { FaSimulator } from '../../../../devtools/fa/simulator'
 import { checkpointsOf } from '../../../../devtools/fa/steps'
 
@@ -66,7 +70,10 @@ describe('formation scripts', () => {
     afterEach(() => jest.useRealTimers())
 
     it('should give every script at least one checkpoint and unique checkpoint names', () => {
-        for (const script of FA_SCRIPT_GROUPS.flatMap(g => g.scripts)) {
+        for (const script of [
+            ...FA_SCRIPT_GROUPS.flatMap(g => g.scripts),
+            ...FA_SCREEN_GROUPS.flatMap(g => g.screens.map(s => s.script)),
+        ]) {
             const names = checkpointsOf(script)
             expect(names.length).toBeGreaterThan(0)
             expect(new Set(names).size).toBe(names.length)
@@ -698,13 +705,342 @@ describe('settings scripts', () => {
     })
 })
 
+describe('guardian transfer scripts', () => {
+    beforeEach(() => jest.useFakeTimers())
+    afterEach(() => jest.useRealTimers())
+
+    /** What a fresh subscribe to the transfer stream sends first. */
+    const readTransfer = async (simulator: FaSimulator) => {
+        const sent: unknown[] = []
+        simulator.attach(update => sent.push(update.data))
+        await simulator.handle('faClientSubscribeGuardianTransfer', {
+            streamId: 900,
+        })
+        await jest.advanceTimersByTimeAsync(0)
+        await simulator.handle('streamCancel', { streamId: 900 })
+        const result = sent[0] as RpcFaGuardianTransferResult | undefined
+        if (result?.type !== 'transfer')
+            throw new Error(`not a transfer: ${JSON.stringify(result)}`)
+        return result.transfer
+    }
+
+    const preview = (simulator: FaSimulator) =>
+        simulator.handle('faClientPreviewTransferDestination', {
+            seatIndex: 2,
+        }) as Promise<RpcFaTransferDestinationPreviewResult>
+
+    it('should list the replacement screens in flow order, one script each', () => {
+        const group = FA_SCREEN_GROUPS.find(
+            g => g.title === 'Guardian replacement',
+        )
+        const ids = group?.screens.map(screen => screen.id)
+        expect(ids).toEqual([
+            'transfer.settingsEntry',
+            'transfer.dashboardFlagged',
+            'transfer.dashboardFlaggedMany',
+            'transfer.sheetEntry',
+            'transfer.sheetOfflineNotFlagged',
+            'transfer.pick',
+            'transfer.noneFlagged',
+            'transfer.notChecked',
+            'transfer.searching',
+            'transfer.reviewPriced',
+            'transfer.reviewFree',
+            'transfer.quoteExpiring',
+            'transfer.notEnoughFunds',
+            'transfer.hostChanged',
+            'transfer.noFreeHost',
+            'transfer.startBusy',
+            'transfer.paymentFails',
+            'transfer.unavailable',
+            'transfer.notEligible',
+            'transfer.buyingSeat',
+            'transfer.awaitingSource',
+            'transfer.publishingBinding',
+            'transfer.removingSource',
+            'transfer.dashboardWaiting',
+            'transfer.runToDone',
+            'transfer.flagOffSettings',
+            'transfer.flagOffSheet',
+        ])
+        const scripts = group?.screens.map(screen => screen.script)
+        expect(new Set(scripts).size).toBe(scripts?.length)
+    })
+
+    it('should land each entry on the screen it opens from', () => {
+        expect(findFaScreen('transfer.settingsEntry')).toMatchObject({
+            route: 'WalletServiceSettings',
+        })
+        expect(findFaScreen('transfer.sheetEntry')).toMatchObject({
+            route: 'WalletServiceDashboard',
+            params: { openSheet: 'guardians' },
+        })
+        expect(findFaScreen('transfer.pick')).toMatchObject({
+            route: 'WalletServiceGuardianTransfer',
+        })
+        expect(findFaScreen('transfer.pick')).not.toHaveProperty('params')
+        for (const id of [
+            'transfer.searching',
+            'transfer.reviewPriced',
+            'transfer.notEnoughFunds',
+            'transfer.paymentFails',
+        ])
+            expect(findFaScreen(id)).toMatchObject({
+                route: 'WalletServiceGuardianTransfer',
+                params: { seatIndex: TRANSFER_SEAT_INDEX },
+            })
+    })
+
+    it('should force the flag on every guardian replacement screen but the flag-off ones', () => {
+        const group = FA_SCREEN_GROUPS.find(
+            g => g.title === 'Guardian replacement',
+        )
+        const flagOff = ['transfer.flagOffSettings', 'transfer.flagOffSheet']
+        for (const screen of group?.screens ?? [])
+            expect(screen.features).toEqual({
+                wallet_service_guardian_transfer: flagOff.includes(screen.id)
+                    ? null
+                    : {},
+            })
+        const others = FA_SCREEN_GROUPS.filter(g => g !== group).flatMap(
+            g => g.screens,
+        )
+        expect(others.filter(screen => screen.features)).toEqual([])
+    })
+
+    it('should report the replaced guardian as not responding on the sheet', async () => {
+        for (const id of ['transfer.sheetEntry', 'transfer.flagOffSheet']) {
+            const { simulator } = await jumpAndRead(id)
+            const statuses = (await simulator.handle('getGuardianStatus', {
+                federationId: 'any',
+            })) as GuardianStatus[]
+            expect(statuses.length).toBeGreaterThan(TRANSFER_SEAT_INDEX)
+            for (const [index, status] of statuses.entries())
+                expect(Object.keys(status)).toEqual([
+                    index === TRANSFER_SEAT_INDEX ? 'timeout' : 'online',
+                ])
+        }
+    })
+
+    it('should report the not-responding guardian to the read the federation event starts', async () => {
+        for (const id of ['transfer.sheetEntry', 'transfer.flagOffSheet']) {
+            const simulator = new FaSimulator()
+            const reads: Promise<unknown>[] = []
+            simulator.attach(
+                () => {},
+                // the app reads guardian status the moment the federation
+                // lands, and caches that answer for the dashboard's mount
+                (event, payload) => {
+                    if (event === 'federation')
+                        reads.push(
+                            simulator.handle('getGuardianStatus', {
+                                federationId: (payload as { id: string }).id,
+                            }),
+                        )
+                },
+            )
+            await jumpAndRead(id, {
+                simulator,
+                player: new FaPlayer(simulator),
+            })
+
+            expect(reads.length).toBeGreaterThan(0)
+            const statuses = (await reads[0]) as GuardianStatus[]
+            expect(Object.keys(statuses[TRANSFER_SEAT_INDEX])).toEqual([
+                'timeout',
+            ])
+        }
+    })
+
+    it('should land each progress screen on its phase and hold it there', async () => {
+        for (const [id, phase] of [
+            ['transfer.buyingSeat', 'buyingSeat'],
+            ['transfer.awaitingSource', 'awaitingSource'],
+            ['transfer.publishingBinding', 'publishingBinding'],
+            ['transfer.removingSource', 'removingSource'],
+        ] as const) {
+            const { simulator } = await jumpAndRead(id)
+            expect((await readTransfer(simulator))?.phase).toBe(phase)
+            await jest.advanceTimersByTimeAsync(60_000)
+            expect((await readTransfer(simulator))?.phase).toBe(phase)
+        }
+    })
+
+    it('should stream the done screen one phase at a time, then completed with the new host seated', async () => {
+        const simulator = new FaSimulator()
+        const sent: RpcFaGuardianTransferResult[] = []
+        simulator.attach(update => {
+            if (update.stream_id === 7)
+                sent.push(update.data as RpcFaGuardianTransferResult)
+        })
+        const screen = findFaScreen('transfer.runToDone')
+        if (!screen) throw new Error('no screen transfer.runToDone')
+        const player = new FaPlayer(simulator)
+        const run = player.run(screen.script, { jumpTo: screen.checkpoint })
+        await simulator.handle('faClientSubscribeGuardianTransfer', {
+            streamId: 7,
+        })
+        await jest.advanceTimersByTimeAsync(0)
+        const phases = () =>
+            sent.map(item =>
+                item.type === 'transfer' ? item.transfer?.phase : item.type,
+            )
+        expect(phases()).toEqual(['buyingSeat'])
+
+        // each phase holds long enough to read before the next one lands
+        await jest.advanceTimersByTimeAsync(3_999)
+        expect(phases()).toEqual(['buyingSeat'])
+        await jest.advanceTimersByTimeAsync(1)
+        expect(phases()).toEqual(['buyingSeat', 'awaitingSource'])
+
+        await jest.advanceTimersByTimeAsync(12_000)
+        await run
+        // the bridge reports `completed` itself rather than dropping the move
+        expect(phases()).toEqual([
+            'buyingSeat',
+            'awaitingSource',
+            'publishingBinding',
+            'removingSource',
+            'completed',
+        ])
+        expect(await readTransfer(simulator)).toMatchObject({
+            phase: 'completed',
+        })
+        const status = (await simulator.handle(
+            'faClientStatus',
+            {},
+        )) as RpcFaClientStatus
+        if (status.type !== 'ready' || status.status.type !== 'formed')
+            throw new Error('not formed')
+        expect(status.status.federation.seats[TRANSFER_SEAT_INDEX].mgName).toBe(
+            'quiet-harbor',
+        )
+    })
+
+    it('should answer and stream a start with the move waiting for the old host, and keep it', async () => {
+        const { simulator } = await jumpAndRead('transfer.pick')
+        expect(await readTransfer(simulator)).toBeNull()
+
+        // the start moves the guardian the preview was for
+        await simulator.handle('faClientPreviewTransferDestination', {
+            seatIndex: 0,
+        })
+        expect(
+            await simulator.handle('faClientStartGuardianTransfer', {}),
+        ).toMatchObject({
+            transfer: {
+                phase: 'awaitingSource',
+                seatIndex: 0,
+                sourceMgName: 'amber-otter',
+            },
+        })
+        await jest.advanceTimersByTimeAsync(60_000)
+        expect(await readTransfer(simulator)).toMatchObject({
+            phase: 'awaitingSource',
+            seatIndex: 0,
+        })
+    })
+
+    it('should price each review screen as its label says', async () => {
+        for (const [id, price] of [
+            ['transfer.reviewPriced', '2100000'],
+            ['transfer.reviewFree', '0'],
+            ['transfer.notEnoughFunds', '2000000000'],
+        ] as const) {
+            const { simulator } = await jumpAndRead(id)
+            expect(await preview(simulator)).toMatchObject({
+                preview: { advertisedPriceMsats: price },
+            })
+        }
+    })
+
+    it('should expire the first quote in 5 s and refresh to the same host', async () => {
+        const { simulator } = await jumpAndRead('transfer.quoteExpiring')
+        const first = await preview(simulator)
+        if (first.type !== 'preview') throw new Error('no first preview')
+        expect(first.preview.validUntil - Math.floor(Date.now() / 1000)).toBe(5)
+
+        const second = preview(simulator)
+        await jest.advanceTimersByTimeAsync(2_000)
+        expect(await second).toMatchObject({
+            preview: {
+                mgId: first.preview.mgId,
+                advertisedPriceMsats: '2100000',
+            },
+        })
+    })
+
+    it('should refresh the host-changed quote to another host at a new price', async () => {
+        const { simulator } = await jumpAndRead('transfer.hostChanged')
+        const first = await preview(simulator)
+        if (first.type !== 'preview') throw new Error('no first preview')
+
+        const second = preview(simulator)
+        await jest.advanceTimersByTimeAsync(1_000)
+        const refreshed = await second
+        if (refreshed.type !== 'preview') throw new Error('no refresh')
+        expect(refreshed.preview.mgId).not.toBe(first.preview.mgId)
+        expect(refreshed.preview.advertisedPriceMsats).toBe('2350000')
+    })
+
+    it('should answer from the first turn again after a second jump', async () => {
+        const simulator = new FaSimulator()
+        simulator.attach(
+            () => {},
+            () => {},
+        )
+        const session = { simulator, player: new FaPlayer(simulator) }
+        for (let jump = 0; jump < 2; jump++) {
+            await jumpAndRead('transfer.noFreeHost', session)
+            expect(await preview(simulator)).toMatchObject({
+                type: 'error',
+                error: { detail: { type: 'insufficientMgSeats' } },
+            })
+            expect(await preview(simulator)).toMatchObject({
+                type: 'preview',
+            })
+        }
+    })
+
+    it('should fail each start error screen with its code and open no move', async () => {
+        for (const [id, code] of [
+            ['transfer.startBusy', 'busy'],
+            ['transfer.paymentFails', 'payment'],
+            ['transfer.unavailable', 'capabilityUnavailable'],
+        ] as const) {
+            const { simulator } = await jumpAndRead(id)
+            expect(
+                await simulator.handle('faClientStartGuardianTransfer', {
+                    seatIndex: TRANSFER_SEAT_INDEX,
+                }),
+            ).toMatchObject({ type: 'error', error: { code } })
+            await jest.advanceTimersByTimeAsync(60_000)
+            expect(await readTransfer(simulator)).toBeNull()
+        }
+    })
+})
+
 describe('script catalogue', () => {
     it('should list every script exactly once with a unique name', () => {
         const names = FA_SCRIPT_GROUPS.flatMap(g => g.scripts.map(s => s.name))
         expect(new Set(names).size).toBe(names.length)
-        for (const group of FA_SCREEN_GROUPS)
+        for (const group of FA_SCREEN_GROUPS.filter(
+            g => g.title !== 'Guardian replacement',
+        ))
             for (const screen of group.screens)
                 expect(names).toContain(screen.script.name)
+    })
+
+    // each replacement script stops at its checkpoint with no wait, so a
+    // play from the start would only repeat the jump without navigating
+    it('should offer the guardian replacement states as screen jumps only', () => {
+        const names = FA_SCRIPT_GROUPS.flatMap(g => g.scripts.map(s => s.name))
+        const group = FA_SCREEN_GROUPS.find(
+            g => g.title === 'Guardian replacement',
+        )
+        expect(group?.screens.length).toBeGreaterThan(0)
+        for (const screen of group?.screens ?? [])
+            expect(names).not.toContain(screen.script.name)
     })
 
     it('should find a script by name', () => {

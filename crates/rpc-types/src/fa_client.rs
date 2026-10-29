@@ -353,6 +353,9 @@ pub enum RpcFaErrorCode {
     MaintenanceConvergence,
     PushNotifications,
     Timeout,
+    /// The guardian is not, or no longer, a replacement candidate of the
+    /// latest check, or the check is from an earlier opening of the client.
+    ReplacementNotEligible,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -698,6 +701,165 @@ pub enum RpcFaOperationErrorDetail {
     },
 }
 
+/// The MG a guardian transfer would buy its new seat on.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFaTransferDestinationPreview {
+    /// Opaque, process-local handle to the sealed verified selection.
+    pub preview_id: String,
+    pub mg_id: String,
+    /// Two-word display name derived from `mg_id`; names can collide and
+    /// never substitute for the id.
+    pub mg_name: String,
+    pub advertised_price_msats: RpcFaMsats,
+    pub provenance: String,
+    #[ts(type = "number")]
+    pub valid_until: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum RpcFaTransferDestinationPreviewResult {
+    Preview {
+        preview: RpcFaTransferDestinationPreview,
+    },
+    Error {
+        error: RpcFaOperationError,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcFaGuardianTransferPhase {
+    /// The FA buys the new seat. A resume finishes the purchase.
+    BuyingSeat,
+    /// The new host waits for the old host to hand over the guardian.
+    AwaitingSource,
+    /// The guardian runs on the new host; consensus does not name it yet.
+    PublishingBinding,
+    /// Consensus names the new host; the old host has not deleted the
+    /// guardian data yet.
+    RemovingSource,
+    Completed,
+}
+
+/// One guardian moving from its Manifold Guardian onto a new seat.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFaGuardianTransfer {
+    /// Position of the moved guardian in the status seat list.
+    pub seat_index: u16,
+    pub source_mg_id: String,
+    /// Two-word display name derived from `source_mg_id`.
+    pub source_mg_name: String,
+    pub source_seat_id: String,
+    pub destination_mg_id: String,
+    /// Two-word display name derived from `destination_mg_id`.
+    pub destination_mg_name: String,
+    /// Absent until the new seat is bought.
+    pub destination_seat_id: Option<String>,
+    pub phase: RpcFaGuardianTransferPhase,
+}
+
+/// `None` means no transfer is open.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum RpcFaGuardianTransferResult {
+    Transfer {
+        transfer: Option<RpcFaGuardianTransfer>,
+    },
+    Error {
+        error: RpcFaOperationError,
+    },
+}
+
+/// Evidence that a guardian should be replaced. Missing reports never become
+/// a reason.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum RpcFaReplacementReason {
+    /// Last seen by the other guardians at this Unix time, longer ago than
+    /// the policy allows.
+    Offline {
+        #[ts(type = "number")]
+        last_seen_secs: u64,
+    },
+    /// Missed this many completed consensus sessions.
+    MissedSessions {
+        #[ts(type = "number")]
+        sessions: u64,
+    },
+    /// Enough other guardians report it disconnected; how long is unknown.
+    Disconnected,
+    /// Uptime over the last week, in basis points, below the policy minimum.
+    LowWeekScore { basis_points: u16 },
+    /// Uptime over the last month, in basis points, below the policy minimum.
+    LowMonthScore { basis_points: u16 },
+    /// The operator holding the guardian's seat lost its verification.
+    HolderRevoked,
+}
+
+/// A guardian that met at least one replacement condition.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFaReplacementCandidate {
+    /// Position in the status seat list, the index a replacement takes.
+    pub seat_index: u16,
+    pub mg_id: String,
+    /// Two-word display name derived from `mg_id`.
+    pub mg_name: String,
+    pub reasons: Vec<RpcFaReplacementReason>,
+}
+
+/// One complete replacement check of the formed federation. An empty list
+/// does not assert that every guardian is healthy.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFaReplacementCheck {
+    pub federation_id: String,
+    #[ts(type = "number")]
+    pub checked_at: u64,
+    pub candidates: Vec<RpcFaReplacementCandidate>,
+}
+
+/// The latest replacement check. `check` is absent until a check of the
+/// ready federation succeeds.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum RpcFaReplacementCandidates {
+    Ready {
+        check: Option<RpcFaReplacementCheck>,
+    },
+    Failed {
+        error: RpcFaOperationError,
+    },
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -875,6 +1037,9 @@ pub struct RpcFaFormationSnapshot {
 #[ts(export)]
 pub struct RpcFaFormedSeat {
     pub mg_id: String,
+    /// Two-word display name derived from `mg_id`; names can collide and
+    /// never substitute for the id.
+    pub mg_name: String,
     pub seat_id: String,
     /// Canonical versioned Manifold Guardian locator JSON.
     pub locator: String,

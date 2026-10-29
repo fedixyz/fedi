@@ -4,9 +4,12 @@ import {
     GuardianStatus,
     RpcFederationPreview,
     RpcFaClientStatus,
+    RpcFaReplacementCandidates,
     RpcFaCurrentLiquidityOperationResult,
     RpcFaEligiblePayersResult,
     RpcFaFederationJoinState,
+    RpcFaGuardianTransfer,
+    RpcFaGuardianTransferResult,
     RpcFaLiquidityDiscoveryResult,
     RpcFaLiquidityOperationResult,
     RpcFaOperationResult,
@@ -960,8 +963,8 @@ describe('FaSimulator', () => {
             expect(statuses).toHaveLength(seats.length)
             expect(statuses[9]).toEqual({
                 online: {
-                    guardian: seats[9].mgId,
-                    mg_name: null,
+                    guardian: 'mutual-hamster',
+                    mg_name: 'mutual-hamster',
                     latency_ms: 1,
                 },
             })
@@ -1166,13 +1169,117 @@ describe('FaSimulator', () => {
         })
     })
 
+    describe('replacement candidates stream', () => {
+        it('should send the latest check on subscribe and each later one only to that stream', async () => {
+            const simulator = new FaSimulator()
+            const updates: Array<{
+                stream_id: number
+                sequence: number
+                data:
+                    | RpcFaClientStatus
+                    | RpcFaReplacementCandidates
+                    | RpcFaGuardianTransferResult
+            }> = []
+            simulator.attach(update => updates.push(update))
+            await simulator.handle('faClientSubscribe', { streamId: 3 })
+            await simulator.handle('faClientSubscribeReplacementCandidates', {
+                streamId: 4,
+            })
+            await jest.advanceTimersByTimeAsync(0)
+            expect(updates.filter(u => u.stream_id === 4)).toEqual([
+                {
+                    stream_id: 4,
+                    sequence: 0,
+                    data: { type: 'ready', check: null },
+                },
+            ])
+
+            const check = {
+                federationId: 'fed',
+                checkedAt: 1,
+                candidates: [],
+            }
+            simulator.setReplacementCheck(check)
+
+            expect(updates.at(-1)).toEqual({
+                stream_id: 4,
+                sequence: 1,
+                data: { type: 'ready', check },
+            })
+            expect(simulator.handles('streamCancel', { streamId: 4 })).toBe(
+                true,
+            )
+            await simulator.handle('streamCancel', { streamId: 4 })
+            const before = updates.length
+            simulator.setReplacementCheck(null)
+            expect(updates).toHaveLength(before)
+        })
+    })
+
+    describe('guardian transfer stream', () => {
+        it('should send the current move on subscribe and each later one only to that stream', async () => {
+            const simulator = new FaSimulator()
+            const updates: Array<{
+                stream_id: number
+                sequence: number
+                data: unknown
+            }> = []
+            simulator.attach(update => updates.push(update))
+            await simulator.handle('faClientSubscribeReplacementCandidates', {
+                streamId: 4,
+            })
+            await simulator.handle('faClientSubscribeGuardianTransfer', {
+                streamId: 5,
+            })
+            await jest.advanceTimersByTimeAsync(0)
+            expect(updates.filter(u => u.stream_id === 5)).toEqual([
+                {
+                    stream_id: 5,
+                    sequence: 0,
+                    data: { type: 'transfer', transfer: null },
+                },
+            ])
+
+            const transfer: RpcFaGuardianTransfer = {
+                seatIndex: 1,
+                sourceMgId: 'mg-1',
+                sourceMgName: 'one',
+                sourceSeatId: 'seat-1',
+                destinationMgId: 'mg-new',
+                destinationMgName: 'new',
+                destinationSeatId: null,
+                phase: 'buyingSeat',
+            }
+            const before = updates.length
+            simulator.setGuardianTransfer(transfer)
+
+            expect(updates.slice(before)).toEqual([
+                {
+                    stream_id: 5,
+                    sequence: 1,
+                    data: { type: 'transfer', transfer },
+                },
+            ])
+            expect(simulator.handles('streamCancel', { streamId: 5 })).toBe(
+                true,
+            )
+            await simulator.handle('streamCancel', { streamId: 5 })
+            const cancelled = updates.length
+            simulator.setGuardianTransfer(null)
+            expect(updates).toHaveLength(cancelled)
+        })
+    })
+
     describe('scripting host', () => {
         it('should publish a set status on the open stream with the next sequence', async () => {
             const simulator = new FaSimulator()
             const updates: Array<{
                 stream_id: number
                 sequence: number
-                data: RpcFaClientStatus
+                data:
+                    | RpcFaClientStatus
+                    | RpcFaReplacementCandidates
+                    | RpcFaGuardianTransferResult
             }> = []
             simulator.attach(update => updates.push(update))
             await simulator.handle('faClientSubscribe', { streamId: 3 })

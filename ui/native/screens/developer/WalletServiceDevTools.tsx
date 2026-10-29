@@ -11,6 +11,7 @@ import {
     prepareWalletServicePayment,
     removeFederations,
     setFaStatus,
+    setFeatureFlags,
     upsertFederation,
 } from '@fedi/common/redux'
 
@@ -127,9 +128,20 @@ const WalletServiceDevTools: React.FC<{
         switch (target.route) {
             case 'WalletServiceSettings':
                 return navigation.navigate(target.route, target.params)
+            case 'WalletServiceDashboard':
+                return navigation.navigate(target.route, target.params)
+            case 'WalletServiceGuardianTransfer':
+                return navigation.navigate(target.route, target.params)
             default:
                 return navigation.navigate(target.route)
         }
+    }
+
+    // Re-read on every jump rather than only after an override: this panel
+    // remounts with Developer Settings, so it cannot remember setting one.
+    const applyFeatures = async (features: FaScreen['features']) => {
+        const catalog = await fedimint.getFeatureCatalog()
+        dispatch(setFeatureFlags({ ...catalog, ...features }))
     }
 
     const handleGoToScreen = async (screen: FaScreen) => {
@@ -137,6 +149,7 @@ const WalletServiceDevTools: React.FC<{
         dispatch(clearWalletServiceSelectionPreview())
         try {
             const target = await tools.jumpTo(screen.id)
+            await applyFeatures(target.features)
             // Confirm renders a spinner until a selection preview exists, and
             // only Create's Continue fetches one. Fetch it here so the
             // script's stubs (slow quote, payer lookup failure) apply to it.
@@ -173,6 +186,9 @@ const WalletServiceDevTools: React.FC<{
     // refresh to stop riding them along.
     const handleClearSimulatedState = () => {
         tools.player.cancel()
+        applyFeatures(undefined).catch(e =>
+            toast.show({ content: `Flag reset failed: ${e}`, status: 'error' }),
+        )
         const seededIds = [
             ...tools.simulator.listMockFederations().map(f => f.id),
             ...MOCK_PAYER_FEDERATION_IDS,

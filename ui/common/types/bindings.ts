@@ -289,6 +289,12 @@ export type FeatureCatalog = {
    */
   btc_multispend: BtcMultispendFeatureConfig | null;
   /**
+   * Lets a formed wallet service replace one guardian with a seat from
+   * another host. Off in prod until the feature ships; the remote layer can
+   * switch it on.
+   */
+  wallet_service_guardian_transfer: WalletServiceGuardianTransferFeatureConfig | null;
+  /**
    * Config for detecting and processing incoming LNURL receives
    */
   lnurl_receives: LnurlReceivesFeatureConfig | null;
@@ -599,6 +605,11 @@ export type RemoteFeatures = {
    */
   btcMultispend: boolean;
   updateScreen: boolean | null;
+  /**
+   * Absent in remote layers that predate the field; the compiled-in value
+   * then stays.
+   */
+  walletServiceGuardianTransfer: boolean | null;
 };
 
 export type RpcAccountId = string;
@@ -789,7 +800,8 @@ export type RpcFaErrorCode =
   | "maintenanceConsensusInvalid"
   | "maintenanceConvergence"
   | "pushNotifications"
-  | "timeout";
+  | "timeout"
+  | "replacementNotEligible";
 
 /**
  * Progress of the bridge's automatic join of the federation that the
@@ -888,6 +900,11 @@ export type RpcFaFormedOrigin = "thisDevice" | "backup";
 
 export type RpcFaFormedSeat = {
   mgId: string;
+  /**
+   * Two-word display name derived from `mg_id`; names can collide and
+   * never substitute for the id.
+   */
+  mgName: string;
   seatId: string;
   /**
    * Canonical versioned Manifold Guardian locator JSON.
@@ -919,6 +936,46 @@ export type RpcFaGuardianReplacementSeat = {
    */
   previousLocator: string;
 };
+
+/**
+ * One guardian moving from its Manifold Guardian onto a new seat.
+ */
+export type RpcFaGuardianTransfer = {
+  /**
+   * Position of the moved guardian in the status seat list.
+   */
+  seatIndex: number;
+  sourceMgId: string;
+  /**
+   * Two-word display name derived from `source_mg_id`.
+   */
+  sourceMgName: string;
+  sourceSeatId: string;
+  destinationMgId: string;
+  /**
+   * Two-word display name derived from `destination_mg_id`.
+   */
+  destinationMgName: string;
+  /**
+   * Absent until the new seat is bought.
+   */
+  destinationSeatId: string | null;
+  phase: RpcFaGuardianTransferPhase;
+};
+
+export type RpcFaGuardianTransferPhase =
+  | "buyingSeat"
+  | "awaitingSource"
+  | "publishingBinding"
+  | "removingSource"
+  | "completed";
+
+/**
+ * `None` means no transfer is open.
+ */
+export type RpcFaGuardianTransferResult =
+  | { type: "transfer"; transfer: RpcFaGuardianTransfer | null }
+  | { type: "error"; error: RpcFaOperationError };
 
 /**
  * Exact source bounds for one post-formation liquidity request.
@@ -1179,6 +1236,40 @@ export type RpcFaPushRegistrationResult =
   | { type: "unregistered"; installationId: string }
   | { type: "error"; error: RpcFaOperationError };
 
+/**
+ * A guardian that met at least one replacement condition.
+ */
+export type RpcFaReplacementCandidate = {
+  /**
+   * Position in the status seat list, the index a replacement takes.
+   */
+  seatIndex: number;
+  mgId: string;
+  /**
+   * Two-word display name derived from `mg_id`.
+   */
+  mgName: string;
+  reasons: Array<RpcFaReplacementReason>;
+};
+
+/**
+ * The latest replacement check. `check` is absent until a check of the
+ * ready federation succeeds.
+ */
+export type RpcFaReplacementCandidates =
+  | { type: "ready"; check: RpcFaReplacementCheck | null }
+  | { type: "failed"; error: RpcFaOperationError };
+
+/**
+ * One complete replacement check of the formed federation. An empty list
+ * does not assert that every guardian is healthy.
+ */
+export type RpcFaReplacementCheck = {
+  federationId: string;
+  checkedAt: number;
+  candidates: Array<RpcFaReplacementCandidate>;
+};
+
 export type RpcFaReplacementPreview = {
   /**
    * Opaque process-local handle to this fresh verified replacement subset.
@@ -1207,6 +1298,18 @@ export type RpcFaReplacementPreviewSeat = {
   advertisedPriceMsats: RpcFaMsats;
   provenance: string;
 };
+
+/**
+ * Evidence that a guardian should be replaced. Missing reports never become
+ * a reason.
+ */
+export type RpcFaReplacementReason =
+  | { type: "offline"; lastSeenSecs: number }
+  | { type: "missedSessions"; sessions: number }
+  | { type: "disconnected" }
+  | { type: "lowWeekScore"; basisPoints: number }
+  | { type: "lowMonthScore"; basisPoints: number }
+  | { type: "holderRevoked" };
 
 export type RpcFaResolvedFormationIntent = {
   federationName: string;
@@ -1344,6 +1447,29 @@ export type RpcFaStatus =
   | { type: "recovery"; error: RpcFaOperationError | null }
   | { type: "formation"; formation: RpcFaFormationSnapshot }
   | { type: "formed"; federation: RpcFaFormedFederation };
+
+/**
+ * The MG a guardian transfer would buy its new seat on.
+ */
+export type RpcFaTransferDestinationPreview = {
+  /**
+   * Opaque, process-local handle to the sealed verified selection.
+   */
+  previewId: string;
+  mgId: string;
+  /**
+   * Two-word display name derived from `mg_id`; names can collide and
+   * never substitute for the id.
+   */
+  mgName: string;
+  advertisedPriceMsats: RpcFaMsats;
+  provenance: string;
+  validUntil: number;
+};
+
+export type RpcFaTransferDestinationPreviewResult =
+  | { type: "preview"; preview: RpcFaTransferDestinationPreview }
+  | { type: "error"; error: RpcFaOperationError };
 
 export type RpcFederation = {
   balance: RpcAmount;
@@ -1634,6 +1760,19 @@ export type RpcMethods = {
     RpcFaSelectionPreviewResult,
   ];
   faClientPayAndCreate: [faClientPayAndCreate, RpcFaOperationResult];
+  faClientSubscribeGuardianTransfer: [faClientSubscribeGuardianTransfer, null];
+  faClientPreviewTransferDestination: [
+    faClientPreviewTransferDestination,
+    RpcFaTransferDestinationPreviewResult,
+  ];
+  faClientStartGuardianTransfer: [
+    faClientStartGuardianTransfer,
+    RpcFaGuardianTransferResult,
+  ];
+  faClientSubscribeReplacementCandidates: [
+    faClientSubscribeReplacementCandidates,
+    null,
+  ];
   faClientPreviewReplacements: [
     faClientPreviewReplacements,
     RpcFaReplacementPreviewResult,
@@ -2857,6 +2996,8 @@ export type WalletServiceCreationFeatureConfig = Record<string, never>;
 
 export type WalletServiceDkgRestartFeatureConfig = Record<string, never>;
 
+export type WalletServiceGuardianTransferFeatureConfig = Record<string, never>;
+
 /**
  * Withdrawal request with extra data accumulated over events.
  */
@@ -2983,6 +3124,8 @@ export type faClientPreviewSelection = {
   request: RpcFaSelectionPreviewRequest;
 };
 
+export type faClientPreviewTransferDestination = { seatIndex: number };
+
 export type faClientRegisterPushInstallation = {
   fcmToken: string;
   platform: RpcFaPushPlatform;
@@ -2998,9 +3141,23 @@ export type faClientSetGuardianFee = { guardianFeePpm: number };
 
 export type faClientSetupPaymentFederations = {};
 
+export type faClientStartGuardianTransfer = {
+  previewId: string;
+  paymentFederationId: string;
+  maxMsats: RpcFaMsats;
+};
+
 export type faClientStatus = {};
 
 export type faClientSubscribe = { streamId: RpcStreamId<RpcFaClientStatus> };
+
+export type faClientSubscribeGuardianTransfer = {
+  streamId: RpcStreamId<RpcFaGuardianTransferResult>;
+};
+
+export type faClientSubscribeReplacementCandidates = {
+  streamId: RpcStreamId<RpcFaReplacementCandidates>;
+};
 
 export type faClientUnregisterPushInstallation = {};
 

@@ -1,3 +1,5 @@
+import type { FeatureCatalog } from '@fedi/common/types/bindings'
+
 import {
     formationAlreadyFormed,
     formationAuthorizePayments,
@@ -41,6 +43,36 @@ import {
     setupSlowJoinLookup,
     setupSlowNetwork,
 } from './scripts/setup'
+import {
+    TRANSFER_SEAT_INDEX,
+    transferAwaitingSource,
+    transferBuyingSeat,
+    transferDashboardFlagged,
+    transferDashboardFlaggedMany,
+    transferDashboardWaiting,
+    transferNoneFlagged,
+    transferNotChecked,
+    transferNotEligible,
+    transferSheetOfflineNotFlagged,
+    transferFlagOffSettings,
+    transferFlagOffSheet,
+    transferHostChanged,
+    transferNoFreeHost,
+    transferNotEnoughFunds,
+    transferPaymentFails,
+    transferPick,
+    transferPublishingBinding,
+    transferQuoteExpiring,
+    transferRemovingSource,
+    transferReviewFree,
+    transferReviewPriced,
+    transferRunToDone,
+    transferSearching,
+    transferSettingsEntry,
+    transferUnavailable,
+    transferSheetEntry,
+    transferStartBusy,
+} from './scripts/transfer'
 import type { FaScript } from './steps'
 
 // string literals rather than a native import: they are checked against
@@ -51,25 +83,42 @@ export type FaScreenRoute =
     | 'WalletServiceProgress'
     | 'WalletServiceDashboard'
     | 'WalletServiceReplaceReview'
+    | 'WalletServiceGuardianTransfer'
     | 'WalletServiceLightningProvider'
     | 'WalletServiceSettings'
     | 'WalletServiceAutojoinSpaces'
 
-export type FaScreenParams = { openSheet: 'provider' } | undefined
+/** A route and the params it opens with, paired so each route keeps its own. */
+export type FaScreenTarget =
+    | { route: 'WalletServiceSettings'; params?: { openSheet: 'provider' } }
+    | { route: 'WalletServiceDashboard'; params?: { openSheet: 'guardians' } }
+    | {
+          route: 'WalletServiceGuardianTransfer'
+          params?: { seatIndex: number }
+      }
+    | {
+          route: Exclude<
+              FaScreenRoute,
+              | 'WalletServiceSettings'
+              | 'WalletServiceDashboard'
+              | 'WalletServiceGuardianTransfer'
+          >
+          params?: undefined
+      }
 
-export type FaScreen = {
+export type FaScreen = FaScreenTarget & {
     id: string
     label: string
     script: FaScript
     checkpoint: string
-    route: FaScreenRoute
-    params?: FaScreenParams
+    /** Catalog entries the panel forces over the bridge's own for this screen. */
+    features?: Partial<FeatureCatalog>
 }
 
 export type FaScreenGroup = { title: string; screens: FaScreen[] }
 
 const on =
-    (route: FaScreenRoute, params?: FaScreenParams) =>
+    (target: FaScreenTarget) =>
     (
         id: string,
         label: string,
@@ -80,19 +129,63 @@ const on =
         label,
         script,
         checkpoint,
-        route,
-        params,
+        ...target,
     })
 
-const create = on('CreateWalletService')
-const confirm = on('ConfirmWalletService')
-const progress = on('WalletServiceProgress')
-const dashboard = on('WalletServiceDashboard')
-const replaceReview = on('WalletServiceReplaceReview')
+const create = on({ route: 'CreateWalletService' })
+const confirm = on({ route: 'ConfirmWalletService' })
+const progress = on({ route: 'WalletServiceProgress' })
+const dashboard = on({ route: 'WalletServiceDashboard' })
+const replaceReview = on({ route: 'WalletServiceReplaceReview' })
 const providerScreen = (id: string, label: string, s: FaScript) =>
-    on('WalletServiceLightningProvider')(id, label, s, 'provider')
-const settings = on('WalletServiceSettings', { openSheet: 'provider' })
-const autojoin = on('WalletServiceAutojoinSpaces')
+    on({ route: 'WalletServiceLightningProvider' })(id, label, s, 'provider')
+const settings = on({
+    route: 'WalletServiceSettings',
+    params: { openSheet: 'provider' },
+})
+const autojoin = on({ route: 'WalletServiceAutojoinSpaces' })
+
+// an installed app can carry a bridge older than the flag, so every guardian
+// replacement screen forces it rather than reading it
+const transferOn = (screen: FaScreen): FaScreen => ({
+    ...screen,
+    features: { wallet_service_guardian_transfer: {} },
+})
+
+// every guardian replacement script lands on one checkpoint
+const transferSettings = (id: string, label: string, s: FaScript) =>
+    transferOn(on({ route: 'WalletServiceSettings' })(id, label, s, 'transfer'))
+const transferSheet = (id: string, label: string, s: FaScript) =>
+    transferOn(
+        on({
+            route: 'WalletServiceDashboard',
+            params: { openSheet: 'guardians' },
+        })(id, label, s, 'transfer'),
+    )
+const transferList = (id: string, label: string, s: FaScript) =>
+    transferOn(
+        on({ route: 'WalletServiceGuardianTransfer' })(
+            id,
+            label,
+            s,
+            'transfer',
+        ),
+    )
+const transferReview = (id: string, label: string, s: FaScript) =>
+    transferOn(
+        on({
+            route: 'WalletServiceGuardianTransfer',
+            params: { seatIndex: TRANSFER_SEAT_INDEX },
+        })(id, label, s, 'transfer'),
+    )
+const transferDashboard = (id: string, label: string, s: FaScript) =>
+    transferOn(
+        on({ route: 'WalletServiceDashboard' })(id, label, s, 'transfer'),
+    )
+const withTransferOff = (screen: FaScreen): FaScreen => ({
+    ...screen,
+    features: { wallet_service_guardian_transfer: null },
+})
 
 export const FA_SCREEN_GROUPS: FaScreenGroup[] = [
     {
@@ -380,6 +473,150 @@ export const FA_SCREEN_GROUPS: FaScreenGroup[] = [
                 'Settings: auto join guardians not updated',
                 settingsAutojoinUnsupported,
                 'autojoin',
+            ),
+        ],
+    },
+    {
+        title: 'Guardian replacement',
+        screens: [
+            transferSettings(
+                'transfer.settingsEntry',
+                'Entry: Settings row',
+                transferSettingsEntry,
+            ),
+            transferDashboard(
+                'transfer.dashboardFlagged',
+                'Entry: dashboard banner, 1 flagged',
+                transferDashboardFlagged,
+            ),
+            transferDashboard(
+                'transfer.dashboardFlaggedMany',
+                'Entry: dashboard banner, 2 flagged',
+                transferDashboardFlaggedMany,
+            ),
+            transferSheet(
+                'transfer.sheetEntry',
+                'Entry: Guardians sheet',
+                transferSheetEntry,
+            ),
+            transferSheet(
+                'transfer.sheetOfflineNotFlagged',
+                'Sheet: offline, not flagged',
+                transferSheetOfflineNotFlagged,
+            ),
+            transferList(
+                'transfer.pick',
+                'Entry: pick a guardian',
+                transferPick,
+            ),
+            transferList(
+                'transfer.noneFlagged',
+                'Pick: none flagged',
+                transferNoneFlagged,
+            ),
+            transferList(
+                'transfer.notChecked',
+                'Pick: not checked yet',
+                transferNotChecked,
+            ),
+            transferReview(
+                'transfer.searching',
+                'Review: searching',
+                transferSearching,
+            ),
+            transferReview(
+                'transfer.reviewPriced',
+                'Review: paid',
+                transferReviewPriced,
+            ),
+            transferReview(
+                'transfer.reviewFree',
+                'Review: free',
+                transferReviewFree,
+            ),
+            transferReview(
+                'transfer.quoteExpiring',
+                'Review: quote refresh',
+                transferQuoteExpiring,
+            ),
+            transferReview(
+                'transfer.notEnoughFunds',
+                'Error: no funds',
+                transferNotEnoughFunds,
+            ),
+            transferReview(
+                'transfer.hostChanged',
+                'Error: host changed',
+                transferHostChanged,
+            ),
+            transferReview(
+                'transfer.noFreeHost',
+                'Error: no free host',
+                transferNoFreeHost,
+            ),
+            transferReview(
+                'transfer.startBusy',
+                'Error: busy on pay',
+                transferStartBusy,
+            ),
+            transferReview(
+                'transfer.paymentFails',
+                'Error: payment fails',
+                transferPaymentFails,
+            ),
+            transferReview(
+                'transfer.unavailable',
+                'Error: replacement not available',
+                transferUnavailable,
+            ),
+            transferReview(
+                'transfer.notEligible',
+                'Error: guardian recovered',
+                transferNotEligible,
+            ),
+            transferList(
+                'transfer.buyingSeat',
+                'Step 1: paying',
+                transferBuyingSeat,
+            ),
+            transferList(
+                'transfer.awaitingSource',
+                'Step 2: waiting',
+                transferAwaitingSource,
+            ),
+            transferList(
+                'transfer.publishingBinding',
+                'Step 3: approving',
+                transferPublishingBinding,
+            ),
+            transferList(
+                'transfer.removingSource',
+                'Step 4: releasing',
+                transferRemovingSource,
+            ),
+            transferDashboard(
+                'transfer.dashboardWaiting',
+                'Dashboard: waiting for old guardian',
+                transferDashboardWaiting,
+            ),
+            transferList(
+                'transfer.runToDone',
+                'Done: full run',
+                transferRunToDone,
+            ),
+            withTransferOff(
+                transferSettings(
+                    'transfer.flagOffSettings',
+                    'Flag off: Settings',
+                    transferFlagOffSettings,
+                ),
+            ),
+            withTransferOff(
+                transferSheet(
+                    'transfer.flagOffSheet',
+                    'Flag off: Guardians sheet',
+                    transferFlagOffSheet,
+                ),
             ),
         ],
     },

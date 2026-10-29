@@ -46,7 +46,7 @@ import { WarningBanner } from '../components/ui/WarningBanner'
 import { useAppDispatch, useAppSelector, useAppStore } from '../state/hooks'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
-import { useQuoteCountdown } from '../utils/hooks/quoteCountdown'
+import { useQuoteAutoRefresh } from '../utils/hooks/quoteCountdown'
 import { useWalletServiceEntryGuard } from '../utils/hooks/walletServiceEntryGuard'
 import { reachableMsats } from '../utils/walletServiceFunds'
 
@@ -217,14 +217,10 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
         }
     }, [refreshQuote, navigation])
 
-    // the bridge only checks quote validity at pay time, so the screen owns
-    // the clock: at expiry the pay button locks and a fresh quote is fetched
-    // before the user can act on a stale price
-    //
     // The deadline only exists where there is something to miss it. With no
     // wallet to pay from, the user's next move is a join and a top-up, which
     // outlasts any 120s quote — so a clock here expired into a "Quote expired"
-    // line under a price nobody could act on, and armed the auto-refresh below
+    // line under a price nobody could act on, and armed the auto-refresh
     // to re-run the most expensive RPC there is on a loop, for nothing. The
     // price is re-quoted at the two moments it matters instead: after a join
     // (`handleAcceptTerms`) and after a top-up (`handleTopUpFunded`).
@@ -235,25 +231,12 @@ const ConfirmWalletService: React.FC<Props> = ({ navigation }) => {
     // nobody could see, mid-payment. `handleTopUpFunded` re-quotes on the way
     // out, which is the moment the price is worth having again.
     const isQuoteOnScreen = Boolean(paymentFederation) && !showTopUp
-    const { remainingLabel, isExpired } = useQuoteCountdown(
-        isQuoteOnScreen ? (preview?.validUntil ?? null) : null,
+    const { remainingLabel, isExpired } = useQuoteAutoRefresh(
+        preview?.validUntil,
+        !isQuoteOnScreen,
+        isRefreshingQuote,
+        refreshQuote,
     )
-    // one attempt per expiry, re-armed only by a quote that is actually valid.
-    //
-    // Not keyed on `preview.validUntil`: an already-expired quote carries a
-    // new one, which would read as a fresh deadline worth another attempt.
-    const hasAutoRefreshed = useRef(false)
-    useEffect(() => {
-        if (!preview || isRefreshingQuote) return
-        if (!isExpired) {
-            // a usable quote: allow one more attempt when this one runs out
-            hasAutoRefreshed.current = false
-            return
-        }
-        if (hasAutoRefreshed.current) return
-        hasAutoRefreshed.current = true
-        refreshQuote()
-    }, [isExpired, preview, isRefreshingQuote, refreshQuote])
 
     /**
      * The sheet takes its amount from the quote, and its invoice outlives that

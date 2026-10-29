@@ -17,6 +17,7 @@ const prodRemoteFeatures: RemoteFeatures = {
     walletServiceDkgRestart: true,
     btcMultispend: false,
     updateScreen: false,
+    walletServiceGuardianTransfer: false,
 }
 const edgeRemoteFeatures: RemoteFeatures = {
     ...prodRemoteFeatures,
@@ -34,6 +35,7 @@ const devRemoteFeatures: RemoteFeatures = {
     walletServiceDkgRestart: true,
     btcMultispend: true,
     updateScreen: true,
+    walletServiceGuardianTransfer: true,
 }
 // edge has always been served the dev values here; swapping this for
 // edgeRemoteFeatures would flip several live edge flags at once

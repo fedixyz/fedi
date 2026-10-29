@@ -54,6 +54,26 @@ export const seatPhaseFor = (phase: FormationPhaseName): RpcFaSeatPhase => {
 const phaseIndex = (phase: FormationPhaseName) =>
     FORMATION_PHASES.indexOf(phase)
 
+/**
+ * Two-word names in the form the bridge derives from an MG id
+ * (`adjective-noun`), so the screens show what a real formation shows.
+ */
+const SIM_MG_NAMES = [
+    'amber-otter',
+    'brisk-heron',
+    'calm-marmot',
+    'steady-falcon',
+    'quiet-lynx',
+    'lucky-badger',
+    'bright-kestrel',
+    'patient-walrus',
+    'gentle-crane',
+    'mutual-hamster',
+]
+
+export const simMgName = (index: number) =>
+    SIM_MG_NAMES[index % SIM_MG_NAMES.length]
+
 export function formationAt(
     seed: FormationSeed,
     phase: FormationPhaseName,
@@ -78,7 +98,7 @@ export function formationAt(
             return {
                 index: i,
                 mgId,
-                mgName: `guardian ${i + 1}`,
+                mgName: simMgName(i),
                 locator: JSON.stringify({ v: 1, mgId }),
                 seatId: reached('acquiringSeats') ? `seat_${i}` : null,
                 guardianCode: reached('preparingDkg') ? `code_${i}` : null,
@@ -207,11 +227,13 @@ export function formedFrom(
         formationId: formation.formationId,
         federationInvite: inviteFor(formation.formationId),
         federationName: formation.intent.federationName,
-        seats: formation.seats.map(({ index, mgId, seatId, locator }) => {
-            if (mgId === null || seatId === null)
-                throw new Error(`seat ${index} has no MG or seat to form`)
-            return { mgId, seatId, locator }
-        }),
+        seats: formation.seats.map(
+            ({ index, mgId, mgName, seatId, locator }) => {
+                if (mgId === null || mgName === null || seatId === null)
+                    throw new Error(`seat ${index} has no MG or seat to form`)
+                return { mgId, mgName, seatId, locator }
+            },
+        ),
         freshness,
         backupEligible,
         origin,

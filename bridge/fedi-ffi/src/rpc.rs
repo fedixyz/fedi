@@ -11,7 +11,9 @@ use anyhow::{Context, bail};
 use bitcoin::Amount;
 use bitcoin::secp256k1::Message;
 use bridge::bg_matrix::BgMatrix;
-use bridge::fa_client::fa_client_status_stream;
+use bridge::fa_client::{
+    fa_client_status_stream, fa_guardian_transfer_stream, fa_replacement_candidates_stream,
+};
 use bridge::mini_app_seed::{canonicalize_origin, derive_mini_app_seed};
 use bridge::onboarding::BridgeOnboarding;
 use bridge::providers::FederationProviderWrapper;
@@ -52,10 +54,12 @@ use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedE
 use rpc_types::fa_client::{
     RpcFaClientStatus, RpcFaCurrentLiquidityOperationResult, RpcFaDecommissionResult,
     RpcFaEligiblePayersResult, RpcFaFederationMetadataUpdate, RpcFaFormationIntent,
-    RpcFaLiquidityDiscoveryResult, RpcFaLiquidityNetwork, RpcFaLiquidityOperationPageResult,
-    RpcFaLiquidityOperationResult, RpcFaLiquidityRequestIntent, RpcFaMsats, RpcFaOperationResult,
-    RpcFaPushPlatform, RpcFaPushRegistrationResult, RpcFaReplacementPreviewResult,
-    RpcFaSelectionPreviewRequest, RpcFaSelectionPreviewResult, RpcFaSetupPaymentFederationsResult,
+    RpcFaGuardianTransferResult, RpcFaLiquidityDiscoveryResult, RpcFaLiquidityNetwork,
+    RpcFaLiquidityOperationPageResult, RpcFaLiquidityOperationResult, RpcFaLiquidityRequestIntent,
+    RpcFaMsats, RpcFaOperationResult, RpcFaPushPlatform, RpcFaPushRegistrationResult,
+    RpcFaReplacementCandidates, RpcFaReplacementPreviewResult, RpcFaSelectionPreviewRequest,
+    RpcFaSelectionPreviewResult, RpcFaSetupPaymentFederationsResult,
+    RpcFaTransferDestinationPreviewResult,
 };
 use rpc_types::matrix::{
     RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession, RpcMatrixInitializeStatus,
@@ -1517,6 +1521,39 @@ async fn faClientPayAndCreate(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn faClientSubscribeGuardianTransfer(
+    bridge: &BridgeFull,
+    stream_id: RpcStreamId<RpcFaGuardianTransferResult>,
+) -> anyhow::Result<()> {
+    let stream = fa_guardian_transfer_stream(bridge.fa_guardian_transfer_receiver());
+    bridge
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn faClientPreviewTransferDestination(
+    bridge: &BridgeFull,
+    seat_index: u16,
+) -> anyhow::Result<RpcFaTransferDestinationPreviewResult> {
+    Ok(bridge.fa_preview_transfer_destination(seat_index).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn faClientStartGuardianTransfer(
+    bridge: &BridgeFull,
+    preview_id: String,
+    payment_federation_id: String,
+    max_msats: RpcFaMsats,
+) -> anyhow::Result<RpcFaGuardianTransferResult> {
+    Ok(bridge
+        .fa_start_guardian_transfer(preview_id, payment_federation_id, max_msats.0)
+        .await)
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn faClientPreviewReplacements(
     bridge: &BridgeFull,
 ) -> anyhow::Result<RpcFaReplacementPreviewResult> {
@@ -1643,6 +1680,19 @@ async fn faClientSubscribe(
     stream_id: RpcStreamId<RpcFaClientStatus>,
 ) -> anyhow::Result<()> {
     let stream = fa_client_status_stream(bridge.fa_status_receiver());
+    bridge
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn faClientSubscribeReplacementCandidates(
+    bridge: &BridgeFull,
+    stream_id: RpcStreamId<RpcFaReplacementCandidates>,
+) -> anyhow::Result<()> {
+    let stream = fa_replacement_candidates_stream(bridge.fa_replacement_candidates_receiver());
     bridge
         .runtime
         .stream_pool
@@ -2893,6 +2943,10 @@ rpc_methods!(RpcMethods {
     faClientUnregisterPushInstallation,
     faClientPreviewSelection,
     faClientPayAndCreate,
+    faClientSubscribeGuardianTransfer,
+    faClientPreviewTransferDestination,
+    faClientStartGuardianTransfer,
+    faClientSubscribeReplacementCandidates,
     faClientPreviewReplacements,
     faClientApplyReplacements,
     faClientAuthorizeReplacementPayments,

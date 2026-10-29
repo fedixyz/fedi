@@ -1,4 +1,7 @@
-import type { RpcFaStatus } from '@fedi/common/types/bindings'
+import type {
+    RpcFaReplacementCheck,
+    RpcFaStatus,
+} from '@fedi/common/types/bindings'
 
 import { IDLE_STATUS } from './status'
 import {
@@ -12,6 +15,7 @@ import type { FaWorld } from './world'
 
 export interface PlayerHost {
     setStatus(status: RpcFaStatus): void
+    setReplacementCheck(check: RpcFaReplacementCheck | null): void
     emitEvent(event: string, payload: unknown): void
     setReply(method: string, value: unknown): void
     setStub(
@@ -96,6 +100,9 @@ export class FaPlayer {
                     break
                 case 'stream':
                     this.host.setStatus(resolveLazy(step.status, ctx))
+                    break
+                case 'candidates':
+                    this.host.setReplacementCheck(resolveLazy(step.check, ctx))
                     break
                 case 'emit':
                     this.host.emitEvent(

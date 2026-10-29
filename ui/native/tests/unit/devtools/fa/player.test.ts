@@ -50,6 +50,7 @@ const makeHost = () => {
         formed: [],
         stubs: [],
         setStatus: jest.fn(status => host.statuses.push(status)),
+        setReplacementCheck: jest.fn(),
         emitEvent: jest.fn((event, payload) =>
             host.events.push([event, payload]),
         ),
@@ -74,6 +75,7 @@ const makeHost = () => {
             setPreviewValiditySecs: jest.fn(),
             setJoinableWalletServices: jest.fn(),
             setLiquidityNetwork: jest.fn(),
+            setGuardianTransfer: jest.fn(),
             startLiquidity: jest.fn(),
             currentLiquidityOperation: jest.fn(() => null),
             eligiblePayerIds: jest.fn(() => ['payer_1']),

@@ -174,6 +174,32 @@ export class FedimintBridge {
         })
     }
 
+    /**
+     * Choose and verify the host that would replace the guardian at
+     * `seatIndex`, which the latest replacement check must have flagged.
+     */
+    async faClientPreviewTransferDestination(seatIndex: number) {
+        return this.rpcTyped('faClientPreviewTransferDestination', {
+            seatIndex,
+        })
+    }
+
+    /**
+     * Approve the previewed host under `maxMsats`, and move the guardian the
+     * preview was for onto a new seat there, paid from `paymentFederationId`.
+     */
+    async faClientStartGuardianTransfer(
+        previewId: string,
+        paymentFederationId: string,
+        maxMsats: bindings.RpcFaMsats,
+    ) {
+        return this.rpcTyped('faClientStartGuardianTransfer', {
+            previewId,
+            paymentFederationId,
+            maxMsats,
+        })
+    }
+
     /** Attempt durable reconciliation; read/subscribe to status for the outcome. */
     async faClientResume() {
         return this.rpcTyped('faClientResume', {})
@@ -281,6 +307,23 @@ export class FedimintBridge {
     /** Emit current state first, then changes; initialization failure is a value. */
     faClientSubscribe(args: StreamRpcArgs<'faClientSubscribe'>): UnsubscribeFn {
         return this.rpcStream('faClientSubscribe', args)
+    }
+
+    /** The guardians the bridge's latest replacement check flagged. */
+    faClientSubscribeReplacementCandidates(
+        args: StreamRpcArgs<'faClientSubscribeReplacementCandidates'>,
+    ): UnsubscribeFn {
+        return this.rpcStream('faClientSubscribeReplacementCandidates', args)
+    }
+
+    /**
+     * The guardian transfer, then every change. A completed move stays
+     * `completed` until the next start.
+     */
+    faClientSubscribeGuardianTransfer(
+        args: StreamRpcArgs<'faClientSubscribeGuardianTransfer'>,
+    ): UnsubscribeFn {
+        return this.rpcStream('faClientSubscribeGuardianTransfer', args)
     }
 
     async federationPreview(inviteCode: string) {

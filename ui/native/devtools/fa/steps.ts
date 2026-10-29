@@ -1,4 +1,7 @@
-import type { RpcFaStatus } from '@fedi/common/types/bindings'
+import type {
+    RpcFaReplacementCheck,
+    RpcFaStatus,
+} from '@fedi/common/types/bindings'
 
 import type { FaWorld } from './world'
 
@@ -23,6 +26,7 @@ export type FaStep =
     | { kind: 'stub'; method: string; handler: StubHandler }
     | { kind: 'act'; run: (ctx: FaScriptContext) => void }
     | { kind: 'stream'; status: Lazy<RpcFaStatus> }
+    | { kind: 'candidates'; check: Lazy<RpcFaReplacementCheck | null> }
     | { kind: 'emit'; event: string; payload: Lazy<unknown> }
     | { kind: 'wait'; ms: number }
     | { kind: 'awaitRpc'; method: string; recorded: Record<string, unknown> }
@@ -43,6 +47,10 @@ export const stream = (status: Lazy<RpcFaStatus>): FaStep => ({
     kind: 'stream',
     status,
 })
+/** Publish a replacement check on the candidates stream. */
+export const candidates = (
+    check: Lazy<RpcFaReplacementCheck | null>,
+): FaStep => ({ kind: 'candidates', check })
 export function emit(
     event: string,
     payload: (ctx: FaScriptContext) => unknown,

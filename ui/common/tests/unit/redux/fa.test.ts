@@ -8,12 +8,15 @@ import {
     clearFaOperationError,
     createWalletService,
     describeFaClientStatusChange,
+    getGuardianTransferErrorKey,
+    getGuardianTransferProgress,
     getWalletServiceCreationStage,
     getWalletServiceErrorKey,
     getWalletServiceMaintenanceErrorKey,
     holdWalletServiceMetadata,
     isTerminalWalletServiceError,
     prepareWalletServicePayment,
+    previewGuardianTransferDestination,
     previewWalletServiceReplacements,
     resumeWalletService,
     selectCanPayForWalletService,
@@ -44,17 +47,26 @@ import {
     selectWalletServiceRecoveryStage,
     selectWalletServiceReplacementPreview,
     selectFaFederationJoinFailure,
+    selectGuardianTransferSeats,
+    selectIsGuardianTransferOpen,
+    selectIsWalletServiceGuardianTransferEnabled,
+    setFeatureFlags,
     setFederations,
     updateWalletServiceMetadata,
     setFaClientStatus,
     setFaFederationJoin,
     setFaStatus,
+    setGuardianTransfer,
+    setReplacementCandidates,
+    selectReplacementCandidates,
     setPayFromFederationId,
     setWalletServiceDraft,
     setupStore,
+    startGuardianTransfer,
 } from '../../../redux'
 import { MSats } from '../../../types'
 import {
+    FeatureCatalog,
     RpcFaEligiblePayer,
     RpcFaErrorCode,
     RpcFaFormationActionRequired,
@@ -62,12 +74,16 @@ import {
     RpcFaFormationSnapshot,
     RpcFaFormedFederation,
     RpcFaGuardianReplacementRequirements,
+    RpcFaGuardianTransfer,
+    RpcFaGuardianTransferPhase,
     RpcFaOperationError,
     RpcFaPaymentRequirements,
     RpcFaReplacementPreview,
     RpcFaSeatProgress,
     RpcFaSelectionPreview,
     RpcFaStatus,
+    RpcFaSelectionReauthorizationReason,
+    RpcFaTransferDestinationPreview,
 } from '../../../types/bindings'
 import { LoadedFederation } from '../../../types/fedimint'
 import {
@@ -118,6 +134,7 @@ const makeFormedFederation = (
     seats: [
         {
             mgId: 'mg-1',
+            mgName: 'amber alder',
             seatId: 'seat-1',
             locator: 'locator-1',
         },
@@ -206,6 +223,32 @@ const makePreview = (
     ...overrides,
 })
 
+const makeTransferDestinationPreview = (
+    overrides: Partial<RpcFaTransferDestinationPreview> = {},
+): RpcFaTransferDestinationPreview => ({
+    previewId: 'transfer-preview-1',
+    mgId: 'mg-destination',
+    mgName: 'brisk basalt',
+    advertisedPriceMsats: '21000',
+    provenance: 'registry',
+    validUntil: 1754900000,
+    ...overrides,
+})
+
+const makeGuardianTransfer = (
+    overrides: Partial<RpcFaGuardianTransfer> = {},
+): RpcFaGuardianTransfer => ({
+    seatIndex: 2,
+    sourceMgId: 'mg-source',
+    sourceMgName: 'amber alder',
+    sourceSeatId: 'seat-source',
+    destinationMgId: 'mg-destination',
+    destinationMgName: 'brisk basalt',
+    destinationSeatId: null,
+    phase: 'buyingSeat',
+    ...overrides,
+})
+
 const makeError = (
     code: RpcFaErrorCode,
     message: string,
@@ -227,6 +270,9 @@ const buildStore = ({
             },
             selectionPreview: null,
             replacementPreview: null,
+            transferDestinationPreview: null,
+            guardianTransfer: undefined,
+            replacementCheck: null,
             topUpInvoice: null,
             eligiblePayers: null,
             payerError: null,
@@ -2372,6 +2418,542 @@ describe('common/redux/fi › selectWalletServiceReplacementPreview', () => {
     })
 })
 
+describe('common/redux/fi › setGuardianTransfer', () => {
+    it('should store each transfer the stream sends, including completed', () => {
+        const store = buildStore()
+
+        const open = makeGuardianTransfer({ phase: 'awaitingSource' })
+        store.dispatch(setGuardianTransfer(open))
+        expect(store.getState().fi.guardianTransfer).toEqual(open)
+
+        const completed = makeGuardianTransfer({ phase: 'completed' })
+        store.dispatch(setGuardianTransfer(completed))
+        expect(store.getState().fi.guardianTransfer).toEqual(completed)
+    })
+
+    it.each<RpcFaGuardianTransferPhase>([
+        'buyingSeat',
+        'awaitingSource',
+        'removingSource',
+    ])('should store no move after %s as no move, not as completed', phase => {
+        // the bridge reports `completed` itself; a move that ends
+        // without one never completed
+        const store = buildStore({
+            guardianTransfer: makeGuardianTransfer({ phase }),
+        })
+
+        store.dispatch(setGuardianTransfer(null))
+
+        expect(store.getState().fi.guardianTransfer).toBeNull()
+    })
+
+    it('should keep the shown start error', () => {
+        const startError = makeError('busy', 'driver busy')
+        const store = buildStore({ operationError: startError })
+
+        store.dispatch(
+            setGuardianTransfer(makeGuardianTransfer({ phase: 'buyingSeat' })),
+        )
+
+        expect(store.getState().fi.operationError).toEqual(startError)
+    })
+})
+
+describe('common/redux/fi › previewGuardianTransferDestination', () => {
+    it('should store the preview on success', async () => {
+        const preview = makeTransferDestinationPreview()
+        const fedimint = createMockFedimintBridge({
+            faClientPreviewTransferDestination: () =>
+                Promise.resolve({ type: 'preview', preview }),
+        })
+        const store = buildStore()
+
+        await store
+            .dispatch(
+                previewGuardianTransferDestination({ fedimint, seatIndex: 2 }),
+            )
+            .unwrap()
+
+        expect(
+            fedimint.faClientPreviewTransferDestination,
+        ).toHaveBeenCalledWith(2)
+        expect(store.getState().fi.transferDestinationPreview).toEqual(preview)
+    })
+
+    it('should clear any stale preview and store the typed error on failure', async () => {
+        const error = makeError('selection', 'no verified host is selling')
+        const fedimint = createMockFedimintBridge({
+            faClientPreviewTransferDestination: () =>
+                Promise.resolve({ type: 'error', error }),
+        })
+        const store = buildStore({
+            transferDestinationPreview: makeTransferDestinationPreview(),
+        })
+
+        await expect(
+            store
+                .dispatch(
+                    previewGuardianTransferDestination({
+                        fedimint,
+                        seatIndex: 2,
+                    }),
+                )
+                .unwrap(),
+        ).rejects.toEqual(error)
+
+        expect(store.getState().fi.transferDestinationPreview).toBeNull()
+        expect(store.getState().fi.operationError).toEqual(error)
+    })
+})
+
+describe('common/redux/fi › startGuardianTransfer', () => {
+    it('should reject without calling the bridge when there is no preview', async () => {
+        const fedimint = createMockFedimintBridge({
+            faClientStartGuardianTransfer: () =>
+                Promise.resolve({ type: 'transfer', transfer: null }),
+        })
+        const store = buildStore()
+
+        await expect(
+            store
+                .dispatch(
+                    startGuardianTransfer({
+                        fedimint,
+                        paymentFederationId: 'federation-0',
+                    }),
+                )
+                .unwrap(),
+        ).rejects.toMatchObject({ code: 'selection' })
+
+        expect(fedimint.faClientStartGuardianTransfer).not.toHaveBeenCalled()
+    })
+
+    it('should send the previewId, payer and advertised price, then spend the preview', async () => {
+        const fedimint = createMockFedimintBridge({
+            faClientStartGuardianTransfer: () =>
+                Promise.resolve({ type: 'transfer', transfer: null }),
+        })
+        const store = buildStore({
+            transferDestinationPreview: makeTransferDestinationPreview({
+                previewId: 'transfer-preview-7',
+                advertisedPriceMsats: '34000',
+            }),
+        })
+
+        await store
+            .dispatch(
+                startGuardianTransfer({
+                    fedimint,
+                    paymentFederationId: 'federation-0',
+                }),
+            )
+            .unwrap()
+
+        expect(fedimint.faClientStartGuardianTransfer).toHaveBeenCalledWith(
+            'transfer-preview-7',
+            'federation-0',
+            '34000',
+        )
+        expect(fedimint.faClientStartGuardianTransfer).toHaveBeenCalledTimes(1)
+        expect(store.getState().fi.transferDestinationPreview).toBeNull()
+    })
+
+    it('should leave the move to the stream, which may be past where the start ended', async () => {
+        const streamed = makeGuardianTransfer({ phase: 'publishingBinding' })
+        const fedimint = createMockFedimintBridge({
+            faClientStartGuardianTransfer: () =>
+                Promise.resolve({
+                    type: 'transfer',
+                    transfer: makeGuardianTransfer({ phase: 'awaitingSource' }),
+                }),
+        })
+        const store = buildStore({
+            transferDestinationPreview: makeTransferDestinationPreview(),
+            guardianTransfer: streamed,
+        })
+
+        await store
+            .dispatch(
+                startGuardianTransfer({
+                    fedimint,
+                    paymentFederationId: 'federation-0',
+                }),
+            )
+            .unwrap()
+
+        expect(store.getState().fi.guardianTransfer).toEqual(streamed)
+    })
+
+    it('should send a zero cap for a free seat rather than dropping it', async () => {
+        const fedimint = createMockFedimintBridge({
+            faClientStartGuardianTransfer: () =>
+                Promise.resolve({
+                    type: 'transfer',
+                    transfer: makeGuardianTransfer(),
+                }),
+        })
+        const store = buildStore({
+            transferDestinationPreview: makeTransferDestinationPreview({
+                advertisedPriceMsats: '0',
+            }),
+        })
+
+        await store
+            .dispatch(
+                startGuardianTransfer({
+                    fedimint,
+                    paymentFederationId: 'federation-0',
+                }),
+            )
+            .unwrap()
+
+        expect(fedimint.faClientStartGuardianTransfer).toHaveBeenCalledWith(
+            'transfer-preview-1',
+            'federation-0',
+            '0',
+        )
+        expect(fedimint.faClientStartGuardianTransfer).toHaveBeenCalledTimes(1)
+    })
+
+    it('should keep the preview when the bridge is busy, so a retry can reuse it', async () => {
+        const error = makeError('busy', 'another change is underway')
+        const preview = makeTransferDestinationPreview()
+        const fedimint = createMockFedimintBridge({
+            faClientStartGuardianTransfer: () =>
+                Promise.resolve({ type: 'error', error }),
+        })
+        const store = buildStore({ transferDestinationPreview: preview })
+
+        await expect(
+            store
+                .dispatch(
+                    startGuardianTransfer({
+                        fedimint,
+                        paymentFederationId: 'federation-0',
+                    }),
+                )
+                .unwrap(),
+        ).rejects.toEqual(error)
+
+        expect(store.getState().fi.transferDestinationPreview).toEqual(preview)
+        expect(store.getState().fi.operationError).toEqual(error)
+    })
+
+    it('should clear the preview on any other error, forcing a fresh preview', async () => {
+        const error: RpcFaOperationError = {
+            code: 'selection',
+            message: 'preview expired',
+            detail: {
+                type: 'selectionReauthorizationRequired',
+                reason: 'previewExpired',
+            },
+        }
+        const fedimint = createMockFedimintBridge({
+            faClientStartGuardianTransfer: () =>
+                Promise.resolve({ type: 'error', error }),
+        })
+        const store = buildStore({
+            transferDestinationPreview: makeTransferDestinationPreview(),
+        })
+
+        await expect(
+            store
+                .dispatch(
+                    startGuardianTransfer({
+                        fedimint,
+                        paymentFederationId: 'federation-0',
+                    }),
+                )
+                .unwrap(),
+        ).rejects.toEqual(error)
+
+        expect(store.getState().fi.transferDestinationPreview).toBeNull()
+        expect(store.getState().fi.operationError).toEqual(error)
+    })
+
+    it('should leave the move to the stream after an error, since the bridge keeps a move that failed part way', async () => {
+        const error = makeError('payment', 'payment failed after the seat')
+        const kept = makeGuardianTransfer({ phase: 'awaitingSource' })
+        const fedimint = createMockFedimintBridge({
+            faClientStartGuardianTransfer: () =>
+                Promise.resolve({ type: 'error', error }),
+        })
+        const store = buildStore({
+            transferDestinationPreview: makeTransferDestinationPreview(),
+            // what the stream reported while the start ran
+            guardianTransfer: kept,
+        })
+
+        await expect(
+            store
+                .dispatch(
+                    startGuardianTransfer({
+                        fedimint,
+                        paymentFederationId: 'federation-0',
+                    }),
+                )
+                .unwrap(),
+        ).rejects.toEqual(error)
+
+        expect(store.getState().fi.guardianTransfer).toEqual(kept)
+        expect(store.getState().fi.operationError).toEqual(error)
+    })
+})
+
+describe('common/redux/fi › selectIsGuardianTransferOpen', () => {
+    it.each<RpcFaGuardianTransferPhase>([
+        'buyingSeat',
+        'awaitingSource',
+        'publishingBinding',
+        'removingSource',
+    ])('should be open while the move is %s', phase => {
+        const store = buildStore({
+            guardianTransfer: makeGuardianTransfer({ phase }),
+        })
+
+        expect(selectIsGuardianTransferOpen(store.getState())).toBe(true)
+    })
+
+    it('should not be open once the move is completed', () => {
+        const store = buildStore({
+            guardianTransfer: makeGuardianTransfer({ phase: 'completed' }),
+        })
+
+        expect(selectIsGuardianTransferOpen(store.getState())).toBe(false)
+    })
+
+    it.each([
+        ['not read yet', undefined],
+        ['none open', null],
+    ])('should not be open when the transfer is %s', (_label, transfer) => {
+        const store = buildStore({ guardianTransfer: transfer })
+
+        expect(selectIsGuardianTransferOpen(store.getState())).toBe(false)
+    })
+})
+
+describe('common/redux/fi › selectGuardianTransferSeats', () => {
+    it('should list formed seats by position with their host names', () => {
+        const seat = (name: string) => ({
+            mgId: `mg-${name}`,
+            mgName: name,
+            seatId: `seat-${name}`,
+            locator: `locator-${name}`,
+        })
+        const store = buildStore({
+            status: {
+                type: 'formed',
+                federation: makeFormedFederation({
+                    seats: [seat('amber alder'), seat('brisk basalt')],
+                }),
+            },
+        })
+
+        expect(selectGuardianTransferSeats(store.getState())).toEqual([
+            { index: 0, name: 'amber alder' },
+            { index: 1, name: 'brisk basalt' },
+        ])
+    })
+
+    it('should be empty while the federation is still forming', () => {
+        const store = buildFormationStore()
+
+        expect(selectGuardianTransferSeats(store.getState())).toEqual([])
+    })
+
+    it('should be empty when there is no formation', () => {
+        const store = buildStore({ status: { type: 'idle' } })
+
+        expect(selectGuardianTransferSeats(store.getState())).toEqual([])
+    })
+})
+
+describe('common/redux/fi › replacement candidates', () => {
+    const formedWith = (...mgIds: string[]) =>
+        buildStore({
+            status: {
+                type: 'formed',
+                federation: makeFormedFederation({
+                    seats: mgIds.map(mgId => ({
+                        mgId,
+                        mgName: `name of ${mgId}`,
+                        seatId: `seat-${mgId}`,
+                        locator: `locator-${mgId}`,
+                    })),
+                }),
+            },
+        })
+    const candidate = (seatIndex: number, mgId: string) => ({
+        seatIndex,
+        mgId,
+        mgName: `name of ${mgId}`,
+        reasons: [{ type: 'disconnected' as const }],
+    })
+
+    it('should offer only flagged guardians that still hold their seat, by seat position', () => {
+        const store = formedWith('mg-a', 'mg-b')
+        store.dispatch(
+            setReplacementCandidates({
+                type: 'ready',
+                check: {
+                    federationId: 'fed',
+                    checkedAt: 1_700_000_000,
+                    // seat 0 was flagged for an MG that has since been replaced
+                    candidates: [candidate(1, 'mg-b'), candidate(0, 'mg-b')],
+                },
+            }),
+        )
+
+        expect(selectReplacementCandidates(store.getState())).toEqual([
+            candidate(1, 'mg-b'),
+        ])
+    })
+
+    it('should offer nothing while the federation is still forming', () => {
+        const store = buildFormationStore()
+        store.dispatch(
+            setReplacementCandidates({
+                type: 'ready',
+                check: {
+                    federationId: 'fed',
+                    checkedAt: 1_700_000_000,
+                    candidates: [candidate(0, 'mg-1')],
+                },
+            }),
+        )
+
+        expect(selectReplacementCandidates(store.getState())).toEqual([])
+    })
+
+    it('should keep the last check when the stream fails', () => {
+        const store = formedWith('mg-0')
+        const check = {
+            federationId: 'fed',
+            checkedAt: 1_700_000_000,
+            candidates: [candidate(0, 'mg-0')],
+        }
+        store.dispatch(setReplacementCandidates({ type: 'ready', check }))
+        store.dispatch(
+            setReplacementCandidates({
+                type: 'failed',
+                error: makeError('storage', 'gone'),
+            }),
+        )
+
+        expect(store.getState().fi.replacementCheck).toEqual(check)
+        expect(selectReplacementCandidates(store.getState())).toHaveLength(1)
+    })
+
+    it('should offer nothing before the first check', () => {
+        const store = formedWith('mg-0')
+
+        expect(selectReplacementCandidates(store.getState())).toEqual([])
+    })
+})
+
+describe('common/redux/fi › getGuardianTransferProgress', () => {
+    it.each<
+        [
+            RpcFaGuardianTransferPhase,
+            ReturnType<typeof getGuardianTransferProgress>,
+        ]
+    >([
+        ['buyingSeat', { current: 0, total: 4, isCompleted: false }],
+        ['awaitingSource', { current: 1, total: 4, isCompleted: false }],
+        ['publishingBinding', { current: 2, total: 4, isCompleted: false }],
+        ['removingSource', { current: 3, total: 4, isCompleted: false }],
+        ['completed', { current: 4, total: 4, isCompleted: true }],
+    ])('should place %s at %o', (phase, expected) => {
+        expect(getGuardianTransferProgress(phase)).toEqual(expected)
+    })
+})
+
+describe('common/redux/fi › getGuardianTransferErrorKey', () => {
+    it.each<[RpcFaSelectionReauthorizationReason, string]>([
+        [
+            'previewExpired',
+            'feature.wallet-service.transfer-error-preview-expired',
+        ],
+        [
+            'advertisementEstimateExceedsLimit',
+            'feature.wallet-service.transfer-error-advertised-price-changed',
+        ],
+        [
+            'selectedMgUnavailable',
+            'feature.wallet-service.transfer-error-host-unavailable',
+        ],
+        [
+            'quoteTotalExceedsLimit',
+            'feature.wallet-service.transfer-error-quote-price-changed',
+        ],
+        [
+            'quoteTermsChanged',
+            'feature.wallet-service.transfer-error-terms-changed',
+        ],
+        [
+            'selectedPayerUnavailable',
+            'feature.wallet-service.transfer-error-payer-unavailable',
+        ],
+        [
+            'selectedPayerInsufficientFunds',
+            'feature.wallet-service.transfer-error-payer-insufficient-funds',
+        ],
+        [
+            'verifierEnvironmentChanged',
+            'feature.wallet-service.transfer-error-verifier-changed',
+        ],
+        [
+            'paymentFederationRequired',
+            'feature.wallet-service.transfer-error-payment-federation-required',
+        ],
+    ])('should map the %s reason to its own key', (reason, key) => {
+        expect(
+            getGuardianTransferErrorKey({
+                code: 'selection',
+                message: 'reauthorize',
+                detail: { type: 'selectionReauthorizationRequired', reason },
+            }),
+        ).toBe(key)
+    })
+
+    it('should give busy the transfer retry key, not the setup-wide one', () => {
+        expect(
+            getGuardianTransferErrorKey(makeError('busy', 'mid-change')),
+        ).toBe('feature.wallet-service.transfer-error-busy')
+    })
+
+    it('should give no free host its own key, not the smaller size advice', () => {
+        expect(
+            getGuardianTransferErrorKey({
+                code: 'selection',
+                message: 'too few hosts',
+                detail: {
+                    type: 'insufficientMgSeats',
+                    requested: 1,
+                    selected: 0,
+                    seen: 3,
+                    eligible: 0,
+                },
+            }),
+        ).toBe('feature.wallet-service.transfer-error-no-free-host')
+    })
+
+    it.each<[RpcFaOperationError | null | undefined, string]>([
+        [
+            makeError('payment', 'payment failed'),
+            'feature.wallet-service.error-payment',
+        ],
+        [
+            makeError('selection', 'no host picked'),
+            'feature.wallet-service.error-selection',
+        ],
+        [null, 'feature.wallet-service.error-generic'],
+        [undefined, 'feature.wallet-service.error-generic'],
+    ])('should fall back to the setup-wide key for %o', (error, key) => {
+        expect(getGuardianTransferErrorKey(error)).toBe(key)
+    })
+})
+
 describe('common/redux/fi › selectWalletServiceGuardianProgress', () => {
     it('should return null when there is no formation', () => {
         const store = buildStore({ status: { type: 'idle' } })
@@ -2890,5 +3472,29 @@ describe('common/redux/fi › describeFaClientStatusChange', () => {
             level: 'info',
             fields: { state: 'idle' },
         })
+    })
+})
+
+describe('common/redux/fi › selectIsWalletServiceGuardianTransferEnabled', () => {
+    it('should be on when the catalog carries the flag', () => {
+        const store = setupStore()
+        store.dispatch(
+            setFeatureFlags({
+                wallet_service_guardian_transfer: {},
+            } as FeatureCatalog),
+        )
+
+        expect(
+            selectIsWalletServiceGuardianTransferEnabled(store.getState()),
+        ).toBe(true)
+    })
+
+    it('should be off when the catalog omits the flag', () => {
+        const store = setupStore()
+        store.dispatch(setFeatureFlags({} as FeatureCatalog))
+
+        expect(
+            selectIsWalletServiceGuardianTransferEnabled(store.getState()),
+        ).toBe(false)
     })
 })

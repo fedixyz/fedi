@@ -13,6 +13,8 @@ import {
     RpcFaFederationJoinState,
     RpcFaFormationSnapshot,
     RpcFaFormedFederation,
+    RpcFaGuardianTransfer,
+    RpcFaGuardianTransferResult,
     RpcFaLiquidityDiscoveryResult,
     RpcFaLiquidityNetwork,
     RpcFaLiquidityOperation,
@@ -20,6 +22,8 @@ import {
     RpcFaLiquidityProvider,
     RpcFaOperationError,
     RpcFaOperationResult,
+    RpcFaReplacementCandidates,
+    RpcFaReplacementCheck,
     RpcFaReplacementPreview,
     RpcFaSelectionPreview,
     RpcFaSelectionPreviewRequest,
@@ -78,8 +82,12 @@ type StreamEmitter = (update: {
     stream_id: number
     sequence: number
     // the real bridge streams the same envelope `faClientStatus` returns,
-    // and `setFaClientStatus` only reads `status` from a `ready` envelope
-    data: RpcFaClientStatus
+    // and `setFaClientStatus` only reads `status` from a `ready` envelope;
+    // the candidates and transfer streams send their own envelopes
+    data:
+        | RpcFaClientStatus
+        | RpcFaReplacementCandidates
+        | RpcFaGuardianTransferResult
 }) => void
 
 /**
@@ -178,6 +186,12 @@ export class FaSimulator implements FaWorld {
     private previews = new Map<string, RpcFaSelectionPreview>()
     private replacementPreviewId: string | null = null
     private streamIds = new Set<number>()
+    /** Streams of `faClientSubscribeReplacementCandidates`, by id. */
+    private candidateStreamIds = new Set<number>()
+    private replacementCheck: RpcFaReplacementCheck | null = null
+    /** Streams of `faClientSubscribeGuardianTransfer`, by id. */
+    private transferStreamIds = new Set<number>()
+    private guardianTransfer: RpcFaGuardianTransfer | null = null
     private sequences = new Map<number, number>()
     private emitStream: StreamEmitter | null = null
     private eventEmitter: EventEmitter | null = null
@@ -466,6 +480,8 @@ export class FaSimulator implements FaWorld {
         this.simulatorJoinedIds.clear()
         this.status = { type: 'idle' }
         this.publish()
+        this.setReplacementCheck(null)
+        this.setGuardianTransfer(null)
     }
 
     /**
@@ -480,7 +496,11 @@ export class FaSimulator implements FaWorld {
      */
     handles(method: string, payload: Record<string, unknown>): boolean {
         if (method === 'streamCancel')
-            return this.streamIds.has(payload.streamId as number)
+            return (
+                this.streamIds.has(payload.streamId as number) ||
+                this.candidateStreamIds.has(payload.streamId as number) ||
+                this.transferStreamIds.has(payload.streamId as number)
+            )
         if (method === 'generateInvoice')
             return this.isMockPayer(payload.federationId as string)
         // paying is ours when the invoice is one we issued, whoever is paying
@@ -569,6 +589,10 @@ export class FaSimulator implements FaWorld {
                 return this.clientStatus()
             case 'faClientSubscribe':
                 return this.subscribe(payload.streamId as number)
+            case 'faClientSubscribeReplacementCandidates':
+                return this.subscribeCandidates(payload.streamId as number)
+            case 'faClientSubscribeGuardianTransfer':
+                return this.subscribeTransfer(payload.streamId as number)
             case 'faClientEligiblePayers':
                 return this.eligiblePayers()
             case 'faClientSetupPaymentFederations':
@@ -929,8 +953,8 @@ export class FaSimulator implements FaWorld {
             // about a federation that formed
             return federation.seats.map(seat => ({
                 online: {
-                    guardian: seat.mgId,
-                    mg_name: null,
+                    guardian: seat.mgName,
+                    mg_name: seat.mgName,
                     latency_ms: 1,
                 },
             }))
@@ -1102,8 +1126,70 @@ export class FaSimulator implements FaWorld {
 
     private unsubscribe(streamId: number): null {
         this.streamIds.delete(streamId)
+        this.candidateStreamIds.delete(streamId)
+        this.transferStreamIds.delete(streamId)
         this.sequences.delete(streamId)
         return null
+    }
+
+    private subscribeCandidates(streamId: number): null {
+        this.candidateStreamIds.add(streamId)
+        this.sequences.set(streamId, 0)
+        // the real bridge sends the latest check immediately on subscribe
+        setTimeout(() => this.publishCandidatesTo(streamId), 0)
+        return null
+    }
+
+    /** The bridge's latest replacement check, as a script sets it. */
+    setReplacementCheck(check: RpcFaReplacementCheck | null) {
+        this.replacementCheck = check
+        this.candidateStreamIds.forEach(streamId =>
+            this.publishCandidatesTo(streamId),
+        )
+    }
+
+    private publishCandidatesTo(streamId: number) {
+        if (!this.emitStream || !this.candidateStreamIds.has(streamId)) return
+        const sequence = this.sequences.get(streamId) ?? 0
+        this.sequences.set(streamId, sequence + 1)
+        this.emitStream({
+            stream_id: streamId,
+            sequence,
+            data: structuredCloneish({
+                type: 'ready',
+                check: this.replacementCheck,
+            }),
+        })
+    }
+
+    private subscribeTransfer(streamId: number): null {
+        this.transferStreamIds.add(streamId)
+        this.sequences.set(streamId, 0)
+        // the real bridge sends the current move immediately on subscribe
+        setTimeout(() => this.publishTransferTo(streamId), 0)
+        return null
+    }
+
+    /** The move the bridge's transfer stream reports, as a script sets it. */
+    setGuardianTransfer(transfer: RpcFaGuardianTransfer | null) {
+        this.guardianTransfer = transfer
+        this.transferStreamIds.forEach(streamId =>
+            this.publishTransferTo(streamId),
+        )
+    }
+
+    private publishTransferTo(streamId: number) {
+        if (!this.emitStream || !this.transferStreamIds.has(streamId)) return
+        const sequence = this.sequences.get(streamId) ?? 0
+        this.sequences.set(streamId, sequence + 1)
+        this.emitStream({
+            stream_id: streamId,
+            sequence,
+            data: structuredCloneish({
+                type: 'transfer',
+                transfer: this.guardianTransfer,
+            }),
+        })
     }
 
     /*** Commands ***/

@@ -21,10 +21,15 @@ import {
     selectIsWalletServiceCreationEnabled,
     selectIsWalletServiceUsable,
     selectIsWalletServiceWalletReady,
+    selectGuardianHealthSimulation,
     selectLoadedFederation,
     selectOnboardingCompleted,
     selectWalletServiceRecoveryStage,
     setFaClientStatus,
+    setReplacementCandidates,
+    setGuardianTransfer,
+    selectIsWalletServiceFormed,
+    selectIsWalletServiceGuardianTransferEnabled,
     recordFaLiquidityAbsent,
     setFaLiquidityError,
     setFaLiquidityOperation,
@@ -45,6 +50,7 @@ import type {
 } from '../types/bindings'
 import { type FederationMetadata } from '../types/fedimint'
 import { getAutojoinCommunities } from '../utils/FederationUtils'
+import { federationHasQuorum } from '../utils/federationHealth'
 import { makeLog } from '../utils/log'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
@@ -150,6 +156,70 @@ export function useMonitorFaClient({
         log.info('fa client status re-read on foreground')
         dispatch(refreshFaStatus({ fedimint }))
     }, [dispatch, fedimint, isEnabled, isOnboarded, isForeground])
+}
+
+/**
+ * Keep the guardians the bridge flagged for replacement in redux while the
+ * caller is mounted.
+ *
+ * The bridge checks a formed service when it becomes ready and then hourly,
+ * and streams each result, so this only listens. A stream that fails keeps
+ * the last check up: it says nothing about the guardians.
+ */
+export function useMonitorReplacementCandidates() {
+    const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
+    const isEnabled = useCommonSelector(
+        selectIsWalletServiceGuardianTransferEnabled,
+    )
+    const isFormed = useCommonSelector(selectIsWalletServiceFormed)
+
+    useEffect(() => {
+        if (!isEnabled || !isFormed) return
+        return fedimint.faClientSubscribeReplacementCandidates({
+            callback: candidates => {
+                if (candidates.type === 'failed')
+                    log.error(
+                        'replacement candidates unavailable',
+                        candidates.error,
+                    )
+                dispatch(setReplacementCandidates(candidates))
+            },
+            onError: error =>
+                log.error('replacement candidates subscribe failed', error),
+        })
+    }, [dispatch, fedimint, isEnabled, isFormed])
+}
+
+/**
+ * Keep the guardian transfer in redux while the caller is mounted.
+ *
+ * The bridge's own loop carries a move forward and streams every phase,
+ * including `completed`, so this only listens. An error item says nothing
+ * about the move, so the last one stays up.
+ */
+export function useMonitorGuardianTransfer() {
+    const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
+    const isEnabled = useCommonSelector(
+        selectIsWalletServiceGuardianTransferEnabled,
+    )
+    const isFormed = useCommonSelector(selectIsWalletServiceFormed)
+
+    useEffect(() => {
+        if (!isEnabled || !isFormed) return
+        return fedimint.faClientSubscribeGuardianTransfer({
+            callback: result => {
+                if (result.type === 'error') {
+                    log.error('guardian transfer unavailable', result.error)
+                    return
+                }
+                dispatch(setGuardianTransfer(result.transfer))
+            },
+            onError: error =>
+                log.error('guardian transfer subscribe failed', error),
+        })
+    }, [dispatch, fedimint, isEnabled, isFormed])
 }
 
 /**
@@ -276,6 +346,21 @@ export function useWalletServiceFederationId(): string | null {
     }, [inviteCode, fedimint])
 
     return federationId
+}
+
+/**
+ * Whether enough of the wallet service's guardians respond for members to
+ * make payments, by the status its dashboard dot shows. Null until known.
+ */
+export function useWalletServiceHasQuorum(): boolean | null {
+    const federationId = useWalletServiceFederationId()
+    const status = useCommonSelector(s =>
+        federationId
+            ? (selectGuardianHealthSimulation(s, federationId)?.status ??
+              selectLoadedFederation(s, federationId)?.status)
+            : undefined,
+    )
+    return federationHasQuorum(status ?? 'unknown')
 }
 
 /**

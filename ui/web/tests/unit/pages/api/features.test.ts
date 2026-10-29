@@ -65,4 +65,22 @@ describe('remote feature serving', () => {
             )
         },
     )
+
+    it.each([
+        ['production', undefined, false],
+        ['production', 'edge', false],
+        ['preview', undefined, true],
+        ['preview', 'edge', true],
+        ['development', undefined, true],
+    ])(
+        'should serve guardian replacement for %s with flavor %s as %s',
+        async (env, flavor, enabled) => {
+            const response = await serve(env, flavor)
+            expect(response.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    walletServiceGuardianTransfer: enabled,
+                }),
+            )
+        },
+    )
 })
