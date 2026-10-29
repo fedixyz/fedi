@@ -133,6 +133,7 @@ export type ParsedFederationInvite = ParsedData<
     ParserDataType.FedimintInvite,
     {
         invite: string
+        federationId?: string
     }
 >
 

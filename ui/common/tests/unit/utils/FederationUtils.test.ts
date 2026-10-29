@@ -370,6 +370,26 @@ describe('FederationUtils', () => {
                 findFederationByInviteCode([baseFed], joinedFed.inviteCode),
             ).toBeUndefined()
         })
+
+        it('matches an older invite by federation id', () => {
+            expect(
+                findFederationByInviteCode(
+                    [baseFed, joinedFed],
+                    'fed11older',
+                    joinedFed.id,
+                ),
+            ).toEqual(joinedFed)
+        })
+
+        it('does not match a different federation id through its code', () => {
+            expect(
+                findFederationByInviteCode(
+                    [joinedFed],
+                    joinedFed.inviteCode,
+                    'other',
+                ),
+            ).toBeUndefined()
+        })
     })
 
     describe('switchGateway', () => {

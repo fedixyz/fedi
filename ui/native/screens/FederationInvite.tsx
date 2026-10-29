@@ -21,7 +21,8 @@ const FederationInvite: React.FC<Props> = ({ route }: Props) => {
     return (
         <QRScreen
             dark
-            qrValue={inviteLink}
+            qrValue={inviteLink.toUpperCase()}
+            copyValue={inviteLink}
             copyMessage={t('feature.federations.copied-federation-invite')}
             shareValue={shareLink}
         />

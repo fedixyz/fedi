@@ -116,6 +116,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                 const existingFederation = findFederationByInviteCode(
                     loadedFederations,
                     parsedData.data.invite,
+                    parsedData.data.federationId,
                 )
 
                 if (existingFederation)

@@ -367,6 +367,7 @@ describe('parseUserInput', () => {
     // --- Run the tests ---
 
     const fedimint = {
+        parseInviteCode: async () => ({ federationId: mockFedId }),
         parseInvoice: async (invoice: string) => {
             if (invoice === simpleBolt11) {
                 return simpleBolt11Invoice
@@ -389,6 +390,41 @@ describe('parseUserInput', () => {
 
     const truncate = (str: string) =>
         str.length > 40 ? `${str.slice(0, 37)}...` : str
+
+    it('identifies a federation from an uppercase invite while offline', async () => {
+        const invite = 'FED11Q'.repeat(50)
+        const parseInviteCode = jest.fn().mockResolvedValue({
+            federationId: mockFedId,
+        })
+        const parsed = await parseUserInput(
+            invite,
+            { ...fedimint, parseInviteCode } as unknown as FedimintBridge,
+            t,
+            '',
+            true,
+        )
+
+        expect(parsed).toEqual({
+            type: ParserDataType.FedimintInvite,
+            data: { invite, federationId: mockFedId },
+        })
+        expect(parseInviteCode).toHaveBeenCalledWith(invite.toLowerCase())
+    })
+
+    it('rejects an invite that the bridge cannot decode', async () => {
+        const parseInviteCode = jest
+            .fn()
+            .mockRejectedValue(new Error('invalid invite'))
+        const parsed = await parseUserInput(
+            'fed11invalid',
+            { ...fedimint, parseInviteCode } as unknown as FedimintBridge,
+            t,
+            '',
+            false,
+        )
+
+        expect(parsed.type).toBe(ParserDataType.Unknown)
+    })
 
     for (const testCase of testCases) {
         it(`parses ${testCase.type} from ${truncate(testCase.input)}`, async () => {

@@ -190,6 +190,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                 const existingFederation = findFederationByInviteCode(
                     walletFederations,
                     parsedData.data.invite,
+                    parsedData.data.federationId,
                 )
 
                 if (existingFederation)

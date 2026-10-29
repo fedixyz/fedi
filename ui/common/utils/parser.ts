@@ -117,7 +117,7 @@ const offlineParsers: Parser[] = [
     },
     {
         name: 'parseFedimintInvite',
-        handler: raw => parseFedimintInvite(raw),
+        handler: (raw, fedimint) => parseFedimintInvite(raw, fedimint),
     },
     {
         name: 'parseCommunityInvite',
@@ -655,13 +655,20 @@ async function parseFediUri(
     }
 }
 
-function parseFedimintInvite(raw: string): ParsedFederationInvite | undefined {
+async function parseFedimintInvite(
+    raw: string,
+    fedimint: FedimintBridge,
+): Promise<ParsedFederationInvite | undefined> {
     // Federation invite code
-    // TODO: Proper bech32 validation
-    // TODO: Use future bridge method for fetching federation info https://github.com/fedibtc/fedi/issues/1380
     // TODO: Consider standard URI prefix?
     if (raw.toLowerCase().startsWith('fed1')) {
-        return { type: ParserDataType.FedimintInvite, data: { invite: raw } }
+        const { federationId } = await fedimint.parseInviteCode(
+            raw.toLowerCase(),
+        )
+        return {
+            type: ParserDataType.FedimintInvite,
+            data: { invite: raw, federationId },
+        }
     }
 }
 

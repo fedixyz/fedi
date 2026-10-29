@@ -10,6 +10,21 @@ import { resetToHomeWithScreen } from '../../../state/navigation'
 import * as linking from '../../../utils/linking'
 
 describe('linking', () => {
+    it.each([240, 480, 1024, 2048, 4096])(
+        'preserves a %i-character federation invite in the join route',
+        length => {
+            const invite = 'fed11' + 'q'.repeat(length - 5)
+            for (const delimiter of ['?', '#']) {
+                const url = `https://app.fedi.xyz/link${delimiter}screen=join&id=${invite}`
+                expect(
+                    linking.getInternalLinkNavigationArgs(
+                        getNavigationLink(url) ?? '',
+                    ),
+                ).toEqual(['JoinFederation', { invite }])
+            }
+        },
+    )
+
     it.each([
         'fedi://discover',
         'fedi:discover',

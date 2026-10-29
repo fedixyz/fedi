@@ -681,9 +681,14 @@ export const getPreviewFromLoadedFederation = (
 export const findFederationByInviteCode = (
     federations: LoadedFederation[],
     inviteCode: string,
+    federationId?: string,
 ) => {
     const code = inviteCode.toLowerCase()
-    return federations.find(f => f.inviteCode.toLowerCase() === code)
+    return federations.find(f =>
+        federationId
+            ? f.id === federationId
+            : f.inviteCode.toLowerCase() === code,
+    )
 }
 
 // Finds matching federation using url

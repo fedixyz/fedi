@@ -52,33 +52,41 @@ describe('/components/OmniInput/OmniConfirmation', () => {
         )
     })
 
-    it('should offer to open the wallet when scanning the invite of a joined federation', () => {
-        const store = setupStore()
-        store.dispatch(setFederations([mockFederation1]))
-        const federationInvite: ParsedFederationInvite = {
-            type: ParserDataType.FedimintInvite,
-            data: { invite: mockFederation1.inviteCode },
-        }
+    it.each([false, true])(
+        'should open a joined wallet with an older invite: %s',
+        olderInvite => {
+            const store = setupStore()
+            store.dispatch(setFederations([mockFederation1]))
+            const federationInvite: ParsedFederationInvite = {
+                type: ParserDataType.FedimintInvite,
+                data: {
+                    invite: olderInvite
+                        ? 'fed11older'
+                        : mockFederation1.inviteCode,
+                    federationId: olderInvite ? mockFederation1.id : undefined,
+                },
+            }
 
-        renderWithProviders(
-            <OmniConfirmation
-                parsedData={federationInvite}
-                onGoBack={jest.fn()}
-                onSuccess={jest.fn()}
-            />,
-            { store },
-        )
+            renderWithProviders(
+                <OmniConfirmation
+                    parsedData={federationInvite}
+                    onGoBack={jest.fn()}
+                    onSuccess={jest.fn()}
+                />,
+                { store },
+            )
 
-        expect(
-            screen.getByText(
-                i18n.t('feature.omni.existing-federation-membership'),
-            ),
-        ).toBeInTheDocument()
+            expect(
+                screen.getByText(
+                    i18n.t('feature.omni.existing-federation-membership'),
+                ),
+            ).toBeInTheDocument()
 
-        fireEvent.click(screen.getByText(i18n.t('phrases.take-me-there')))
+            fireEvent.click(screen.getByText(i18n.t('phrases.take-me-there')))
 
-        expect(mockUseRouter.push).toHaveBeenCalledWith(walletRoute)
-    })
+            expect(mockUseRouter.push).toHaveBeenCalledWith(walletRoute)
+        },
+    )
 
     it('should offer to join when scanning the invite of a federation that is not joined', () => {
         const store = setupStore()

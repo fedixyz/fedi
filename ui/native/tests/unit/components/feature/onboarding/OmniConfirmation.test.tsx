@@ -84,34 +84,44 @@ describe('components/feature/omni/OmniConfirmation', () => {
             )
             expect(stabilityText).toBeOnTheScreen()
         })
-        it('should offer to open the wallet when scanning the invite of a joined federation', async () => {
-            store.dispatch(setFederations([mockFederation1]))
-            const parsedData: ParsedFederationInvite = {
-                type: ParserDataType.FedimintInvite,
-                data: { invite: mockFederation1.inviteCode },
-            }
+        it.each([false, true])(
+            'should open a joined wallet with an older invite: %s',
+            async olderInvite => {
+                store.dispatch(setFederations([mockFederation1]))
+                const parsedData: ParsedFederationInvite = {
+                    type: ParserDataType.FedimintInvite,
+                    data: {
+                        invite: olderInvite
+                            ? 'fed11older'
+                            : mockFederation1.inviteCode,
+                        federationId: olderInvite
+                            ? mockFederation1.id
+                            : undefined,
+                    },
+                }
 
-            renderWithProviders(
-                <OmniConfirmation
-                    parsedData={parsedData}
-                    onGoBack={() => {}}
-                    onSuccess={() => {}}
-                />,
-                { store },
-            )
+                renderWithProviders(
+                    <OmniConfirmation
+                        parsedData={parsedData}
+                        onGoBack={() => {}}
+                        onSuccess={() => {}}
+                    />,
+                    { store },
+                )
 
-            expect(
-                screen.getByText(
-                    i18n.t('feature.omni.existing-federation-membership'),
-                ),
-            ).toBeOnTheScreen()
+                expect(
+                    screen.getByText(
+                        i18n.t('feature.omni.existing-federation-membership'),
+                    ),
+                ).toBeOnTheScreen()
 
-            fireEvent.press(screen.getByText('Take me there'))
+                fireEvent.press(screen.getByText('Take me there'))
 
-            expect(store.getState().federation.selectedFederationId).toBe(
-                mockFederation1.id,
-            )
-        })
+                expect(store.getState().federation.selectedFederationId).toBe(
+                    mockFederation1.id,
+                )
+            },
+        )
         it('should offer to join when scanning the invite of a federation that is not joined', () => {
             store.dispatch(setFederations([mockFederation1]))
             const parsedData: ParsedFederationInvite = {

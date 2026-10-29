@@ -1,6 +1,19 @@
 import { getDeepLinkPath } from '../../../src/utils/linking'
 
 describe('utils/linking', () => {
+    it.each([240, 480, 1024, 2048, 4096])(
+        'preserves a %i-character federation invite in the join route',
+        length => {
+            const invite = 'fed11' + 'q'.repeat(length - 5)
+            for (const delimiter of ['?', '#']) {
+                const path = getDeepLinkPath(
+                    `https://app.fedi.xyz/link${delimiter}screen=join&id=${invite}`,
+                )
+                expect(path).toBe(`/onboarding/join#id=${invite}`)
+            }
+        },
+    )
+
     it.each(['?', '#'])(
         'should open the Discover tab for a link with a %s separator',
         separator => {
