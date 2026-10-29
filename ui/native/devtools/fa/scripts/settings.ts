@@ -1,4 +1,4 @@
-import { formationAt, formationStatus } from '../status'
+import { formedAt, formedStatus } from '../status'
 import {
     FaScript,
     checkpoint,
@@ -15,7 +15,7 @@ import {
 export const settingsAutojoinUnsupported: FaScript = script(
     'settings.autojoinUnsupported',
     [
-        stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+        stream(ctx => formedStatus(formedAt(ctx))),
         formWalletService('ready'),
         stub('faClientUpdateFederationMetadata', () => ({
             type: 'error',

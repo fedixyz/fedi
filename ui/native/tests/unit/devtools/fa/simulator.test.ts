@@ -24,6 +24,8 @@ import { FaSimulator } from '../../../../devtools/fa/simulator'
 import {
     formationAt,
     formationStatus,
+    formedAt,
+    formedStatus,
     withAuthorization,
     withError,
     withUnsynced,
@@ -517,7 +519,19 @@ describe('FaSimulator', () => {
     })
 
     describe('guardian fee', () => {
-        it('should refuse a fee before the federation is formed', async () => {
+        it('should refuse a fee with no federation at all', async () => {
+            const simulator = new FaSimulator()
+
+            const result = (await simulator.handle('faClientSetGuardianFee', {
+                guardianFeePpm: 5_000,
+            })) as RpcFaOperationResult
+
+            expect(result.type).toBe('error')
+            if (result.type !== 'error') return
+            expect(result.error.code).toBe('noActiveFormation')
+        })
+
+        it('should refuse a fee while setup is still a formation', async () => {
             const simulator = new FaSimulator()
             await payWithFreshPreview(simulator)
 
@@ -527,7 +541,22 @@ describe('FaSimulator', () => {
 
             expect(result.type).toBe('error')
             if (result.type !== 'error') return
-            expect(result.error.code).toBe('noActiveFormation')
+            expect(result.error.code).toBe('invalidIntent')
+        })
+
+        it('should refuse a fee while a formed federation is being rechecked', async () => {
+            const simulator = new FaSimulator()
+            simulator.setStatus(
+                formedStatus(withUnsynced(formedAt({ formationId: 'f1' }))),
+            )
+
+            const result = (await simulator.handle('faClientSetGuardianFee', {
+                guardianFeePpm: 5_000,
+            })) as RpcFaOperationResult
+
+            expect(result.type).toBe('error')
+            if (result.type !== 'error') return
+            expect(result.error.code).toBe('invalidIntent')
         })
 
         it('should refuse a fee above the 210,000 ppm ceiling', async () => {
@@ -541,20 +570,6 @@ describe('FaSimulator', () => {
             expect(result.type).toBe('error')
             if (result.type !== 'error') return
             expect(result.error.code).toBe('invalidIntent')
-        })
-
-        it('should record the fee once the federation is formed', async () => {
-            const simulator = new FaSimulator()
-            await formInstantly(simulator)
-
-            const result = (await simulator.handle('faClientSetGuardianFee', {
-                guardianFeePpm: 5_000,
-            })) as RpcFaOperationResult
-
-            expect(result).toEqual({ type: 'success' })
-            expect(
-                (await currentFormation(simulator)).intent.guardianFeePpm,
-            ).toBe(5_000)
         })
     })
 
@@ -741,9 +756,7 @@ describe('FaSimulator', () => {
 
         it('should seed an already attached provider as verified', async () => {
             const simulator = new FaSimulator()
-            simulator.setStatus(
-                formationStatus(formationAt({ formationId: 'f1' }, 'formed')),
-            )
+            simulator.setStatus(formedStatus(formedAt({ formationId: 'f1' })))
             simulator.startLiquidity({ verified: true })
 
             const current = (await simulator.handle(
@@ -781,10 +794,9 @@ describe('FaSimulator', () => {
 
         const formedInvite = async (simulator: FaSimulator) => {
             await formInstantly(simulator)
-            const formation = await currentFormation(simulator)
-            if (!formation.inviteCode) throw new Error('expected an invite')
+            const federation = await currentFormed(simulator)
             simulator.formWalletService('ready')
-            return formation.inviteCode
+            return federation.federationInvite
         }
 
         it('should name a seeded payer from its story, and prefer a name given by hand', () => {
@@ -944,12 +956,12 @@ describe('FaSimulator', () => {
             const statuses = (await simulator.handle('getGuardianStatus', {
                 federationId: announced.id,
             })) as GuardianStatus[]
-            const { seats } = await currentFormation(simulator)
-            expect(statuses).toHaveLength(10)
-            expect(statuses[0]).toEqual({
+            const { seats } = await currentFormed(simulator)
+            expect(statuses).toHaveLength(seats.length)
+            expect(statuses[9]).toEqual({
                 online: {
-                    guardian: seats[0]?.mgName,
-                    mg_name: seats[0]?.mgName,
+                    guardian: seats[9].mgId,
+                    mg_name: null,
                     latency_ms: 1,
                 },
             })
@@ -1045,7 +1057,7 @@ describe('FaSimulator', () => {
     })
 
     // The bridge runs one auto-join for both paths: `formed_federation_invite`
-    // yields the invite for a `formation` status as well as a `restored` one.
+    // yields the invite for a `formed` status, created here or restored.
     // Without it the created path reported no join at all, so the dashboard's
     // failed-join handling was unreachable in dev.
     describe('created federation auto-join', () => {
@@ -1215,19 +1227,19 @@ describe('FaSimulator', () => {
                 () => {},
                 (event, payload) => events.push([event, payload]),
             )
-            simulator.setStatus({
-                type: 'formation',
-                formation: formationAt(
-                    { formationId: 'formation_x' },
-                    'formed',
-                ),
-            })
+            simulator.setStatus(
+                formedStatus(formedAt({ formationId: 'formation_x' })),
+            )
 
             simulator.formWalletService('ready')
 
             const listed = simulator.listMockFederations()
-            expect(listed.map(f => f.id)).toContain(
-                'mock-wallet-service-formation_x',
+            // a federation with nothing to recover starts empty
+            expect(listed).toContainEqual(
+                expect.objectContaining({
+                    id: 'mock-wallet-service-formation_x',
+                    balance: 0,
+                }),
             )
             expect(events.map(([e]) => e)).toEqual([
                 'federation',
@@ -1251,13 +1263,9 @@ describe('FaSimulator', () => {
                 () => {},
                 (event, payload) => events.push([event, payload]),
             )
-            simulator.setStatus({
-                type: 'formation',
-                formation: formationAt(
-                    { formationId: 'formation_y' },
-                    'formed',
-                ),
-            })
+            simulator.setStatus(
+                formedStatus(formedAt({ formationId: 'formation_y' })),
+            )
 
             simulator.formWalletService('failed')
 
@@ -1439,10 +1447,7 @@ describe('FaSimulator', () => {
 
         it('should start a liquidity operation from the world, verified or not', async () => {
             const simulator = new FaSimulator()
-            simulator.setStatus({
-                type: 'formation',
-                formation: formationAt({ formationId: 'f1' }, 'formed'),
-            })
+            simulator.setStatus(formedStatus(formedAt({ formationId: 'f1' })))
 
             simulator.startLiquidity({ verified: true })
 
@@ -1472,10 +1477,7 @@ describe('FaSimulator', () => {
             const simulator = new FaSimulator()
             const emitEvent = jest.fn()
             simulator.attach(jest.fn(), emitEvent)
-            simulator.setStatus({
-                type: 'formation',
-                formation: formationAt({ formationId: 'f1' }, 'formed'),
-            })
+            simulator.setStatus(formedStatus(formedAt({ formationId: 'f1' })))
 
             simulator.formWalletService('recovering')
 
@@ -1484,6 +1486,7 @@ describe('FaSimulator', () => {
                 expect.objectContaining({
                     id: 'mock-wallet-service-f1',
                     recovering: true,
+                    balance: 21_000_000,
                 }),
             )
             expect(emitEvent).toHaveBeenCalledWith('faFederationJoin', {
@@ -1497,16 +1500,15 @@ describe('FaSimulator', () => {
             const emitEvent = jest.fn()
             simulator.attach(jest.fn(), emitEvent)
             simulator.setStatus({
-                type: 'restored',
-                formation: {
-                    snapshotGeneration: 1,
+                type: 'formed',
+                federation: {
                     formationId: 'r1',
                     federationInvite: 'fed1restored',
                     federationName: 'Restored',
                     seats: [],
-                    phase: 'formed',
                     freshness: 'fresh',
                     backupEligible: true,
+                    origin: 'thisDevice',
                 },
             })
 
@@ -1525,15 +1527,15 @@ describe('FaSimulator', () => {
             const simulator = new FaSimulator()
             const emitEvent = jest.fn()
             simulator.attach(jest.fn(), emitEvent)
-            const formation = formationAt({ formationId: 'f1' }, 'formed')
-            simulator.setStatus({ type: 'formation', formation })
+            const federation = formedAt({ formationId: 'f1' })
+            simulator.setStatus(formedStatus(federation))
 
             simulator.formWalletService('joining')
             // If the join report re-forms the federation, the second report
-            // would pick up this renamed intent; keeping the original name
+            // would pick up this renamed federation; keeping the original name
             // proves the federation created on `joining` was reused, not
             // rebuilt, when `ready` landed.
-            formation.intent.federationName = 'Renamed mid-join'
+            federation.federationName = 'Renamed mid-join'
             simulator.formWalletService('ready')
 
             expect(walletServiceListing(simulator)?.name).toBe(
@@ -1549,10 +1551,7 @@ describe('FaSimulator', () => {
             const simulator = new FaSimulator()
             const emitEvent = jest.fn()
             simulator.attach(jest.fn(), emitEvent)
-            simulator.setStatus({
-                type: 'formation',
-                formation: formationAt({ formationId: 'f1' }, 'formed'),
-            })
+            simulator.setStatus(formedStatus(formedAt({ formationId: 'f1' })))
 
             simulator.formWalletService('failed')
 
@@ -1597,7 +1596,7 @@ function formAndJoin(
     formationId: string,
     join: FaWalletServiceJoin,
 ) {
-    simulator.setStatus(formationStatus(formationAt({ formationId }, 'formed')))
+    simulator.setStatus(formedStatus(formedAt({ formationId })))
     simulator.formWalletService(join)
 }
 
@@ -1632,16 +1631,12 @@ async function formInstantly(simulator: FaSimulator) {
     await payWithFreshPreview(simulator)
     const formation = await currentFormation(simulator)
     simulator.setStatus(
-        formationStatus(
-            formationAt(
-                {
-                    formationId: formation.formationId,
-                    federationName:
-                        formation.intent.federationName ?? undefined,
-                    federationSize: formation.intent.federationSize,
-                },
-                'formed',
-            ),
+        formedStatus(
+            formedAt({
+                formationId: formation.formationId,
+                federationName: formation.intent.federationName ?? undefined,
+                federationSize: formation.intent.federationSize,
+            }),
         ),
     )
 }
@@ -1665,4 +1660,13 @@ async function currentFormation(simulator: FaSimulator) {
     >
     const inner = current.status as Extract<RpcFaStatus, { type: 'formation' }>
     return inner.formation
+}
+
+async function currentFormed(simulator: FaSimulator) {
+    const current = (await status(simulator)) as Extract<
+        RpcFaClientStatus,
+        { type: 'ready' }
+    >
+    const inner = current.status as Extract<RpcFaStatus, { type: 'formed' }>
+    return inner.federation
 }

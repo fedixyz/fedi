@@ -22,8 +22,10 @@ import {
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type {
-    RpcFaFormationSnapshot,
+    RpcFaFormationPhase,
+    RpcFaFormedFederation,
     RpcFaLiquidityOperation,
+    RpcFaStatus,
 } from '@fedi/common/types/bindings'
 
 import { ServiceSheet } from '../../../components/feature/walletservice/ServiceSheet'
@@ -51,33 +53,44 @@ jest.mock('../../../utils/hooks/support', () => ({
     useLaunchZendesk: () => ({ launchZendesk: mockLaunchZendesk }),
 }))
 
-const makeFormation = (
-    overrides: Partial<RpcFaFormationSnapshot> = {},
-): RpcFaFormationSnapshot => ({
+const makeFederation = (
+    overrides: Partial<RpcFaFormedFederation> = {},
+): RpcFaFormedFederation => ({
     formationId: 'formation-1',
-    phase: 'formed',
-    intent: {
-        federationName: 'My Wallet Service',
-        federationSize: 7,
-        // the resolved intent is creation-time and the app sends no fee at
-        // creation, so the bridge reports 0 here whatever the applied rate.
-        // The applied rate comes from federation consensus metadata.
-        guardianFeePpm: 0,
-        plan: 'infiniteBestEffort',
-        maxTotalMsats: null,
-    },
+    federationInvite: 'fed11invite',
+    federationName: 'My Wallet Service',
     seats: [],
     freshness: 'fresh',
-    actionRequired: null,
-    paymentOutputsStarted: false,
-    milestones: {
-        ecashSent: true,
-        guardiansConfirmed: true,
-        walletServiceCreated: true,
-    },
-    inviteCode: 'fed11invite',
-    lastError: null,
+    backupEligible: true,
+    origin: 'thisDevice',
     ...overrides,
+})
+
+const formedStatus = (
+    overrides: Partial<RpcFaFormedFederation> = {},
+): RpcFaStatus => ({ type: 'formed', federation: makeFederation(overrides) })
+
+/** A formation still in setup, for the gates that wait for `formed`. */
+const formationStatus = (phase: RpcFaFormationPhase): RpcFaStatus => ({
+    type: 'formation',
+    formation: {
+        formationId: 'formation-1',
+        phase,
+        intent: {
+            federationName: 'My Wallet Service',
+            federationSize: 7,
+            guardianFeePpm: 0,
+            plan: 'infiniteBestEffort',
+            maxTotalMsats: null,
+        },
+        seats: [],
+        freshness: 'fresh',
+        actionRequired: null,
+        paymentOutputsStarted: false,
+        milestones: { ecashSent: true, guardiansConfirmed: true },
+        inviteCode: 'fed11invite',
+        lastError: null,
+    },
 })
 
 /** The applied guardian fee as the federation publishes it: a ppm string. */
@@ -120,13 +133,13 @@ const makePreviewBridge = (
 const renderScreen = ({
     liquidity,
     fedimint = makePreviewBridge(),
-    formation = makeFormation(),
+    status = formedStatus(),
     store = setupStore(),
 }: {
     fedimint?: ReturnType<typeof createMockFedimintBridge>
     /** Pass one in to read what the screen wrote to it afterwards. */
     store?: ReturnType<typeof setupStore>
-    formation?: RpcFaFormationSnapshot
+    status?: RpcFaStatus
     /**
      * What the app-wide monitor has already found.
      *
@@ -137,7 +150,7 @@ const renderScreen = ({
      */
     liquidity?: RpcFaLiquidityOperation | null | false
 } = {}) => {
-    store.dispatch(setFaStatus({ type: 'formation', formation }))
+    store.dispatch(setFaStatus(status))
     // `hasRead: false` is the state before the monitor's durable read answers,
     // and is deliberately NOT the same as "nothing attached"
     if (liquidity === false) {
@@ -448,7 +461,7 @@ describe('screens/WalletServiceSettings', () => {
     // Save called an rpc the bridge rejects outright while reconciling
     it('should disable the sheet Save and explain while the formed service is being rechecked', async () => {
         renderScreen({
-            formation: makeFormation({ freshness: 'unsynced' }),
+            status: formedStatus({ freshness: 'unsynced' }),
         })
 
         await user.press(screen.getByTestId('settings-fee-row'))
@@ -1413,7 +1426,7 @@ describe('screens/WalletServiceSettings', () => {
 
     it('should not open the metadata editor until the wallet service is formed', async () => {
         const fedimint = renderScreen({
-            formation: makeFormation({ phase: 'acquiringSeats' }),
+            status: formationStatus('acquiringSeats'),
         })
 
         await user.press(screen.getByTestId('settings-name-row'))
@@ -1450,7 +1463,7 @@ describe('screens/WalletServiceSettings', () => {
 
         it('should not open the editor before the service is formed', async () => {
             renderScreen({
-                formation: makeFormation({ phase: 'dkgUnderway' }),
+                status: formationStatus('dkgUnderway'),
             })
 
             await user.press(screen.getByTestId('autojoin-spaces-row'))

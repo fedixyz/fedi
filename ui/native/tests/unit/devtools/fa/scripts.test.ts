@@ -2,6 +2,7 @@ import type {
     FaFederationJoinEvent,
     RpcFaClientStatus,
     RpcFaFormationSnapshot,
+    RpcFaFormedFederation,
     RpcFaSelectionPreviewResult,
     RpcFaSetupPaymentFederationsResult,
 } from '@fedi/common/types/bindings'
@@ -25,6 +26,12 @@ const formationOf = (status: RpcFaClientStatus): RpcFaFormationSnapshot => {
     if (status.type !== 'ready' || status.status.type !== 'formation')
         throw new Error(`not a formation: ${JSON.stringify(status)}`)
     return status.status.formation
+}
+
+const formedOf = (status: RpcFaClientStatus): RpcFaFormedFederation => {
+    if (status.type !== 'ready' || status.status.type !== 'formed')
+        throw new Error(`not formed: ${JSON.stringify(status)}`)
+    return status.status.federation
 }
 
 // optional `session` lets a test reuse one simulator/player pair across
@@ -108,23 +115,27 @@ describe('formation scripts', () => {
 
     it('should land the reconnecting screen on unsynced freshness', async () => {
         const { status } = await jumpAndRead('formation.reconnecting')
-        expect(formationOf(status).freshness).toBe('unsynced')
-        expect(formationOf(status).phase).toBe('formed')
+        expect(formedOf(status)).toMatchObject({
+            freshness: 'unsynced',
+            backupEligible: true,
+        })
     })
 
     it('should land the formed screen with a joined wallet service', async () => {
         const { status, simulator } = await jumpAndRead('formation.formed')
-        expect(formationOf(status).phase).toBe('formed')
+        expect(formedOf(status)).toMatchObject({
+            freshness: 'fresh',
+            backupEligible: true,
+        })
         expect(simulator.listMockFederations().map(f => f.id)).toContain(
-            `mock-wallet-service-${formationOf(status).formationId}`,
+            `mock-wallet-service-${formedOf(status).formationId}`,
         )
     })
 
     it('should land the join-failed screen with a failed join and no wallet in the list', async () => {
         const { status, simulator } = await jumpAndRead('formation.joinFailed')
-        expect(formationOf(status).phase).toBe('formed')
         expect(simulator.listMockFederations().map(f => f.id)).not.toContain(
-            `mock-wallet-service-${formationOf(status).formationId}`,
+            `mock-wallet-service-${formedOf(status).formationId}`,
         )
     })
 
@@ -428,16 +439,11 @@ describe('recovery scripts', () => {
     beforeEach(() => jest.useFakeTimers())
     afterEach(() => jest.useRealTimers())
 
-    const restoredOf = (status: RpcFaClientStatus) => {
-        if (status.type !== 'ready' || status.status.type !== 'restored')
-            throw new Error(`not restored: ${JSON.stringify(status)}`)
-        return status.status.formation
-    }
-
     it('should start unsynced with no name and no federation announced', async () => {
         const { status, simulator } = await jumpAndRead('recovery.verifying')
-        expect(restoredOf(status)).toMatchObject({
+        expect(formedOf(status)).toMatchObject({
             freshness: 'unsynced',
+            backupEligible: false,
             federationName: null,
         })
         expect(
@@ -471,7 +477,7 @@ describe('recovery scripts', () => {
                 )
                 .filter(Boolean),
         ).toEqual(['joining'])
-        const status = restoredOf(
+        const status = formedOf(
             (await simulator.handle('faClientStatus', {})) as RpcFaClientStatus,
         )
         expect(status).toMatchObject({
@@ -496,6 +502,7 @@ describe('recovery scripts', () => {
             expect.objectContaining({
                 recovering: false,
                 name: 'My Wallet Service',
+                balance: 21_000_000,
             }),
         )
     })
@@ -577,7 +584,7 @@ describe('lightning scripts', () => {
 
     it('should be formed and joined with a provider that verifies after two polls', async () => {
         const { status, simulator } = await jumpAndRead('lightning.attaches')
-        expect(formationOf(status).phase).toBe('formed')
+        expect(formedOf(status).freshness).toBe('fresh')
         expect(await discover(simulator)).toMatchObject({
             type: 'discovery',
             providers: [expect.anything()],
@@ -671,7 +678,7 @@ describe('settings scripts', () => {
             'settings.autojoinUnsupported',
         )
 
-        expect(formationOf(status).phase).toBe('formed')
+        expect(formedOf(status).freshness).toBe('fresh')
         expect(
             await simulator.handle('faClientUpdateFederationMetadata', {
                 update: {

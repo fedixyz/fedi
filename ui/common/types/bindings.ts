@@ -837,7 +837,6 @@ export type RpcFaFormationIntent = {
 export type RpcFaFormationMilestones = {
   ecashSent: boolean;
   guardiansConfirmed: boolean;
-  walletServiceCreated: boolean;
 };
 
 export type RpcFaFormationPhase =
@@ -847,8 +846,7 @@ export type RpcFaFormationPhase =
   | "preparingDkg"
   | "dkgUnderway"
   | "dkgComplete"
-  | "publishingSeatBindings"
-  | "formed";
+  | "publishingSeatBindings";
 
 export type RpcFaFormationSnapshot = {
   formationId: string;
@@ -861,6 +859,40 @@ export type RpcFaFormationSnapshot = {
   milestones: RpcFaFormationMilestones;
   inviteCode: string | null;
   lastError: RpcFaErrorCode | null;
+};
+
+/**
+ * A formed federation, from a formation on this device or from a backup.
+ */
+export type RpcFaFormedFederation = {
+  formationId: string;
+  federationInvite: string;
+  federationName: string | null;
+  seats: Array<RpcFaFormedSeat>;
+  /**
+   * `unsynced` until this run checked the seats against consensus.
+   */
+  freshness: RpcFaFormationFreshness;
+  /**
+   * Whether this device checked the seats against the federation at
+   * least once.
+   */
+  backupEligible: boolean;
+  origin: RpcFaFormedOrigin;
+};
+
+/**
+ * Where this device got a formed federation.
+ */
+export type RpcFaFormedOrigin = "thisDevice" | "backup";
+
+export type RpcFaFormedSeat = {
+  mgId: string;
+  seatId: string;
+  /**
+   * Canonical versioned Manifold Guardian locator JSON.
+   */
+  locator: string;
 };
 
 export type RpcFaGuardianReplacementRequirements = {
@@ -1184,26 +1216,6 @@ export type RpcFaResolvedFormationIntent = {
   maxTotalMsats: RpcFaMsats | null;
 };
 
-export type RpcFaRestoredFormationSnapshot = {
-  snapshotGeneration: number;
-  formationId: string;
-  federationInvite: string;
-  federationName: string | null;
-  seats: Array<RpcFaRestoredSeat>;
-  phase: RpcFaFormationPhase;
-  freshness: RpcFaFormationFreshness;
-  backupEligible: boolean;
-};
-
-export type RpcFaRestoredSeat = {
-  mgId: string;
-  seatId: string;
-  /**
-   * Canonical versioned Manifold Guardian locator JSON.
-   */
-  locator: string;
-};
-
 export type RpcFaSeatPaymentRequirement = {
   index: number;
   /**
@@ -1331,7 +1343,7 @@ export type RpcFaStatus =
   | { type: "idle" }
   | { type: "recovery"; error: RpcFaOperationError | null }
   | { type: "formation"; formation: RpcFaFormationSnapshot }
-  | { type: "restored"; formation: RpcFaRestoredFormationSnapshot };
+  | { type: "formed"; federation: RpcFaFormedFederation };
 
 export type RpcFederation = {
   balance: RpcAmount;
@@ -2044,7 +2056,8 @@ export type RpcPayAddressLimits = {
   balance: RpcAmount;
   minimumFees: RpcFeeDetails;
   /**
-   * False when the balance cannot fund a dry-run; fees are then a lower bound.
+   * False when the balance cannot fund a dry-run; fees are then a lower
+   * bound.
    */
   minimumFeesExact: boolean;
 };

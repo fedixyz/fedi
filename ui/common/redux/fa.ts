@@ -92,13 +92,13 @@ export interface WalletServiceDraft {
  *
  * Formation progress is not monotonic at the source. `milestones` are `all()`
  * predicates over the seats, so one guardian dropping to `replacementRequired`
- * un-sets `ecashSent` for the whole set, and `walletServiceCreated` also
- * requires `freshness: fresh` — which every driver run clears while it reloads
- * from the store. Painted raw, a checkmark the user has already been shown is
- * taken away again, which reads as the setup having failed.
+ * un-sets `ecashSent` for the whole set. Painted raw, a checkmark the user has
+ * already been shown is taken away again, which reads as the setup having
+ * failed.
  *
  * Keyed by `formationId`: a genuinely new formation starts from nothing, and
- * only a re-report of the same one is held up.
+ * only a re-report of the same one is held up. The formed federation keeps
+ * the formation's id, so the mark also tells that this app watched it form.
  */
 type CreationHighWaterMark = {
     formationId: string
@@ -262,14 +262,11 @@ const initialState = {
 
 export type FaState = typeof initialState
 
-/** The one definition of "done", shared by the mark and the selector. */
-const formationIsComplete = (formation: RpcFaFormationSnapshot) =>
-    formation.phase === 'formed' || formation.milestones.walletServiceCreated
-
-const getStatusFormationId = (status: RpcFaStatus | null) =>
-    status?.type === 'formation' || status?.type === 'restored'
-        ? status.formation.formationId
-        : null
+const getStatusFormationId = (status: RpcFaStatus | null) => {
+    if (status?.type === 'formation') return status.formation.formationId
+    if (status?.type === 'formed') return status.federation.formationId
+    return null
+}
 
 /** The metadata record for `formationId`, replacing one for another formation. */
 function metadataRecordFor(state: FaState, formationId: string | null) {
@@ -291,6 +288,16 @@ function getCurrentMetadataRead(state: FaState, requestId: string) {
 
 /** Raises {@link CreationHighWaterMark} to whatever the new status reports. */
 function recordCreationHighWaterMark(state: FaState) {
+    // A formation that this app watched ends as the same formed federation.
+    // Without a mark, a formed federation was not created in this session.
+    if (state.status?.type === 'formed') {
+        const mark = state.creationHighWaterMark
+        state.creationHighWaterMark =
+            mark?.formationId === state.status.federation.formationId
+                ? { ...mark, stage: 3, isComplete: true }
+                : null
+        return
+    }
     if (state.status?.type !== 'formation') {
         state.creationHighWaterMark = null
         return
@@ -306,8 +313,7 @@ function recordCreationHighWaterMark(state: FaState) {
             getWalletServiceCreationStage(formation),
             previous?.stage ?? 1,
         ) as WalletServiceCreationStage,
-        isComplete:
-            formationIsComplete(formation) || Boolean(previous?.isComplete),
+        isComplete: Boolean(previous?.isComplete),
     }
 }
 
@@ -345,15 +351,14 @@ const summarizeFaClientStatus = (status: RpcFaClientStatus) => {
             state: 'recovery' as const,
             errorCode: status.status.error?.code ?? null,
         }
-    if (status.status.type === 'restored') {
-        const { formation } = status.status
+    if (status.status.type === 'formed') {
+        const { federation } = status.status
         return {
-            state: 'restored' as const,
-            formationId: formation.formationId,
-            snapshotGeneration: formation.snapshotGeneration,
-            phase: formation.phase,
-            freshness: formation.freshness,
-            seatCount: formation.seats.length,
+            state: 'formed' as const,
+            formationId: federation.formationId,
+            freshness: federation.freshness,
+            backupEligible: federation.backupEligible,
+            seatCount: federation.seats.length,
         }
     }
     const { formation } = status.status
@@ -430,10 +435,8 @@ export function logFaClientStatusChange(
 
 /** The formation a log line belongs to, absent until one exists. */
 const faLogContext = (state: CommonState) => {
-    const status = selectFaStatus(state)
-    return status?.type === 'formation' || status?.type === 'restored'
-        ? { formationId: status.formation.formationId }
-        : {}
+    const formationId = getStatusFormationId(selectFaStatus(state))
+    return formationId ? { formationId } : {}
 }
 
 /*** Slice definition ***/
@@ -488,11 +491,7 @@ export const faSlice = createSlice({
             state,
             action: PayloadAction<RpcFaLiquidityOperation>,
         ) {
-            const currentFormationId =
-                state.status?.type === 'formation' ||
-                state.status?.type === 'restored'
-                    ? state.status.formation.formationId
-                    : null
+            const currentFormationId = getStatusFormationId(state.status)
             if (
                 currentFormationId &&
                 action.payload.formationId !== currentFormationId
@@ -1115,15 +1114,6 @@ export const selectIsWalletServiceDkgRestartEnabled = (s: CommonState) =>
 
 export const selectFaStatus = (s: CommonState) => s.fi.status
 
-export const selectIsFaRestoring = (s: CommonState) =>
-    s.fi.status?.type === 'restored' &&
-    s.fi.status.formation.freshness === 'unsynced'
-
-export const selectIsFaRecoveryComplete = (s: CommonState) =>
-    s.fi.status?.type === 'restored' &&
-    s.fi.status.formation.phase === 'formed' &&
-    s.fi.status.formation.freshness === 'fresh'
-
 // Include retryable backup lookup errors carried by an otherwise ready client.
 export const selectFaClientError = (s: CommonState) =>
     s.fi.clientError ??
@@ -1226,7 +1216,7 @@ export const selectWalletServiceGuardianCount = (s: CommonState) => {
     const status = selectFaStatus(s)
     if (status?.type === 'formation')
         return status.formation.intent.federationSize
-    if (status?.type === 'restored') return status.formation.seats.length
+    if (status?.type === 'formed') return status.federation.seats.length
     return 0
 }
 
@@ -1285,22 +1275,38 @@ export const selectWalletServicePayerAvailability = createSelector(
 
 export type WalletServiceCreationStage = 1 | 2 | 3
 
+/**
+ * A formed federation that this device restored from a backup. Screens take
+ * it through the restore flow: verify, rejoin, restore the balance. A
+ * federation formed on this device is not in it.
+ */
+export const selectIsWalletServiceRestoreFlow = (s: CommonState) => {
+    const status = selectFaStatus(s)
+    return status?.type === 'formed' && status.federation.origin === 'backup'
+}
+
 // stages: 1 ecash sent, 2 guardians confirmed, 3 wallet service created
 //
 // Reported from the high-water mark rather than the live snapshot, so a seat
 // that drops out or a driver run that re-reads the store cannot rewind a
 // checkmark the user has already been shown. See {@link CreationHighWaterMark}.
 export const selectWalletServiceCreationProgress = createSelector(
-    selectFaFormation,
+    selectFaStatus,
     (s: CommonState) => s.fi.creationHighWaterMark,
     (
-        formation,
+        status,
         highWater,
     ): {
         stage: WalletServiceCreationStage
         isComplete: boolean
     } | null => {
-        if (!formation) return null
+        // A formed federation completes the creation that this app watched.
+        if (status?.type === 'formed')
+            return highWater?.formationId === status.federation.formationId
+                ? { stage: 3, isComplete: true }
+                : null
+        if (status?.type !== 'formation') return null
+        const { formation } = status
         // a mark left over from a previous formation says nothing about this one
         const mark =
             highWater?.formationId === formation.formationId ? highWater : null
@@ -1311,8 +1317,7 @@ export const selectWalletServiceCreationProgress = createSelector(
                 getWalletServiceCreationStage(formation),
                 mark?.stage ?? 0,
             ) as WalletServiceCreationStage,
-            isComplete:
-                formationIsComplete(formation) || Boolean(mark?.isComplete),
+            isComplete: Boolean(mark?.isComplete),
         }
     },
 )
@@ -1486,15 +1491,20 @@ export const selectWalletServiceFlowStatus = createSelector(
         if (!status) return 'unknown'
         // Backup lookup has not established whether a formation exists yet.
         if (status.type === 'recovery') return 'unknown'
-        if (status.type === 'restored') {
-            const { phase, freshness, backupEligible } = status.formation
-            if (phase !== 'formed') return 'inProgress'
-            // A failed rejoin has to be reachable. The terminal screen lives on
-            // WalletServiceProgress, so routing a `backupEligible` service
-            // straight to the dashboard would strand the failure off-screen —
-            // with the dashboard showing an empty balance and no explanation.
-            // This check comes before the `formed` decision for that reason.
-            if (join?.state.type === 'failed' && !isStaleFailure)
+        if (status.type === 'formed') {
+            const { freshness, backupEligible, origin } = status.federation
+            // A failed rejoin of a restored service has to be reachable. Its
+            // terminal screen lives on WalletServiceProgress, so routing a
+            // `backupEligible` service straight to the dashboard would strand
+            // the failure off-screen — with the dashboard showing an empty
+            // balance and no explanation. This check comes before the `formed`
+            // decision for that reason. A service created on this device shows
+            // its join failure on the dashboard instead.
+            if (
+                origin === 'backup' &&
+                join?.state.type === 'failed' &&
+                !isStaleFailure
+            )
                 return 'inProgress'
             // verified on this device before: treat like a created service and let
             // the guardian-line skeleton carry the caveat. Never verified: hold the loader.
@@ -1503,7 +1513,6 @@ export const selectWalletServiceFlowStatus = createSelector(
                 : 'inProgress'
         }
         if (status.type !== 'formation') return 'none'
-        if (status.formation.phase === 'formed') return 'formed'
         return 'inProgress'
     },
 )
@@ -1516,8 +1525,8 @@ export const selectWalletServiceFlowStatus = createSelector(
 export const selectHasWalletServiceCommitted = createSelector(
     selectFaStatus,
     status => {
-        // a restored service was paid for on some device already
-        if (status?.type === 'restored') return true
+        // a formed service was paid for, on this device or another
+        if (status?.type === 'formed') return true
         if (status?.type !== 'formation') return false
         const { formation } = status
         return (
@@ -1650,7 +1659,7 @@ export const isTerminalWalletServiceError = (
 export const selectFaInviteCode = (s: CommonState) => {
     const status = selectFaStatus(s)
     if (status?.type === 'formation') return status.formation.inviteCode
-    if (status?.type === 'restored') return status.formation.federationInvite
+    if (status?.type === 'formed') return status.federation.federationInvite
     return null
 }
 
@@ -1658,7 +1667,7 @@ export const selectFaFormationName = (s: CommonState) => {
     const status = selectFaStatus(s)
     if (status?.type === 'formation')
         return status.formation.intent.federationName
-    if (status?.type === 'restored') return status.formation.federationName
+    if (status?.type === 'formed') return status.federation.federationName
     return null
 }
 
@@ -1667,10 +1676,11 @@ export const selectFaLastErrorCode = (s: CommonState) =>
 
 export const selectFaIsUnsynced = (s: CommonState) => {
     const status = selectFaStatus(s)
-    return (
-        (status?.type === 'formation' || status?.type === 'restored') &&
-        status.formation.freshness === 'unsynced'
-    )
+    if (status?.type === 'formation')
+        return status.formation.freshness === 'unsynced'
+    if (status?.type === 'formed')
+        return status.federation.freshness === 'unsynced'
+    return false
 }
 
 // typed as a full Record so a code the bridge adds is a compile error here
@@ -1770,17 +1780,23 @@ export const selectWalletServiceMaxTotalMsats = (s: CommonState) =>
     selectFaFormation(s)?.intent.maxTotalMsats ?? null
 
 /**
- * The federation exists and setup is complete.
+ * The federation exists, and this device has checked it at least once.
  *
- * Live phase: the bridge keeps `formed` across a relaunch and reports the
- * launch recheck through `freshness` alone, so nothing here needs to remember
- * an earlier answer. A save attempted mid-recheck is still rejected, so screens
- * that submit maintenance calls gate the action on
+ * The bridge keeps `formed` across a relaunch and reports the launch recheck
+ * through `freshness` alone. A federation from a backup that this device never
+ * checked waits for its first check. A save attempted mid-recheck is still
+ * rejected, so screens that submit maintenance calls gate the action on
  * {@link selectIsWalletServiceMaintenanceReady} and use this only for
  * progress, routing, and settled visuals.
  */
-export const selectIsWalletServiceFormed = (s: CommonState) =>
-    selectFaFormation(s)?.phase === 'formed' || selectIsFaRecoveryComplete(s)
+export const selectIsWalletServiceFormed = (s: CommonState) => {
+    const status = selectFaStatus(s)
+    return (
+        status?.type === 'formed' &&
+        (status.federation.freshness === 'fresh' ||
+            status.federation.backupEligible)
+    )
+}
 
 /**
  * Ready for a maintenance call like `set_guardian_fee` right now.
@@ -1792,11 +1808,7 @@ export const selectIsWalletServiceFormed = (s: CommonState) =>
  */
 export const selectIsWalletServiceMaintenanceReady = (s: CommonState) => {
     const status = selectFaStatus(s)
-    return (
-        (status?.type === 'formation' || status?.type === 'restored') &&
-        status.formation.phase === 'formed' &&
-        status.formation.freshness === 'fresh'
-    )
+    return status?.type === 'formed' && status.federation.freshness === 'fresh'
 }
 
 export type WalletServiceRecoveryStage =

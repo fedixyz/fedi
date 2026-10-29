@@ -10,7 +10,7 @@ import React from 'react'
 import { setupStore } from '@fedi/common/redux'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
-    RpcFaFormationSnapshot,
+    RpcFaFormedFederation,
     RpcFaOperationResult,
 } from '@fedi/common/types/bindings'
 import i18n from '@fedi/native/localization/i18n'
@@ -23,62 +23,52 @@ import {
 } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
 
-const makeFormedFormation = (): RpcFaFormationSnapshot => ({
+const makeFormedFederation = (): RpcFaFormedFederation => ({
     formationId: 'formation-1',
-    phase: 'formed',
-    intent: {
-        federationName: 'My Wallet Service',
-        federationSize: 7,
-        guardianFeePpm: 0,
-        plan: 'infiniteBestEffort',
-        maxTotalMsats: null,
-    },
-    seats: [],
+    federationInvite: 'fed11invite',
+    federationName: 'My Wallet Service',
+    seats: Array.from({ length: 7 }, (_, index) => ({
+        mgId: `mg-${index}`,
+        mgName: `guardian ${index}`,
+        seatId: `seat-${index}`,
+        locator: `locator-${index}`,
+    })),
     freshness: 'fresh',
-    actionRequired: null,
-    paymentOutputsStarted: true,
-    milestones: {
-        ecashSent: true,
-        guardiansConfirmed: true,
-        walletServiceCreated: true,
-    },
-    inviteCode: null,
-    lastError: null,
+    backupEligible: true,
+    origin: 'thisDevice',
 })
 
 // what the bridge reports while the launch recheck still holds the FA
 // operation lock: still formed, but not yet fresh
-const makeReconcilingFormation = (): RpcFaFormationSnapshot => ({
-    ...makeFormedFormation(),
+const makeReconcilingFederation = (): RpcFaFormedFederation => ({
+    ...makeFormedFederation(),
     freshness: 'unsynced',
-})
-
-/** An invite code is what `useAppliedGuardianFeePpm` reads the rate through. */
-const makeFormedFormationWithInvite = (): RpcFaFormationSnapshot => ({
-    ...makeFormedFormation(),
-    inviteCode: 'fed11invite',
 })
 
 /** The applied guardian fee as the federation publishes it: a ppm string. */
 const GUARDIAN_FEE_META_KEY = 'fedi:guardian_fee_send_ppm'
 
-const makeAppliedFeePreview = (ppm: string) => ({
+const makeFederationPreview = (meta: Record<string, string> = {}) => ({
     id: 'fed-1',
     name: 'My Wallet Service',
-    meta: { [GUARDIAN_FEE_META_KEY]: ppm },
+    meta,
     inviteCode: 'fed11invite',
     returningMemberStatus: { type: 'newMember' },
 })
 
+const makeAppliedFeePreview = (ppm: string) =>
+    makeFederationPreview({ [GUARDIAN_FEE_META_KEY]: ppm })
+
 const renderFee = ({
     mode = 'onboarding',
     setGuardianFeeResult,
-    formation = makeFormedFormation(),
-    federationPreview,
+    federation = makeFormedFederation(),
+    // a federation that publishes no applied rate, unless a test says so
+    federationPreview = () => Promise.resolve(makeFederationPreview()),
 }: {
     mode?: 'onboarding' | 'edit'
     setGuardianFeeResult?: RpcFaOperationResult
-    formation?: RpcFaFormationSnapshot
+    federation?: RpcFaFormedFederation
     /** How the federation's metadata answers, when a test cares. */
     federationPreview?: () => Promise<unknown>
 } = {}) => {
@@ -87,11 +77,11 @@ const renderFee = ({
         faClientSetGuardianFee: Promise.resolve(
             setGuardianFeeResult ?? { type: 'success' },
         ),
-        ...(federationPreview ? { federationPreview } : {}),
+        federationPreview,
     })
     const store = setupStore({
         fi: {
-            status: { type: 'formation', formation },
+            status: { type: 'formed', federation },
             clientError: null,
             federationJoin: null,
             creationHighWaterMark: null,
@@ -261,7 +251,6 @@ describe('WalletServiceFee screen', () => {
 
     it('should open on the applied rate rather than the default', async () => {
         const { user, fedimint } = renderFee({
-            formation: makeFormedFormationWithInvite(),
             federationPreview: () =>
                 Promise.resolve(makeAppliedFeePreview('2500')),
         })
@@ -281,7 +270,6 @@ describe('WalletServiceFee screen', () => {
     // open the picker on a custom entry that already fails the floor
     it('should seed the default when the applied rate is not settable', async () => {
         const { user, fedimint } = renderFee({
-            formation: makeFormedFormationWithInvite(),
             federationPreview: () =>
                 Promise.resolve(makeAppliedFeePreview('0')),
         })
@@ -310,7 +298,6 @@ describe('WalletServiceFee screen', () => {
     it('should keep a typed custom rate when the applied rate lands late', async () => {
         let answerPreview: (preview: unknown) => void = () => undefined
         const { user, fedimint } = renderFee({
-            formation: makeFormedFormationWithInvite(),
             federationPreview: () =>
                 new Promise(resolve => {
                     answerPreview = resolve
@@ -337,7 +324,6 @@ describe('WalletServiceFee screen', () => {
     // custom field unrendered, where a non-preset rate does the opposite
     it('should select the matching preset when the applied rate is one', async () => {
         const { user, fedimint } = renderFee({
-            formation: makeFormedFormationWithInvite(),
             federationPreview: () =>
                 Promise.resolve(makeAppliedFeePreview('10000')),
         })
@@ -398,7 +384,7 @@ describe('WalletServiceFee screen', () => {
     // not enable the fee CTA while the bridge would reject with "already in
     // progress"
     it('should disable the CTA and explain while the formed service is still being rechecked', async () => {
-        renderFee({ formation: makeReconcilingFormation() })
+        renderFee({ federation: makeReconcilingFederation() })
 
         expect(await findCtaButton()).toBeDisabled()
         expect(

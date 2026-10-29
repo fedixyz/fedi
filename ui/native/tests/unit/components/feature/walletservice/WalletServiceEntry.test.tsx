@@ -38,7 +38,6 @@ const makeFormation = (
     milestones: {
         ecashSent: false,
         guardiansConfirmed: false,
-        walletServiceCreated: false,
     },
     inviteCode: null,
     lastError: null,
@@ -236,16 +235,15 @@ describe('WalletServiceEntry', () => {
         act(() => {
             store.dispatch(
                 setFaStatus({
-                    type: 'restored',
-                    formation: {
-                        snapshotGeneration: 1,
+                    type: 'formed',
+                    federation: {
                         formationId: 'restored-formation',
                         federationInvite: 'invite',
                         federationName: 'Restored service',
                         seats: [],
-                        phase: 'formed',
                         freshness: 'unsynced',
                         backupEligible: false,
+                        origin: 'backup',
                     },
                 }),
             )
@@ -331,8 +329,16 @@ describe('WalletServiceEntry', () => {
     it('should resume an existing service instead of starting a new one', async () => {
         const { user } = renderEntry({
             store: makeStore({
-                type: 'formation',
-                formation: makeFormation({ phase: 'formed' }),
+                type: 'formed',
+                federation: {
+                    formationId: 'formation-1',
+                    federationInvite: 'fed11invite',
+                    federationName: 'My Wallet Service',
+                    seats: [],
+                    freshness: 'fresh',
+                    backupEligible: true,
+                    origin: 'thisDevice',
+                },
             }),
         })
 

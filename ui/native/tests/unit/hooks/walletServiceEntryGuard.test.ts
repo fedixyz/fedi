@@ -28,7 +28,6 @@ const makeFormation = (
     milestones: {
         ecashSent: false,
         guardiansConfirmed: false,
-        walletServiceCreated: false,
     },
     inviteCode: null,
     lastError: null,
@@ -120,12 +119,20 @@ describe('utils/hooks/walletServiceEntryGuard', () => {
         expect(result.current).toBe(true)
     })
 
-    it('should send a finished formation to the dashboard', () => {
+    it('should send a formed federation to the dashboard', () => {
         const store = setupStore()
         store.dispatch(
             setFaStatus({
-                type: 'formation',
-                formation: makeFormation('formed'),
+                type: 'formed',
+                federation: {
+                    formationId: 'formation-1',
+                    federationInvite: 'fed11invite',
+                    federationName: 'My Wallet Service',
+                    seats: [],
+                    freshness: 'fresh',
+                    backupEligible: true,
+                    origin: 'thisDevice',
+                },
             }),
         )
 

@@ -1240,17 +1240,17 @@
     "manifold-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1792613164,
-        "narHash": "sha256-yEtTfBk97zb+iFmk8git0IaFbGQwUVF21t29kapab50=",
+        "lastModified": 1793270209,
+        "narHash": "sha256-IoRAFws+wX62PVen+bR/72rSTdBs7HQjOkwY17dvJvA=",
         "owner": "fedibtc",
         "repo": "manifold",
-        "rev": "06deeb60daa1119e01544f571c2ed5686228f2c3",
+        "rev": "c5123c0ff265e147775bf1240b5e436b401fdff0",
         "type": "github"
       },
       "original": {
         "owner": "fedibtc",
         "repo": "manifold",
-        "rev": "06deeb60daa1119e01544f571c2ed5686228f2c3",
+        "rev": "c5123c0ff265e147775bf1240b5e436b401fdff0",
         "type": "github"
       }
     },

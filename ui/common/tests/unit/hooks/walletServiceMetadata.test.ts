@@ -17,16 +17,15 @@ const makeStore = () => {
     const store = setupStore()
     store.dispatch(
         setFaStatus({
-            type: 'restored',
-            formation: {
-                snapshotGeneration: 1,
+            type: 'formed',
+            federation: {
                 formationId: 'formation-1',
                 federationInvite: INVITE,
                 federationName: 'Morpheus',
                 seats: [],
-                phase: 'formed',
                 freshness: 'fresh',
                 backupEligible: false,
+                origin: 'backup',
             },
         }),
     )

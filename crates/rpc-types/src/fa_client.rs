@@ -292,7 +292,6 @@ pub enum RpcFaFormationPhase {
     DkgUnderway,
     DkgComplete,
     PublishingSeatBindings,
-    Formed,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -301,6 +300,17 @@ pub enum RpcFaFormationPhase {
 pub enum RpcFaFormationFreshness {
     Fresh,
     Unsynced,
+}
+
+/// Where this device got a formed federation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcFaFormedOrigin {
+    /// A formation on this device.
+    ThisDevice,
+    /// A backup imported on this device.
+    Backup,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -842,7 +852,6 @@ pub struct RpcFaResolvedFormationIntent {
 pub struct RpcFaFormationMilestones {
     pub ecash_sent: bool,
     pub guardians_confirmed: bool,
-    pub wallet_service_created: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -864,7 +873,7 @@ pub struct RpcFaFormationSnapshot {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct RpcFaRestoredSeat {
+pub struct RpcFaFormedSeat {
     pub mg_id: String,
     pub seat_id: String,
     /// Canonical versioned Manifold Guardian locator JSON.
@@ -874,16 +883,18 @@ pub struct RpcFaRestoredSeat {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct RpcFaRestoredFormationSnapshot {
-    #[ts(type = "number")]
-    pub snapshot_generation: u64,
+/// A formed federation, from a formation on this device or from a backup.
+pub struct RpcFaFormedFederation {
     pub formation_id: String,
     pub federation_invite: String,
     pub federation_name: Option<String>,
-    pub seats: Vec<RpcFaRestoredSeat>,
-    pub phase: RpcFaFormationPhase,
+    pub seats: Vec<RpcFaFormedSeat>,
+    /// `unsynced` until this run checked the seats against consensus.
     pub freshness: RpcFaFormationFreshness,
+    /// Whether this device checked the seats against the federation at
+    /// least once.
     pub backup_eligible: bool,
+    pub origin: RpcFaFormedOrigin,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -903,8 +914,8 @@ pub enum RpcFaStatus {
     Formation {
         formation: Box<RpcFaFormationSnapshot>,
     },
-    Restored {
-        formation: Box<RpcFaRestoredFormationSnapshot>,
+    Formed {
+        federation: Box<RpcFaFormedFederation>,
     },
 }
 

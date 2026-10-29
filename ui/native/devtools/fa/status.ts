@@ -1,7 +1,10 @@
 import type {
     RpcFaErrorCode,
     RpcFaFormationPhase,
+    RpcFaFormationFreshness,
     RpcFaFormationSnapshot,
+    RpcFaFormedFederation,
+    RpcFaFormedOrigin,
     RpcFaSeatPhase,
     RpcFaStatus,
 } from '@fedi/common/types/bindings'
@@ -17,7 +20,6 @@ export const FORMATION_PHASES: FormationPhaseName[] = [
     'dkgUnderway',
     'dkgComplete',
     'publishingSeatBindings',
-    'formed',
 ]
 
 export type FormationSeed = {
@@ -90,12 +92,8 @@ export function formationAt(
         milestones: {
             ecashSent: reached('acquiringSeats'),
             guardiansConfirmed: reached('dkgUnderway'),
-            walletServiceCreated: phase === 'formed',
         },
-        inviteCode:
-            phase === 'formed'
-                ? `fed1${'sim'.padEnd(40, '0')}${seed.formationId}`
-                : null,
+        inviteCode: null,
         lastError: null,
     }
 }
@@ -107,10 +105,10 @@ export function withError(
     return { ...formation, lastError: code }
 }
 
-export function withUnsynced(
-    formation: RpcFaFormationSnapshot,
-): RpcFaFormationSnapshot {
-    return { ...formation, freshness: 'unsynced' }
+export function withUnsynced<
+    T extends RpcFaFormationSnapshot | RpcFaFormedFederation,
+>(snapshot: T): T {
+    return { ...snapshot, freshness: 'unsynced' }
 }
 
 export function formationStatus(
@@ -185,41 +183,89 @@ export function withReplacement(
     }
 }
 
+const inviteFor = (formationId: string) =>
+    `fed1${'sim'.padEnd(40, '0')}${formationId}`
+
+/**
+ * The federation a completed formation becomes. The bridge reports it as a
+ * `formed` status rather than a formation phase, carrying only the seats'
+ * identities: every seat has its MG and its seat by then.
+ */
+export function formedFrom(
+    formation: RpcFaFormationSnapshot,
+    {
+        freshness,
+        backupEligible,
+        origin,
+    }: {
+        freshness: RpcFaFormationFreshness
+        backupEligible: boolean
+        origin: RpcFaFormedOrigin
+    },
+): RpcFaFormedFederation {
+    return {
+        formationId: formation.formationId,
+        federationInvite: inviteFor(formation.formationId),
+        federationName: formation.intent.federationName,
+        seats: formation.seats.map(({ index, mgId, seatId, locator }) => {
+            if (mgId === null || seatId === null)
+                throw new Error(`seat ${index} has no MG or seat to form`)
+            return { mgId, seatId, locator }
+        }),
+        freshness,
+        backupEligible,
+        origin,
+    }
+}
+
+/**
+ * The federation this device formed: setup ran here, so the seats were
+ * checked against it and it is backup eligible from the start.
+ */
+export function formedAt(seed: FormationSeed): RpcFaFormedFederation {
+    return formedFrom(formationAt(seed, 'publishingSeatBindings'), {
+        freshness: 'fresh',
+        backupEligible: true,
+        origin: 'thisDevice',
+    })
+}
+
+export function formedStatus(federation: RpcFaFormedFederation): RpcFaStatus {
+    return { type: 'formed', federation }
+}
+
 export type RestoredSeed = { formationId: string }
 
 const RESTORED_SEAT_COUNT = 10
 
 /**
- * A backup found for this seed. The backup carries no name; reconciliation
- * learns it, which is why the name is an option rather than a default.
+ * A federation imported from a backup found for this seed. It is `unsynced`
+ * and not backup eligible until its first reconciliation; the backup carries
+ * no name either, and reconciliation learns it, which is why the name is an
+ * option rather than a default.
  */
 export function restoredStatus(
     seed: RestoredSeed,
     {
         freshness,
-        backupEligible = false,
+        backupEligible,
         federationName = null,
     }: {
-        freshness: 'fresh' | 'unsynced'
-        backupEligible?: boolean
+        freshness: RpcFaFormationFreshness
+        backupEligible: boolean
         federationName?: string | null
     },
 ): RpcFaStatus {
-    return {
-        type: 'restored',
-        formation: {
-            snapshotGeneration: 3,
-            formationId: seed.formationId,
-            federationInvite: `fed1${'sim'.padEnd(40, '0')}${seed.formationId}`,
-            federationName,
-            seats: Array.from({ length: RESTORED_SEAT_COUNT }, (_, index) => ({
-                mgId: `mg_${seed.formationId}_${index}`,
-                seatId: `seat_${index}`,
-                locator: '{"version":1}',
-            })),
-            phase: 'formed',
+    const formation = formationAt(
+        { formationId: seed.formationId, federationSize: RESTORED_SEAT_COUNT },
+        'publishingSeatBindings',
+    )
+    return formedStatus({
+        ...formedFrom(formation, {
             freshness,
             backupEligible,
-        },
-    }
+            origin: 'backup',
+        }),
+        federationName,
+    })
 }

@@ -14,6 +14,7 @@ fedimint-api-client = { workspace = true }
 fedimint-tbs = { workspace = true }
 fedi-social-client = { workspace = true }
 fa-client = { workspace = true }
+fedi-decentralized-domain = { workspace = true }
 fedi-decentralized-federation-preview = { workspace = true }
 fedi-decentralized-manifold-environment = { workspace = true }
 fedi-decentralized-nostr-clients = { workspace = true }

@@ -23,9 +23,8 @@ import {
     selectFaInviteCode,
     selectFaIsUnsynced,
     selectHasWalletServiceCommitted,
-    selectIsFaRecoveryComplete,
-    selectIsFaRestoring,
     selectIsWalletServiceFormed,
+    selectIsWalletServiceRestoreFlow,
     selectIsWalletServiceMaintenanceReady,
     selectIsWalletServiceUsable,
     selectIsWalletServiceWaitingOnDkg,
@@ -61,13 +60,14 @@ import {
     RpcFaFormationActionRequired,
     RpcFaFormationMilestones,
     RpcFaFormationSnapshot,
+    RpcFaFormedFederation,
     RpcFaGuardianReplacementRequirements,
     RpcFaOperationError,
     RpcFaPaymentRequirements,
     RpcFaReplacementPreview,
-    RpcFaRestoredFormationSnapshot,
     RpcFaSeatProgress,
     RpcFaSelectionPreview,
+    RpcFaStatus,
 } from '../../../types/bindings'
 import { LoadedFederation } from '../../../types/fedimint'
 import {
@@ -83,7 +83,6 @@ const makeMilestones = (
 ): RpcFaFormationMilestones => ({
     ecashSent: false,
     guardiansConfirmed: false,
-    walletServiceCreated: false,
     ...overrides,
 })
 
@@ -109,10 +108,10 @@ const makeFormation = (
     ...overrides,
 })
 
-const makeRestoredFormation = (
-    overrides: Partial<RpcFaRestoredFormationSnapshot> = {},
-): RpcFaRestoredFormationSnapshot => ({
-    snapshotGeneration: 3,
+/** A formed federation; by default one restored from a backup and not yet checked. */
+const makeFormedFederation = (
+    overrides: Partial<RpcFaFormedFederation> = {},
+): RpcFaFormedFederation => ({
     formationId: 'restored-formation',
     federationInvite: 'restored-invite',
     federationName: 'Restored Federation',
@@ -123,9 +122,9 @@ const makeRestoredFormation = (
             locator: 'locator-1',
         },
     ],
-    phase: 'formed',
     freshness: 'unsynced',
     backupEligible: false,
+    origin: 'backup',
     ...overrides,
 })
 
@@ -836,32 +835,56 @@ describe('common/redux/fi › selectWalletServiceCreationProgress', () => {
         })
     })
 
-    it('should only report completion once the formation is formed', () => {
-        const underway = buildFormationStore({ phase: 'dkgUnderway' })
-        const formed = buildFormationStore({ phase: 'formed' })
-
-        expect(
-            selectWalletServiceCreationProgress(underway.getState())
-                ?.isComplete,
-        ).toBe(false)
-        expect(
-            selectWalletServiceCreationProgress(formed.getState())?.isComplete,
-        ).toBe(true)
-    })
-
-    it('should report completion from the milestone even before the phase flips', () => {
-        const store = buildFormationStore({
+    it('should report completion once the watched formation is formed', () => {
+        const store = buildStore({})
+        const formation = makeFormation({
             phase: 'publishingSeatBindings',
             milestones: makeMilestones({
                 ecashSent: true,
                 guardiansConfirmed: true,
-                walletServiceCreated: true,
             }),
         })
+        store.dispatch(setFaStatus({ type: 'formation', formation }))
+        // the last step waits for consensus, even with every milestone met
+        expect(selectWalletServiceCreationProgress(store.getState())).toEqual({
+            stage: 3,
+            isComplete: false,
+        })
+        expect(selectIsWalletServiceRestoreFlow(store.getState())).toBe(false)
 
-        expect(
-            selectWalletServiceCreationProgress(store.getState())?.isComplete,
-        ).toBe(true)
+        store.dispatch(
+            setFaStatus({
+                type: 'formed',
+                federation: makeFormedFederation({
+                    formationId: formation.formationId,
+                    freshness: 'fresh',
+                    backupEligible: true,
+                    origin: 'thisDevice',
+                }),
+            }),
+        )
+
+        expect(selectWalletServiceCreationProgress(store.getState())).toEqual({
+            stage: 3,
+            isComplete: true,
+        })
+        expect(selectIsWalletServiceRestoreFlow(store.getState())).toBe(false)
+    })
+
+    it('should report no creation for a formed federation it did not watch', () => {
+        // a federation formed before this launch, or a restored backup
+        const store = buildStore({})
+        store.dispatch(
+            setFaStatus({ type: 'formation', formation: makeFormation() }),
+        )
+        store.dispatch(
+            setFaStatus({
+                type: 'formed',
+                federation: makeFormedFederation({ formationId: 'other' }),
+            }),
+        )
+
+        expect(selectWalletServiceCreationProgress(store.getState())).toBeNull()
     })
 
     it('should not lower a stage the mark has already recorded', () => {
@@ -899,11 +922,10 @@ describe('common/redux/fi › selectWalletServiceCreationProgress', () => {
             setFaStatus({
                 type: 'formation',
                 formation: makeFormation({
-                    phase: 'formed',
+                    phase: 'publishingSeatBindings',
                     milestones: makeMilestones({
                         ecashSent: true,
                         guardiansConfirmed: true,
-                        walletServiceCreated: true,
                     }),
                 }),
             }),
@@ -1152,8 +1174,8 @@ describe('common/redux/fi › selectWalletServiceFlowStatus', () => {
     it('should report inProgress while a restored backup is reconciling', () => {
         const store = buildStore({
             status: {
-                type: 'restored',
-                formation: makeRestoredFormation(),
+                type: 'formed',
+                federation: makeFormedFederation(),
             },
         })
 
@@ -1165,8 +1187,8 @@ describe('common/redux/fi › selectWalletServiceFlowStatus', () => {
     it('should report formed once restored facts are fresh', () => {
         const store = buildStore({
             status: {
-                type: 'restored',
-                formation: makeRestoredFormation({ freshness: 'fresh' }),
+                type: 'formed',
+                federation: makeFormedFederation({ freshness: 'fresh' }),
             },
         })
 
@@ -1176,8 +1198,8 @@ describe('common/redux/fi › selectWalletServiceFlowStatus', () => {
     it('routes a restored service that was verified before straight to the dashboard', () => {
         const store = buildStore({
             status: {
-                type: 'restored',
-                formation: makeRestoredFormation({
+                type: 'formed',
+                federation: makeFormedFederation({
                     backupEligible: true,
                     freshness: 'unsynced',
                 }),
@@ -1191,8 +1213,8 @@ describe('common/redux/fi › selectWalletServiceFlowStatus', () => {
         // dashboard would put the failure out of reach
         const store = buildStore({
             status: {
-                type: 'restored',
-                formation: makeRestoredFormation({
+                type: 'formed',
+                federation: makeFormedFederation({
                     backupEligible: true,
                     freshness: 'unsynced',
                 }),
@@ -1212,11 +1234,34 @@ describe('common/redux/fi › selectWalletServiceFlowStatus', () => {
         )
     })
 
+    it('keeps a service created on this device on the dashboard when its join fails', () => {
+        // only the dashboard shows a join failure for a created service; the
+        // progress screen would show a creation spinner with no way out
+        const store = buildStore({
+            status: {
+                type: 'formed',
+                federation: makeFormedFederation({
+                    origin: 'thisDevice',
+                    backupEligible: true,
+                    freshness: 'unsynced',
+                }),
+            },
+        })
+        store.dispatch(
+            setFaFederationJoin({
+                federationId: 'wallet-service-federation',
+                state: { type: 'failed', message: 'guardians unreachable' },
+            }),
+        )
+
+        expect(selectWalletServiceFlowStatus(store.getState())).toBe('formed')
+    })
+
     it('holds a never-verified restored backup on the loader', () => {
         const store = buildStore({
             status: {
-                type: 'restored',
-                formation: makeRestoredFormation({
+                type: 'formed',
+                federation: makeFormedFederation({
                     backupEligible: false,
                     freshness: 'unsynced',
                 }),
@@ -1247,15 +1292,6 @@ describe('common/redux/fi › selectWalletServiceFlowStatus', () => {
             'inProgress',
         )
     })
-
-    it('should report formed even if an action is still parked on the snapshot', () => {
-        const store = buildFormationStore({
-            phase: 'formed',
-            actionRequired: makeActionRequired(),
-        })
-
-        expect(selectWalletServiceFlowStatus(store.getState())).toBe('formed')
-    })
 })
 
 // The bridge retains the last join state it reported and re-emits it on every
@@ -1282,8 +1318,8 @@ describe('common/redux/fi › a retained join failure the federation outlived', 
         state: { type: 'failed', message: 'guardians unreachable' },
     } as const
     const restoredAndFresh = {
-        type: 'restored',
-        formation: makeRestoredFormation({
+        type: 'formed',
+        federation: makeFormedFederation({
             freshness: 'fresh',
             backupEligible: true,
         }),
@@ -1347,9 +1383,14 @@ describe('common/redux/fi › a retained join failure the federation outlived', 
 
 describe('common/redux/fi › a formed service being rechecked on launch', () => {
     it('should stay formed while only maintenance waits for the recheck', () => {
-        const state = buildFormationStore({
-            phase: 'formed',
-            freshness: 'unsynced',
+        const state = buildStore({
+            status: {
+                type: 'formed',
+                federation: makeFormedFederation({
+                    freshness: 'unsynced',
+                    backupEligible: true,
+                }),
+            },
         }).getState()
 
         expect(selectIsWalletServiceFormed(state)).toBe(true)
@@ -1367,13 +1408,20 @@ describe('common/redux/fi › a formed service being rechecked on launch', () =>
 })
 
 describe('common/redux/fi › restored Wallet Service facts', () => {
-    it('should expose a fresh recovery as the active Wallet Service', () => {
-        const store = buildStore({
-            status: {
-                type: 'restored',
-                formation: makeRestoredFormation({ freshness: 'fresh' }),
-            },
-        })
+    it('should expose a reconciled recovery as the active Wallet Service', () => {
+        const store = buildStore({})
+        store.dispatch(
+            setFaStatus({ type: 'formed', federation: makeFormedFederation() }),
+        )
+        store.dispatch(
+            setFaStatus({
+                type: 'formed',
+                federation: makeFormedFederation({
+                    freshness: 'fresh',
+                    backupEligible: true,
+                }),
+            }),
+        )
         const state = store.getState()
 
         expect(selectWalletServiceFormationId(state)).toBe('restored-formation')
@@ -1382,32 +1430,87 @@ describe('common/redux/fi › restored Wallet Service facts', () => {
         expect(selectWalletServiceGuardianCount(state)).toBe(1)
         expect(selectIsWalletServiceFormed(state)).toBe(true)
         expect(selectIsWalletServiceMaintenanceReady(state)).toBe(true)
-        expect(selectIsFaRecoveryComplete(state)).toBe(true)
-        expect(selectIsFaRestoring(state)).toBe(false)
+        // reconciliation does not end the rejoin it started
+        expect(selectIsWalletServiceRestoreFlow(state)).toBe(true)
         expect(selectFaIsUnsynced(state)).toBe(false)
     })
 
     it('should keep restored facts unavailable for writes until they are fresh', () => {
-        const store = buildStore({
-            status: {
-                type: 'restored',
-                formation: makeRestoredFormation(),
-            },
-        })
+        const store = buildStore({})
+        store.dispatch(
+            setFaStatus({ type: 'formed', federation: makeFormedFederation() }),
+        )
         const state = store.getState()
 
         expect(selectIsWalletServiceFormed(state)).toBe(false)
         expect(selectIsWalletServiceMaintenanceReady(state)).toBe(false)
-        expect(selectIsFaRecoveryComplete(state)).toBe(false)
-        expect(selectIsFaRestoring(state)).toBe(true)
+        expect(selectIsWalletServiceRestoreFlow(state)).toBe(true)
         expect(selectFaIsUnsynced(state)).toBe(true)
     })
 
     it('treats a restored service as committed', () => {
         const store = buildStore({
-            status: { type: 'restored', formation: makeRestoredFormation() },
+            status: { type: 'formed', federation: makeFormedFederation() },
         })
         expect(selectHasWalletServiceCommitted(store.getState())).toBe(true)
+    })
+})
+
+describe('common/redux/fi › selectIsWalletServiceRestoreFlow', () => {
+    const formed = (
+        overrides: Partial<RpcFaFormedFederation>,
+    ): RpcFaStatus => ({
+        type: 'formed',
+        federation: makeFormedFederation(overrides),
+    })
+
+    it('should leave out a federation formed on this device', () => {
+        const store = buildStore({})
+        store.dispatch(
+            setFaStatus(
+                formed({
+                    freshness: 'unsynced',
+                    backupEligible: true,
+                    origin: 'thisDevice',
+                }),
+            ),
+        )
+        expect(selectIsWalletServiceRestoreFlow(store.getState())).toBe(false)
+
+        store.dispatch(
+            setFaStatus(
+                formed({
+                    freshness: 'fresh',
+                    backupEligible: true,
+                    origin: 'thisDevice',
+                }),
+            ),
+        )
+        expect(selectIsWalletServiceRestoreFlow(store.getState())).toBe(false)
+    })
+
+    it('should keep a restored backup in the restore flow, also after reconciliation and a restart', () => {
+        const store = buildStore({})
+        store.dispatch(setFaStatus({ type: 'recovery', error: null }))
+        store.dispatch(setFaStatus(formed({})))
+        expect(selectIsWalletServiceRestoreFlow(store.getState())).toBe(true)
+
+        store.dispatch(
+            setFaStatus(formed({ freshness: 'fresh', backupEligible: true })),
+        )
+        expect(selectIsWalletServiceRestoreFlow(store.getState())).toBe(true)
+
+        // a restart: the store starts empty and the bridge reports the
+        // reconciled backup again
+        const restarted = buildStore({})
+        restarted.dispatch(
+            setFaStatus(
+                formed({ freshness: 'unsynced', backupEligible: true }),
+            ),
+        )
+        expect(selectIsWalletServiceRestoreFlow(restarted.getState())).toBe(
+            true,
+        )
     })
 })
 
@@ -1415,8 +1518,8 @@ describe('common/redux/fi › selectIsWalletServiceUsable', () => {
     const FED = 'wallet-service-federation'
     const restored = (freshness: 'unsynced' | 'fresh') =>
         ({
-            type: 'restored',
-            formation: makeRestoredFormation({ freshness }),
+            type: 'formed',
+            federation: makeFormedFederation({ freshness }),
         }) as const
     const withFederation = (recovering: boolean) => ({
         federation: {
@@ -1469,13 +1572,13 @@ describe('common/redux/fi › selectIsWalletServiceUsable', () => {
             'ready',
         )
     })
-    it('applies the same rule to a created formation', () => {
+    it('applies the same rule to a federation formed on this device', () => {
         const store = buildStore({
             status: {
-                type: 'formation',
-                formation: makeFormation({
-                    phase: 'formed',
+                type: 'formed',
+                federation: makeFormedFederation({
                     freshness: 'fresh',
+                    backupEligible: true,
                 }),
             },
         })
@@ -1504,8 +1607,8 @@ describe('common/redux/fi › selectIsWalletServiceWalletReady', () => {
         freshness => {
             const store = buildStore({
                 status: {
-                    type: 'restored',
-                    formation: makeRestoredFormation({ freshness }),
+                    type: 'formed',
+                    federation: makeFormedFederation({ freshness }),
                 },
                 ...withFederation(false),
             })
@@ -1518,8 +1621,8 @@ describe('common/redux/fi › selectIsWalletServiceWalletReady', () => {
     it('is false while the federation is recovering, even with a fresh FA snapshot', () => {
         const store = buildStore({
             status: {
-                type: 'restored',
-                formation: makeRestoredFormation({ freshness: 'fresh' }),
+                type: 'formed',
+                federation: makeFormedFederation({ freshness: 'fresh' }),
             },
             ...withFederation(true),
         })
@@ -1531,8 +1634,8 @@ describe('common/redux/fi › selectIsWalletServiceWalletReady', () => {
     it('is false while the federation is absent', () => {
         const store = buildStore({
             status: {
-                type: 'restored',
-                formation: makeRestoredFormation({ freshness: 'fresh' }),
+                type: 'formed',
+                federation: makeFormedFederation({ freshness: 'fresh' }),
             },
         })
         expect(selectIsWalletServiceWalletReady(store.getState(), FED)).toBe(
@@ -2630,31 +2733,23 @@ describe('common/redux/fi › describeFaClientStatusChange', () => {
         })
     })
 
-    it('should describe restoration without logging the federation invite', () => {
+    it('should describe a formed federation without logging its invite', () => {
         const change = describeFaClientStatusChange(null, {
             type: 'ready',
             status: {
-                type: 'restored',
-                formation: {
-                    snapshotGeneration: 3,
-                    formationId: 'restored-formation',
+                type: 'formed',
+                federation: makeFormedFederation({
                     federationInvite: 'private-invite',
-                    federationName: 'Restored Federation',
-                    seats: [],
-                    phase: 'formed',
-                    freshness: 'unsynced',
-                    backupEligible: false,
-                },
+                }),
             },
         })
 
         expect(change?.fields).toEqual({
-            state: 'restored',
+            state: 'formed',
             formationId: 'restored-formation',
-            snapshotGeneration: 3,
-            phase: 'formed',
             freshness: 'unsynced',
-            seatCount: 0,
+            backupEligible: false,
+            seatCount: 1,
         })
     })
 

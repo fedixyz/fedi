@@ -28,10 +28,9 @@ import {
     selectFaLastErrorCode,
     selectFaPaymentRequirements,
     selectFaReplacementRequirements,
-    selectFaStatus,
     selectFederationBalance,
     selectIsWalletServiceDkgRestartEnabled,
-    selectIsWalletServiceFormed,
+    selectIsWalletServiceRestoreFlow,
     selectIsWalletServiceWaitingOnDkg,
     selectLoadedFederation,
     selectWalletServiceCreationProgress,
@@ -129,8 +128,7 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
         isUsable,
         federationId,
     } = useWalletServiceRecoveryStage()
-    const isRestoredService =
-        useAppSelector(selectFaStatus)?.type === 'restored'
+    const isRestoredService = useAppSelector(selectIsWalletServiceRestoreFlow)
     const federationJoinFailure = useAppSelector(selectFaFederationJoinFailure)
     const reportedErrorCode = useAppSelector(selectFaLastErrorCode)
     const paymentRequirements = useAppSelector(selectFaPaymentRequirements)
@@ -174,30 +172,10 @@ const WalletServiceProgress: React.FC<Props> = ({ navigation }) => {
     const readyPop = useSharedValue(0)
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 
-    /**
-     * Done means formed, not merely created.
-     *
-     * `progress.isComplete` is the creation high-water mark — `phase ===
-     * 'formed' || milestones.walletServiceCreated` — and the looser half of
-     * that is what let the user leave this screen while the phase was still
-     * `publishingSeatBindings`. The next screen is stricter: `WalletServiceFee`
-     * cannot commit a rate until the federation is actually formed, so an early
-     * exit landed on a fee screen carrying "That Wallet Service change isn't
-     * possible right now." over a dead Save button.
-     *
-     * The fix is to not call it finished yet. Gating the *exit* alone was worse
-     * than the problem: the screen threw its confetti, turned the heading green
-     * and said Ready, and then held the one button that acts on any of that —
-     * announcing success and refusing to leave in the same frame.
-     *
-     * So the last step simply stays unfinished until the phase agrees. The
-     * final milestone keeps its spinner, the heading keeps saying the setup is
-     * being created, the celebration fires once when it is genuinely over, and
-     * Continue greys out exactly as it already does for every other stage. No
-     * new waiting state, and nothing to take back.
-     */
-    const isFormed = useAppSelector(selectIsWalletServiceFormed)
-    const isComplete = Boolean(progress?.isComplete) && isFormed
+    // Done means formed: the creation mark completes only when the bridge
+    // reports the formed federation, after consensus confirmed its metadata.
+    // `WalletServiceFee` cannot commit a rate before then.
+    const isComplete = Boolean(progress?.isComplete)
     const isTerminalError = isTerminalWalletServiceError(reportedErrorCode)
 
     useEffect(() => {

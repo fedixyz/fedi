@@ -144,7 +144,7 @@ describe('log utilities', () => {
                 type: 'formation',
                 formation: {
                     formationId: 'formation',
-                    phase: 'formed',
+                    phase: 'dkgComplete',
                     intent: {
                         federationName: 'Private Federation',
                         federationSize: 7,
@@ -159,7 +159,6 @@ describe('log utilities', () => {
                     milestones: {
                         ecashSent: true,
                         guardiansConfirmed: true,
-                        walletServiceCreated: true,
                     },
                     inviteCode: sentinel,
                     lastError: null,

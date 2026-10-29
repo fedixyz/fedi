@@ -22,7 +22,7 @@ import {
     selectFaFormationName,
     selectFaInviteCode,
     selectFaIsUnsynced,
-    selectFaStatus,
+    selectIsWalletServiceRestoreFlow,
     selectIsWalletServiceLightningRunning,
     selectWalletServiceGuardianCount,
     selectLoadedFederation,
@@ -162,19 +162,16 @@ const WalletServiceDashboard: React.FC<Props> = ({ navigation }) => {
     const hasJoinFailed = useAppSelector(
         s => selectFaFederationJoinFailure(s) !== null,
     )
-    // Restored only — the same pair the terminal state on WalletServiceProgress
-    // renders for. The bridge reports a failed join on the created path too,
-    // where this screen is where the user belongs; handing that one over would
-    // put the creation checklist, its confetti and its fee onboarding in front
-    // of someone whose service was created long ago.
-    // the type alone, not the status: the object is replaced on every snapshot
-    // the bridge reports, and neither of the two decisions below moves with it
-    const faStatusType = useAppSelector(s => selectFaStatus(s)?.type ?? null)
-    const isRestoredService = faStatusType === 'restored'
+    // The restore flow only — the same pair the terminal state on
+    // WalletServiceProgress renders for. The bridge reports a failed join on
+    // the creation path too, where this screen is where the user belongs;
+    // handing that one over would put the creation checklist, its confetti
+    // and its fee onboarding in front of someone who just created it.
+    const isRestoredService = useAppSelector(selectIsWalletServiceRestoreFlow)
     // The created counterpart, which stays here and is answered here: the
     // bridge runs its auto-join once per start, so no spinner on this screen
     // is describing anything that is still happening.
-    const hasCreatedJoinFailed = faStatusType === 'formation' && hasJoinFailed
+    const hasCreatedJoinFailed = !isRestoredService && hasJoinFailed
     // No loop back: Progress only returns here once the service is usable,
     // which means the wallet is ready — exactly the condition that makes a
     // retained failure stale in `selectFaFederationJoinFailure`.

@@ -76,7 +76,6 @@ const makeFormation = (
     milestones: {
         ecashSent: false,
         guardiansConfirmed: false,
-        walletServiceCreated: false,
     },
     inviteCode: null,
     lastError: null,

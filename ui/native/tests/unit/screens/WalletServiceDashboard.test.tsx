@@ -14,6 +14,7 @@ import {
     refreshGuardianStatuses,
     setFederations,
     setFaFederationJoin,
+    setFaStatus,
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
@@ -22,6 +23,8 @@ import type { MSats } from '@fedi/common/types'
 import type {
     GuardianStatus,
     RpcFaFormationSnapshot,
+    RpcFaFormedFederation,
+    RpcFaFormedSeat,
     RpcFaLiquidityOperation,
     RpcFaStatus,
 } from '@fedi/common/types/bindings'
@@ -89,12 +92,34 @@ const makeGuardianStatuses = (
     })),
 ]
 
-const formation: RpcFaFormationSnapshot = {
+const makeSeats = (count: number): RpcFaFormedSeat[] =>
+    Array.from({ length: count }, (_, index) => ({
+        mgId: `mg-${index}`,
+        mgName: `guardian ${index}`,
+        seatId: `seat-${index}`,
+        locator: `locator-${index}`,
+    }))
+
+/** A federation formed by a formation on this device. */
+const federation: RpcFaFormedFederation = {
     formationId: 'formation-1',
-    phase: 'formed',
+    federationInvite: INVITE_CODE,
+    federationName: 'Test Wallet Service',
+    seats: makeSeats(7),
+    freshness: 'fresh',
+    backupEligible: true,
+    origin: 'thisDevice',
+}
+
+/** The setup that formed `formed`, as this app watched it. */
+const formationOf = (
+    formed: RpcFaFormedFederation,
+): RpcFaFormationSnapshot => ({
+    formationId: formed.formationId,
+    phase: 'publishingSeatBindings',
     intent: {
-        federationName: 'Test Wallet Service',
-        federationSize: 7,
+        federationName: formed.federationName ?? '',
+        federationSize: formed.seats.length,
         guardianFeePpm: 1_000,
         plan: 'infiniteBestEffort',
         maxTotalMsats: null,
@@ -103,41 +128,39 @@ const formation: RpcFaFormationSnapshot = {
     freshness: 'fresh',
     actionRequired: null,
     paymentOutputsStarted: true,
-    milestones: {
-        ecashSent: true,
-        guardiansConfirmed: true,
-        walletServiceCreated: true,
-    },
-    inviteCode: INVITE_CODE,
+    milestones: { ecashSent: true, guardiansConfirmed: true },
+    inviteCode: formed.federationInvite,
     lastError: null,
-}
+})
 
 /** Matches the fixture in `common/tests/unit/hooks/faRecoveryStage.test.ts`. */
 const restoredStatus = (
     freshness: 'unsynced' | 'fresh',
     backupEligible = false,
 ): RpcFaStatus => ({
-    type: 'restored',
-    formation: {
-        snapshotGeneration: 3,
+    type: 'formed',
+    federation: {
         formationId: 'formation-1',
         federationInvite: INVITE_CODE,
         federationName: 'Restored Wallet Service',
         seats: [],
-        phase: 'formed',
         freshness,
         backupEligible,
+        origin: 'backup',
     },
 })
 
 const renderScreen = ({
-    snapshot = formation,
+    // a federation this app watched form; `status` replaces it with one it
+    // did not: a backup import takes the restore flow, and a federation
+    // formed in an earlier launch does not
+    formed = federation,
     // the federation the invite resolves to is joined and loaded, matching
     // the bridge's auto-join once formation reaches `formed`
     federationJoined = true,
     // the joined federation is the wallet service, so it publishes the live
-    // name; that equals the creation-time intent until a rename
-    federationName = formation.intent.federationName,
+    // name; that equals the creation-time name until a rename
+    federationName = federation.federationName ?? '',
     renamedTo = null as string | null,
     iconUrl = null as string | null,
     // what the guardian remittance balance stream does: a number it emits, or
@@ -149,10 +172,10 @@ const renderScreen = ({
     // what the app-wide monitor has found; the dashboard is where a user lands
     // after walking away from an attach, so it has to report one
     liquidity = null as RpcFaLiquidityOperation | null,
-    status = { type: 'formation', formation: snapshot } as RpcFaStatus,
+    status,
     recovering = false,
 }: {
-    snapshot?: RpcFaFormationSnapshot
+    formed?: RpcFaFormedFederation
     federationJoined?: boolean
     federationName?: string
     renamedTo?: string | null
@@ -192,73 +215,82 @@ const renderScreen = ({
         },
     })
 
+    const store = setupStore({
+        federation: {
+            ...state.federation,
+            federations: federationJoined
+                ? [
+                      {
+                          ...mockFederation1,
+                          id: WALLET_SERVICE_FEDERATION_ID,
+                          name: federationName,
+                          meta: {
+                              ...(renamedTo
+                                  ? { federation_name: renamedTo }
+                                  : mockFederation1.meta),
+                              ...(iconUrl && {
+                                  'fedi:federation_icon_url': iconUrl,
+                              }),
+                          },
+                          // the screen no longer reads this; it is here
+                          // so a personal balance cannot silently
+                          // become what the card shows again
+                          balance: 21_000_000 as MSats,
+                          recovering,
+                      },
+                  ]
+                : [],
+        },
+        fi: {
+            status: null,
+            clientError: null,
+            federationJoin: null,
+            creationHighWaterMark: null,
+            walletServiceMetadata: {
+                formationId: null,
+                published: null,
+                holds: {},
+                status: 'idle',
+                latestRequestId: null,
+            },
+            draft: { name: '', size: 10 },
+            selectionPreview: null,
+            replacementPreview: null,
+            topUpInvoice: null,
+            eligiblePayers: null,
+            payerError: null,
+            operationError: null,
+            liquidity: {
+                operation: liquidity,
+                hasRead: true,
+                errorCode: null,
+                isRequesting: false,
+            },
+        },
+        nux: {
+            steps: {
+                ...state.nux.steps,
+                hasSeenWalletServiceTour: hasSeenTour,
+            },
+        },
+    })
+    if (status) {
+        store.dispatch(setFaStatus(status))
+    } else {
+        // the same two reports the app gets: the formation, then the
+        // federation it formed, so the store records that it watched it form
+        store.dispatch(
+            setFaStatus({ type: 'formation', formation: formationOf(formed) }),
+        )
+        store.dispatch(setFaStatus({ type: 'formed', federation: formed }))
+    }
+
     return renderWithProviders(
         <WalletServiceDashboard
             navigation={mockNavigation as any}
             route={mockRoute as any}
         />,
-        {
-            fedimint,
-            preloadedState: {
-                federation: {
-                    ...state.federation,
-                    federations: federationJoined
-                        ? [
-                              {
-                                  ...mockFederation1,
-                                  id: WALLET_SERVICE_FEDERATION_ID,
-                                  name: federationName,
-                                  meta: {
-                                      ...(renamedTo
-                                          ? { federation_name: renamedTo }
-                                          : mockFederation1.meta),
-                                      ...(iconUrl && {
-                                          'fedi:federation_icon_url': iconUrl,
-                                      }),
-                                  },
-                                  // the screen no longer reads this; it is here
-                                  // so a personal balance cannot silently
-                                  // become what the card shows again
-                                  balance: 21_000_000 as MSats,
-                                  recovering,
-                              },
-                          ]
-                        : [],
-                },
-                fi: {
-                    status,
-                    clientError: null,
-                    federationJoin: null,
-                    creationHighWaterMark: null,
-                    walletServiceMetadata: {
-                        formationId: null,
-                        published: null,
-                        holds: {},
-                        status: 'idle',
-                        latestRequestId: null,
-                    },
-                    draft: { name: '', size: 10 },
-                    selectionPreview: null,
-                    replacementPreview: null,
-                    topUpInvoice: null,
-                    eligiblePayers: null,
-                    payerError: null,
-                    operationError: null,
-                    liquidity: {
-                        operation: liquidity,
-                        hasRead: true,
-                        errorCode: null,
-                        isRequesting: false,
-                    },
-                },
-                nux: {
-                    steps: {
-                        ...state.nux.steps,
-                        hasSeenWalletServiceTour: hasSeenTour,
-                    },
-                },
-            },
-        },
+        { fedimint, store },
     )
 }
 
@@ -363,12 +395,9 @@ describe('screens/WalletServiceDashboard', () => {
         expect(screen.queryByTestId('FederationLogo__Image')).toBeNull()
     })
 
-    it('should take the guardian total from the formation', async () => {
+    it('should take the guardian total from the formed seats', async () => {
         renderScreen({
-            snapshot: {
-                ...formation,
-                intent: { ...formation.intent, federationSize: 13 },
-            },
+            formed: { ...federation, seats: makeSeats(13) },
             federationJoined: false,
         })
         await waitFor(() => {})
@@ -636,7 +665,7 @@ describe('screens/WalletServiceDashboard', () => {
     })
 
     it('renders a skeleton in place of the guardian count while the FA is unsynced', async () => {
-        renderScreen({ snapshot: { ...formation, freshness: 'unsynced' } })
+        renderScreen({ formed: { ...federation, freshness: 'unsynced' } })
         await waitFor(() => {})
 
         expect(
@@ -711,6 +740,30 @@ describe('screens/WalletServiceDashboard', () => {
         expect(mockNavigation.replace).not.toHaveBeenCalled()
     })
 
+    // After a relaunch the app has no record of the formation, but the bridge
+    // reports a federation formed here as backup eligible from the start.
+    it('should keep a service created in an earlier launch on the dashboard when its join fails', async () => {
+        const { store } = renderScreen({
+            status: { type: 'formed', federation },
+            federationJoined: false,
+        })
+        await waitFor(() => {})
+
+        await act(async () => {
+            store.dispatch(
+                setFaFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'failed', message: 'guardian unreachable' },
+                }),
+            )
+        })
+
+        expect(
+            screen.getByTestId('wallet-service-join-failed'),
+        ).toBeOnTheScreen()
+        expect(mockNavigation.replace).not.toHaveBeenCalled()
+    })
+
     it('should keep the spinner for a created service whose join has not failed', async () => {
         const { queryByTestId } = renderScreen({ federationJoined: false })
         await waitFor(() => {})
@@ -779,7 +832,7 @@ describe('screens/WalletServiceDashboard', () => {
                     {
                         ...mockFederation1,
                         id: WALLET_SERVICE_FEDERATION_ID,
-                        name: formation.intent.federationName,
+                        name: federation.federationName ?? '',
                         balance: 21_000_000 as MSats,
                         recovering: false,
                     },
@@ -891,7 +944,7 @@ describe('screens/WalletServiceDashboard', () => {
     // re-reconciling must not take the balance away
     it('shows the balance for a created service whose FA snapshot is unsynced', async () => {
         renderScreen({
-            snapshot: { ...formation, freshness: 'unsynced' },
+            formed: { ...federation, freshness: 'unsynced' },
             federationJoined: true,
             feeBalance: 5_000_000,
         })
@@ -1144,16 +1197,6 @@ describe('screens/WalletServiceDashboard', () => {
         })
 
         expect(wasHandled).toBe(true)
-    })
-
-    it('should not open the invite sheet when there is no invite code', async () => {
-        renderScreen({ snapshot: { ...formation, inviteCode: null } })
-
-        await user.press(screen.getByTestId('wallet-service-invite'))
-
-        expect(
-            screen.queryByText(i18n.t('feature.wallet-service.invite-link')),
-        ).not.toBeOnTheScreen()
     })
 
     // one line, not the checklist: that shifted the page when the attach

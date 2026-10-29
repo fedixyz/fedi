@@ -26,6 +26,7 @@ import type { MSats } from '@fedi/common/types'
 import {
     FeatureCatalog,
     RpcFaFormationSnapshot,
+    RpcFaFormedFederation,
     RpcFaOperationError,
     RpcFaSeatProgress,
     RpcFaStatus,
@@ -75,31 +76,53 @@ const makeFormation = (
     milestones: {
         ecashSent: false,
         guardiansConfirmed: false,
-        walletServiceCreated: false,
     },
     inviteCode: null,
     lastError: null,
     ...overrides,
 })
 
+/** The federation `makeFormation` forms: the formed status keeps its id. */
+const makeFormedFederation = (
+    overrides: Partial<RpcFaFormedFederation> = {},
+): RpcFaFormedFederation => ({
+    formationId: 'formation-1',
+    federationInvite: 'fed11invite',
+    federationName: 'My Wallet Service',
+    seats: [],
+    freshness: 'fresh',
+    backupEligible: true,
+    origin: 'thisDevice',
+    ...overrides,
+})
+
+/** The last setup snapshot before the bridge reports the federation formed. */
+const makeFinishingFormation = () =>
+    makeFormation({
+        phase: 'publishingSeatBindings',
+        paymentOutputsStarted: true,
+        milestones: { ecashSent: true, guardiansConfirmed: true },
+    })
+
+/** A federation from a backup that this device has not checked yet. */
 const makeRestoredStatus = (
     freshness: 'unsynced' | 'fresh' = 'unsynced',
 ): RpcFaStatus => ({
-    type: 'restored',
-    formation: {
-        snapshotGeneration: 3,
+    type: 'formed',
+    federation: {
         formationId: 'restored-formation',
         federationInvite: 'private-invite',
         federationName: 'Restored Federation',
         seats: [],
-        phase: 'formed',
         freshness,
         backupEligible: false,
+        origin: 'backup',
     },
 })
 
 const renderProgress = ({
     formation = makeFormation(),
+    formed,
     clientError = null,
     status,
     joinFailedBeforeMount = false,
@@ -108,6 +131,11 @@ const renderProgress = ({
     manifoldCreationOverride = false,
 }: {
     formation?: RpcFaFormationSnapshot
+    /**
+     * The federation `formation` became, reported after it the way the bridge
+     * reports a creation that completes while this app watches.
+     */
+    formed?: RpcFaFormedFederation
     clientError?: RpcFaOperationError | null
     status?: RpcFaStatus
     /**
@@ -160,6 +188,8 @@ const renderProgress = ({
     store.dispatch(setFeatureFlags(featureFlags as FeatureCatalog))
     store.dispatch(setManifoldCreationOverrideEnabled(manifoldCreationOverride))
     store.dispatch(setFaStatus(status ?? { type: 'formation', formation }))
+    if (formed)
+        store.dispatch(setFaStatus({ type: 'formed', federation: formed }))
     if (clientError)
         store.dispatch(
             setFaClientStatus({ type: 'failed', error: clientError }),
@@ -413,11 +443,7 @@ describe('WalletServiceProgress screen', () => {
     it('should render every milestone detail line in every state', async () => {
         renderProgress({
             formation: makeFormation({
-                milestones: {
-                    ecashSent: true,
-                    guardiansConfirmed: false,
-                    walletServiceCreated: false,
-                },
+                milestones: { ecashSent: true, guardiansConfirmed: false },
             }),
         })
 
@@ -481,14 +507,8 @@ describe('WalletServiceProgress screen', () => {
 
     it('should show the success state once creation completes', async () => {
         renderProgress({
-            formation: makeFormation({
-                phase: 'formed',
-                milestones: {
-                    ecashSent: true,
-                    guardiansConfirmed: true,
-                    walletServiceCreated: true,
-                },
-            }),
+            formation: makeFinishingFormation(),
+            formed: makeFormedFederation(),
         })
 
         expect(
@@ -503,14 +523,8 @@ describe('WalletServiceProgress screen', () => {
 
     it('should route to the fee screen in onboarding mode when continue is pressed', async () => {
         const { user } = renderProgress({
-            formation: makeFormation({
-                phase: 'formed',
-                milestones: {
-                    ecashSent: true,
-                    guardiansConfirmed: true,
-                    walletServiceCreated: true,
-                },
-            }),
+            formation: makeFinishingFormation(),
+            formed: makeFormedFederation(),
         })
 
         const continueButton = await screen.findByTestId('continue-button')
@@ -659,11 +673,7 @@ describe('WalletServiceProgress screen', () => {
                 phase: 'guardianCodeReady' as const,
                 freshness: 'fresh' as const,
             })),
-            milestones: {
-                ecashSent: true,
-                guardiansConfirmed: true,
-                walletServiceCreated: false,
-            },
+            milestones: { ecashSent: true, guardiansConfirmed: true },
         })
 
         const restarted = {
@@ -882,14 +892,8 @@ describe('WalletServiceProgress screen', () => {
 
     it('should hide return-home once the formation completes', async () => {
         renderProgress({
-            formation: makeFormation({
-                phase: 'formed',
-                milestones: {
-                    ecashSent: true,
-                    guardiansConfirmed: true,
-                    walletServiceCreated: true,
-                },
-            }),
+            formation: makeFinishingFormation(),
+            formed: makeFormedFederation(),
         })
 
         await screen.findByText(
@@ -928,11 +932,7 @@ describe('WalletServiceProgress screen', () => {
         const { store } = renderProgress({
             formation: makeFormation({
                 seats: seatsAt('created'),
-                milestones: {
-                    ecashSent: true,
-                    guardiansConfirmed: false,
-                    walletServiceCreated: false,
-                },
+                milestones: { ecashSent: true, guardiansConfirmed: false },
             }),
         })
 
@@ -961,7 +961,6 @@ describe('WalletServiceProgress screen', () => {
                         milestones: {
                             ecashSent: false,
                             guardiansConfirmed: false,
-                            walletServiceCreated: false,
                         },
                     }),
                 }),
@@ -983,21 +982,14 @@ describe('WalletServiceProgress screen', () => {
      * change isn't possible right now." over a dead Save button.
      *
      * The bridge will not take a guardian fee until the federation is formed,
-     * but this screen called the setup finished on the `walletServiceCreated`
-     * milestone alone — so Continue handed the user to a screen that could not
-     * do anything yet, and said so as an error.
+     * but this screen once called the setup finished while the formation was
+     * still publishing — so Continue handed the user to a screen that could
+     * not do anything yet, and said so as an error. Done is the formed status.
      */
-    it('should hold the last step until the phase reports the federation formed', async () => {
+    it('should hold the last step until the bridge reports the federation formed', async () => {
         const { store } = renderProgress({
-            formation: makeFormation({
-                // the milestone is set, but the phase is still finishing
-                phase: 'publishingSeatBindings',
-                milestones: {
-                    ecashSent: true,
-                    guardiansConfirmed: true,
-                    walletServiceCreated: true,
-                },
-            }),
+            // every milestone is set, but the formation is still finishing
+            formation: makeFinishingFormation(),
         })
 
         // no premature celebration, and nothing to press on to a screen that
@@ -1013,15 +1005,8 @@ describe('WalletServiceProgress screen', () => {
         act(() => {
             store.dispatch(
                 setFaStatus({
-                    type: 'formation',
-                    formation: makeFormation({
-                        phase: 'formed',
-                        milestones: {
-                            ecashSent: true,
-                            guardiansConfirmed: true,
-                            walletServiceCreated: true,
-                        },
-                    }),
+                    type: 'formed',
+                    federation: makeFormedFederation(),
                 }),
             )
         })
@@ -1033,15 +1018,11 @@ describe('WalletServiceProgress screen', () => {
     })
 
     it('should keep the ready state when a later snapshot reports it unsynced', async () => {
-        const formed = makeFormation({
-            phase: 'formed',
-            milestones: {
-                ecashSent: true,
-                guardiansConfirmed: true,
-                walletServiceCreated: true,
-            },
+        const formed = makeFormedFederation()
+        const { store } = renderProgress({
+            formation: makeFinishingFormation(),
+            formed,
         })
-        const { store } = renderProgress({ formation: formed })
 
         await screen.findByText(
             i18n.t('feature.wallet-service.progress-ready-title'),
@@ -1053,8 +1034,8 @@ describe('WalletServiceProgress screen', () => {
         act(() => {
             store.dispatch(
                 setFaStatus({
-                    type: 'formation',
-                    formation: { ...formed, freshness: 'unsynced' },
+                    type: 'formed',
+                    federation: { ...formed, freshness: 'unsynced' },
                 }),
             )
         })
@@ -1072,11 +1053,7 @@ describe('WalletServiceProgress screen', () => {
     it('should show the confirmed guardian count as the stage-2 detail once seats exist', async () => {
         renderProgress({
             formation: makeFormation({
-                milestones: {
-                    ecashSent: true,
-                    guardiansConfirmed: false,
-                    walletServiceCreated: false,
-                },
+                milestones: { ecashSent: true, guardiansConfirmed: false },
                 seats: [
                     {
                         index: 0,

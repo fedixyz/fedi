@@ -2,6 +2,9 @@ import {
     FORMATION_PHASES,
     formationAt,
     formationStatus,
+    formedAt,
+    formedFrom,
+    formedStatus,
     IDLE_STATUS,
     restoredStatus,
     withAuthorization,
@@ -31,7 +34,6 @@ describe('formation status builders', () => {
         expect(formationAt(SEED, 'preparing').milestones).toEqual({
             ecashSent: false,
             guardiansConfirmed: false,
-            walletServiceCreated: false,
         })
         expect(formationAt(SEED, 'acquiringSeats').milestones.ecashSent).toBe(
             true,
@@ -42,10 +44,12 @@ describe('formation status builders', () => {
         expect(
             formationAt(SEED, 'dkgUnderway').milestones.guardiansConfirmed,
         ).toBe(true)
-        expect(
-            formationAt(SEED, 'formed').milestones.walletServiceCreated,
-        ).toBe(true)
-        expect(formationAt(SEED, 'formed').inviteCode).not.toBeNull()
+    })
+
+    it('should keep setup a formation with no invite, up to its last phase', () => {
+        expect(FORMATION_PHASES.at(-1)).toBe('publishingSeatBindings')
+        for (const phase of FORMATION_PHASES)
+            expect(formationAt(SEED, phase).inviteCode).toBeNull()
     })
 
     it('should honour the seed overrides', () => {
@@ -156,28 +160,72 @@ describe('formation status builders', () => {
         expect(base.actionRequired).toBeNull()
     })
 
-    it('should build a restored status that is unsynced and nameless until reconciled', () => {
-        const status = restoredStatus(SEED, { freshness: 'unsynced' })
+    it('should form a federation from the formation seats, backup eligible', () => {
+        const seed = { ...SEED, federationName: 'Named', federationSize: 7 }
+        const federation = formedAt(seed)
+
+        expect(federation).toEqual({
+            formationId: SEED.formationId,
+            federationInvite: `fed1${'sim'.padEnd(40, '0')}${SEED.formationId}`,
+            federationName: 'Named',
+            seats: expect.any(Array),
+            freshness: 'fresh',
+            backupEligible: true,
+            origin: 'thisDevice',
+        })
+        expect(federation.seats).toHaveLength(7)
+        expect(federation.seats[6]).toEqual({
+            mgId: `mg_${SEED.formationId}_6`,
+            seatId: 'seat_6',
+            locator: JSON.stringify({ v: 1, mgId: `mg_${SEED.formationId}_6` }),
+        })
+        expect(formedStatus(federation)).toEqual({ type: 'formed', federation })
+    })
+
+    it('should refuse to form a federation from seats that were never acquired', () => {
+        expect(() =>
+            formedFrom(formationAt(SEED, 'awaitingPaymentReadiness'), {
+                freshness: 'fresh',
+                backupEligible: true,
+                origin: 'thisDevice',
+            }),
+        ).toThrow('seat 0')
+    })
+
+    it('should mark a formed federation unsynced without mutating it', () => {
+        const federation = formedAt(SEED)
+
+        const stale = withUnsynced(federation)
+
+        expect(stale.freshness).toBe('unsynced')
+        expect(stale.backupEligible).toBe(true)
+        expect(federation.freshness).toBe('fresh')
+    })
+
+    it('should build a restored status that is unsynced, ineligible and nameless until reconciled', () => {
+        const status = restoredStatus(SEED, {
+            freshness: 'unsynced',
+            backupEligible: false,
+        })
 
         expect(status).toEqual({
-            type: 'restored',
-            formation: {
-                snapshotGeneration: 3,
+            type: 'formed',
+            federation: {
                 formationId: SEED.formationId,
                 federationInvite: `fed1${'sim'.padEnd(40, '0')}${SEED.formationId}`,
                 federationName: null,
                 seats: expect.any(Array),
-                phase: 'formed',
                 freshness: 'unsynced',
                 backupEligible: false,
+                origin: 'backup',
             },
         })
-        if (status.type !== 'restored') throw new Error('expected restored')
-        expect(status.formation.seats).toHaveLength(10)
-        expect(status.formation.seats[0]).toEqual({
-            mgId: expect.stringMatching(/^mg_/),
+        if (status.type !== 'formed') throw new Error('expected formed')
+        expect(status.federation.seats).toHaveLength(10)
+        expect(status.federation.seats[0]).toEqual({
+            mgId: `mg_${SEED.formationId}_0`,
             seatId: 'seat_0',
-            locator: '{"version":1}',
+            locator: JSON.stringify({ v: 1, mgId: `mg_${SEED.formationId}_0` }),
         })
     })
 
@@ -187,9 +235,9 @@ describe('formation status builders', () => {
             backupEligible: true,
             federationName: 'My Wallet Service',
         })
-        if (status.type !== 'restored') throw new Error('expected restored')
-        expect(status.formation.freshness).toBe('fresh')
-        expect(status.formation.backupEligible).toBe(true)
-        expect(status.formation.federationName).toBe('My Wallet Service')
+        if (status.type !== 'formed') throw new Error('expected formed')
+        expect(status.federation.freshness).toBe('fresh')
+        expect(status.federation.backupEligible).toBe(true)
+        expect(status.federation.federationName).toBe('My Wallet Service')
     })
 })
