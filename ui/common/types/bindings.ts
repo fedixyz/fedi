@@ -1196,6 +1196,7 @@ export type RpcFaOperationError = {
 };
 
 export type RpcFaOperationErrorDetail =
+  | { type: "liquidityOperationExists" }
   | { type: "maintenanceUnsupported" }
   | {
       type: "insufficientMgSeats";
@@ -1268,6 +1269,7 @@ export type RpcFaReplacementCheck = {
   federationId: string;
   checkedAt: number;
   candidates: Array<RpcFaReplacementCandidate>;
+  blockingLiquidityOperation: string | null;
 };
 
 export type RpcFaReplacementPreview = {

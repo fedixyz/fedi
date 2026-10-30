@@ -3326,6 +3326,10 @@ pub fn fa_guardian_transfer_stream(
 
 fn replacement_check_to_rpc(check: &ReplacementCheck) -> RpcFaReplacementCheck {
     RpcFaReplacementCheck {
+        blocking_liquidity_operation: check
+            .blocking_liquidity_operation
+            .as_ref()
+            .map(|id| id.0.clone()),
         federation_id: check.federation_id.0.clone(),
         checked_at: check.checked_at,
         candidates: check
@@ -3510,6 +3514,9 @@ pub(crate) fn fa_push_error_to_rpc(error: &FaPushError) -> RpcFaOperationError {
 
 fn fa_error_detail_to_rpc(error: &FaError) -> Option<RpcFaOperationErrorDetail> {
     match error {
+        FaError::LiquidityOperationExists { .. } => {
+            Some(RpcFaOperationErrorDetail::LiquidityOperationExists)
+        }
         FaError::MaintenanceUnsupported { .. } => {
             Some(RpcFaOperationErrorDetail::MaintenanceUnsupported)
         }

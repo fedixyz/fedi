@@ -2099,6 +2099,13 @@ fn fa_errors_map_to_stable_rpc_codes_and_messages() {
     let error = fa_error_to_rpc(&FaError::Timeout("waiting for DKG".to_owned()));
     assert_eq!(error.code, RpcFaErrorCode::Timeout);
     assert_eq!(error.message, "The FA operation timed out");
+    let error = fa_error_to_rpc(&FaError::LiquidityOperationExists {
+        operation_id: LiquidityOperationId("pending".to_owned()),
+    });
+    assert_eq!(
+        error.detail,
+        Some(RpcFaOperationErrorDetail::LiquidityOperationExists)
+    );
 }
 
 #[test]

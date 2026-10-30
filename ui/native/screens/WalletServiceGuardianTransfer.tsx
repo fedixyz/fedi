@@ -20,6 +20,7 @@ import {
     refreshWalletServiceEligiblePayers,
     selectFederationBalance,
     selectGuardianTransfer,
+    selectGuardianReplacementBlocker,
     selectGuardianTransferSeats,
     selectIsWalletServiceGuardianTransferEnabled,
     selectReplacementCandidates,
@@ -573,6 +574,7 @@ const GuardianTransferFlow: React.FC<Props> = ({ navigation, route }) => {
     useMonitorGuardianTransfer()
     const candidates = useAppSelector(selectReplacementCandidates)
     const checkedAt = useAppSelector(selectReplacementCheckedAt)
+    const blocker = useAppSelector(selectGuardianReplacementBlocker)
     const { eligiblePayerIds, paymentFederation, paymentBalance } =
         usePaymentFederation()
     const preselectedSeat = route.params?.seatIndex
@@ -641,8 +643,8 @@ const GuardianTransferFlow: React.FC<Props> = ({ navigation, route }) => {
                     checkedAt={checkedAt}
                     hasQuorum={hasQuorum}
                     notice={
-                        listNotice === null
-                            ? null
+                        listNotice === null || blocker
+                            ? blocker && t(blocker)
                             : listNotice.type === 'notEligible'
                               ? t(
                                     'feature.wallet-service.transfer-not-eligible-banner',
@@ -658,7 +660,7 @@ const GuardianTransferFlow: React.FC<Props> = ({ navigation, route }) => {
                                     'feature.wallet-service.transfer-unavailable-banner',
                                 )
                     }
-                    disabled={isPreviewing}
+                    disabled={isPreviewing || !!blocker}
                     onSelect={handleSelectSeat}
                     onDone={() => navigation.goBack()}
                 />

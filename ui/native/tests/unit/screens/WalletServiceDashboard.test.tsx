@@ -15,6 +15,8 @@ import {
     setFederations,
     setFaFederationJoin,
     setFaStatus,
+    setReplacementCandidates,
+    setFaLiquidityOperation,
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
@@ -637,6 +639,7 @@ describe('screens/WalletServiceDashboard', () => {
         const carolFlagged: RpcFaReplacementCheck = {
             federationId: WALLET_SERVICE_FEDERATION_ID,
             checkedAt: 1_700_000_000,
+            blockingLiquidityOperation: null,
             candidates: [
                 {
                     seatIndex: 2,
@@ -651,6 +654,44 @@ describe('screens/WalletServiceDashboard', () => {
         }
         const openSheet = async () =>
             user.press(await screen.findByTestId('wallet-service-guardians'))
+
+        it('should keep Replace blocked until the replacement check clears it', async () => {
+            const { store } = renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: {
+                    ...carolFlagged,
+                    blockingLiquidityOperation: 'operation-1',
+                },
+            })
+            await openSheet()
+            const replace = screen.getByTestId(
+                'wallet-service-guardian-replace-2',
+            )
+            expect(replace).toBeDisabled()
+            expect(
+                screen.getByText(/blocked by an unfinished liquidity request/),
+            ).toBeOnTheScreen()
+            await user.press(replace)
+            expect(mockNavigation.navigate).not.toHaveBeenCalled()
+            act(() => {
+                store.dispatch(
+                    setFaLiquidityOperation(
+                        runningAttach({ gatewayViewVerified: true }),
+                    ),
+                )
+            })
+            expect(replace).toBeDisabled()
+            act(() => {
+                store.dispatch(
+                    setReplacementCandidates({
+                        type: 'ready',
+                        check: carolFlagged,
+                    }),
+                )
+            })
+            expect(replace).toBeEnabled()
+        })
 
         it('should show why a flagged guardian is flagged before opening the replacement for its seat', async () => {
             renderScreen({

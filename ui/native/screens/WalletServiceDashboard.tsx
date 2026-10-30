@@ -26,6 +26,7 @@ import {
     selectFaIsUnsynced,
     selectIsWalletServiceRestoreFlow,
     selectGuardianTransfer,
+    selectGuardianReplacementBlocker,
     selectIsGuardianTransferOpen,
     selectReplacementCandidates,
     selectIsWalletServiceFormed,
@@ -138,6 +139,8 @@ const useGuardianReplacement = () => {
 
 /** The Guardians sheet's shown state, its open-on-push and its replace offer */
 const useGuardiansSheet = ({ navigation, route }: Props) => {
+    const { t } = useTranslation()
+    const blocker = useAppSelector(selectGuardianReplacementBlocker)
     const [isShown, setIsShown] = useState(false)
     useOpenGuardiansAfterPush({ navigation, route, setIsShown })
     const { isAvailable, transfer, candidates, canStart } =
@@ -150,7 +153,9 @@ const useGuardiansSheet = ({ navigation, route }: Props) => {
                       ? transfer.sourceMgName
                       : null,
               canStart,
+              blockedReason: blocker ? t(blocker) : undefined,
               onReplace: seatIndex => {
+                  if (!canStart || blocker) return
                   setIsShown(false)
                   navigation.navigate('WalletServiceGuardianTransfer', {
                       seatIndex,

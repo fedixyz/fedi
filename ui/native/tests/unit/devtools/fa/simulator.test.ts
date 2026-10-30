@@ -1197,6 +1197,7 @@ describe('FaSimulator', () => {
             const check = {
                 federationId: 'fed',
                 checkedAt: 1,
+                blockingLiquidityOperation: null,
                 candidates: [],
             }
             simulator.setReplacementCheck(check)

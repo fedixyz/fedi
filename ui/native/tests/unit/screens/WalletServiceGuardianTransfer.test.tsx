@@ -157,6 +157,7 @@ const flaggedCheck = (
 ): RpcFaReplacementCheck => ({
     federationId: mockFederation1.id,
     checkedAt: 1_700_003_600,
+    blockingLiquidityOperation: null,
     candidates,
 })
 

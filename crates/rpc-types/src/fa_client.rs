@@ -685,6 +685,7 @@ pub enum RpcFaAbandonUnavailableReason {
 )]
 #[ts(export)]
 pub enum RpcFaOperationErrorDetail {
+    LiquidityOperationExists,
     /// Too few guardians support this setting to reach consensus.
     MaintenanceUnsupported,
     InsufficientMgSeats {
@@ -840,6 +841,7 @@ pub struct RpcFaReplacementCheck {
     #[ts(type = "number")]
     pub checked_at: u64,
     pub candidates: Vec<RpcFaReplacementCandidate>,
+    pub blocking_liquidity_operation: Option<String>,
 }
 
 /// The latest replacement check. `check` is absent until a check of the

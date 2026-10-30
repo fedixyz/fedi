@@ -2798,6 +2798,7 @@ describe('common/redux/fi › replacement candidates', () => {
                 check: {
                     federationId: 'fed',
                     checkedAt: 1_700_000_000,
+                    blockingLiquidityOperation: null,
                     // seat 0 was flagged for an MG that has since been replaced
                     candidates: [candidate(1, 'mg-b'), candidate(0, 'mg-b')],
                 },
@@ -2817,6 +2818,7 @@ describe('common/redux/fi › replacement candidates', () => {
                 check: {
                     federationId: 'fed',
                     checkedAt: 1_700_000_000,
+                    blockingLiquidityOperation: null,
                     candidates: [candidate(0, 'mg-1')],
                 },
             }),
@@ -2830,6 +2832,7 @@ describe('common/redux/fi › replacement candidates', () => {
         const check = {
             federationId: 'fed',
             checkedAt: 1_700_000_000,
+            blockingLiquidityOperation: null,
             candidates: [candidate(0, 'mg-0')],
         }
         store.dispatch(setReplacementCandidates({ type: 'ready', check }))
@@ -2939,6 +2942,14 @@ describe('common/redux/fi › getGuardianTransferErrorKey', () => {
     })
 
     it.each<[RpcFaOperationError | null | undefined, string]>([
+        [
+            {
+                code: 'liquidity',
+                message: '',
+                detail: { type: 'liquidityOperationExists' },
+            },
+            'feature.wallet-service.transfer-error-liquidity-pending',
+        ],
         [
             makeError('payment', 'payment failed'),
             'feature.wallet-service.error-payment',

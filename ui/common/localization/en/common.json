@@ -1645,6 +1645,7 @@
             "error-invalid-intent": "Check your Federation details.",
             "error-invalid-options": "Those setup options aren't supported.",
             "error-liquidity": "Couldn't find enough liquidity right now.",
+            "transfer-error-liquidity-pending": "Guardian replacement is blocked by an unfinished liquidity request. Try again later.",
             "error-maintenance-invalid": "That Federation change isn't valid.",
             "error-maintenance-rejected": "The guardians rejected that Federation change.",
             "error-maintenance-timeout": "The guardians couldn't agree on that change.",

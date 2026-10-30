@@ -1742,6 +1742,12 @@ export const selectReplacementCandidates = createSelector(
 export const selectReplacementCheckedAt = (s: CommonState) =>
     s.fi.replacementCheck?.checkedAt ?? null
 
+// Follow the last replacement check until its normal refresh clears the blocker.
+export const selectGuardianReplacementBlocker = (s: CommonState) =>
+    s.fi.replacementCheck?.blockingLiquidityOperation
+        ? ('feature.wallet-service.transfer-error-liquidity-pending' as const)
+        : null
+
 /** A move that has not finished blocks a second move and liquidity requests. */
 export const selectIsGuardianTransferOpen = (s: CommonState) => {
     const transfer = selectGuardianTransfer(s)
@@ -1823,6 +1829,8 @@ const TRANSFER_REAUTHORIZATION_MESSAGE_KEYS = {
 export const getGuardianTransferErrorKey = (
     error: RpcFaOperationError | null | undefined,
 ) => {
+    if (error?.detail?.type === 'liquidityOperationExists')
+        return 'feature.wallet-service.transfer-error-liquidity-pending' as const
     if (error?.detail?.type === 'selectionReauthorizationRequired')
         return TRANSFER_REAUTHORIZATION_MESSAGE_KEYS[error.detail.reason]
     if (error?.code === 'busy')

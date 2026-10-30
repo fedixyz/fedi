@@ -82,6 +82,7 @@ const checkFlagging =
         return {
             federationId: 'sim-federation',
             checkedAt: now - HOUR_SECS / 4,
+            blockingLiquidityOperation: null,
             candidates: formedAt(ctx)
                 .seats.map((seat, index) => ({ seat, index }))
                 .filter(({ index }) => seats.includes(index))

@@ -58,6 +58,7 @@ export type GuardiansSheetReplacement = {
     replacingName: string | null
     /** False while a replacement is open or not yet read. */
     canStart: boolean
+    blockedReason?: string
     onReplace: (seatIndex: number) => void
 }
 
@@ -197,8 +198,9 @@ const GroupedList: React.FC<{
     guardians: SheetGuardian[]
     canReplace: boolean
     canStart: boolean
+    blockedReason?: string
     onReview: (candidate: RpcFaReplacementCandidate) => void
-}> = ({ guardians, canReplace, canStart, onReview }) => {
+}> = ({ guardians, canReplace, canStart, blockedReason, onReview }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const style = styles(theme)
@@ -261,6 +263,7 @@ const GroupedList: React.FC<{
                                         trailing={
                                             candidate && canStart ? (
                                                 <Button
+                                                    disabled={!!blockedReason}
                                                     size="sm"
                                                     outline
                                                     buttonStyle={
@@ -364,6 +367,9 @@ export const WalletServiceGuardiansSheet: React.FC<{
                         text: t('feature.wallet-service.replace-get-quote'),
                         primary: true,
                         testID: 'wallet-service-replace-get-quote',
+                        disabled:
+                            !replacement.canStart ||
+                            !!replacement.blockedReason,
                         onPress: () =>
                             replacement.onReplace(reviewing.seatIndex),
                     },
@@ -374,6 +380,9 @@ export const WalletServiceGuardiansSheet: React.FC<{
                     },
                 ]}>
                 <ReplaceReasons candidate={reviewing} />
+                {replacement.blockedReason && (
+                    <WarningBanner message={replacement.blockedReason} />
+                )}
             </ServiceSheet>
         )
     }
@@ -440,10 +449,14 @@ export const WalletServiceGuardiansSheet: React.FC<{
                 testID="wallet-service-guardians-list"
                 style={style.list}
                 contentContainerStyle={style.listContent}>
+                {replacement?.blockedReason && (
+                    <WarningBanner message={replacement.blockedReason} />
+                )}
                 <GroupedList
                     guardians={guardians}
                     canReplace={!!replacement}
                     canStart={!!replacement?.canStart}
+                    blockedReason={replacement?.blockedReason}
                     onReview={setReviewing}
                 />
             </ScrollView>
