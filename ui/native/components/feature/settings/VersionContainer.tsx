@@ -42,6 +42,7 @@ export const VersionContainer = ({
         <Column center style={style.versionContainer}>
             <SvgImage name="FediLogoIcon" containerStyle={style.logo} />
             <Pressable
+                testID="AppVersionButton"
                 onPress={() => {
                     setUnlockDevModeCount(unlockDevModeCount + 1)
                     if (unlockDevModeCount > 21) {

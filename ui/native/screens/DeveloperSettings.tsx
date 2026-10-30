@@ -25,6 +25,7 @@ import {
     clearAllMiniAppSessions,
     clearAutojoinedCommunitiesAndNotices,
     listGateways,
+    preloadFederationLists,
     refreshStabilityPool,
     resetNuxStep,
     resetNuxSteps,
@@ -40,6 +41,7 @@ import {
     setFediModCacheMode,
     setFediModDebugMode,
     setOnchainDepositsEnabled,
+    setPublicFederationsUrlOverride,
     setStableBalanceEnabled,
     selectPaymentFederation,
     selectLoadedFederation,
@@ -162,6 +164,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const [guardianOnlineStatus, setGuardianOnlineStatus] = useState<
         GuardianStatus[]
     >([])
+    const publicFederationsUrlOverride = useAppSelector(
+        s => s.federation.publicFederationsUrlOverride,
+    )
+    const [discoverFeedUrl, setDiscoverFeedUrl] = useState(
+        publicFederationsUrlOverride ?? '',
+    )
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const walletServiceFederationId = useWalletServiceFederationId()
     const walletServiceFederation = useAppSelector(s =>
@@ -719,7 +727,9 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const style = styles(theme)
 
     return (
-        <ScrollView contentContainerStyle={style.container}>
+        <ScrollView
+            contentContainerStyle={style.container}
+            keyboardShouldPersistTaps="handled">
             <SettingsSection title="App info">
                 <Text style={style.version}>{`Version ${version}`}</Text>
                 <Button
@@ -984,6 +994,35 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         }}
                     />
                 </View>
+            </SettingsSection>
+
+            <SettingsSection title="Discover feed">
+                <Text small style={style.switchLabel}>
+                    Lists federations from this URL until the app restarts.
+                    Leave it empty for the default feed.
+                </Text>
+                <TextInput
+                    testID="DiscoverFeedUrlInput"
+                    style={[style.spikeInput, style.buttonContainer]}
+                    value={discoverFeedUrl}
+                    onChangeText={setDiscoverFeedUrl}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                />
+                <Button
+                    testID="LoadDiscoverFeedButton"
+                    title="Load feed"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(
+                            setPublicFederationsUrlOverride(
+                                discoverFeedUrl.trim() || null,
+                            ),
+                        )
+                        reduxDispatch(preloadFederationLists(fedimint))
+                    }}
+                />
             </SettingsSection>
 
             <SettingsSection title="Chat">

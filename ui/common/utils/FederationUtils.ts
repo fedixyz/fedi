@@ -176,9 +176,13 @@ const parseFederationsFromMeta = (
     return federations
 }
 
-export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
+export const fetchPublicFederations = async (
+    url: string | null = PUBLIC_FEDERATIONS_API_URL,
+): Promise<PublicFederation[]> => {
     try {
-        const metaJson = await fetchExternalMetadata(PUBLIC_FEDERATIONS_API_URL)
+        const metaJson = await fetchExternalMetadata(
+            url || PUBLIC_FEDERATIONS_API_URL,
+        )
         if (!metaJson) throw new Error('No public federations meta to read')
         return parseFederationsFromMeta(metaJson)
     } catch (error) {

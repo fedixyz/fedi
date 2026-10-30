@@ -11,6 +11,7 @@ import {
     selectIsWalletServiceCreationReleased,
     selectFederationIds,
     selectManifoldCreationOverrideEnabled,
+    selectPublicFederations,
     selectWalletServiceFlowStatus,
     setManifoldCreationOverrideEnabled,
 } from '@fedi/common/redux'
@@ -43,9 +44,7 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
     const hasWalletService =
         useAppSelector(selectWalletServiceFlowStatus) === 'formed'
     const joinedFederationIds = useAppSelector(selectFederationIds)
-    const publicFederations = useAppSelector(
-        s => s.federation.publicFederations,
-    )
+    const publicFederations = useAppSelector(selectPublicFederations)
     const isWalletServiceCreationEnabled = useAppSelector(
         selectIsWalletServiceCreationEnabled,
     )

@@ -23,12 +23,16 @@ import {
     setCommunities,
     setLastSelectedCommunityId,
     setPreviouslyAutojoinedCommunity,
+    preloadFederationLists,
+    selectPublicFederations,
+    setOnboardingCompleted,
 } from '../../../redux'
 import { FederationMetadata, MSats } from '../../../types'
 import {
     GuardianStatus,
     RpcFederation,
     RpcFederationMaybeLoading,
+    RpcFederationPreview,
 } from '../../../types/bindings'
 import {
     mockCommunity,
@@ -587,5 +591,106 @@ describe('common/redux/federation › autojoinCommunity', () => {
             mockCommunity.id,
         )
         expect(fedimint.listCommunities).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe('common/redux/federation › public federation previews', () => {
+    const originalFetch = global.fetch
+    const feed = {
+        listed: {
+            public: 'true',
+            invite_code: 'listed-invite',
+            federation_name: 'Feed name',
+            preview_message: 'Feed welcome',
+            federation_icon_url: 'https://feed.example/icon.png',
+        },
+        unnamed: { public: 'true', invite_code: 'unnamed-invite' },
+    }
+    const livePreview = (id: string): RpcFederationPreview => ({
+        id,
+        name: `Live ${id}`,
+        meta: {
+            welcome_message: `Live welcome ${id}`,
+            federation_icon_url: `https://live.example/${id}.png`,
+        },
+        inviteCode: `${id}-invite`,
+        returningMemberStatus: { type: 'newMember' },
+    })
+    const settle = () => new Promise(resolve => setTimeout(resolve, 0))
+
+    beforeEach(() => {
+        global.fetch = jest.fn().mockResolvedValue({
+            json: () => Promise.resolve(feed),
+        })
+    })
+    afterEach(() => {
+        global.fetch = originalFetch
+    })
+
+    it('should show live previews over the feed copy after the preload', async () => {
+        const store = setupStore()
+        store.dispatch(setOnboardingCompleted(true))
+        const fedimint = createMockFedimintBridge({
+            federationPreview: (inviteCode: string) =>
+                livePreview(inviteCode.replace('-invite', '')),
+        })
+
+        await store.dispatch(preloadFederationLists(fedimint)).unwrap()
+        await settle()
+
+        expect(selectPublicFederations(store.getState())).toEqual([
+            expect.objectContaining({
+                id: 'listed',
+                name: 'Live listed',
+                meta: expect.objectContaining({
+                    preview_message: 'Live welcome listed',
+                    federation_icon_url: 'https://live.example/listed.png',
+                }),
+            }),
+            expect.objectContaining({
+                id: 'unnamed',
+                name: 'Live unnamed',
+                meta: expect.objectContaining({
+                    preview_message: 'Live welcome unnamed',
+                }),
+            }),
+        ])
+    })
+
+    it('should keep the feed copy when a preview fails', async () => {
+        const store = setupStore()
+        store.dispatch(setOnboardingCompleted(true))
+        const fedimint = createMockFedimintBridge({
+            federationPreview: async () => {
+                throw new Error('guardians unreachable')
+            },
+        })
+
+        await store.dispatch(preloadFederationLists(fedimint)).unwrap()
+        await settle()
+
+        expect(selectPublicFederations(store.getState())).toEqual([
+            expect.objectContaining({
+                id: 'listed',
+                name: 'Feed name',
+                meta: expect.objectContaining({
+                    preview_message: 'Feed welcome',
+                    federation_icon_url: 'https://feed.example/icon.png',
+                }),
+            }),
+        ])
+    })
+
+    it('should not preview before onboarding completes', async () => {
+        const store = setupStore()
+        const fedimint = createMockFedimintBridge({
+            federationPreview: (inviteCode: string) =>
+                livePreview(inviteCode.replace('-invite', '')),
+        })
+
+        await store.dispatch(preloadFederationLists(fedimint)).unwrap()
+        await settle()
+
+        expect(fedimint.federationPreview).not.toHaveBeenCalled()
     })
 })
