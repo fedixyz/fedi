@@ -27,10 +27,18 @@ import {
 } from '@fedi/common/tests/mock-data/matrix-event'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import { MatrixRoom } from '@fedi/common/types'
+import { BridgeError } from '@fedi/common/utils/errors'
+import {
+    configureLogging,
+    exportUiLogs,
+    resetLogging,
+} from '@fedi/common/utils/log'
 
 import ChatRoomConversation from '../../../screens/ChatRoomConversation'
 import { mockNavigation, mockRoute } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
+
+jest.unmock('@fedi/common/utils/log')
 
 const mockScrollToIndex = jest.fn()
 const mockScrollToOffset = jest.fn()
@@ -457,9 +465,22 @@ describe('ChatRoomConversation - sending', () => {
     })
 
     it('propagates a failed send so the composer keeps the draft', async () => {
+        resetLogging()
+        let savedLogs = ''
+        configureLogging({
+            saveLogs: async logs => {
+                savedLogs += logs
+            },
+            readLogs: async () => savedLogs,
+        })
+        const error = new BridgeError({
+            error: 'client error (Connect)',
+            detail: 'connection refused',
+            errorCode: null,
+        })
         const store = createStoreWithJoinedConversation()
         const fedimint = createMockFedimintBridge({
-            matrixSendMessage: () => Promise.reject(new Error('send failed')),
+            matrixSendMessage: () => Promise.reject(error),
         })
         ;(fedimint as any).getMatrixClient = () => ({})
 
@@ -477,8 +498,21 @@ describe('ChatRoomConversation - sending', () => {
         await act(async () => {
             await expect(
                 props.onMessageSubmitted('hello'),
-            ).rejects.toMatchObject({ message: 'send failed' })
+            ).rejects.toMatchObject({ message: error.message })
         })
+        const logs = (await exportUiLogs())
+            .trim()
+            .split('\n')
+            .map(line => JSON.parse(line))
+        expect(logs).toContainEqual(
+            expect.objectContaining({
+                level: 'ERROR',
+                context: 'ChatRoomConversation',
+                message: 'error sending message',
+                extra: [expect.stringContaining('client error (Connect)')],
+            }),
+        )
+        resetLogging()
         expect(fedimint.matrixSendMessage).toHaveBeenCalledTimes(1)
     })
 })

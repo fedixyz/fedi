@@ -224,8 +224,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     dispatch(clearChatReplyingToMessage())
                 })
             }
-        } catch (e) {
-            toast.error(t, e, 'errors.unknown-error')
+        } catch {
+            toast.error(t, 'errors.unknown-error')
         }
     }, [
         attachments,
