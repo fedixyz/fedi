@@ -2873,6 +2873,64 @@ async fn command_channel_preserves_typed_start_and_resume_liquidity_responses() 
         .expect("the typed response supervisor shuts down");
 }
 
+#[tokio::test]
+async fn directory_is_refetched_when_consensus_names_the_new_host() {
+    let transfer_at = |phase| GuardianTransfer {
+        seat_index: 2,
+        source_mg_id: Keys::generate().public_key(),
+        source_seat_id: fa_client::SeatId::new("aa".repeat(32)).unwrap(),
+        destination_mg_id: Keys::generate().public_key(),
+        destination_seat_id: Some(fa_client::SeatId::new("bb".repeat(32)).unwrap()),
+        phase,
+    };
+    // the move a previous run finished; the federation reads its metadata
+    // when it loads, so this needs no refetch
+    let (sender, receiver) = watch::channel(Some(transfer_at(GuardianTransferPhase::Completed)));
+    let refreshes = Arc::new(AtomicUsize::new(0));
+    let task = fedimint_core::task::spawn(
+        "transfer directory refresh test",
+        refresh_directory_on_transfer(receiver, {
+            let refreshes = refreshes.clone();
+            move || {
+                refreshes.fetch_add(1, AtomicOrdering::SeqCst);
+            }
+        }),
+    );
+    let send_and_settle = |transfer: Option<GuardianTransfer>| {
+        sender.send_replace(transfer);
+        async {
+            for _ in 0..10 {
+                tokio::task::yield_now().await;
+            }
+        }
+    };
+
+    send_and_settle(None).await;
+    for phase in [
+        GuardianTransferPhase::BuyingSeat,
+        GuardianTransferPhase::AwaitingSource,
+        GuardianTransferPhase::PublishingBinding,
+    ] {
+        send_and_settle(Some(transfer_at(phase))).await;
+    }
+    assert_eq!(
+        refreshes.load(AtomicOrdering::SeqCst),
+        0,
+        "consensus still names the old host"
+    );
+
+    send_and_settle(Some(transfer_at(GuardianTransferPhase::RemovingSource))).await;
+    assert_eq!(refreshes.load(AtomicOrdering::SeqCst), 1);
+    // a resume that reports the same phase again changes nothing
+    send_and_settle(Some(transfer_at(GuardianTransferPhase::RemovingSource))).await;
+    assert_eq!(refreshes.load(AtomicOrdering::SeqCst), 1);
+    send_and_settle(Some(transfer_at(GuardianTransferPhase::Completed))).await;
+    assert_eq!(refreshes.load(AtomicOrdering::SeqCst), 2);
+
+    drop(sender);
+    task.await.expect("the refresh loop ends with its sender");
+}
+
 #[test]
 fn guardian_transfer_projects_both_hosts_and_every_phase() {
     let source = Keys::generate().public_key();

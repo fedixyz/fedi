@@ -236,6 +236,52 @@ mod wallet_ops;
 pub const GUARDIAN_STATUS_TIMEOUT: Duration = Duration::from_secs(60);
 pub const GUARDIAN_STATUS_CACHE_TTL_SECS: u64 = 30;
 
+/// What one status request found out about a guardian.
+#[derive(Clone, Debug)]
+enum GuardianProbe {
+    Online { latency_ms: u32 },
+    Error(String),
+    Timeout(String),
+}
+
+#[derive(Clone, Debug)]
+struct ProbedGuardian {
+    peer_id: PeerId,
+    guardian: String,
+    probe: GuardianProbe,
+}
+
+/// The probed guardians with the names `names` gives their peer ids.
+fn name_guardians(
+    probes: &[ProbedGuardian],
+    names: &BTreeMap<PeerId, String>,
+) -> Vec<GuardianStatus> {
+    probes
+        .iter()
+        .map(|probed| {
+            let guardian = probed.guardian.clone();
+            let mg_name = names.get(&probed.peer_id).cloned();
+            match &probed.probe {
+                GuardianProbe::Online { latency_ms } => GuardianStatus::Online {
+                    guardian,
+                    mg_name,
+                    latency_ms: *latency_ms,
+                },
+                GuardianProbe::Error(error) => GuardianStatus::Error {
+                    guardian,
+                    mg_name,
+                    error: error.clone(),
+                },
+                GuardianProbe::Timeout(elapsed) => GuardianStatus::Timeout {
+                    guardian,
+                    mg_name,
+                    elapsed: elapsed.clone(),
+                },
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod guardian_status_tests;
 
@@ -490,10 +536,9 @@ pub struct FederationV2 {
     pub multispend_btc_payout_syncs: std::sync::atomic::AtomicU64,
     pub multispend_services: Arc<dyn MultispendNotifications>,
     pub lnurl_receives_service: OnceCell<LnurlReceivesService>,
-    /// Cache for guardian status to prevent spamming servers
-    #[allow(clippy::type_complexity)]
-    pub guardian_status_cache:
-        Mutex<Option<(std::time::SystemTime, Result<Vec<GuardianStatus>, String>)>>,
+    /// The latest guardian probes and when they ran, to prevent spamming
+    /// servers. Names are not cached; see [`Self::guardian_status`].
+    guardian_status_cache: Mutex<Option<(std::time::SystemTime, Vec<ProbedGuardian>)>>,
     pub spt_notifications: Arc<dyn SptNotifications>,
     pub meta_source: meta::RefreshableMeta,
 }
@@ -1653,20 +1698,16 @@ impl FederationV2 {
             .collect()
     }
 
-    pub async fn guardian_status_no_cache(&self) -> anyhow::Result<Vec<GuardianStatus>> {
-        let bindings =
-            get_meta_field::<MgSeatBindings>(&self.client, MG_SEAT_BINDINGS_META_FIELD_KEY).await;
-        let names = Self::guardian_names(&self.client.config().await, bindings).unwrap_or_default();
-        let names = &names;
+    /// Ask every guardian for its status, without names.
+    async fn probe_guardians(&self) -> Vec<ProbedGuardian> {
         let futures =
             self.client
                 .get_peer_urls()
                 .await
                 .into_iter()
                 .map(|(peer_id, guardian)| async move {
-                    let mg_name = names.get(&peer_id).cloned();
                     let start = fedimint_core::time::now();
-                    match timeout(
+                    let probe = match timeout(
                         GUARDIAN_STATUS_TIMEOUT,
                         self.client
                             .api()
@@ -1680,9 +1721,7 @@ impl FederationV2 {
                     {
                         Ok(Ok(_status_response)) => {
                             info!("Received guardian status response");
-                            GuardianStatus::Online {
-                                guardian: guardian.to_string(),
-                                mg_name,
+                            GuardianProbe::Online {
                                 latency_ms: fedimint_core::time::now()
                                     .duration_since(start)
                                     .unwrap_or_default()
@@ -1693,51 +1732,49 @@ impl FederationV2 {
                         }
                         Ok(Err(error)) => {
                             info!("Guardian status request failed");
-                            GuardianStatus::Error {
-                                guardian: guardian.to_string(),
-                                mg_name,
-                                error: error.to_string(),
-                            }
+                            GuardianProbe::Error(error.to_string())
                         }
                         Err(elapsed) => {
                             info!("Guardian status request timed out");
-                            GuardianStatus::Timeout {
-                                guardian: guardian.to_string(),
-                                mg_name,
-                                elapsed: elapsed.to_string(),
-                            }
+                            GuardianProbe::Timeout(elapsed.to_string())
                         }
+                    };
+                    ProbedGuardian {
+                        peer_id,
+                        guardian: guardian.to_string(),
+                        probe,
                     }
                 });
-        let guardians_status = futures::future::join_all(futures).await;
-        Ok(guardians_status)
+        futures::future::join_all(futures).await
     }
 
-    pub async fn guardian_status(&self) -> anyhow::Result<Vec<GuardianStatus>> {
-        // Check if we have a valid cached result
-        let mut cache = self.guardian_status_cache.lock().await;
-        if let Some((cached_time, cached_result)) = &*cache {
-            let age = fedimint_core::time::now().duration_since(*cached_time);
-            if age.is_ok_and(|age| age.as_secs() < GUARDIAN_STATUS_CACHE_TTL_SECS) {
-                // Return cached result (clone the error or success)
-                return match cached_result {
-                    Ok(status) => Ok(status.clone()),
-                    Err(e) => Err(anyhow::anyhow!("{}", e)),
-                };
+    /// The status of every guardian, named from the directory as it stands.
+    ///
+    /// Probes are cached so that polling does not spam the guardians. Names
+    /// are read on every call: the directory changes when a guardian moves
+    /// to another MG, and a cached name would outlive that move.
+    pub async fn guardian_status(&self) -> Vec<GuardianStatus> {
+        let probes = {
+            let mut cache = self.guardian_status_cache.lock().await;
+            match &*cache {
+                Some((probed_at, probes))
+                    if fedimint_core::time::now()
+                        .duration_since(*probed_at)
+                        .is_ok_and(|age| age.as_secs() < GUARDIAN_STATUS_CACHE_TTL_SECS) =>
+                {
+                    probes.clone()
+                }
+                _ => {
+                    let probes = self.probe_guardians().await;
+                    *cache = Some((fedimint_core::time::now(), probes.clone()));
+                    probes
+                }
             }
-        }
-
-        // Cache is expired or doesn't exist, fetch new result
-        let result = self.guardian_status_no_cache().await;
-
-        // Cache the result (both success and error cases)
-        let cached_result = match &result {
-            Ok(status) => Ok(status.clone()),
-            Err(e) => Err(e.to_string()),
         };
-        *cache = Some((fedimint_core::time::now(), cached_result));
-
-        result
+        let bindings =
+            get_meta_field::<MgSeatBindings>(&self.client, MG_SEAT_BINDINGS_META_FIELD_KEY).await;
+        let names = Self::guardian_names(&self.client.config().await, bindings).unwrap_or_default();
+        name_guardians(&probes, &names)
     }
 
     /// Reads the outstanding fees for a given stream from the stream-scoped
@@ -5878,6 +5915,80 @@ mod tests {
         forged[0].attestation.mg_pubkey = forged[1].attestation.mg_pubkey.clone();
         let bindings = cached_directory(&MgSeatBindings::new(forged).unwrap());
         assert!(FederationV2::guardian_names(&config, Some(bindings)).is_err());
+    }
+
+    #[test]
+    fn cached_probes_take_the_names_of_the_current_directory() {
+        let probes = vec![
+            ProbedGuardian {
+                peer_id: PeerId::from(0),
+                guardian: "wss://guardian-0.example/".to_owned(),
+                probe: GuardianProbe::Online { latency_ms: 7 },
+            },
+            ProbedGuardian {
+                peer_id: PeerId::from(1),
+                guardian: "wss://guardian-1.example/".to_owned(),
+                probe: GuardianProbe::Timeout("60s".to_owned()),
+            },
+            ProbedGuardian {
+                peer_id: PeerId::from(2),
+                guardian: "wss://guardian-2.example/".to_owned(),
+                probe: GuardianProbe::Error("refused".to_owned()),
+            },
+        ];
+        let names = |entries: &[(u16, &str)]| -> BTreeMap<PeerId, String> {
+            entries
+                .iter()
+                .map(|(peer, name)| (PeerId::from(*peer), (*name).to_owned()))
+                .collect()
+        };
+        let mg_names = |statuses: Vec<GuardianStatus>| -> Vec<Option<String>> {
+            statuses
+                .into_iter()
+                .map(|status| match status {
+                    GuardianStatus::Online { mg_name, .. }
+                    | GuardianStatus::Error { mg_name, .. }
+                    | GuardianStatus::Timeout { mg_name, .. } => mg_name,
+                })
+                .collect()
+        };
+
+        // names follow peer ids, not positions, and a peer the directory
+        // does not name has no name
+        let before = names(&[(2, "old host"), (0, "first host")]);
+        assert_eq!(
+            mg_names(name_guardians(&probes, &before)),
+            [
+                Some("first host".to_owned()),
+                None,
+                Some("old host".to_owned())
+            ]
+        );
+
+        // the same probes, read after a transfer moved peer 2
+        let after = names(&[(2, "new host"), (0, "first host")]);
+        let statuses = name_guardians(&probes, &after);
+        assert!(matches!(
+            &statuses[0],
+            GuardianStatus::Online { guardian, latency_ms: 7, .. }
+                if guardian == "wss://guardian-0.example/"
+        ));
+        assert!(matches!(
+            &statuses[1],
+            GuardianStatus::Timeout { elapsed, .. } if elapsed == "60s"
+        ));
+        assert!(matches!(
+            &statuses[2],
+            GuardianStatus::Error { error, .. } if error == "refused"
+        ));
+        assert_eq!(
+            mg_names(statuses),
+            [
+                Some("first host".to_owned()),
+                None,
+                Some("new host".to_owned())
+            ]
+        );
     }
 
     fn shape(names: &[&'static str]) -> Vec<ModuleKind> {

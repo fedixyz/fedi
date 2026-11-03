@@ -16,7 +16,10 @@ import {
     coerceCommunity,
     coerceLoadedFederation,
 } from '../utils/FederationUtils'
-import { GUARDIAN_REFRESH_INTERVAL } from '../utils/federationHealth'
+import {
+    GUARDIAN_REFRESH_INTERVAL,
+    MG_SEAT_BINDINGS_META_KEY,
+} from '../utils/federationHealth'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { hasStorageStateChanged } from '../utils/storage'
@@ -230,11 +233,19 @@ export function initializeCommonStore({
                         }
                     }
 
-                    // also refresh the guardian status when we get a federation update
+                    // also refresh the guardian status when we get a federation
+                    // update. A new MG directory renames guardians, such as
+                    // after a guardian replacement, so the last read is stale.
                     dispatch(
                         refreshGuardianStatuses({
                             fedimint,
                             federation: loadedFederation,
+                            isStale:
+                                !!existing &&
+                                existing.meta[MG_SEAT_BINDINGS_META_KEY] !==
+                                    loadedFederation.meta[
+                                        MG_SEAT_BINDINGS_META_KEY
+                                    ],
                         }),
                     )
                     break

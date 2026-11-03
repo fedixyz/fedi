@@ -326,7 +326,7 @@ macro_rules! federation_recovering_rpc_method {
 
 #[macro_rules_derive(federation_recovering_rpc_method!)]
 async fn getGuardianStatus(federation: Arc<FederationV2>) -> anyhow::Result<Vec<GuardianStatus>> {
-    federation.guardian_status().await
+    Ok(federation.guardian_status().await)
 }
 
 #[macro_rules_derive(rpc_method!)]

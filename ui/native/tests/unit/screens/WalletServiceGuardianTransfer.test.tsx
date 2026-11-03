@@ -575,15 +575,21 @@ describe('screens/WalletServiceGuardianTransfer', () => {
                     i18n.t('feature.wallet-service.transfer-moving'),
                 ),
             ).toBeOnTheScreen()
+            // the bridge does not say whether brisk elm is online, so
+            // nothing claims the move waits for it
+            expect(
+                screen.getByText('Transferring the guardian to deep pine'),
+            ).toBeOnTheScreen()
             expect(
                 screen.getByText(
-                    'The new guardian, deep pine, takes over as soon as brisk elm is online. Your payment is kept however long this takes.',
+                    'The guardian moves from brisk elm to deep pine. Your payment is kept however long this takes.',
                 ),
             ).toBeOnTheScreen()
+            expect(screen.queryByText(/online/)).not.toBeOnTheScreen()
             expect(
                 within(
                     screen.getByTestId('transfer-step-awaitingSource-detail'),
-                ).getByText('Waits for brisk elm to come online.'),
+                ).getByText('Moving from brisk elm to deep pine.'),
             ).toBeOnTheScreen()
             // only one move at a time, so the list is not offered
             expect(
@@ -790,7 +796,7 @@ describe('screens/WalletServiceGuardianTransfer', () => {
             await screen.findByTestId('transfer-step-awaitingSource')
             expect(
                 stepDetail('awaitingSource').getByText(
-                    'Waits for brisk elm to come online.',
+                    'Moving from brisk elm to deep pine.',
                 ),
             ).toBeOnTheScreen()
 

@@ -13,8 +13,14 @@ import {
     setupStore,
     upsertFederation,
 } from '../../../redux'
-import { GuardianStatus } from '../../../types/bindings'
-import { GUARDIAN_REFRESH_INTERVAL } from '../../../utils/federationHealth'
+import {
+    GuardianStatus,
+    RpcFederationMaybeLoading,
+} from '../../../types/bindings'
+import {
+    GUARDIAN_REFRESH_INTERVAL,
+    MG_SEAT_BINDINGS_META_KEY,
+} from '../../../utils/federationHealth'
 import { mockFederation1 } from '../../mock-data/federation'
 import { createMockFedimintBridge } from '../../utils/fedimint'
 import { mockStorageApi } from '../../utils/render'
@@ -78,6 +84,59 @@ describe('guardian monitoring', () => {
         await jest.advanceTimersByTimeAsync(180_000)
         expect(fedimint.getGuardianStatus).toHaveBeenCalledTimes(4)
         expect(unsubscribe).toHaveBeenCalledTimes(1)
+    })
+
+    it('reads the guardians again at once when an update brings a new MG directory', async () => {
+        const named = (mgName: string): GuardianStatus[] => [
+            {
+                online: {
+                    guardian: 'guardian',
+                    mg_name: mgName,
+                    latency_ms: 1,
+                },
+            },
+        ]
+        const withDirectory = (directory: string) => ({
+            ...mockFederation1,
+            meta: { [MG_SEAT_BINDINGS_META_KEY]: directory },
+        })
+        const store = setupStore()
+        store.dispatch(setFederations([withDirectory('old directory')]))
+        let statuses = named('old host')
+        const fedimint = createMockFedimintBridge({
+            getGuardianStatus: async () => statuses,
+        })
+        let emit!: (event: RpcFederationMaybeLoading) => void
+        fedimint.addListener.mockImplementation(((
+            type: string,
+            listener: typeof emit,
+        ) => {
+            if (type === 'federation') emit = listener
+            return () => {}
+        }) as typeof fedimint.addListener)
+        cleanup = initializeCommonStore({
+            store,
+            fedimint,
+            storage: mockStorageApi,
+            i18n,
+        })
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.getGuardianStatus).toHaveBeenCalledTimes(1)
+
+        // any other update reuses the read from a moment ago
+        emit({ ...withDirectory('old directory'), name: 'Renamed' })
+        await jest.advanceTimersByTimeAsync(1_000)
+        expect(fedimint.getGuardianStatus).toHaveBeenCalledTimes(1)
+
+        // a guardian moved: the read from a moment ago names the old host
+        statuses = named('new host')
+        emit(withDirectory('new directory'))
+        await jest.advanceTimersByTimeAsync(0)
+        expect(fedimint.getGuardianStatus).toHaveBeenCalledTimes(2)
+        expect(
+            store.getState().federation.guardianHealth[mockFederation1.id]
+                ?.guardians,
+        ).toEqual(named('new host'))
     })
 
     it('shares in-flight checks and does not count cached snapshots repeatedly', async () => {
