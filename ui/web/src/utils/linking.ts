@@ -27,6 +27,8 @@ export const getDeepLinkPath = (url: string): string => {
         const page = params.get('screen')
 
         switch (page) {
+            case 'discover':
+                return `${onboardingRoute}?tab=discover`
             case 'join': {
                 const inviteCode = params.get('invite') || params.get('id')
                 if (!inviteCode) return homeRoute

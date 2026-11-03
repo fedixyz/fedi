@@ -18,6 +18,13 @@ export type FederationHealth = {
 export const guardianQuorum = (total: number) =>
     total - Math.floor((total - 1) / 3)
 
+/**
+ * Whether enough guardians respond for members to make payments, by the same
+ * sustained status the status dot shows. Null while that status is unknown.
+ */
+export const federationHasQuorum = (status: FederationStatus) =>
+    status === 'unknown' ? null : status !== 'offline'
+
 export const readGuardianStatus = (status: GuardianStatus) => {
     const { guardian, mg_name } = Object.values(status)[0]
     return { guardian, mg_name, isResponding: 'online' in status }

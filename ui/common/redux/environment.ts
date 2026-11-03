@@ -392,7 +392,7 @@ export const refreshOnboardingStatus = createAsyncThunk<
         throw new Error('Unknown bridge status type')
     }
 
-    dispatch(preloadFederationLists())
+    dispatch(preloadFederationLists(fedimint))
 })
 
 export const getBridgeInfo = createAsyncThunk<

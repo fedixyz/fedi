@@ -22,25 +22,25 @@ use std::time::Duration;
 #[cfg(test)]
 use fa_client::FaId;
 use fa_client::{
-    AbandonUnavailableReason, BackupRecoveryHint, DkgRestartResult,
+    AbandonUnavailableReason, BackupRecoveryHint, ConnectorsConsensusReader, DkgRestartResult,
     FA_LIQUIDITY_OPERATION_PAGE_MAX, FaClient, FaError, FaErrorCode, FaFeeAccountError,
     FaFeeAccountProvider, FaIdentity, FaResult, FaStatus, FederationAppSetting,
-    FederationConsensusError, FederationConsensusReader, FederationConsensusSnapshot,
     FederationMetadataUpdate, FederationName, FederationSize, FedimintFederationId,
     FedimintdVersion, FedimintdVersionRange, FormationActionRequired, FormationFreshness,
     FormationId, FormationIntent, FormationPhase, FormationRunOptions, FormationSnapshot,
-    GatewayApiUrl, GuardianFeeAccount, GuardianFeePpm, GuardianReplacementRequirements,
-    LiquidityDiscovery, LiquidityOperationId, LiquidityOperationPage, LiquidityOperationPhase,
+    FormedFederationSnapshot, FormedOrigin, GuardianFeeAccount, GuardianFeePpm,
+    GuardianReplacementRequirements, GuardianTransfer, GuardianTransferPhase, LiquidityDiscovery,
+    LiquidityOperationId, LiquidityOperationPage, LiquidityOperationPhase,
     LiquidityOperationSnapshot, LiquidityProviderConnector, LiquidityProviderConnectorError,
     LiquidityRequestIntent, MAX_GUARDIAN_FEE_PPM, MaintenanceRunOptions, ManifoldGuardianCallError,
-    ManifoldGuardianConnector, ManifoldGuardianConnectorError, MgDiscoveryOptions,
+    ManifoldGuardianConnector, ManifoldGuardianConnectorError, MgDiscoveryOptions, MgName,
     MgReplacementApproval, MgReplacementPreview, MgSelectionApproval, MgSelectionPreview,
-    MgSelectionRequest, PaymentAuthorizationId, PlanPreference, ResolvedFormationIntent,
-    RestoredFormationSnapshot, SeatPhase, SelectionReauthorizationReason,
+    MgSelectionRequest, PaymentAuthorizationId, PlanPreference, ReplacementCandidate,
+    ReplacementCheck, ReplacementReason, ReplacementReceipt, ReplacementStartError,
+    ResolvedFormationIntent, SeatPhase, SelectionReauthorizationReason, TransferDestinationPreview,
 };
 use federations::Federations;
 use federations::federation_sm::FederationState;
-use fedi_decentralized_federation_preview::{read_consensus, read_lnv2_gateways};
 use fedi_decentralized_manifold_environment::{ManifoldEnvironment, ManifoldEnvironmentProfile};
 use fedi_decentralized_nostr_clients::{
     FaNostrClient, NostrClientResult, NostrFaClient, NostrRelayClient,
@@ -58,14 +58,13 @@ use fedi_decentralized_service_liquidity_manager::{
 };
 use fedi_decentralized_service_manifold_guardian::{
     DkgCompletionCallback, FederationId, GetAvailabilityRequest, GetAvailabilityResponse,
-    GetQuoteRequest, GetQuoteResponse, InviteCode, Locator, MANIFOLD_GUARDIAN_ALPN,
-    ManifoldGuardianError, ManifoldGuardianServiceClient, ServiceStatus, SignedResponse,
+    GetQuoteRequest, GetQuoteResponse, Locator, MANIFOLD_GUARDIAN_ALPN, ManifoldGuardianError,
+    ManifoldGuardianServiceClient, ServiceStatus, SignedResponse,
 };
 use fedi_iroh_rpc::iroh::Endpoint;
 #[cfg(target_os = "ios")]
 use fedi_iroh_rpc::iroh::endpoint::PortmapperConfig;
 use fedi_iroh_rpc::iroh::endpoint::presets;
-use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::db::{
     Database, IDatabaseTransactionOpsCore as _, IDatabaseTransactionOpsCoreTyped as _,
 };
@@ -87,20 +86,23 @@ use rpc_types::fa_client::{
     RpcFaCurrentLiquidityOperationResult, RpcFaEligiblePayer, RpcFaEligiblePayersResult,
     RpcFaErrorCode, RpcFaFederationMetadataUpdate, RpcFaFormationActionRequired,
     RpcFaFormationFreshness, RpcFaFormationIntent, RpcFaFormationMilestones, RpcFaFormationPhase,
-    RpcFaFormationSnapshot, RpcFaGuardianReplacementRequirements, RpcFaGuardianReplacementSeat,
-    RpcFaLiquidityAmountBounds, RpcFaLiquidityCompletionEvidence, RpcFaLiquidityDiscoveryResult,
-    RpcFaLiquidityItemPhase, RpcFaLiquidityItemStatus, RpcFaLiquidityItemTarget,
-    RpcFaLiquidityNetwork, RpcFaLiquidityOperation,
-    RpcFaLiquidityOperationPage as RpcLiquidityOperationPage, RpcFaLiquidityOperationPageResult,
-    RpcFaLiquidityOperationPhase, RpcFaLiquidityOperationResult, RpcFaLiquidityProvider,
-    RpcFaLiquidityProviderRejection, RpcFaLiquidityRequestIntent, RpcFaLiquiditySource, RpcFaMsats,
-    RpcFaOperationError, RpcFaOperationErrorDetail, RpcFaOperationResult, RpcFaPaymentRequirements,
-    RpcFaPlanPreference, RpcFaReplacementPreview, RpcFaReplacementPreviewResult,
-    RpcFaReplacementPreviewSeat, RpcFaResolvedFormationIntent, RpcFaRestoredFormationSnapshot,
-    RpcFaRestoredSeat, RpcFaSeatPaymentRequirement, RpcFaSeatPhase, RpcFaSeatProgress,
+    RpcFaFormationSnapshot, RpcFaFormedFederation, RpcFaFormedOrigin, RpcFaFormedSeat,
+    RpcFaGuardianReplacementRequirements, RpcFaGuardianReplacementSeat, RpcFaGuardianTransfer,
+    RpcFaGuardianTransferPhase, RpcFaGuardianTransferResult, RpcFaLiquidityAmountBounds,
+    RpcFaLiquidityCompletionEvidence, RpcFaLiquidityDiscoveryResult, RpcFaLiquidityItemPhase,
+    RpcFaLiquidityItemStatus, RpcFaLiquidityItemTarget, RpcFaLiquidityNetwork,
+    RpcFaLiquidityOperation, RpcFaLiquidityOperationPage as RpcLiquidityOperationPage,
+    RpcFaLiquidityOperationPageResult, RpcFaLiquidityOperationPhase, RpcFaLiquidityOperationResult,
+    RpcFaLiquidityProvider, RpcFaLiquidityProviderRejection, RpcFaLiquidityRequestIntent,
+    RpcFaLiquiditySource, RpcFaMsats, RpcFaOperationError, RpcFaOperationErrorDetail,
+    RpcFaOperationResult, RpcFaPaymentRequirements, RpcFaPlanPreference, RpcFaReplacementCandidate,
+    RpcFaReplacementCandidates, RpcFaReplacementCheck, RpcFaReplacementPreview,
+    RpcFaReplacementPreviewResult, RpcFaReplacementPreviewSeat, RpcFaReplacementReason,
+    RpcFaResolvedFormationIntent, RpcFaSeatPaymentRequirement, RpcFaSeatPhase, RpcFaSeatProgress,
     RpcFaSelectionPreview, RpcFaSelectionPreviewRequest, RpcFaSelectionPreviewResult,
     RpcFaSelectionPreviewSeat, RpcFaSelectionReauthorizationReason, RpcFaSetupPaymentFederation,
-    RpcFaSetupPaymentFederationsResult, RpcFaStatus,
+    RpcFaSetupPaymentFederationsResult, RpcFaStatus, RpcFaTransferDestinationPreview,
+    RpcFaTransferDestinationPreviewResult,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::FA_CLIENT_CHILD_ID;
@@ -118,7 +120,7 @@ pub(crate) type BridgeFaClient = FaClient<
     BridgeFaPayments,
     BridgeFaRegistry,
     BridgeMgConnector,
-    BridgeFederationConsensusReader,
+    ConnectorsConsensusReader,
 >;
 
 const FA_DRIVER_QUEUE_CAPACITY: usize = 1;
@@ -162,9 +164,7 @@ pub(crate) async fn open_fa_client(
     let registry = BridgeFaRegistry::from_profile(&profile)?;
     let peer_badge_verifier = PeerBadgeVerifier::try_from_profile(&profile)
         .map_err(|_| FaError::Registry("Manifold PeerBadge trust is unavailable".to_owned()))?;
-    let consensus_reader = BridgeFederationConsensusReader {
-        connectors: runtime.connectors.clone(),
-    };
+    let consensus_reader = ConnectorsConsensusReader::new(runtime.connectors.clone());
     // Paid formation and guardian-fee policy both depend on deployment-owned
     // authorities from this exact Manifold profile.
     FaClient::open_with_manifold_profile_and_recovery(
@@ -651,23 +651,22 @@ fn formed_federation_invite(status: &FaStatus) -> Option<(String, String)> {
         FaStatus::Formation(formation)
             if matches!(
                 formation.phase,
-                FormationPhase::DkgComplete
-                    | FormationPhase::PublishingSeatBindings
-                    | FormationPhase::Formed
+                FormationPhase::DkgComplete | FormationPhase::PublishingSeatBindings
             ) =>
         {
             formation.invite_code.as_ref()?.0.clone()
         }
-        FaStatus::Restored(formation)
-            if formation.phase == FormationPhase::Formed
-                && formation.freshness == FormationFreshness::Fresh =>
+        // A federation this device never checked, such as one from a
+        // backup, waits for its first reconciliation.
+        FaStatus::Formed(federation)
+            if federation.freshness == FormationFreshness::Fresh || federation.backup_eligible =>
         {
-            formation.federation_invite.0.clone()
+            federation.federation_invite.0.clone()
         }
         FaStatus::Idle
         | FaStatus::Recovery { .. }
         | FaStatus::Formation(_)
-        | FaStatus::Restored(_) => return None,
+        | FaStatus::Formed(_) => return None,
     };
     let federation_id = FedimintInviteCode::from_str(&invite_code)
         .ok()?
@@ -792,38 +791,7 @@ impl FaNostrClient for BridgeFaRegistry {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct BridgeFederationConsensusReader {
-    connectors: ConnectorRegistry,
-}
-
-impl FederationConsensusReader for BridgeFederationConsensusReader {
-    async fn read_consensus(
-        &self,
-        invite_code: &InviteCode,
-    ) -> Result<FederationConsensusSnapshot, FederationConsensusError> {
-        let snapshot = read_consensus(&self.connectors, invite_code)
-            .await
-            .map_err(|_| FederationConsensusError::new("federation consensus read failed"))?;
-        Ok(FederationConsensusSnapshot {
-            config: snapshot.config,
-            meta_value: snapshot.meta_value,
-            meta_revision: snapshot.meta_revision,
-            network: snapshot.network,
-        })
-    }
-
-    async fn read_lnv2_gateways(
-        &self,
-        invite_code: &InviteCode,
-    ) -> Result<Vec<GatewayApiUrl>, FederationConsensusError> {
-        read_lnv2_gateways(&self.connectors, invite_code)
-            .await
-            .map_err(|_| FederationConsensusError::new("federation gateway consensus read failed"))
-    }
-}
-
-async fn bind_n0_endpoint() -> Result<Endpoint, fedi_iroh_rpc::iroh::endpoint::BindError> {
+pub async fn bind_n0_endpoint() -> Result<Endpoint, fedi_iroh_rpc::iroh::endpoint::BindError> {
     let builder = Endpoint::builder(presets::N0);
     #[cfg(target_os = "ios")]
     let builder = builder.portmapper_config(PortmapperConfig::Disabled);
@@ -1000,10 +968,19 @@ struct StoredReplacement {
     approval: Option<MgReplacementApproval>,
 }
 
+struct StoredTransferPreview {
+    preview_id: String,
+    /// The decision shown when the user picked the guardian. A later check
+    /// cannot take it back.
+    receipt: ReplacementReceipt,
+    preview: TransferDestinationPreview,
+}
+
 struct FormationLocalState {
     formation_push: FormationPushCoordinator,
     selection: Mutex<Option<StoredSelection>>,
     replacement: Mutex<Option<StoredReplacement>>,
+    transfer_destination: Mutex<Option<StoredTransferPreview>>,
     dkg_restart_requested: Notify,
 }
 
@@ -1339,6 +1316,7 @@ impl FormationLocalState {
             formation_push: FormationPushCoordinator::new(push_gateway, environment),
             selection: Mutex::new(None),
             replacement: Mutex::new(None),
+            transfer_destination: Mutex::new(None),
             dkg_restart_requested: Notify::new(),
         }
     }
@@ -1379,7 +1357,7 @@ fn operation_response(
 ) -> RpcFaOperationResult {
     match response {
         Ok(FaDriverResponse::Formation(result)) => result,
-        Ok(FaDriverResponse::Liquidity(_)) => operation_error_result(
+        Ok(_) => operation_error_result(
             RpcFaErrorCode::CapabilityUnavailable,
             "FA operation driver returned an unexpected response",
         ),
@@ -1792,7 +1770,7 @@ impl BridgeFaDriver {
             .await
         {
             Ok(FaDriverResponse::Formation(result)) => result,
-            Ok(FaDriverResponse::Liquidity(_)) => operation_error_result(
+            Ok(_) => operation_error_result(
                 RpcFaErrorCode::CapabilityUnavailable,
                 "FA operation driver returned an unexpected response",
             ),
@@ -1956,11 +1934,116 @@ impl BridgeFaDriver {
     }
 }
 
+impl BridgeFaDriver {
+    /// Preview a new host for the guardian at `seat_index`, which the
+    /// latest replacement check must name.
+    pub(crate) async fn preview_transfer_destination(
+        &self,
+        seat_index: u16,
+    ) -> RpcFaTransferDestinationPreviewResult {
+        let receipt = self
+            .client
+            .observe_replacement_candidates()
+            .borrow()
+            .as_ref()
+            .and_then(|check| check.receipt(seat_index).cloned());
+        let Some(receipt) = receipt else {
+            return RpcFaTransferDestinationPreviewResult::Error {
+                error: replacement_not_eligible_error(),
+            };
+        };
+        let preview = match self
+            .client
+            .preview_transfer_destination(MgDiscoveryOptions::default())
+            .await
+        {
+            Ok(preview) => preview,
+            Err(error) => {
+                return RpcFaTransferDestinationPreviewResult::Error {
+                    error: fa_error_to_rpc(&error),
+                };
+            }
+        };
+        let preview_id = hex::encode(rand::random::<[u8; 16]>());
+        let response = transfer_destination_preview_to_rpc(&preview_id, &preview);
+        self.formation_state
+            .transfer_destination
+            .lock()
+            .await
+            .replace(StoredTransferPreview {
+                preview_id,
+                receipt,
+                preview,
+            });
+        RpcFaTransferDestinationPreviewResult::Preview { preview: response }
+    }
+
+    /// Approve the previewed destination with `max_msats` and start to move
+    /// the guardian the preview was for onto a new seat there. A start uses
+    /// the preview up, so a failed start needs a new preview.
+    /// Approve the previewed destination with `max_msats` and start to move
+    /// the guardian the preview was for onto a new seat there. A start uses
+    /// the preview up, so a failed start needs a new preview. fa-client
+    /// serializes the start with its other operations, so it does not take
+    /// the driver's operation slot.
+    pub(crate) async fn start_guardian_transfer(
+        &self,
+        preview_id: String,
+        payment_federation_id: String,
+        max_msats: u64,
+    ) -> RpcFaGuardianTransferResult {
+        let stored = {
+            let mut stored = self.formation_state.transfer_destination.lock().await;
+            match stored.take_if(|stored| stored.preview_id == preview_id) {
+                Some(stored) => stored,
+                None => {
+                    return RpcFaGuardianTransferResult::Error {
+                        error: preview_expired_error(),
+                    };
+                }
+            }
+        };
+        // a zero limit approves a free seat, and only that
+        if max_msats < stored.preview.advertised_price_msats() {
+            return RpcFaGuardianTransferResult::Error {
+                error: fa_error_to_rpc(&FaError::SelectionReauthorizationRequired {
+                    reason: SelectionReauthorizationReason::AdvertisementEstimateExceedsLimit,
+                    failure: None,
+                }),
+            };
+        }
+        let approval = match stored.preview.approve(max_msats) {
+            Ok(approval) => approval,
+            Err(error) => {
+                return RpcFaGuardianTransferResult::Error {
+                    error: fa_error_to_rpc(&error),
+                };
+            }
+        };
+        match self
+            .client
+            .request_guardian_replacement(
+                &stored.receipt,
+                approval,
+                Some(FederationId(payment_federation_id)),
+                None,
+            )
+            .await
+        {
+            Ok(transfer) => guardian_transfer_result(Ok(Some(transfer))),
+            Err(ReplacementStartError::InvalidReceipt) => RpcFaGuardianTransferResult::Error {
+                error: replacement_not_eligible_error(),
+            },
+            Err(ReplacementStartError::Transfer(error)) => guardian_transfer_result(Err(error)),
+        }
+    }
+}
+
 impl FaCommandSender {
     async fn request(&self, operation: FaDriverOperation) -> RpcFaOperationResult {
         match self.request_raw(operation).await {
             Ok(FaDriverResponse::Formation(result)) => result,
-            Ok(FaDriverResponse::Liquidity(_)) => operation_error_result(
+            Ok(_) => operation_error_result(
                 RpcFaErrorCode::CapabilityUnavailable,
                 "FA operation driver returned an unexpected response",
             ),
@@ -1992,7 +2075,7 @@ impl FaCommandSender {
     ) -> RpcFaLiquidityOperationResult {
         match self.request_raw(operation).await {
             Ok(FaDriverResponse::Liquidity(result)) => result,
-            Ok(FaDriverResponse::Formation(_)) => RpcFaLiquidityOperationResult::Error {
+            Ok(_) => RpcFaLiquidityOperationResult::Error {
                 error: operation_error(
                     RpcFaErrorCode::CapabilityUnavailable,
                     "FA operation driver returned an unexpected response",
@@ -2104,6 +2187,19 @@ pub(crate) fn start_fa_driver(
         federations,
         formation_state: formation_state.clone(),
     };
+
+    runtime
+        .task_group
+        .spawn_cancellable("fa-client::replacement-checks", {
+            let client = client.clone();
+            async move { client.run_replacement_checks().await }
+        });
+    runtime
+        .task_group
+        .spawn_cancellable("fa-client::guardian-transfer", {
+            let client = client.clone();
+            async move { client.run_guardian_transfer().await }
+        });
 
     let app_state = runtime.app_state.clone();
     runtime
@@ -2428,20 +2524,14 @@ async fn run_supervised_driver_loop<B: FaDriverBackend + 'static>(
 }
 
 fn should_auto_resume(status: &FaStatus) -> bool {
-    matches!(
-        status,
-        FaStatus::Restored(formation)
-            if formation.freshness == FormationFreshness::Unsynced
-    ) || matches!(
-        status,
-        FaStatus::Formation(formation)
-            if (formation.phase == FormationPhase::Formed
-                && formation.freshness == FormationFreshness::Unsynced)
-                || (formation.phase != FormationPhase::Formed
-                    && formation.action_required.is_none()
-                    && formation.last_error
-                        != Some(FaErrorCode::SelectionReauthorizationRequired))
-    )
+    match status {
+        FaStatus::Formed(federation) => federation.freshness == FormationFreshness::Unsynced,
+        FaStatus::Formation(formation) => {
+            formation.action_required.is_none()
+                && formation.last_error != Some(FaErrorCode::SelectionReauthorizationRequired)
+        }
+        FaStatus::Idle | FaStatus::Recovery { .. } => false,
+    }
 }
 
 /// How launch recovery should keep following one liquidity operation.
@@ -2582,11 +2672,22 @@ fn operation_error_result(
 
 fn preview_expired_result() -> RpcFaOperationResult {
     RpcFaOperationResult::Error {
-        error: fa_error_to_rpc(&FaError::SelectionReauthorizationRequired {
-            reason: SelectionReauthorizationReason::PreviewExpired,
-            failure: None,
-        }),
+        error: preview_expired_error(),
     }
+}
+
+fn replacement_not_eligible_error() -> RpcFaOperationError {
+    operation_error(
+        RpcFaErrorCode::ReplacementNotEligible,
+        fa_error_message(RpcFaErrorCode::ReplacementNotEligible),
+    )
+}
+
+fn preview_expired_error() -> RpcFaOperationError {
+    fa_error_to_rpc(&FaError::SelectionReauthorizationRequired {
+        reason: SelectionReauthorizationReason::PreviewExpired,
+        failure: None,
+    })
 }
 
 fn operation_error(code: RpcFaErrorCode, message: impl Into<String>) -> RpcFaOperationError {
@@ -2712,24 +2813,10 @@ fn formed_federation_id(status: &FaStatus) -> Result<String, RpcFaOperationError
                 "No created FA federation is available for maintenance",
             ));
         }
-        FaStatus::Formation(formation)
-            if formation.phase == FormationPhase::Formed
-                && formation.freshness == FormationFreshness::Fresh =>
-        {
-            formation.invite_code.as_ref().ok_or_else(|| {
-                operation_error(
-                    RpcFaErrorCode::Storage,
-                    "The created federation has no persisted invite",
-                )
-            })?
+        FaStatus::Formed(federation) if federation.freshness == FormationFreshness::Fresh => {
+            &federation.federation_invite
         }
-        FaStatus::Restored(formation)
-            if formation.phase == FormationPhase::Formed
-                && formation.freshness == FormationFreshness::Fresh =>
-        {
-            &formation.federation_invite
-        }
-        FaStatus::Formation(_) | FaStatus::Restored(_) => {
+        FaStatus::Formation(_) | FaStatus::Formed(_) => {
             return Err(operation_error(
                 RpcFaErrorCode::InvalidIntent,
                 "Federation maintenance is available only after setup or recovery completes",
@@ -2799,6 +2886,57 @@ fn guardian_replacement_requirements_to_rpc(
                 previous_locator: seat.previous_locator.to_json(),
             })
             .collect(),
+    }
+}
+
+fn transfer_destination_preview_to_rpc(
+    preview_id: &str,
+    preview: &TransferDestinationPreview,
+) -> RpcFaTransferDestinationPreview {
+    let seat = preview.seat();
+    RpcFaTransferDestinationPreview {
+        preview_id: preview_id.to_owned(),
+        mg_id: seat.candidate().mg_id().to_string(),
+        mg_name: seat.candidate().mg_name().to_string(),
+        advertised_price_msats: RpcFaMsats::from(preview.advertised_price_msats()),
+        provenance: seat.provenance().code().to_owned(),
+        valid_until: preview.valid_until().0,
+    }
+}
+
+fn guardian_transfer_to_rpc(transfer: GuardianTransfer) -> RpcFaGuardianTransfer {
+    RpcFaGuardianTransfer {
+        seat_index: transfer.seat_index,
+        source_mg_id: transfer.source_mg_id.to_string(),
+        source_mg_name: MgName::from_mg_id(transfer.source_mg_id).to_string(),
+        source_seat_id: transfer.source_seat_id.to_string(),
+        destination_mg_id: transfer.destination_mg_id.to_string(),
+        destination_mg_name: MgName::from_mg_id(transfer.destination_mg_id).to_string(),
+        destination_seat_id: transfer
+            .destination_seat_id
+            .map(|seat_id| seat_id.to_string()),
+        phase: match transfer.phase {
+            GuardianTransferPhase::BuyingSeat => RpcFaGuardianTransferPhase::BuyingSeat,
+            GuardianTransferPhase::AwaitingSource => RpcFaGuardianTransferPhase::AwaitingSource,
+            GuardianTransferPhase::PublishingBinding => {
+                RpcFaGuardianTransferPhase::PublishingBinding
+            }
+            GuardianTransferPhase::RemovingSource => RpcFaGuardianTransferPhase::RemovingSource,
+            GuardianTransferPhase::Completed => RpcFaGuardianTransferPhase::Completed,
+        },
+    }
+}
+
+fn guardian_transfer_result(
+    result: FaResult<Option<GuardianTransfer>>,
+) -> RpcFaGuardianTransferResult {
+    match result {
+        Ok(transfer) => RpcFaGuardianTransferResult::Transfer {
+            transfer: transfer.map(guardian_transfer_to_rpc),
+        },
+        Err(error) => RpcFaGuardianTransferResult::Error {
+            error: fa_error_to_rpc(&error),
+        },
     }
 }
 
@@ -3108,43 +3246,33 @@ pub fn fa_status_to_rpc(status: FaStatus) -> RpcFaStatus {
         FaStatus::Formation(formation) => RpcFaStatus::Formation {
             formation: Box::new(formation_snapshot_to_rpc(formation)),
         },
-        FaStatus::Restored(formation) => RpcFaStatus::Restored {
-            formation: Box::new(restored_formation_snapshot_to_rpc(formation)),
+        FaStatus::Formed(federation) => RpcFaStatus::Formed {
+            federation: Box::new(formed_federation_to_rpc(federation)),
         },
     }
 }
 
-fn restored_formation_snapshot_to_rpc(
-    snapshot: RestoredFormationSnapshot,
-) -> RpcFaRestoredFormationSnapshot {
-    RpcFaRestoredFormationSnapshot {
-        snapshot_generation: snapshot.snapshot_generation,
-        formation_id: snapshot.formation_id.0,
-        federation_invite: snapshot.federation_invite.0,
-        federation_name: snapshot.federation_name.map(|name| name.0),
-        seats: snapshot
+fn formed_federation_to_rpc(federation: FormedFederationSnapshot) -> RpcFaFormedFederation {
+    RpcFaFormedFederation {
+        formation_id: federation.formation_id.0,
+        federation_invite: federation.federation_invite.0,
+        federation_name: federation.federation_name.map(|name| name.0),
+        seats: federation
             .seats
             .into_iter()
-            .map(|seat| RpcFaRestoredSeat {
+            .map(|seat| RpcFaFormedSeat {
                 mg_id: seat.mg_identity.to_string(),
+                mg_name: fa_client::MgName::from_mg_id(seat.mg_identity).to_string(),
                 seat_id: seat.seat_id.to_string(),
                 locator: seat.locator.to_json(),
             })
             .collect(),
-        phase: match snapshot.phase {
-            FormationPhase::Preparing => RpcFaFormationPhase::Preparing,
-            FormationPhase::AwaitingPaymentReadiness => {
-                RpcFaFormationPhase::AwaitingPaymentReadiness
-            }
-            FormationPhase::AcquiringSeats => RpcFaFormationPhase::AcquiringSeats,
-            FormationPhase::PreparingDkg => RpcFaFormationPhase::PreparingDkg,
-            FormationPhase::DkgUnderway => RpcFaFormationPhase::DkgUnderway,
-            FormationPhase::DkgComplete => RpcFaFormationPhase::DkgComplete,
-            FormationPhase::PublishingSeatBindings => RpcFaFormationPhase::PublishingSeatBindings,
-            FormationPhase::Formed => RpcFaFormationPhase::Formed,
+        freshness: formation_freshness_to_rpc(federation.freshness),
+        backup_eligible: federation.backup_eligible,
+        origin: match federation.origin {
+            FormedOrigin::ThisDevice => RpcFaFormedOrigin::ThisDevice,
+            FormedOrigin::Backup => RpcFaFormedOrigin::Backup,
         },
-        freshness: formation_freshness_to_rpc(snapshot.freshness),
-        backup_eligible: snapshot.backup_eligible,
     }
 }
 
@@ -3166,6 +3294,80 @@ pub fn fa_client_status_stream(
     }
 }
 
+pub fn fa_replacement_candidates_stream(
+    receiver: Result<watch::Receiver<Option<Arc<ReplacementCheck>>>, RpcFaOperationError>,
+) -> BoxStream<'static, RpcFaReplacementCandidates> {
+    match receiver {
+        Ok(receiver) => WatchStream::new(receiver)
+            .map(|check| RpcFaReplacementCandidates::Ready {
+                check: check.as_deref().map(replacement_check_to_rpc),
+            })
+            .boxed(),
+        Err(error) => {
+            stream::once(async move { RpcFaReplacementCandidates::Failed { error } }).boxed()
+        }
+    }
+}
+
+/// The open guardian transfer, then every change. A completed move stays
+/// `completed` until the next start.
+pub fn fa_guardian_transfer_stream(
+    receiver: Result<watch::Receiver<Option<GuardianTransfer>>, RpcFaOperationError>,
+) -> BoxStream<'static, RpcFaGuardianTransferResult> {
+    match receiver {
+        Ok(receiver) => WatchStream::new(receiver)
+            .map(|transfer| guardian_transfer_result(Ok(transfer)))
+            .boxed(),
+        Err(error) => {
+            stream::once(async move { RpcFaGuardianTransferResult::Error { error } }).boxed()
+        }
+    }
+}
+
+fn replacement_check_to_rpc(check: &ReplacementCheck) -> RpcFaReplacementCheck {
+    RpcFaReplacementCheck {
+        blocking_liquidity_operation: check
+            .blocking_liquidity_operation
+            .as_ref()
+            .map(|id| id.0.clone()),
+        federation_id: check.federation_id.0.clone(),
+        checked_at: check.checked_at,
+        candidates: check
+            .candidates
+            .iter()
+            .map(replacement_candidate_to_rpc)
+            .collect(),
+    }
+}
+
+fn replacement_candidate_to_rpc(candidate: &ReplacementCandidate) -> RpcFaReplacementCandidate {
+    RpcFaReplacementCandidate {
+        seat_index: candidate.seat_index,
+        mg_id: candidate.mg_id.to_string(),
+        mg_name: MgName::from_mg_id(candidate.mg_id).to_string(),
+        reasons: candidate
+            .reasons
+            .iter()
+            .map(|reason| match *reason {
+                ReplacementReason::Offline { last_seen_secs } => {
+                    RpcFaReplacementReason::Offline { last_seen_secs }
+                }
+                ReplacementReason::MissedSessions { sessions } => {
+                    RpcFaReplacementReason::MissedSessions { sessions }
+                }
+                ReplacementReason::Disconnected => RpcFaReplacementReason::Disconnected,
+                ReplacementReason::LowWeekScore { basis_points } => {
+                    RpcFaReplacementReason::LowWeekScore { basis_points }
+                }
+                ReplacementReason::LowMonthScore { basis_points } => {
+                    RpcFaReplacementReason::LowMonthScore { basis_points }
+                }
+                ReplacementReason::HolderRevoked => RpcFaReplacementReason::HolderRevoked,
+            })
+            .collect(),
+    }
+}
+
 pub fn formation_snapshot_to_rpc(snapshot: FormationSnapshot) -> RpcFaFormationSnapshot {
     let milestones = formation_milestones(&snapshot);
     let selected_post_output = snapshot.payment_outputs_started;
@@ -3181,7 +3383,6 @@ pub fn formation_snapshot_to_rpc(snapshot: FormationSnapshot) -> RpcFaFormationS
             FormationPhase::DkgUnderway => RpcFaFormationPhase::DkgUnderway,
             FormationPhase::DkgComplete => RpcFaFormationPhase::DkgComplete,
             FormationPhase::PublishingSeatBindings => RpcFaFormationPhase::PublishingSeatBindings,
-            FormationPhase::Formed => RpcFaFormationPhase::Formed,
         },
         intent: resolved_formation_intent_to_rpc(snapshot.intent),
         seats: snapshot
@@ -3284,7 +3485,6 @@ fn formation_milestones(snapshot: &FormationSnapshot) -> RpcFaFormationMilestone
     RpcFaFormationMilestones {
         ecash_sent,
         guardians_confirmed,
-        wallet_service_created: snapshot.phase == FormationPhase::Formed,
     }
 }
 
@@ -3314,6 +3514,9 @@ pub(crate) fn fa_push_error_to_rpc(error: &FaPushError) -> RpcFaOperationError {
 
 fn fa_error_detail_to_rpc(error: &FaError) -> Option<RpcFaOperationErrorDetail> {
     match error {
+        FaError::LiquidityOperationExists { .. } => {
+            Some(RpcFaOperationErrorDetail::LiquidityOperationExists)
+        }
         FaError::MaintenanceUnsupported { .. } => {
             Some(RpcFaOperationErrorDetail::MaintenanceUnsupported)
         }
@@ -3415,6 +3618,9 @@ fn fa_error_message(code: RpcFaErrorCode) -> &'static str {
         }
         RpcFaErrorCode::PushNotifications => "FA push notification setup failed",
         RpcFaErrorCode::Timeout => "The FA operation timed out",
+        RpcFaErrorCode::ReplacementNotEligible => {
+            "The guardian is not a replacement candidate of the latest check"
+        }
     }
 }
 

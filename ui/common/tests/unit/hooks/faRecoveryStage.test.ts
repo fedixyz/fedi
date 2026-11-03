@@ -10,16 +10,15 @@ import { renderHookWithBridge } from '../../utils/render'
 const FED = 'federation-1'
 
 const restoredStatus = (freshness: 'unsynced' | 'fresh'): RpcFaStatus => ({
-    type: 'restored',
-    formation: {
-        snapshotGeneration: 3,
+    type: 'formed',
+    federation: {
         formationId: 'formation-1',
         federationInvite: 'fed11invite',
         federationName: 'Restored Wallet Service',
         seats: [],
-        phase: 'formed',
         freshness,
         backupEligible: false,
+        origin: 'backup',
     },
 })
 

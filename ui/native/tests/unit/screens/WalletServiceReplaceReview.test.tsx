@@ -77,7 +77,6 @@ const makeFormation = (
     milestones: {
         ecashSent: false,
         guardiansConfirmed: false,
-        walletServiceCreated: false,
     },
     inviteCode: null,
     lastError: null,
@@ -130,6 +129,9 @@ const renderReview = ({
             draft: { name: '', size: 7 },
             selectionPreview: null,
             replacementPreview,
+            transferDestinationPreview: null,
+            guardianTransfer: undefined,
+            replacementCheck: null,
             topUpInvoice: null,
             eligiblePayers: null,
             payerError: null,

@@ -14,15 +14,24 @@ import {
     refreshGuardianStatuses,
     setFederations,
     setFaFederationJoin,
+    setFaStatus,
+    setReplacementCandidates,
+    setFaLiquidityOperation,
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { MSats } from '@fedi/common/types'
 import type {
+    FeatureCatalog,
     GuardianStatus,
     RpcFaFormationSnapshot,
+    RpcFaFormedFederation,
+    RpcFaFormedSeat,
+    RpcFaGuardianTransfer,
+    RpcFaGuardianTransferResult,
     RpcFaLiquidityOperation,
+    RpcFaReplacementCheck,
     RpcFaStatus,
 } from '@fedi/common/types/bindings'
 import { guardianQuorum } from '@fedi/common/utils/federationHealth'
@@ -74,8 +83,19 @@ jest.mock(
 /** Records every guardian status fetch the screen makes. */
 const mockGuardianStatusCalls = jest.fn()
 
+/** Records every guardian move subscribe the screen opens. */
+const mockTransferSubscribe = jest.fn()
+
+/** Sends an item on the open guardian move stream, as the bridge does. */
+let emitTransfer: (result: RpcFaGuardianTransferResult) => void = () => {
+    throw new Error('no guardian move stream open')
+}
+
 /** Records every guardian remittance balance subscribe the screen opens. */
 const mockFeeBalanceSubscribe = jest.fn()
+
+/** Records every replacement candidates subscribe the screen opens. */
+const mockCandidatesSubscribe = jest.fn()
 
 const makeGuardianStatuses = (
     online: number,
@@ -89,12 +109,34 @@ const makeGuardianStatuses = (
     })),
 ]
 
-const formation: RpcFaFormationSnapshot = {
+const makeSeats = (count: number): RpcFaFormedSeat[] =>
+    Array.from({ length: count }, (_, index) => ({
+        mgId: `mg-${index}`,
+        mgName: `guardian ${index}`,
+        seatId: `seat-${index}`,
+        locator: `locator-${index}`,
+    }))
+
+/** A federation formed by a formation on this device. */
+const federation: RpcFaFormedFederation = {
     formationId: 'formation-1',
-    phase: 'formed',
+    federationInvite: INVITE_CODE,
+    federationName: 'Test Wallet Service',
+    seats: makeSeats(7),
+    freshness: 'fresh',
+    backupEligible: true,
+    origin: 'thisDevice',
+}
+
+/** The setup that formed `formed`, as this app watched it. */
+const formationOf = (
+    formed: RpcFaFormedFederation,
+): RpcFaFormationSnapshot => ({
+    formationId: formed.formationId,
+    phase: 'publishingSeatBindings',
     intent: {
-        federationName: 'Test Wallet Service',
-        federationSize: 7,
+        federationName: formed.federationName ?? '',
+        federationSize: formed.seats.length,
         guardianFeePpm: 1_000,
         plan: 'infiniteBestEffort',
         maxTotalMsats: null,
@@ -103,41 +145,44 @@ const formation: RpcFaFormationSnapshot = {
     freshness: 'fresh',
     actionRequired: null,
     paymentOutputsStarted: true,
-    milestones: {
-        ecashSent: true,
-        guardiansConfirmed: true,
-        walletServiceCreated: true,
-    },
-    inviteCode: INVITE_CODE,
+    milestones: { ecashSent: true, guardiansConfirmed: true },
+    inviteCode: formed.federationInvite,
     lastError: null,
-}
+})
 
 /** Matches the fixture in `common/tests/unit/hooks/faRecoveryStage.test.ts`. */
 const restoredStatus = (
     freshness: 'unsynced' | 'fresh',
     backupEligible = false,
 ): RpcFaStatus => ({
-    type: 'restored',
-    formation: {
-        snapshotGeneration: 3,
+    type: 'formed',
+    federation: {
         formationId: 'formation-1',
         federationInvite: INVITE_CODE,
         federationName: 'Restored Wallet Service',
         seats: [],
-        phase: 'formed',
         freshness,
         backupEligible,
+        origin: 'backup',
     },
 })
 
+const transferFlags = (isEnabled: boolean) =>
+    (isEnabled
+        ? { wallet_service_guardian_transfer: {} }
+        : {}) as FeatureCatalog
+
 const renderScreen = ({
-    snapshot = formation,
+    // a federation this app watched form; `status` replaces it with one it
+    // did not: a backup import takes the restore flow, and a federation
+    // formed in an earlier launch does not
+    formed = federation,
     // the federation the invite resolves to is joined and loaded, matching
     // the bridge's auto-join once formation reaches `formed`
     federationJoined = true,
     // the joined federation is the wallet service, so it publishes the live
-    // name; that equals the creation-time intent until a rename
-    federationName = formation.intent.federationName,
+    // name; that equals the creation-time name until a rename
+    federationName = federation.federationName ?? '',
     renamedTo = null as string | null,
     iconUrl = null as string | null,
     // what the guardian remittance balance stream does: a number it emits, or
@@ -149,10 +194,16 @@ const renderScreen = ({
     // what the app-wide monitor has found; the dashboard is where a user lands
     // after walking away from an attach, so it has to report one
     liquidity = null as RpcFaLiquidityOperation | null,
-    status = { type: 'formation', formation: snapshot } as RpcFaStatus,
+    status,
     recovering = false,
+    isTransferEnabled = true,
+    // what the guardian move stream sends first; `null` is no move open
+    guardianTransfer = null as RpcFaGuardianTransfer | null,
+    routeParams = undefined as { openSheet?: 'guardians' } | undefined,
+    // the check the candidates stream answers with; `null` is none run yet
+    replacementCheck = null as RpcFaReplacementCheck | null,
 }: {
-    snapshot?: RpcFaFormationSnapshot
+    formed?: RpcFaFormedFederation
     federationJoined?: boolean
     federationName?: string
     renamedTo?: string | null
@@ -164,6 +215,10 @@ const renderScreen = ({
     liquidity?: RpcFaLiquidityOperation | null
     status?: RpcFaStatus
     recovering?: boolean
+    isTransferEnabled?: boolean
+    guardianTransfer?: RpcFaGuardianTransfer | null
+    routeParams?: { openSheet?: 'guardians' }
+    replacementCheck?: RpcFaReplacementCheck | null
 } = {}) => {
     const state = setupStore().getState()
     const fedimint = createMockFedimintBridge({
@@ -190,75 +245,109 @@ const renderScreen = ({
                 args.callback(feeBalance as unknown as MSats)
             return () => {}
         },
+        faClientSubscribeGuardianTransfer: (args: {
+            callback: (result: RpcFaGuardianTransferResult) => void
+        }) => {
+            mockTransferSubscribe()
+            emitTransfer = args.callback
+            args.callback({ type: 'transfer', transfer: guardianTransfer })
+            return () => {}
+        },
+        faClientSubscribeReplacementCandidates: (args: {
+            callback: (candidates: {
+                type: 'ready'
+                check: RpcFaReplacementCheck | null
+            }) => void
+        }) => {
+            mockCandidatesSubscribe()
+            args.callback({ type: 'ready', check: replacementCheck })
+            return () => {}
+        },
     })
+
+    const store = setupStore({
+        environment: {
+            ...state.environment,
+            featureFlags: transferFlags(isTransferEnabled),
+        },
+        federation: {
+            ...state.federation,
+            federations: federationJoined
+                ? [
+                      {
+                          ...mockFederation1,
+                          id: WALLET_SERVICE_FEDERATION_ID,
+                          name: federationName,
+                          meta: {
+                              ...(renamedTo
+                                  ? { federation_name: renamedTo }
+                                  : mockFederation1.meta),
+                              ...(iconUrl && {
+                                  'fedi:federation_icon_url': iconUrl,
+                              }),
+                          },
+                          // the screen no longer reads this; it is here
+                          // so a personal balance cannot silently
+                          // become what the card shows again
+                          balance: 21_000_000 as MSats,
+                          recovering,
+                      },
+                  ]
+                : [],
+        },
+        fi: {
+            status: null,
+            clientError: null,
+            federationJoin: null,
+            creationHighWaterMark: null,
+            walletServiceMetadata: {
+                formationId: null,
+                published: null,
+                holds: {},
+                status: 'idle',
+                latestRequestId: null,
+            },
+            draft: { name: '', size: 10 },
+            selectionPreview: null,
+            replacementPreview: null,
+            transferDestinationPreview: null,
+            guardianTransfer: undefined,
+            replacementCheck: null,
+            topUpInvoice: null,
+            eligiblePayers: null,
+            payerError: null,
+            operationError: null,
+            liquidity: {
+                operation: liquidity,
+                hasRead: true,
+                errorCode: null,
+                isRequesting: false,
+            },
+        },
+        nux: {
+            steps: {
+                ...state.nux.steps,
+                hasSeenWalletServiceTour: hasSeenTour,
+            },
+        },
+    })
+    if (status) {
+        store.dispatch(setFaStatus(status))
+    } else {
+        // the same two reports the app gets: the formation, then the
+        // federation it formed, so the store records that it watched it form
+        store.dispatch(
+            setFaStatus({ type: 'formation', formation: formationOf(formed) }),
+        )
+        store.dispatch(setFaStatus({ type: 'formed', federation: formed }))
+    }
 
     return renderWithProviders(
         <WalletServiceDashboard
             navigation={mockNavigation as any}
-            route={mockRoute as any}
+            route={{ ...mockRoute, params: routeParams } as any}
         />,
-        {
-            fedimint,
-            preloadedState: {
-                federation: {
-                    ...state.federation,
-                    federations: federationJoined
-                        ? [
-                              {
-                                  ...mockFederation1,
-                                  id: WALLET_SERVICE_FEDERATION_ID,
-                                  name: federationName,
-                                  meta: {
-                                      ...(renamedTo
-                                          ? { federation_name: renamedTo }
-                                          : mockFederation1.meta),
-                                      ...(iconUrl && {
-                                          'fedi:federation_icon_url': iconUrl,
-                                      }),
-                                  },
-                                  // the screen no longer reads this; it is here
-                                  // so a personal balance cannot silently
-                                  // become what the card shows again
-                                  balance: 21_000_000 as MSats,
-                                  recovering,
-                              },
-                          ]
-                        : [],
-                },
-                fi: {
-                    status,
-                    clientError: null,
-                    federationJoin: null,
-                    creationHighWaterMark: null,
-                    walletServiceMetadata: {
-                        formationId: null,
-                        published: null,
-                        holds: {},
-                        status: 'idle',
-                        latestRequestId: null,
-                    },
-                    draft: { name: '', size: 10 },
-                    selectionPreview: null,
-                    replacementPreview: null,
-                    topUpInvoice: null,
-                    eligiblePayers: null,
-                    payerError: null,
-                    operationError: null,
-                    liquidity: {
-                        operation: liquidity,
-                        hasRead: true,
-                        errorCode: null,
-                        isRequesting: false,
-                    },
-                },
-                nux: {
-                    steps: {
-                        ...state.nux.steps,
-                        hasSeenWalletServiceTour: hasSeenTour,
-                    },
-                },
-            },
-        },
+        { fedimint, store },
     )
 }
 
@@ -363,12 +452,9 @@ describe('screens/WalletServiceDashboard', () => {
         expect(screen.queryByTestId('FederationLogo__Image')).toBeNull()
     })
 
-    it('should take the guardian total from the formation', async () => {
+    it('should take the guardian total from the formed seats', async () => {
         renderScreen({
-            snapshot: {
-                ...formation,
-                intent: { ...formation.intent, federationSize: 13 },
-            },
+            formed: { ...federation, seats: makeSeats(13) },
             federationJoined: false,
         })
         await waitFor(() => {})
@@ -510,18 +596,724 @@ describe('screens/WalletServiceDashboard', () => {
 
         const row = (index: number) =>
             within(screen.getByTestId(`wallet-service-guardian-${index}`))
-        const notResponding = i18n.t(
-            'feature.wallet-service.guardian-not-responding',
-        )
-        const online = i18n.t('feature.wallet-service.guardian-online')
+        // the section names the state, so each row shows it by its dot only
         expect(row(0).getByText('Bob')).toBeOnTheScreen()
-        expect(row(0).getByText(notResponding)).toBeOnTheScreen()
+        expect(dotColor('wallet-service-guardian-0-dot')).toBe(
+            theme.colors.grey,
+        )
         expect(row(1).getByText('Dave')).toBeOnTheScreen()
-        expect(row(1).getByText(notResponding)).toBeOnTheScreen()
+        expect(dotColor('wallet-service-guardian-1-dot')).toBe(
+            theme.colors.grey,
+        )
         expect(row(2).getByText('Alice')).toBeOnTheScreen()
-        expect(row(2).getByText(online)).toBeOnTheScreen()
+        expect(dotColor('wallet-service-guardian-2-dot')).toBe(
+            theme.colors.success,
+        )
         expect(row(3).getByText('Carol')).toBeOnTheScreen()
-        expect(row(3).getByText(online)).toBeOnTheScreen()
+        expect(dotColor('wallet-service-guardian-3-dot')).toBe(
+            theme.colors.success,
+        )
+        expect(screen.queryByText('Not responding')).not.toBeOnTheScreen()
+        expect(screen.queryByText('Online')).not.toBeOnTheScreen()
+    })
+
+    describe('replacing a guardian from the list', () => {
+        const seat = (index: number, mgName: string): RpcFaFormedSeat => ({
+            mgId: `mg-${index}`,
+            mgName,
+            locator: `locator-${index}`,
+            seatId: `seat-${index}`,
+        })
+        const namedFederation: RpcFaFormedFederation = {
+            ...federation,
+            seats: [seat(0, 'Alice'), seat(1, 'Bob'), seat(2, 'Carol')],
+        }
+        // Carol is seat 2 but lists first, as the one not responding, so a
+        // button that sent the row position would send 0
+        const carolDown: GuardianStatus[] = [
+            { online: { guardian: 'g0', mg_name: 'Alice', latency_ms: 50 } },
+            { online: { guardian: 'g1', mg_name: 'Bob', latency_ms: 50 } },
+            { timeout: { guardian: 'g2', mg_name: 'Carol', elapsed: '10s' } },
+        ]
+        // the check flags Carol only: Bob going quiet later is not a reason
+        const carolFlagged: RpcFaReplacementCheck = {
+            federationId: WALLET_SERVICE_FEDERATION_ID,
+            checkedAt: 1_700_000_000,
+            blockingLiquidityOperation: null,
+            candidates: [
+                {
+                    seatIndex: 2,
+                    mgId: 'mg-2',
+                    mgName: 'Carol',
+                    reasons: [
+                        { type: 'lowWeekScore', basisPoints: 6_250 },
+                        { type: 'missedSessions', sessions: 4 },
+                    ],
+                },
+            ],
+        }
+        const openSheet = async () =>
+            user.press(await screen.findByTestId('wallet-service-guardians'))
+
+        it('should keep Replace blocked until the replacement check clears it', async () => {
+            const { store } = renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: {
+                    ...carolFlagged,
+                    blockingLiquidityOperation: 'operation-1',
+                },
+            })
+            await openSheet()
+            const replace = screen.getByTestId(
+                'wallet-service-guardian-replace-2',
+            )
+            expect(replace).toBeDisabled()
+            expect(
+                screen.getByText(/blocked by an unfinished liquidity request/),
+            ).toBeOnTheScreen()
+            await user.press(replace)
+            expect(mockNavigation.navigate).not.toHaveBeenCalled()
+            act(() => {
+                store.dispatch(
+                    setFaLiquidityOperation(
+                        runningAttach({ gatewayViewVerified: true }),
+                    ),
+                )
+            })
+            expect(replace).toBeDisabled()
+            act(() => {
+                store.dispatch(
+                    setReplacementCandidates({
+                        type: 'ready',
+                        check: carolFlagged,
+                    }),
+                )
+            })
+            expect(replace).toBeEnabled()
+        })
+
+        it('should show why a flagged guardian is flagged before opening the replacement for its seat', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+            })
+            await openSheet()
+            const replace = await screen.findByTestId(
+                'wallet-service-guardian-replace-2',
+            )
+            expect(
+                within(
+                    screen.getByTestId('wallet-service-guardian-0'),
+                ).getByText('Carol'),
+            ).toBeOnTheScreen()
+
+            await user.press(replace)
+
+            // the reasons come first; nothing is priced yet
+            expect(mockNavigation.navigate).not.toHaveBeenCalled()
+            const reasons = await screen.findByTestId(
+                'wallet-service-replace-reasons',
+            )
+            // label and number apart, as the setup flow's summaries read
+            expect(
+                within(reasons).getByText('Uptime, last 7 days'),
+            ).toBeOnTheScreen()
+            expect(within(reasons).getByText('62%')).toBeOnTheScreen()
+            expect(
+                within(reasons).getByText('Offline checks in a row'),
+            ).toBeOnTheScreen()
+            expect(within(reasons).getByText('4')).toBeOnTheScreen()
+
+            await user.press(
+                screen.getByTestId('wallet-service-replace-get-quote'),
+            )
+
+            expect(mockNavigation.navigate).toHaveBeenCalledTimes(1)
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'WalletServiceGuardianTransfer',
+                { seatIndex: 2 },
+            )
+        })
+
+        it('should group the guardians by what they need, with the most telling reason under a flagged one', async () => {
+            renderScreen({
+                formed: namedFederation,
+                // Bob is down but not flagged, Carol is flagged
+                guardianStatuses: [
+                    carolDown[0],
+                    {
+                        timeout: {
+                            guardian: 'g1',
+                            mg_name: 'Bob',
+                            elapsed: '10s',
+                        },
+                    },
+                    carolDown[2],
+                ],
+                replacementCheck: carolFlagged,
+            })
+            await openSheet()
+            await screen.findByTestId('wallet-service-guardian-replace-2')
+
+            const row = (index: number) =>
+                within(screen.getByTestId(`wallet-service-guardian-${index}`))
+            expect(row(0).getByText('Carol')).toBeOnTheScreen()
+            // the week's uptime, not the missed sessions listed after it
+            expect(
+                row(0).getByText('Online 62% of the last week'),
+            ).toBeOnTheScreen()
+            expect(row(0).queryByText(/checks$/)).not.toBeOnTheScreen()
+            expect(row(1).getByText('Bob')).toBeOnTheScreen()
+            expect(row(2).getByText('Alice')).toBeOnTheScreen()
+            for (const key of [
+                'feature.wallet-service.guardians-section-needs-replacing',
+                'feature.wallet-service.guardians-section-not-responding',
+                'feature.wallet-service.guardians-section-healthy',
+            ] as const)
+                expect(
+                    screen.getByText(i18n.t(key).toUpperCase()),
+                ).toBeOnTheScreen()
+            expect(
+                screen.queryByText(
+                    i18n.t(
+                        'feature.wallet-service.guardians-section-replacing',
+                    ),
+                ),
+            ).not.toBeOnTheScreen()
+        })
+
+        it('should show missed sessions rather than the last time seen when those are the reasons', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: {
+                    ...carolFlagged,
+                    candidates: [
+                        {
+                            ...carolFlagged.candidates[0],
+                            reasons: [
+                                {
+                                    type: 'offline',
+                                    lastSeenSecs: 1_700_000_000,
+                                },
+                                { type: 'missedSessions', sessions: 14 },
+                            ],
+                        },
+                    ],
+                },
+            })
+            await openSheet()
+            await screen.findByTestId('wallet-service-guardian-replace-2')
+
+            const carol = within(
+                screen.getByTestId('wallet-service-guardian-0'),
+            )
+            expect(
+                carol.getByText('Offline for the last 14 checks'),
+            ).toBeOnTheScreen()
+            expect(carol.queryByText(/Last seen/)).not.toBeOnTheScreen()
+        })
+
+        it('should list the guardian an open replacement moves off as being replaced, with no Replace', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+                guardianTransfer: {
+                    seatIndex: 2,
+                    sourceMgId: 'mg-2',
+                    sourceMgName: 'Carol',
+                    sourceSeatId: 'seat-2',
+                    destinationMgId: 'mg-new',
+                    destinationMgName: 'Dave',
+                    destinationSeatId: 'seat-new',
+                    phase: 'awaitingSource',
+                },
+            })
+            await openSheet()
+
+            const carol = within(
+                await screen.findByTestId('wallet-service-guardian-0'),
+            )
+            expect(carol.getByText('Carol')).toBeOnTheScreen()
+            // a spinner in place of the status dot
+            expect(carol.getByTestId('milestone-spinner')).toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-guardian-0-dot'),
+            ).not.toBeOnTheScreen()
+            expect(
+                screen.getByText(
+                    i18n
+                        .t('feature.wallet-service.guardians-section-replacing')
+                        .toUpperCase(),
+                ),
+            ).toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-2'),
+            ).not.toBeOnTheScreen()
+        })
+
+        it('should go back to the list from the reasons without opening anything', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+            })
+            await openSheet()
+            await user.press(
+                await screen.findByTestId('wallet-service-guardian-replace-2'),
+            )
+            await user.press(
+                await screen.findByTestId('wallet-service-replace-not-now'),
+            )
+
+            expect(
+                await screen.findByTestId('wallet-service-guardian-replace-2'),
+            ).toBeOnTheScreen()
+            expect(mockNavigation.navigate).not.toHaveBeenCalled()
+        })
+
+        it('should offer a replacement only for a guardian the check flagged', async () => {
+            // Bob and Carol are both down, but only Carol is flagged
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: [
+                    carolDown[0],
+                    {
+                        timeout: {
+                            guardian: 'g1',
+                            mg_name: 'Bob',
+                            elapsed: '10s',
+                        },
+                    },
+                    carolDown[2],
+                ],
+                replacementCheck: carolFlagged,
+            })
+            await openSheet()
+            await screen.findByTestId('wallet-service-guardian-replace-2')
+
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-0'),
+            ).not.toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-1'),
+            ).not.toBeOnTheScreen()
+            // Bob, down but not flagged, is told when he can be replaced
+            expect(
+                within(
+                    screen.getByTestId('wallet-service-guardian-1'),
+                ).getByText(
+                    i18n.t(
+                        'feature.wallet-service.guardian-not-responding-detail',
+                    ),
+                ),
+            ).toBeOnTheScreen()
+            expect(mockTransferSubscribe).toHaveBeenCalledTimes(1)
+        })
+
+        it('should not offer a replacement for a guardian that is down before any check flags it', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+            })
+            await openSheet()
+
+            expect(
+                await screen.findByTestId('wallet-service-guardian-0'),
+            ).toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-2'),
+            ).not.toBeOnTheScreen()
+            expect(mockCandidatesSubscribe).toHaveBeenCalled()
+        })
+
+        it('should not offer a replacement while another move is open', async () => {
+            const { store } = renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+                guardianTransfer: {
+                    seatIndex: 1,
+                    sourceMgId: 'mg-1',
+                    sourceMgName: 'Bob',
+                    sourceSeatId: 'seat-1',
+                    destinationMgId: 'mg-new',
+                    destinationMgName: 'Dave',
+                    destinationSeatId: null,
+                    phase: 'buyingSeat',
+                },
+            })
+            await openSheet()
+
+            await waitFor(() =>
+                expect(store.getState().fi.guardianTransfer?.phase).toBe(
+                    'buyingSeat',
+                ),
+            )
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-2'),
+            ).not.toBeOnTheScreen()
+        })
+
+        it('should not offer a replacement with the feature flag off', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+                isTransferEnabled: false,
+            })
+            await openSheet()
+
+            expect(
+                await screen.findByTestId('wallet-service-guardian-0'),
+            ).toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-2'),
+            ).not.toBeOnTheScreen()
+            expect(mockTransferSubscribe).not.toHaveBeenCalled()
+            expect(mockCandidatesSubscribe).not.toHaveBeenCalled()
+        })
+
+        it('should not offer a replacement before the service is formed', async () => {
+            renderScreen({
+                status: {
+                    type: 'formation',
+                    formation: {
+                        ...formationOf(namedFederation),
+                        phase: 'acquiringSeats',
+                    },
+                },
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+            })
+            await openSheet()
+
+            expect(
+                await screen.findByTestId('wallet-service-guardian-0'),
+            ).toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-2'),
+            ).not.toBeOnTheScreen()
+            expect(mockTransferSubscribe).not.toHaveBeenCalled()
+        })
+
+        it('should not offer a replacement when two seats share the name', async () => {
+            renderScreen({
+                formed: {
+                    ...namedFederation,
+                    seats: [
+                        seat(0, 'Alice'),
+                        seat(1, 'Carol'),
+                        seat(2, 'Carol'),
+                    ],
+                },
+                // the peers publish the same names the seats derive
+                guardianStatuses: [
+                    carolDown[0],
+                    {
+                        online: {
+                            guardian: 'g1',
+                            mg_name: 'Carol',
+                            latency_ms: 50,
+                        },
+                    },
+                    carolDown[2],
+                ],
+                replacementCheck: carolFlagged,
+            })
+            await openSheet()
+
+            expect(
+                await screen.findByTestId('wallet-service-guardian-0'),
+            ).toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-1'),
+            ).not.toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-guardian-replace-2'),
+            ).not.toBeOnTheScreen()
+        })
+
+        it('should open the guardian list when asked to, once the push has landed', async () => {
+            const transitionEnds: ((e: {
+                data: { closing: boolean }
+            }) => void)[] = []
+            const unsubscribe = jest.fn()
+            mockNavigation.addListener.mockImplementationOnce(((
+                type: string,
+                listener: (e: { data: { closing: boolean } }) => void,
+            ) => {
+                if (type === 'transitionEnd') transitionEnds.push(listener)
+                return unsubscribe
+            }) as never)
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+                routeParams: { openSheet: 'guardians' },
+            })
+            // the statuses have landed, so only the push holds the sheet back
+            await waitFor(() =>
+                expect(mockGuardianStatusCalls).toHaveBeenCalled(),
+            )
+            await act(async () => {})
+            expect(
+                screen.queryByTestId('wallet-service-guardian-0'),
+            ).not.toBeOnTheScreen()
+
+            act(() => {
+                for (const l of transitionEnds) l({ data: { closing: true } })
+            })
+            expect(
+                screen.queryByTestId('wallet-service-guardian-0'),
+            ).not.toBeOnTheScreen()
+
+            act(() => {
+                for (const l of transitionEnds) l({ data: { closing: false } })
+            })
+
+            expect(
+                await screen.findByTestId('wallet-service-guardian-replace-2'),
+            ).toBeOnTheScreen()
+            // once only: returning from the move must not reopen it
+            expect(unsubscribe).toHaveBeenCalled()
+        })
+
+        it('should say on the dashboard which guardian the check flagged and open the list from it', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+            })
+            const banner = await screen.findByTestId(
+                'wallet-service-replacement-banner',
+            )
+            expect(
+                within(banner).getByText('1 guardian needs replacing'),
+            ).toBeOnTheScreen()
+            expect(
+                within(banner).getByText(/flagged Carol as unreliable/),
+            ).toBeOnTheScreen()
+
+            await user.press(banner)
+
+            expect(
+                await screen.findByTestId('wallet-service-guardian-replace-2'),
+            ).toBeOnTheScreen()
+            expect(mockNavigation.navigate).not.toHaveBeenCalled()
+        })
+
+        it('should say members cannot pay once the federation is below quorum, and not before', async () => {
+            const statuses: GuardianStatus[] = [
+                carolDown[0],
+                { timeout: { guardian: 'g1', mg_name: 'Bob', elapsed: '10s' } },
+                carolDown[2],
+            ]
+            const { store } = renderScreen({
+                formed: namedFederation,
+                guardianStatuses: statuses,
+                replacementCheck: carolFlagged,
+            })
+            const banner = await screen.findByTestId(
+                'wallet-service-replacement-banner',
+            )
+            const belowQuorum = i18n.t(
+                'feature.wallet-service.replace-banner-body-below-quorum',
+            )
+            // one probe under quorum is not yet an offline federation
+            expect(
+                within(banner).getByText(/flagged Carol as unreliable/),
+            ).toBeOnTheScreen()
+            expect(
+                within(banner).queryByText(belowQuorum),
+            ).not.toBeOnTheScreen()
+            // the streamed move can show the banner before the first probe
+            // lands, and sustaining starts from that probe
+            await waitFor(() =>
+                expect(
+                    store.getState().federation.guardianHealth[
+                        WALLET_SERVICE_FEDERATION_ID
+                    ],
+                ).toBeDefined(),
+            )
+
+            await sustain(store, statuses, 210)
+
+            const sustained = screen.getByTestId(
+                'wallet-service-replacement-banner',
+            )
+            expect(within(sustained).getByText(belowQuorum)).toBeOnTheScreen()
+            expect(
+                within(sustained).getByText('Review guardians ›'),
+            ).toBeOnTheScreen()
+            expect(dotColor('wallet-service-status-dot')).toBe(theme.colors.red)
+        })
+
+        it('should say who is being paid while the new host is bought', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+                guardianTransfer: {
+                    seatIndex: 2,
+                    sourceMgId: 'mg-2',
+                    sourceMgName: 'Carol',
+                    sourceSeatId: 'seat-2',
+                    destinationMgId: 'mg-new',
+                    destinationMgName: 'Dave',
+                    destinationSeatId: 'seat-new',
+                    phase: 'buyingSeat',
+                },
+            })
+            const banner = await screen.findByTestId(
+                'wallet-service-replacement-progress',
+            )
+            expect(within(banner).getByText('Paying Dave…')).toBeOnTheScreen()
+        })
+
+        it('should not name the only group of guardians', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: [
+                    carolDown[0],
+                    carolDown[1],
+                    {
+                        online: {
+                            guardian: 'g2',
+                            mg_name: 'Carol',
+                            latency_ms: 50,
+                        },
+                    },
+                ],
+                replacementCheck: { ...carolFlagged, candidates: [] },
+            })
+            await openSheet()
+            await screen.findByTestId('wallet-service-guardian-2')
+
+            expect(
+                screen.queryByText(
+                    i18n
+                        .t('feature.wallet-service.guardians-section-healthy')
+                        .toUpperCase(),
+                ),
+            ).not.toBeOnTheScreen()
+        })
+
+        it('should not show the banner while no guardian is flagged', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: { ...carolFlagged, candidates: [] },
+            })
+            await screen.findByTestId('wallet-service-guardians')
+            await waitFor(() =>
+                expect(mockCandidatesSubscribe).toHaveBeenCalled(),
+            )
+
+            expect(
+                screen.queryByTestId('wallet-service-replacement-banner'),
+            ).not.toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-replacement-progress'),
+            ).not.toBeOnTheScreen()
+        })
+
+        it('should follow the replacement the stream reports and drop it once completed', async () => {
+            const carolMove: RpcFaGuardianTransfer = {
+                seatIndex: 2,
+                sourceMgId: 'mg-2',
+                sourceMgName: 'Carol',
+                sourceSeatId: 'seat-2',
+                destinationMgId: 'mg-new',
+                destinationMgName: 'Dave',
+                destinationSeatId: 'seat-new',
+                phase: 'awaitingSource',
+            }
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+            })
+            await screen.findByTestId('wallet-service-replacement-banner')
+            expect(
+                screen.queryByTestId('wallet-service-replacement-progress'),
+            ).not.toBeOnTheScreen()
+
+            act(() => emitTransfer({ type: 'transfer', transfer: carolMove }))
+            const banner = await screen.findByTestId(
+                'wallet-service-replacement-progress',
+            )
+            expect(
+                within(banner).getByText('Waiting for Carol to come online.'),
+            ).toBeOnTheScreen()
+
+            // an error says nothing about the move, so it stays up
+            act(() =>
+                emitTransfer({
+                    type: 'error',
+                    error: {
+                        code: 'storage',
+                        message: 'read failed',
+                        detail: null,
+                    },
+                }),
+            )
+            expect(
+                screen.getByTestId('wallet-service-replacement-progress'),
+            ).toBeOnTheScreen()
+
+            act(() =>
+                emitTransfer({
+                    type: 'transfer',
+                    transfer: { ...carolMove, phase: 'completed' },
+                }),
+            )
+            await waitFor(() =>
+                expect(
+                    screen.queryByTestId('wallet-service-replacement-progress'),
+                ).not.toBeOnTheScreen(),
+            )
+            expect(mockTransferSubscribe).toHaveBeenCalledTimes(1)
+        })
+
+        it('should show an open replacement instead of the flagged list and open it', async () => {
+            renderScreen({
+                formed: namedFederation,
+                guardianStatuses: carolDown,
+                replacementCheck: carolFlagged,
+                guardianTransfer: {
+                    seatIndex: 2,
+                    sourceMgId: 'mg-2',
+                    sourceMgName: 'Carol',
+                    sourceSeatId: 'seat-2',
+                    destinationMgId: 'mg-new',
+                    destinationMgName: 'Dave',
+                    destinationSeatId: 'seat-new',
+                    phase: 'awaitingSource',
+                },
+            })
+            const banner = await screen.findByTestId(
+                'wallet-service-replacement-progress',
+            )
+            expect(
+                within(banner).getByText('Replacing Carol'),
+            ).toBeOnTheScreen()
+            expect(
+                within(banner).getByText('Waiting for Carol to come online.'),
+            ).toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('wallet-service-replacement-banner'),
+            ).not.toBeOnTheScreen()
+
+            await user.press(banner)
+
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'WalletServiceGuardianTransfer',
+            )
+        })
     })
 
     it('should name a guardian by its seat while its manifold guardian name is unknown', async () => {
@@ -566,6 +1358,21 @@ describe('screens/WalletServiceDashboard', () => {
         ).toBeOnTheScreen()
     })
 
+    it('should not call the federation online while fewer guardians than it needs respond', async () => {
+        // one partial result does not make the federation offline yet, but
+        // 2 of 4 is under the 3 it needs
+        renderScreen({ guardianStatuses: makeGuardianStatuses(2, 4) })
+
+        await user.press(await screen.findByTestId('wallet-service-guardians'))
+
+        expect(
+            screen.getByText(
+                'Your Federation needs 3 of 4 guardians online to make payments.',
+            ),
+        ).toBeOnTheScreen()
+        expect(screen.queryByText(/is online/)).not.toBeOnTheScreen()
+    })
+
     it('should put the offline warning in the sheet header once the federation is offline', async () => {
         const statuses = makeGuardianStatuses(4, 7)
         const { store } = renderScreen({ guardianStatuses: statuses })
@@ -600,11 +1407,11 @@ describe('screens/WalletServiceDashboard', () => {
             now.mockRestore()
         }
 
-        expect(
-            await within(
-                screen.getByTestId('wallet-service-guardian-0'),
-            ).findByText(i18n.t('feature.wallet-service.guardian-online')),
-        ).toBeOnTheScreen()
+        await waitFor(() =>
+            expect(dotColor('wallet-service-guardian-0-dot')).toBe(
+                theme.colors.success,
+            ),
+        )
     })
 
     it('should not offer the guardian list before the statuses have loaded', async () => {
@@ -636,7 +1443,7 @@ describe('screens/WalletServiceDashboard', () => {
     })
 
     it('renders a skeleton in place of the guardian count while the FA is unsynced', async () => {
-        renderScreen({ snapshot: { ...formation, freshness: 'unsynced' } })
+        renderScreen({ formed: { ...federation, freshness: 'unsynced' } })
         await waitFor(() => {})
 
         expect(
@@ -711,6 +1518,30 @@ describe('screens/WalletServiceDashboard', () => {
         expect(mockNavigation.replace).not.toHaveBeenCalled()
     })
 
+    // After a relaunch the app has no record of the formation, but the bridge
+    // reports a federation formed here as backup eligible from the start.
+    it('should keep a service created in an earlier launch on the dashboard when its join fails', async () => {
+        const { store } = renderScreen({
+            status: { type: 'formed', federation },
+            federationJoined: false,
+        })
+        await waitFor(() => {})
+
+        await act(async () => {
+            store.dispatch(
+                setFaFederationJoin({
+                    federationId: WALLET_SERVICE_FEDERATION_ID,
+                    state: { type: 'failed', message: 'guardian unreachable' },
+                }),
+            )
+        })
+
+        expect(
+            screen.getByTestId('wallet-service-join-failed'),
+        ).toBeOnTheScreen()
+        expect(mockNavigation.replace).not.toHaveBeenCalled()
+    })
+
     it('should keep the spinner for a created service whose join has not failed', async () => {
         const { queryByTestId } = renderScreen({ federationJoined: false })
         await waitFor(() => {})
@@ -779,7 +1610,7 @@ describe('screens/WalletServiceDashboard', () => {
                     {
                         ...mockFederation1,
                         id: WALLET_SERVICE_FEDERATION_ID,
-                        name: formation.intent.federationName,
+                        name: federation.federationName ?? '',
                         balance: 21_000_000 as MSats,
                         recovering: false,
                     },
@@ -891,7 +1722,7 @@ describe('screens/WalletServiceDashboard', () => {
     // re-reconciling must not take the balance away
     it('shows the balance for a created service whose FA snapshot is unsynced', async () => {
         renderScreen({
-            snapshot: { ...formation, freshness: 'unsynced' },
+            formed: { ...federation, freshness: 'unsynced' },
             federationJoined: true,
             feeBalance: 5_000_000,
         })
@@ -1144,16 +1975,6 @@ describe('screens/WalletServiceDashboard', () => {
         })
 
         expect(wasHandled).toBe(true)
-    })
-
-    it('should not open the invite sheet when there is no invite code', async () => {
-        renderScreen({ snapshot: { ...formation, inviteCode: null } })
-
-        await user.press(screen.getByTestId('wallet-service-invite'))
-
-        expect(
-            screen.queryByText(i18n.t('feature.wallet-service.invite-link')),
-        ).not.toBeOnTheScreen()
     })
 
     // one line, not the checklist: that shifted the page when the attach

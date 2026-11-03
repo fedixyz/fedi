@@ -22,7 +22,7 @@ export FS_DIR_CACHE_LOCK_TIMEOUT_SECS="$((60 * 60))" # unlock after timeout in c
 
 log_file="$FS_DIR_CACHE_ROOT/log"
 
-fs-dir-cache gc unused --seconds "$((24 * 60 * 60))" # delete caches not used in more than a day
+fs-dir-cache gc unused --seconds "$((12 * 60 * 60))" # a day of caches fills the mac runner disk
 
 export log_file
 export job_name

@@ -115,35 +115,6 @@
     ],
     "fixes": []
    }
-  ],
-  "not_merged": [
-   {
-    "headline": "The app opens on older iPhones (iOS 15)",
-    "kind": "Fix",
-    "status": "In progress",
-    "badge": "",
-    "summary": "A crash on launch on iOS 15 is fixed.",
-    "track": "Native",
-    "platforms": [
-     "ios"
-    ]
-   },
-   {
-    "headline": "Separate history entries for reused on-chain addresses",
-    "kind": "Improvement",
-    "status": "Planned",
-    "badge": "",
-    "summary": "Each deposit to a reused address gets its own line in history.",
-    "track": "Native + web"
-   },
-   {
-    "headline": "Default to your most-used federation",
-    "kind": "Improvement",
-    "status": "Planned",
-    "badge": "",
-    "summary": "",
-    "track": "Native"
-   }
   ]
  },
  "flags": {

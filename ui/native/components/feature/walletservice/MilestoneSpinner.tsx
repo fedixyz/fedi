@@ -14,9 +14,6 @@ import { Circle, Svg } from 'react-native-svg'
 /** `.agg-ic` in the design: a 28px ring with one lit quarter, turning in 0.8s. */
 const SPINNER_SIZE = 28
 const SPINNER_STROKE = 2
-const SPINNER_RADIUS = (SPINNER_SIZE - SPINNER_STROKE) / 2
-const SPINNER_CIRCUMFERENCE = 2 * Math.PI * SPINNER_RADIUS
-const SPINNER_ARC = SPINNER_CIRCUMFERENCE / 4
 const SPINNER_DURATION = 800
 
 /**
@@ -30,8 +27,13 @@ const SPINNER_DURATION = 800
  * a fully rounded border with unequal side colours does not render the same way
  * on both platforms.
  */
-export const MilestoneSpinner: React.FC = () => {
+export const MilestoneSpinner: React.FC<{ size?: number }> = ({
+    size = SPINNER_SIZE,
+}) => {
     const { theme } = useTheme()
+    const radius = (size - SPINNER_STROKE) / 2
+    const circumference = 2 * Math.PI * radius
+    const arc = circumference / 4
     const rotation = useSharedValue(0)
 
     useEffect(() => {
@@ -50,24 +52,22 @@ export const MilestoneSpinner: React.FC = () => {
 
     return (
         <Animated.View testID="milestone-spinner" style={animatedStyle}>
-            <Svg width={SPINNER_SIZE} height={SPINNER_SIZE}>
+            <Svg width={size} height={size}>
                 <Circle
-                    cx={SPINNER_SIZE / 2}
-                    cy={SPINNER_SIZE / 2}
-                    r={SPINNER_RADIUS}
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
                     stroke={theme.colors.lightGrey}
                     strokeWidth={SPINNER_STROKE}
                     fill="none"
                 />
                 <Circle
-                    cx={SPINNER_SIZE / 2}
-                    cy={SPINNER_SIZE / 2}
-                    r={SPINNER_RADIUS}
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
                     stroke={theme.colors.primary}
                     strokeWidth={SPINNER_STROKE}
-                    strokeDasharray={`${SPINNER_ARC} ${
-                        SPINNER_CIRCUMFERENCE - SPINNER_ARC
-                    }`}
+                    strokeDasharray={`${arc} ${circumference - arc}`}
                     strokeLinecap="round"
                     fill="none"
                 />

@@ -51,6 +51,7 @@ import {
     getFederationMaxInvoiceMsats,
     getFederationMaxStableBalanceMsats,
     getFederationName,
+    getFederationIconUrl,
     getFederationPinnedMessage,
     getFederationWelcomeMessage,
     hasMultispendModule,
@@ -90,6 +91,11 @@ const initialState = {
     publicCommunities: [] as PublicCommunity[],
     publicFederations: [] as PublicFederation[],
     autoSelectFederations: [] as PublicFederation[],
+    publicFederationPreviews: {} as Record<
+        PublicFederation['id'],
+        RpcFederationPreview
+    >,
+    publicFederationsUrlOverride: null as string | null,
     payFromFederationId: null as Federation['id'] | null,
     recentlyUsedFederationIds: [] as Array<Federation['id']>,
     lastSelectedCommunityId: null as Community['id'] | null,
@@ -307,6 +313,22 @@ export const federationSlice = createSlice({
             action: PayloadAction<PublicFederation[]>,
         ) {
             state.autoSelectFederations = action.payload
+        },
+        setPublicFederationsUrlOverride(
+            state,
+            action: PayloadAction<string | null>,
+        ) {
+            state.publicFederationsUrlOverride = action.payload
+        },
+        setPublicFederationPreview(
+            state,
+            action: PayloadAction<{
+                id: PublicFederation['id']
+                preview: RpcFederationPreview
+            }>,
+        ) {
+            state.publicFederationPreviews[action.payload.id] =
+                action.payload.preview
         },
         upsertCommunity(state, action: PayloadAction<Community>) {
             if (!action.payload.id) return
@@ -737,6 +759,8 @@ export const {
     setPublicCommunities,
     setPublicFederations,
     setAutoSelectFederations,
+    setPublicFederationsUrlOverride,
+    setPublicFederationPreview,
     upsertCommunity,
     upsertFederation,
     updateFederationHealth,
@@ -769,15 +793,36 @@ export const preloadFederationLists = createAsyncThunk<
         publicFederations: PublicFederation[]
         autoSelectFederations: PublicFederation[]
     },
-    void,
+    FedimintBridge,
     { state: CommonState }
->('federation/preloadFederationLists', async () => {
-    const [publicFederations, autoSelectFederations] = await Promise.all([
-        fetchPublicFederations(),
-        fetchAutoSelectFederations(),
-    ])
-    return { publicFederations, autoSelectFederations }
-})
+>(
+    'federation/preloadFederationLists',
+    async (fedimint, { dispatch, getState }) => {
+        const [publicFederations, autoSelectFederations] = await Promise.all([
+            fetchPublicFederations(
+                getState().federation.publicFederationsUrlOverride,
+            ),
+            fetchAutoSelectFederations(),
+        ])
+        if (getState().environment.onboardingCompleted) {
+            for (const { id, meta } of publicFederations) {
+                if (!meta.invite_code) continue
+                getFederationPreview(meta.invite_code, fedimint)
+                    .then(preview =>
+                        dispatch(setPublicFederationPreview({ id, preview })),
+                    )
+                    .catch(err =>
+                        log.warn(
+                            'Failed to preview public federation',
+                            id,
+                            err,
+                        ),
+                    )
+            }
+        }
+        return { publicFederations, autoSelectFederations }
+    },
+)
 
 export const rateFederation = createAsyncThunk<
     void,
@@ -1572,6 +1617,31 @@ export const selectAlphabeticallySortedCommunities = createSelector(
             'asc',
         )
     },
+)
+
+export const selectPublicFederations = createSelector(
+    (s: CommonState) => s.federation.publicFederations,
+    (s: CommonState) => s.federation.publicFederationPreviews,
+    (federations, previews): PublicFederation[] =>
+        federations.flatMap(federation => {
+            const preview = previews[federation.id]
+            if (!preview) return federation.name ? [federation] : []
+            return [
+                {
+                    ...federation,
+                    name: preview.name,
+                    meta: {
+                        ...federation.meta,
+                        preview_message:
+                            getFederationWelcomeMessage(preview.meta) ||
+                            federation.meta.preview_message,
+                        federation_icon_url:
+                            getFederationIconUrl(preview.meta) ||
+                            federation.meta.federation_icon_url,
+                    },
+                },
+            ]
+        }),
 )
 
 export const selectFederationIds = createSelector(

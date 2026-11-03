@@ -106,16 +106,15 @@ const renderScreen = (fedimint = makeBridge()) => {
     const store = setupStore()
     store.dispatch(
         setFaStatus({
-            type: 'restored',
-            formation: {
-                snapshotGeneration: 1,
+            type: 'formed',
+            federation: {
                 formationId: 'formation-1',
                 federationInvite: 'fed11invite',
                 federationName: 'Morpheus',
                 seats: [],
-                phase: 'formed',
                 freshness: 'fresh',
-                backupEligible: false,
+                backupEligible: true,
+                origin: 'thisDevice',
             },
         }),
     )

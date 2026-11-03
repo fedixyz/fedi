@@ -12,7 +12,6 @@ import {
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
     FeatureCatalog,
-    RpcFaFormationSnapshot,
     RpcFaStatus,
     RpcFaSelectionPreview,
     RpcFaSelectionPreviewRequest,
@@ -242,41 +241,51 @@ describe('screens/CreateWalletService', () => {
         expect(fedimint.faClientPreviewSelection).toHaveBeenCalledTimes(1)
     })
 
+    const resumedFormation: RpcFaStatus = {
+        type: 'formation',
+        formation: {
+            formationId: 'existing-formation',
+            phase: 'acquiringSeats',
+            intent: {
+                federationName: 'Existing service',
+                federationSize: 7,
+                guardianFeePpm: 0,
+                plan: 'infiniteBestEffort',
+                maxTotalMsats: null,
+            },
+            seats: [],
+            freshness: 'fresh',
+            actionRequired: null,
+            paymentOutputsStarted: true,
+            milestones: { ecashSent: false, guardiansConfirmed: false },
+            inviteCode: null,
+            lastError: null,
+        },
+    }
+    const resumedFederation: RpcFaStatus = {
+        type: 'formed',
+        federation: {
+            formationId: 'existing-formation',
+            federationInvite: 'fed11invite',
+            federationName: 'Existing service',
+            seats: [],
+            freshness: 'fresh',
+            backupEligible: true,
+            origin: 'thisDevice',
+        },
+    }
+
     it.each([
-        ['acquiringSeats', 'WalletServiceProgress'],
-        ['formed', 'WalletServiceDashboard'],
+        ['a formation', resumedFormation, 'WalletServiceProgress'],
+        ['a formed federation', resumedFederation, 'WalletServiceDashboard'],
     ] as const)(
         'should resume %s without requesting a new quote',
-        async (phase, destination) => {
-            const formation: RpcFaFormationSnapshot = {
-                formationId: 'existing-formation',
-                phase,
-                intent: {
-                    federationName: 'Existing service',
-                    federationSize: 7,
-                    guardianFeePpm: 0,
-                    plan: 'infiniteBestEffort',
-                    maxTotalMsats: null,
-                },
-                seats: [],
-                freshness: 'fresh',
-                actionRequired: null,
-                paymentOutputsStarted: true,
-                milestones: {
-                    ecashSent: false,
-                    guardiansConfirmed: false,
-                    walletServiceCreated: false,
-                },
-                inviteCode: null,
-                lastError: null,
-            }
+        async (_label, status, destination) => {
             const store = makeStore({ status: null })
             const fedimint = makeBridge()
             renderScreen(fedimint, store)
             await settlePreview()
-            act(() =>
-                store.dispatch(setFaStatus({ type: 'formation', formation })),
-            )
+            act(() => store.dispatch(setFaStatus(status)))
             await settlePreview()
 
             expect(mockNavigation.dispatch).toHaveBeenCalledWith(

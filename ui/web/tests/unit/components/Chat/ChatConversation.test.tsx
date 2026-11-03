@@ -311,9 +311,11 @@ describe('/components/Chat/ChatConversation', () => {
             )
 
             expect(toggleReaction).toHaveBeenCalledWith(ROOM_ID, event.id, '👍')
-            expect(
-                screen.queryByText(i18n.t('feature.chat.reaction-you')),
-            ).not.toBeInTheDocument()
+            await waitFor(() => {
+                expect(
+                    screen.queryByText(i18n.t('feature.chat.reaction-you')),
+                ).not.toBeInTheDocument()
+            })
         })
 
         it('should select another reaction when the removed reaction drops to zero', async () => {
@@ -343,7 +345,7 @@ describe('/components/Chat/ChatConversation', () => {
 
             expect(toggleReaction).toHaveBeenCalledWith(ROOM_ID, event.id, '👍')
             expect(
-                screen.getByLabelText('🎉 reaction by Alice'),
+                await screen.findByLabelText('🎉 reaction by Alice'),
             ).toBeInTheDocument()
             expect(
                 screen.queryByText(i18n.t('feature.chat.reaction-you')),

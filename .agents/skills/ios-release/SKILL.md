@@ -13,6 +13,12 @@ CI owns the binary. Dispatching `release-production.yml` on the release branch b
 
 The Google Play side is the `android-release` skill, and the web track is `web-release`; each is a separate process.
 
+## App Review Information is human-maintained
+
+Never create, populate, edit, replace, or copy App Review Information. This includes review notes, demo accounts and credentials, reviewer contact details, and review attachments. Do not generate reviewer instructions or write to `appStoreReviewDetails` or `appStoreReviewAttachments` through the API, console, or helper scripts. Preserve any information Apple automatically carries forward without agent edits.
+
+An instruction to prepare, submit, or finish a release does not authorize these changes. If App Review Information is missing, stale, or blocks submission, identify the field and leave the change to the release owner. Public What's New text is separate and follows the release-notes approval process below.
+
 ## Access
 
 All calls go through `scripts/asc.sh`, a self-contained JWT-plus-curl client (needs curl, openssl, python3, xxd). Script paths in this skill are relative to the skill directory, `.agents/skills/ios-release/` from the repo root. Prefix `ASC_CREDS` on every invocation rather than exporting it, since each agent shell starts fresh:

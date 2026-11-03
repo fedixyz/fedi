@@ -2,7 +2,10 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool as TestAtomicBool, AtomicUsize, Ordering as AtomicOrdering};
 
-use fa_client::{UnavailableFaFeeAccountProvider, UnavailablePayments};
+use fa_client::{
+    FederationConsensusError, FederationConsensusReader, FederationConsensusSnapshot,
+    GatewayApiUrl, InviteCode, UnavailableFaFeeAccountProvider, UnavailablePayments,
+};
 use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::{
     Database, DatabaseValue, DecodingError, IDatabaseTransactionOpsCore,
@@ -60,7 +63,10 @@ fn fedimintd_dkg_version(version: &str) -> fa_client::FedimintdDkgVersion {
         .dkg_version()
 }
 
-fn test_restored_formation(freshness: FormationFreshness) -> RestoredFormationSnapshot {
+fn test_formed_federation(
+    freshness: FormationFreshness,
+    backup_eligible: bool,
+) -> FormedFederationSnapshot {
     let federation_id: fedimint_core::config::FederationId = "22".repeat(32).parse().unwrap();
     let invite = FedimintInviteCode::new(
         "wss://guardian.example.com".parse().unwrap(),
@@ -68,15 +74,14 @@ fn test_restored_formation(freshness: FormationFreshness) -> RestoredFormationSn
         federation_id,
         None,
     );
-    RestoredFormationSnapshot {
-        snapshot_generation: 3,
-        formation_id: FormationId("restored-formation".to_owned()),
+    FormedFederationSnapshot {
+        formation_id: FormationId("formed-federation".to_owned()),
         federation_invite: InviteCode(invite.to_string()),
-        federation_name: Some(FederationName("Restored Federation".to_owned())),
+        federation_name: Some(FederationName("Formed Federation".to_owned())),
         seats: Vec::new(),
-        phase: FormationPhase::Formed,
         freshness,
-        backup_eligible: false,
+        backup_eligible,
+        origin: FormedOrigin::Backup,
     }
 }
 
@@ -209,6 +214,20 @@ impl FederationConsensusReader for TestConsensusReader {
         _invite_code: &InviteCode,
     ) -> Result<Vec<GatewayApiUrl>, FederationConsensusError> {
         panic!("identity reopen does not read federation gateways")
+    }
+
+    async fn read_guardian_reports(
+        &self,
+        _invite_code: &InviteCode,
+    ) -> Result<fedi_decentralized_domain::GuardianReports, FederationConsensusError> {
+        panic!("identity reopen does not read guardian reports")
+    }
+
+    async fn read_fedimintd_versions(
+        &self,
+        _invite_code: &InviteCode,
+    ) -> Result<Vec<String>, FederationConsensusError> {
+        panic!("identity reopen does not read guardian versions")
     }
 }
 
@@ -588,38 +607,41 @@ fn terms_rpc_preserves_the_url_and_rejects_invalid_values() {
 
 #[test]
 fn maintenance_is_bound_to_the_exact_formed_invite() {
-    let expected: fedimint_core::config::FederationId = "11".repeat(32).parse().unwrap();
+    assert_eq!(
+        formed_federation_id(&FaStatus::Formed(test_formed_federation(
+            FormationFreshness::Fresh,
+            true
+        )))
+        .unwrap(),
+        "22".repeat(32)
+    );
+    // A formed federation needs this run's reconciliation, even one that
+    // this device checked before.
+    assert_eq!(
+        formed_federation_id(&FaStatus::Formed(test_formed_federation(
+            FormationFreshness::Unsynced,
+            true
+        )))
+        .unwrap_err()
+        .code,
+        RpcFaErrorCode::InvalidIntent
+    );
+
     let invite = FedimintInviteCode::new(
         "wss://guardian.example.com".parse().unwrap(),
         fedimint_core::PeerId::from(0),
-        expected,
+        "11".repeat(32).parse().unwrap(),
         None,
     );
-    let FaStatus::Formation(mut formed) =
-        test_formation(FormationPhase::Formed, FormationFreshness::Fresh)
-    else {
+    let FaStatus::Formation(mut publishing) = test_formation(
+        FormationPhase::PublishingSeatBindings,
+        FormationFreshness::Fresh,
+    ) else {
         unreachable!("test fixture is a formation");
     };
-    formed.invite_code = Some(InviteCode(invite.to_string()));
+    publishing.invite_code = Some(InviteCode(invite.to_string()));
     assert_eq!(
-        formed_federation_id(&FaStatus::Formation(formed)).unwrap(),
-        expected.to_string()
-    );
-
-    let restored = test_restored_formation(FormationFreshness::Fresh);
-    assert_eq!(
-        formed_federation_id(&FaStatus::Restored(restored)).unwrap(),
-        "22".repeat(32)
-    );
-
-    let FaStatus::Formation(mut incomplete) =
-        test_formation(FormationPhase::Preparing, FormationFreshness::Fresh)
-    else {
-        unreachable!("test fixture is a formation");
-    };
-    incomplete.invite_code = Some(InviteCode(invite.to_string()));
-    assert_eq!(
-        formed_federation_id(&FaStatus::Formation(incomplete))
+        formed_federation_id(&FaStatus::Formation(publishing))
             .unwrap_err()
             .code,
         RpcFaErrorCode::InvalidIntent
@@ -627,24 +649,6 @@ fn maintenance_is_bound_to_the_exact_formed_invite() {
     assert_eq!(
         formed_federation_id(&FaStatus::Idle).unwrap_err().code,
         RpcFaErrorCode::NoActiveFormation
-    );
-
-    let mut unsynced = test_formation(FormationPhase::Formed, FormationFreshness::Unsynced);
-    let FaStatus::Formation(ref mut formation) = unsynced else {
-        unreachable!("test fixture is a formation");
-    };
-    formation.invite_code = Some(InviteCode(invite.to_string()));
-    assert_eq!(
-        formed_federation_id(&unsynced).unwrap_err().code,
-        RpcFaErrorCode::InvalidIntent
-    );
-    assert_eq!(
-        formed_federation_id(&FaStatus::Restored(test_restored_formation(
-            FormationFreshness::Unsynced
-        )))
-        .unwrap_err()
-        .code,
-        RpcFaErrorCode::InvalidIntent
     );
 }
 
@@ -669,7 +673,6 @@ fn auto_join_uses_the_invite_from_dkg_complete_onwards() {
     for phase in [
         FormationPhase::DkgComplete,
         FormationPhase::PublishingSeatBindings,
-        FormationPhase::Formed,
     ] {
         for freshness in [FormationFreshness::Fresh, FormationFreshness::Unsynced] {
             assert_eq!(
@@ -694,17 +697,29 @@ fn auto_join_uses_the_invite_from_dkg_complete_onwards() {
         );
     }
 
-    let restored = test_restored_formation(FormationFreshness::Fresh);
-    let restored_invite = restored.federation_invite.0.clone();
+    // A formed federation offers its invite once this device checked it:
+    // in this run, or before, as for a formation on this device.
+    for (freshness, backup_eligible, offered) in [
+        (FormationFreshness::Fresh, false, true),
+        (FormationFreshness::Unsynced, true, true),
+        (FormationFreshness::Unsynced, false, false),
+    ] {
+        assert_eq!(
+            formed_federation_invite(&FaStatus::Formed(test_formed_federation(
+                freshness,
+                backup_eligible
+            )))
+            .is_some(),
+            offered,
+            "{freshness:?} with backup_eligible {backup_eligible}"
+        );
+    }
     assert_eq!(
-        formed_federation_invite(&FaStatus::Restored(restored)),
-        Some((restored_invite, "22".repeat(32)))
-    );
-    assert!(
-        formed_federation_invite(&FaStatus::Restored(test_restored_formation(
-            FormationFreshness::Unsynced
-        )))
-        .is_none()
+        formed_federation_invite(&FaStatus::Formed(test_formed_federation(
+            FormationFreshness::Fresh,
+            false
+        ))),
+        Some((invite.to_string(), expected.to_string()))
     );
 }
 
@@ -2018,37 +2033,16 @@ fn supervisor_retries_only_unattended_nonterminal_formation() {
     };
 
     assert!(!should_auto_resume(&FaStatus::Idle));
-    assert!(should_auto_resume(&FaStatus::Restored(
-        test_restored_formation(FormationFreshness::Unsynced)
-    )));
-    assert!(!should_auto_resume(&FaStatus::Restored(
-        test_restored_formation(FormationFreshness::Fresh)
-    )));
+    // A formed federation resumes until this run reconciled it.
+    for backup_eligible in [false, true] {
+        assert!(should_auto_resume(&FaStatus::Formed(
+            test_formed_federation(FormationFreshness::Unsynced, backup_eligible)
+        )));
+        assert!(!should_auto_resume(&FaStatus::Formed(
+            test_formed_federation(FormationFreshness::Fresh, backup_eligible)
+        )));
+    }
     assert!(should_auto_resume(&FaStatus::Formation(snapshot.clone())));
-
-    let mut formed = snapshot.clone();
-    formed.phase = FormationPhase::Formed;
-    formed.freshness = FormationFreshness::Fresh;
-    assert!(!should_auto_resume(&FaStatus::Formation(formed)));
-
-    let mut formed_unsynced = snapshot.clone();
-    formed_unsynced.phase = FormationPhase::Formed;
-    formed_unsynced.freshness = FormationFreshness::Unsynced;
-    assert!(should_auto_resume(&FaStatus::Formation(
-        formed_unsynced.clone()
-    )));
-    // Confirmed completion survives the launch recheck: the phase and the
-    // milestone stay put, only `freshness` says a check is running.
-    assert!(formation_milestones(&formed_unsynced).wallet_service_created);
-    let projected = formation_snapshot_to_rpc(formed_unsynced.clone());
-    assert_eq!(projected.phase, RpcFaFormationPhase::Formed);
-    assert_eq!(projected.freshness, RpcFaFormationFreshness::Unsynced);
-    assert!(projected.milestones.wallet_service_created);
-
-    let mut formed_fresh = snapshot.clone();
-    formed_fresh.phase = FormationPhase::Formed;
-    formed_fresh.freshness = FormationFreshness::Fresh;
-    assert!(formation_milestones(&formed_fresh).wallet_service_created);
 
     let mut dkg_complete = snapshot.clone();
     dkg_complete.phase = FormationPhase::DkgComplete;
@@ -2057,7 +2051,6 @@ fn supervisor_retries_only_unattended_nonterminal_formation() {
     )));
     let projected = formation_snapshot_to_rpc(dkg_complete);
     assert_eq!(projected.phase, RpcFaFormationPhase::DkgComplete);
-    assert!(!projected.milestones.wallet_service_created);
 
     let mut awaiting_user = snapshot.clone();
     awaiting_user.action_required = Some(FormationActionRequired::AuthorizePayments(
@@ -2106,6 +2099,13 @@ fn fa_errors_map_to_stable_rpc_codes_and_messages() {
     let error = fa_error_to_rpc(&FaError::Timeout("waiting for DKG".to_owned()));
     assert_eq!(error.code, RpcFaErrorCode::Timeout);
     assert_eq!(error.message, "The FA operation timed out");
+    let error = fa_error_to_rpc(&FaError::LiquidityOperationExists {
+        operation_id: LiquidityOperationId("pending".to_owned()),
+    });
+    assert_eq!(
+        error.detail,
+        Some(RpcFaOperationErrorDetail::LiquidityOperationExists)
+    );
 }
 
 #[test]
@@ -2232,35 +2232,36 @@ async fn recovery_status_tracks_gate_without_calling_idle_success() {
         })
     );
 
-    // The same status stream publishes restored facts once recovery is ready.
-    status_sender.send_replace(FaStatus::Restored(test_restored_formation(
+    // The same status stream publishes a restored federation once recovery
+    // is ready.
+    status_sender.send_replace(FaStatus::Formed(test_formed_federation(
         FormationFreshness::Unsynced,
+        false,
     )));
     assert!(matches!(
         stream.next().await,
         Some(RpcFaClientStatus::Ready {
-            status: RpcFaStatus::Restored { .. }
+            status: RpcFaStatus::Formed { .. }
         })
     ));
 }
 
 #[test]
-fn restored_status_projects_recovery_facts() {
-    let RpcFaStatus::Restored { formation } = fa_status_to_rpc(FaStatus::Restored(
-        test_restored_formation(FormationFreshness::Unsynced),
+fn formed_status_projects_the_formed_federation() {
+    let RpcFaStatus::Formed { federation } = fa_status_to_rpc(FaStatus::Formed(
+        test_formed_federation(FormationFreshness::Unsynced, true),
     )) else {
-        panic!("restored status must remain distinguishable at the RPC boundary");
+        panic!("a formed federation projects to the formed status");
     };
 
-    assert_eq!(formation.snapshot_generation, 3);
-    assert_eq!(formation.formation_id, "restored-formation");
+    assert_eq!(federation.formation_id, "formed-federation");
     assert_eq!(
-        formation.federation_name.as_deref(),
-        Some("Restored Federation")
+        federation.federation_name.as_deref(),
+        Some("Formed Federation")
     );
-    assert_eq!(formation.phase, RpcFaFormationPhase::Formed);
-    assert_eq!(formation.freshness, RpcFaFormationFreshness::Unsynced);
-    assert!(formation.seats.is_empty());
+    assert_eq!(federation.freshness, RpcFaFormationFreshness::Unsynced);
+    assert!(federation.backup_eligible);
+    assert!(federation.seats.is_empty());
 }
 
 struct TestDriverBackend {
@@ -2565,7 +2566,7 @@ async fn production_supervisor_shutdown_cancels_in_flight_work_without_detaching
 async fn assert_startup_reconciles(initial: FaStatus) {
     let (sender, receiver) = mpsc::channel(FA_DRIVER_QUEUE_CAPACITY);
     let operation_active = Arc::new(AtomicBool::new(false));
-    let final_status = test_formation(FormationPhase::Formed, FormationFreshness::Fresh);
+    let final_status = FaStatus::Formed(test_formed_federation(FormationFreshness::Fresh, true));
     let backend = Arc::new(TestDriverBackend::new(
         initial,
         Some(final_status.clone()),
@@ -2606,10 +2607,10 @@ async fn production_supervisor_reconciles_nonterminal_and_formed_unsynced_restar
         FormationFreshness::Unsynced,
     ))
     .await;
-    assert_startup_reconciles(test_formation(
-        FormationPhase::Formed,
+    assert_startup_reconciles(FaStatus::Formed(test_formed_federation(
         FormationFreshness::Unsynced,
-    ))
+        true,
+    )))
     .await;
 }
 
@@ -2870,4 +2871,117 @@ async fn command_channel_preserves_typed_start_and_resume_liquidity_responses() 
         .shutdown_join_all(Duration::from_secs(2))
         .await
         .expect("the typed response supervisor shuts down");
+}
+
+#[test]
+fn guardian_transfer_projects_both_hosts_and_every_phase() {
+    let source = Keys::generate().public_key();
+    let destination = Keys::generate().public_key();
+    let source_seat_id = fa_client::SeatId::new("aa".repeat(32)).unwrap();
+    let destination_seat_id = fa_client::SeatId::new("bb".repeat(32)).unwrap();
+    for (phase, expected) in [
+        (
+            GuardianTransferPhase::BuyingSeat,
+            RpcFaGuardianTransferPhase::BuyingSeat,
+        ),
+        (
+            GuardianTransferPhase::AwaitingSource,
+            RpcFaGuardianTransferPhase::AwaitingSource,
+        ),
+        (
+            GuardianTransferPhase::PublishingBinding,
+            RpcFaGuardianTransferPhase::PublishingBinding,
+        ),
+        (
+            GuardianTransferPhase::RemovingSource,
+            RpcFaGuardianTransferPhase::RemovingSource,
+        ),
+        (
+            GuardianTransferPhase::Completed,
+            RpcFaGuardianTransferPhase::Completed,
+        ),
+    ] {
+        let transfer = guardian_transfer_to_rpc(GuardianTransfer {
+            seat_index: 2,
+            source_mg_id: source,
+            source_seat_id: source_seat_id.clone(),
+            destination_mg_id: destination,
+            destination_seat_id: Some(destination_seat_id.clone()),
+            phase,
+        });
+        assert_eq!(transfer.phase, expected);
+        assert_eq!(transfer.seat_index, 2);
+        assert_eq!(transfer.source_mg_id, source.to_string());
+        assert_eq!(
+            transfer.source_mg_name,
+            MgName::from_mg_id(source).to_string()
+        );
+        assert_eq!(transfer.source_seat_id, "aa".repeat(32));
+        assert_eq!(transfer.destination_mg_id, destination.to_string());
+        assert_eq!(
+            transfer.destination_mg_name,
+            MgName::from_mg_id(destination).to_string()
+        );
+        assert_eq!(transfer.destination_seat_id, Some("bb".repeat(32)));
+    }
+
+    // While the seat is bought, the new host is known but its seat is not.
+    let buying = guardian_transfer_to_rpc(GuardianTransfer {
+        seat_index: 2,
+        source_mg_id: source,
+        source_seat_id,
+        destination_mg_id: destination,
+        destination_seat_id: None,
+        phase: GuardianTransferPhase::BuyingSeat,
+    });
+    assert_eq!(buying.destination_seat_id, None);
+}
+
+#[test]
+fn replacement_candidate_projects_its_seat_and_every_reason() {
+    let mg_id = Keys::generate().public_key();
+    let candidate = replacement_candidate_to_rpc(&fa_client::ReplacementCandidate {
+        seat_index: 3,
+        mg_id,
+        seat_id: fa_client::SeatId::new("cc".repeat(32)).unwrap(),
+        reasons: vec![
+            ReplacementReason::Offline {
+                last_seen_secs: 1_700_000_000,
+            },
+            ReplacementReason::MissedSessions { sessions: 480 },
+            ReplacementReason::Disconnected,
+            ReplacementReason::LowWeekScore {
+                basis_points: 7_250,
+            },
+            ReplacementReason::LowMonthScore {
+                basis_points: 8_100,
+            },
+            ReplacementReason::HolderRevoked,
+        ],
+    });
+    assert_eq!(candidate.seat_index, 3);
+    assert_eq!(candidate.mg_id, mg_id.to_string());
+    assert_eq!(candidate.mg_name, MgName::from_mg_id(mg_id).to_string());
+    assert_eq!(
+        candidate.reasons,
+        vec![
+            RpcFaReplacementReason::Offline {
+                last_seen_secs: 1_700_000_000
+            },
+            RpcFaReplacementReason::MissedSessions { sessions: 480 },
+            RpcFaReplacementReason::Disconnected,
+            RpcFaReplacementReason::LowWeekScore {
+                basis_points: 7_250
+            },
+            RpcFaReplacementReason::LowMonthScore {
+                basis_points: 8_100
+            },
+            RpcFaReplacementReason::HolderRevoked,
+        ]
+    );
+    // the app reads the tag and camelCase fields
+    assert_eq!(
+        serde_json::to_value(&candidate.reasons[3]).unwrap(),
+        serde_json::json!({ "type": "lowWeekScore", "basisPoints": 7_250 })
+    );
 }

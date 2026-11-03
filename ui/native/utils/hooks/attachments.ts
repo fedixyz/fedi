@@ -2,6 +2,8 @@ import { DocumentPickerResponse } from '@react-native-documents/picker'
 import { useCallback, useMemo, useState } from 'react'
 import { Asset } from 'react-native-image-picker'
 
+import { InputAttachment, InputMedia } from '@fedi/common/types'
+
 import { mapMixedMediaToMatrixInput } from '../media'
 import { useDocumentPicker, useMediaPicker } from './media'
 
@@ -35,14 +37,51 @@ export function useMessageAttachments() {
         setDocuments(d => d.filter(doc => doc.uri !== uri))
     }, [])
 
-    const clearAll = useCallback(() => {
-        setMedia([])
-        setDocuments([])
-    }, [])
+    const attachmentSources = useMemo(
+        () =>
+            new Map<
+                InputAttachment | InputMedia,
+                DocumentPickerResponse | Asset
+            >([
+                ...documents.flatMap(document =>
+                    mapMixedMediaToMatrixInput({
+                        documents: [document],
+                        assets: [],
+                    }).map(attachment => [attachment, document] as const),
+                ),
+                ...media.flatMap(asset =>
+                    mapMixedMediaToMatrixInput({
+                        documents: [],
+                        assets: [asset],
+                    }).map(attachment => [attachment, asset] as const),
+                ),
+            ]),
+        [documents, media],
+    )
+
+    const removeSentAttachment = useCallback(
+        (attachment: InputAttachment | InputMedia) => {
+            const source = attachmentSources.get(attachment)
+            if (!source) return
+
+            if ('width' in attachment) {
+                setMedia(items => {
+                    const index = items.findIndex(item => item === source)
+                    return items.filter((_, i) => i !== index)
+                })
+            } else {
+                setDocuments(items => {
+                    const index = items.findIndex(item => item === source)
+                    return items.filter((_, i) => i !== index)
+                })
+            }
+        },
+        [attachmentSources],
+    )
 
     const matrixAttachments = useMemo(
-        () => mapMixedMediaToMatrixInput({ documents, assets: media }),
-        [documents, media],
+        () => Array.from(attachmentSources.keys()),
+        [attachmentSources],
     )
 
     const shouldShowDocuments =
@@ -62,7 +101,7 @@ export function useMessageAttachments() {
         handlePickDocuments,
         removeMedia,
         removeDocument,
-        clearAll,
+        removeSentAttachment,
         // For sending
         matrixAttachments,
         hasAttachments: media.length > 0 || documents.length > 0,

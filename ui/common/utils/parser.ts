@@ -117,7 +117,7 @@ const offlineParsers: Parser[] = [
     },
     {
         name: 'parseFedimintInvite',
-        handler: raw => parseFedimintInvite(raw),
+        handler: (raw, fedimint) => parseFedimintInvite(raw, fedimint),
     },
     {
         name: 'parseCommunityInvite',
@@ -515,11 +515,18 @@ function parseBolt12(raw: string): ParsedBolt12 | undefined {
  * Parse any kind of on-chain address. Only handles raw addresses, URIs are
  * handled by BIP 21.
  */
-function parseBitcoinAddress(raw: string): ParsedBitcoinAddress | undefined {
-    if (validateBitcoinAddress(raw)) {
+export function parseBitcoinAddress(
+    raw: string,
+): ParsedBitcoinAddress | undefined {
+    // The validator requires lowercase taproot prefixes. Only normalize
+    // uppercase ASCII so invalid characters cannot become valid addresses.
+    const address = /^(BC|TB|BCRT)1[0-9A-Z]+$/.test(raw)
+        ? raw.toLowerCase()
+        : raw
+    if (validateBitcoinAddress(address)) {
         return {
             type: ParserDataType.BitcoinAddress,
-            data: { address: raw },
+            data: { address },
         }
     }
 }
@@ -539,8 +546,8 @@ async function parseBip21(
 
     // Strip protocol but don't lower case, query param values may be case sensitive
     const btcRaw = stripProtocol(raw, 'bitcoin')
-    const btcAddress = btcRaw.split('?')[0]
-    if (!validateBitcoinAddress(btcAddress)) {
+    const btcAddress = parseBitcoinAddress(btcRaw.split('?')[0])?.data.address
+    if (!btcAddress) {
         return
     }
 
@@ -655,13 +662,20 @@ async function parseFediUri(
     }
 }
 
-function parseFedimintInvite(raw: string): ParsedFederationInvite | undefined {
+async function parseFedimintInvite(
+    raw: string,
+    fedimint: FedimintBridge,
+): Promise<ParsedFederationInvite | undefined> {
     // Federation invite code
-    // TODO: Proper bech32 validation
-    // TODO: Use future bridge method for fetching federation info https://github.com/fedibtc/fedi/issues/1380
     // TODO: Consider standard URI prefix?
     if (raw.toLowerCase().startsWith('fed1')) {
-        return { type: ParserDataType.FedimintInvite, data: { invite: raw } }
+        const { federationId } = await fedimint.parseInviteCode(
+            raw.toLowerCase(),
+        )
+        return {
+            type: ParserDataType.FedimintInvite,
+            data: { invite: raw, federationId },
+        }
     }
 }
 

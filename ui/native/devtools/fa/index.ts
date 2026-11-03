@@ -25,12 +25,7 @@ export {
     MOCK_PAYER_FEDERATION_IDS,
     type MockPayerFederation,
 } from './mockPayerFederation'
-export {
-    FA_SCREEN_GROUPS,
-    type FaScreen,
-    type FaScreenParams,
-    type FaScreenRoute,
-} from './screens'
+export { FA_SCREEN_GROUPS, type FaScreen, type FaScreenRoute } from './screens'
 export { FA_SCRIPT_GROUPS, findFaScript, type FaScriptGroup } from './scripts'
 
 type BridgeRpc = <T = void>(method: string, payload: object) => Promise<T>
