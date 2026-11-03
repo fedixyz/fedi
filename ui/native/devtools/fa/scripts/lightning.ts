@@ -1,6 +1,6 @@
 import type { RpcFaErrorCode } from '@fedi/common/types/bindings'
 
-import { formationAt, formationStatus } from '../status'
+import { formedAt, formedStatus } from '../status'
 import {
     FaScript,
     FaStep,
@@ -13,7 +13,7 @@ import {
 } from '../steps'
 
 const formed: FaStep[] = [
-    stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+    stream(ctx => formedStatus(formedAt(ctx))),
     formWalletService('ready'),
 ]
 

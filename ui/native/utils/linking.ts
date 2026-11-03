@@ -111,6 +111,7 @@ export const screenMap = {
         params: { enableCreationOverride: 'true' },
     }),
     wallet: () => ({ kind: 'tab', screen: 'Wallet' }),
+    discover: () => ({ kind: 'root', screen: 'PublicFederations' }),
     // 'federations' is for backwards compatibility (can be removed at a later date)
     federations: () => ({ kind: 'tab', screen: 'Wallet' }),
     home: () => ({ kind: 'tab', screen: 'Home' }),

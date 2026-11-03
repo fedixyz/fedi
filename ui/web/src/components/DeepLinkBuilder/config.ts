@@ -123,6 +123,7 @@ const enrichments: Record<DeepLinkKey, BuilderEnrichment> = {
     home: { category: 'navigation' },
     chat: { category: 'navigation' },
     wallet: { category: 'navigation' },
+    discover: { category: 'navigation' },
     mods: { category: 'navigation' },
     room: {
         category: 'navigation',

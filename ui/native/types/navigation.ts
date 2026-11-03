@@ -289,7 +289,9 @@ export type RootStackParamList = {
     ConfirmWalletService: undefined
     WalletServiceProgress: undefined
     WalletServiceReplaceReview: undefined
-    WalletServiceDashboard: undefined
+    // `seatIndex` opens the review for that guardian, skipping the list
+    WalletServiceGuardianTransfer: { seatIndex?: number } | undefined
+    WalletServiceDashboard: { openSheet?: 'guardians' } | undefined
     // `onboarding` continues to the Lightning step; `edit` returns to settings
     WalletServiceFee: { mode: 'onboarding' | 'edit' }
     WalletServiceLightningProvider: undefined

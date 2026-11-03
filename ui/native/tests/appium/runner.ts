@@ -109,9 +109,6 @@ async function ensureState(
     }
 }
 
-// Add flag to track if any test failed
-let anyTestFailed = false
-
 async function waitForMetroBundleComplete(): Promise<void> {
     const timeout = 180000
     const startTime = Date.now()
@@ -163,6 +160,7 @@ async function waitForMetroBundleComplete(): Promise<void> {
 }
 
 async function runTests(testNames: string[]): Promise<void> {
+    let anyTestFailed = false
     try {
         const validTestNames = testNames.filter(name =>
             Object.keys(availableTests).includes(name),
@@ -221,10 +219,14 @@ async function runTests(testNames: string[]): Promise<void> {
                 h => !AppiumManager.actorConfigured(h),
             )
             if (missingActor) {
-                console.log(
-                    `=== Test ${testName} SKIPPED: actor "${missingActor}" not configured (needs DEVICE_ID_${missingActor.toUpperCase()} or AVD_${missingActor.toUpperCase()}) ===\n`,
+                const error = new Error(
+                    `Actor "${missingActor}" not configured (needs DEVICE_ID_${missingActor.toUpperCase()} or AVD_${missingActor.toUpperCase()})`,
                 )
-                results[testName] = { success: true, skipped: true }
+                console.error(
+                    `=== Test ${testName} FAILED: ${error.message} ===\n`,
+                )
+                results[testName] = { success: false, error }
+                anyTestFailed = true
                 continue
             }
 
@@ -337,12 +339,16 @@ async function runTests(testNames: string[]): Promise<void> {
         }
 
         const successCount = Object.values(results).filter(
-            r => r.success,
+            r => r.success && !r.skipped,
         ).length
-        console.log(`\n${successCount}/${validTestNames.length} tests passed.`)
-
-        // If not all tests passed, we have failures
-        if (successCount < validTestNames.length) {
+        const skippedCount = Object.values(results).filter(
+            r => r.skipped,
+        ).length
+        const failedCount = validTestNames.length - successCount - skippedCount
+        console.log(
+            `\n${successCount} passed, ${failedCount} failed, ${skippedCount} skipped (${validTestNames.length} selected).`,
+        )
+        if (failedCount > 0 || successCount === 0) {
             anyTestFailed = true
         }
     } catch (error) {
@@ -359,22 +365,20 @@ async function runTests(testNames: string[]): Promise<void> {
             console.error('\n❌ Tests failed')
             process.exit(1)
         } else {
-            console.log('\n✅ All tests passed')
+            console.log('\n✅ All executed tests passed')
             process.exit(0)
         }
     }
 }
 
-// Get test names from command line arguments
 const testNames = process.argv.slice(2)
-
 if (testNames.length === 0) {
     console.log(
         'No tests specified. Available tests:',
         Object.keys(availableTests).join(', '),
     )
     console.log('Usage: ts-node runner.ts [test1] [test2] ...')
-    process.exit(1) // Exit with error if no tests specified
+    process.exit(1)
 } else {
     runTests(resolveTestNames(testNames))
 }

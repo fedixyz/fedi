@@ -54,11 +54,12 @@ import { DocumentsList } from './DocumentsList'
 import GuardianitoHelp from './GuardianitoHelp'
 import MessageInputReplyBar from './MessageInputReplyBar'
 
-type MessageInputProps = {
+export type MessageInputProps = {
     onMessageSubmitted: (
         message: string,
         attachments?: Array<InputAttachment | InputMedia>,
         repliedEventId?: string,
+        onPartSent?: (part: 'body' | InputAttachment | InputMedia) => void,
     ) => Promise<void>
     id: string
     isSending?: boolean
@@ -210,22 +211,43 @@ const MessageInput: React.FC<MessageInputProps> = ({
         if ((!trimmedMessageText && !attachments.hasAttachments) || isSending)
             return
 
+        const clearSubmittedReply = () => {
+            if (!repliedEvent) return
+
+            dispatch((replyDispatch, getState) => {
+                if (
+                    selectReplyingToMessageEventForRoom(getState(), id)?.id ===
+                    repliedEvent.id
+                ) {
+                    replyDispatch(clearChatReplyingToMessage())
+                }
+            })
+        }
+
+        let bodyAccepted = false
         try {
             await onMessageSubmitted(
                 trimmedMessageText,
                 attachments.matrixAttachments,
                 repliedEvent?.id,
+                part => {
+                    if (part === 'body') {
+                        bodyAccepted = true
+                        resetMessageText({ clearDraft: true })
+                        clearSubmittedReply()
+                    } else {
+                        attachments.removeSentAttachment(part)
+                    }
+                },
             )
-            resetMessageText({ clearDraft: true })
-            attachments.clearAll()
-
-            if (repliedEvent) {
-                requestAnimationFrame(() => {
-                    dispatch(clearChatReplyingToMessage())
-                })
+            if (!bodyAccepted && trimmedMessageText) {
+                resetMessageText({ clearDraft: true })
             }
-        } catch (e) {
-            toast.error(t, e, 'errors.unknown-error')
+            if (repliedEvent && !bodyAccepted) {
+                requestAnimationFrame(clearSubmittedReply)
+            }
+        } catch {
+            toast.error(t, 'errors.unknown-error')
         }
     }, [
         attachments,
@@ -233,6 +255,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         trimmedMessageText,
         onMessageSubmitted,
         repliedEvent,
+        id,
         dispatch,
         toast,
         t,

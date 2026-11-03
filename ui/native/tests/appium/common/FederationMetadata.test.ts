@@ -14,8 +14,10 @@ import {
     allowPasteIfPrompted,
     setupOnboardedLocalFed,
 } from '../fixtures/setupOnboardedLocalFed'
+import { openDeveloperSettings } from './developerSettings'
 import {
     getDevfedInvite,
+    pauseDevfedGuardians,
     reverseDevfedPortsIntoDevices,
     setDevfedMeta,
 } from './devfed'
@@ -25,29 +27,60 @@ const SELECTED_SPACE = 'E2E Selected Space'
 const LINKED_SPACE = 'E2E Linked Space'
 // Metadata refreshes every ten minutes; keep the app running through that fetch.
 const META_REFRESH_TIMEOUT = 12 * 60_000
+const LIVE_WELCOME = 'E2E welcome from the federation'
+const FEED_NAME = 'E2E Feed Federation'
+const FEED_WELCOME = 'E2E welcome from the feed'
+const DEVFED_DISCOVER_BUTTON = 'DevimintFederationJoinButton'
+const ICON_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+)
 
 export class FederationMetadata extends AppiumTestBase {
     static produces = ['onboarded', 'metadataCommunitiesJoined'] as const
 
     async execute(): Promise<void> {
+        const devfedInvite = await getDevfedInvite()
+        const discoverFeed = {
+            'e2e-discover': {
+                public: 'true',
+                invite_code: devfedInvite,
+                federation_name: FEED_NAME,
+                preview_message: FEED_WELCOME,
+            },
+        }
         const communities: Record<string, string> = {
             '/selected.json': SELECTED_SPACE,
             '/linked.json': LINKED_SPACE,
         }
         const server = createServer((request, response) => {
-            const name = communities[request.url ?? '']
-            response.writeHead(name ? 200 : 404, {
+            // the app's fetch adds a cache-busting query to the feed url
+            const path = new URL(request.url ?? '/', 'http://fixture').pathname
+            if (path === '/icon.png') {
+                response.writeHead(200, { 'Content-Type': 'image/png' })
+                response.end(ICON_PNG)
+                return
+            }
+            const name = communities[path]
+            const body =
+                path === '/discover.json'
+                    ? discoverFeed
+                    : name && { version: 1, name }
+            response.writeHead(body ? 200 : 404, {
                 'Content-Type': 'application/json',
             })
-            response.end(JSON.stringify(name ? { version: 1, name } : {}))
+            response.end(JSON.stringify(body || {}))
         })
         await new Promise<void>((resolve, reject) => {
             server.once('error', reject)
             server.listen(0, '127.0.0.1', resolve)
         })
         const { port } = server.address() as AddressInfo
+        // android debug builds only allow cleartext http to localhost
+        const appOrigin = `http://localhost:${port}`
         console.log(`Community metadata fixture listening on 127.0.0.1:${port}`)
         let forwardedDevice: string | undefined
+        let resumeGuardians: (() => void) | undefined
         const invite = (route: string) =>
             bech32m.encode(
                 'fedi:community',
@@ -76,8 +109,12 @@ export class FederationMetadata extends AppiumTestBase {
                 forwardedDevice = device
             }
             await reverseDevfedPortsIntoDevices()
-            await setDevfedMeta({ 'fedi:autojoin_communities': '[]' })
-            await setupOnboardedLocalFed(this, await getDevfedInvite())
+            await setDevfedMeta({
+                'fedi:autojoin_communities': '[]',
+                welcome_message: LIVE_WELCOME,
+                federation_icon_url: `${appOrigin}/icon.png`,
+            })
+            await setupOnboardedLocalFed(this, devfedInvite)
             await this.clickElementByKey('PlusButton')
             await this.clickElementByKey('joinTab')
             await acceptCameraPermissionIfPresent(this)
@@ -92,6 +129,20 @@ export class FederationMetadata extends AppiumTestBase {
             await this.clickElementByKey('JoinFederationButton')
             await this.waitForElementDisplayed('HomeHeaderTitle')
             await this.waitForText(SELECTED_SPACE, 0, true)
+
+            await openDeveloperSettings(this)
+            await this.scrollToElement('DiscoverFeedUrlInput', {
+                maxScrolls: 30,
+            })
+            await this.typeIntoElementByKey(
+                'DiscoverFeedUrlInput',
+                `${appOrigin}/discover.json`,
+            )
+            await this.dismissKeyboard()
+            await this.scrollToElement('LoadDiscoverFeedButton')
+            await this.clickElementByKey('LoadDiscoverFeedButton')
+            await this.clickElementByKey('HeaderBackButton')
+            await this.clickElementByKey('HeaderCloseButton')
 
             await this.clickElementByKey('WalletTabButton')
             await this.clickElementByKey('DevimintFederationDetailsButton')
@@ -134,9 +185,36 @@ export class FederationMetadata extends AppiumTestBase {
             console.log(
                 'Metadata autojoin preserved the selected space and displayed its notice',
             )
+
+            // Discover can now only show previews fetched before it opened
+            resumeGuardians = await pauseDevfedGuardians()
+            await this.clickElementByKey('WalletTabButton')
+            await this.waitForElementDisplayed(
+                'DevimintFederationDetailsButton',
+            )
+            await this.clickElementByKey('PlusButton')
+            await this.waitForText(LIVE_WELCOME, 0, true)
+            await this.waitForElementDisplayed(DEVFED_DISCOVER_BUTTON)
+            for (const text of [FEED_NAME, FEED_WELCOME]) {
+                if (await this.isTextPresent(text, true, 2000)) {
+                    throw new Error(
+                        `Discover shows the feed copy "${text}" instead of the federation's own`,
+                    )
+                }
+            }
+            await this.waitForElementDisplayed('FederationLogo__Image')
+            await this.saveScreenshot('discover-previews')
+            console.log(
+                'Discover shows the federation name, welcome and icon fetched before it opened',
+            )
         } finally {
             try {
-                await setDevfedMeta({ 'fedi:autojoin_communities': '[]' })
+                resumeGuardians?.()
+                await setDevfedMeta({
+                    'fedi:autojoin_communities': '[]',
+                    welcome_message: '',
+                    federation_icon_url: '',
+                })
             } finally {
                 try {
                     if (forwardedDevice) {

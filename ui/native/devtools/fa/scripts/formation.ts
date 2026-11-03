@@ -1,6 +1,8 @@
 import {
     formationAt,
     formationStatus,
+    formedAt,
+    formedStatus,
     withAuthorization,
     withError,
     withReplacement,
@@ -65,7 +67,7 @@ const TO_DKG = [
 export const formationHappyPath: FaScript = script('formation.happyPath', [
     ...PAY_AND_CREATE_STEPS,
     ...walk([...TO_DKG, 'dkgComplete', 'publishingSeatBindings']),
-    stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+    stream(ctx => formedStatus(formedAt(ctx))),
     formWalletService('joining'),
     checkpoint('formedJoining'),
     wait(PHASE_MS),
@@ -110,9 +112,7 @@ export const formationFailsTerminally: FaScript = script(
 export const formationReconnecting: FaScript = script(
     'formation.reconnecting',
     [
-        stream(ctx =>
-            formationStatus(withUnsynced(formationAt(ctx, 'formed'))),
-        ),
+        stream(ctx => formedStatus(withUnsynced(formedAt(ctx)))),
         formWalletService('ready'),
         checkpoint('reconnecting'),
     ],
@@ -123,7 +123,7 @@ export const formationCreatedJoinFails: FaScript = script(
     [
         ...PAY_AND_CREATE_STEPS,
         ...walk([...TO_DKG, 'dkgComplete', 'publishingSeatBindings']),
-        stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+        stream(ctx => formedStatus(formedAt(ctx))),
         formWalletService('joining'),
         formWalletService('failed'),
         checkpoint('joinFailed'),
@@ -133,7 +133,7 @@ export const formationCreatedJoinFails: FaScript = script(
 export const formationAlreadyFormed: FaScript = script(
     'formation.alreadyFormed',
     [
-        stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+        stream(ctx => formedStatus(formedAt(ctx))),
         formWalletService('ready'),
         checkpoint('formed'),
     ],
@@ -169,7 +169,7 @@ const authorizeScript = (name: string, amountSats: number): FaScript =>
             'dkgComplete',
             'publishingSeatBindings',
         ]),
-        stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+        stream(ctx => formedStatus(formedAt(ctx))),
         formWalletService('ready'),
         checkpoint('formed'),
     ])
@@ -206,7 +206,7 @@ const REPLACEMENT_STEPS = [
     }),
     wait(PHASE_MS),
     ...walk(['dkgComplete', 'publishingSeatBindings']),
-    stream(ctx => formationStatus(formationAt(ctx, 'formed'))),
+    stream(ctx => formedStatus(formedAt(ctx))),
     formWalletService('ready'),
     checkpoint('formed'),
 ]

@@ -17,13 +17,16 @@ import {
 } from '../../../../devtools/fa/steps'
 import type { FaWorld } from '../../../../devtools/fa/world'
 
-const formation = (
-    formationId: string,
-    phase: 'preparing' | 'formed',
-): RpcFaStatus =>
+const formation = (formationId: string): RpcFaStatus =>
     ({
         type: 'formation',
-        formation: { formationId, phase },
+        formation: { formationId, phase: 'preparing' },
+    }) as unknown as RpcFaStatus
+
+const formed = (formationId: string): RpcFaStatus =>
+    ({
+        type: 'formed',
+        federation: { formationId },
     }) as unknown as RpcFaStatus
 
 const makeHost = () => {
@@ -47,6 +50,7 @@ const makeHost = () => {
         formed: [],
         stubs: [],
         setStatus: jest.fn(status => host.statuses.push(status)),
+        setReplacementCheck: jest.fn(),
         emitEvent: jest.fn((event, payload) =>
             host.events.push([event, payload]),
         ),
@@ -71,6 +75,7 @@ const makeHost = () => {
             setPreviewValiditySecs: jest.fn(),
             setJoinableWalletServices: jest.fn(),
             setLiquidityNetwork: jest.fn(),
+            setGuardianTransfer: jest.fn(),
             startLiquidity: jest.fn(),
             currentLiquidityOperation: jest.fn(() => null),
             eligiblePayerIds: jest.fn(() => ['payer_1']),
@@ -84,13 +89,13 @@ const SCRIPT = script('test', [
     reply('faClientEligiblePayers', { type: 'payers', payers: [] }),
     awaitRpc('faClientPayAndCreate', { previewId: 'p1' }),
     checkpoint('paid'),
-    stream(ctx => formation(ctx.formationId, 'preparing')),
+    stream(ctx => formation(ctx.formationId)),
     wait(2_000),
     checkpoint('preparing'),
     emit('balance', { federationId: 'f', balance: 1 }),
     wait(3_000),
     formWalletService('ready'),
-    stream(ctx => formation(ctx.formationId, 'formed')),
+    stream(ctx => formed(ctx.formationId)),
     checkpoint('formed'),
 ])
 
@@ -110,7 +115,7 @@ describe('FaPlayer', () => {
         await jest.advanceTimersByTimeAsync(0)
 
         expect(host.statuses[0]).toEqual(IDLE_STATUS)
-        expect(host.statuses[1]).toEqual(formation('formation_1', 'preparing'))
+        expect(host.statuses[1]).toEqual(formation('formation_1'))
         player.cancel()
         await run
     })
@@ -150,7 +155,7 @@ describe('FaPlayer', () => {
         await run
 
         expect(host.formed).toEqual(['ready'])
-        expect(host.statuses.at(-1)).toEqual(formation('formation_1', 'formed'))
+        expect(host.statuses.at(-1)).toEqual(formed('formation_1'))
         expect(player.current).toEqual({ script: 'test', checkpoint: 'formed' })
         expect(jest.getTimerCount()).toBe(0)
     })
@@ -168,7 +173,7 @@ describe('FaPlayer', () => {
         host.callRpc('faClientPayAndCreate', { previewId: 'real' })
         await jest.advanceTimersByTimeAsync(0)
 
-        expect(host.statuses[1]).toEqual(formation('formation_1', 'preparing'))
+        expect(host.statuses[1]).toEqual(formation('formation_1'))
         player.cancel()
         await run
     })

@@ -34,6 +34,23 @@ describe('common/utils/linking', () => {
     })
 
     describe('normalizeDeepLink', () => {
+        it.each([120, 240, 480, 1024, 2048, 4096])(
+            'preserves a %i-character invite through both link delimiters',
+            length => {
+                const invite = 'fed11' + 'q'.repeat(length - 5)
+                for (const delimiter of ['?', '#']) {
+                    const url = `https://app.fedi.xyz/link${delimiter}screen=join&id=${invite}`
+                    expect(linking.isDeepLink(url)).toBe(true)
+                    const result = linking.normalizeDeepLink(url)
+                    expect(result?.screen).toBe('join')
+                    expect(result?.params.get('id')).toBe(invite)
+                    expect(linking.getNavigationLink(url)).toBe(
+                        `fedi://join?id=${invite}`,
+                    )
+                }
+            },
+        )
+
         describe('when a url is passed without a screen parameter', () => {
             it('should return undefined', () => {
                 const url = 'https://app.fedi.xyz/link'

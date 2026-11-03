@@ -99,9 +99,15 @@ const LEVEL_OVERRIDES: Partial<
     warning: { accent: WARNING_BANNER_AMBER, background: AMBER_SOFT },
 }
 
+/** The ink a banner of `level` uses, for an action drawn inside it. */
+export const getWarningBannerAccent = (
+    theme: Theme,
+    level: WarningBannerLevel,
+) => LEVEL_OVERRIDES[level]?.accent ?? theme.colors.red
+
 const styles = (theme: Theme, level: WarningBannerLevel) => {
     const override = LEVEL_OVERRIDES[level]
-    const accent = override?.accent ?? theme.colors.red
+    const accent = getWarningBannerAccent(theme, level)
     return StyleSheet.create({
         banner: {
             backgroundColor: override?.background ?? theme.colors.red100,

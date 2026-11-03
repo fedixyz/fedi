@@ -1,7 +1,6 @@
 import Clipboard from '@react-native-clipboard/clipboard'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
-import { validate as validateBitcoinAddress } from 'bitcoin-address-validation'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -16,7 +15,7 @@ import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectIsInternetUnreachable } from '@fedi/common/redux'
-import { parseUserInput } from '@fedi/common/utils/parser'
+import { parseBitcoinAddress, parseUserInput } from '@fedi/common/utils/parser'
 import { isValidInternetIdentifier } from '@fedi/common/utils/validation'
 
 import { OmniInput } from '../components/feature/omni/OmniInput'
@@ -151,7 +150,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
             return isValidInternetIdentifier(address)
         }
 
-        return validateBitcoinAddress(address)
+        return !!parseBitcoinAddress(address)
     }, [tab, address])
 
     const content = useMemo(() => {

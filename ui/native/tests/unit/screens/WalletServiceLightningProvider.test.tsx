@@ -74,7 +74,7 @@ const operation = (
 })
 
 /**
- * The formed, fresh formation the bridge requires before it accepts a request.
+ * The formed, fresh federation the bridge requires before it accepts a request.
  *
  * `liquidity` states what the app-wide monitor has already found. The screen is
  * a reader — `WalletServiceMonitor` owns the durable read and the poll — so a
@@ -101,28 +101,14 @@ const formedStore = (
         },
         fi: {
             status: {
-                type: 'formation',
-                formation: {
+                type: 'formed',
+                federation: {
                     formationId: 'formation-1',
-                    phase: 'formed',
-                    intent: {
-                        federationName: 'My Wallet Service',
-                        federationSize: 7,
-                        guardianFeePpm: 5000,
-                        plan: 'infiniteBestEffort',
-                        maxTotalMsats: null,
-                    },
+                    federationInvite: 'fed11invite',
+                    federationName: 'My Wallet Service',
                     seats: [],
                     freshness: 'fresh',
-                    actionRequired: null,
-                    paymentOutputsStarted: true,
-                    milestones: {
-                        ecashSent: true,
-                        guardiansConfirmed: true,
-                        walletServiceCreated: true,
-                    },
-                    inviteCode: 'fed11invite',
-                    lastError: null,
+                    backupEligible: true,
                 },
             },
             clientError: null,

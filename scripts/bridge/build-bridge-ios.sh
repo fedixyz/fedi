@@ -29,12 +29,55 @@ elif [ -n "${BRIDGE_TARGETS_TO_BUILD:-}" ]; then
 fi
 echo "Building iOS bridge for targets: ${TARGETS[*]} with profile: ${CARGO_PROFILE}"
 
+network_check_pid=
+network_check_log=
+function wait_for_network_check() {
+  local status=0
+  local wait_started=$SECONDS
+  wait "$network_check_pid" || status=$?
+  network_check_pid=
+  echo "::group::Check the iOS bridge does not trigger the Local Network prompt"
+  cat "$network_check_log"
+  echo "Wait for Local Network check: $((SECONDS - wait_started)) seconds"
+  echo "::endgroup::"
+  rm -f "$network_check_log"
+  network_check_log=
+  return "$status"
+}
+function cleanup_network_check() {
+  local status=$?
+  trap - EXIT
+  trap '' HUP INT TERM
+  if [ -n "$network_check_pid" ]; then
+    if jobs -pr | grep -qx "$network_check_pid"; then
+      kill -TERM "$network_check_pid" 2>/dev/null || true
+    fi
+    wait_for_network_check || true
+  fi
+  if [ -n "$network_check_log" ]; then rm -f "$network_check_log"; fi
+  exit "$status"
+}
+if [ "${CHECK_IOS_LOCAL_NETWORK:-}" = "1" ]; then
+  if [[ " ${TARGETS[*]} " != *" aarch64-apple-ios-sim "* ]]; then
+    echo "error: the Local Network check requires the ARM simulator target" >&2
+    exit 1
+  fi
+  trap cleanup_network_check EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+fi
+
 # clean any old binaries
 # shellcheck disable=SC2046
 rm -f $(find $CARGO_BUILD_TARGET_DIR -name libfediffi.a | grep -v '/deps/')
 
 # build binaries for each supported target
 for target in "${TARGETS[@]}"; do
+  check_packages=()
+  if [ "${CHECK_IOS_LOCAL_NETWORK:-}" = "1" ] && [ "$target" = "aarch64-apple-ios-sim" ]; then
+    check_packages=(--package ios-local-network-prompt-check)
+  fi
   # Pre-A11 devices (the A10 iPhone 7, down to the A9 on iOS 15.1) have no
   # ARMv8.1 LSE atomics. Left unpinned, a newer Apple toolchain can compile
   # aws-lc with CAS/CASAL, which SIGILL on those chips and crash the app on its
@@ -44,7 +87,12 @@ for target in "${TARGETS[@]}"; do
   if [ "$target" = "aarch64-apple-ios" ]; then
     cpu_pin=("TARGET_CFLAGS=${TARGET_CFLAGS:-} -mcpu=apple-a7")
   fi
-  env "${cpu_pin[@]}" cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}" --package fedi-ffi ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} --target $target $CARGO_FLAGS
+  env "${cpu_pin[@]}" cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}" --package fedi-ffi "${check_packages[@]}" ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} --target $target $CARGO_FLAGS
+  if [ "${#check_packages[@]}" -ne 0 ]; then
+    network_check_log=$(mktemp "${TMPDIR:-/tmp}/ios-local-network-prompt-check-log.XXXXXX")
+    "$REPO_ROOT/scripts/bridge/check-ios-local-network-prompt.sh" --run-only > "$network_check_log" 2>&1 &
+    network_check_pid=$!
+  fi
 done
 
 for target in "${TARGETS[@]}"; do
@@ -98,5 +146,7 @@ if [ -e "$AARCH64_BINARY_PATH" ]; then
 else
   echo "aarch64-apple-ios binary was not built..."
 fi
+
+if [ -n "$network_check_pid" ]; then wait_for_network_check; fi
 
 echo -e "\x1B[32;1miOS bridge build complete.\x1B[0m"

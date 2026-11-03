@@ -34,19 +34,35 @@ export class JoinLeaveFederation extends AppiumTestBase {
         federationName: string,
     ): Promise<void> {
         const deadline = Date.now() + 300000
+        let attempted = false
         while (Date.now() < deadline) {
             // the accordion click toggles, so only expand when the leave
             // item is not already on the list
-            if ((await this.scrollToElement(leaveKey)) === null) {
+            if (
+                (await this.scrollToElement(leaveKey, {
+                    scrollPercentage: 50,
+                    scrollDuration: 500,
+                })) === null
+            ) {
                 if (
                     (await this.scrollToElement(accordionKey, {
                         scrollDirection: 'up',
+                        scrollPercentage: 50,
+                        scrollDuration: 500,
                     })) === null
                 ) {
-                    return
+                    if (attempted) {
+                        return
+                    }
+                    throw new Error(
+                        `Failed - ${federationName} accordion is not in the account settings`,
+                    )
                 }
                 await this.clickElementByKey(accordionKey)
-                await this.scrollToElement(leaveKey)
+                await this.scrollToElement(leaveKey, {
+                    scrollPercentage: 50,
+                    scrollDuration: 500,
+                })
             }
             await this.clickElementByKey(leaveKey)
             if (
@@ -61,7 +77,10 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 )
             }
             await this.acceptAlert('Yes')
-            if (await this.waitForElementToDisappear(accordionKey, 60000)) {
+            attempted = true
+            // off-screen elements pass the disappear check, so watch the leave
+            // item, which was just tapped and is on screen
+            if (await this.waitForElementToDisappear(leaveKey, 60000)) {
                 return
             }
             console.log(

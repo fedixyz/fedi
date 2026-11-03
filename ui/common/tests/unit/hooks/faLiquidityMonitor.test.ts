@@ -9,7 +9,6 @@ import {
     setupStore,
 } from '../../../redux'
 import type {
-    RpcFaFormationSnapshot,
     RpcFaLiquidityOperation,
     RpcFaStatus,
 } from '../../../types/bindings'
@@ -39,42 +38,18 @@ const operation = (
     ...overrides,
 })
 
-const formation = {
-    formationId: FORMATION_ID,
-    phase: 'formed',
-    intent: {
-        federationName: 'My Wallet Service',
-        federationSize: 7,
-        guardianFeePpm: 0,
-        plan: 'infiniteBestEffort',
-        maxTotalMsats: null,
-    },
-    seats: [],
-    freshness: 'fresh',
-    actionRequired: null,
-    paymentOutputsStarted: true,
-    milestones: {
-        ecashSent: true,
-        guardiansConfirmed: true,
-        walletServiceCreated: true,
-    },
-    inviteCode: 'fed11invite',
-    lastError: null,
-} as unknown as RpcFaFormationSnapshot
-
-const formedStatus: RpcFaStatus = { type: 'formation', formation }
-
-const restoredStatus = (freshness: 'unsynced' | 'fresh'): RpcFaStatus => ({
-    type: 'restored',
-    formation: {
-        snapshotGeneration: 3,
+const formedStatus = (
+    freshness: 'unsynced' | 'fresh' = 'fresh',
+): RpcFaStatus => ({
+    type: 'formed',
+    federation: {
         formationId: FORMATION_ID,
         federationInvite: 'fed11invite',
-        federationName: 'Restored Wallet Service',
+        federationName: 'My Wallet Service',
         seats: [],
-        phase: 'formed',
         freshness,
         backupEligible: false,
+        origin: 'backup',
     },
 })
 
@@ -82,7 +57,7 @@ const emptyPage = { type: 'page', page: { operations: [], nextAfter: null } }
 
 const mount = (
     overrides: Record<string, unknown> = {},
-    faStatus: RpcFaStatus = formedStatus,
+    faStatus: RpcFaStatus = formedStatus(),
 ) => {
     const store = setupStore()
     store.dispatch(setFaStatus(faStatus))
@@ -141,12 +116,12 @@ describe('common/hooks/fi useMonitorWalletServiceLiquidity', () => {
             {
                 faClientLiquidityCurrent: current,
             },
-            restoredStatus('unsynced'),
+            formedStatus('unsynced'),
         )
 
         expect(current).not.toHaveBeenCalled()
         act(() => {
-            store.dispatch(setFaStatus(restoredStatus('fresh')))
+            store.dispatch(setFaStatus(formedStatus('fresh')))
         })
         await waitFor(() => expect(status(store)).toBe('attaching'))
     })

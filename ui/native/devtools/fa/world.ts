@@ -1,4 +1,5 @@
 import type {
+    RpcFaGuardianTransfer,
     RpcFaLiquidityNetwork,
     RpcFaLiquidityOperation,
 } from '@fedi/common/types/bindings'
@@ -21,6 +22,8 @@ export interface FaWorld {
     setPreviewValiditySecs(secs: number): void
     setJoinableWalletServices(services: MockJoinableWalletService[]): void
     setLiquidityNetwork(network: RpcFaLiquidityNetwork): void
+    /** The move the transfer stream reports; `null` for none open. */
+    setGuardianTransfer(transfer: RpcFaGuardianTransfer | null): void
     /** Stand up the single live liquidity operation, as if the app had started it. */
     startLiquidity(options: { verified: boolean }): void
     currentLiquidityOperation(): RpcFaLiquidityOperation | null

@@ -16,7 +16,9 @@ const JOIN_FAILS_AFTER_MS = 10_000
 
 // the backup does not carry the name: reconciliation learns it from the
 // Manifold Guardians, and the invite is only handed to the auto-join once fresh
-const unsynced = stream(ctx => restoredStatus(ctx, { freshness: 'unsynced' }))
+const unsynced = stream(ctx =>
+    restoredStatus(ctx, { freshness: 'unsynced', backupEligible: false }),
+)
 const reconciled = stream(ctx =>
     restoredStatus(ctx, {
         freshness: 'fresh',

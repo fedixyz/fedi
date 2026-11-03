@@ -60,7 +60,6 @@ fn fa_msat_values_are_exact_decimal_strings_in_every_fa_output_shape() {
                 milestones: RpcFaFormationMilestones {
                     ecash_sent: false,
                     guardians_confirmed: false,
-                    wallet_service_created: false,
                 },
                 invite_code: None,
                 last_error: None,

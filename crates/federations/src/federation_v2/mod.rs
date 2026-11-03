@@ -380,20 +380,15 @@ fn ln_pay_update_sanitized_log(update: &LnPayState) -> String {
     }
 }
 
-pub fn invite_code_from_client_confing(config: &ClientConfig) -> InviteCode {
-    let (peer, endpoint) = config
-        .global
-        .api_endpoints
-        .iter()
-        .next()
-        .expect("client config must have one api endpoint");
-
-    InviteCode::new(
-        endpoint.url.clone(),
-        *peer,
-        config.global.calculate_federation_id(),
-        None, // FIXME: api secret
-    )
+/// Invite code that lists enough guardians that at least one of them is honest
+/// and online whenever the federation itself works (f+1 of n, lowest peer ids
+/// first). Every member derives the same code from the same peer URLs.
+fn shareable_invite_code(
+    peer_urls: &BTreeMap<PeerId, SafeUrl>,
+    federation_id: FederationId,
+    api_secret: Option<String>,
+) -> InviteCode {
+    InviteCode::from_map(peer_urls, federation_id, api_secret)
 }
 
 impl std::fmt::Debug for FederationV2 {
@@ -2344,7 +2339,7 @@ impl FederationV2 {
             .collect();
         let client_config_json = self.client.get_config_json().await;
         let (invite_code, fedi_fee_schedule, balance) = futures::join!(
-            self.get_invite_code(),
+            self.shareable_invite_code(),
             self.fedi_fee_schedule(),
             self.get_balance(),
         );
@@ -3699,13 +3694,32 @@ impl FederationV2 {
         dbtx.commit_tx_result().await.context("DbError")
     }
 
-    // FIXME this is busted in social recovery
+    /// The invite code this federation was joined with. Keys that identify the
+    /// join, such as the pending rejoin-from-scratch marker, use this code.
+    /// Show and share [`Self::shareable_invite_code`] instead.
     pub async fn get_invite_code(&self) -> String {
         self.dbtx()
             .await
             .get_value(&InviteCodeKey)
             .await
             .expect("invite code must exist")
+    }
+
+    /// The invite code to show and share: f+1 guardians from the client's
+    /// current peer URLs, with the api secret of the join code.
+    pub async fn shareable_invite_code(&self) -> String {
+        let api_secret = self
+            .get_invite_code()
+            .await
+            .parse::<InviteCode>()
+            .ok()
+            .and_then(|code| code.api_secret());
+        shareable_invite_code(
+            &self.client.get_peer_urls().await,
+            self.federation_id(),
+            api_secret,
+        )
+        .to_string()
     }
 
     pub(crate) async fn update_operation_state<T>(&self, operation_id: OperationId, state: T)
@@ -5705,11 +5719,6 @@ impl FederationPrefetchedInfo {
     ) -> anyhow::Result<Self> {
         let invite_code = invite_code.to_lowercase();
         let invite_code = InviteCode::from_str(&invite_code)?;
-        let api_single_guardian = DynGlobalApi::new(
-            connectors.clone(),
-            invite_code.peers(),
-            invite_code.api_secret().as_deref(),
-        )?;
         let federation_id = invite_code.federation_id();
         let client_root_sercet = {
             // We do an additional derivation using `DerivableSecret::federation_key` since
@@ -5729,17 +5738,17 @@ impl FederationPrefetchedInfo {
         //     .await?;
 
         let decoders = ModuleDecoderRegistry::default().with_fallback();
+        let (client_config, api) =
+            fedimint_api_client::download_from_invite_code(&connectors, &invite_code).await?;
+        // The backup query needs a threshold of responses. Send it to every
+        // guardian of the config: with only the guardians of an invite code,
+        // one of them down fails the join.
         // Fedi still relies on federation backups for device recovery, so we
         // intentionally keep using this API until we migrate off of it.
         #[allow(deprecated)]
-        let ((client_config, _api), backup) = tokio::try_join!(
-            fedimint_api_client::download_from_invite_code(&connectors, &invite_code),
-            Client::download_backup_from_federation_static(
-                &api_single_guardian,
-                &client_root_sercet,
-                &decoders,
-            )
-        )?;
+        let backup =
+            Client::download_backup_from_federation_static(&api, &client_root_sercet, &decoders)
+                .await?;
         Ok(Self {
             federation_id,
             client_config,
@@ -5802,6 +5811,42 @@ mod tests {
         let MetaFieldValue(value) =
             serde_json::from_value(json!(directory.canonical_string().unwrap())).unwrap();
         serde_json::from_value(value).unwrap()
+    }
+
+    fn guardian_urls(peers: u16) -> BTreeMap<PeerId, SafeUrl> {
+        (0..peers)
+            .map(|peer| {
+                let url = SafeUrl::parse(&format!("wss://guardian-{peer}.example")).unwrap();
+                (PeerId::from(peer), url)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn shareable_invite_code_lists_one_more_than_the_faulty_guardians() {
+        let federation_id = FederationId::dummy();
+        for (guardians, listed) in [(1, 1), (4, 2), (7, 3), (10, 4)] {
+            let urls = guardian_urls(guardians);
+            let code: InviteCode = shareable_invite_code(&urls, federation_id, None)
+                .to_string()
+                .parse()
+                .unwrap();
+
+            assert_eq!(code.federation_id(), federation_id);
+            let expected: BTreeMap<_, _> = urls.into_iter().take(listed).collect();
+            assert_eq!(code.peers(), expected, "{guardians} guardians");
+            assert_eq!(code.api_secret(), None);
+        }
+    }
+
+    #[test]
+    fn shareable_invite_code_keeps_the_api_secret() {
+        let code = shareable_invite_code(
+            &guardian_urls(4),
+            FederationId::dummy(),
+            Some("secret".to_owned()),
+        );
+        assert_eq!(code.api_secret().as_deref(), Some("secret"));
     }
 
     #[test]

@@ -50,9 +50,9 @@ export const ServiceIconThumbnail: React.FC<{
     )
 }
 
-/** Grouped rows under an uppercase section label. */
+/** Grouped rows, under an uppercase section label when there is one. */
 export const ServiceSettingsSection: React.FC<{
-    title: string
+    title?: string
     children: React.ReactNode
 }> = ({ title, children }) => {
     const { theme } = useTheme()
@@ -60,7 +60,7 @@ export const ServiceSettingsSection: React.FC<{
 
     return (
         <Column gap="sm" fullWidth>
-            <Eyebrow>{title}</Eyebrow>
+            {title ? <Eyebrow>{title}</Eyebrow> : null}
             <Column style={style.card}>{children}</Column>
         </Column>
     )

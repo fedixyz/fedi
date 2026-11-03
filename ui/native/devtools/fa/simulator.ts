@@ -12,6 +12,9 @@ import {
     RpcFaCurrentLiquidityOperationResult,
     RpcFaFederationJoinState,
     RpcFaFormationSnapshot,
+    RpcFaFormedFederation,
+    RpcFaGuardianTransfer,
+    RpcFaGuardianTransferResult,
     RpcFaLiquidityDiscoveryResult,
     RpcFaLiquidityNetwork,
     RpcFaLiquidityOperation,
@@ -19,6 +22,8 @@ import {
     RpcFaLiquidityProvider,
     RpcFaOperationError,
     RpcFaOperationResult,
+    RpcFaReplacementCandidates,
+    RpcFaReplacementCheck,
     RpcFaReplacementPreview,
     RpcFaSelectionPreview,
     RpcFaSelectionPreviewRequest,
@@ -46,6 +51,8 @@ const log = makeLog('native/devtools/fa/simulator')
 const MAX_GUARDIAN_FEE_PPM = 210_000
 
 const SATS_TO_MSATS = 1_000
+/** What a restored seed's wallet service recovers on rejoin. */
+const RESTORED_BALANCE_SATS = 21_000
 
 const DEFAULT_SEAT_PRICE_MSATS = 2_100_000
 const DEFAULT_ELIGIBLE_MGS = 30
@@ -75,8 +82,12 @@ type StreamEmitter = (update: {
     stream_id: number
     sequence: number
     // the real bridge streams the same envelope `faClientStatus` returns,
-    // and `setFaClientStatus` only reads `status` from a `ready` envelope
-    data: RpcFaClientStatus
+    // and `setFaClientStatus` only reads `status` from a `ready` envelope;
+    // the candidates and transfer streams send their own envelopes
+    data:
+        | RpcFaClientStatus
+        | RpcFaReplacementCandidates
+        | RpcFaGuardianTransferResult
 }) => void
 
 /**
@@ -175,6 +186,12 @@ export class FaSimulator implements FaWorld {
     private previews = new Map<string, RpcFaSelectionPreview>()
     private replacementPreviewId: string | null = null
     private streamIds = new Set<number>()
+    /** Streams of `faClientSubscribeReplacementCandidates`, by id. */
+    private candidateStreamIds = new Set<number>()
+    private replacementCheck: RpcFaReplacementCheck | null = null
+    /** Streams of `faClientSubscribeGuardianTransfer`, by id. */
+    private transferStreamIds = new Set<number>()
+    private guardianTransfer: RpcFaGuardianTransfer | null = null
     private sequences = new Map<number, number>()
     private emitStream: StreamEmitter | null = null
     private eventEmitter: EventEmitter | null = null
@@ -191,7 +208,7 @@ export class FaSimulator implements FaWorld {
         name?: string
     }> = []
     /**
-     * The formed wallet service's own federation, once formation reaches
+     * The formed wallet service's own federation, once the status is
      * `formed`. The real bridge auto-joins it at that point; nothing in dev
      * can, so the simulator stands it up and announces it the same way.
      */
@@ -325,30 +342,30 @@ export class FaSimulator implements FaWorld {
     }
 
     /**
-     * The wallet service's federation for the current status, created once.
-     * A formation names it by intent; a restored backup already carries its
-     * invite and, once reconciled, its name.
+     * The wallet service's federation for the current `formed` status, created
+     * once. The status carries its invite and, once reconciled, its name, the
+     * same for a federation formed here as for one imported from a backup.
+     *
+     * On `signet`, because that is the network a dev federation actually runs
+     * on and the network the simulated provider advertises by default: the
+     * Lightning step filters providers against the federation's own network,
+     * and a federation the app cannot see has no network at all.
      */
     private ensureWalletServiceFederation() {
         const status = this.status
-        if (status.type !== 'formation' && status.type !== 'restored')
-            throw new Error(
-                'formWalletService needs a formation or restored status',
-            )
-        const id = `mock-wallet-service-${status.formation.formationId}`
+        if (status.type !== 'formed')
+            throw new Error('formWalletService needs a formed status')
+        const { federation } = status
+        const id = `mock-wallet-service-${federation.formationId}`
         if (this.walletServiceFederation?.id === id) return
-        if (status.type === 'formation') {
-            this.createWalletServiceFederation(status.formation)
-            return
-        }
         this.walletServiceFederation = {
             ...makeMockPayerFederation({
                 id,
-                name: status.formation.federationName ?? 'My Wallet Service',
-                balanceSats: 21_000,
+                name: federation.federationName ?? 'My Wallet Service',
+                balanceSats: 0,
             }),
             network: 'signet',
-            inviteCode: status.formation.federationInvite,
+            inviteCode: federation.federationInvite,
         }
         this.isWalletServiceJoined = false
     }
@@ -463,6 +480,8 @@ export class FaSimulator implements FaWorld {
         this.simulatorJoinedIds.clear()
         this.status = { type: 'idle' }
         this.publish()
+        this.setReplacementCheck(null)
+        this.setGuardianTransfer(null)
     }
 
     /**
@@ -477,7 +496,11 @@ export class FaSimulator implements FaWorld {
      */
     handles(method: string, payload: Record<string, unknown>): boolean {
         if (method === 'streamCancel')
-            return this.streamIds.has(payload.streamId as number)
+            return (
+                this.streamIds.has(payload.streamId as number) ||
+                this.candidateStreamIds.has(payload.streamId as number) ||
+                this.transferStreamIds.has(payload.streamId as number)
+            )
         if (method === 'generateInvoice')
             return this.isMockPayer(payload.federationId as string)
         // paying is ours when the invoice is one we issued, whoever is paying
@@ -566,6 +589,10 @@ export class FaSimulator implements FaWorld {
                 return this.clientStatus()
             case 'faClientSubscribe':
                 return this.subscribe(payload.streamId as number)
+            case 'faClientSubscribeReplacementCandidates':
+                return this.subscribeCandidates(payload.streamId as number)
+            case 'faClientSubscribeGuardianTransfer':
+                return this.subscribeTransfer(payload.streamId as number)
             case 'faClientEligiblePayers':
                 return this.eligiblePayers()
             case 'faClientSetupPaymentFederations':
@@ -842,39 +869,6 @@ export class FaSimulator implements FaWorld {
     }
 
     /**
-     * Stand the formed federation up and start the auto-join the bridge runs
-     * when the wallet service reaches `formed`.
-     *
-     * `formed_federation_invite` yields the invite for a `formation` status as
-     * well as a `restored` one, so the created path reports the same join
-     * states as the restore path. A created federation has no ecash to recover,
-     * so it goes straight from `joining` to `ready`.
-     *
-     * `alreadyJoined` is the seeded-`formed` case: it stands for a session that
-     * joined this federation long ago, which the bridge finds already `Ready`
-     * and reports as such, without a `joining` it never performed.
-     *
-     * On `signet`, because that is the network a dev federation actually runs
-     * on and the network the simulated provider advertises by default: the
-     * Lightning step filters providers against the federation's own network,
-     * and a federation the app cannot see has no network at all.
-     */
-    private createWalletServiceFederation(formation: RpcFaFormationSnapshot) {
-        formation.milestones.walletServiceCreated = true
-        formation.inviteCode = `fed1${'sim'.padEnd(40, '0')}${formation.formationId}`
-        this.walletServiceFederation = {
-            ...makeMockPayerFederation({
-                id: `mock-wallet-service-${formation.formationId}`,
-                name: formation.intent.federationName,
-                balanceSats: 0,
-            }),
-            network: 'signet',
-            inviteCode: formation.inviteCode,
-        }
-        this.isWalletServiceJoined = false
-    }
-
-    /**
      * The join landed on a restored seed, and the ecash recovery it started has
      * not finished.
      *
@@ -888,6 +882,9 @@ export class FaSimulator implements FaWorld {
             this.isWalletServiceAutoJoinSuppressed()
         )
             return
+        // the ecash this seed had spent from the federation before
+        this.walletServiceFederation.balance = (RESTORED_BALANCE_SATS *
+            SATS_TO_MSATS) as MSats
         this.isWalletServiceJoined = true
         this.isWalletServiceRecovering = true
         this.eventEmitter?.('federation', this.walletServiceListing())
@@ -949,14 +946,14 @@ export class FaSimulator implements FaWorld {
     }
 
     private guardianStatus(federationId: string): GuardianStatus[] {
-        // a formed wallet service is never held without its formation
-        const formation = this.currentFormation()
-        if (this.isWalletServiceFederation(federationId) && formation)
+        // a formed wallet service is never held without its formed status
+        const federation = this.currentFormedFederation()
+        if (this.isWalletServiceFederation(federationId) && federation)
             // every seat healthy, so the dashboard's guardian row is honest
-            // about a formation that reached `formed`
-            return formation.seats.map(seat => ({
+            // about a federation that formed
+            return federation.seats.map(seat => ({
                 online: {
-                    guardian: seat.mgName ?? seat.mgId ?? `seat ${seat.index}`,
+                    guardian: seat.mgName,
                     mg_name: seat.mgName,
                     latency_ms: 1,
                 },
@@ -1129,8 +1126,70 @@ export class FaSimulator implements FaWorld {
 
     private unsubscribe(streamId: number): null {
         this.streamIds.delete(streamId)
+        this.candidateStreamIds.delete(streamId)
+        this.transferStreamIds.delete(streamId)
         this.sequences.delete(streamId)
         return null
+    }
+
+    private subscribeCandidates(streamId: number): null {
+        this.candidateStreamIds.add(streamId)
+        this.sequences.set(streamId, 0)
+        // the real bridge sends the latest check immediately on subscribe
+        setTimeout(() => this.publishCandidatesTo(streamId), 0)
+        return null
+    }
+
+    /** The bridge's latest replacement check, as a script sets it. */
+    setReplacementCheck(check: RpcFaReplacementCheck | null) {
+        this.replacementCheck = check
+        this.candidateStreamIds.forEach(streamId =>
+            this.publishCandidatesTo(streamId),
+        )
+    }
+
+    private publishCandidatesTo(streamId: number) {
+        if (!this.emitStream || !this.candidateStreamIds.has(streamId)) return
+        const sequence = this.sequences.get(streamId) ?? 0
+        this.sequences.set(streamId, sequence + 1)
+        this.emitStream({
+            stream_id: streamId,
+            sequence,
+            data: structuredCloneish({
+                type: 'ready',
+                check: this.replacementCheck,
+            }),
+        })
+    }
+
+    private subscribeTransfer(streamId: number): null {
+        this.transferStreamIds.add(streamId)
+        this.sequences.set(streamId, 0)
+        // the real bridge sends the current move immediately on subscribe
+        setTimeout(() => this.publishTransferTo(streamId), 0)
+        return null
+    }
+
+    /** The move the bridge's transfer stream reports, as a script sets it. */
+    setGuardianTransfer(transfer: RpcFaGuardianTransfer | null) {
+        this.guardianTransfer = transfer
+        this.transferStreamIds.forEach(streamId =>
+            this.publishTransferTo(streamId),
+        )
+    }
+
+    private publishTransferTo(streamId: number) {
+        if (!this.emitStream || !this.transferStreamIds.has(streamId)) return
+        const sequence = this.sequences.get(streamId) ?? 0
+        this.sequences.set(streamId, sequence + 1)
+        this.emitStream({
+            stream_id: streamId,
+            sequence,
+            data: structuredCloneish({
+                type: 'transfer',
+                transfer: this.guardianTransfer,
+            }),
+        })
     }
 
     /*** Commands ***/
@@ -1393,18 +1452,8 @@ export class FaSimulator implements FaWorld {
                 ),
             }
         }
-        const formation = this.currentFormation()
-        // mirrors `formed_federation_id`: maintenance is post-formation only
-        if (!formation || formation.phase !== 'formed') {
-            return {
-                type: 'error',
-                error: error(
-                    'noActiveFormation',
-                    'federation maintenance is available only after creation',
-                ),
-            }
-        }
-        formation.intent.guardianFeePpm = guardianFeePpm
+        const refused = this.maintenanceRefusal()
+        if (refused) return refused
         this.setWalletServiceMeta(
             GUARDIAN_FEE_SEND_PPM_META_KEY,
             String(guardianFeePpm),
@@ -1416,16 +1465,8 @@ export class FaSimulator implements FaWorld {
     private updateMetadata(
         update: RpcFaFederationMetadataUpdate,
     ): RpcFaOperationResult {
-        const formation = this.currentFormation()
-        if (!formation || formation.phase !== 'formed') {
-            return {
-                type: 'error',
-                error: error(
-                    'noActiveFormation',
-                    'federation maintenance is available only after creation',
-                ),
-            }
-        }
+        const refused = this.maintenanceRefusal()
+        if (refused) return refused
         // published so the settings screens read the saved value back from
         // the preview, as they do against real consensus
         if (update.type === 'appSetting')
@@ -1434,6 +1475,31 @@ export class FaSimulator implements FaWorld {
                 update.value,
             )
         return { type: 'success' }
+    }
+
+    /**
+     * Mirrors `formed_federation_id`: maintenance needs a formed federation
+     * this run has checked. Setup, and a recheck still underway, are refused.
+     */
+    private maintenanceRefusal(): RpcFaOperationResult | null {
+        const status = this.status
+        if (status.type === 'idle' || status.type === 'recovery')
+            return {
+                type: 'error',
+                error: error(
+                    'noActiveFormation',
+                    'no created federation is available for maintenance',
+                ),
+            }
+        if (status.type === 'formed' && status.federation.freshness === 'fresh')
+            return null
+        return {
+            type: 'error',
+            error: error(
+                'invalidIntent',
+                'federation maintenance is available only after setup or recovery completes',
+            ),
+        }
     }
 
     private setWalletServiceMeta(key: string, value: string) {
@@ -1534,10 +1600,7 @@ export class FaSimulator implements FaWorld {
     ): RpcFaLiquidityOperation {
         return {
             operationId: `liquidity_${this.nextId++}`,
-            formationId:
-                this.status.type === 'formation'
-                    ? this.status.formation.formationId
-                    : 'formation_sim',
+            formationId: this.statusFormationId() ?? 'formation_sim',
             providerPubkey: this.liquidityProvider().providerPubkey,
             endpointHint: 'wss://provider.sim',
             detailsPayloadHash: 'sim_payload_hash',
@@ -1608,7 +1671,6 @@ export class FaSimulator implements FaWorld {
             milestones: {
                 ecashSent: false,
                 guardiansConfirmed: false,
-                walletServiceCreated: false,
             },
             inviteCode: null,
             lastError: null,
@@ -1619,6 +1681,18 @@ export class FaSimulator implements FaWorld {
 
     private currentFormation(): RpcFaFormationSnapshot | null {
         return this.status.type === 'formation' ? this.status.formation : null
+    }
+
+    private currentFormedFederation(): RpcFaFormedFederation | null {
+        return this.status.type === 'formed' ? this.status.federation : null
+    }
+
+    private statusFormationId(): string | null {
+        return (
+            this.currentFormation()?.formationId ??
+            this.currentFormedFederation()?.formationId ??
+            null
+        )
     }
 
     private publish() {
