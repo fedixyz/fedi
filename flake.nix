@@ -11,7 +11,7 @@
     # Keep this fork tag aligned with the Fedimint version used by
     # devimint in Cargo.toml; a mismatch makes the upstream bridge test time out during setup.
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.12.0-fedi20";
+      url = "github:fedibtc/fedimint?ref=v0.12.0-fedi22";
     };
 
     fenix = {
@@ -42,7 +42,7 @@
     # dependency. Keep these revisions aligned with Manifold's fa-client and
     # peerbadge-sdk input.
     manifold-src = {
-      url = "github:fedibtc/manifold/c9ff465fc645d25a448734c4851ed41bb74a99e8";
+      url = "github:fedibtc/manifold/98cabbdf64eced5edcc421986d586dfa071e24b9";
       flake = false;
     };
     peerbadge-sdk-src = {
