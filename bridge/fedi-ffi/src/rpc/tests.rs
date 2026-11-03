@@ -954,13 +954,21 @@ async fn test_refunded_lightning_updates_spendable_balance(dev_fed: DevFed) -> a
         .min_final_cltv_expiry_delta(18)
         .amount_milli_satoshis(100_000)
         .build_signed(|message| SECP256K1.sign_ecdsa_recoverable(message, &secret_key))?;
-    let result = payInvoice(
+    let error = payInvoice(
         federation.clone(),
         invoice.to_string(),
         FrontendMetadata::default(),
     )
-    .await;
-    assert!(result.is_err());
+    .await
+    .expect_err("unroutable invoice must fail");
+    // The frontend localizes the error from its wire code, so assert on the
+    // serialized form it receives.
+    let rpc_error = RpcError::from_anyhow(&error);
+    assert_eq!(
+        serde_json::to_value(&rpc_error.error_code)?,
+        serde_json::json!("lnPayRefunded"),
+        "a refunded send must carry a typed error code: {rpc_error:?}"
+    );
     assert!(
         listTransactions(federation.clone(), None, None)
             .await?

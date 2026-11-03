@@ -45,4 +45,20 @@ describe('formatErrorMessage', () => {
             sats: 10_000,
         })
     })
+
+    it.each([
+        ['lnPayRefunded', 'errors.lightning-send-refunded'],
+        ['lnPayFundingRejected', 'errors.lightning-send-rejected'],
+    ] as const)('localizes %s lightning send failures', (errorCode, key) => {
+        const t = jest.fn(
+            (k: string) => `translated:${k}`,
+        ) as unknown as TFunction
+        const err = new BridgeError({
+            error: 'untranslated bridge message',
+            detail: '',
+            errorCode,
+        })
+
+        expect(formatErrorMessage(t, err)).toBe(`translated:${key}`)
+    })
 })

@@ -388,6 +388,8 @@
         "invalid-username": "Must be between 1 and 21 characters",
         "invalid-username-banned": "Please enter a different display name",
         "invoice-already-paid": "This invoice has already been paid.",
+        "lightning-send-refunded": "The payment could not be completed. Your funds were returned to your wallet.",
+        "lightning-send-rejected": "The payment could not be sent. No funds left your wallet.",
         "multispend-cannot-be-broadcast": "Multispend groups cannot be Broadcast-only.",
         "multispend-notes-required": "Please enter a purpose for this withdrawal",
         "network-connection-failed": "Unable to connect. Try switching between Wi-Fi and cellular or disable your VPN.",

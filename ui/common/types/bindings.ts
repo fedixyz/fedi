@@ -108,7 +108,9 @@ export type ErrorCode =
   | "communityDeleted"
   | "pinnedMessageLimitExceeded"
   | "matrixReactionLimitExceeded"
-  | { belowMinimumSendAmount: RpcAmount };
+  | { belowMinimumSendAmount: RpcAmount }
+  | "lnPayRefunded"
+  | "lnPayFundingRejected";
 
 export type Event =
   | { transaction: TransactionEvent }
