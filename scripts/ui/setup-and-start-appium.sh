@@ -138,21 +138,23 @@ fi
 
 if [[ "$DO_IOS" == "1" ]]; then
   echo "=== Setting up iOS driver ==="
+  # XCUITest 13 requires Appium 4; this harness runs Appium 3.
+  IOS_DRIVER_VERSION="10.43.1"
   ios_driver_output=$(grep -i xcuitest "$DRIVER_LIST_FILE" || echo "")
   if [[ -n "$ios_driver_output" ]]; then
     ios_version=$(echo "$ios_driver_output" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    if check_version "$ios_version" "10"; then
+    if [[ "$ios_version" == "$IOS_DRIVER_VERSION" ]]; then
       echo "✓ XCUITest driver $ios_version is correct version"
     else
-      echo "❌ XCUITest driver version $ios_version is wrong, need 10.x"
-      if appium driver uninstall xcuitest && appium driver install xcuitest; then
+      echo "❌ XCUITest driver version $ios_version is wrong, need $IOS_DRIVER_VERSION"
+      if appium driver uninstall xcuitest && appium driver install "xcuitest@$IOS_DRIVER_VERSION"; then
         echo "✓ Installed XCUITest driver"
       else
         echo "❌ Failed to install XCUITest driver"
       fi
     fi
   else
-    if appium driver install xcuitest; then
+    if appium driver install "xcuitest@$IOS_DRIVER_VERSION"; then
       echo "✓ Installed XCUITest driver"
     else
       echo "❌ Failed to install XCUITest driver"
