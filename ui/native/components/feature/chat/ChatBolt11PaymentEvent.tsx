@@ -57,7 +57,7 @@ const ChatBolt11PaymentEvent: React.FC<Props> = ({ event }: Props) => {
     }
 
     return (
-        <PaymentEventContainer>
+        <PaymentEventContainer event={event}>
             <Text style={style.messageText}>{messageText}</Text>
             {extra || null}
         </PaymentEventContainer>

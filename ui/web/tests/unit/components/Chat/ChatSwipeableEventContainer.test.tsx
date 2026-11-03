@@ -380,6 +380,73 @@ describe('ChatSwipeableEventContainer', () => {
         expect(mockDispatch).not.toHaveBeenCalled()
     })
 
+    it('should cancel the tap on a button after a touch long press', async () => {
+        const { getByText } = render(
+            <ChatSwipeableEventContainer event={mockEvent} dragThreshold={60}>
+                <button>Pay</button>
+            </ChatSwipeableEventContainer>,
+        )
+
+        const payButton = getByText('Pay')
+        const touchEnd = createTouchEvent('touchend', 200, 300)
+
+        await act(async () => {
+            payButton.dispatchEvent(createTouchEvent('touchstart', 200, 300))
+            jest.advanceTimersByTime(500)
+        })
+        await act(async () => {
+            payButton.dispatchEvent(touchEnd)
+        })
+
+        expect(getByText('message actions drawer')).toBeInTheDocument()
+        // A cancelled touchend stops the browser from clicking the button.
+        expect(touchEnd.defaultPrevented).toBe(true)
+    })
+
+    it('should cancel the tap after a long press that touchend completes', async () => {
+        const { getByText } = render(
+            <ChatSwipeableEventContainer event={mockEvent} dragThreshold={60}>
+                <button>Pay</button>
+            </ChatSwipeableEventContainer>,
+        )
+
+        const payButton = getByText('Pay')
+        const touchEnd = createTouchEvent('touchend', 200, 300)
+
+        await act(async () => {
+            payButton.dispatchEvent(createTouchEvent('touchstart', 200, 300))
+            jest.setSystemTime(Date.now() + 501)
+        })
+        await act(async () => {
+            payButton.dispatchEvent(touchEnd)
+        })
+
+        expect(getByText('message actions drawer')).toBeInTheDocument()
+        expect(touchEnd.defaultPrevented).toBe(true)
+    })
+
+    it('should keep a short tap on a button', async () => {
+        const { getByText, queryByText } = render(
+            <ChatSwipeableEventContainer event={mockEvent} dragThreshold={60}>
+                <button>Pay</button>
+            </ChatSwipeableEventContainer>,
+        )
+
+        const payButton = getByText('Pay')
+        const touchEnd = createTouchEvent('touchend', 200, 300)
+
+        await act(async () => {
+            payButton.dispatchEvent(createTouchEvent('touchstart', 200, 300))
+            jest.advanceTimersByTime(100)
+        })
+        await act(async () => {
+            payButton.dispatchEvent(touchEnd)
+        })
+
+        expect(queryByText('message actions drawer')).not.toBeInTheDocument()
+        expect(touchEnd.defaultPrevented).toBe(false)
+    })
+
     it('should open message actions when reply is unavailable but reactions are available', async () => {
         mockCanReply = false
         mockMessageReactionsEnabled = true

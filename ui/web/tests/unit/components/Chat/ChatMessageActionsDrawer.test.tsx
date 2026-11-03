@@ -12,7 +12,10 @@ import {
     setupStore,
 } from '@fedi/common/redux'
 import { MOCK_MATRIX_ROOM } from '@fedi/common/tests/mock-data/matrix'
-import { createMockNonPaymentEvent } from '@fedi/common/tests/mock-data/matrix-event'
+import {
+    createMockNonPaymentEvent,
+    createMockPaymentEvent,
+} from '@fedi/common/tests/mock-data/matrix-event'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
     MatrixAuth,
@@ -44,6 +47,12 @@ const nonReplyableEvent = {
         msgtype: 'm.audio',
     },
 } as MatrixEvent
+const PAYMENT_EVENT_ID = '$payment:example.com'
+const paymentEvent = createMockPaymentEvent({
+    id: PAYMENT_EVENT_ID as RpcTimelineEventItemId,
+    roomId: ROOM_ID,
+    content: { status: 'requested' },
+}) as MatrixEvent
 const reactablePollEvent: MatrixEvent<'m.poll'> = {
     id: '$poll-event' as RpcTimelineEventItemId,
     roomId: ROOM_ID,
@@ -235,6 +244,63 @@ describe('/components/Chat/ChatMessageActionsDrawer', () => {
             screen.queryByText(i18n.t('words.react')),
         ).not.toBeInTheDocument()
         expect(screen.queryByLabelText('React 👍')).not.toBeInTheDocument()
+    })
+
+    it('should show quick reactions but no reply for payments', () => {
+        const store = makeReplyableStore()
+        store.dispatch(
+            setFeatureFlags({
+                message_reactions: {},
+            } as FeatureCatalog),
+        )
+
+        renderWithProviders(
+            <ChatMessageActionsDrawer
+                event={paymentEvent}
+                open
+                onOpenChange={jest.fn()}
+            />,
+            { store },
+        )
+
+        expect(screen.getByText(i18n.t('words.react'))).toBeInTheDocument()
+        expect(screen.getByLabelText('React 👍')).toBeInTheDocument()
+        expect(screen.getByLabelText('more reactions')).toBeInTheDocument()
+        expect(
+            screen.queryByText(i18n.t('words.reply')),
+        ).not.toBeInTheDocument()
+    })
+
+    it('should react to the payment entry through the Matrix client', async () => {
+        const store = makeReplyableStore()
+        const toggleReaction = jest.fn().mockResolvedValue(true)
+        store.dispatch(
+            setFeatureFlags({
+                message_reactions: {},
+            } as FeatureCatalog),
+        )
+
+        renderWithProviders(
+            <ChatMessageActionsDrawer
+                event={paymentEvent}
+                open
+                onOpenChange={jest.fn()}
+            />,
+            {
+                store,
+                fedimint: createMockFedimintBridge({
+                    getMatrixClient: () => ({ toggleReaction }),
+                } as any),
+            },
+        )
+
+        await userEvent.click(screen.getByLabelText('React 🎉'))
+
+        expect(toggleReaction).toHaveBeenCalledWith(
+            ROOM_ID,
+            PAYMENT_EVENT_ID,
+            '🎉',
+        )
     })
 
     it('should toggle a quick reaction and close the drawer', async () => {

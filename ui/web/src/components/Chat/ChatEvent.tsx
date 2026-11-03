@@ -200,9 +200,22 @@ export const ChatEvent: React.FC<Props> = ({
         )
     }
 
-    const content = isPaymentEvent(event) ? (
-        <ChatPaymentEvent event={event} />
-    ) : isFormEvent(event) ? (
+    // Payments take reactions through the same long-press actions as
+    // messages. Replies stay off, so the container never starts a swipe.
+    if (isPaymentEvent(event)) {
+        return (
+            <ChatSwipeableEventContainer event={event} isMe={isMe}>
+                <Column fullWidth align={isMe ? 'end' : 'start'}>
+                    <TextContent isMe={isMe} isPayment>
+                        <ChatPaymentEvent event={event} />
+                    </TextContent>
+                    {renderReactions()}
+                </Column>
+            </ChatSwipeableEventContainer>
+        )
+    }
+
+    const content = isFormEvent(event) ? (
         <ChatFormEvent event={event} />
     ) : (
         <>{t('feature.chat.message-could-not-be-displayed')}</>
@@ -210,10 +223,7 @@ export const ChatEvent: React.FC<Props> = ({
 
     return (
         <Column fullWidth align={isMe ? 'end' : 'start'}>
-            <TextContent
-                isMe={isMe}
-                isPayment={isPaymentEvent(event)}
-                isForm={isFormEvent(event)}>
+            <TextContent isMe={isMe} isForm={isFormEvent(event)}>
                 {content}
             </TextContent>
             {renderReactions()}

@@ -170,6 +170,10 @@ export function useLongPress<T extends HTMLElement>(
             if (activated.current && pendingLongPressEvent.current !== null) {
                 const longPressEvent = pendingLongPressEvent.current
 
+                // A completed long-press must not also tap the element under
+                // the finger, such as a Pay button. Cancelling touchend stops
+                // the browser from sending the follow-up click.
+                e.preventDefault()
                 clearLongPressTimeout()
                 onLongPressRef.current(longPressEvent)
                 return
@@ -186,6 +190,7 @@ export function useLongPress<T extends HTMLElement>(
                 // not run yet.
                 const longPressEvent = pendingLongPressEvent.current || e
 
+                e.preventDefault()
                 window.clearTimeout(timeoutId.current)
                 timeoutId.current = null
                 startedAt.current = null

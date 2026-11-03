@@ -1,14 +1,21 @@
 import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
+import React, { createContext, useCallback, useContext } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet } from 'react-native'
+import {
+    ActivityIndicator,
+    Keyboard,
+    Pressable,
+    StyleSheet,
+} from 'react-native'
 
 import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
+import { setSelectedChatMessage } from '@fedi/common/redux'
 import { MSats, MatrixPaymentEvent } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
+import { useAppDispatch } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import { Row, Column } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
@@ -16,6 +23,7 @@ import { OptionalGradient } from '../../ui/OptionalGradient'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { bubbleGradient } from './ChatEvent'
 import ReceiveForeignEcashOverlay from './ReceiveForeignEcashOverlay'
+import { useMessageActionState } from './useMessageActionState'
 
 type Props = {
     event: MatrixPaymentEvent
@@ -69,6 +77,14 @@ export const PaymentEventStatus = ({
     )
 }
 
+/**
+ * The long-press handler of the payment entry around the buttons. A long press
+ * on Pay, Reject or Cancel must open the message actions, not run the button.
+ * Null outside a payment entry, where buttons keep their default behavior.
+ */
+const PaymentEventLongPressContext = createContext<(() => void) | null>(null)
+const ignoreLongPress = () => undefined
+
 export const PaymentEventButtons = ({
     buttons,
     testID,
@@ -78,6 +94,7 @@ export const PaymentEventButtons = ({
 }) => {
     const { theme } = useTheme()
     const style = styles(theme)
+    const onEntryLongPress = useContext(PaymentEventLongPressContext)
 
     return (
         <Row justify="start" gap="md" fullWidth style={style.paymentButtons}>
@@ -88,6 +105,7 @@ export const PaymentEventButtons = ({
                     color={theme.colors.secondary}
                     size="sm"
                     onPress={button.handler}
+                    onLongPress={onEntryLongPress ?? undefined}
                     loading={button.loading}
                     disabled={button.disabled}
                     title={
@@ -102,19 +120,39 @@ export const PaymentEventButtons = ({
 }
 
 export const PaymentEventContainer = ({
+    event,
     children,
 }: {
+    event: MatrixPaymentEvent
     children: React.ReactNode
 }) => {
+    const { t } = useTranslation()
     const { theme } = useTheme()
+    const dispatch = useAppDispatch()
     const style = styles(theme)
+    const { hasAnyAction } = useMessageActionState({ t, message: event })
+
+    const handleLongPress = useCallback(() => {
+        Keyboard.dismiss()
+        requestAnimationFrame(() => {
+            dispatch(setSelectedChatMessage(event))
+        })
+    }, [dispatch, event])
+
+    // Without actions, a long press on a button is still swallowed so that it
+    // never pays, rejects or cancels.
+    const onLongPress = hasAnyAction ? handleLongPress : ignoreLongPress
 
     return (
-        <OptionalGradient
-            gradient={bubbleGradient}
-            style={[style.bubbleInner, style.orangeBubble]}>
-            {children}
-        </OptionalGradient>
+        <PaymentEventLongPressContext.Provider value={onLongPress}>
+            <Pressable onLongPress={hasAnyAction ? handleLongPress : undefined}>
+                <OptionalGradient
+                    gradient={bubbleGradient}
+                    style={[style.bubbleInner, style.orangeBubble]}>
+                    {children}
+                </OptionalGradient>
+            </Pressable>
+        </PaymentEventLongPressContext.Provider>
     )
 }
 
@@ -191,7 +229,7 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
     }
 
     return (
-        <PaymentEventContainer>
+        <PaymentEventContainer event={event}>
             <>
                 <Column gap="lg">
                     <Text color={theme.colors.secondary}>{messageText}</Text>

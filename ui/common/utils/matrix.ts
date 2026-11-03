@@ -813,6 +813,17 @@ export function canReplyToMatrixEvent(event: MatrixEvent) {
     )
 }
 
+/**
+ * Members can react to the messages they can reply to, and to payment
+ * entries, which take reactions but no replies.
+ */
+export function canReactToMatrixEvent(event: MatrixEvent) {
+    return (
+        event.canReact &&
+        (canReplyToMatrixEvent(event) || isPaymentEvent(event))
+    )
+}
+
 export function isEncryptedEvent(
     event: MatrixEvent,
 ): event is MatrixEvent<'unableToDecrypt'> {
