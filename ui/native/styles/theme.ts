@@ -1,6 +1,7 @@
 import { DefaultTheme as NavigationDefaultTheme } from '@react-navigation/native'
 import { ButtonProps, createTheme, lightColors } from '@rneui/themed'
-import { Dimensions, ViewStyle } from 'react-native'
+import { Component } from 'react'
+import { Dimensions, TouchableOpacity, ViewStyle } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
@@ -128,6 +129,9 @@ const theme = createTheme({
                 : {}),
         }),
         Button: props => ({
+            // with the native ripple touchable, RN 0.81 Android stops repainting background
+            // color changes such as disabled to enabled (facebook/react-native#54455)
+            TouchableComponent: TouchableOpacity as unknown as typeof Component,
             size: 'lg',
             containerStyle: {
                 ...(props.fullWidth ? { width: '100%' } : {}),
