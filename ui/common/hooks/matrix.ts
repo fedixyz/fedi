@@ -728,8 +728,12 @@ export function useMatrixPaymentEvent({
     const isBolt11 = !!event.content.bolt11
     const receiveState =
         transaction?.kind === 'oobReceive' ? transaction.state?.type : undefined
+    // A cancel by the sender settles the payment whatever the receive did.
     const paymentStatus =
-        !isBolt11 && isRecipient && receiveState === 'failed'
+        !isBolt11 &&
+        isRecipient &&
+        receiveState === 'failed' &&
+        event.content.status !== 'canceled'
             ? 'failed'
             : !isBolt11 &&
                 isRecipient &&

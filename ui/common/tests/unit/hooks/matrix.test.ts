@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { ROOM_MENTION } from '@fedi/common/constants/matrix'
 import {
     useMatrixFormEvent,
+    useMatrixPaymentEvent,
     useMatrixPaymentTransaction,
     useMentionInput,
     useMatrixRoomPreview,
@@ -533,6 +534,60 @@ describe('useMatrixPaymentTransaction', () => {
         expect(result.current.transaction).toEqual(failed)
         expect(result.current.isLoading).toBe(false)
         expect(result.current.error).toBeNull()
+    })
+})
+
+describe('useMatrixPaymentEvent', () => {
+    const recipient = '@recipient:example.com'
+    const t = createMockT()
+
+    // The recipient's own receive failed, then the sender reclaimed the
+    // notes and announced it.
+    const renderRecipientRow = async (status: 'received' | 'canceled') => {
+        const store = setupStore()
+        store.dispatch(setMatrixAuth({ userId: recipient } as MatrixAuth))
+        store.dispatch(setFederations([mockFederation1]))
+        const failedReceive: RpcTransaction = {
+            ...createMockTransaction(),
+            id: 'receive-op',
+            kind: 'oobReceive',
+            state: { type: 'failed', error: 'rejected by federation' },
+        }
+        const bridge = createMockFedimintBridge({
+            getTransaction: failedReceive,
+        })
+        const event = createMockPaymentEvent({
+            sender: status === 'canceled' ? '@sender:example.com' : recipient,
+            content: {
+                status,
+                ecash: 'test-ecash',
+                senderId: '@sender:example.com',
+                recipientId: recipient,
+                receiverOperationId: 'receive-op',
+                federationId: mockFederation1.id,
+            },
+        })
+        const { result } = renderHookWithState(
+            () => useMatrixPaymentEvent({ event, t, onError: jest.fn() }),
+            store,
+            bridge,
+        )
+        await waitFor(() =>
+            expect(result.current.transaction).toEqual(failedReceive),
+        )
+        return result.current
+    }
+
+    it('shows a stale receipt as failed when the receive failed', async () => {
+        const row = await renderRecipientRow('received')
+        expect(row.statusText).toBe('words.failed')
+    })
+
+    it('shows a payment the sender canceled after a failed receive as canceled', async () => {
+        const row = await renderRecipientRow('canceled')
+        expect(row.statusText).toBe('words.canceled')
+        expect(row.statusHelp).toBeUndefined()
+        expect(row.buttons).toEqual([])
     })
 })
 
