@@ -958,6 +958,33 @@ describe('screens/WalletServiceSettings', () => {
             await user.press(screen.getByTestId('settings-lightning-row'))
         }
 
+        it('should give the provider reason rather than a setup error', async () => {
+            renderScreen({
+                liquidity: {
+                    ...(rejected as object),
+                    rejectionCode: 'insufficient_capacity',
+                } as never,
+            })
+
+            await user.press(screen.getByTestId('settings-lightning-row'))
+
+            expect(
+                screen.getByText(
+                    new RegExp(
+                        i18n.t(
+                            'feature.wallet-service.lightning-rejected-insufficient-capacity',
+                        ),
+                    ),
+                ),
+            ).toBeOnTheScreen()
+            expect(
+                screen.queryByText(
+                    new RegExp(i18n.t('feature.wallet-service.error-generic')),
+                ),
+            ).toBeNull()
+            expect(screen.queryByTestId('lightning-stage-requested')).toBeNull()
+        })
+
         it('should invite a retry once the request has settled', async () => {
             renderScreen({ liquidity: rejected })
 

@@ -63,20 +63,18 @@ export const lightningNoProvider = provider('lightning.noProvider', [
 export const lightningWrongNetwork = provider('lightning.wrongNetwork', [
     act(ctx => ctx.world.setLiquidityNetwork('bitcoin')),
 ])
+/**
+ * The provider refuses every request on its first status read, as one with no
+ * free liquidity does. Try again makes a new request, which is refused too.
+ */
+const refusesForCapacity = stub('faClientLiquidityStatus', (_, ctx) => {
+    ctx.world.rejectLiquidity('insufficient_capacity')
+    const operation = ctx.world.currentLiquidityOperation()
+    return operation ? { type: 'operation', operation } : noOperation
+})
+
 export const lightningRejected = provider('lightning.rejected', [
-    stub('faClientLiquidityStatus', (_, ctx) => {
-        const operation = ctx.world.currentLiquidityOperation()
-        return operation
-            ? {
-                  type: 'operation',
-                  operation: {
-                      ...operation,
-                      phase: 'rejected',
-                      rejectionCode: 'intentRefused',
-                  },
-              }
-            : noOperation
-    }),
+    refusesForCapacity,
 ])
 export const lightningNeverVerifies = provider('lightning.neverVerifies', [
     stuckStatus,
@@ -88,6 +86,15 @@ export const lightningAlreadyAttaching: FaScript = script(
         ...formed,
         act(ctx => ctx.world.startLiquidity({ verified: false })),
         stuckStatus,
+        checkpoint('settings'),
+    ],
+)
+export const lightningRejectedInSettings: FaScript = script(
+    'lightning.rejectedInSettings',
+    [
+        ...formed,
+        act(ctx => ctx.world.startLiquidity({ verified: false })),
+        refusesForCapacity,
         checkpoint('settings'),
     ],
 )
@@ -109,5 +116,6 @@ export const LIGHTNING_SCRIPTS: FaScript[] = [
     lightningRejected,
     lightningNeverVerifies,
     lightningAlreadyAttaching,
+    lightningRejectedInSettings,
     lightningAlreadyAttached,
 ]
