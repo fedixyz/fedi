@@ -31,7 +31,10 @@ import {
 
 import type { RpcTransaction, TransactionEvent } from '../../../types/bindings'
 import { mockFederation1 } from '../../mock-data/federation'
-import { MOCK_MATRIX_ROOM } from '../../mock-data/matrix'
+import {
+    createMockGroupPreview,
+    MOCK_MATRIX_ROOM,
+} from '../../mock-data/matrix'
 import {
     createMockNonPaymentEvent,
     createMockPaymentEvent,
@@ -345,6 +348,73 @@ describe('useMatrixRoomPreview', () => {
             isNotice: 'current room draft',
             isPublicBroadcast: null,
         })
+    })
+})
+
+describe('useMatrixRoomPreview > default chats', () => {
+    const roomId = '!default-chat:example.com'
+    let store: ReturnType<typeof setupStore>
+
+    // Seeds the default-chat preview the way previewCommunityDefaultChats
+    // does: fetched once for a non-member, then never refreshed.
+    function seedDefaultChatPreview(overrides: Partial<MatrixRoom> = {}) {
+        store.dispatch({
+            type: 'matrix/previewCommunityDefaultChats/fulfilled',
+            payload: [createMockGroupPreview({ id: roomId, ...overrides })],
+            meta: { arg: { communityId: 'community' } },
+        })
+    }
+
+    beforeEach(() => {
+        jest.clearAllMocks()
+        store = setupStore()
+    })
+
+    it('follows the live room once the user has joined', () => {
+        // The cached preview's latest message is "Hello".
+        seedDefaultChatPreview()
+        // The synced room has moved on: a newer, unread message.
+        addMatrixRoomToStore(store, {
+            ...MOCK_MATRIX_ROOM,
+            id: roomId,
+            roomState: 'joined',
+            notificationCount: 1,
+            preview: createMockNonPaymentEvent({
+                roomId,
+                content: { body: 'Posted after launch' },
+            }),
+        })
+
+        const { result } = renderHookWithState(
+            () => useMatrixRoomPreview({ roomId, t: createMockT() }),
+            store,
+        )
+
+        expect(result.current.text).toBe('Posted after launch')
+        expect(result.current.isUnread).toBe(true)
+    })
+
+    it('reads the kind of a chat the user has not joined from its preview', () => {
+        seedDefaultChatPreview({ isPublic: true, broadcastOnly: true })
+
+        const { result } = renderHookWithState(
+            () => useMatrixRoomPreview({ roomId, t: createMockT() }),
+            store,
+        )
+
+        expect(result.current.isPublicBroadcast).toBe(true)
+        expect(result.current.text).toBe('Hello')
+    })
+
+    it('does not call an unjoined public chat a broadcast unless its preview says so', () => {
+        seedDefaultChatPreview({ isPublic: true, broadcastOnly: false })
+
+        const { result } = renderHookWithState(
+            () => useMatrixRoomPreview({ roomId, t: createMockT() }),
+            store,
+        )
+
+        expect(result.current.isPublicBroadcast).toBe(false)
     })
 })
 

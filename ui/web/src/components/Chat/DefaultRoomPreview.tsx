@@ -21,12 +21,13 @@ import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { Icon } from '../Icon'
+import { NotificationDot } from '../NotificationDot'
 import { Text } from '../Text'
 
 export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
     const { t } = useTranslation()
     const router = useRouter()
-    const { text, isPublicBroadcast } = useMatrixRoomPreview({
+    const { text, isUnread, isPublicBroadcast } = useMatrixRoomPreview({
         roomId: room.id,
         t,
     })
@@ -43,9 +44,13 @@ export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
 
     return (
         <DefaultRoomContainer href={chatRoomRoute(room.id)}>
-            <IconContainer>
-                <Icon icon={isPublicBroadcast ? 'SpeakerPhone' : 'Chat'} />
-            </IconContainer>
+            <NotificationDot
+                visible={isUnread}
+                testId="DefaultRoomPreview__unread">
+                <IconContainer>
+                    <Icon icon={isPublicBroadcast ? 'SpeakerPhone' : 'Chat'} />
+                </IconContainer>
+            </NotificationDot>
             <DefaultRoomText>
                 <Text variant="body" weight="bold" ellipsize>
                     {title}

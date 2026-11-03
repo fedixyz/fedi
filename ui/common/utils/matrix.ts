@@ -26,6 +26,7 @@ import {
     MatrixMentions,
     MatrixMultispendEvent,
     MatrixPaymentEvent,
+    MatrixPowerLevel,
     MatrixRoom,
     MatrixRoomMember,
     MatrixRoomPowerLevels,
@@ -415,9 +416,6 @@ export function makeChatFromUnjoinedRoomPreview(preview: MatrixGroupPreview) {
     const chat: MatrixRoom = {
         ...info,
         preview: chatPreview,
-        // all previews are default rooms which can be either public chat rooms or public broadcast rooms
-        // TODO: allow non-default, non-broadcast only previewing of rooms
-        broadcastOnly: true,
     }
 
     return chat
@@ -473,6 +471,16 @@ export function getRoomEventPowerLevel(
         }
     }
     return powerLevels.events_default || 0
+}
+
+// A room is broadcast-only when sending a message takes moderator rights.
+export function isBroadcastOnlyRoom(powerLevels: MatrixRoomPowerLevels) {
+    return (
+        getRoomEventPowerLevel(powerLevels, [
+            'm.room.message',
+            'unableToDecrypt',
+        ]) >= MatrixPowerLevel.Moderator
+    )
 }
 
 export const makeMatrixPaymentText = ({

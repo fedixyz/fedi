@@ -98,6 +98,7 @@ import {
     getReceivablePaymentEvents,
     getRoomEventPowerLevel,
     getUserSuffix,
+    isBroadcastOnlyRoom,
     isMultispendInvitation,
     isMultispendWithdrawalEvent,
     isPaymentEvent,
@@ -2614,10 +2615,7 @@ export const selectMatrixRooms = createSelector(
             rooms.push({
                 ...room,
                 broadcastOnly: powerLevels
-                    ? getRoomEventPowerLevel(powerLevels, [
-                          'm.room.message',
-                          'unableToDecrypt',
-                      ]) >= MatrixPowerLevel.Moderator
+                    ? isBroadcastOnlyRoom(powerLevels)
                     : false,
                 isBlocked: room.directUserId
                     ? ignoredUsers.includes(room.directUserId)

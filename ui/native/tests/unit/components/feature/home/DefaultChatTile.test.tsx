@@ -11,6 +11,7 @@ import {
     createMockGroupPreview,
     MOCK_MATRIX_ROOM,
 } from '@fedi/common/tests/mock-data/matrix'
+import { createMockNonPaymentEvent } from '@fedi/common/tests/mock-data/matrix-event'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import type { Community, MatrixRoom } from '@fedi/common/types'
 import { makeUnpreviewableDefaultChat } from '@fedi/common/utils/matrix'
@@ -31,6 +32,17 @@ const INVITE_ONLY = i18n.t('feature.chat.invite-only')
 const REQUEST_TO_JOIN = i18n.t('feature.chat.request-to-join-group')
 const REQUEST_PENDING = i18n.t('feature.chat.request-to-join-pending')
 const NO_MESSAGES = i18n.t('feature.chat.no-messages')
+
+// Render each icon as its name so a test can tell which one the tile shows.
+jest.mock('../../../../../components/ui/SvgImage', () => {
+    const { Text } = jest.requireActual('react-native')
+    return {
+        __esModule: true,
+        default: ({ name }: { name: string }) => (
+            <Text testID={`SvgImage-${name}`}>{name}</Text>
+        ),
+    }
+})
 
 const mockJoinRoom = jest.fn()
 const mockKnockRoom = jest.fn()
@@ -392,6 +404,85 @@ describe('/components/feature/home/DefaultChatTile', () => {
 
         expect(screen.queryByText(JOIN)).toBeNull()
         expect(screen.queryByText(PENDING)).toBeNull()
+    })
+
+    it('shows the unread dot for a joined chat with unread messages', () => {
+        const store = createStoreWithDefaultChat({ isPublic: true })
+        addMembership(store, 'joined', { notificationCount: 2 })
+
+        renderWithProviders(
+            <DefaultChatTile room={createDefaultChatRoom()} />,
+            { store, fedimint: createFedimint() },
+        )
+
+        expect(
+            screen.getByTestId('DefaultChatTileUnreadIndicator'),
+        ).toBeOnTheScreen()
+    })
+
+    it('shows no unread dot once the joined chat is read', () => {
+        const store = createStoreWithDefaultChat({ isPublic: true })
+        addMembership(store, 'joined', { notificationCount: 0 })
+
+        renderWithProviders(
+            <DefaultChatTile room={createDefaultChatRoom()} />,
+            { store, fedimint: createFedimint() },
+        )
+
+        expect(
+            screen.queryByTestId('DefaultChatTileUnreadIndicator'),
+        ).toBeNull()
+    })
+
+    it("shows a joined chat's latest synced message, not the preview cached at launch", () => {
+        // The cached preview's latest message is "Hello".
+        const store = createStoreWithDefaultChat({ isPublic: true })
+        addMembership(store, 'joined', {
+            preview: createMockNonPaymentEvent({
+                roomId: TEST_ROOM_ID,
+                content: { body: 'Posted after launch' },
+            }),
+        })
+
+        renderWithProviders(
+            <DefaultChatTile room={createDefaultChatRoom()} />,
+            { store, fedimint: createFedimint() },
+        )
+
+        expect(screen.getByText('Posted after launch')).toBeOnTheScreen()
+        expect(screen.queryByText('Hello')).toBeNull()
+    })
+
+    it('shows the broadcast icon for a broadcast chat the user has not joined', () => {
+        renderWithProviders(
+            <DefaultChatTile room={createDefaultChatRoom()} />,
+            {
+                store: createStoreWithDefaultChat({
+                    isPublic: true,
+                    broadcastOnly: true,
+                }),
+                fedimint: createFedimint(),
+            },
+        )
+
+        expect(screen.getByTestId('SvgImage-SpeakerPhone')).toBeOnTheScreen()
+        expect(screen.queryByTestId('SvgImage-Chat')).toBeNull()
+    })
+
+    it('shows the chat icon for a regular chat the user has not joined', () => {
+        renderWithProviders(
+            <DefaultChatTile room={createDefaultChatRoom()} />,
+            {
+                store: createStoreWithDefaultChat({
+                    isPublic: true,
+                    broadcastOnly: false,
+                }),
+                fedimint: createFedimint(),
+            },
+        )
+
+        expect(screen.getByTestId('SvgImage-Chat')).toBeOnTheScreen()
+        expect(screen.queryByTestId('SvgImage-SpeakerPhone')).toBeNull()
     })
 
     it('never offers to join a Fedi Global community chat', () => {

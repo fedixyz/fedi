@@ -8,12 +8,16 @@ import {
 } from '../../../hooks/matrix'
 import {
     ignoreUser,
+    joinMatrixRoom,
+    previewCommunityDefaultChats,
     selectMatrixAuth,
+    selectMatrixRoom,
     selectMatrixRoomEvents,
     sendMatrixDirectMessage,
     sendMatrixMessage,
+    upsertCommunity,
 } from '../../../redux'
-import { Sats } from '../../../types'
+import { Community, Sats } from '../../../types'
 import { RpcTimelineEventItemId } from '../../../types/bindings'
 import { isTextEvent } from '../../../utils/matrix'
 import { createIntegrationTestBuilder } from '../../utils/remote-bridge-setup'
@@ -193,6 +197,152 @@ describe('useMatrixRoomPreview > groups', () => {
             )
             expect(roomResult.current.isNotice).toBeTruthy()
         })
+    })
+})
+
+describe('useMatrixRoomPreview > community default chats', () => {
+    const adminBuilder = createIntegrationTestBuilder()
+    const admin = adminBuilder.getContext()
+    const memberBuilder = createIntegrationTestBuilder()
+    const member = memberBuilder.getContext()
+
+    // Puts the rooms in a community's default chats on the member's side and
+    // fetches their previews the way the app does at launch.
+    async function previewAsDefaultChats(roomIds: string[]) {
+        const community: Community = {
+            id: 'default-chats-community',
+            name: 'Default chats community',
+            status: 'active',
+            communityInvite: {
+                type: 'legacy',
+                invite_code_str: 'default-chats-community',
+                community_meta_url: 'https://example.com/meta.json',
+            },
+            meta: { default_group_chats: JSON.stringify(roomIds) },
+        }
+        await act(async () => {
+            member.store.dispatch(upsertCommunity(community))
+            await member.store
+                .dispatch(
+                    previewCommunityDefaultChats({
+                        fedimint: member.bridge.fedimint,
+                        communityId: community.id,
+                    }),
+                )
+                .unwrap()
+        })
+    }
+
+    // The admin creates a public broadcast room and a public group room and
+    // posts in each, then the member previews both as default chats.
+    async function setupDefaultChats() {
+        await adminBuilder.withChatReady()
+        await memberBuilder.withChatReady()
+
+        const broadcastRoomId = await adminBuilder.withChatGroupCreated(
+            'announcements',
+            true,
+            true,
+        )
+        const groupRoomId = await adminBuilder.withChatGroupCreated(
+            'town square',
+            true,
+            false,
+        )
+        await act(async () => {
+            for (const roomId of [broadcastRoomId, groupRoomId]) {
+                await admin.store
+                    .dispatch(
+                        sendMatrixMessage({
+                            fedimint: admin.bridge.fedimint,
+                            roomId,
+                            body: 'posted before launch',
+                        }),
+                    )
+                    .unwrap()
+            }
+        })
+        // Sending returns once the message is queued; wait for the homeserver
+        // to echo it back before another user previews the rooms.
+        await waitFor(
+            () => {
+                for (const roomId of [broadcastRoomId, groupRoomId]) {
+                    const preview = selectMatrixRoom(
+                        admin.store.getState(),
+                        roomId,
+                    )?.preview
+                    expect(preview?.localEcho).toBe(false)
+                }
+            },
+            { timeout: 15000 },
+        )
+
+        await previewAsDefaultChats([broadcastRoomId, groupRoomId])
+
+        const { result: broadcast } = renderHookWithBridge(
+            () =>
+                useMatrixRoomPreview({ roomId: broadcastRoomId, t: i18next.t }),
+            member.store,
+            member.bridge.fedimint,
+        )
+        const { result: group } = renderHookWithBridge(
+            () => useMatrixRoomPreview({ roomId: groupRoomId, t: i18next.t }),
+            member.store,
+            member.bridge.fedimint,
+        )
+        return { groupRoomId, broadcast, group }
+    }
+
+    it("reads an unjoined chat's kind from the homeserver", async () => {
+        const { broadcast, group } = await setupDefaultChats()
+
+        expect(broadcast.current.isPublicBroadcast).toBe(true)
+        expect(group.current.isPublicBroadcast).toBe(false)
+        expect(group.current.text).toBe('posted before launch')
+    })
+
+    it("follows a joined chat's messages posted after its preview was fetched", async () => {
+        const { groupRoomId, group } = await setupDefaultChats()
+
+        await act(async () => {
+            await member.store
+                .dispatch(
+                    joinMatrixRoom({
+                        fedimint: member.bridge.fedimint,
+                        roomId: groupRoomId,
+                        isPublic: true,
+                    }),
+                )
+                .unwrap()
+        })
+        await waitFor(
+            () =>
+                expect(
+                    selectMatrixRoom(member.store.getState(), groupRoomId)
+                        ?.roomState,
+                ).toBe('joined'),
+            { timeout: 15000 },
+        )
+
+        await act(async () => {
+            await admin.store
+                .dispatch(
+                    sendMatrixMessage({
+                        fedimint: admin.bridge.fedimint,
+                        roomId: groupRoomId,
+                        body: 'posted after launch',
+                    }),
+                )
+                .unwrap()
+        })
+
+        await waitFor(
+            () => {
+                expect(group.current.text).toBe('posted after launch')
+                expect(group.current.isUnread).toBe(true)
+            },
+            { timeout: 15000 },
+        )
     })
 })
 

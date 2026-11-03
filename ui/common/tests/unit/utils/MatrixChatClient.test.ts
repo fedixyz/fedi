@@ -430,6 +430,7 @@ describe('MatrixChatClient', () => {
                 matrixGetRoomPreview: jest.fn(),
                 matrixPublicRoomInfo: jest.fn(),
                 matrixRoomPreviewContent: jest.fn(),
+                matrixRoomPreviewPowerLevels: jest.fn(),
             }
         })
 
@@ -503,6 +504,56 @@ describe('MatrixChatClient', () => {
             expect(result.info.name).toBe('Public Room')
         })
 
+        it.each([
+            [
+                'sending messages takes moderator rights',
+                { events: { 'm.room.message': 50 }, events_default: 0 },
+                true,
+            ],
+            [
+                'any member can send messages',
+                { events: { 'm.room.topic': 50 }, events_default: 0 },
+                false,
+            ],
+        ])(
+            'reads broadcast-only from the power levels when %s',
+            async (_case, powerLevels, broadcastOnly) => {
+                const fed = (
+                    client as unknown as {
+                        fedimint: Record<string, jest.Mock>
+                    }
+                ).fedimint
+                fed.matrixGetRoomPreview.mockResolvedValue(
+                    makePreview({ joinRule: 'public' }),
+                )
+                fed.matrixRoomPreviewContent.mockResolvedValue([])
+                fed.matrixRoomPreviewPowerLevels.mockResolvedValue(powerLevels)
+
+                const result = await client.getRoomPreview(ROOM_ID)
+
+                expect(fed.matrixRoomPreviewPowerLevels).toHaveBeenCalledWith({
+                    roomId: ROOM_ID,
+                })
+                expect(result.info.broadcastOnly).toBe(broadcastOnly)
+            },
+        )
+
+        it('leaves broadcast-only unknown when the power levels are hidden', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixGetRoomPreview.mockResolvedValue(
+                makePreview({ joinRule: 'knock' }),
+            )
+            fed.matrixRoomPreviewContent.mockRejectedValue(new Error('403'))
+            fed.matrixRoomPreviewPowerLevels.mockRejectedValue(new Error('403'))
+
+            const result = await client.getRoomPreview(ROOM_ID)
+
+            expect(result.info.broadcastOnly).toBeUndefined()
+            expect(result.info.name).toBe('Group Name')
+        })
+
         it('rethrows when both preview paths fail', async () => {
             const fed = (
                 client as unknown as { fedimint: Record<string, jest.Mock> }
@@ -528,6 +579,7 @@ describe('MatrixChatClient', () => {
                 matrixGetRoomPreview: jest.fn(),
                 matrixPublicRoomInfo: jest.fn(),
                 matrixRoomPreviewContent: jest.fn(),
+                matrixRoomPreviewPowerLevels: jest.fn(),
             }
         })
 
@@ -548,6 +600,26 @@ describe('MatrixChatClient', () => {
             expect(result.info.isPublic).toBe(true)
             expect(result.info.allowKnocking).toBe(false)
             expect(fed.matrixGetRoomPreview).not.toHaveBeenCalled()
+        })
+
+        it('reads broadcast-only from the power levels', async () => {
+            const fed = (
+                client as unknown as { fedimint: Record<string, jest.Mock> }
+            ).fedimint
+            fed.matrixPublicRoomInfo.mockResolvedValue({
+                id: ROOM_ID,
+                name: 'Public Room',
+                avatarUrl: null,
+                joinedMemberCount: 7,
+            })
+            fed.matrixRoomPreviewContent.mockResolvedValue([])
+            fed.matrixRoomPreviewPowerLevels.mockResolvedValue({
+                events_default: 50,
+            })
+
+            const result = await client.getPublicRoomPreview(ROOM_ID)
+
+            expect(result.info.broadcastOnly).toBe(true)
         })
 
         it('propagates timeline failures instead of swallowing them', async () => {

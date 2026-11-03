@@ -2023,6 +2023,10 @@ export type RpcMethods = {
   matrixUnignoreUser: [matrixUnignoreUser, null];
   matrixListIgnoredUsers: [matrixListIgnoredUsers, Array<RpcUserId>];
   matrixRoomPreviewContent: [matrixRoomPreviewContent, Array<RpcTimelineItem>];
+  matrixRoomPreviewPowerLevels: [
+    matrixRoomPreviewPowerLevels,
+    RpcRoomPowerLevelsEventContent,
+  ];
   matrixPublicRoomInfo: [matrixPublicRoomInfo, RpcPublicRoomInfo];
   matrixGetRoomPreview: [matrixGetRoomPreview, RpcRoomPreview];
   matrixRoomMarkAsUnread: [matrixRoomMarkAsUnread, null];
@@ -3402,6 +3406,8 @@ export type matrixRoomMarkAsUnread = { roomId: RpcRoomId; unread: boolean };
 export type matrixRoomPinMessage = { roomId: RpcRoomId; eventId: RpcEventId };
 
 export type matrixRoomPreviewContent = { roomId: RpcRoomId };
+
+export type matrixRoomPreviewPowerLevels = { roomId: RpcRoomId };
 
 export type matrixRoomSendReceipt = { roomId: RpcRoomId; eventId: string };
 
