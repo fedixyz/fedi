@@ -18,7 +18,7 @@ import {
     selectShouldShowJoinOnChatPreview,
     sendMatrixMessage,
 } from '@fedi/common/redux'
-import { ChatType, InputAttachment, InputMedia } from '@fedi/common/types'
+import { ChatType } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 import { stripFileUriPrefix } from '@fedi/common/utils/media'
 
@@ -27,7 +27,9 @@ import ChatEncryptionIndicator from '../components/feature/chat/ChatEncryptionIn
 import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConversation'
 import ConnectionRequestBanner from '../components/feature/chat/ConnectionRequestBanner'
 import KnockPendingView from '../components/feature/chat/KnockPendingView'
-import MessageInput from '../components/feature/chat/MessageInput'
+import MessageInput, {
+    MessageInputProps,
+} from '../components/feature/chat/MessageInput'
 import PinnedMessageBanner from '../components/feature/chat/PinnedMessageBanner'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import MultispendChatBanner from '../components/feature/multispend/MultispendChatBanner'
@@ -117,12 +119,8 @@ const ChatRoomConversation: React.FC<Props> = ({
         }
     }, [isJoining, joinPublicGroup, navigation, roomId, groupPreview])
 
-    const handleSend = useCallback(
-        async (
-            body: string,
-            attachments: Array<InputAttachment | InputMedia> = [],
-            repliedEventId?: string,
-        ) => {
+    const handleSend = useCallback<MessageInputProps['onMessageSubmitted']>(
+        async (body, attachments = [], repliedEventId, onPartSent) => {
             if ((!body && !attachments.length) || isSending) return
 
             setIsSending(true)
@@ -141,6 +139,7 @@ const ChatRoomConversation: React.FC<Props> = ({
                             options: { interceptBolt11: chatType === 'direct' },
                         }),
                     ).unwrap()
+                    onPartSent?.('body')
                 }
 
                 for (const att of attachments) {
@@ -160,6 +159,7 @@ const ChatRoomConversation: React.FC<Props> = ({
                         },
                         filePath,
                     })
+                    onPartSent?.(att)
                 }
             } catch (err) {
                 log.error('error sending message', err)
