@@ -2873,19 +2873,60 @@ async fn command_channel_preserves_typed_start_and_resume_liquidity_responses() 
         .expect("the typed response supervisor shuts down");
 }
 
-#[tokio::test]
-async fn directory_is_refetched_when_consensus_names_the_new_host() {
-    let transfer_at = |phase| GuardianTransfer {
+fn transfer_at(phase: GuardianTransferPhase) -> GuardianTransfer {
+    GuardianTransfer {
         seat_index: 2,
         source_mg_id: Keys::generate().public_key(),
         source_seat_id: fa_client::SeatId::new("aa".repeat(32)).unwrap(),
         destination_mg_id: Keys::generate().public_key(),
         destination_seat_id: Some(fa_client::SeatId::new("bb".repeat(32)).unwrap()),
         phase,
-    };
-    // the move a previous run finished; the federation reads its metadata
-    // when it loads, so this needs no refetch
-    let (sender, receiver) = watch::channel(Some(transfer_at(GuardianTransferPhase::Completed)));
+    }
+}
+
+#[test]
+fn directory_is_not_refetched_for_the_transfer_found_at_start() {
+    use futures::FutureExt as _;
+
+    for phase in [
+        GuardianTransferPhase::RemovingSource,
+        GuardianTransferPhase::Completed,
+    ] {
+        // a move an earlier run left here; the federation reads its metadata
+        // when it loads, so this needs no refetch
+        let (sender, receiver) = watch::channel(Some(transfer_at(phase)));
+        let refreshes = AtomicUsize::new(0);
+        let mut refresh_loop = std::pin::pin!(refresh_directory_on_transfer(receiver, || {
+            refreshes.fetch_add(1, AtomicOrdering::SeqCst);
+        }));
+        // each poll runs the loop until it next waits for a change, so the
+        // loop has read the starting value by the first assert
+        let mut settle = |transfer: Option<Option<GuardianTransfer>>| {
+            if let Some(transfer) = transfer {
+                sender.send_replace(transfer);
+            }
+            assert!(refresh_loop.as_mut().now_or_never().is_none());
+            refreshes.load(AtomicOrdering::SeqCst)
+        };
+
+        assert_eq!(settle(None), 0, "{phase:?} at start");
+        assert_eq!(
+            settle(Some(Some(transfer_at(phase)))),
+            0,
+            "{phase:?} reported again is not a change"
+        );
+        assert_eq!(settle(Some(None)), 0);
+        assert_eq!(
+            settle(Some(Some(transfer_at(phase)))),
+            1,
+            "{phase:?} reached later still refetches"
+        );
+    }
+}
+
+#[tokio::test]
+async fn directory_is_refetched_when_consensus_names_the_new_host() {
+    let (sender, receiver) = watch::channel(None);
     let refreshes = Arc::new(AtomicUsize::new(0));
     let task = fedimint_core::task::spawn(
         "transfer directory refresh test",
@@ -2905,7 +2946,6 @@ async fn directory_is_refetched_when_consensus_names_the_new_host() {
         }
     };
 
-    send_and_settle(None).await;
     for phase in [
         GuardianTransferPhase::BuyingSeat,
         GuardianTransferPhase::AwaitingSource,
