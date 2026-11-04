@@ -249,7 +249,8 @@ async function joinFederationToReceive(t: AppiumTestBase): Promise<void> {
     if (cutOff) await removeDevfedPortsFromDevice(t.handle)
     await t.clickOnText('Accept', 0, true, MATRIX_TIMEOUT)
     if (cutOff) {
-        await t.waitForElementDisplayed('ReceiveForeignEcashIssue', 60000)
+        // The unreachable state renders after config download retries finish.
+        await t.waitForElementDisplayed('ReceiveForeignEcashIssue', 90000)
         await t.saveScreenshot('receive-sheet-unreachable')
         await reverseDevfedPortsIntoDevices()
         await t.clickElementByKey('ReceiveForeignEcashRetryButton')
