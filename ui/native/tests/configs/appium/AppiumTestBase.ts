@@ -1391,7 +1391,8 @@ export class AppiumTestBase {
             await this.driver.executeScript('mobile: startActivity', [
                 {
                     action: 'android.intent.action.VIEW',
-                    uri: url,
+                    // adb shell interprets query separators unless quoted.
+                    uri: `'${url.replace(/'/g, "'\\''")}'`,
                     package: pkg,
                 },
             ])

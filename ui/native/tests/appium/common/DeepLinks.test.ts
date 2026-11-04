@@ -10,6 +10,10 @@ import AppiumManager from '../../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 import { Platform, currentPlatform } from '../../configs/appium/types'
 import { openFediTestnetPreview } from '../fixtures/setupOnboarded'
+import {
+    acceptCameraPermissionIfPresent,
+    allowPasteIfPrompted,
+} from '../fixtures/setupOnboardedLocalFed'
 import { getNightlyFederationInvite } from './nightlyFederations'
 
 const en = resources.en.translation
@@ -151,6 +155,7 @@ export class DeepLinks extends AppiumTestBase {
             1023,
         )
         const link = `fedi://join/${invite.replace('fedi:', '')}`
+        const shareLink = `https://app.fedi.xyz/link#screen=join&id=${invite.slice(5)}`
 
         try {
             if (currentPlatform === Platform.ANDROID) {
@@ -172,9 +177,49 @@ export class DeepLinks extends AppiumTestBase {
             ])
             await this.watchSpacePreview(link, 'background')
 
-            console.log('Opening a space invite link from a cold start')
+            console.log('Opening a raw Space invite and the HTTPS QR link')
+            await this.watchSpacePreview(invite, 'raw lowercase')
+            await this.watchSpacePreview(shareLink, 'HTTPS')
+
+            console.log(
+                'Opening an uppercase raw Space invite from a cold start',
+            )
             await this.terminateApp()
-            await this.watchSpacePreview(link, 'cold start')
+            await this.watchSpacePreview(invite.toUpperCase(), 'cold uppercase')
+
+            console.log('Pasting the Space QR payload into the scanner')
+            await this.clickElementByKey('ScanTabButton')
+            await acceptCameraPermissionIfPresent(this)
+            await this.setClipboard(shareLink)
+            await this.clickElementByKey('PasteButton')
+            await allowPasteIfPrompted(this)
+            await this.waitForText(
+                en.feature.omni['confirm-community-invite'],
+                0,
+                true,
+            )
+            // Android's clipboard toast covers the confirmation text.
+            await new Promise(resolve => setTimeout(resolve, 3500))
+            await this.saveScreenshot('space-qr-confirmation')
+            await this.pressSpaceConfirmation(en.words.continue)
+            await this.waitForText(SPACE_NAME, 0, true)
+            await this.clickElementByKey('JoinFederationButton')
+            await this.waitForElementDisplayed('HomeTabButton')
+
+            console.log('Pasting the QR payload of an already joined Space')
+            await this.clickElementByKey('ScanTabButton')
+            await this.setClipboard(shareLink)
+            await this.clickElementByKey('PasteButton')
+            await allowPasteIfPrompted(this)
+            await this.waitForText(
+                en.feature.communities['existing-membership'],
+                0,
+                true,
+            )
+            await new Promise(resolve => setTimeout(resolve, 3500))
+            await this.saveScreenshot('space-qr-existing-membership')
+            await this.pressSpaceConfirmation(en.phrases['take-me-there'])
+            await this.waitForText(SPACE_NAME, 0, true)
         } finally {
             if (forwardedDevice) {
                 execFileSync('adb', [
@@ -187,6 +232,14 @@ export class DeepLinks extends AppiumTestBase {
             }
             server.closeAllConnections()
             await new Promise<void>(resolve => server.close(() => resolve()))
+        }
+    }
+
+    private async pressSpaceConfirmation(label: string): Promise<void> {
+        if (currentPlatform === Platform.IOS) {
+            await this.clickOnText(label, 0, true)
+        } else {
+            await this.clickElementByKey(label)
         }
     }
 
@@ -246,7 +299,6 @@ export class DeepLinks extends AppiumTestBase {
     }
 
     private async enablePin(): Promise<void> {
-        await this.clickElementByKey('HomeTabButton')
         await this.clickElementByKey('AvatarButton')
         await this.waitForElementDisplayed('UserQrContainer')
         await this.scrollToElement(en.feature.pin['pin-access'])

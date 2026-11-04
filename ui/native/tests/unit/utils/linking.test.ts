@@ -1,3 +1,7 @@
+import { Linking } from 'react-native'
+
+import { setRedirectTo } from '@fedi/common/redux'
+import { communityInvites } from '@fedi/common/tests/fixtures/community-invites'
 import {
     DEEP_LINKS,
     getNavigationLink,
@@ -24,6 +28,151 @@ describe('linking', () => {
             }
         },
     )
+
+    describe.each(communityInvites)(
+        '$prefix routing compatibility',
+        ({ invite }) => {
+            it('restores the same invite across raw and wrapped links', async () => {
+                const config = linking.getLinking(true, () => true, jest.fn())
+                const urls = [invite, invite.toUpperCase()]
+                for (const separator of ['?', '#']) {
+                    for (const key of ['id', 'invite']) {
+                        for (const code of [
+                            invite,
+                            invite.slice(5),
+                            invite.toUpperCase(),
+                        ]) {
+                            urls.push(
+                                `https://app.fedi.xyz/link${separator}screen=join&${key}=${encodeURIComponent(code)}`,
+                            )
+                        }
+                    }
+                }
+                for (const url of urls) {
+                    jest.mocked(Linking.getInitialURL).mockResolvedValue(url)
+                    const initial = await config.getInitialURL?.()
+                    expect(initial).toBeTruthy()
+                    const prefix = config.prefixes.find(value =>
+                        initial?.startsWith(value),
+                    )
+                    expect(prefix).toBeDefined()
+                    const route = config.getStateFromPath?.(
+                        (initial as string).slice(prefix?.length),
+                    )?.routes[0]
+                    expect(route?.name).toBe('JoinFederation')
+                    expect(
+                        (
+                            route?.params as { invite: string }
+                        ).invite.toLowerCase(),
+                    ).toBe(invite)
+                }
+            })
+        },
+    )
+
+    describe('raw Space invites from external scanners', () => {
+        const invite = 'fedi:community21abc'
+        const expectedRoute = {
+            routes: [{ name: 'JoinFederation', params: { invite } }],
+        }
+
+        beforeEach(() => {
+            jest.clearAllMocks()
+            linking.consumePendingUnlockNavigationArgs()
+        })
+
+        it.each(['fedi:community1abc', 'fedi:community21abc'])(
+            'should accept %s before and after navigation strips the scheme',
+            code => {
+                for (const path of [
+                    code,
+                    code.toUpperCase(),
+                    stripFediPrefix(code),
+                    stripFediPrefix(code).toUpperCase(),
+                ]) {
+                    expect(linking.getInternalLinkRoute(path)).toEqual({
+                        routes: [
+                            {
+                                name: 'JoinFederation',
+                                params: { invite: code },
+                            },
+                        ],
+                    })
+                }
+            },
+        )
+
+        it.each([invite, invite.toUpperCase()])(
+            'should open the join screen on cold start for %s',
+            async url => {
+                jest.mocked(Linking.getInitialURL).mockResolvedValue(url)
+                const fallback = jest.fn()
+                const config = linking.getLinking(
+                    true,
+                    () => true,
+                    jest.fn(),
+                    fallback,
+                )
+                const initialUrl = await config.getInitialURL?.()
+                expect(initialUrl).toBe(`fedi:${url.slice(5)}`)
+                expect(
+                    config.prefixes.some(prefix =>
+                        initialUrl?.startsWith(prefix),
+                    ),
+                ).toBe(true)
+                expect(config.getStateFromPath?.(initialUrl as string)).toEqual(
+                    expectedRoute,
+                )
+                expect(fallback).not.toHaveBeenCalled()
+            },
+        )
+
+        it.each([invite, invite.toUpperCase()])(
+            'should open the join screen while the app is running for %s',
+            async url => {
+                const config = linking.getLinking(true, () => true, jest.fn())
+                const listener = jest.fn()
+                const unsubscribe = config.subscribe?.(listener)
+                const handleUrl = jest.mocked(Linking.addEventListener).mock
+                    .calls[0][1]
+                await handleUrl({ url })
+                expect(listener).toHaveBeenCalledWith(`fedi:${url.slice(5)}`)
+                expect(
+                    config.prefixes.some(prefix =>
+                        listener.mock.calls[0][0].startsWith(prefix),
+                    ),
+                ).toBe(true)
+                expect(
+                    config.getStateFromPath?.(listener.mock.calls[0][0]),
+                ).toEqual(expectedRoute)
+                if (typeof unsubscribe === 'function') unsubscribe()
+            },
+        )
+
+        it('should preserve the invite until the PIN is unlocked', async () => {
+            jest.mocked(Linking.getInitialURL).mockResolvedValue(invite)
+            const config = linking.getLinking(true, () => false, jest.fn())
+            expect(await config.getInitialURL?.()).toBeNull()
+            expect(linking.consumePendingUnlockNavigationArgs()).toEqual([
+                'JoinFederation',
+                { invite },
+            ])
+        })
+
+        it('should preserve the invite through onboarding', async () => {
+            jest.mocked(Linking.getInitialURL).mockResolvedValue(invite)
+            const dispatch = jest.fn()
+            const config = linking.getLinking(false, () => false, dispatch)
+            expect(await config.getInitialURL?.()).toBeNull()
+            expect(dispatch).toHaveBeenCalledWith(setRedirectTo(invite))
+            expect(linking.getInternalLinkResetAction(invite)).toMatchObject(
+                resetToHomeWithScreen('Wallet', {
+                    name: 'JoinFederation',
+                    params: { invite },
+                }),
+            )
+        })
+    })
 
     it.each([
         'fedi://discover',

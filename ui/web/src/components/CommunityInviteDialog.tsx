@@ -32,7 +32,7 @@ export const CommunityInviteDialog: React.FC<Props> = ({
         <QRDialog
             open={open}
             title={`${t('feature.communities.community-invite')}`}
-            qrValue={inviteCode.toUpperCase()}
+            qrValue={shareLink}
             copyValue={inviteCode}
             onCopyMessage={t('feature.communities.copied-community-invite')}
             shareValue={shareLink}
