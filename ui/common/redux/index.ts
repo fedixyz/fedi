@@ -63,7 +63,7 @@ import {
 } from './storage'
 import { supportSlice } from './support'
 import { surveySlice } from './survey'
-import { toastSlice } from './toast'
+import { showToast, toastSlice } from './toast'
 import { transactionsSlice, updateTransaction } from './transactions'
 import { walletSlice } from './wallet'
 
@@ -308,6 +308,20 @@ export function initializeCommonStore({
         },
     )
 
+    // Tell the user when the sweeper returned an unfilled stable balance to
+    // ecash. The toast is held in the store, so a sweep that finishes before
+    // the first screen mounts still shows.
+    const unsubscribeUnfilledDepositSwept = fedimint.addListener(
+        'stabilityPoolUnfilledDepositSwept',
+        () => {
+            dispatch(
+                showToast({
+                    content: i18n.t('feature.stabilitypool.swept-explanation'),
+                }),
+            )
+        },
+    )
+
     const updateFederationBalanceDebounced = debounce(event => {
         log.debug('Debounced Balance update', event)
         dispatch(updateFederationBalance(event))
@@ -419,6 +433,7 @@ export function initializeCommonStore({
         unsubscribeFederation()
         unsubscribeNonceReuseCheckFailed()
         unsubscribeFaFederationJoin()
+        unsubscribeUnfilledDepositSwept()
         unsubscribeCommunities()
         unsubscribeCommunityMigration()
         unsubscribeBalance()

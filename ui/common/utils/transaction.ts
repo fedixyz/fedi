@@ -84,6 +84,10 @@ export const isGuardianRemittanceWithdrawal = (
     txn: TransactionListEntry,
 ): boolean => txn.kind === 'sPV2Withdrawal' && txn.guardian_remittance
 
+/** The sweeper returned this unfilled stable balance to ecash on its own. */
+const isSweeperWithdrawal = (txn: TransactionListEntry): boolean =>
+    txn.kind === 'sPV2Withdrawal' && txn.sweeper_initiated
+
 export const makeTxnIconDisplay = (
     txn: TransactionListEntry,
 ): TxnIconDisplay => {
@@ -187,6 +191,9 @@ export const makeTxnDetailTitleText = (
         case 'spWithdraw':
             return t('feature.stabilitypool.you-withdrew')
         case 'sPV2Withdrawal':
+            if (isSweeperWithdrawal(txn)) {
+                return t('feature.stabilitypool.swept')
+            }
             return isGuardianRemittanceWithdrawal(txn)
                 ? t('feature.guardian-fees.transfer-success')
                 : t('feature.stabilitypool.you-withdrew')
@@ -615,7 +622,9 @@ export const makeTxnStatusText = (
                     txn.state.type satisfies
                         | 'completeWithdrawal'
                         | 'completedWithdrawal'
-                    return t('words.withdrawal')
+                    return isSweeperWithdrawal(txn)
+                        ? t('feature.stabilitypool.swept')
+                        : t('words.withdrawal')
             }
         case 'oobReceive':
             switch (txn.state.type) {
@@ -1056,6 +1065,13 @@ export const makeTxnDetailItems = (
         }
     }
 
+    if (isSweeperWithdrawal(txn)) {
+        items.push({
+            label: t('words.reason'),
+            value: t('feature.stabilitypool.swept-reason'),
+        })
+    }
+
     // indicate stabilitypool deposits / withdrawals
     if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
         items.push({
@@ -1094,7 +1110,9 @@ export const makeStabilityTxnDetailTitleText = (
             : t('feature.send.you-sent')
     }
 
-    if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
+    if (isSweeperWithdrawal(txn)) {
+        return t('feature.stabilitypool.swept')
+    } else if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
         return t('feature.stabilitypool.you-withdrew')
     } else if (txn.kind === 'sPV2TransferIn') {
         return isMultispendTransfer(txn)
@@ -1112,6 +1130,13 @@ export const makeStabilityTxnDetailItems = (
 ) => {
     const items: DetailItem[] = []
     const { formattedSats } = makeFormattedAmountsFromMSats(txn.amount)
+
+    if (isSweeperWithdrawal(txn)) {
+        items.push({
+            label: t('words.reason'),
+            value: t('feature.stabilitypool.swept-reason'),
+        })
+    }
 
     // Hide BTC Equivalent item when amount is zero or SATS-first setting is on
     if (txn.amount !== 0) {
