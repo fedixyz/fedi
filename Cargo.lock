@@ -3301,7 +3301,7 @@ dependencies = [
 
 [[package]]
 name = "fa-client"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "base64 0.22.1",
  "bitcoin_hashes",
@@ -3445,7 +3445,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "fedimint-core",
  "hex",
@@ -3465,7 +3465,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-federation-preview"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -3485,7 +3485,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-manifold-environment"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "bitcoin",
  "nostr",
@@ -3495,7 +3495,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-nostr"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "fedi-decentralized-domain",
  "fedi-decentralized-service-manifold-guardian",
@@ -3509,7 +3509,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-nostr-clients"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "fedi-decentralized-nostr",
  "fedimint-core",
@@ -3522,7 +3522,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-peer-badge-verifier"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "async-trait",
  "fedi-decentralized-domain",
@@ -3538,7 +3538,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-push-gateway-types"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "base64 0.22.1",
  "hex",
@@ -3550,7 +3550,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-service-liquidity-manager"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "ciborium",
  "fedi-decentralized-services",
@@ -3565,7 +3565,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-service-manifold-guardian"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -3590,7 +3590,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-decentralized-services"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "fedi-decentralized-domain",
  "fedi-iroh-rpc",
@@ -3709,7 +3709,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-iroh-rpc"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "async-trait",
  "ciborium",
@@ -3723,7 +3723,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-iroh-rpc-macros"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

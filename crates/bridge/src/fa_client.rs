@@ -3405,9 +3405,6 @@ fn replacement_candidate_to_rpc(candidate: &ReplacementCandidate) -> RpcFaReplac
                 ReplacementReason::Offline { last_seen_secs } => {
                     RpcFaReplacementReason::Offline { last_seen_secs }
                 }
-                ReplacementReason::MissedSessions { sessions } => {
-                    RpcFaReplacementReason::MissedSessions { sessions }
-                }
                 ReplacementReason::Disconnected => RpcFaReplacementReason::Disconnected,
                 ReplacementReason::LowWeekScore { basis_points } => {
                     RpcFaReplacementReason::LowWeekScore { basis_points }

@@ -3046,7 +3046,6 @@ fn replacement_candidate_projects_its_seat_and_every_reason() {
             ReplacementReason::Offline {
                 last_seen_secs: 1_700_000_000,
             },
-            ReplacementReason::MissedSessions { sessions: 480 },
             ReplacementReason::Disconnected,
             ReplacementReason::LowWeekScore {
                 basis_points: 7_250,
@@ -3066,7 +3065,6 @@ fn replacement_candidate_projects_its_seat_and_every_reason() {
             RpcFaReplacementReason::Offline {
                 last_seen_secs: 1_700_000_000
             },
-            RpcFaReplacementReason::MissedSessions { sessions: 480 },
             RpcFaReplacementReason::Disconnected,
             RpcFaReplacementReason::LowWeekScore {
                 basis_points: 7_250
@@ -3079,7 +3077,7 @@ fn replacement_candidate_projects_its_seat_and_every_reason() {
     );
     // the app reads the tag and camelCase fields
     assert_eq!(
-        serde_json::to_value(&candidate.reasons[3]).unwrap(),
+        serde_json::to_value(&candidate.reasons[2]).unwrap(),
         serde_json::json!({ "type": "lowWeekScore", "basisPoints": 7_250 })
     );
 }
