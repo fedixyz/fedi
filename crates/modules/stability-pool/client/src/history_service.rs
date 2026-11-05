@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::ops::Range;
 
 use anyhow::bail;
@@ -30,6 +31,7 @@ use crate::{StabilityPoolClientModule, StabilityPoolMeta, StabilityPoolSyncServi
 /// Service that syncs account history from server in the background
 pub struct StabilityPoolHistoryService {
     is_fetching: watch::Sender<bool>,
+    processed_sync: watch::Sender<Option<SyncResponse>>,
     client_ctx: ClientContext<StabilityPoolClientModule>,
     module_api: DynModuleApi,
     account_id: AccountId,
@@ -47,6 +49,7 @@ impl StabilityPoolHistoryService {
     ) -> Self {
         Self {
             is_fetching: watch::Sender::new(false),
+            processed_sync: watch::Sender::new(None),
             client_ctx,
             module_api,
             account_id,
@@ -57,7 +60,14 @@ impl StabilityPoolHistoryService {
     /// Update history data in background.
     ///
     /// Caller should run this method in a task.
-    pub async fn update_continuously(&self, sync_service: &StabilityPoolSyncService) {
+    pub async fn update_continuously<F, Fut>(
+        &self,
+        sync_service: &StabilityPoolSyncService,
+        on_staged_transfer: F,
+    ) where
+        F: Fn(u64) -> Fut,
+        Fut: Future<Output = anyhow::Result<()>>,
+    {
         repair_completed_withdrawal_history_once(self.client_ctx.module_db(), self.account_id)
             .await;
 
@@ -69,14 +79,29 @@ impl StabilityPoolHistoryService {
                 continue;
             };
             retry("history fetch", backoff_util::background_backoff(), || {
-                self.update_once(&sync.value)
+                self.update_once(&sync.value, &on_staged_transfer)
             })
             .await
             .expect("inifinite retry");
+            self.processed_sync.send_replace(Some(sync.value));
         }
     }
 
-    async fn update_once(&self, sync_response: &SyncResponse) -> anyhow::Result<()> {
+    /// Subscribe to account states whose history has been saved, even when a
+    /// pass had no new history items.
+    pub fn subscribe_to_processed_syncs(&self) -> impl Stream<Item = Option<SyncResponse>> + use<> {
+        WatchStream::new(self.processed_sync.subscribe())
+    }
+
+    async fn update_once<F, Fut>(
+        &self,
+        sync_response: &SyncResponse,
+        on_staged_transfer: &F,
+    ) -> anyhow::Result<()>
+    where
+        F: Fn(u64) -> Fut,
+        Fut: Future<Output = anyhow::Result<()>>,
+    {
         let local_count = get_account_history_count(
             &mut self.client_ctx.module_db().begin_transaction_nc().await,
             self.account_id,
@@ -111,6 +136,15 @@ impl StabilityPoolHistoryService {
                     local_count..sync_response.account_history_count,
                 )
                 .await?;
+
+            if new_history_items
+                .iter()
+                .any(|item| matches!(item.kind, AccountHistoryItemKind::StagedTransferIn { .. }))
+            {
+                // Save the marker first: a restart may replay a transfer, but
+                // must not remember the transfer without its waiting period.
+                on_staged_transfer(sync_response.current_cycle.idx).await?;
+            }
 
             let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
             // When a pending withdrawal completes, its history row already contains the

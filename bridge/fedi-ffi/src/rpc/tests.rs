@@ -17,7 +17,9 @@ use devimint::util::FedimintCli;
 use federations::federation_sm::FederationState;
 use federations::federation_v2::FederationV2;
 use federations::federation_v2::client::ClientExt;
-use federations::federation_v2::db::{FedimintEventLogCursorKey, LnurlReceivePendingKey};
+use federations::federation_v2::db::{
+    FedimintEventLogCursorKey, LastStabilityPoolV2DepositCycleKey, LnurlReceivePendingKey,
+};
 use federations::fedi_fee::{FediFeeStream, parse_fedi_guardian_fee_config};
 use fedi_social_client::common::VerificationDocument;
 use fedimint_client::db::{CachedApiVersionSetKey, PeerLastApiVersionsSummaryKey};
@@ -49,7 +51,7 @@ use runtime::storage::BRIDGE_DB_PREFIX;
 use runtime::storage::state::{
     CommunityJson, DatabaseInfo, FederationInfo, FediFeeSchedule, ModuleFediFeeSchedule,
 };
-use stability_pool_client::common::Account;
+use stability_pool_client::common::{Account, AccountHistoryItemKind};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{info, warn};
@@ -1155,6 +1157,147 @@ async fn test_max_pay_invoice_fits_every_gateway(dev_fed: DevFed) -> anyhow::Res
             .await?;
     }
     result
+}
+
+/// Fund a fresh device with ecash and deposit `amount` to the seeker account.
+async fn fund_spv2_seeker(
+    td: &TestDevice,
+    federation: &Arc<FederationV2>,
+    amount: Amount,
+) -> anyhow::Result<()> {
+    let ecash = cli_generate_ecash(amount + Amount::from_sats(10_000)).await?;
+    federation
+        .receive_ecash(ecash, FrontendMetadata::default())
+        .await?;
+    wait_for_ecash_reissue(federation).await?;
+    spv2DepositToSeek(
+        federation.clone(),
+        RpcAmount(amount),
+        FrontendMetadata::default(),
+    )
+    .await?;
+    while td.event_sink().num_events_of_type("spv2Deposit".into()) < 3 {
+        fedimint_core::task::sleep_in_test("spv2 deposit", Duration::from_millis(100)).await;
+    }
+    Ok(())
+}
+
+/// Fresh funds get two cycles to lock before the sweeper returns them to ecash.
+async fn assert_swept_after_cycles_to_lock(
+    td: &TestDevice,
+    federation: &Arc<FederationV2>,
+) -> anyhow::Result<()> {
+    let balance_before = federation.get_balance().await;
+    let swept = "stabilityPoolUnfilledDepositSwept".to_owned();
+    let mut arrival = None;
+    let mut waited = 0;
+    while td.event_sink().num_events_of_type(swept.clone()) == 0 {
+        anyhow::ensure!(waited < 120, "funds were not swept");
+        spv2_force_sync(federation).await;
+        let history = federation
+            .spv2_history_service
+            .get()
+            .context("history service")?
+            .get_full_account_history()
+            .await?;
+        arrival = history
+            .iter()
+            .rev()
+            .find(|item| {
+                matches!(
+                    item.kind,
+                    AccountHistoryItemKind::DepositToStaged
+                        | AccountHistoryItemKind::StagedTransferIn { .. }
+                )
+            })
+            .map(|item| item.cycle.idx)
+            .or(arrival);
+        fedimint_core::task::sleep_in_test("spv2 sweep", Duration::from_secs(1)).await;
+        waited += 1;
+    }
+    let arrival = arrival.context("the funds arrived through the account history")?;
+
+    spv2_force_sync(federation).await;
+    let info = spv2AccountInfo(federation.clone()).await?.sync_response;
+    assert!(
+        info.curr_cycle_idx > arrival + 2,
+        "swept in cycle {} funds that arrived in cycle {arrival}",
+        info.curr_cycle_idx
+    );
+    assert_eq!(info.staged.btc.0, Amount::ZERO);
+    assert!(
+        federation.get_balance().await > balance_before,
+        "the swept funds are ecash again"
+    );
+    Ok(())
+}
+
+/// Cover a missing marker and a transfer arriving after an old marker expired.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_spv2_sweeper_without_a_local_deposit() -> anyhow::Result<()> {
+    if should_skip_test_using_stock_fedimintd() {
+        return Ok(());
+    }
+    let _dev_fed = DevFed::new_with_setup(4).await?;
+    // Provider liquidity goes away, so seeks stay staged.
+    cmd!(
+        FedimintCli,
+        "module",
+        "multi_sig_stability_pool",
+        "withdraw",
+        "provider",
+        "all"
+    )
+    .run()
+    .await?;
+
+    let td_sender = TestDevice::new().await?;
+    let bridge_sender = td_sender.bridge_full().await?;
+    let federation_sender = td_sender.join_default_fed().await?;
+    fund_spv2_seeker(&td_sender, federation_sender, Amount::from_sats(400_000)).await?;
+
+    let td_old_key = TestDevice::new().await?;
+    let federation_old_key = td_old_key.join_default_fed().await?;
+    // Deposited in cycle 0, so the sweep would come by cycle 3 if it went by this.
+    let mut dbtx = federation_old_key.dbtx().await;
+    dbtx.insert_entry(&LastStabilityPoolV2DepositCycleKey, &0u64)
+        .await;
+    dbtx.commit_tx().await;
+
+    federation_old_key.start_spv2_sweeper_service();
+    // The old key has to be past its lock window when the funds arrive.
+    while spv2AccountInfo(federation_old_key.clone())
+        .await?
+        .sync_response
+        .curr_cycle_idx
+        < 3
+    {
+        spv2_force_sync(federation_old_key).await;
+        fedimint_core::task::sleep_in_test("next cycle", Duration::from_secs(1)).await;
+    }
+
+    let address = spv2OurPaymentAddress(federation_old_key.clone(), false).await?;
+    let account_id = spv2ParsePaymentAddress(&bridge_sender.federations, address)
+        .await?
+        .account_id;
+    spv2Transfer(
+        federation_sender.clone(),
+        account_id,
+        RpcFiatAmount(10_00),
+        FrontendMetadata::default(),
+    )
+    .await?;
+
+    // A restored wallet has funds at the federation but no local cycle marker.
+    let mut dbtx = federation_sender.dbtx().await;
+    dbtx.remove_entry(&LastStabilityPoolV2DepositCycleKey).await;
+    dbtx.commit_tx().await;
+    federation_sender.start_spv2_sweeper_service();
+    tokio::try_join!(
+        assert_swept_after_cycles_to_lock(&td_sender, federation_sender),
+        assert_swept_after_cycles_to_lock(&td_old_key, federation_old_key)
+    )?;
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]

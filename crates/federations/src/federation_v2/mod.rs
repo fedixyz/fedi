@@ -1008,7 +1008,23 @@ impl FederationV2 {
             self.spawn_cancellable("spv2_history", |fed| async move {
                 let sync_service = fed.spv2_sync_service.get().expect("init above");
                 let history_service = fed.spv2_history_service.get().expect("init above");
-                history_service.update_continuously(sync_service).await
+                let db = fed.client.db();
+                history_service
+                    .update_continuously(sync_service, |cycle| async move {
+                        let cycle = sync_service
+                            .current_sync_response()
+                            .map_or(cycle, |sync| cycle.max(sync.value.current_cycle.idx));
+                        let mut dbtx = db.begin_transaction().await;
+                        let previous = dbtx.get_value(&LastStabilityPoolV2DepositCycleKey).await;
+                        dbtx.insert_entry(
+                            &LastStabilityPoolV2DepositCycleKey,
+                            &cycle.max(previous.unwrap_or(cycle)),
+                        )
+                        .await;
+                        dbtx.commit_tx_result().await?;
+                        Ok(())
+                    })
+                    .await
             });
 
             self.spawn_multispend_btc_payout_sweep();
@@ -3942,8 +3958,13 @@ impl FederationV2 {
                 .autocommit(
                     |dbtx, _| {
                         Box::pin(async move {
-                            dbtx.insert_entry(&LastStabilityPoolV2DepositCycleKey, &index)
-                                .await;
+                            let previous =
+                                dbtx.get_value(&LastStabilityPoolV2DepositCycleKey).await;
+                            dbtx.insert_entry(
+                                &LastStabilityPoolV2DepositCycleKey,
+                                &index.max(previous.unwrap_or(index)),
+                            )
+                            .await;
                             Ok::<(), anyhow::Error>(())
                         })
                     },
@@ -4423,6 +4444,18 @@ impl FederationV2 {
     fn spv2_our_seeker_account(&self) -> Option<Account> {
         let spv2 = self.client.spv2().ok()?;
         Some(spv2.own_account(OwnAccount::Seeker))
+    }
+
+    /// Bridge tests run without the sweeper, whose withdrawals would race their
+    /// own deposits. A test of the sweeper starts it here.
+    #[cfg(feature = "test-support")]
+    pub fn start_spv2_sweeper_service(&self) {
+        assert!(
+            self.spv2_sweeper_service
+                .set(SPv2SweeperService::new(self))
+                .is_ok(),
+            "spv2 sweeper service already initialized"
+        );
     }
 
     pub fn spv2_force_sync(&self) {
