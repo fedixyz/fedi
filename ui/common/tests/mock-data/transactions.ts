@@ -11,6 +11,7 @@ const MOCK_TRANSACTION: RpcTransaction = {
     amount: 1000000 as MSats,
     fediAppFeeStatus: null,
     fediGuardianFeeStatus: null,
+    federationFee: null,
     txnNotes: 'test',
     txDateFiatInfo: null,
     frontendMetadata: {

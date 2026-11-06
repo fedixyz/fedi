@@ -1,8 +1,11 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result, anyhow, bail};
 use bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
 use fedimint_client::module::oplog::OperationLogEntry;
 use fedimint_core::base32::{FEDIMINT_PREFIX, decode_prefixed, encode_prefixed};
 use fedimint_core::core::OperationId;
+use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::task::timeout;
 use fedimint_core::{Amount, OutPointRange, apply, async_trait_maybe_send};
 use fedimint_mintv2_client::{
@@ -18,6 +21,7 @@ use rpc_types::{
 use tracing::warn;
 
 use super::super::client::ClientExt;
+use super::super::db::EcashSendReissueOperationsKey;
 use super::super::{
     FederationTransactionParts, FederationV2, REISSUE_ECASH_TIMEOUT, get_max_spendable_amount,
 };
@@ -100,6 +104,9 @@ impl MintOpsV2 {
                 if !is_fee_exempt {
                     let _ = fed.write_failed_receive_fedi_fees(operation_id).await;
                 }
+                fed.send_transaction_event(operation_id).await;
+                Self::announce_refund_cost(fed, operation_id).await;
+                return;
             }
             Err(e) => {
                 warn!("mintv2 await_final_receive failed: {e:?}");
@@ -107,6 +114,59 @@ impl MintOpsV2 {
             }
         }
         fed.send_transaction_event(operation_id).await;
+    }
+
+    /// A rejected receive gives back the wallet notes it had pulled in by
+    /// spending them again, and that refund is what costs the wallet. It
+    /// finishes after the rejection was announced, so tell listeners again once
+    /// the row knows the cost.
+    async fn announce_refund_cost(fed: &FederationV2, operation_id: OperationId) {
+        while fed.client.has_active_states(operation_id).await {
+            fedimint_core::task::sleep(Duration::from_secs(1)).await;
+        }
+        fed.send_transaction_event(operation_id).await;
+    }
+
+    /// Links a finished send to the reissue operations `mintv2.send` ran for
+    /// it, found through the op log: they are the newest reissues carrying
+    /// the send's own metadata, created since the send started. The caller
+    /// holds `generate_ecash_lock`, so no other send can have added any.
+    async fn record_send_reissues(
+        fed: &FederationV2,
+        send_operation_id: OperationId,
+        custom_meta: &serde_json::Value,
+        send_started: std::time::SystemTime,
+    ) -> Result<()> {
+        // a send normally reissues at most once; the page only has to be larger
+        // than what can land in the op log during one send
+        const NEWEST_OPERATIONS: usize = 32;
+        let reissue_operations = fed
+            .client
+            .operation_log()
+            .paginate_operations_rev(NEWEST_OPERATIONS, None)
+            .await
+            .into_iter()
+            .take_while(|(key, _)| key.creation_time >= send_started)
+            .filter(|(_, entry)| entry.operation_module_kind() == "mintv2")
+            .filter(|(_, entry)| {
+                matches!(
+                    entry.try_meta::<MintV2OperationMeta>(),
+                    Ok(MintV2OperationMeta::Reissue { custom_meta: meta, .. })
+                        if &meta == custom_meta
+                )
+            })
+            .map(|(key, _)| key.operation_id)
+            .collect::<Vec<_>>();
+        if reissue_operations.is_empty() {
+            return Ok(());
+        }
+        let mut dbtx = fed.dbtx().await;
+        dbtx.insert_entry(
+            &EcashSendReissueOperationsKey(send_operation_id),
+            &reissue_operations,
+        )
+        .await;
+        Ok(dbtx.commit_tx_result().await?)
     }
 
     /// Waits for a successful receive to settle per [`Self::receive_settled`].
@@ -218,12 +278,19 @@ impl MintOps for MintOpsV2 {
         // spend guard indefinitely. v1 instead releases the guard around its
         // change round, but mintv2's send interleaves selection and
         // change-making behind one call, so bounding is what the bridge can do.
+        let send_started = fedimint_core::time::now();
         let (operation_id, ecash) = timeout(
             REISSUE_ECASH_TIMEOUT,
-            mintv2.send(amount, custom_meta, include_invite),
+            mintv2.send(amount, custom_meta.clone(), include_invite),
         )
         .await
         .context(ErrorCode::OfflineExactEcashFailed)??;
+        // The notes are already gone, so this must not fail the send.
+        if let Err(error) =
+            MintOpsV2::record_send_reissues(fed, operation_id, &custom_meta, send_started).await
+        {
+            warn!(?error, "failed to link ecash send to its reissue");
+        }
         let sent_amount = ecash.amount();
         let ecash = encode_prefixed(FEDIMINT_PREFIX, &ecash);
         let settled_fees_by_stream = fed
@@ -270,6 +337,14 @@ impl MintOps for MintOpsV2 {
         match final_state {
             MintV2FinalReceiveOperationState::Success => {}
             MintV2FinalReceiveOperationState::Rejected => {
+                fed.spawn_operation_subscriber(
+                    operation_id,
+                    "announce rejected mintv2 cancel cost",
+                    move |fed| async move {
+                        MintOpsV2::announce_refund_cost(&fed, operation_id).await;
+                    },
+                )
+                .await;
                 return Err(anyhow!(ErrorCode::EcashCancelFailed));
             }
         }

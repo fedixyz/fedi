@@ -38,9 +38,9 @@ const ReceiveSuccess: React.FC<Props> = ({ route }: Props) => {
                         </Text>
                     )}
                     <Text center h2>
-                        {`${amountUtils.formatNumber(
-                            amountUtils.msatToSat(tx.amount),
-                        )} ${t('words.sats').toUpperCase()}`}
+                        {`${amountUtils.formatMsatsAsSats(tx.amount)} ${t(
+                            'words.sats',
+                        ).toUpperCase()}`}
                     </Text>
                 </Column>
             }

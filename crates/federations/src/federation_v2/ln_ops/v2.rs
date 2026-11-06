@@ -916,11 +916,13 @@ impl LnOps for LnOpsV2 {
                     },
                 }))
             }
-            LnV2OperationMeta::Receive(LnV2ReceiveOperationMeta {
-                invoice,
-                custom_meta,
-                ..
-            }) => {
+            LnV2OperationMeta::Receive(meta) => {
+                let gateway_fee = meta.gateway_fee();
+                let LnV2ReceiveOperationMeta {
+                    invoice,
+                    custom_meta,
+                    ..
+                } = meta;
                 let frontend_metadata = serde_json::from_value::<BaseMetadata>(custom_meta)
                     .unwrap_or_default()
                     .into();
@@ -958,9 +960,16 @@ impl LnOps for LnOpsV2 {
                             fedimint_ln_client::LnReceiveState::Funded
                         }
                     });
+                // The gateway takes its fee before the contract exists, so it is
+                // gone exactly when the contract was claimed. An unpaid or
+                // expired invoice still reads as what it asked for.
+                let claimed = matches!(state, Some(fedimint_ln_client::LnReceiveState::Claimed));
+                let amount = Amount::from_msats(amount_msats);
                 Ok(Some(FederationTransactionParts {
-                    amount: RpcAmount(Amount {
-                        msats: amount_msats,
+                    amount: RpcAmount(if claimed {
+                        amount.saturating_sub(gateway_fee)
+                    } else {
+                        amount
                     }),
                     frontend_metadata,
                     kind: RpcTransactionKind::LnReceive {

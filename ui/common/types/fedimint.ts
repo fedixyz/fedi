@@ -55,6 +55,7 @@ export type CommonTxnFields = Pick<
     | 'txDateFiatInfo'
     | 'fediAppFeeStatus'
     | 'fediGuardianFeeStatus'
+    | 'federationFee'
     | 'frontendMetadata'
     | 'outcomeTime'
 >

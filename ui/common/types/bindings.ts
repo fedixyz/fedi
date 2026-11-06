@@ -2592,6 +2592,15 @@ export type RpcTransaction = {
   amount: RpcAmount;
   fediAppFeeStatus: RpcOperationFediFeeStatus | null;
   fediGuardianFeeStatus: RpcOperationFediFeeStatus | null;
+  /**
+   * Federation fees this operation actually paid, dust included, taken from
+   * its accepted transactions; `amount` already accounts for them. None
+   * when there is nothing to report: a federation whose modules charge
+   * nothing, or an operation older than the client's fee records. Present
+   * on any v2 module operation, even when zero, because mintv2 notes are
+   * not whole sats and such rows must be shown to the msat to add up.
+   */
+  federationFee: RpcAmount | null;
   txnNotes: string | null;
   txDateFiatInfo: FiatFXInfo | null;
   frontendMetadata: FrontendMetadata;
@@ -2702,6 +2711,15 @@ export type RpcTransactionListEntry = {
   amount: RpcAmount;
   fediAppFeeStatus: RpcOperationFediFeeStatus | null;
   fediGuardianFeeStatus: RpcOperationFediFeeStatus | null;
+  /**
+   * Federation fees this operation actually paid, dust included, taken from
+   * its accepted transactions; `amount` already accounts for them. None
+   * when there is nothing to report: a federation whose modules charge
+   * nothing, or an operation older than the client's fee records. Present
+   * on any v2 module operation, even when zero, because mintv2 notes are
+   * not whole sats and such rows must be shown to the msat to add up.
+   */
+  federationFee: RpcAmount | null;
   txnNotes: string | null;
   txDateFiatInfo: FiatFXInfo | null;
   frontendMetadata: FrontendMetadata;

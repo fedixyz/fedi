@@ -1071,6 +1071,7 @@ export const coerceMultispendTxn = (
         amount: 0 as MSats,
         fediAppFeeStatus: null,
         fediGuardianFeeStatus: null,
+        federationFee: null,
         txnNotes: '',
         txDateFiatInfo: null,
         frontendMetadata: {

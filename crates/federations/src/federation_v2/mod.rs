@@ -111,14 +111,14 @@ use rpc_types::{
     FrontendMetadata, GuardianStatus, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
     RpcGenerateEcashResponse, RpcGuardianRemittanceAccountInfo, RpcGuardianRemittanceDashboard,
-    RpcJsonClientConfig, RpcLightningGateway, RpcLightningGatewayId, RpcOnchainDepositState,
-    RpcOperationFediFeeStatus, RpcPayAddressLimits, RpcPayInvoiceResponse, RpcPeerId,
-    RpcPrevPayInvoiceResult, RpcPublicKey, RpcReclaimLnReceiveOutcome, RpcReturningMemberStatus,
-    RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState,
-    RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcSPv2CachedSyncResponse, RpcTransaction,
-    RpcTransactionDirection, RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata,
-    SPv2TransferMetadata, SPv2WithdrawMetadata, SpMatrixTransferId, SpV2TransferInKind,
-    SpV2TransferOutKind,
+    RpcJsonClientConfig, RpcLightningGateway, RpcLightningGatewayId, RpcLnPayState,
+    RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState, RpcOperationFediFeeStatus,
+    RpcPayAddressLimits, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
+    RpcReclaimLnReceiveOutcome, RpcReturningMemberStatus, RpcSPDepositState, RpcSPV2DepositState,
+    RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState, RpcSPWithdrawState,
+    RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection, RpcTransactionKind,
+    RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata, SPv2WithdrawMetadata,
+    SpMatrixTransferId, SpV2TransferInKind, SpV2TransferOutKind,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
@@ -159,10 +159,10 @@ use tracing::{Level, debug, error, info, instrument, warn};
 use self::backup_service::BackupService;
 #[allow(deprecated)]
 use self::db::{
-    LastStabilityPoolDepositCycleKey, OperationFediFeeStatusKey, OperationFediFeeStatusKeyPrefix,
-    OutstandingFediFeesPerTXTypeKeyPrefix, PendingFediFeesPerTXTypeKeyPrefix,
-    TransactionDateFiatInfoKey, WalletV2AwaitingDeposit, WalletV2AwaitingDepositKey,
-    WalletV2AwaitingDepositKeyPrefix,
+    EcashSendReissueOperationsKey, LastStabilityPoolDepositCycleKey, OperationFediFeeStatusKey,
+    OperationFediFeeStatusKeyPrefix, OutstandingFediFeesPerTXTypeKeyPrefix,
+    PendingFediFeesPerTXTypeKeyPrefix, TransactionDateFiatInfoKey, WalletV2AwaitingDeposit,
+    WalletV2AwaitingDepositKey, WalletV2AwaitingDepositKeyPrefix,
 };
 use self::ln_gateway_service::LnGatewayService;
 use self::ln_ops::{LnOpsV1, LnOpsV2};
@@ -295,6 +295,68 @@ pub struct FediConfig {
 enum PayState {
     Pay(LnPayState),
     Internal(InternalPayState),
+}
+
+/// What a history row shows, given what the module said the operation moved:
+/// the amount that really left or reached the balance, so rows add up to it.
+fn row_amount(
+    kind: &RpcTransactionKind,
+    amount: Amount,
+    federation_fee: Option<Amount>,
+    fedi_fee: Amount,
+) -> Amount {
+    let federation_fee_or_zero = federation_fee.unwrap_or(Amount::ZERO);
+    let credited = amount
+        .saturating_sub(federation_fee_or_zero)
+        .saturating_sub(fedi_fee);
+    let debited = amount + federation_fee_or_zero;
+    match kind {
+        // A rejected receive credits nothing and a refunded payment pays nothing;
+        // their only effect on the balance is what the attempt and its refund cost.
+        RpcTransactionKind::OobReceive {
+            state: Some(RpcOOBReissueState::Failed { .. }),
+        }
+        | RpcTransactionKind::OobCancel {
+            state: Some(RpcOOBReissueState::Failed { .. }),
+        }
+        | RpcTransactionKind::LnPay {
+            state:
+                Some(
+                    RpcLnPayState::Refunded { .. }
+                    | RpcLnPayState::Failed
+                    | RpcLnPayState::Canceled,
+                ),
+            ..
+        } => federation_fee.unwrap_or(amount),
+        RpcTransactionKind::OobReceive { .. } | RpcTransactionKind::OobCancel { .. } => credited,
+        RpcTransactionKind::LnReceive {
+            state: Some(RpcLnReceiveState::Claimed),
+            ..
+        }
+        | RpcTransactionKind::LnRecurringdReceive {
+            state: Some(RpcLnReceiveState::Claimed),
+        }
+        | RpcTransactionKind::OnchainDeposit { .. }
+        | RpcTransactionKind::SpWithdraw { .. }
+        | RpcTransactionKind::SPV2Withdrawal { .. } => credited,
+        RpcTransactionKind::OobSend { .. }
+        | RpcTransactionKind::LnPay {
+            state:
+                Some(
+                    RpcLnPayState::Created
+                    | RpcLnPayState::Funded { .. }
+                    | RpcLnPayState::AwaitingChange
+                    | RpcLnPayState::Success { .. },
+                )
+                | None,
+            ..
+        }
+        | RpcTransactionKind::SpDeposit { .. }
+        | RpcTransactionKind::SPV2Deposit { .. } => debited,
+        // Everything else stays as the module reported it. In particular an
+        // on-chain send, which the app shows as its amount plus all of its fees.
+        _ => amount,
+    }
 }
 
 pub(crate) struct FederationTransactionParts {
@@ -2583,6 +2645,30 @@ impl FederationV2 {
         Ok(FederationV2::fedi_fee_details_from_streams(&fees_by_stream))
     }
 
+    /// Federation fees this operation really paid, read from the client's
+    /// record of its accepted transactions. A rejected transaction pays
+    /// nothing, but the refund of any wallet notes it had pulled in does, under
+    /// the same operation. None when any of them predates those records.
+    async fn realized_federation_fee(&self, operation_id: OperationId) -> Option<Amount> {
+        let reissues = self
+            .dbtx()
+            .await
+            .get_value(&EcashSendReissueOperationsKey(operation_id))
+            .await
+            .unwrap_or_default();
+        let mut total = Amount::ZERO;
+        for operation_id in std::iter::once(operation_id).chain(reissues) {
+            match self.client.get_operation_fees(operation_id).await {
+                Ok(Some(fees)) => total += fees.get_bitcoin(),
+                Ok(None) => return None,
+                // mintv2 sends never submit a transaction of their own, so the
+                // client has no state for them to report on
+                Err(_) => {}
+            }
+        }
+        Some(total)
+    }
+
     /// Generate ecash
     pub async fn generate_ecash(
         &self,
@@ -2963,6 +3049,7 @@ impl FederationV2 {
         RpcTransaction {
             id: id.fmt_full().to_string(),
             amount: RpcAmount(Amount::ZERO),
+            federation_fee: None,
             fedi_app_fee_status: None,
             fedi_guardian_fee_status: None,
             txn_notes: self.dbtx().await.get_value(&TransactionNotesKey(id)).await,
@@ -3127,6 +3214,7 @@ impl FederationV2 {
                 transaction: RpcTransaction {
                     id: reservation.fingerprint().consensus_encode_to_hex(),
                     amount: RpcAmount(Amount::from_msats(amount_msats)),
+                    federation_fee: None,
                     fedi_app_fee_status: None,
                     fedi_guardian_fee_status: None,
                     txn_notes: None,
@@ -3313,6 +3401,10 @@ impl FederationV2 {
         };
         let fedi_fee_msats = app_fedi_fee_msats + guardian_fedi_fee_msats;
         let outcome_time = entry.outcome_time();
+        let is_v2_module_operation = matches!(
+            entry.operation_module_kind(),
+            LIGHTNINGV2_OPERATION_TYPE | MINTV2_OPERATION_TYPE | WALLETV2_OPERATION_TYPE
+        );
         let (transaction_amount, transaction_kind, frontend_metadata);
         match entry.operation_module_kind() {
             LIGHTNING_OPERATION_TYPE | LIGHTNINGV2_OPERATION_TYPE => {
@@ -3723,9 +3815,21 @@ impl FederationV2 {
             }
         }
         let frontend_metadata = frontend_metadata.unwrap_or_default();
+        // Rows of the older modules keep their face values.
+        let federation_fee = if is_v2_module_operation {
+            self.realized_federation_fee(operation_id).await
+        } else {
+            None
+        };
         Ok(Some(RpcTransaction {
             id: operation_id.fmt_full().to_string(),
-            amount: transaction_amount,
+            amount: RpcAmount(row_amount(
+                &transaction_kind,
+                transaction_amount.0,
+                federation_fee,
+                Amount::from_msats(fedi_fee_msats),
+            )),
+            federation_fee: federation_fee.map(RpcAmount),
             fedi_app_fee_status: app_fedi_fee_status,
             fedi_guardian_fee_status: guardian_fedi_fee_status,
             txn_notes: notes.or_else(|| frontend_metadata.initial_notes.clone()),
@@ -5841,6 +5945,52 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    // The states test_history_rows_add_up_to_balance does not reach.
+    #[test]
+    fn row_amounts_without_a_balance_move_or_fee_data() {
+        let msats = Amount::from_msats;
+        // an unpaid invoice has moved nothing, whatever the fee data says
+        assert_eq!(
+            row_amount(
+                &RpcTransactionKind::LnReceive {
+                    ln_invoice: String::new(),
+                    state: Some(RpcLnReceiveState::Created),
+                },
+                msats(2_500_000),
+                Some(msats(0)),
+                msats(0),
+            ),
+            msats(2_500_000)
+        );
+        // a refunded payment cost what its transactions paid, not its invoice
+        let failed_pay = RpcTransactionKind::LnPay {
+            ln_invoice: String::new(),
+            lightning_fees: RpcAmount(Amount::ZERO),
+            state: Some(RpcLnPayState::Failed),
+        };
+        assert_eq!(
+            row_amount(&failed_pay, msats(2_500_000), Some(msats(1_100)), msats(0)),
+            msats(1_100)
+        );
+        // and without fee data it still shows what it tried to pay
+        assert_eq!(
+            row_amount(&failed_pay, msats(2_500_000), None, msats(0)),
+            msats(2_500_000)
+        );
+        // no fee data, as on older federations: the module's amount stands
+        assert_eq!(
+            row_amount(
+                &RpcTransactionKind::OobReceive {
+                    state: Some(RpcOOBReissueState::Done),
+                },
+                msats(100_352),
+                None,
+                msats(0),
+            ),
+            msats(100_352)
+        );
+    }
 
     fn directory(config: &ClientConfig) -> MgSeatBindings {
         let federation = federation_seats(config).unwrap();

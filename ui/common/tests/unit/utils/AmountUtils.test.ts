@@ -8,6 +8,18 @@ import {
 import amountUtils from '../../../utils/AmountUtils'
 
 describe('AmountUtils', () => {
+    describe('formatMsatsAsSats', () => {
+        it.each([
+            [2_480_640, '2,480'],
+            [1_000, '1'],
+            [999, '0.999'],
+            [50, '0.05'],
+            [0, '0'],
+        ])('formats %d msats as %s sats', (msats, expected) => {
+            expect(amountUtils.formatMsatsAsSats(msats as MSats)).toBe(expected)
+        })
+    })
+
     describe('msatToSat', () => {
         it('should convert millisats to sats', () => {
             const result = amountUtils.msatToSat(10000 as MSats)

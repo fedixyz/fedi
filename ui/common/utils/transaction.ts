@@ -55,6 +55,11 @@ export interface TxnIconDisplay {
 export const getTxnDirection = (
     txn: TransactionListEntry,
 ): TransactionDirection => {
+    // Its row is what the attempt cost, whichever way the money was meant to go
+    if (isFailedAttempt(txn) && txn.federationFee) {
+        return TransactionDirection.send
+    }
+
     switch (txn.kind) {
         case 'lnPay':
         case 'onchainWithdraw':
@@ -310,6 +315,11 @@ const makeTxnSign = (txn: TransactionListEntry, flipSign: boolean): string => {
         s = ''
     }
 
+    // What the row of a failed attempt shows is what it took from the balance
+    if (isFailedAttempt(txn) && hasExactAmounts(txn)) {
+        s = txn.federationFee ? '-' : ''
+    }
+
     return s
 }
 
@@ -338,7 +348,9 @@ export const makeTxnAmountText = (
     const { formattedSats } = makeFormattedAmountsFromMSats(amount, 'end')
     const [amt, satsSymbol] = formattedSats.split(' ')
     const sign = makeTxnSign(txn, flipSign)
-    let formattedAmount: string = amt
+    let formattedAmount: string = hasExactAmounts(txn)
+        ? amountUtils.formatMsatsAsSats(amount)
+        : amt
     let currency = txnDisplay === 'fiat' ? preferredCurrency : satsSymbol
 
     if (
@@ -432,6 +444,34 @@ export const makeTxnAmountText = (
     return `${sign}${formattedAmount}${includeCurrency ? ` ${currency}` : ''}`
 }
 
+/**
+ * Rows on modules with sub-sat notes hold what moved the balance, to the msat.
+ * Shown in whole sats they stay within a sat of it per row; a row under one sat
+ * shows its decimals. Other federations keep whole sats.
+ */
+const hasExactAmounts = (txn: TransactionListEntry): boolean =>
+    !!txn.federationFee || txn.federationFee === 0
+
+/**
+ * An attempt that neither credited nor paid its amount. With exact amounts its
+ * row is what the attempt and its refund cost.
+ */
+const isFailedAttempt = (txn: TransactionListEntry): boolean => {
+    switch (txn.kind) {
+        case 'oobReceive':
+        case 'oobCancel':
+            return txn.state?.type === 'failed'
+        case 'lnPay':
+            return (
+                txn.state?.type === 'refunded' ||
+                txn.state?.type === 'failed' ||
+                txn.state?.type === 'canceled'
+            )
+        default:
+            return false
+    }
+}
+
 const getTxnDisplayAmount = (txn: TransactionListEntry): MSats => {
     if (txn.kind !== 'onchainWithdraw') return txn.amount
 
@@ -464,6 +504,8 @@ const getTxnTotalFee = (txn: TransactionListEntry): MSats => {
     if (txn.kind === 'onchainWithdraw') {
         totalFee += txn.onchain_fees ?? (0 as MSats)
     }
+
+    totalFee += txn.federationFee ?? (0 as MSats)
 
     if (txn.kind === 'onchainDeposit') {
         totalFee += txn.peg_in_fees ?? (0 as MSats)
@@ -1398,6 +1440,16 @@ export const TransactionAmountStateMap = {
 } satisfies Record<TransactionStatusBadge, TransactionAmountState>
 
 export const makeTransactionAmountState = (txn: TransactionListEntry) => {
+    // Exact rows add up to the balance, so one that moved it is not crossed out:
+    // a failed attempt's cost, or the debit a successful cancel's credit answers
+    if (
+        hasExactAmounts(txn) &&
+        ((isFailedAttempt(txn) && txn.federationFee) ||
+            (txn.kind === 'oobSend' &&
+                txn.state?.type === 'userCanceledSuccess'))
+    ) {
+        return 'settled' satisfies TransactionAmountState
+    }
     const badge = makeTxnStatusBadge(txn)
     return TransactionAmountStateMap[badge] satisfies TransactionAmountState
 }

@@ -526,6 +526,13 @@ pub struct RpcTransaction {
     pub amount: RpcAmount,
     pub fedi_app_fee_status: Option<RpcOperationFediFeeStatus>,
     pub fedi_guardian_fee_status: Option<RpcOperationFediFeeStatus>,
+    /// Federation fees this operation actually paid, dust included, taken from
+    /// its accepted transactions; `amount` already accounts for them. None
+    /// when there is nothing to report: a federation whose modules charge
+    /// nothing, or an operation older than the client's fee records. Present
+    /// on any v2 module operation, even when zero, because mintv2 notes are
+    /// not whole sats and such rows must be shown to the msat to add up.
+    pub federation_fee: Option<RpcAmount>,
     pub txn_notes: Option<String>,
     pub tx_date_fiat_info: Option<FiatFXInfo>,
     pub frontend_metadata: FrontendMetadata,
