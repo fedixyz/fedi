@@ -598,7 +598,7 @@ describe('screens/WalletServiceLightningProvider', () => {
     // out of watching time is not the request failing
     // there is no budget any more: the message is true the moment the request
     // is accepted, because the operation is watched app-wide from then on
-    it('should say the attach carries on in the background as soon as it starts', async () => {
+    it('should say how long the attach takes as soon as it starts', async () => {
         renderScreen()
 
         await pressContinue(user)
