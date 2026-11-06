@@ -26,7 +26,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 50,
+        version: 51,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         manifoldCreationOverrideEnabled:
@@ -80,6 +80,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         seenRoomInvites: state.matrix.seenRoomInvites,
         seenKnockRequests: state.matrix.seenKnockRequests,
         paymentType: state.environment.paymentType,
+        lastUsedSendMethod: state.environment.lastUsedSendMethod,
         selectedFederationId: state.federation.selectedFederationId,
         latestAwareReleaseTag: state.environment.latestAwareReleaseTag,
     }
@@ -124,6 +125,7 @@ export function hasStorageStateChanged(
         ['environment', 'sessionCount'],
         ['environment', 'lastUsedTab'],
         ['environment', 'paymentType'],
+        ['environment', 'lastUsedSendMethod'],
         ['environment', 'latestAwareReleaseTag'],
         ['currency', 'overrideCurrency'],
         ['currency', 'customFederationCurrencies'],
@@ -891,6 +893,14 @@ async function migrateStoredState(
             ...migrationState,
             version: 50,
             manifoldCreationOverrideEnabled: false,
+        }
+    }
+
+    if (migrationState.version === 50) {
+        migrationState = {
+            ...migrationState,
+            version: 51,
+            lastUsedSendMethod: null,
         }
     }
 

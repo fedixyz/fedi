@@ -14,7 +14,10 @@ import { useMinMaxSendAmount } from '@fedi/common/hooks/amount'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectIsInternetUnreachable } from '@fedi/common/redux'
+import {
+    selectIsInternetUnreachable,
+    selectLastUsedSendMethod,
+} from '@fedi/common/redux'
 import { parseBitcoinAddress, parseUserInput } from '@fedi/common/utils/parser'
 import { isValidInternetIdentifier } from '@fedi/common/utils/validation'
 
@@ -30,13 +33,11 @@ import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { Switcher } from '../components/ui/Switcher'
 import { useAppSelector } from '../state/hooks'
-import { AnyParsedData, ParserDataType, Sats } from '../types'
+import { AnyParsedData, ParserDataType, Sats, SendMethod } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Send'>
-
-type Tab = 'lightning' | 'onchain' | 'ecash'
 
 // Expected input types for the Send screen
 const expectedSendTypes = [
@@ -57,7 +58,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
 
     const [address, setAddress] = useState('')
     const [addressFocused, setLightningAddressFocused] = useState(false)
-    const [tab, setTab] = useState<Tab>('lightning')
+    const [selectedTab, setTab] = useState<SendMethod | null>(null)
     const [offlineAmount, setOfflineAmount] = useState<Sats>(0 as Sats)
     const [offlineSubmitAttempts, setOfflineSubmitAttempts] = useState(0)
     const [offlineNotes, setOfflineNotes] = useState('')
@@ -71,6 +72,16 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
 
     const isOfflineWalletSupported = useIsOfflineWalletSupported(federationId)
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
+    const lastUsedSendMethod = useAppSelector(selectLastUsedSendMethod)
+    // Open on the method of the last successful send, or ecash before any.
+    // Fall back to lightning while the federation offers no ecash, without
+    // touching the remembered method
+    const preferredTab = lastUsedSendMethod ?? 'ecash'
+    const tab =
+        selectedTab ??
+        (preferredTab === 'ecash' && !isOfflineWalletSupported
+            ? 'lightning'
+            : preferredTab)
     const fedimint = useFedimint()
     const toast = useToast()
 
@@ -270,7 +281,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
 
     useSyncCurrencyRatesOnFocus(federationId)
 
-    const options: { label: string; value: Tab }[] = [
+    const options: { label: string; value: SendMethod }[] = [
         { label: t('words.lightning'), value: 'lightning' },
         { label: t('words.onchain'), value: 'onchain' },
     ]
@@ -285,7 +296,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
     return (
         <Column grow>
             <Column style={style.headControls} gap="lg">
-                <Switcher<Tab>
+                <Switcher<SendMethod>
                     options={options}
                     selected={tab}
                     onChange={setTab}
