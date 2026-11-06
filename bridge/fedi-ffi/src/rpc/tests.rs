@@ -2493,6 +2493,8 @@ async fn test_on_chain_v2(_dev_fed: DevFed) -> anyhow::Result<()> {
             } = entry.transaction.kind
             {
                 if onchain_address == withdraw_address {
+                    // the row is the value alone; the app adds the fees to it
+                    assert_eq!(entry.transaction.amount.0, withdraw_amount);
                     return Ok(());
                 }
             }

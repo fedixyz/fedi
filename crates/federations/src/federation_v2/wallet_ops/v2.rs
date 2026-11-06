@@ -321,12 +321,10 @@ impl WalletOps for WalletOpsV2 {
         let walletv2_meta: WalletOperationMeta = entry.meta();
         match walletv2_meta {
             WalletOperationMeta::Send(meta) => {
-                // On-chain send debits value + network fee from the
-                // balance, so display the gross spend (receives below
-                // show value - fee, the net credited).
-                let amount = RpcAmount(Amount::from_msats(
-                    (meta.value.to_sat() + meta.fee.to_sat()) * 1000,
-                ));
+                // Like v1, the row carries the value alone: an on-chain send
+                // displays amount + fees, and the network fee is one of them
+                // (receives below show value - fee, the net credited).
+                let amount = RpcAmount(Amount::from_sats(meta.value.to_sat()));
                 // Upstream walletv2-client now persists the terminal
                 // FinalSendOperationState via outcome_or_updates. Read
                 // it back so we can surface the bitcoin txid on
