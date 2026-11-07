@@ -54,7 +54,7 @@ impl GuardianRemittanceAccount {
             };
             account
                 .history_service
-                .update_continuously(&account.sync_service)
+                .update_continuously(&account.sync_service, |_| async { Ok(()) })
                 .await;
         });
         Ok(account)

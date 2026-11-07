@@ -9,7 +9,10 @@ import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
-import { selectPaymentFederation } from '@fedi/common/redux'
+import {
+    selectPaymentFederation,
+    setLastUsedSendMethod,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 
@@ -19,7 +22,7 @@ import PaymentType from '../components/feature/send/PaymentType'
 import NotesInput from '../components/ui/NotesInput'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
-import { useAppSelector } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -32,6 +35,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
+    const dispatch = useAppDispatch()
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const { parsedData, notes: notesParam } = route.params
     const [notes, setNotes] = useState<string>(notesParam || '')
@@ -67,6 +71,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
         setIsPayingAddress(true)
         try {
             await handleOmniSend(inputAmount, notes)
+            dispatch(setLastUsedSendMethod('onchain'))
             navigationReplace('SendSuccess', {
                 amount: amountUtils.satToMsat(inputAmount),
                 unit,
@@ -75,7 +80,16 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
             toast.error(t, err)
         }
         setIsPayingAddress(false)
-    }, [handleOmniSend, inputAmount, unit, navigationReplace, toast, t, notes])
+    }, [
+        handleOmniSend,
+        inputAmount,
+        unit,
+        navigationReplace,
+        toast,
+        t,
+        notes,
+        dispatch,
+    ])
 
     if (!isReadyToPay) return <ActivityIndicator />
 

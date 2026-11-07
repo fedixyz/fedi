@@ -32,7 +32,11 @@ import {
 } from '../types/parser'
 import { validateCashuTokens } from './cashu'
 import { FedimintBridge } from './fedimint'
-import { isDeepLink, normalizeDeepLink } from './linking'
+import {
+    isDeepLink,
+    normalizeCommunityInviteCode,
+    normalizeDeepLink,
+} from './linking'
 import { makeLog } from './log'
 import { decodeFediMatrixRoomUri, decodeFediMatrixUserUri } from './matrix'
 import { isValidInternetIdentifier } from './validation'
@@ -222,6 +226,7 @@ export async function parseFediUniversalLink(
     | ParsedLegacyFediChatMember
     | ParsedFediChatUser
     | ParsedFediChatRoom
+    | ParsedCommunityInvite
     | ParsedDeepLink
     | undefined
 > {
@@ -233,6 +238,17 @@ export async function parseFediUniversalLink(
         if (result?.screen === 'user') {
             const id = result.params.get('id')
             if (id) return parseFediUri(`${FEDI_PREFIX}user/${id}`, fedimint)
+        }
+
+        if (result?.screen === 'join') {
+            const invite =
+                result.params.get('invite') || result.params.get('id')
+            if (invite) {
+                const community = parseCommunityInvite(
+                    normalizeCommunityInviteCode(invite).toLowerCase(),
+                )
+                if (community) return community
+            }
         }
 
         return {

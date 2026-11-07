@@ -32,7 +32,7 @@ use matrix_sdk::ruma::api::client::receipt::create_receipt::v3::ReceiptType;
 use matrix_sdk::ruma::api::client::room::Visibility;
 pub use matrix_sdk::ruma::api::client::room::create_room::v3 as create_room;
 use matrix_sdk::ruma::api::client::session::login;
-use matrix_sdk::ruma::api::client::state::send_state_event;
+use matrix_sdk::ruma::api::client::state::{get_state_event_for_key, send_state_event};
 use matrix_sdk::ruma::api::client::uiaa::{self, UserIdentifier};
 use matrix_sdk::ruma::events::poll::start::PollKind;
 use matrix_sdk::ruma::events::poll::unstable_end::UnstablePollEndEventContent;
@@ -51,6 +51,7 @@ use matrix_sdk::ruma::events::room::message::RoomMessageEventContentWithoutRelat
 use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use matrix_sdk::ruma::events::{
     AnyMessageLikeEventContent, AnySyncTimelineEvent, EmptyStateKey, InitialStateEvent,
+    StateEventType,
 };
 use matrix_sdk::ruma::{
     EventId, OwnedMxcUri, OwnedRoomId, OwnedRoomOrAliasId, RoomId, UInt, UserId, assign,
@@ -1071,6 +1072,25 @@ impl Matrix {
             .iter()
             .filter_map(RpcTimelineItem::from_preview_item)
             .collect())
+    }
+
+    /// Power levels of a room the user may not have joined, read from the
+    /// homeserver rather than the local store. The homeserver shows them to
+    /// non-members of world-readable rooms, the same rooms whose messages
+    /// `preview_room_content` can read.
+    pub async fn preview_room_power_levels(
+        &self,
+        room_id: &RoomId,
+    ) -> Result<RoomPowerLevelsEventContent> {
+        let response = self
+            .client
+            .send(get_state_event_for_key::v3::Request::new(
+                room_id.to_owned(),
+                StateEventType::RoomPowerLevels,
+                String::new(),
+            ))
+            .await?;
+        Ok(serde_json::from_str(response.event_or_content.get())?)
     }
 
     pub async fn send_attachment(

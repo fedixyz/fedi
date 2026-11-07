@@ -441,5 +441,8 @@ async function waitForRequestStatus(
 // the header back resets to the room on both platforms. a hardware back
 // leaves the app once a deposit or withdrawal confirm has reset the stack.
 async function backOutOfMultispend(t: AppiumTestBase): Promise<void> {
-    await t.clickElementByKey('MultispendHeaderBackButton')
+    await t.clickAndCheckForNextElement(
+        'MultispendHeaderBackButton',
+        'MessageInput-TextInput',
+    )
 }

@@ -18,6 +18,7 @@ import { MatrixRoom } from '../../../types'
 import { NavigationHook } from '../../../types/navigation'
 import { BubbleView } from '../../ui/BubbleView'
 import { Column } from '../../ui/Flex'
+import NotificationDot from '../../ui/NotificationDot'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 
@@ -36,7 +37,7 @@ const DefaultChatTile = ({
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
-    const { text, isPublicBroadcast } = useMatrixRoomPreview({
+    const { text, isUnread, isPublicBroadcast } = useMatrixRoomPreview({
         roomId: room?.id ?? '',
         t,
     })
@@ -72,6 +73,12 @@ const DefaultChatTile = ({
                     <SvgImage
                         name={isPublicBroadcast ? 'SpeakerPhone' : 'Chat'}
                     />
+                    {isUnread && (
+                        <NotificationDot
+                            style={style.unreadIndicator}
+                            testID="DefaultChatTileUnreadIndicator"
+                        />
+                    )}
                 </Column>
                 <Column grow basis={false}>
                     <Text style={style.title} numberOfLines={1} bold>
@@ -127,6 +134,11 @@ const styles = (theme: Theme) =>
             width: 40,
             height: 40,
             position: 'relative',
+        },
+        unreadIndicator: {
+            position: 'absolute',
+            top: 0,
+            right: 0,
         },
         card: {
             borderColor: theme.colors.extraLightGrey,

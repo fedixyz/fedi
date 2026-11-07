@@ -35,6 +35,11 @@ const bridgeError = (error: string) =>
 const connectionError = bridgeError(
     'Federation rpc error { method => recover, 0 => Connection failed: Failed to connect to peer }',
 )
+const wrappedConnectionError = new BridgeError({
+    error: 'Failed to download client config',
+    errorCode: null,
+    detail: 'Failed to download client config\n\nCaused by:\n    Federation rpc error { method => client_config, 0 => Connection failed: Failed to connect to peer }',
+})
 
 describe('common/hooks/chat', () => {
     describe('useAcceptForeignEcash', () => {
@@ -103,36 +108,43 @@ describe('common/hooks/chat', () => {
             expect(result.current.isLoading).toBe(false)
         })
 
-        it('offers a retry when the federation is unreachable, and the retry loads the preview', async () => {
-            const federationPreview = jest
-                .fn()
-                .mockRejectedValueOnce(connectionError)
-                .mockResolvedValueOnce(preview)
-            const { result } = render({
-                parseEcash: () => Promise.resolve(notJoined(INVITE)),
-                federationPreview,
-            })
+        it.each([
+            ['a peer connection failure', connectionError],
+            ['a wrapped peer connection failure', wrappedConnectionError],
+        ])(
+            'offers a retry for %s, and the retry loads the preview',
+            async (_, error) => {
+                const federationPreview = jest
+                    .fn()
+                    .mockRejectedValueOnce(error)
+                    .mockResolvedValueOnce(preview)
+                const { result } = render({
+                    parseEcash: () => Promise.resolve(notJoined(INVITE)),
+                    federationPreview,
+                })
 
-            await waitFor(() => {
+                await waitFor(() => {
+                    expect(result.current.isLoading).toBe(false)
+                })
                 expect(result.current.issue).toBe('unreachable')
-            })
-            expect(result.current.issueMessage).toBe(
-                t('feature.receive.foreign-ecash-unreachable'),
-            )
-            expect(result.current.canRetry).toBe(true)
-            expect(store.getState().toast.toast).toBeNull()
+                expect(result.current.issueMessage).toBe(
+                    t('feature.receive.foreign-ecash-unreachable'),
+                )
+                expect(result.current.canRetry).toBe(true)
+                expect(store.getState().toast.toast).toBeNull()
 
-            await act(async () => {
-                result.current.retry()
-            })
+                await act(async () => {
+                    result.current.retry()
+                })
 
-            await waitFor(() => {
-                expect(result.current.federationPreview).toEqual(preview)
-            })
-            expect(result.current.issue).toBeNull()
-            expect(result.current.canRetry).toBe(false)
-            expect(federationPreview).toHaveBeenCalledTimes(2)
-        })
+                await waitFor(() => {
+                    expect(result.current.federationPreview).toEqual(preview)
+                })
+                expect(result.current.issue).toBeNull()
+                expect(result.current.canRetry).toBe(false)
+                expect(federationPreview).toHaveBeenCalledTimes(2)
+            },
+        )
 
         it('reports an invite that fails for any other reason', async () => {
             const { result } = render({

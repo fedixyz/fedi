@@ -728,8 +728,12 @@ export function useMatrixPaymentEvent({
     const isBolt11 = !!event.content.bolt11
     const receiveState =
         transaction?.kind === 'oobReceive' ? transaction.state?.type : undefined
+    // A cancel by the sender settles the payment whatever the receive did.
     const paymentStatus =
-        !isBolt11 && isRecipient && receiveState === 'failed'
+        !isBolt11 &&
+        isRecipient &&
+        receiveState === 'failed' &&
+        event.content.status !== 'canceled'
             ? 'failed'
             : !isBolt11 &&
                 isRecipient &&
@@ -1998,7 +2002,15 @@ export function useMatrixRoomPreview({
         selectMatrixRoomInviteIsSeen(s, roomId),
     )
 
-    const isPublicBroadcast = matrixRoom?.isPublic && matrixRoom.broadcastOnly
+    // Once joined, the live room is synced and is the source of truth for
+    // the room's latest message and kind. Before that, a default chat's
+    // preview, fetched for non-members, is the only source.
+    const previewRoom =
+        matrixRoom?.roomState === 'joined'
+            ? matrixRoom
+            : (defaultRoom ?? matrixRoom)
+
+    const isPublicBroadcast = previewRoom?.isPublic && previewRoom.broadcastOnly
 
     const isUnread =
         showInviteUnread && matrixRoom?.roomState === 'invited'
@@ -2026,14 +2038,10 @@ export function useMatrixRoomPreview({
     )
 
     const text = useMemo(() => {
-        // For deriving the preview text, we prefer a `defaultRoom` (if any)
-        // because we properly fetch the previews for them even if you haven't joined
-        const preferredPreviewRoom = defaultRoom ?? matrixRoom
-
         if (
             !defaultRoom &&
-            preferredPreviewRoom?.roomState === 'invited' &&
-            (showInvitePreview || preferredPreviewRoom.preview)
+            previewRoom?.roomState === 'invited' &&
+            (showInvitePreview || previewRoom.preview)
         ) {
             return t('feature.chat.connection-request-pending')
         }
@@ -2060,7 +2068,7 @@ export function useMatrixRoomPreview({
                 : t('feature.chat.request-to-join-group')
         }
 
-        if (!preferredPreviewRoom?.preview) {
+        if (!previewRoom?.preview) {
             // For a default-chat tile the user hasn't joined, an empty preview
             // means we couldn't fetch the room's messages, not that it has
             // none, so "no messages" would mislead. Show nothing instead. A
@@ -2075,11 +2083,9 @@ export function useMatrixRoomPreview({
         if (roomDraft)
             return t('feature.chat.draft-text', { text: roomDraft.trim() })
 
-        if (
-            preferredPreviewRoom.preview.content.msgtype === 'xyz.fedi.payment'
-        ) {
+        if (previewRoom.preview.content.msgtype === 'xyz.fedi.payment') {
             const { amount, senderId, recipientId } =
-                preferredPreviewRoom.preview.content
+                previewRoom.preview.content
 
             let messageKey = 'feature.receive.they-requested-amount-unit'
 
@@ -2098,10 +2104,11 @@ export function useMatrixRoomPreview({
             }) as string
         }
 
-        return getRoomPreviewText(preferredPreviewRoom, t)
+        return getRoomPreviewText(previewRoom, t)
     }, [
         defaultRoom,
         matrixRoom,
+        previewRoom,
         t,
         roomDraft,
         myId,

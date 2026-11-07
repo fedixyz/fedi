@@ -639,7 +639,47 @@ describe('lightning scripts', () => {
         const { simulator } = await jumpAndRead('lightning.rejected')
         await start(simulator)
         expect(await poll(simulator)).toMatchObject({
-            operation: { phase: 'rejected', rejectionCode: 'intentRefused' },
+            operation: {
+                phase: 'rejected',
+                rejectionCode: 'insufficient_capacity',
+            },
+        })
+    })
+
+    it('should treat a rejected operation as over, as the bridge does', async () => {
+        const { simulator } = await jumpAndRead('lightning.rejected')
+        const first = (await start(simulator)) as {
+            operation: { operationId: string }
+        }
+        await poll(simulator)
+        // the bridge's `current` reports only a live operation, so a refused
+        // one stops being adopted and the next start is a new request
+        expect(await simulator.handle('faClientLiquidityCurrent', {})).toEqual({
+            type: 'current',
+            operation: null,
+        })
+        const second = (await start(simulator)) as {
+            operation: { operationId: string; phase: string }
+        }
+        expect(second.operation.phase).toBe('accepted')
+        expect(second.operation.operationId).not.toBe(
+            first.operation.operationId,
+        )
+    })
+
+    it('should refuse the attach already running on the settings sheet', async () => {
+        const { screen, simulator } = await jumpAndRead(
+            'lightning.rejectedInSettings',
+        )
+        expect(screen.route).toBe('WalletServiceSettings')
+        expect(
+            await simulator.handle('faClientLiquidityCurrent', {}),
+        ).toMatchObject({ operation: { phase: 'accepted' } })
+        expect(await poll(simulator)).toMatchObject({
+            operation: {
+                phase: 'rejected',
+                rejectionCode: 'insufficient_capacity',
+            },
         })
     })
 

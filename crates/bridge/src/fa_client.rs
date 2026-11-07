@@ -435,6 +435,59 @@ pub(crate) fn start_fa_federation_auto_join(
         });
 }
 
+/// Refetches the FA federation's metadata when a guardian transfer reaches a
+/// phase in which consensus names the new host.
+///
+/// Guardian names come from the MG directory in that metadata, which the
+/// federation otherwise refetches only every few minutes. Without this the
+/// guardian list keeps naming the old host after the move.
+pub(crate) fn start_fa_transfer_directory_refresh(
+    runtime: &Runtime,
+    status: watch::Receiver<FaStatus>,
+    transfer: watch::Receiver<Option<GuardianTransfer>>,
+    federations: Arc<Federations>,
+) {
+    runtime
+        .task_group
+        .spawn_cancellable("fa-client::transfer-directory-refresh", async move {
+            refresh_directory_on_transfer(transfer, || {
+                let federation = formed_federation_id(&status.borrow())
+                    .ok()
+                    .and_then(|federation_id| federations.get_federation(&federation_id).ok());
+                match federation {
+                    Some(federation) => federation.meta_source.refresh.notify_one(),
+                    None => tracing::debug!(
+                        "the FA federation is not loaded; its metadata is read when it loads"
+                    ),
+                }
+            })
+            .await;
+        });
+}
+
+/// Calls `refresh` each time the transfer changes into a phase in which
+/// consensus names the new host. The value at the start is skipped: a
+/// federation fetches its metadata when it loads.
+async fn refresh_directory_on_transfer(
+    mut transfer: watch::Receiver<Option<GuardianTransfer>>,
+    refresh: impl Fn(),
+) {
+    let phase_of = |transfer: &Option<GuardianTransfer>| transfer.as_ref().map(|t| t.phase);
+    let mut last = phase_of(&transfer.borrow_and_update());
+    while transfer.changed().await.is_ok() {
+        let phase = phase_of(&transfer.borrow_and_update());
+        if phase != last
+            && matches!(
+                phase,
+                Some(GuardianTransferPhase::RemovingSource | GuardianTransferPhase::Completed)
+            )
+        {
+            refresh();
+        }
+        last = phase;
+    }
+}
+
 /// Joins the FA's federation if needed, and reports how far it got.
 ///
 /// The handoff lock only has to keep the join and its marker write apart from
@@ -3351,9 +3404,6 @@ fn replacement_candidate_to_rpc(candidate: &ReplacementCandidate) -> RpcFaReplac
             .map(|reason| match *reason {
                 ReplacementReason::Offline { last_seen_secs } => {
                     RpcFaReplacementReason::Offline { last_seen_secs }
-                }
-                ReplacementReason::MissedSessions { sessions } => {
-                    RpcFaReplacementReason::MissedSessions { sessions }
                 }
                 ReplacementReason::Disconnected => RpcFaReplacementReason::Disconnected,
                 ReplacementReason::LowWeekScore { basis_points } => {

@@ -25,8 +25,7 @@ use rpc_types::{
 use tracing::{debug, error, warn};
 
 use super::{
-    FeeRemittance, FeeRemittanceGatewayOverride, FeeRemittanceRoute, LnOps, Lnv2SendCreated,
-    maximum_invoice_amount,
+    FeeRemittance, FeeRemittanceGatewayOverride, FeeRemittanceRoute, LnOps, maximum_invoice_amount,
 };
 use crate::federation_v2::client::ClientExt;
 use crate::federation_v2::db::{
@@ -602,40 +601,36 @@ impl LnOps for LnOpsV2 {
             .send(invoice.clone(), gateway_override, custom_meta)
             .await?;
 
-        async move {
-            fed.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
-                .await?;
-            drop(spend_guard);
-            let _ = fed
-                .record_tx_date_fiat_info(operation_id, amount + fedi_fee + gateway_fee)
-                .await;
-            let final_state = fed
-                .client
-                .lnv2()?
-                .await_final_send_operation_state(operation_id)
-                .await?;
-            match final_state {
-                LnV2FinalSendOperationState::Success(preimage) => {
-                    let _ = fed.write_success_send_fedi_fees(operation_id).await;
-                    fed.send_transaction_event(operation_id).await;
-                    Ok(RpcPayInvoiceResponse {
-                        preimage: hex::encode(preimage),
-                    })
-                }
-                LnV2FinalSendOperationState::Refunded => {
-                    let _ = fed.write_failed_send_fedi_fees(operation_id).await;
-                    fed.send_transaction_event(operation_id).await;
-                    bail!("Lightning payment failed, got refund");
-                }
-                LnV2FinalSendOperationState::Failure => {
-                    let _ = fed.write_failed_send_fedi_fees(operation_id).await;
-                    fed.send_transaction_event(operation_id).await;
-                    bail!("Lightning payment failed");
-                }
+        fed.write_pending_send_fedi_fees(operation_id, &fees_by_stream)
+            .await?;
+        drop(spend_guard);
+        let _ = fed
+            .record_tx_date_fiat_info(operation_id, amount + fedi_fee + gateway_fee)
+            .await;
+        let final_state = fed
+            .client
+            .lnv2()?
+            .await_final_send_operation_state(operation_id)
+            .await?;
+        match final_state {
+            LnV2FinalSendOperationState::Success(preimage) => {
+                let _ = fed.write_success_send_fedi_fees(operation_id).await;
+                fed.send_transaction_event(operation_id).await;
+                Ok(RpcPayInvoiceResponse {
+                    preimage: hex::encode(preimage),
+                })
+            }
+            LnV2FinalSendOperationState::Refunded => {
+                let _ = fed.write_failed_send_fedi_fees(operation_id).await;
+                fed.send_transaction_event(operation_id).await;
+                bail!(ErrorCode::LnPayRefunded);
+            }
+            LnV2FinalSendOperationState::Failure => {
+                let _ = fed.write_failed_send_fedi_fees(operation_id).await;
+                fed.send_transaction_event(operation_id).await;
+                bail!("Lightning payment failed");
             }
         }
-        .await
-        .map_err(|error: anyhow::Error| anyhow::Error::new(Lnv2SendCreated(error)))
     }
 
     async fn prepare_fee_remittance(
@@ -702,7 +697,7 @@ impl LnOps for LnOpsV2 {
                 preimage: hex::encode(preimage),
             }),
             LnV2FinalSendOperationState::Refunded => {
-                bail!("Lightning payment failed, got refund");
+                bail!(ErrorCode::LnPayRefunded);
             }
             LnV2FinalSendOperationState::Failure => {
                 bail!("Lightning payment failed");
@@ -921,11 +916,13 @@ impl LnOps for LnOpsV2 {
                     },
                 }))
             }
-            LnV2OperationMeta::Receive(LnV2ReceiveOperationMeta {
-                invoice,
-                custom_meta,
-                ..
-            }) => {
+            LnV2OperationMeta::Receive(meta) => {
+                let gateway_fee = meta.gateway_fee();
+                let LnV2ReceiveOperationMeta {
+                    invoice,
+                    custom_meta,
+                    ..
+                } = meta;
                 let frontend_metadata = serde_json::from_value::<BaseMetadata>(custom_meta)
                     .unwrap_or_default()
                     .into();
@@ -963,9 +960,16 @@ impl LnOps for LnOpsV2 {
                             fedimint_ln_client::LnReceiveState::Funded
                         }
                     });
+                // The gateway takes its fee before the contract exists, so it is
+                // gone exactly when the contract was claimed. An unpaid or
+                // expired invoice still reads as what it asked for.
+                let claimed = matches!(state, Some(fedimint_ln_client::LnReceiveState::Claimed));
+                let amount = Amount::from_msats(amount_msats);
                 Ok(Some(FederationTransactionParts {
-                    amount: RpcAmount(Amount {
-                        msats: amount_msats,
+                    amount: RpcAmount(if claimed {
+                        amount.saturating_sub(gateway_fee)
+                    } else {
+                        amount
                     }),
                     frontend_metadata,
                     kind: RpcTransactionKind::LnReceive {

@@ -1,13 +1,24 @@
 import { cleanup, fireEvent, screen } from '@testing-library/react-native'
 
-import { setFeatureFlags, setFederations, setupStore } from '@fedi/common/redux'
-import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
+import {
+    setCommunities,
+    setFeatureFlags,
+    setFederations,
+    setupStore,
+} from '@fedi/common/redux'
+import { communityInvites } from '@fedi/common/tests/fixtures/community-invites'
+import {
+    mockCommunity,
+    mockFederation1,
+} from '@fedi/common/tests/mock-data/federation'
+import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import {
     ParserDataType,
     ParsedFederationInvite,
     ParsedStabilityAddress,
 } from '@fedi/common/types'
 import { FeatureCatalog } from '@fedi/common/types/bindings'
+import { parseFediUniversalLink } from '@fedi/common/utils/parser'
 import i18n from '@fedi/native/localization/i18n'
 
 import { OmniConfirmation } from '../../../../../components/feature/omni/OmniConfirmation'
@@ -27,6 +38,56 @@ describe('components/feature/omni/OmniConfirmation', () => {
 
     afterEach(() => {
         cleanup()
+    })
+
+    describe.each(communityInvites)('$prefix QR confirmation', ({ invite }) => {
+        it.each([false, true])(
+            'preserves the Space action when joined=%s',
+            async joined => {
+                if (joined)
+                    store.dispatch(
+                        setCommunities([
+                            {
+                                ...mockCommunity,
+                                communityInvite: {
+                                    type: 'legacy',
+                                    community_meta_url:
+                                        'https://example.com/space.json',
+                                    invite_code_str: invite,
+                                },
+                            },
+                        ]),
+                    )
+                const parsedData = await parseFediUniversalLink(
+                    `https://app.fedi.xyz/link#screen=join&id=${invite.slice(5)}`,
+                    createMockFedimintBridge(),
+                )
+                if (!parsedData) throw new Error('Space link was not parsed')
+                renderWithProviders(
+                    <OmniConfirmation
+                        parsedData={parsedData}
+                        onGoBack={jest.fn()}
+                        onSuccess={jest.fn()}
+                    />,
+                    { store },
+                )
+                expect(
+                    screen.getByText(
+                        i18n.t(
+                            joined
+                                ? 'feature.communities.existing-membership'
+                                : 'feature.omni.confirm-community-invite',
+                        ),
+                    ),
+                ).toBeOnTheScreen()
+                if (joined) {
+                    fireEvent.press(screen.getByText('Take me there'))
+                    expect(
+                        store.getState().federation.lastSelectedCommunityId,
+                    ).toBe(mockCommunity.id)
+                }
+            },
+        )
     })
 
     describe('when rending OmniConfirmation', () => {

@@ -6,7 +6,8 @@ import { setupServer } from 'msw/node'
 import { Invoice, MSats } from '../../../types'
 import { ParserDataType } from '../../../types/parser'
 import { FedimintBridge } from '../../../utils/fedimint'
-import { parseUserInput } from '../../../utils/parser'
+import { parseFediUniversalLink, parseUserInput } from '../../../utils/parser'
+import { communityInvites } from '../../fixtures/community-invites'
 
 // Constants
 const mockFedId = 'fed1'
@@ -425,6 +426,82 @@ describe('parseUserInput', () => {
 
         expect(parsed.type).toBe(ParserDataType.Unknown)
     })
+
+    describe.each(communityInvites)(
+        '$prefix scanner compatibility',
+        ({ invite }) => {
+            it.each(['?', '#'])(
+                'preserves the Space prompt for %s links',
+                async separator => {
+                    for (const host of ['app.fedi.xyz', 'link.fedi.xyz']) {
+                        for (const key of ['id', 'invite']) {
+                            for (const value of [
+                                invite,
+                                invite.slice(5),
+                                invite.toUpperCase(),
+                                invite.slice(5).toUpperCase(),
+                            ]) {
+                                const url = `https://${host}/link${separator}screen=join&${key}=${encodeURIComponent(value)}`
+                                expect(
+                                    await parseUserInput(
+                                        url,
+                                        fedimint,
+                                        t,
+                                        mockFedId,
+                                        true,
+                                    ),
+                                ).toEqual({
+                                    type: ParserDataType.CommunityInvite,
+                                    data: { invite },
+                                })
+                            }
+                        }
+                    }
+                },
+            )
+
+            it('preserves the original raw code when pasted', async () => {
+                for (const raw of [invite, invite.toUpperCase()]) {
+                    expect(
+                        await parseUserInput(raw, fedimint, t, mockFedId, true),
+                    ).toEqual({
+                        type: ParserDataType.CommunityInvite,
+                        data: { invite: raw },
+                    })
+                }
+            })
+
+            it('honors invite before id like the navigation handlers', async () => {
+                const url = `https://app.fedi.xyz/link#screen=join&invite=fed1abc&id=${invite.slice(5)}`
+                expect(await parseFediUniversalLink(url, fedimint)).toEqual({
+                    type: ParserDataType.DeepLink,
+                    data: { url },
+                })
+            })
+
+            it.each(['join-then-ecash', 'join-then-browse', 'join-then-join'])(
+                'preserves the full %s action',
+                async screen => {
+                    const url = `https://app.fedi.xyz/link#screen=${screen}&invite=${invite.slice(5)}&ecash=token&url=https://example.com&community=${invite.slice(5)}&federation=fed1abc`
+                    expect(await parseFediUniversalLink(url, fedimint)).toEqual(
+                        {
+                            type: ParserDataType.DeepLink,
+                            data: { url },
+                        },
+                    )
+                },
+            )
+
+            it('does not treat lookalike hosts as Fedi links', async () => {
+                expect(
+                    await parseFediUniversalLink(
+                        `https://app.fedi.xyz.example.com/link#screen=join&id=${invite.slice(5)}`,
+                        fedimint,
+                    ),
+                ).toBeUndefined()
+            })
+        },
+    )
 
     for (const testCase of testCases) {
         it(`parses ${testCase.type} from ${truncate(testCase.input)}`, async () => {

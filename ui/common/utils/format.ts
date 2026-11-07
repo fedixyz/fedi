@@ -56,6 +56,8 @@ const bridgeErrorMap: Partial<Record<StringBridgeErrorCodes, ResourceKey>> = {
     payLnInvoiceAlreadyPaid: 'errors.invoice-already-paid',
     ecashAlreadySpent: 'errors.receive-ecash-failed-claimed',
     ecashCancelFailed: 'errors.cancel-ecash-failed-claimed',
+    lnPayRefunded: 'errors.lightning-send-refunded',
+    lnPayFundingRejected: 'errors.lightning-send-rejected',
 }
 
 export const formatBridgeError = (

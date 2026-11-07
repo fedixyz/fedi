@@ -22,6 +22,7 @@ import {
     lightningNeverVerifies,
     lightningNoProvider,
     lightningRejected,
+    lightningRejectedInSettings,
     lightningWrongNetwork,
 } from './scripts/lightning'
 import {
@@ -455,6 +456,12 @@ export const FA_SCREEN_GROUPS: FaScreenGroup[] = [
                 'lightning.alreadyAttaching',
                 'Settings: attaching',
                 lightningAlreadyAttaching,
+                'settings',
+            ),
+            settings(
+                'lightning.rejectedInSettings',
+                'Settings: request refused',
+                lightningRejectedInSettings,
                 'settings',
             ),
             settings(

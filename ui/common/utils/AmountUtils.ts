@@ -131,6 +131,17 @@ class AmountUtils {
     formatNumber = (amount: number): string => {
         return accounting.formatNumber(amount, { precision: 0 })
     }
+    /**
+     * Whole sats, except an amount under one sat, where "0" would read as nothing
+     * at all: 97792 => '97', 563 => '0.563'
+     */
+    formatMsatsAsSats = (msats: MSats): string => {
+        if (msats > 0 && msats < AmountUtils.MSATS_PER_SAT) {
+            const digits = msats.toString().padStart(3, '0').replace(/0+$/, '')
+            return `0.${digits}`
+        }
+        return this.formatSats(this.msatToSat(msats))
+    }
     formatSats = (sats: Sats): string => {
         return Intl.NumberFormat().format(sats)
     }

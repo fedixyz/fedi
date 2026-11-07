@@ -41,14 +41,24 @@ impl SPv2SweeperService {
                 return;
             };
 
-            let mut updates = sync_service.subscribe_to_updates();
+            let Some(history_service) = fed.spv2_history_service.get() else {
+                info!("spv2 history service not available, sweep service exiting");
+                return;
+            };
+            let mut updates = history_service.subscribe_to_processed_syncs();
 
-            // Keep updating based on sync updates
+            // Transfers and their cycle marker have been saved before this wakes.
             while let Some(maybe_sync_response) = updates.next().await {
                 let Some(sync_response) = maybe_sync_response else {
                     continue;
                 };
-                if let Err(e) = sweep_spv2_inner(&fed, sync_response.value).await {
+                if sync_service
+                    .current_sync_response()
+                    .is_none_or(|current| current.value != sync_response)
+                {
+                    continue;
+                }
+                if let Err(e) = sweep_spv2_inner(&fed, sync_response).await {
                     error!(%e, "Error sweeping spv2, will retry next cycle if needed");
                 }
             }
@@ -73,26 +83,31 @@ fn spv2_sweeper_update_variant_name(
 async fn sweep_spv2_inner(fed: &FederationV2, sync_response: SyncResponse) -> anyhow::Result<()> {
     // In order to sweep a staged seeker deposit back into e-cash, two
     // things must be true:
-    // 1. Current stability pool cycle > (last cycle in which user deposited + 2)
-    // 2. User has non-0 staged deposit balance
+    // 1. User has non-0 staged deposit balance
+    // 2. Current stability pool cycle > (last cycle in which funds arrived + 2)
     //
     // If the above conditions are true, we withdraw all of the user's
     // unlocked balance back to e-cash.
-    let current_cycle_index = sync_response.current_cycle.idx;
-    let last_deposit_cycle_index = fed
-        .client
-        .db()
-        .begin_transaction_nc()
-        .await
-        .get_value(&LastStabilityPoolV2DepositCycleKey)
-        .await
-        .ok_or(anyhow!("Last deposit cycle index not found"))?;
+    if sync_response.staged_balance == Amount::ZERO {
+        return Ok(());
+    }
 
-    // TODO shaurya when transfers are implemented we would also want to update
-    // "last_deposit_cycle_index" for any incoming staged transfers
-    if current_cycle_index.saturating_sub(last_deposit_cycle_index) <= 2
-        || sync_response.staged_balance == Amount::ZERO
-    {
+    // Only a deposit on this device or a transfer in sets the cycle. A wallet
+    // restored from seed has neither on record, so it counts from this cycle.
+    let current_cycle_index = sync_response.current_cycle.idx;
+    let mut dbtx = fed.dbtx().await;
+    let recorded_cycle_index = dbtx.get_value(&LastStabilityPoolV2DepositCycleKey).await;
+    let last_deposit_cycle_index = recorded_cycle_index.unwrap_or(current_cycle_index);
+    if recorded_cycle_index != Some(last_deposit_cycle_index) {
+        dbtx.insert_entry(
+            &LastStabilityPoolV2DepositCycleKey,
+            &last_deposit_cycle_index,
+        )
+        .await;
+        dbtx.commit_tx_result().await?;
+    }
+
+    if current_cycle_index.saturating_sub(last_deposit_cycle_index) <= 2 {
         return Ok(());
     }
 

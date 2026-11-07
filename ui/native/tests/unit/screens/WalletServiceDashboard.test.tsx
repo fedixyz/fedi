@@ -1247,7 +1247,7 @@ describe('screens/WalletServiceDashboard', () => {
                 'wallet-service-replacement-progress',
             )
             expect(
-                within(banner).getByText('Waiting for Carol to come online.'),
+                within(banner).getByText('Moving to Dave…'),
             ).toBeOnTheScreen()
 
             // an error says nothing about the move, so it stays up
@@ -1302,7 +1302,7 @@ describe('screens/WalletServiceDashboard', () => {
                 within(banner).getByText('Replacing Carol'),
             ).toBeOnTheScreen()
             expect(
-                within(banner).getByText('Waiting for Carol to come online.'),
+                within(banner).getByText('Moving to Dave…'),
             ).toBeOnTheScreen()
             expect(
                 screen.queryByTestId('wallet-service-replacement-banner'),

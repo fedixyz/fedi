@@ -7,6 +7,7 @@ interface Props {
     children: React.ReactNode
     size?: number
     offset?: number
+    testId?: string
 }
 
 export const NotificationDot: React.FC<Props> = ({
@@ -14,12 +15,14 @@ export const NotificationDot: React.FC<Props> = ({
     children,
     offset = 0,
     size = 12,
+    testId,
 }) => {
     return (
         <Container>
             {children}
             {visible && (
                 <Dot
+                    data-testid={testId}
                     css={{
                         top: offset,
                         right: offset,

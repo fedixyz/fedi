@@ -4,6 +4,9 @@ import { GuardianStatus } from '../types/bindings'
 export const GUARDIAN_REFRESH_INTERVAL = 35_000
 // match GUARDIAN_STATUS_CACHE_TTL_SECS in the bridge to avoid reusing a probe.
 export const GUARDIAN_CACHE_TTL = 30_000
+// the federation metadata field holding the MG directory, which the bridge
+// names guardians from
+export const MG_SEAT_BINDINGS_META_KEY = 'fedi:fman_seat_bindings'
 const MAX_OBSERVATION_GAP = 150_000
 const OFFLINE_DELAY = 3 * 60_000
 const PARTIAL_REACHABILITY_DELAY = 6 * 60_000

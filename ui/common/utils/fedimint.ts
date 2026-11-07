@@ -1212,6 +1212,12 @@ export class FedimintBridge {
         return this.rpcTyped('matrixRoomPreviewContent', args)
     }
 
+    async matrixRoomPreviewPowerLevels(
+        args: bindings.RpcPayload<'matrixRoomPreviewPowerLevels'>,
+    ) {
+        return this.rpcTyped('matrixRoomPreviewPowerLevels', args)
+    }
+
     matrixSubscribeRoomList(
         args: StreamRpcArgs<'matrixSubscribeRoomList'>,
     ): UnsubscribeFn {

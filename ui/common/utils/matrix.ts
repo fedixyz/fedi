@@ -26,6 +26,7 @@ import {
     MatrixMentions,
     MatrixMultispendEvent,
     MatrixPaymentEvent,
+    MatrixPowerLevel,
     MatrixRoom,
     MatrixRoomMember,
     MatrixRoomPowerLevels,
@@ -415,9 +416,6 @@ export function makeChatFromUnjoinedRoomPreview(preview: MatrixGroupPreview) {
     const chat: MatrixRoom = {
         ...info,
         preview: chatPreview,
-        // all previews are default rooms which can be either public chat rooms or public broadcast rooms
-        // TODO: allow non-default, non-broadcast only previewing of rooms
-        broadcastOnly: true,
     }
 
     return chat
@@ -473,6 +471,16 @@ export function getRoomEventPowerLevel(
         }
     }
     return powerLevels.events_default || 0
+}
+
+// A room is broadcast-only when sending a message takes moderator rights.
+export function isBroadcastOnlyRoom(powerLevels: MatrixRoomPowerLevels) {
+    return (
+        getRoomEventPowerLevel(powerLevels, [
+            'm.room.message',
+            'unableToDecrypt',
+        ]) >= MatrixPowerLevel.Moderator
+    )
 }
 
 export const makeMatrixPaymentText = ({
@@ -628,19 +636,30 @@ export function getReceivablePaymentEvents(
     }, [] as MatrixPaymentEvent[])
 }
 
+/**
+ * A payment is reclaimable once its latest status says the recipient will
+ * never redeem it: they rejected it, or their redemption failed. A failed
+ * redemption is not retried, so the notes stay outstanding until the sender
+ * reclaims them.
+ */
 export function getReclaimablePaymentEvents(
     timeline: (MatrixEvent | null)[],
     myId: string,
     myFederations: LoadedFederation[],
 ) {
-    const reclaimableEvents: Array<MatrixPaymentEvent> = []
+    const latestPayments: Record<string, MatrixPaymentEvent> = {}
     timeline.forEach(item => {
         if (item === null) return
         if (!isPaymentEvent(item)) return
         if (item.content.senderId !== myId) return
-        if (!item.content.ecash) return
-        if (item.content.status !== 'rejected') return
-        if (!item.content.federationId) return
+        if (isSpoofedEcashSettlement(item)) return
+        latestPayments[item.content.paymentId] = item
+    })
+
+    return Object.values(latestPayments).filter(item => {
+        if (!item.content.ecash) return false
+        if (!['rejected', 'failed'].includes(item.content.status)) return false
+        if (!item.content.federationId) return false
         // payment is not receivable if we have not joined the federation this ecash is from or if we have joined but are still recovering
         const joinedFederation = myFederations.find(
             f => f.id === item.content.federationId,
@@ -649,18 +668,16 @@ export function getReclaimablePaymentEvents(
             log.info(
                 `can't cancel ecash from federation ${item.content.federationId}: user is not joined`,
             )
-            return
+            return false
         }
         if (joinedFederation?.recovering) {
             log.info(
                 `can't cancel ecash from federation ${item.content.federationId}: user is joined but recovery is in progress`,
             )
-            return
+            return false
         }
-        reclaimableEvents.push(item)
+        return true
     })
-
-    return reclaimableEvents
 }
 
 /**
@@ -801,6 +818,17 @@ export function canReplyToMatrixEvent(event: MatrixEvent) {
         isImageEvent(event) ||
         isVideoEvent(event) ||
         isFileEvent(event)
+    )
+}
+
+/**
+ * Members can react to the messages they can reply to, and to payment
+ * entries, which take reactions but no replies.
+ */
+export function canReactToMatrixEvent(event: MatrixEvent) {
+    return (
+        event.canReact &&
+        (canReplyToMatrixEvent(event) || isPaymentEvent(event))
     )
 }
 
@@ -1043,6 +1071,7 @@ export const coerceMultispendTxn = (
         amount: 0 as MSats,
         fediAppFeeStatus: null,
         fediGuardianFeeStatus: null,
+        federationFee: null,
         txnNotes: '',
         txDateFiatInfo: null,
         frontendMetadata: {

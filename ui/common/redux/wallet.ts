@@ -322,7 +322,7 @@ export const receiveEcash = createAsyncThunk<
                 if (txn.state?.type === 'done') {
                     clearTimeout(timeout)
                     unsubscribe()
-                    resolve({ amount, status: 'success' })
+                    resolve({ amount: txn.amount, status: 'success' })
                 } else if (txn.state?.type === 'failed') {
                     clearTimeout(timeout)
                     unsubscribe()

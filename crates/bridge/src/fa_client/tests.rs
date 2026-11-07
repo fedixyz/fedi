@@ -2873,6 +2873,104 @@ async fn command_channel_preserves_typed_start_and_resume_liquidity_responses() 
         .expect("the typed response supervisor shuts down");
 }
 
+fn transfer_at(phase: GuardianTransferPhase) -> GuardianTransfer {
+    GuardianTransfer {
+        seat_index: 2,
+        source_mg_id: Keys::generate().public_key(),
+        source_seat_id: fa_client::SeatId::new("aa".repeat(32)).unwrap(),
+        destination_mg_id: Keys::generate().public_key(),
+        destination_seat_id: Some(fa_client::SeatId::new("bb".repeat(32)).unwrap()),
+        phase,
+    }
+}
+
+#[test]
+fn directory_is_not_refetched_for_the_transfer_found_at_start() {
+    use futures::FutureExt as _;
+
+    for phase in [
+        GuardianTransferPhase::RemovingSource,
+        GuardianTransferPhase::Completed,
+    ] {
+        // a move an earlier run left here; the federation reads its metadata
+        // when it loads, so this needs no refetch
+        let (sender, receiver) = watch::channel(Some(transfer_at(phase)));
+        let refreshes = AtomicUsize::new(0);
+        let mut refresh_loop = std::pin::pin!(refresh_directory_on_transfer(receiver, || {
+            refreshes.fetch_add(1, AtomicOrdering::SeqCst);
+        }));
+        // each poll runs the loop until it next waits for a change, so the
+        // loop has read the starting value by the first assert
+        let mut settle = |transfer: Option<Option<GuardianTransfer>>| {
+            if let Some(transfer) = transfer {
+                sender.send_replace(transfer);
+            }
+            assert!(refresh_loop.as_mut().now_or_never().is_none());
+            refreshes.load(AtomicOrdering::SeqCst)
+        };
+
+        assert_eq!(settle(None), 0, "{phase:?} at start");
+        assert_eq!(
+            settle(Some(Some(transfer_at(phase)))),
+            0,
+            "{phase:?} reported again is not a change"
+        );
+        assert_eq!(settle(Some(None)), 0);
+        assert_eq!(
+            settle(Some(Some(transfer_at(phase)))),
+            1,
+            "{phase:?} reached later still refetches"
+        );
+    }
+}
+
+#[tokio::test]
+async fn directory_is_refetched_when_consensus_names_the_new_host() {
+    let (sender, receiver) = watch::channel(None);
+    let refreshes = Arc::new(AtomicUsize::new(0));
+    let task = fedimint_core::task::spawn(
+        "transfer directory refresh test",
+        refresh_directory_on_transfer(receiver, {
+            let refreshes = refreshes.clone();
+            move || {
+                refreshes.fetch_add(1, AtomicOrdering::SeqCst);
+            }
+        }),
+    );
+    let send_and_settle = |transfer: Option<GuardianTransfer>| {
+        sender.send_replace(transfer);
+        async {
+            for _ in 0..10 {
+                tokio::task::yield_now().await;
+            }
+        }
+    };
+
+    for phase in [
+        GuardianTransferPhase::BuyingSeat,
+        GuardianTransferPhase::AwaitingSource,
+        GuardianTransferPhase::PublishingBinding,
+    ] {
+        send_and_settle(Some(transfer_at(phase))).await;
+    }
+    assert_eq!(
+        refreshes.load(AtomicOrdering::SeqCst),
+        0,
+        "consensus still names the old host"
+    );
+
+    send_and_settle(Some(transfer_at(GuardianTransferPhase::RemovingSource))).await;
+    assert_eq!(refreshes.load(AtomicOrdering::SeqCst), 1);
+    // a resume that reports the same phase again changes nothing
+    send_and_settle(Some(transfer_at(GuardianTransferPhase::RemovingSource))).await;
+    assert_eq!(refreshes.load(AtomicOrdering::SeqCst), 1);
+    send_and_settle(Some(transfer_at(GuardianTransferPhase::Completed))).await;
+    assert_eq!(refreshes.load(AtomicOrdering::SeqCst), 2);
+
+    drop(sender);
+    task.await.expect("the refresh loop ends with its sender");
+}
+
 #[test]
 fn guardian_transfer_projects_both_hosts_and_every_phase() {
     let source = Keys::generate().public_key();
@@ -2948,7 +3046,6 @@ fn replacement_candidate_projects_its_seat_and_every_reason() {
             ReplacementReason::Offline {
                 last_seen_secs: 1_700_000_000,
             },
-            ReplacementReason::MissedSessions { sessions: 480 },
             ReplacementReason::Disconnected,
             ReplacementReason::LowWeekScore {
                 basis_points: 7_250,
@@ -2968,7 +3065,6 @@ fn replacement_candidate_projects_its_seat_and_every_reason() {
             RpcFaReplacementReason::Offline {
                 last_seen_secs: 1_700_000_000
             },
-            RpcFaReplacementReason::MissedSessions { sessions: 480 },
             RpcFaReplacementReason::Disconnected,
             RpcFaReplacementReason::LowWeekScore {
                 basis_points: 7_250
@@ -2981,7 +3077,7 @@ fn replacement_candidate_projects_its_seat_and_every_reason() {
     );
     // the app reads the tag and camelCase fields
     assert_eq!(
-        serde_json::to_value(&candidate.reasons[3]).unwrap(),
+        serde_json::to_value(&candidate.reasons[2]).unwrap(),
         serde_json::json!({ "type": "lowWeekScore", "basisPoints": 7_250 })
     );
 }

@@ -7,10 +7,7 @@ import { StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useWalletServiceLightningAttach } from '@fedi/common/hooks/fa'
-import {
-    getWalletServiceErrorKey,
-    getWalletServiceRetryableError,
-} from '@fedi/common/redux'
+import { getWalletServiceLightningError } from '@fedi/common/redux'
 
 import { LightningAttaching } from '../components/feature/walletservice/LightningAttaching'
 import { LightningBanner } from '../components/feature/walletservice/LightningProviderBanner'
@@ -57,8 +54,15 @@ export const LIGHTNING_ATTACH_DONE_HOLD_MS = 2_000
 const WalletServiceLightningProvider: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const { status, errorCode, isRetryable, stage, isRequesting, start } =
-        useWalletServiceLightningAttach()
+    const {
+        status,
+        errorCode,
+        rejectionCode,
+        isRetryable,
+        stage,
+        isRequesting,
+        start,
+    } = useWalletServiceLightningAttach()
 
     // story 08 preselects the provider: the common case is accepting it, and
     // the user unticking is the deliberate act
@@ -133,9 +137,11 @@ const WalletServiceLightningProvider: React.FC<Props> = ({ navigation }) => {
         status === 'failed'
             ? {
                   tone: 'error',
-                  message: isRetryable
-                      ? getWalletServiceRetryableError(t, errorCode)
-                      : t(getWalletServiceErrorKey(errorCode)),
+                  message: getWalletServiceLightningError(t, {
+                      errorCode,
+                      rejectionCode,
+                      isRetryable,
+                  }),
               }
             : null
 

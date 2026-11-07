@@ -70,6 +70,14 @@ pub enum ErrorCode {
     MatrixReactionLimitExceeded,
     #[error("Send amount is below the wallet's minimum, minimum send is {0}")]
     BelowMinimumSendAmount(RpcAmount),
+    /// The payment failed after it was funded, and the funds were returned to
+    /// the wallet.
+    #[error("Lightning payment failed and was refunded")]
+    LnPayRefunded,
+    /// The federation rejected the transaction funding the payment, so no
+    /// funds left the wallet.
+    #[error("Lightning payment was rejected by the federation")]
+    LnPayFundingRejected,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, Clone)]

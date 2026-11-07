@@ -75,13 +75,21 @@ async fn sweep_stability_pool_inner(
     // unlocked balance back to e-cash.
     let module = client.sp()?;
     let current_cycle_index = module.current_cycle_index().await?;
-    let last_deposit_cycle_index = client
-        .db()
-        .begin_transaction_nc()
-        .await
-        .get_value(&LastStabilityPoolDepositCycleKey)
-        .await
-        .ok_or(anyhow!("Last deposit cycle index not found"))?;
+    // Only a deposit on this device writes the key, and this module's account
+    // info does not say when a seek arrived. A restored wallet therefore counts
+    // from the cycle it first sees, which gives any fresh seek its cycle to lock.
+    let last_deposit_cycle_index = {
+        let mut dbtx = client.db().begin_transaction().await;
+        match dbtx.get_value(&LastStabilityPoolDepositCycleKey).await {
+            Some(cycle) => cycle,
+            None => {
+                dbtx.insert_entry(&LastStabilityPoolDepositCycleKey, &current_cycle_index)
+                    .await;
+                dbtx.commit_tx_result().await?;
+                current_cycle_index
+            }
+        }
+    };
     let ClientAccountInfo { account_info, .. } = module.account_info(true).await?;
 
     if current_cycle_index <= last_deposit_cycle_index || account_info.staged_seeks.is_empty() {

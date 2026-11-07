@@ -155,9 +155,9 @@ impl LnOpsV1 {
                                 preimage: hex::encode(preimage.0),
                             });
                         }
-                        InternalPayState::RefundSuccess { .. } => {
+                        InternalPayState::RefundSuccess { error, .. } => {
                             updates.next().await;
-                            bail!("Internal lightning payment failed, got refund");
+                            return Err(anyhow::Error::new(error).context(ErrorCode::LnPayRefunded));
                         }
                         InternalPayState::RefundError { .. } => {
                             updates.next().await;
@@ -207,15 +207,15 @@ impl LnOpsV1 {
                             updates.next().await;
                             return Ok(RpcPayInvoiceResponse { preimage });
                         }
-                        LnPayState::Refunded { .. } => {
-                            // TODO: better error message
+                        LnPayState::Refunded { gateway_error } => {
                             updates.next().await;
-                            bail!("Lightning payment failed, got refund")
+                            return Err(
+                                anyhow::Error::new(gateway_error).context(ErrorCode::LnPayRefunded)
+                            );
                         }
                         LnPayState::Canceled => {
                             updates.next().await;
-                            // FIXME: is this right?
-                            bail!("Lightning payment failed, got refund")
+                            bail!(ErrorCode::LnPayFundingRejected)
                         }
                         LnPayState::UnexpectedError { error_message } => {
                             updates.next().await;

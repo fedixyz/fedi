@@ -326,7 +326,7 @@ macro_rules! federation_recovering_rpc_method {
 
 #[macro_rules_derive(federation_recovering_rpc_method!)]
 async fn getGuardianStatus(federation: Arc<FederationV2>) -> anyhow::Result<Vec<GuardianStatus>> {
-    federation.guardian_status().await
+    Ok(federation.guardian_status().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2229,6 +2229,19 @@ async fn matrixRoomGetPowerLevels(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn matrixRoomPreviewPowerLevels(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+) -> anyhow::Result<RpcRoomPowerLevelsEventContent> {
+    let matrix = bg_matrix.wait().await;
+    Ok(RpcRoomPowerLevelsEventContent(
+        matrix
+            .preview_room_power_levels(&room_id.into_typed()?)
+            .await?,
+    ))
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn matrixRoomSetPowerLevels(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
@@ -3135,6 +3148,7 @@ rpc_methods!(RpcMethods {
     matrixUnignoreUser,
     matrixListIgnoredUsers,
     matrixRoomPreviewContent,
+    matrixRoomPreviewPowerLevels,
     matrixPublicRoomInfo,
     matrixGetRoomPreview,
     matrixRoomMarkAsUnread,

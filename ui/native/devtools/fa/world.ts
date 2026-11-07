@@ -26,6 +26,11 @@ export interface FaWorld {
     setGuardianTransfer(transfer: RpcFaGuardianTransfer | null): void
     /** Stand up the single live liquidity operation, as if the app had started it. */
     startLiquidity(options: { verified: boolean }): void
+    /**
+     * Have the provider refuse the operation. It stays readable by id but is
+     * no longer live, so `current` stops reporting it and a start makes a new one.
+     */
+    rejectLiquidity(rejectionCode: string): void
     currentLiquidityOperation(): RpcFaLiquidityOperation | null
     eligiblePayerIds(): string[]
 }

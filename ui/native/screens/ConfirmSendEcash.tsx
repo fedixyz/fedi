@@ -11,7 +11,10 @@ import {
     useEcashFeeDetails,
     useFeeDisplayUtils,
 } from '@fedi/common/hooks/transactions'
-import { selectPaymentFederation } from '@fedi/common/redux'
+import {
+    selectPaymentFederation,
+    setLastUsedSendMethod,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { makeLog } from '@fedi/common/utils/log'
@@ -23,7 +26,7 @@ import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import { useAppSelector } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -55,6 +58,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromSats(amount)
     const toast = useToast()
+    const dispatch = useAppDispatch()
 
     const { generateEcash, isGeneratingEcash } = useSendEcash(
         paymentFederation?.id || '',
@@ -65,6 +69,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
         try {
             const res = await generateEcash(amount, notes ?? undefined)
             if (res) {
+                dispatch(setLastUsedSendMethod('ecash'))
                 navigation.dispatch(
                     reset('SendOfflineQr', {
                         ecash: res.ecash,
@@ -78,7 +83,16 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
             // We need to notify the user if they have an insufficient balance to send the desired amount
             toast.error(t, error)
         }
-    }, [amount, amountMsats, notes, navigation, toast, t, generateEcash])
+    }, [
+        amount,
+        amountMsats,
+        notes,
+        navigation,
+        toast,
+        t,
+        generateEcash,
+        dispatch,
+    ])
 
     const handleConfirm = useCallback(() => {
         Alert.alert(

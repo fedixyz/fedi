@@ -593,7 +593,10 @@ async function withAppiumSession<T>(
     fn: (client: AppiumSessionClient) => Promise<T>,
 ): Promise<T> {
     const { device, simulators } = resolveDeviceWithSimulators(options)
-    ensureAppiumServer()
+    // APPIUM_PORT names a server the caller runs, so never start another one.
+    if (!process.env.APPIUM_PORT) {
+        ensureAppiumServer()
+    }
     const port = detectAppiumPort()
 
     process.env.PLATFORM = 'ios'

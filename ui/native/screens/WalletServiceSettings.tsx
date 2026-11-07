@@ -16,7 +16,7 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     DEFAULT_GUARDIAN_FEE_PPM,
-    getWalletServiceErrorKey,
+    getWalletServiceLightningError,
     getWalletServiceRetryableError,
     guardianFeePpmToPercent,
     selectFaFormationName,
@@ -250,6 +250,7 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
         stage: gatewayStage,
         isRequesting: isRequestingGateway,
         errorCode: gatewayErrorCode,
+        rejectionCode: gatewayRejectionCode,
         isRetryable: isGatewayErrorRetryable,
         start: startGatewayAttach,
     } = useWalletServiceLightningAttach()
@@ -458,9 +459,11 @@ const WalletServiceSettings: React.FC<Props> = ({ navigation, route }) => {
         gatewayStatus === 'failed' && !isRequestingGateway
             ? {
                   tone: 'error',
-                  message: isGatewayErrorRetryable
-                      ? getWalletServiceRetryableError(t, gatewayErrorCode)
-                      : t(getWalletServiceErrorKey(gatewayErrorCode)),
+                  message: getWalletServiceLightningError(t, {
+                      errorCode: gatewayErrorCode,
+                      rejectionCode: gatewayRejectionCode,
+                      isRetryable: isGatewayErrorRetryable,
+                  }),
               }
             : null
     // no attaching branch: `LightningAttaching` carries its own banner

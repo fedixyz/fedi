@@ -1,4 +1,8 @@
-import { TransactionDirection, TransactionListEntry } from '../../../../types'
+import {
+    MSats,
+    TransactionDirection,
+    TransactionListEntry,
+} from '../../../../types'
 import { RpcTransactionListEntry } from '../../../../types/bindings'
 import { getTxnDirection } from '../../../../utils/transaction'
 import { makeTestTxnEntry } from '../../../utils/transaction'
@@ -39,5 +43,23 @@ describe('getTxnDirection', () => {
             const dir = getTxnDirection(txn)
             expect(dir).toBe(direction)
         }
+    })
+
+    it('treats a failed attempt that cost money as a send', () => {
+        const failedCancel = (federationFee: MSats | null) =>
+            makeTestTxnEntry('oobCancel', {
+                amount: (federationFee ?? 100_352) as MSats,
+                federationFee,
+                state: { type: 'failed', error: 'rejected' },
+            })
+        expect(getTxnDirection(failedCancel(1_536 as MSats))).toBe(
+            TransactionDirection.send,
+        )
+        expect(getTxnDirection(failedCancel(0 as MSats))).toBe(
+            TransactionDirection.receive,
+        )
+        expect(getTxnDirection(failedCancel(null))).toBe(
+            TransactionDirection.receive,
+        )
     })
 })

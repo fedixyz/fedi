@@ -16,7 +16,10 @@ import {
     coerceCommunity,
     coerceLoadedFederation,
 } from '../utils/FederationUtils'
-import { GUARDIAN_REFRESH_INTERVAL } from '../utils/federationHealth'
+import {
+    GUARDIAN_REFRESH_INTERVAL,
+    MG_SEAT_BINDINGS_META_KEY,
+} from '../utils/federationHealth'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { hasStorageStateChanged } from '../utils/storage'
@@ -60,7 +63,7 @@ import {
 } from './storage'
 import { supportSlice } from './support'
 import { surveySlice } from './survey'
-import { toastSlice } from './toast'
+import { showToast, toastSlice } from './toast'
 import { transactionsSlice, updateTransaction } from './transactions'
 import { walletSlice } from './wallet'
 
@@ -230,11 +233,19 @@ export function initializeCommonStore({
                         }
                     }
 
-                    // also refresh the guardian status when we get a federation update
+                    // also refresh the guardian status when we get a federation
+                    // update. A new MG directory renames guardians, such as
+                    // after a guardian replacement, so the last read is stale.
                     dispatch(
                         refreshGuardianStatuses({
                             fedimint,
                             federation: loadedFederation,
+                            isStale:
+                                !!existing &&
+                                existing.meta[MG_SEAT_BINDINGS_META_KEY] !==
+                                    loadedFederation.meta[
+                                        MG_SEAT_BINDINGS_META_KEY
+                                    ],
                         }),
                     )
                     break
@@ -294,6 +305,20 @@ export function initializeCommonStore({
         'faFederationJoin',
         event => {
             dispatch(setFaFederationJoin(event))
+        },
+    )
+
+    // Tell the user when the sweeper returned an unfilled stable balance to
+    // ecash. The toast is held in the store, so a sweep that finishes before
+    // the first screen mounts still shows.
+    const unsubscribeUnfilledDepositSwept = fedimint.addListener(
+        'stabilityPoolUnfilledDepositSwept',
+        () => {
+            dispatch(
+                showToast({
+                    content: i18n.t('feature.stabilitypool.swept-explanation'),
+                }),
+            )
         },
     )
 
@@ -408,6 +433,7 @@ export function initializeCommonStore({
         unsubscribeFederation()
         unsubscribeNonceReuseCheckFailed()
         unsubscribeFaFederationJoin()
+        unsubscribeUnfilledDepositSwept()
         unsubscribeCommunities()
         unsubscribeCommunityMigration()
         unsubscribeBalance()

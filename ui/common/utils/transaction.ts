@@ -55,6 +55,11 @@ export interface TxnIconDisplay {
 export const getTxnDirection = (
     txn: TransactionListEntry,
 ): TransactionDirection => {
+    // Its row is what the attempt cost, whichever way the money was meant to go
+    if (isFailedAttempt(txn) && txn.federationFee) {
+        return TransactionDirection.send
+    }
+
     switch (txn.kind) {
         case 'lnPay':
         case 'onchainWithdraw':
@@ -83,6 +88,10 @@ export const getTxnDirection = (
 export const isGuardianRemittanceWithdrawal = (
     txn: TransactionListEntry,
 ): boolean => txn.kind === 'sPV2Withdrawal' && txn.guardian_remittance
+
+/** The sweeper returned this unfilled stable balance to ecash on its own. */
+const isSweeperWithdrawal = (txn: TransactionListEntry): boolean =>
+    txn.kind === 'sPV2Withdrawal' && txn.sweeper_initiated
 
 export const makeTxnIconDisplay = (
     txn: TransactionListEntry,
@@ -187,6 +196,9 @@ export const makeTxnDetailTitleText = (
         case 'spWithdraw':
             return t('feature.stabilitypool.you-withdrew')
         case 'sPV2Withdrawal':
+            if (isSweeperWithdrawal(txn)) {
+                return t('feature.stabilitypool.swept')
+            }
             return isGuardianRemittanceWithdrawal(txn)
                 ? t('feature.guardian-fees.transfer-success')
                 : t('feature.stabilitypool.you-withdrew')
@@ -303,6 +315,11 @@ const makeTxnSign = (txn: TransactionListEntry, flipSign: boolean): string => {
         s = ''
     }
 
+    // What the row of a failed attempt shows is what it took from the balance
+    if (isFailedAttempt(txn) && hasExactAmounts(txn)) {
+        s = txn.federationFee ? '-' : ''
+    }
+
     return s
 }
 
@@ -331,7 +348,9 @@ export const makeTxnAmountText = (
     const { formattedSats } = makeFormattedAmountsFromMSats(amount, 'end')
     const [amt, satsSymbol] = formattedSats.split(' ')
     const sign = makeTxnSign(txn, flipSign)
-    let formattedAmount: string = amt
+    let formattedAmount: string = hasExactAmounts(txn)
+        ? amountUtils.formatMsatsAsSats(amount)
+        : amt
     let currency = txnDisplay === 'fiat' ? preferredCurrency : satsSymbol
 
     if (
@@ -425,6 +444,34 @@ export const makeTxnAmountText = (
     return `${sign}${formattedAmount}${includeCurrency ? ` ${currency}` : ''}`
 }
 
+/**
+ * Rows on modules with sub-sat notes hold what moved the balance, to the msat.
+ * Shown in whole sats they stay within a sat of it per row; a row under one sat
+ * shows its decimals. Other federations keep whole sats.
+ */
+const hasExactAmounts = (txn: TransactionListEntry): boolean =>
+    !!txn.federationFee || txn.federationFee === 0
+
+/**
+ * An attempt that neither credited nor paid its amount. With exact amounts its
+ * row is what the attempt and its refund cost.
+ */
+const isFailedAttempt = (txn: TransactionListEntry): boolean => {
+    switch (txn.kind) {
+        case 'oobReceive':
+        case 'oobCancel':
+            return txn.state?.type === 'failed'
+        case 'lnPay':
+            return (
+                txn.state?.type === 'refunded' ||
+                txn.state?.type === 'failed' ||
+                txn.state?.type === 'canceled'
+            )
+        default:
+            return false
+    }
+}
+
 const getTxnDisplayAmount = (txn: TransactionListEntry): MSats => {
     if (txn.kind !== 'onchainWithdraw') return txn.amount
 
@@ -457,6 +504,8 @@ const getTxnTotalFee = (txn: TransactionListEntry): MSats => {
     if (txn.kind === 'onchainWithdraw') {
         totalFee += txn.onchain_fees ?? (0 as MSats)
     }
+
+    totalFee += txn.federationFee ?? (0 as MSats)
 
     if (txn.kind === 'onchainDeposit') {
         totalFee += txn.peg_in_fees ?? (0 as MSats)
@@ -615,7 +664,9 @@ export const makeTxnStatusText = (
                     txn.state.type satisfies
                         | 'completeWithdrawal'
                         | 'completedWithdrawal'
-                    return t('words.withdrawal')
+                    return isSweeperWithdrawal(txn)
+                        ? t('feature.stabilitypool.swept')
+                        : t('words.withdrawal')
             }
         case 'oobReceive':
             switch (txn.state.type) {
@@ -1056,6 +1107,13 @@ export const makeTxnDetailItems = (
         }
     }
 
+    if (isSweeperWithdrawal(txn)) {
+        items.push({
+            label: t('words.reason'),
+            value: t('feature.stabilitypool.swept-reason'),
+        })
+    }
+
     // indicate stabilitypool deposits / withdrawals
     if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
         items.push({
@@ -1094,7 +1152,9 @@ export const makeStabilityTxnDetailTitleText = (
             : t('feature.send.you-sent')
     }
 
-    if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
+    if (isSweeperWithdrawal(txn)) {
+        return t('feature.stabilitypool.swept')
+    } else if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
         return t('feature.stabilitypool.you-withdrew')
     } else if (txn.kind === 'sPV2TransferIn') {
         return isMultispendTransfer(txn)
@@ -1112,6 +1172,13 @@ export const makeStabilityTxnDetailItems = (
 ) => {
     const items: DetailItem[] = []
     const { formattedSats } = makeFormattedAmountsFromMSats(txn.amount)
+
+    if (isSweeperWithdrawal(txn)) {
+        items.push({
+            label: t('words.reason'),
+            value: t('feature.stabilitypool.swept-reason'),
+        })
+    }
 
     // Hide BTC Equivalent item when amount is zero or SATS-first setting is on
     if (txn.amount !== 0) {
@@ -1373,6 +1440,16 @@ export const TransactionAmountStateMap = {
 } satisfies Record<TransactionStatusBadge, TransactionAmountState>
 
 export const makeTransactionAmountState = (txn: TransactionListEntry) => {
+    // Exact rows add up to the balance, so one that moved it is not crossed out:
+    // a failed attempt's cost, or the debit a successful cancel's credit answers
+    if (
+        hasExactAmounts(txn) &&
+        ((isFailedAttempt(txn) && txn.federationFee) ||
+            (txn.kind === 'oobSend' &&
+                txn.state?.type === 'userCanceledSuccess'))
+    ) {
+        return 'settled' satisfies TransactionAmountState
+    }
     const badge = makeTxnStatusBadge(txn)
     return TransactionAmountStateMap[badge] satisfies TransactionAmountState
 }
@@ -1380,18 +1457,26 @@ export const makeTransactionAmountState = (txn: TransactionListEntry) => {
 /**
  * The sender cannot know whether the recipient claimed the notes, so
  * `created` and `success` are both cancelable and the federation arbitrates
- * on press. The other states record a known outcome. Chat payments cancel
- * from the chat timeline, which also updates the message for the recipient.
+ * on press. The other states record a known outcome.
+ */
+export const isCancellableEcashSend = (
+    txn: RpcTransaction | TransactionListEntry,
+): boolean => {
+    if (txn.kind !== 'oobSend') return false
+    const state = txn.state?.type
+    return state === undefined || state === 'created' || state === 'success'
+}
+
+/**
+ * Chat payments cancel from the chat timeline, which also updates the
+ * message for the recipient.
  */
 export const getCancellableEcash = (
     txn: TransactionListEntry,
 ): string | undefined => {
     if (txn.kind !== 'oobSend' || !txn.oob_notes) return undefined
     if (txn.frontendMetadata?.recipientMatrixId) return undefined
-    const state = txn.state?.type
-    return state === undefined || state === 'created' || state === 'success'
-        ? txn.oob_notes
-        : undefined
+    return isCancellableEcashSend(txn) ? txn.oob_notes : undefined
 }
 
 // temporary type helper until RpcTransaction and RpcTransactionListEntry are reconciled bridge-side

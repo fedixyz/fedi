@@ -207,6 +207,8 @@ export class Payments extends AppiumTestBase {
 
         // Phase 7: alice pegs out on-chain to a static regtest address.
         console.log('[phase7] alice on-chain send')
+        // Alice last sent over lightning in phase 3, so Send opens on the
+        // lightning tab and has the paste action without choosing a tab
         await alice.clickOnText('Send', 0, true)
         await acceptCameraPermissionIfPresent(alice)
         await alice.setClipboard(REGTEST_DESTINATION_ADDRESS)
@@ -295,6 +297,16 @@ export class Payments extends AppiumTestBase {
             },
             { timeout: 120000, timeoutMsg: 'Expected about 583 sats' },
         )
+
+        // Before any send, Send opens on the ecash amount form
+        await this.clickOnText('Send', 0, true)
+        await this.waitForText('Next', 0, true, 30000)
+        if (await this.elementIsDisplayed('PasteButton', 1000)) {
+            throw new Error('Send did not open on ecash before any send')
+        }
+        await this.clickElementByKey('HeaderBackButton')
+        await goToWallet(this)
+
         await this.openOnchainAmount()
         for (const amount of [1, 583, 5836, 10000, 100000]) {
             await this.replaceAmount(amount)
@@ -419,6 +431,7 @@ export class Payments extends AppiumTestBase {
             await this.clickElementByKey('ScanTabButton')
         } else {
             await this.clickOnText('Send', 0, true)
+            await this.clickElementByKey('onchainTab')
         }
         await acceptCameraPermissionIfPresent(this)
         await this.setClipboard(destination)
