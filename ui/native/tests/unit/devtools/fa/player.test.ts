@@ -77,6 +77,7 @@ const makeHost = () => {
             setLiquidityNetwork: jest.fn(),
             setGuardianTransfer: jest.fn(),
             startLiquidity: jest.fn(),
+            rejectLiquidity: jest.fn(),
             currentLiquidityOperation: jest.fn(() => null),
             eligiblePayerIds: jest.fn(() => ['payer_1']),
         },

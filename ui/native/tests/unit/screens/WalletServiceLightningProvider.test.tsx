@@ -537,6 +537,41 @@ describe('screens/WalletServiceLightningProvider', () => {
         expect(mockNavigation.navigate).not.toHaveBeenCalled()
     })
 
+    // a refusal is the provider's answer to one request, not a fault in the
+    // app, so it says why and lets the operator ask again
+    it('should say the provider has no liquidity and start a new request on retry', async () => {
+        const { fedimint } = renderScreen(
+            {},
+            {
+                operation: operation({
+                    phase: 'rejected',
+                    rejectionCode: 'insufficient_capacity',
+                }),
+                hasRead: true,
+                errorCode: null,
+            },
+        )
+        await settleDurableRead()
+
+        expect(
+            screen.getByText(
+                `${i18n.t('feature.wallet-service.lightning-rejected-insufficient-capacity')} ${i18n.t('feature.wallet-service.try-again-hint')}`,
+            ),
+        ).toBeOnTheScreen()
+        expect(
+            screen.queryByText(
+                i18n.t('feature.wallet-service.lightning-stage-requested'),
+            ),
+        ).not.toBeOnTheScreen()
+
+        await user.press(screen.getByTestId('lightning-continue'))
+
+        await waitFor(() =>
+            expect(fedimint.faClientLiquidityStart).toHaveBeenCalledTimes(1),
+        )
+        await screen.findByTestId('lightning-stage-requested')
+    })
+
     it('should leave skip as the only exit on a terminal failure', async () => {
         renderScreen({
             faClientLiquidityDiscover: () =>
@@ -563,7 +598,7 @@ describe('screens/WalletServiceLightningProvider', () => {
     // out of watching time is not the request failing
     // there is no budget any more: the message is true the moment the request
     // is accepted, because the operation is watched app-wide from then on
-    it('should say the attach carries on in the background as soon as it starts', async () => {
+    it('should say how long the attach takes as soon as it starts', async () => {
         renderScreen()
 
         await pressContinue(user)

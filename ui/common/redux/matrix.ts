@@ -98,6 +98,7 @@ import {
     getReceivablePaymentEvents,
     getRoomEventPowerLevel,
     getUserSuffix,
+    isBroadcastOnlyRoom,
     isMultispendInvitation,
     isMultispendWithdrawalEvent,
     isPaymentEvent,
@@ -120,6 +121,7 @@ import {
 import { isBolt11 } from '../utils/parser'
 import { upsertListItem, upsertRecordEntity } from '../utils/redux'
 import { applyStreamUpdates } from '../utils/stream'
+import { isCancellableEcashSend } from '../utils/transaction'
 import { loadFromStorage } from './storage'
 
 const log = makeLog('redux/matrix')
@@ -1871,32 +1873,51 @@ export const tryReclaimMatrixPayment = createAsyncThunk<
 >(
     'matrix/tryReclaimMatrixPayment',
     async ({ fedimint, event }, { dispatch }) => {
+        const { ecash, federationId, senderOperationId, status } = event.content
         if (
-            !event.content.ecash ||
-            !event.content.federationId ||
-            !event.content.senderOperationId ||
-            event.content.status !== 'rejected'
+            !ecash ||
+            !federationId ||
+            !senderOperationId ||
+            (status !== 'rejected' && status !== 'failed')
         )
             return
 
         const transaction = await fedimint.getTransaction(
-            event.content.federationId,
-            event.content.senderOperationId,
+            federationId,
+            senderOperationId,
         )
 
         if (!transaction || transaction.kind !== 'oobSend') {
             log.info(
-                `Skip reclaiming rejected matrix payment with operation ID ${event.content.senderOperationId}: transaction is not an ecash send`,
+                `Skip reclaiming ${status} matrix payment with operation ID ${senderOperationId}: transaction is not an ecash send`,
             )
             return
         }
 
-        log.info(
-            'Reclaiming rejected payment with operation ID:',
-            event.content.senderOperationId,
-        )
+        if (isCancellableEcashSend(transaction)) {
+            log.info(
+                `Reclaiming ${status} payment with operation ID:`,
+                senderOperationId,
+            )
+            // rejects when the notes were redeemed elsewhere first
+            await dispatch(cancelEcash({ fedimint, ecash })).unwrap()
+        } else if (transaction.state?.type !== 'userCanceledSuccess') {
+            log.info(
+                `Skip reclaiming ${status} matrix payment with operation ID ${senderOperationId}: send is ${transaction.state?.type}`,
+            )
+            return
+        }
 
-        dispatch(cancelEcash({ fedimint, ecash: event.content.ecash }))
+        // The recipient was told their redemption failed. Now that the
+        // sender has the money back, the payment is canceled for both. A
+        // reclaim that finished before a restart is announced here too.
+        if (status !== 'failed') return
+
+        await fedimint.getMatrixClient().sendMessage(event.roomId, {
+            ...event.content,
+            body: 'Payment canceled.',
+            status: 'canceled',
+        })
     },
 )
 
@@ -2594,10 +2615,7 @@ export const selectMatrixRooms = createSelector(
             rooms.push({
                 ...room,
                 broadcastOnly: powerLevels
-                    ? getRoomEventPowerLevel(powerLevels, [
-                          'm.room.message',
-                          'unableToDecrypt',
-                      ]) >= MatrixPowerLevel.Moderator
+                    ? isBroadcastOnlyRoom(powerLevels)
                     : false,
                 isBlocked: room.directUserId
                     ? ignoredUsers.includes(room.directUserId)

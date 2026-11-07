@@ -18,6 +18,7 @@ import {
     SocialRecoveryApproval,
     SocialRecoveryEvent,
     StabilityPoolDepositEvent,
+    StabilityPoolUnfilledDepositSweptEvent,
     StabilityPoolWithdrawalEvent,
     RpcTransactionListEntry,
     TransactionEvent as RpcTransactionEvent,
@@ -54,6 +55,7 @@ export type CommonTxnFields = Pick<
     | 'txDateFiatInfo'
     | 'fediAppFeeStatus'
     | 'fediGuardianFeeStatus'
+    | 'federationFee'
     | 'frontendMetadata'
     | 'outcomeTime'
 >
@@ -353,6 +355,7 @@ export type FedimintBridgeEventMap = {
     panic: PanicEvent
     stabilityPoolDeposit: StabilityPoolDepositEvent
     stabilityPoolWithdrawal: StabilityPoolWithdrawalEvent
+    stabilityPoolUnfilledDepositSwept: StabilityPoolUnfilledDepositSweptEvent
     spv2Deposit: SPv2DepositEvent
     spv2Withdrawal: SPv2WithdrawalEvent
     spv2Transfer: SPv2TransferEvent

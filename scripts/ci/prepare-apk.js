@@ -56,7 +56,7 @@ module.exports = async ({ github, context, core }) => {
 
     console.log('Reading and updating APK index.html...');
     const apkIndexHtml = fs.readFileSync("ui/apk/index.html").toString();
-    const replacedHtml = apkIndexHtml.replace(
+    const replacedHtml = apkIndexHtml.replaceAll(
         "{{path_to_apk}}",
         `./${newFileName}`
     );

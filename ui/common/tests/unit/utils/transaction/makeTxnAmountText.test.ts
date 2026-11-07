@@ -273,4 +273,34 @@ describe('makeTxnAmountText', () => {
 
         expect(amount).toBe('-9.09 EUR')
     })
+
+    describe('rows with fee data', () => {
+        const textFor = (txn: Parameters<typeof makeTxnAmountText>[0]) =>
+            makeTxnAmountText(
+                txn,
+                'sats',
+                false,
+                false,
+                'USD',
+                makeFormattedAmountsFromMSats,
+                convertCentsToFormattedFiat,
+                convertSatsToFormattedFiat,
+            )
+
+        it('shows a rejected cancel as what it took from the balance', () => {
+            const rejected = (federationFee: MSats | null) =>
+                textFor(
+                    makeTestTxnEntry('oobCancel', {
+                        amount: (federationFee ?? 100_352) as MSats,
+                        federationFee,
+                        state: { type: 'failed', error: 'rejected' },
+                    }),
+                )
+            expect(rejected(1_536 as MSats)).toBe('-1')
+            expect(rejected(536 as MSats)).toBe('-0.536')
+            expect(rejected(0 as MSats)).toBe('0')
+            // no fee data: unchanged from before
+            expect(rejected(null)).toBe('+100')
+        })
+    })
 })

@@ -1,8 +1,52 @@
 import { bech32m } from 'bech32'
 
 import * as linking from '../../../utils/linking'
+import { communityInvites } from '../../fixtures/community-invites'
 
 describe('common/utils/linking', () => {
+    describe.each(communityInvites)(
+        '$prefix checksum compatibility',
+        ({ prefix, payload, invite }) => {
+            it('requires the prefix as part of the checksum', () => {
+                expect(() => bech32m.decode(invite.slice(5), 2000)).toThrow()
+                const restored = linking.normalizeCommunityInviteCode(
+                    linking.stripFediPrefix(invite),
+                )
+                expect(restored).toBe(invite)
+                const decoded = bech32m.decode(restored, 2000)
+                expect(decoded.prefix).toBe(prefix)
+                expect(Buffer.from(bech32m.fromWords(decoded.words))).toEqual(
+                    payload,
+                )
+            })
+
+            it('restores uppercase transport codes without changing payload bytes', () => {
+                const restored = linking
+                    .normalizeCommunityInviteCode(
+                        linking.stripFediPrefix(invite.toUpperCase()),
+                    )
+                    .toLowerCase()
+                expect(restored).toBe(invite)
+                expect(
+                    Buffer.from(
+                        bech32m.fromWords(bech32m.decode(restored, 2000).words),
+                    ),
+                ).toEqual(payload)
+            })
+
+            it('does not repair a damaged checksum by restoring the prefix', () => {
+                const damaged =
+                    invite.slice(5, -1) + (invite.endsWith('q') ? 'p' : 'q')
+                expect(() =>
+                    bech32m.decode(
+                        linking.normalizeCommunityInviteCode(damaged),
+                        2000,
+                    ),
+                ).toThrow()
+            })
+        },
+    )
+
     describe('isDeepLink', () => {
         describe('when a url is passed without a link pathname', () => {
             it('should return false', () => {

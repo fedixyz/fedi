@@ -973,7 +973,15 @@ export const refreshFederations = createAsyncThunk<
 
 export const refreshGuardianStatuses = createAsyncThunk<
     void,
-    { fedimint: FedimintBridge; federation: LoadedFederation },
+    {
+        fedimint: FedimintBridge
+        federation: LoadedFederation
+        /**
+         * Read even when the last read is recent or still running: something
+         * it reported, such as a guardian's name, has changed since.
+         */
+        isStale?: boolean
+    },
     { state: CommonState }
 >(
     'federation/refreshGuardianStatuses',
@@ -1014,16 +1022,19 @@ export const refreshGuardianStatuses = createAsyncThunk<
         }
     },
     {
-        condition: ({ federation }, { getState }) => {
+        condition: ({ federation, isStale }, { getState }) => {
             const state = getState()
             const previous = state.federation.guardianHealth[federation.id]
             const age = previous ? Date.now() - previous.checkedAt : undefined
             return (
                 state.federation.isGuardianMonitoringActive &&
                 !selectIsInternetUnreachable(state) &&
-                !state.federation.guardianStatusRequests[federation.id] &&
                 !!selectLoadedFederation(state, federation.id) &&
-                (age === undefined || age < 0 || age >= GUARDIAN_CACHE_TTL)
+                (isStale ||
+                    (!state.federation.guardianStatusRequests[federation.id] &&
+                        (age === undefined ||
+                            age < 0 ||
+                            age >= GUARDIAN_CACHE_TTL)))
             )
         },
     },

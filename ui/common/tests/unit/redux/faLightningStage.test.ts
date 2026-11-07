@@ -1,6 +1,17 @@
+import { TFunction } from 'i18next'
+
+import en from '../../../localization/en/common.json'
 import {
     WALLET_SERVICE_LIGHTNING_STAGES,
     type WalletServiceLightningStage,
+    getWalletServiceLightningError,
+    recordFaLiquidityAbsent,
+    selectFaLiquidityRejectionCode,
+    selectWalletServiceLightningStage,
+    selectWalletServiceLightningStatus,
+    setFaLiquidityError,
+    setFaLiquidityOperation,
+    setupStore,
     toLightningStage,
 } from '../../../redux'
 import type {
@@ -142,5 +153,126 @@ describe('common/redux/fi toLightningStage', () => {
                 stage => !producedStages.has(stage),
             ),
         ).toEqual([])
+    })
+})
+
+describe('common/redux/fi a rejected Lightning attach', () => {
+    const rejected = buildOperation({
+        phase: 'rejected',
+        rejectionCode: 'insufficient_capacity',
+    })
+    const storeWith = (operation: RpcFaLiquidityOperation) => {
+        const store = setupStore()
+        store.dispatch(recordFaLiquidityAbsent())
+        store.dispatch(setFaLiquidityOperation(operation))
+        return store
+    }
+
+    // the stuck "Liquidity Provider requested" spinner: a rejected snapshot
+    // has no gateway item, so reading it as a stage reports the first step
+    it('should have no stage, since nothing is running', () => {
+        const state = storeWith(rejected).getState()
+
+        expect(selectWalletServiceLightningStatus(state)).toBe('failed')
+        expect(selectWalletServiceLightningStage(state)).toBeNull()
+    })
+
+    it('should still read a stage while the request is live', () => {
+        const state = storeWith(buildOperation()).getState()
+
+        expect(selectWalletServiceLightningStatus(state)).toBe('attaching')
+        expect(selectWalletServiceLightningStage(state)).toBe('requested')
+    })
+
+    it('should carry the provider reason only for a rejection', () => {
+        expect(
+            selectFaLiquidityRejectionCode(storeWith(rejected).getState()),
+        ).toBe('insufficient_capacity')
+        expect(
+            selectFaLiquidityRejectionCode(
+                storeWith(
+                    buildOperation({ rejectionCode: 'insufficient_capacity' }),
+                ).getState(),
+            ),
+        ).toBeNull()
+    })
+
+    it('should let a failed read outrank the rejection it would explain', () => {
+        const store = storeWith(rejected)
+        store.dispatch(setFaLiquidityError('busy'))
+
+        expect(selectFaLiquidityRejectionCode(store.getState())).toBeNull()
+    })
+})
+
+describe('common/redux/fi getWalletServiceLightningError', () => {
+    // the English copy itself, since the copy is what this change is about
+    const t = ((key: string) =>
+        key
+            .split('.')
+            .reduce<unknown>(
+                (node, part) => (node as Record<string, unknown>)?.[part],
+                en,
+            )) as unknown as TFunction
+
+    it('should say the provider has no free liquidity, then invite a retry', () => {
+        expect(
+            getWalletServiceLightningError(t, {
+                errorCode: null,
+                rejectionCode: 'insufficient_capacity',
+                isRetryable: true,
+            }),
+        ).toBe(
+            'Your Liquidity Provider has no free liquidity right now. Please try again.',
+        )
+    })
+
+    it('should explain an expired request', () => {
+        expect(
+            getWalletServiceLightningError(t, {
+                errorCode: null,
+                rejectionCode: 'request_expired',
+                isRetryable: true,
+            }),
+        ).toBe(
+            'Your request to the Liquidity Provider expired before it went through. Please try again.',
+        )
+    })
+
+    it('should fall back to a plain refusal for a code it does not know', () => {
+        expect(
+            getWalletServiceLightningError(t, {
+                errorCode: null,
+                rejectionCode: 'policy_mismatch',
+                isRetryable: true,
+            }),
+        ).toBe(
+            'Your Liquidity Provider turned down the request. Please try again.',
+        )
+    })
+
+    it.each(['constructor', 'toString', '__proto__'])(
+        'should fall back to a plain refusal for the inherited name %s',
+        rejectionCode => {
+            expect(
+                getWalletServiceLightningError(t, {
+                    errorCode: null,
+                    rejectionCode,
+                    isRetryable: true,
+                }),
+            ).toBe(
+                'Your Liquidity Provider turned down the request. Please try again.',
+            )
+        },
+    )
+
+    it('should keep the setup error for a failed RPC', () => {
+        expect(
+            getWalletServiceLightningError(t, {
+                errorCode: 'capabilityUnavailable',
+                rejectionCode: null,
+                isRetryable: false,
+            }),
+        ).not.toMatch(/Liquidity Provider/)
     })
 })

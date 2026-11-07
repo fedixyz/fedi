@@ -11,6 +11,7 @@ import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import {
     selectIsInternetUnreachable,
     selectPaymentFederation,
+    setLastUsedSendMethod,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
@@ -22,7 +23,7 @@ import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
-import { useAppSelector } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { NavigationHook, RootStackParamList } from '../types/navigation'
 import { useRecheckInternet } from '../utils/hooks/environment'
 
@@ -36,6 +37,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
+    const dispatch = useAppDispatch()
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(
         t,
@@ -91,6 +93,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         setIsPayingInvoice(true)
         try {
             await handleOmniSend(inputAmount, notes || undefined)
+            dispatch(setLastUsedSendMethod('lightning'))
             navigationReplace('SendSuccess', {
                 amount: amountUtils.satToMsat(inputAmount),
                 unit,
@@ -110,6 +113,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         toast,
         t,
         notes,
+        dispatch,
     ])
 
     if (!isReadyToPay) return <ActivityIndicator />

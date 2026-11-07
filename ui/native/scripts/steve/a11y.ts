@@ -140,16 +140,15 @@ export function findNodeByExactText(
 ): NormalizedA11yNode | undefined {
     const matches: NormalizedA11yNode[] = []
 
+    // Visibility is per node, not inherited: XCUITest reports containers such
+    // as a CollectionView as not visible while their children are visible. This
+    // matches what formatNormalizedA11yTree prints.
     const visit = (node: NormalizedA11yNode) => {
-        if (!node.visible) {
-            return
-        }
-
         const values = [node.text, node.label, node.name, node.value]
             .filter(Boolean)
             .map(value => value?.trim())
 
-        if (values.includes(text)) {
+        if (node.visible && values.includes(text)) {
             matches.push(node)
         }
 

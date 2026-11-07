@@ -18,6 +18,7 @@ import {
 } from '@fedi/common/redux'
 import {
     createMockNonPaymentEvent,
+    createMockPaymentEvent,
     mockMatrixEventImage,
 } from '@fedi/common/tests/mock-data/matrix-event'
 import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
@@ -85,6 +86,26 @@ function makeImageEvent(): MatrixEvent<'m.image'> {
         roomId: ROOM_ID,
         sender: OWNER_ID,
     }
+}
+
+function makePaymentEvent(): MatrixEvent<'xyz.fedi.payment'> {
+    return createMockPaymentEvent({
+        id: '$payment-event' as any,
+        roomId: ROOM_ID,
+        sender: OWNER_ID,
+        content: { status: 'requested' },
+    })
+}
+
+function makeBolt11TextEvent(): MatrixEvent<'m.text'> {
+    return makeTextEvent({
+        id: '$bolt11-text-event' as any,
+        content: {
+            msgtype: 'm.text',
+            body: 'lnbcrt10u1pn7s3m3pp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpusp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygs9qrsgq',
+            formatted: null,
+        },
+    })
 }
 
 function makePollEvent(): MatrixEvent<'m.poll'> {
@@ -385,6 +406,76 @@ describe('SelectedMessageOverlay', () => {
         for (const emoji of MATRIX_QUICK_REACTION_EMOJIS) {
             expect(screen.queryByText(emoji)).not.toBeOnTheScreen()
         }
+    })
+
+    it('should offer only reactions on your own payment', () => {
+        renderOverlayScenario({
+            event: makePaymentEvent(),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+        })
+
+        expect(screen.getByLabelText('React 👍')).toBeOnTheScreen()
+        expect(screen.getByLabelText('more reactions')).toBeOnTheScreen()
+        expectOnlyActions([])
+    })
+
+    it("should offer only reactions to an admin on someone else's payment", () => {
+        renderOverlayScenario({
+            event: makePaymentEvent(),
+            currentUserId: ADMIN_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Admin,
+        })
+
+        expect(screen.getByLabelText('React 👍')).toBeOnTheScreen()
+        expectOnlyActions([])
+    })
+
+    it('should react to the payment entry through the Matrix client', async () => {
+        const toggleReaction = jest.fn().mockResolvedValue(true)
+        const fedimint = createMockFedimintBridge({
+            getMatrixClient: () => ({ toggleReaction }),
+        } as any)
+
+        renderOverlayScenario({
+            event: makePaymentEvent(),
+            currentUserId: MEMBER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+            fedimint,
+        })
+
+        fireEvent.press(screen.getByLabelText('React 🎉'))
+
+        await waitFor(() => {
+            expect(toggleReaction).toHaveBeenCalledWith(
+                ROOM_ID,
+                '$payment-event',
+                '🎉',
+            )
+        })
+    })
+
+    it('should offer only reactions on a bolt11 invoice shown as a payment', () => {
+        renderOverlayScenario({
+            event: makeBolt11TextEvent(),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+        })
+
+        expect(screen.getByLabelText('React 👍')).toBeOnTheScreen()
+        expectOnlyActions([])
+    })
+
+    it('should not show the overlay for a payment when reactions are disabled', () => {
+        renderOverlayScenario({
+            event: makePaymentEvent(),
+            currentUserId: OWNER_ID,
+            currentUserPowerLevel: MatrixPowerLevel.Member,
+            messageReactionsEnabled: false,
+        })
+
+        expect(screen.queryByLabelText('React 👍')).toBeNull()
+        expectOnlyActions([])
     })
 
     it("should show reply and copy for another member's text message", () => {

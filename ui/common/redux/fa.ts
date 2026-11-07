@@ -1611,9 +1611,27 @@ export const selectFaLiquidityErrorCode = createSelector(
     liquidity => liquidity.errorCode,
 )
 
+// a rejected request is over rather than at a stage: it has no gateway item,
+// so reading it as one would report the first step as still running
 export const selectWalletServiceLightningStage = createSelector(
     selectFaLiquidityOperation,
-    operation => (operation ? toLightningStage(operation) : null),
+    operation =>
+        operation && operation.phase !== 'rejected'
+            ? toLightningStage(operation)
+            : null,
+)
+
+/**
+ * The provider's reason for refusing the request, while that refusal is what
+ * the Lightning attach is showing. A failed RPC outranks it, as it does in
+ * `selectWalletServiceLightningStatus`.
+ */
+export const selectFaLiquidityRejectionCode = createSelector(
+    selectFaLiquidity,
+    liquidity =>
+        !liquidity.errorCode && liquidity.operation?.phase === 'rejected'
+            ? liquidity.operation.rejectionCode
+            : null,
 )
 
 /**
@@ -2038,6 +2056,30 @@ export const getWalletServiceMaintenanceErrorKey = (
         : getWalletServiceErrorKey(error?.code)
 
 /**
+ * Provider rejection codes, from FLIP's public rejection code set, that the
+ * operator can read something useful into. Anything else is a refusal with
+ * no more to say.
+ */
+const LIGHTNING_REJECTION_MESSAGE_KEYS = {
+    insufficient_capacity:
+        'feature.wallet-service.lightning-rejected-insufficient-capacity',
+    provider_unavailable:
+        'feature.wallet-service.lightning-rejected-provider-unavailable',
+    request_expired: 'feature.wallet-service.lightning-rejected-expired',
+} as const
+
+export const getWalletServiceLightningRejectionKey = (
+    code: string | null | undefined,
+) =>
+    // `Object.hasOwn`, not `in`: a code such as `constructor` must not
+    // resolve to an inherited Object.prototype member.
+    code && Object.hasOwn(LIGHTNING_REJECTION_MESSAGE_KEYS, code)
+        ? LIGHTNING_REJECTION_MESSAGE_KEYS[
+              code as keyof typeof LIGHTNING_REJECTION_MESSAGE_KEYS
+          ]
+        : ('feature.wallet-service.lightning-rejected' as const)
+
+/**
  * The error, followed by the invitation to repeat the action that failed.
  *
  * The two are separate strings because whether the user can act is a property
@@ -2056,6 +2098,33 @@ export const getWalletServiceRetryableError = (
     `${t(getWalletServiceErrorKey(code))} ${t(
         'feature.wallet-service.try-again-hint',
     )}`
+
+/**
+ * What a failed Lightning attach says. A provider's refusal gives the
+ * provider's reason: nothing in the app failed, so the generic setup error
+ * would send the operator looking for a fault that is not there.
+ */
+export const getWalletServiceLightningError = (
+    t: TFunction,
+    {
+        errorCode,
+        rejectionCode,
+        isRetryable,
+    }: {
+        errorCode: RpcFaErrorCode | null
+        rejectionCode: string | null
+        isRetryable: boolean
+    },
+) => {
+    if (!rejectionCode)
+        return isRetryable
+            ? getWalletServiceRetryableError(t, errorCode)
+            : t(getWalletServiceErrorKey(errorCode))
+    const message = t(getWalletServiceLightningRejectionKey(rejectionCode))
+    return isRetryable
+        ? `${message} ${t('feature.wallet-service.try-again-hint')}`
+        : message
+}
 
 // no selector for the guardian fee: `intent.guardianFeePpm` is the
 // creation-time intent and is always 0, because the app sends no fee at

@@ -17,7 +17,9 @@ use devimint::util::FedimintCli;
 use federations::federation_sm::FederationState;
 use federations::federation_v2::FederationV2;
 use federations::federation_v2::client::ClientExt;
-use federations::federation_v2::db::{FedimintEventLogCursorKey, LnurlReceivePendingKey};
+use federations::federation_v2::db::{
+    FedimintEventLogCursorKey, LastStabilityPoolV2DepositCycleKey, LnurlReceivePendingKey,
+};
 use federations::fedi_fee::{FediFeeStream, parse_fedi_guardian_fee_config};
 use fedi_social_client::common::VerificationDocument;
 use fedimint_client::db::{CachedApiVersionSetKey, PeerLastApiVersionsSummaryKey};
@@ -49,7 +51,7 @@ use runtime::storage::BRIDGE_DB_PREFIX;
 use runtime::storage::state::{
     CommunityJson, DatabaseInfo, FederationInfo, FediFeeSchedule, ModuleFediFeeSchedule,
 };
-use stability_pool_client::common::Account;
+use stability_pool_client::common::{Account, AccountHistoryItemKind};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{info, warn};
@@ -417,6 +419,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_pay_address_limits,
         test_walletv2_awaiting_deposit,
         test_ecash_cancel,
+        test_history_rows_add_up_to_balance,
         test_backup_and_recovery,
         test_backup_and_recovery_from_scratch,
         test_stale_api_version_cache_heals_on_load,
@@ -954,13 +957,21 @@ async fn test_refunded_lightning_updates_spendable_balance(dev_fed: DevFed) -> a
         .min_final_cltv_expiry_delta(18)
         .amount_milli_satoshis(100_000)
         .build_signed(|message| SECP256K1.sign_ecdsa_recoverable(message, &secret_key))?;
-    let result = payInvoice(
+    let error = payInvoice(
         federation.clone(),
         invoice.to_string(),
         FrontendMetadata::default(),
     )
-    .await;
-    assert!(result.is_err());
+    .await
+    .expect_err("unroutable invoice must fail");
+    // The frontend localizes the error from its wire code, so assert on the
+    // serialized form it receives.
+    let rpc_error = RpcError::from_anyhow(&error);
+    assert_eq!(
+        serde_json::to_value(&rpc_error.error_code)?,
+        serde_json::json!("lnPayRefunded"),
+        "a refunded send must carry a typed error code: {rpc_error:?}"
+    );
     assert!(
         listTransactions(federation.clone(), None, None)
             .await?
@@ -1149,6 +1160,147 @@ async fn test_max_pay_invoice_fits_every_gateway(dev_fed: DevFed) -> anyhow::Res
     result
 }
 
+/// Fund a fresh device with ecash and deposit `amount` to the seeker account.
+async fn fund_spv2_seeker(
+    td: &TestDevice,
+    federation: &Arc<FederationV2>,
+    amount: Amount,
+) -> anyhow::Result<()> {
+    let ecash = cli_generate_ecash(amount + Amount::from_sats(10_000)).await?;
+    federation
+        .receive_ecash(ecash, FrontendMetadata::default())
+        .await?;
+    wait_for_ecash_reissue(federation).await?;
+    spv2DepositToSeek(
+        federation.clone(),
+        RpcAmount(amount),
+        FrontendMetadata::default(),
+    )
+    .await?;
+    while td.event_sink().num_events_of_type("spv2Deposit".into()) < 3 {
+        fedimint_core::task::sleep_in_test("spv2 deposit", Duration::from_millis(100)).await;
+    }
+    Ok(())
+}
+
+/// Fresh funds get two cycles to lock before the sweeper returns them to ecash.
+async fn assert_swept_after_cycles_to_lock(
+    td: &TestDevice,
+    federation: &Arc<FederationV2>,
+) -> anyhow::Result<()> {
+    let balance_before = federation.get_balance().await;
+    let swept = "stabilityPoolUnfilledDepositSwept".to_owned();
+    let mut arrival = None;
+    let mut waited = 0;
+    while td.event_sink().num_events_of_type(swept.clone()) == 0 {
+        anyhow::ensure!(waited < 120, "funds were not swept");
+        spv2_force_sync(federation).await;
+        let history = federation
+            .spv2_history_service
+            .get()
+            .context("history service")?
+            .get_full_account_history()
+            .await?;
+        arrival = history
+            .iter()
+            .rev()
+            .find(|item| {
+                matches!(
+                    item.kind,
+                    AccountHistoryItemKind::DepositToStaged
+                        | AccountHistoryItemKind::StagedTransferIn { .. }
+                )
+            })
+            .map(|item| item.cycle.idx)
+            .or(arrival);
+        fedimint_core::task::sleep_in_test("spv2 sweep", Duration::from_secs(1)).await;
+        waited += 1;
+    }
+    let arrival = arrival.context("the funds arrived through the account history")?;
+
+    spv2_force_sync(federation).await;
+    let info = spv2AccountInfo(federation.clone()).await?.sync_response;
+    assert!(
+        info.curr_cycle_idx > arrival + 2,
+        "swept in cycle {} funds that arrived in cycle {arrival}",
+        info.curr_cycle_idx
+    );
+    assert_eq!(info.staged.btc.0, Amount::ZERO);
+    assert!(
+        federation.get_balance().await > balance_before,
+        "the swept funds are ecash again"
+    );
+    Ok(())
+}
+
+/// Cover a missing marker and a transfer arriving after an old marker expired.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_spv2_sweeper_without_a_local_deposit() -> anyhow::Result<()> {
+    if should_skip_test_using_stock_fedimintd() {
+        return Ok(());
+    }
+    let _dev_fed = DevFed::new_with_setup(4).await?;
+    // Provider liquidity goes away, so seeks stay staged.
+    cmd!(
+        FedimintCli,
+        "module",
+        "multi_sig_stability_pool",
+        "withdraw",
+        "provider",
+        "all"
+    )
+    .run()
+    .await?;
+
+    let td_sender = TestDevice::new().await?;
+    let bridge_sender = td_sender.bridge_full().await?;
+    let federation_sender = td_sender.join_default_fed().await?;
+    fund_spv2_seeker(&td_sender, federation_sender, Amount::from_sats(400_000)).await?;
+
+    let td_old_key = TestDevice::new().await?;
+    let federation_old_key = td_old_key.join_default_fed().await?;
+    // Deposited in cycle 0, so the sweep would come by cycle 3 if it went by this.
+    let mut dbtx = federation_old_key.dbtx().await;
+    dbtx.insert_entry(&LastStabilityPoolV2DepositCycleKey, &0u64)
+        .await;
+    dbtx.commit_tx().await;
+
+    federation_old_key.start_spv2_sweeper_service();
+    // The old key has to be past its lock window when the funds arrive.
+    while spv2AccountInfo(federation_old_key.clone())
+        .await?
+        .sync_response
+        .curr_cycle_idx
+        < 3
+    {
+        spv2_force_sync(federation_old_key).await;
+        fedimint_core::task::sleep_in_test("next cycle", Duration::from_secs(1)).await;
+    }
+
+    let address = spv2OurPaymentAddress(federation_old_key.clone(), false).await?;
+    let account_id = spv2ParsePaymentAddress(&bridge_sender.federations, address)
+        .await?
+        .account_id;
+    spv2Transfer(
+        federation_sender.clone(),
+        account_id,
+        RpcFiatAmount(10_00),
+        FrontendMetadata::default(),
+    )
+    .await?;
+
+    // A restored wallet has funds at the federation but no local cycle marker.
+    let mut dbtx = federation_sender.dbtx().await;
+    dbtx.remove_entry(&LastStabilityPoolV2DepositCycleKey).await;
+    dbtx.commit_tx().await;
+    federation_sender.start_spv2_sweeper_service();
+    tokio::try_join!(
+        assert_swept_after_cycles_to_lock(&td_sender, federation_sender),
+        assert_swept_after_cycles_to_lock(&td_old_key, federation_old_key)
+    )?;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_max_pay_invoice_fits_the_failover_gateway() -> anyhow::Result<()> {
     if !devimint::util::supports_lnv1() {
@@ -1288,19 +1440,25 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
     let kind_two = !devimint::util::supports_lnv1();
 
     // v2 gateways deduct their receive fee from the incoming contract, so
-    // what lands is the requested amount minus that fee; v1 deducts nothing.
-    // The bridge reports what lands (per team decision on #11872), and the
-    // expectation is exact -- an implementation that reported the requested
-    // amount instead of the contract amount must fail here. Devimint gateways
-    // run the default lnv2 transaction fee; if that ever changes, this fails
-    // loudly, which is preferable to a bound loose enough to hide the
-    // difference between the two amounts.
+    // the contract is the requested amount minus that fee; v1 deducts nothing.
+    // The row reports what lands, which is the contract less the federation fee
+    // the row also reports, and the expectation is exact -- an implementation that
+    // reported the requested amount instead of the contract amount must fail
+    // here. Devimint gateways run the default lnv2 transaction fee; if that
+    // ever changes, this fails loudly, which is preferable to a bound loose
+    // enough to hide the difference between the two amounts.
     let expected_credited = |requested: fedimint_core::Amount| {
         if kind_two {
             PaymentFee::TRANSACTION_FEE_DEFAULT.subtract_from(requested.msats)
         } else {
             requested
         }
+    };
+    let contract_amount = |transaction: &RpcTransaction| {
+        transaction.amount.0
+            + transaction
+                .federation_fee
+                .map_or(fedimint_core::Amount::ZERO, |fee| fee.0)
     };
     let pin_receive_gateway = async |federation: &Arc<FederationV2>| {
         if kind_two {
@@ -1399,7 +1557,7 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
                         state: Some(RpcLnReceiveState::Claimed),
                         ..
                     }
-                ) && ev.transaction.amount.0 == amount
+                ) && contract_amount(&ev.transaction) == amount
             })
             .count()
     };
@@ -1453,7 +1611,10 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
 
             let transaction = next_claimed_transaction(&td, events_seen).await;
             let credited = transaction.amount.0;
-            assert_eq!(credited, expected_credited(receive_amount));
+            assert_eq!(
+                contract_amount(&transaction),
+                expected_credited(receive_amount)
+            );
             // No per-operation Fedi fee status either: the per-type tables
             // checked below only ever see settled fees, so a pending one is
             // only visible here.
@@ -1463,19 +1624,9 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
             );
 
             let delta = federation.get_balance().await.saturating_sub(prev_balance);
-            if kind_two {
-                // The lnv2 gateway's receive fee is already inside `credited`;
-                // mintv2 note-issuance fees additionally come out of the
-                // claimed ecash. Same 10% slack convention as
-                // test_lightning_send_and_receive and the dev-fed peg-in.
-                assert!(
-                    delta <= credited
-                        && delta >= fedimint_core::Amount::from_msats(credited.msats * 9 / 10),
-                    "balance delta {delta} out of range for credited {credited}"
-                );
-            } else {
+            assert_eq!(credited, delta);
+            if !kind_two {
                 assert_eq!(receive_amount, credited);
-                assert_eq!(credited, delta);
             }
             assert_no_lightning_receive_fedi_fee(federation).await;
         }
@@ -1519,7 +1670,10 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
 
             let transaction = next_claimed_transaction(&td, events_seen).await;
             let credited = transaction.amount.0;
-            assert_eq!(credited, expected_credited(receive_amount));
+            assert_eq!(
+                contract_amount(&transaction),
+                expected_credited(receive_amount)
+            );
             // No per-operation Fedi fee status either: the per-type tables
             // checked below only ever see settled fees, so a pending one is
             // only visible here.
@@ -1529,16 +1683,9 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
             );
 
             let delta = federation.get_balance().await.saturating_sub(prev_balance);
-            if kind_two {
-                // Same fee reasoning as the first block above.
-                assert!(
-                    delta <= credited
-                        && delta >= fedimint_core::Amount::from_msats(credited.msats * 9 / 10),
-                    "balance delta {delta} out of range for credited {credited}"
-                );
-            } else {
+            assert_eq!(credited, delta);
+            if !kind_two {
                 assert_eq!(receive_amount, credited);
-                assert_eq!(credited, delta);
             }
             assert_no_lightning_receive_fedi_fee(federation).await;
 
@@ -1597,7 +1744,7 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
             let federation =
                 wait_for_federation_loading(bridge, &federation_id.to_string()).await?;
             let transaction = next_claimed_transaction(&td, 0).await;
-            assert_eq!(transaction.amount.0, expected);
+            assert_eq!(contract_amount(&transaction), expected);
             assert!(
                 transaction.fedi_app_fee_status.is_none(),
                 "lnurl receives must not carry a Fedi fee status"
@@ -1734,7 +1881,7 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
                 let federation =
                     wait_for_federation_loading(bridge, &federation_id.to_string()).await?;
                 let transaction = next_claimed_transaction(&td, 0).await;
-                assert_eq!(transaction.amount.0, expected);
+                assert_eq!(contract_amount(&transaction), expected);
                 assert!(
                     transaction.fedi_app_fee_status.is_none(),
                     "lnurl receives must not carry a Fedi fee status"
@@ -2342,6 +2489,8 @@ async fn test_on_chain_v2(_dev_fed: DevFed) -> anyhow::Result<()> {
             } = entry.transaction.kind
             {
                 if onchain_address == withdraw_address {
+                    // the row is the value alone; the app adds the fees to it
+                    assert_eq!(entry.transaction.amount.0, withdraw_amount);
                     return Ok(());
                 }
             }
@@ -2787,6 +2936,151 @@ async fn test_on_chain_with_fedi_fees_with_restart(
         btc_amount,
         federation.get_balance().await + receive_fedi_fee + pegin_fees,
     );
+
+    Ok(())
+}
+
+/// The balance as history explains it, in msats.
+async fn signed_history_sum(federation: &Arc<FederationV2>) -> anyhow::Result<i128> {
+    let mut sum = 0_i128;
+    for entry in listTransactions(federation.clone(), None, None).await? {
+        let RpcTransactionListEntry { transaction, .. } =
+            entry.map_err(|error| anyhow!("unreadable history row: {error}"))?;
+        let amount = i128::from(transaction.amount.0.msats);
+        sum += match transaction.kind {
+            RpcTransactionKind::OobReceive {
+                state: Some(RpcOOBReissueState::Done),
+            }
+            | RpcTransactionKind::OobCancel {
+                state: Some(RpcOOBReissueState::Done),
+            }
+            | RpcTransactionKind::LnReceive {
+                state: Some(RpcLnReceiveState::Claimed),
+                ..
+            } => amount,
+            RpcTransactionKind::OobCancel {
+                state: Some(RpcOOBReissueState::Failed { .. }),
+            }
+            | RpcTransactionKind::OobSend { .. }
+            | RpcTransactionKind::LnPay { .. } => -amount,
+            // not credited yet
+            _ => 0,
+        };
+    }
+    Ok(sum)
+}
+
+/// Refunds and note issuance settle in the background, so give the two a moment
+/// to meet, and report them if they never do.
+async fn assert_history_adds_up_to_balance(
+    federation: &Arc<FederationV2>,
+    step: &str,
+) -> anyhow::Result<()> {
+    let mut last = (0, 0);
+    for _ in 0..120 {
+        let balance = i128::from(federation.get_balance().await.msats);
+        let history = signed_history_sum(federation).await?;
+        if balance == history {
+            return Ok(());
+        }
+        last = (balance, history);
+        fedimint_core::task::sleep(Duration::from_millis(500)).await;
+    }
+    bail!(
+        "after {step}: balance {} msat, history says {} msat",
+        last.0,
+        last.1
+    )
+}
+
+async fn test_history_rows_add_up_to_balance(dev_fed: DevFed) -> anyhow::Result<()> {
+    if !devimint::util::supports_mint_v2() {
+        info!("rows only diverge from face values on mintv2 federations");
+        return Ok(());
+    }
+    let td = TestDevice::new().await?;
+    let federation = td.join_default_fed().await?;
+    let td2 = TestDevice::new().await?;
+    let federation2 = td2.join_default_fed().await?;
+
+    // an ecash receive
+    let ecash = cli_generate_ecash(Amount::from_msats(100_352)).await?;
+    receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
+    wait_for_ecash_reissue(federation.as_ref()).await?;
+    assert_history_adds_up_to_balance(federation, "ecash receive").await?;
+
+    // a lightning receive, through a gateway other than the one paying: a
+    // gateway cannot pay its own invoice
+    setGatewayOverride(
+        federation.clone(),
+        Some(RpcLightningGatewayId::Lnv2 {
+            url: dev_fed.gw_lnd.addr.clone(),
+        }),
+    )
+    .await?;
+    let invoice = generateInvoice(
+        federation.clone(),
+        RpcAmount(Amount::from_sats(2_500)),
+        "test".to_string(),
+        None,
+        FrontendMetadata::default(),
+    )
+    .await?;
+    let balance_before_invoice = federation.get_balance().await;
+    dev_fed
+        .gw_ldk
+        .client()
+        .pay_invoice(Bolt11Invoice::from_str(&invoice)?)
+        .await?;
+    while federation.get_balance().await <= balance_before_invoice {
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+    }
+    assert_history_adds_up_to_balance(federation, "lightning receive").await?;
+
+    // an ecash send of an amount that is not whole notes
+    let requested = Amount::from_msats(100_001);
+    let sent = generateEcash(
+        federation.clone(),
+        RpcAmount(requested),
+        false,
+        FrontendMetadata::default(),
+    )
+    .await?
+    .ecash;
+    assert_history_adds_up_to_balance(federation, "ecash send").await?;
+
+    // the recipient claims it, so the federation rejects the sender's cancel
+    receiveEcash(
+        federation2.clone(),
+        sent.clone(),
+        FrontendMetadata::default(),
+    )
+    .await?;
+    wait_for_ecash_reissue(federation2.as_ref()).await?;
+    assert!(cancelEcash(federation.clone(), sent).await.is_err());
+    assert_history_adds_up_to_balance(federation, "rejected cancel").await?;
+
+    // an unclaimed send cancelled for real
+    let unclaimed = generateEcash(
+        federation.clone(),
+        RpcAmount(Amount::from_msats(51_200)),
+        false,
+        FrontendMetadata::default(),
+    )
+    .await?
+    .ecash;
+    cancelEcash(federation.clone(), unclaimed).await?;
+    assert_history_adds_up_to_balance(federation, "successful cancel").await?;
+
+    // a lightning send
+    let outgoing = dev_fed
+        .gw_ldk
+        .client()
+        .create_invoice(10_000)
+        .await?
+        .to_string();
+    payInvoice(federation.clone(), outgoing, FrontendMetadata::default()).await?;
+    assert_history_adds_up_to_balance(federation, "lightning send").await?;
 
     Ok(())
 }

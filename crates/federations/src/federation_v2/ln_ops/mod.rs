@@ -86,21 +86,6 @@ pub(crate) enum FeeRemittanceGatewayOverride {
     Lnv2 { url: SafeUrl },
 }
 
-#[derive(Debug)]
-pub(crate) struct Lnv2SendCreated(pub anyhow::Error);
-
-impl std::fmt::Display for Lnv2SendCreated {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.0, f)
-    }
-}
-
-impl std::error::Error for Lnv2SendCreated {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.0.chain().nth(1)
-    }
-}
-
 #[apply(async_trait_maybe_send!)]
 pub trait LnOps: MaybeSend + MaybeSync {
     async fn generate_invoice(

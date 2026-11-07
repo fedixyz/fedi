@@ -182,14 +182,8 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
 
     const style = styles(theme)
     const reactLabel = t('words.react' as ResourceKey)
-    const canShowReactions = messageReactionsEnabled && canReact
     const hasAnyVisibleAction =
-        canShowReactions ||
-        canReply ||
-        canCopy ||
-        canPin ||
-        canDownload ||
-        canDelete
+        canReact || canReply || canCopy || canPin || canDownload || canDelete
     const canSelectReaction = useCallback(
         (reactionKey: string) => {
             if (!selectedMessage) return false
@@ -242,7 +236,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                         />
                     ) : (
                         <Column fullWidth>
-                            {canShowReactions && selectedMessage && (
+                            {canReact && selectedMessage && (
                                 <Column
                                     gap="sm"
                                     fullWidth

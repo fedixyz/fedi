@@ -59,6 +59,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="fedi" />
+                <!-- Older web Space QR codes use an uppercase scheme. -->
+                <data android:scheme="FEDI" />
             </intent-filter>
             <!-- this intent filter handles app.fedi.xyz deeplinks -->
             <intent-filter android:autoVerify="${autoVerify}">

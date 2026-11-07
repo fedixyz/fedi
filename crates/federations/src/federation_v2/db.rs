@@ -24,6 +24,10 @@ pub enum BridgeDbPrefix {
     XmppUsername = 0xb2,
     InviteCode = 0xb3,
     LastBackupTimestamp = 0xb4,
+    // The hidden mintv2 reissue operations an ecash send ran to make exact
+    // notes, whose federation fees belong on the send's history row. mintv2
+    // gives them unrelated random ids and only the bridge sees the two together.
+    EcashSendReissueOperations = 0xb6,
     TransactionNote = 0xb7,
     OutstandingFediFees = 0xb8,
     #[deprecated]
@@ -699,6 +703,15 @@ impl_db_record!(
     key = LastFediFeesRemittanceTotalAccruedFeesKey,
     value = Amount,
     db_prefix = BridgeDbPrefix::LastFediFeesRemittanceTotalAccruedFees,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct EcashSendReissueOperationsKey(pub OperationId);
+
+impl_db_record!(
+    key = EcashSendReissueOperationsKey,
+    value = Vec<OperationId>,
+    db_prefix = BridgeDbPrefix::EcashSendReissueOperations,
 );
 
 #[derive(Debug, Decodable, Encodable)]

@@ -89,7 +89,10 @@ export function makeTransactionHistoryCSV(
         },
         {
             name: 'Amount (sats)',
-            getValue: tx => Math.round(tx.amount / 1000),
+            getValue: tx =>
+                tx.federationFee === null || tx.federationFee === undefined
+                    ? Math.round(tx.amount / 1000)
+                    : tx.amount / 1000,
         },
         {
             name: 'Notes',

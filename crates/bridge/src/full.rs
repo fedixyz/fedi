@@ -37,7 +37,8 @@ use crate::bg_matrix::BgMatrix;
 use crate::fa_client::{
     BridgeFaClient, BridgeFaDriver, FaFederationHandoffLocks, FaFederationJoinReport,
     fa_client_status_to_rpc, fa_error_to_rpc, fa_push_error_to_rpc, open_fa_client,
-    start_fa_driver, start_fa_federation_auto_join, suppress_fa_federation_auto_join,
+    start_fa_driver, start_fa_federation_auto_join, start_fa_transfer_directory_refresh,
+    suppress_fa_federation_auto_join,
 };
 use crate::fa_push::{BridgeFaPushGatewayCache, FaPushPlatform};
 use crate::providers::{
@@ -609,6 +610,12 @@ impl BridgeFull {
                 sp_transfers_services.clone(),
                 fa_federation_handoff_locks.clone(),
                 fa_federation_join_report.clone(),
+            );
+            start_fa_transfer_directory_refresh(
+                &runtime,
+                client.observe(),
+                client.observe_guardian_transfer(),
+                federations.clone(),
             );
         }
 

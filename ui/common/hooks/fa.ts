@@ -12,6 +12,7 @@ import {
     selectFaInviteCode,
     selectFaLiquidityErrorCode,
     selectFaLiquidityOperation,
+    selectFaLiquidityRejectionCode,
     selectIsFaLiquidityRequesting,
     selectIsWalletServiceMaintenanceReady,
     selectIsWalletServiceLightningRunning,
@@ -471,6 +472,12 @@ export type WalletServiceLightningAttach = {
     status: WalletServiceLightningStatus
     /** Set only while `status` is `failed`. */
     errorCode: RpcFaErrorCode | null
+    /**
+     * The provider's reason, set only while `status` is `failed` because the
+     * provider refused the request. A new `start` is a new request, so a
+     * refusal is always worth Try again.
+     */
+    rejectionCode: string | null
     /** Whether a failure is worth offering Try again against. */
     isRetryable: boolean
     /** Whether the preconditions for a request are met right now. */
@@ -704,6 +711,7 @@ export function useWalletServiceLightningAttach(): WalletServiceLightningAttach 
     const status = useCommonSelector(selectWalletServiceLightningStatus)
     const stage = useCommonSelector(selectWalletServiceLightningStage)
     const errorCode = useCommonSelector(selectFaLiquidityErrorCode)
+    const rejectionCode = useCommonSelector(selectFaLiquidityRejectionCode)
 
     const formationId = useCommonSelector(selectWalletServiceFormationId)
     const isFormedAndFresh = useCommonSelector(
@@ -808,6 +816,7 @@ export function useWalletServiceLightningAttach(): WalletServiceLightningAttach 
     return {
         status,
         errorCode,
+        rejectionCode,
         isRetryable:
             status === 'failed' &&
             !(errorCode && TERMINAL_LIQUIDITY_ERROR_CODES.has(errorCode)),

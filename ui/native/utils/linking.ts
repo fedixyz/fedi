@@ -355,6 +355,15 @@ export function patchLinkingOpenURL(
 // Unknown fedi: paths intentionally fall back to Wallet.
 function getInternalLinkTarget(path: string): InternalLinkTarget | undefined {
     try {
+        const communityInvite = normalizeCommunityInviteCode(path).toLowerCase()
+        if (/^fedi:community2?1/.test(communityInvite)) {
+            return {
+                kind: 'root',
+                screen: 'JoinFederation',
+                params: { invite: communityInvite },
+            }
+        }
+
         const normalizedPath = stripSupportedPrefix(path)
         const [rawScreen, queryString] = normalizedPath.split('?')
 
@@ -501,7 +510,7 @@ function getNavigationLinkReadiness(
     getIsAppUnlocked: () => boolean | undefined,
     dispatch: AppDispatch,
 ): NavigationLinkReadinessResult {
-    const navigationLink = getNavigationLink(url)
+    const navigationLink = getNavigationLink(url)?.replace(/^fedi:/i, 'fedi:')
 
     // onboarding gate
     // fedi navigation links get stashed in redux to be replayed after onboarding

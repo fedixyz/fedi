@@ -39,4 +39,38 @@ describe('steve accessibility normalization', () => {
         }
         expect(getTapPoint(node)).toEqual({ x: 197, y: 785 })
     })
+
+    describe('with a container XCUITest reports as not visible', () => {
+        // Shape of the iOS 26 Settings page source: the CollectionView is not
+        // visible, its cells and their contents are.
+        const settingsPageSource = `<?xml version="1.0" encoding="UTF-8"?>
+<XCUIElementTypeApplication type="XCUIElementTypeApplication" name="Settings" label="Settings" visible="true" enabled="true" x="0" y="0" width="393" height="852">
+  <XCUIElementTypeCollectionView type="XCUIElementTypeCollectionView" visible="false" enabled="true" x="0" y="0" width="393" height="852">
+    <XCUIElementTypeCell type="XCUIElementTypeCell" visible="true" enabled="true" x="16" y="377" width="361" height="53">
+      <XCUIElementTypeButton type="XCUIElementTypeButton" name="com.apple.settings.general" label="General" visible="true" enabled="true" x="16" y="377" width="361" height="53">
+        <XCUIElementTypeStaticText type="XCUIElementTypeStaticText" name="General" label="General" value="General" visible="true" enabled="true" x="29" y="389" width="103" height="29" />
+      </XCUIElementTypeButton>
+    </XCUIElementTypeCell>
+    <XCUIElementTypeButton type="XCUIElementTypeButton" name="Offscreen" label="Offscreen" visible="false" enabled="true" x="16" y="900" width="361" height="53" />
+  </XCUIElementTypeCollectionView>
+</XCUIElementTypeApplication>`
+
+        it('finds every node that a11y prints', () => {
+            const tree = normalizeAppiumPageSource(settingsPageSource)
+
+            expect(formatNormalizedA11yTree(tree)).toContain('Button "General"')
+            const node = findNodeByExactText(tree, 'General')
+            expect(node?.role).toBe('Button')
+            if (!node) {
+                throw new Error('Expected to find General node')
+            }
+            expect(getTapPoint(node)).toEqual({ x: 197, y: 404 })
+        })
+
+        it('does not match a node that is itself not visible', () => {
+            const tree = normalizeAppiumPageSource(settingsPageSource)
+
+            expect(findNodeByExactText(tree, 'Offscreen')).toBeUndefined()
+        })
+    })
 })

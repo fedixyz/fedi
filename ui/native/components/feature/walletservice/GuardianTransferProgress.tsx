@@ -98,16 +98,19 @@ export const GuardianTransferProgress: React.FC<{
                         : 'feature.wallet-service.transfer-progress-title',
                     { name: names.source, source: names.source },
                 )}>
+                {/* the phase covers the whole handover, and the bridge does
+                    not say whether the old host is online, so neither does
+                    this */}
                 {!isFinished && transfer.phase === 'awaitingSource' ? (
                     <WarningBanner
                         level="info"
                         icon="Info"
                         title={t(
-                            'feature.wallet-service.transfer-waiting-title',
+                            'feature.wallet-service.transfer-handover-title',
                             names,
                         )}
                         message={t(
-                            'feature.wallet-service.transfer-waiting-body',
+                            'feature.wallet-service.transfer-handover-body',
                             names,
                         )}
                     />

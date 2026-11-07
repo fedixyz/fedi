@@ -113,6 +113,45 @@ it('merges latest status into initial event content', () => {
     expect(paymentEvent.content.receiverOperationId).toBe('receiver-op-456') // merged data
 })
 
+// BUSINESS: Reactions belong to the payment entry, whatever its status
+it('keeps reactions on the initial payment event after status updates', () => {
+    const pushedEvent = createMockPaymentEvent({
+        id: 'event1' as RpcTimelineEventItemId,
+        reactions: [{ key: '👍', count: 1, userIds: ['npub1user456'] }],
+        content: {
+            paymentId: 'pay123',
+            status: 'pushed',
+            amount: 1000,
+        },
+    })
+    // Another Matrix client could react to a hidden status update. That
+    // reaction must not appear on the entry, nor replace the entry's own.
+    const receivedEvent = createMockPaymentEvent({
+        id: 'event2' as RpcTimelineEventItemId,
+        sender: 'npub1user456',
+        canReact: false,
+        reactions: [{ key: '🎉', count: 1, userIds: ['npub1user123'] }],
+        content: {
+            paymentId: 'pay123',
+            status: 'received',
+            amount: 1000,
+        },
+    })
+
+    const [displayed, ...rest] = consolidatePaymentEvents([
+        pushedEvent,
+        receivedEvent,
+    ])
+
+    expect(rest).toEqual([])
+    expect(displayed.id).toBe('event1')
+    expect((displayed as MatrixPaymentEvent).content.status).toBe('received')
+    expect(displayed.reactions).toEqual([
+        { key: '👍', count: 1, userIds: ['npub1user456'] },
+    ])
+    expect(displayed.canReact).toBe(true)
+})
+
 // BUSINESS: App preserves transaction history links when older clients send incomplete updates
 it('preserves existing operation IDs', () => {
     const pushedEvent = createMockPaymentEvent({

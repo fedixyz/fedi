@@ -46,7 +46,7 @@ export const GuardianReplacementBanner: React.FC<{
             transfer.phase === 'buyingSeat'
                 ? t('feature.wallet-service.replace-banner-paying', names)
                 : transfer.phase === 'awaitingSource'
-                  ? t('feature.wallet-service.replace-banner-waiting', names)
+                  ? t('feature.wallet-service.replace-banner-moving', names)
                   : t('feature.wallet-service.replace-banner-finishing', names)
         const level = 'info'
         return (

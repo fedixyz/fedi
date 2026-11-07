@@ -56,6 +56,7 @@ import { FedimintBridge, UnsubscribeFn } from './fedimint'
 import { makeLog } from './log'
 import {
     encodeFediMatrixRoomUri,
+    isBroadcastOnlyRoom,
     isPreviewableRoomMemberEvent,
     isRpcMatrixEvent,
     isRoomMemberEvent,
@@ -317,18 +318,23 @@ export class MatrixChatClient {
             previewInfo = this.serializePublicRoomInfo(publicRoomInfo)
         }
 
-        let previewTimeline: MatrixEvent[] = []
-        try {
-            previewTimeline = await this.fetchPreviewTimeline(roomId)
-        } catch (error) {
-            // Knockable private rooms are previewable but not world-readable
-            // so /messages returns 403 until join, and a transient failure
-            // on a public room shouldn't drop the entry from default-group
-            // previews. Surface the room info with an empty timeline.
-            log.warn('Failed to get room preview timeline', { roomId, error })
-        }
+        const [previewTimeline, broadcastOnly] = await Promise.all([
+            this.fetchPreviewTimeline(roomId).catch(error => {
+                // Knockable private rooms are previewable but not
+                // world-readable so /messages returns 403 until join, and a
+                // transient failure on a public room shouldn't drop the entry
+                // from default-group previews. Surface the room info with an
+                // empty timeline.
+                log.warn('Failed to get room preview timeline', {
+                    roomId,
+                    error,
+                })
+                return []
+            }),
+            this.fetchPreviewBroadcastOnly(roomId),
+        ])
         return {
-            info: previewInfo,
+            info: { ...previewInfo, broadcastOnly },
             timeline: previewTimeline,
         }
     }
@@ -346,16 +352,38 @@ export class MatrixChatClient {
             log.error('Failed to get room preview info', roomId, error)
             throw error
         }
-        let timeline
-        try {
-            timeline = await this.fetchPreviewTimeline(roomId)
-        } catch (error) {
-            log.error('Failed to get room preview timeline', roomId, error)
-            throw error
-        }
+        const [timeline, broadcastOnly] = await Promise.all([
+            this.fetchPreviewTimeline(roomId).catch(error => {
+                log.error('Failed to get room preview timeline', roomId, error)
+                throw error
+            }),
+            this.fetchPreviewBroadcastOnly(roomId),
+        ])
         return {
-            info: this.serializePublicRoomInfo(publicRoomInfo),
+            info: {
+                ...this.serializePublicRoomInfo(publicRoomInfo),
+                broadcastOnly,
+            },
             timeline,
+        }
+    }
+
+    // Whether a room the user may not have joined is broadcast-only. Left
+    // undefined when the homeserver won't show a non-member the room's power
+    // levels (a room that isn't world-readable), so its kind stays unknown.
+    private fetchPreviewBroadcastOnly = async (
+        roomId: string,
+    ): Promise<boolean | undefined> => {
+        try {
+            const powerLevels =
+                await this.fedimint.matrixRoomPreviewPowerLevels({ roomId })
+            return isBroadcastOnlyRoom(powerLevels)
+        } catch (error) {
+            log.warn('Failed to get room preview power levels', {
+                roomId,
+                error,
+            })
+            return undefined
         }
     }
 

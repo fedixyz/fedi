@@ -22,7 +22,8 @@ const CommunityInvite: React.FC<Props> = ({ route }: Props) => {
     return (
         <QRScreen
             dark
-            qrValue={inviteLink}
+            qrValue={shareLink}
+            copyValue={inviteLink}
             copyMessage={t('feature.communities.copied-community-invite')}
             shareValue={shareLink}
         />

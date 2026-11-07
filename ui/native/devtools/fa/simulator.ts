@@ -414,8 +414,24 @@ export class FaSimulator implements FaWorld {
         this.liquidityOperation = this.makeLiquidityOperation(verified)
     }
 
+    rejectLiquidity(rejectionCode: string) {
+        if (!this.liquidityOperation) return
+        this.liquidityOperation = {
+            ...this.liquidityOperation,
+            phase: 'rejected',
+            rejectionCode,
+        }
+    }
+
     currentLiquidityOperation(): RpcFaLiquidityOperation | null {
         return this.liquidityOperation
+    }
+
+    /** The operation `current` and `start` treat as live, as the bridge does. */
+    private liveLiquidityOperation(): RpcFaLiquidityOperation | null {
+        return this.liquidityOperation?.phase === 'rejected'
+            ? null
+            : this.liquidityOperation
     }
 
     eligiblePayerIds(): string[] {
@@ -1556,8 +1572,8 @@ export class FaSimulator implements FaWorld {
      * contract makes.
      */
     private liquidityStart(): RpcFaLiquidityOperationResult {
-        if (this.liquidityOperation)
-            return { type: 'operation', operation: this.liquidityOperation }
+        const live = this.liveLiquidityOperation()
+        if (live) return { type: 'operation', operation: live }
 
         this.liquidityPolls = 0
         this.liquidityOperation = this.makeLiquidityOperation(false)
@@ -1583,7 +1599,9 @@ export class FaSimulator implements FaWorld {
             }
 
         this.liquidityPolls += 1
+        // a refused request is over; nothing advances it
         const advanced =
+            operation.phase !== 'rejected' &&
             this.liquidityPolls >= LIQUIDITY_VERIFY_AFTER_POLLS
                 ? { ...operation, gatewayViewVerified: true }
                 : operation
@@ -1592,7 +1610,7 @@ export class FaSimulator implements FaWorld {
     }
 
     private liquidityCurrent(): RpcFaCurrentLiquidityOperationResult {
-        return { type: 'current', operation: this.liquidityOperation }
+        return { type: 'current', operation: this.liveLiquidityOperation() }
     }
 
     private makeLiquidityOperation(

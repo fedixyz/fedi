@@ -27,6 +27,7 @@ import {
     stripReplyFromBody,
     getRoomPreviewText,
     canAddMatrixReaction,
+    canReactToMatrixEvent,
     canReplyToMatrixEvent,
     makeMatrixReactionChips,
     makeMatrixReactionUsers,
@@ -567,6 +568,69 @@ describe('canReplyToMatrixEvent', () => {
 
     it('blocks unsupported event types', () => {
         expect(canReplyToMatrixEvent(createMockPaymentEvent())).toBe(false)
+    })
+})
+
+describe('canReactToMatrixEvent', () => {
+    it('allows payment entries without allowing replies to them', () => {
+        const payment = createMockPaymentEvent()
+
+        expect(canReactToMatrixEvent(payment)).toBe(true)
+        expect(canReplyToMatrixEvent(payment)).toBe(false)
+    })
+
+    it('allows payment entries whatever their status', () => {
+        for (const status of [
+            'requested',
+            'pushed',
+            'accepted',
+            'receiving',
+            'received',
+            'rejected',
+            'canceled',
+            'failed',
+        ] as const) {
+            expect(
+                canReactToMatrixEvent(
+                    createMockPaymentEvent({ content: { status } }),
+                ),
+            ).toBe(true)
+        }
+    })
+
+    it('allows the events members can reply to', () => {
+        expect(canReactToMatrixEvent(createMockNonPaymentEvent())).toBe(true)
+        expect(canReactToMatrixEvent(mockMatrixEventImage)).toBe(true)
+    })
+
+    it('blocks events the runtime has not marked reactable', () => {
+        expect(
+            canReactToMatrixEvent(createMockPaymentEvent({ canReact: false })),
+        ).toBe(false)
+        expect(
+            canReactToMatrixEvent(
+                createMockNonPaymentEvent({ canReact: false }),
+            ),
+        ).toBe(false)
+    })
+
+    it('blocks other event kinds the runtime marks reactable', () => {
+        const poll = {
+            ...createMockNonPaymentEvent(),
+            content: {
+                msgtype: 'm.poll',
+                body: 'Where should we meet?',
+                kind: 'disclosed',
+                maxSelections: 1,
+                answers: [],
+                votes: {},
+                endTime: null,
+                hasBeenEdited: false,
+            },
+        } as MatrixEvent<'m.poll'>
+
+        expect(poll.canReact).toBe(true)
+        expect(canReactToMatrixEvent(poll)).toBe(false)
     })
 })
 

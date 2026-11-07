@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 
 import {
     setFeatureFlags,
@@ -7,7 +7,10 @@ import {
     setMatrixRoomMembers,
     setupStore,
 } from '@fedi/common/redux'
-import { createMockNonPaymentEvent } from '@fedi/common/tests/mock-data/matrix-event'
+import {
+    createMockNonPaymentEvent,
+    createMockPaymentEvent,
+} from '@fedi/common/tests/mock-data/matrix-event'
 import { MatrixAuth, MatrixEvent, MatrixRoomMember } from '@fedi/common/types'
 import {
     FeatureCatalog,
@@ -144,5 +147,35 @@ describe('/components/Chat/ChatEvent', () => {
         expect(
             screen.getByLabelText('👍 reaction, 2, reacted by you'),
         ).toBeInTheDocument()
+    })
+
+    it('should open reactions from a payment context menu', async () => {
+        const store = makeStore()
+        enableMessageReactions(store)
+        const event = createMockPaymentEvent({
+            roomId: ROOM_ID,
+            sender: ALICE_ID,
+            content: {
+                status: 'requested',
+                senderId: ALICE_ID,
+                recipientId: SELF_ID,
+            },
+        }) as MatrixEvent
+
+        renderWithProviders(<ChatEvent event={event} />, { store })
+
+        const contextMenuEvent = new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+        })
+        await act(async () => {
+            screen.getByText(/1 SATS/).dispatchEvent(contextMenuEvent)
+        })
+
+        expect(contextMenuEvent.defaultPrevented).toBe(true)
+        expect(screen.getByLabelText('React 👍')).toBeInTheDocument()
+        expect(
+            screen.queryByText(i18n.t('words.reply')),
+        ).not.toBeInTheDocument()
     })
 })
