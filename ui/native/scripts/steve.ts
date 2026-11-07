@@ -20,6 +20,7 @@ interface AppiumClient {
     deleteSession(sessionId: string): Promise<void>
     getActiveElementId(sessionId: string): Promise<string>
     getPageSource(sessionId: string): Promise<string>
+    getTimeouts(sessionId: string): Promise<unknown>
     takeScreenshot(sessionId: string): Promise<string>
     setElementValue(
         sessionId: string,
@@ -653,6 +654,7 @@ async function withAppiumSession<T>(
     }
 }
 
+// Compares screenshots: one takes about 0.15s, a page source several seconds.
 async function waitForIdle(
     client: AppiumSessionClient,
     timeoutMs = 5000,
@@ -660,18 +662,18 @@ async function waitForIdle(
 ): Promise<number> {
     const startedAt = Date.now()
     let stableIterations = 0
-    let previousSource = ''
+    let previousScreenshot = ''
 
     while (Date.now() - startedAt < timeoutMs) {
-        const pageSource = await client.getPageSource()
+        const screenshot = await client.takeScreenshot()
 
-        if (pageSource === previousSource) {
+        if (screenshot === previousScreenshot) {
             stableIterations += 1
             if (stableIterations >= 2) {
                 return Date.now() - startedAt
             }
         } else {
-            previousSource = pageSource
+            previousScreenshot = screenshot
             stableIterations = 0
         }
 
@@ -837,6 +839,11 @@ function createAppiumClient(port: number): AppiumClient {
             return request('GET', `/session/${sessionId}/source`)
         },
 
+        // Answered by Appium alone, so it checks a session without a page source.
+        async getTimeouts(sessionId: string): Promise<unknown> {
+            return request('GET', `/session/${sessionId}/timeouts`)
+        },
+
         async takeScreenshot(sessionId: string): Promise<string> {
             return request('GET', `/session/${sessionId}/screenshot`)
         },
@@ -903,6 +910,9 @@ async function createAndCacheSession(
         'appium:includeSafariInWebviews': true,
         'appium:mjpegServerPort': cacheKey.mjpegServerPort,
         'appium:platformName': 'iOS',
+        // Computing this attribute costs about a quarter of each page source,
+        // and steve does not read it. `visible` costs more but steve needs it.
+        'appium:settings[pageSourceExcludedAttributes]': 'accessible',
         'appium:udid': device.udid,
         'appium:wdaLocalPort': cacheKey.wdaLocalPort,
         ...(options.appPath ? { 'appium:app': options.appPath } : {}),
@@ -926,7 +936,7 @@ async function isSessionReusable(
     session: AppiumSession,
 ): Promise<boolean> {
     try {
-        await client.getPageSource(session.sessionId)
+        await client.getTimeouts(session.sessionId)
         return true
     } catch (error) {
         if (isInvalidSessionError(error)) {
