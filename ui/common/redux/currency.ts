@@ -211,10 +211,39 @@ export const refreshHistoricalCurrencyRates = createAsyncThunk<
     },
 )
 
+const YADIO_CUP_USD_URL = 'https://api.yadio.io/convert/1/USD/CUP'
+
+/**
+ * Returns the USD per CUP rate from Yadio's market data (the API returns CUP
+ * per USD, so we invert it), or `undefined` if the request fails.
+ */
+async function fetchYadioCupUsdRate(): Promise<number | undefined> {
+    try {
+        const response = await fetch(YADIO_CUP_USD_URL)
+        const json: { result: number; rate: number } = await response.json()
+        const cupPerUsd = json?.rate
+        if (typeof cupPerUsd !== 'number' || cupPerUsd <= 0) {
+            log.warn('Invalid CUP/USD rate from Yadio', json)
+            return undefined
+        }
+        return 1 / cupPerUsd
+    } catch (error) {
+        log.warn(
+            'Failed to fetch CUP/USD rate from Yadio, falling back to price feed',
+            error,
+        )
+        return undefined
+    }
+}
+
 export const fetchCurrencyPrices = createAsyncThunk<
     Pick<CurrencyState, 'btcUsdRate' | 'fiatUsdRates'>,
     void
 >('currency/fetchCurrencyPrices', async () => {
+    // Fetch the Yadio market CUP/USD rate in parallel so the override doesn't
+    // add latency to the price feed request.
+    const yadioCupRatePromise = fetchYadioCupUsdRate()
+
     const response = await fetch('https://price-feed.dev.fedibtc.com/latest')
     const json: {
         prices: Record<string, { rate: number; timestamp: string }>
@@ -237,6 +266,13 @@ export const fetchCurrencyPrices = createAsyncThunk<
         if (usd !== 'USD' || fiat === 'BTC') return
         fiatUsdRates[fiat] = rate
     })
+
+    // The price feed serves an outdated official CUP/USD rate. Override it with
+    // Yadio's real market rate so CUP balances reflect reality.
+    const yadioCupRate = await yadioCupRatePromise
+    if (yadioCupRate !== undefined) {
+        fiatUsdRates[SupportedCurrency.CUP] = yadioCupRate
+    }
 
     return { btcUsdRate, fiatUsdRates }
 })
